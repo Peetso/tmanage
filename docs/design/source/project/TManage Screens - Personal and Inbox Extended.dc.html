@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family:'Satoshi'; src:url('./design/assets/fonts/Satoshi-Variable.woff2') format('woff2'); font-weight:300 900; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Manrope'; src:url('./design/assets/fonts/Manrope-Variable.ttf') format('truetype'); font-weight:200 800; font-style:normal; font-display:swap; }
+  body { margin:0; background:#2C2E29; font-family:Satoshi, Manrope, system-ui, sans-serif; }
+  a { color:#4D5049; text-decoration:none; border-bottom:1px solid #C5C7C0; }
+  a:hover { color:#090A09; border-bottom-color:#9CEA3F; }
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;gap:52px;padding:56px;background:#2C2E29;min-height:100vh">
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">HOME-02 … HOME-05 · IN-02 … IN-07 · PERSONAL FOCUS AND INBOX REMAINDER</div>
+    <div style="font:400 13px/19px Manrope;color:#A7ACA0;max-width:940px">All nine screens share the Orbital Rail, canvas header and filter capsules already established. Ranking is always explained and tunable; nothing is ordered by a hidden score.</div>
+  </div>
+
+  <div data-screen-label="HOME-02 Focus plan" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">HOME-02 · FOCUS PLAN · TIME BLOCKS, RANKING REASONS, TUNE/DISMISS, CONFLICT · 1440×800</div>
+    <div style="width:1440px;height:800px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex">
+      <div style="width:88px;flex-shrink:0;padding:20px 0;display:flex;flex-direction:column;align-items:center;gap:14px;background:#E4E4DF">
+        <div style="width:44px;height:44px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:24px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+        <div style="width:24px;height:1px;background:#C5C7C0"></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:42px;height:42px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:500 14px/1 'Geist Mono',monospace;color:#F7F7F3;white-space:nowrap">◉</div><div style="font:600 9px/12px Satoshi;color:#090A09">My Day</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:42px;height:42px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 14px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">✉</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Inbox</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:42px;height:42px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 14px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">◌</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Chat</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:42px;height:42px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 14px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">▤</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Work</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:42px;height:42px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 14px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">◫</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Docs</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:42px;height:42px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 14px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">⇪</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Files</div></div>
+        <div style="margin-top:auto;width:42px;height:42px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 13px/1 Satoshi;color:#F7F7F3;white-space:nowrap">OA</div>
+      </div>
+
+      <div style="flex:1;min-width:0;padding:28px 32px 0 12px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;align-items:flex-end;gap:20px">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">MY DAY · FOCUS PLAN · FRI 14 AUG</div>
+            <div style="font:500 48px/52px Satoshi;letter-spacing:-0.025em;color:#090A09">Four hours of real work left today</div>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="padding:11px 18px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Tune what reaches me</div>
+            <div style="padding:11px 18px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Protect a focus block</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:20px;flex:1;min-height:0">
+          <div style="flex:1.25;min-width:0;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:12px"><div style="font:600 20px/27px Satoshi;color:#090A09">Today’s plan</div><div style="font:400 12px/17px Manrope;color:#74786F">4 blocks · 1 conflict</div></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:14px;align-items:stretch">
+                <div style="width:74px;flex-shrink:0;padding-top:14px;font:500 12px/17px 'Geist Mono',monospace;color:#74786F">11:30</div>
+                <div style="flex:1;background:#B7FF57;border-radius:24px;padding:18px 20px;display:flex;align-items:center;gap:16px">
+                  <div style="width:44px;height:44px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:500 16px/1 'Geist Mono',monospace;color:#B7FF57;white-space:nowrap">▸</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 17px/23px Satoshi;color:#090A09">Publish Homepage Concept v2</div><div style="font:400 12px/17px Manrope;color:#232521">45 min · blocks the 18 Aug milestone · Youssef reviews at 14:00</div></div>
+                  <div style="padding:7px 14px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Start</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:14px;align-items:stretch">
+                <div style="width:74px;flex-shrink:0;padding-top:14px;font:500 12px/17px 'Geist Mono',monospace;color:#74786F">13:00</div>
+                <div style="flex:1;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:18px 20px;display:flex;align-items:center;gap:16px">
+                  <div style="width:44px;height:44px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">▤</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 16px/22px Satoshi;color:#090A09">Triage Salma’s Arabic FAQ request</div><div style="font:400 12px/17px Manrope;color:#4D5049">20 min · 2 days old · a commitment decision, not a task</div></div>
+                  <div style="padding:7px 14px;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Open</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:14px;align-items:stretch">
+                <div style="width:74px;flex-shrink:0;padding-top:14px;font:500 12px/17px 'Geist Mono',monospace;color:#C96F18">14:00</div>
+                <div style="flex:1;background:#FFFFFF;border:1.5px solid #C96F18;border-radius:24px;padding:18px 20px;display:flex;align-items:center;gap:16px">
+                  <div style="width:44px;height:44px;border-radius:999px;border:2px solid #C96F18;display:grid;place-items:center;font:600 15px/1 'Geist Mono',monospace;color:#C96F18;white-space:nowrap">!</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 16px/22px Satoshi;color:#232521">Conflict — two things at 14:00</div><div style="font:400 12px/17px Manrope;color:#4D5049">“Client approval due” overlaps your protected focus block. The approval has a hard external deadline.</div></div>
+                  <div style="display:flex;gap:8px"><div style="padding:7px 14px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Move focus to 15:00</div><div style="padding:7px 14px;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Keep both</div></div>
+                </div>
+              </div>
+              <div style="display:flex;gap:14px;align-items:stretch">
+                <div style="width:74px;flex-shrink:0;padding-top:14px;font:500 12px/17px 'Geist Mono',monospace;color:#74786F">16:00</div>
+                <div style="flex:1;background:#FFFFFF;border:1px dashed #C5C7C0;border-radius:24px;padding:18px 20px;display:flex;align-items:center;gap:16px">
+                  <div style="width:44px;height:44px;border-radius:999px;background:#F7F7F3;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#74786F;white-space:nowrap">◔</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 16px/22px Satoshi;color:#4D5049">Protected focus · 90 min</div><div style="font:400 12px/17px Manrope;color:#74786F">Notifications hold except client actions and blockers you own.</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="width:400px;flex-shrink:0;display:flex;flex-direction:column;gap:14px">
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+              <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WHY THIS ORDER</div>
+              <div style="display:flex;gap:12px"><div style="width:22px;height:22px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 10px/1 'Geist Mono',monospace;color:#B7FF57;white-space:nowrap">1</div><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">You own a committed milestone in 4 days</div><div style="font:400 11px/16px Manrope;color:#74786F">weight: high · from your commitments</div></div></div>
+              <div style="display:flex;gap:12px"><div style="width:22px;height:22px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 10px/1 'Geist Mono',monospace;color:#B7FF57;white-space:nowrap">2</div><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">A client action has been open 26 hours</div><div style="font:400 11px/16px Manrope;color:#74786F">weight: high · client waits rank above internal</div></div></div>
+              <div style="display:flex;gap:12px"><div style="width:22px;height:22px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 10px/1 'Geist Mono',monospace;color:#B7FF57;white-space:nowrap">3</div><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">An uncommitted request is ageing</div><div style="font:400 11px/16px Manrope;color:#74786F">weight: medium · 2 days without triage</div></div></div>
+              <div style="height:1px;background:#E9E9E5"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <div style="padding:8px 14px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Lower client waits</div>
+                <div style="padding:8px 14px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Raise blockers</div>
+                <div style="padding:8px 14px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Reset to default</div>
+              </div>
+              <div style="font:400 11px/16px Manrope;color:#74786F">Tuning affects only your ordering. It never hides work — dismissed items move to Personal work.</div>
+            </div>
+            <div style="background:#121311;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+              <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#A7ACA0">DISMISSED TODAY · 2</div>
+              <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:#242720;border-radius:14px"><div style="flex:1;font:500 12px/17px Satoshi;color:#F5F6F0">Review Harbour moodboard</div><div style="font:500 11px/15px Satoshi;color:#A9ED55">Undo</div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:#242720;border-radius:14px"><div style="flex:1;font:500 12px/17px Satoshi;color:#F5F6F0">Comment on Meridian spec</div><div style="font:500 11px/15px Satoshi;color:#A9ED55">Undo</div></div>
+              <div style="font:400 11px/16px Manrope;color:#A7ACA0">Dismissing changes today’s plan only. Commitments and their dates are untouched.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">HOME-03 · PERSONAL WORK · HOME-04 · WAITING · ASSIGNED/CREATED/FOLLOWING AND DELEGATED/STALE</div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <div data-screen-label="HOME-03 Personal work" style="width:760px;height:700px;background:#E9E9E5;border-radius:24px;overflow:hidden;padding:32px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+        <div style="display:flex;align-items:flex-end;gap:16px">
+          <div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">MY DAY · PERSONAL WORK</div><div style="font:600 32px/38px Satoshi;letter-spacing:-0.015em;color:#090A09">Everything of mine, everywhere</div></div>
+          <div style="margin-left:auto;font:500 12px/17px Satoshi;color:#4D5049;padding-bottom:6px">4 projects</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="padding:9px 16px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Assigned · 14</div>
+          <div style="padding:9px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Created · 31</div>
+          <div style="padding:9px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Following · 9</div>
+          <div style="margin-left:auto;font:500 12px/17px Satoshi;color:#4D5049">Group · Project</div>
+        </div>
+        <div style="flex:1;min-height:0;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 16px;background:#F7F7F3;border-bottom:1px solid #E9E9E5"><div style="font:600 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#232521">ATLAS WEBSITE RELAUNCH</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">6</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="font:500 10px/1 'Geist Mono',monospace;color:#74786F">DEL</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Homepage Concept v2</div><div style="display:flex;align-items:center;gap:6px;padding:3px 10px;background:#B7FF57;border-radius:999px"><div style="font:600 11px/15px Satoshi;color:#090A09;white-space:nowrap">Client review</div></div><div style="width:76px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#090A09">18 Aug</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="font:500 10px/1 'Geist Mono',monospace;color:#74786F">DOC</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Homepage direction — decision record</div><div style="display:flex;align-items:center;gap:6px;padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">In progress</div></div><div style="width:76px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#090A09">18 Aug</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="font:500 10px/1 'Geist Mono',monospace;color:#74786F">TSK</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Confirm launch-week content freeze</div><div style="display:flex;align-items:center;gap:6px;padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Not started</div></div><div style="width:76px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">22 Aug</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 16px;background:#F7F7F3;border-bottom:1px solid #E9E9E5"><div style="font:600 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#232521">MERIDIAN APP</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">5</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="font:500 10px/1 'Geist Mono',monospace;color:#74786F">DEL</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Onboarding flow v4</div><div style="display:flex;align-items:center;gap:6px;padding:3px 10px;background:#FFFFFF;border:1px dashed #D9474F;border-radius:999px"><div style="font:500 11px/15px Satoshi;color:#D9474F;white-space:nowrap">Approval invalidated</div></div><div style="width:76px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#C96F18">26 Aug</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="font:500 10px/1 'Geist Mono',monospace;color:#74786F">TSK</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Rewrite empty-state copy</div><div style="display:flex;align-items:center;gap:6px;padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">In progress</div></div><div style="width:76px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">—</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 16px;background:#F7F7F3;border-bottom:1px solid #E9E9E5"><div style="font:600 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#232521">INTERNAL — OPS</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">3</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 16px"><div style="font:500 10px/1 'Geist Mono',monospace;color:#74786F">TSK</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Quarterly capacity review prep</div><div style="display:flex;align-items:center;gap:6px;padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Not started</div></div><div style="width:76px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">1 Sep</div></div>
+        </div>
+      </div>
+
+      <div data-screen-label="HOME-04 Waiting" style="width:620px;height:700px;background:#E9E9E5;border-radius:24px;overflow:hidden;padding:32px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+        <div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">MY DAY · WAITING</div><div style="font:600 32px/38px Satoshi;letter-spacing:-0.015em;color:#090A09">Not mine to do</div></div>
+        <div style="display:flex;gap:8px">
+          <div style="padding:9px 16px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">All · 9</div>
+          <div style="padding:9px 16px;background:#FFFFFF;border:1.5px solid #7755C7;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Client · 2</div>
+          <div style="padding:9px 16px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:500 12px/17px Satoshi;color:#C96F18;white-space:nowrap">Stale · 3</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="background:#FFFFFF;border:1.5px solid #C96F18;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#7755C7;white-space:nowrap">YK</div><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Youssef Kamal · client approval</div><div style="margin-left:auto;font:600 11px/15px Satoshi;color:#C96F18">26h</div></div>
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Homepage Concept v2</div>
+            <div style="display:flex;gap:8px"><div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Nudge</div><div style="padding:8px 14px;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Reassign authority</div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#4D5049;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#F7F7F3;white-space:nowrap">NF</div><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Noor Fathy · delegated by you</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">5h</div></div>
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Migrate Arabic booking FAQ copy</div>
+            <div style="font:400 12px/17px Manrope;color:#4D5049">In progress · forecast 8 Sep against a committed 1 Sep.</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#F7F7F3;white-space:nowrap">MH</div><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Maya Hassan · internal review</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">2h</div></div>
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Onboarding flow v4 criteria</div>
+            <div style="font:400 12px/17px Manrope;color:#4D5049">2 of 4 criteria confirmed.</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px dashed #C96F18;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#7755C7;white-space:nowrap">SR</div><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Salma Riad · unanswered question</div><div style="margin-left:auto;font:600 11px/15px Satoshi;color:#C96F18">2 days · stale</div></div>
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Does the FAQ cover group bookings?</div>
+            <div style="font:400 12px/17px Manrope;color:#4D5049">A stale client question blocks a commitment being made at all.</div>
+          </div>
+        </div>
+        <div style="margin-top:auto;display:flex;gap:12px;padding:16px;background:#FFFFFF;border:1px dashed #C5C7C0;border-radius:24px">
+          <div style="width:22px;height:22px;border-radius:999px;border:1.5px solid #74786F;display:grid;place-items:center;font:600 10px/1 'Geist Mono',monospace;color:#74786F;flex-shrink:0;white-space:nowrap">i</div>
+          <div style="font:400 12px/17px Manrope;color:#4D5049">Waiting is measured from when the other person could first act, not from when you asked.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">HOME-05 · SAVED / PINNED CONTEXT · IN-02 · ALL INBOX · IN-03 · WAITING ON ME</div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <div data-screen-label="HOME-05 Saved context" style="width:600px;height:660px;background:#E9E9E5;border-radius:24px;overflow:hidden;padding:32px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+        <div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">MY DAY · SAVED &amp; PINNED</div><div style="font:600 30px/36px Satoshi;letter-spacing:-0.015em;color:#090A09">Things I keep coming back to</div></div>
+        <div style="display:flex;gap:8px">
+          <div style="padding:9px 16px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">By project</div>
+          <div style="padding:9px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">By type</div>
+          <div style="padding:9px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Recently saved</div>
+        </div>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:14px">
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="font:600 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#232521">ATLAS WEBSITE RELAUNCH</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">5 SAVED</div></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F7F7F3;border-radius:14px"><div style="width:28px;height:28px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:500 11px/1 'Geist Mono',monospace;color:#B7FF57;white-space:nowrap">◫</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Project brief</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">DOC · PINNED</div></div></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F7F7F3;border-radius:14px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 11px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">◌</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Booking CTA wording agreed</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">MESSAGE · #ATLAS-RELAUNCH · 13 AUG</div></div></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F7F7F3;border-radius:14px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 11px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">⇪</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">brand-guidelines-2026.pdf</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">FILE · SCANNED · 4.2 MB</div></div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="font:600 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#232521">MERIDIAN APP</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">2 SAVED</div></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F7F7F3;border-radius:14px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 11px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">▤</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Onboarding flow v4</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">DELIVERABLE · APPROVAL INVALIDATED</div></div></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F7F7F3;border-radius:14px;opacity:0.6"><div style="width:28px;height:28px;border-radius:999px;background:#E9E9E5;display:grid;place-items:center;font:500 11px/1 'Geist Mono',monospace;color:#74786F;white-space:nowrap">⃠</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#4D5049;white-space:nowrap">Pricing model draft</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">NO LONGER ACCESSIBLE · ACCESS CHANGED 13 AUG</div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div data-screen-label="IN-02 All inbox" style="width:760px;height:660px;background:#E9E9E5;border-radius:24px;overflow:hidden;padding:32px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:flex-end;gap:16px">
+          <div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">INBOX · ALL EVENTS</div><div style="font:600 30px/36px Satoshi;letter-spacing:-0.015em;color:#090A09">Everything, grouped</div></div>
+          <div style="margin-left:auto;font:500 12px/17px Satoshi;color:#4D5049;padding-bottom:6px">42 events · 3 need you</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="padding:8px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Important</div>
+          <div style="padding:8px 16px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">All</div>
+          <div style="padding:8px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Mentions · 4</div>
+          <div style="margin-left:auto;font:500 12px/17px Satoshi;color:#4D5049">Group · Object</div>
+        </div>
+        <div style="flex:1;min-height:0;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 16px;background:#F7F7F3;border-bottom:1px solid #E9E9E5"><div style="font:600 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#232521">HOMEPAGE CONCEPT V2</div><div style="padding:2px 8px;background:#B7FF57;border-radius:999px;font:600 10px/14px Satoshi;color:#090A09;white-space:nowrap">NEEDS YOU</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">6 EVENTS</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="width:22px;height:22px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 9px/1 Satoshi;color:#7755C7;white-space:nowrap">YK</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Approval still not started</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#C96F18">26h</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="width:22px;height:22px;border-radius:999px;background:#4D5049;display:grid;place-items:center;font:600 9px/1 Satoshi;color:#F7F7F3;white-space:nowrap">LS</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Marked v2 ready for client review</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">11:02</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="width:22px;height:22px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 9px/1 Satoshi;color:#F7F7F3;white-space:nowrap">MH</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Passed internal review · 4 of 4 criteria</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">09:48</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 16px;background:#F7F7F3;border-bottom:1px solid #E9E9E5"><div style="font:600 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#232521">#ATLAS-RELAUNCH</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">14 EVENTS</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="width:22px;height:22px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 9px/1 Satoshi;color:#7755C7;white-space:nowrap">SR</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Mentioned you in a thread</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">10:58</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="width:22px;height:22px;border-radius:999px;background:#4D5049;display:grid;place-items:center;font:600 9px/1 Satoshi;color:#F7F7F3;white-space:nowrap">KN</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Shared 3 files in the channel</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">09:12</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 16px;background:#F7F7F3;border-bottom:1px solid #E9E9E5"><div style="font:600 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#232521">AUTOMATION · CHASE CLIENT APPROVALS</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">3 EVENTS</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="width:22px;height:22px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 9px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">⚙</div><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Run skipped · reviewer authority had moved</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">08:00</div></div>
+          <div style="display:flex;align-items:center;justify-content:center;height:38px;background:#F7F7F3;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">23 older events · load more</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">IN-03 · WAITING ON ME · IN-04 · CLIENT ACTIONS · IN-06 · NOTIFICATION HISTORY · IN-07 · DIGEST PREVIEW</div>
+    <div style="display:flex;gap:28px;flex-wrap:wrap">
+
+      <div data-screen-label="IN-03 Waiting on me" style="width:600px;height:640px;background:#E9E9E5;border-radius:24px;overflow:hidden;padding:32px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+        <div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">INBOX · WAITING ON ME</div><div style="font:600 30px/36px Satoshi;letter-spacing:-0.015em;color:#090A09">Four people are blocked by me</div></div>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <div style="background:#FFFFFF;border:1.5px solid #090A09;border-radius:20px;padding:16px;display:flex;align-items:center;gap:14px">
+            <div style="width:34px;height:34px;border-radius:999px;background:#B7FF57;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#090A09;white-space:nowrap">✓</div>
+            <div style="flex:1;min-width:0"><div style="font:600 15px/21px Satoshi;color:#090A09">Approve Onboarding flow v4</div><div style="font:400 11px/16px Manrope;color:#74786F">Maya Hassan · internal approval · waiting 2h</div></div>
+            <div style="padding:8px 16px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Review</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:20px;padding:16px;display:flex;align-items:center;gap:14px">
+            <div style="width:34px;height:34px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">◌</div>
+            <div style="flex:1;min-width:0"><div style="font:600 15px/21px Satoshi;color:#090A09">Reply to Lina about brand assets</div><div style="font:400 11px/16px Manrope;color:#74786F">#atlas-relaunch · blocking a commitment · 3h</div></div>
+            <div style="padding:8px 16px;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Reply</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:20px;padding:16px;display:flex;align-items:center;gap:14px">
+            <div style="width:34px;height:34px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">▤</div>
+            <div style="flex:1;min-width:0"><div style="font:600 15px/21px Satoshi;color:#090A09">Commit a date for the Arabic FAQ</div><div style="font:400 11px/16px Manrope;color:#74786F">Salma Riad · request untriaged · 2 days</div></div>
+            <div style="padding:8px 16px;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Triage</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:20px;padding:16px;display:flex;align-items:center;gap:14px">
+            <div style="width:34px;height:34px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">⇪</div>
+            <div style="flex:1;min-width:0"><div style="font:600 15px/21px Satoshi;color:#090A09">Upload the signed scope addendum</div><div style="font:400 11px/16px Manrope;color:#74786F">Meridian App · requested by Karim · 1 day</div></div>
+            <div style="padding:8px 16px;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Upload</div>
+          </div>
+        </div>
+        <div style="margin-top:auto;display:flex;align-items:center;gap:14px;padding:18px;background:#F7F7F3;border:1px dashed #C5C7C0;border-radius:24px">
+          <div style="width:32px;height:32px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#74786F;white-space:nowrap">✓</div>
+          <div style="font:400 13px/19px Manrope;color:#4D5049">Clearing this queue is the fastest way to unblock other people’s commitments.</div>
+        </div>
+      </div>
+
+      <div data-screen-label="IN-04 Client actions" style="width:600px;height:640px;background:#E9E9E5;border-radius:24px;overflow:hidden;padding:32px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+        <div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">INBOX · CLIENT ACTIONS</div><div style="font:600 30px/36px Satoshi;letter-spacing:-0.015em;color:#090A09">What clients sent or owe</div></div>
+        <div style="display:flex;gap:8px">
+          <div style="padding:8px 16px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">All · 6</div>
+          <div style="padding:8px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">They owe us · 2</div>
+          <div style="padding:8px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">We owe them · 4</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <div style="background:#B7FF57;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#B7FF57;white-space:nowrap">YK</div><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Youssef Kamal · Atlas Hospitality</div><div style="margin-left:auto;font:600 11px/15px Satoshi;color:#090A09">OWES US · 26h</div></div>
+            <div style="font:600 17px/23px Satoshi;color:#090A09">Approval of Homepage Concept v2</div>
+            <div style="display:flex;gap:8px"><div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Nudge</div><div style="padding:8px 14px;background:#FFFFFF;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Extend</div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#7755C7;white-space:nowrap">SR</div><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Salma Riad · new request</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">WE OWE · 2D</div></div>
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Add Arabic booking FAQ before launch</div>
+            <div style="font:400 12px/17px Manrope;color:#4D5049">Desired 3 Sep · not committed. Needs triage.</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#7755C7;white-space:nowrap">RM</div><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Rania Mostafa · Meridian Group</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">OWES US · 4D</div></div>
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Upload brand assets pack</div>
+            <div style="font:400 12px/17px Manrope;color:#C96F18">This upload is blocking one internal commitment.</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#7755C7;white-space:nowrap">SR</div><div style="font:500 11px/15px Satoshi;color:#232521;white-space:nowrap">Salma Riad · question</div><div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">WE OWE · 2D</div></div>
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Does the FAQ cover group bookings?</div>
+          </div>
+        </div>
+      </div>
+
+      <div data-screen-label="IN-06 Notification history" style="width:640px;height:640px;background:#E9E9E5;border-radius:24px;overflow:hidden;padding:32px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+        <div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">INBOX · NOTIFICATION HISTORY</div><div style="font:600 30px/36px Satoshi;letter-spacing:-0.015em;color:#090A09">What we sent you, and where</div></div>
+        <div style="display:flex;gap:8px">
+          <div style="padding:8px 16px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">All channels</div>
+          <div style="padding:8px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Email</div>
+          <div style="padding:8px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">In app</div>
+          <div style="padding:8px 16px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:500 12px/17px Satoshi;color:#C96F18;white-space:nowrap">Failed · 1</div>
+        </div>
+        <div style="flex:1;min-height:0;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:12px;height:34px;padding:0 16px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#74786F">EVENT</div><div style="width:84px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">CHANNEL</div><div style="width:96px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">STATE</div><div style="width:62px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">WHEN</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Approval waiting · Homepage Concept v2</div><div style="width:84px;font:400 11px/15px 'Geist Mono',monospace;color:#4D5049">IN APP</div><div style="width:96px"><div style="padding:3px 9px;background:#B7FF57;border-radius:999px;width:fit-content;font:600 10px/14px Satoshi;color:#090A09;white-space:nowrap">actioned</div></div><div style="width:62px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">11:02</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Mentioned by Salma Riad</div><div style="width:84px;font:400 11px/15px 'Geist Mono',monospace;color:#4D5049">EMAIL</div><div style="width:96px"><div style="padding:3px 9px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;width:fit-content;font:500 10px/14px Satoshi;color:#232521;white-space:nowrap">read</div></div><div style="width:62px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">10:59</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 16px;border-bottom:1px solid #E9E9E5"><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Internal review passed · 4 of 4</div><div style="width:84px;font:400 11px/15px 'Geist Mono',monospace;color:#4D5049">IN APP</div><div style="width:96px"><div style="padding:3px 9px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;width:fit-content;font:500 10px/14px Satoshi;color:#232521;white-space:nowrap">delivered</div></div><div style="width:62px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">09:48</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 16px;border-bottom:1px solid #E9E9E5;border-left:3px solid #C96F18"><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Daily digest</div><div style="font:400 11px/15px Manrope;color:#C96F18">Mailbox rejected the message · will retry at 18:00</div></div><div style="width:84px;font:400 11px/15px 'Geist Mono',monospace;color:#4D5049">EMAIL</div><div style="width:96px"><div style="padding:3px 9px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;width:fit-content;font:600 10px/14px Satoshi;color:#C96F18;white-space:nowrap">failed</div></div><div style="width:62px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">08:00</div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 16px"><div style="flex:1;min-width:0;font:500 13px/18px Satoshi;color:#74786F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Focus block starting · held during quiet hours</div><div style="width:84px;font:400 11px/15px 'Geist Mono',monospace;color:#4D5049">IN APP</div><div style="width:96px"><div style="padding:3px 9px;background:#D5D6D1;border-radius:999px;width:fit-content;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">suppressed</div></div><div style="width:62px;text-align:right;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">07:00</div></div>
+        </div>
+      </div>
+
+      <div data-screen-label="IN-07 Digest preview" style="width:560px;height:640px;background:#E9E9E5;border-radius:24px;overflow:hidden;padding:32px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+        <div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">INBOX · DIGEST PREVIEW</div><div style="font:600 30px/36px Satoshi;letter-spacing:-0.015em;color:#090A09">Your daily digest</div></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:2px;padding:4px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px">
+            <div style="padding:7px 14px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Daily</div>
+            <div style="padding:7px 14px;font:500 12px/17px Satoshi;color:#4D5049">Weekly</div>
+          </div>
+          <div style="font:400 11px/16px 'Geist Mono',monospace;color:#74786F">SENDS 08:00 AFRICA/CAIRO · WEEKDAYS</div>
+        </div>
+        <div style="flex:1;min-height:0;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:10px;padding-bottom:14px;border-bottom:1px solid #E9E9E5">
+            <div style="width:32px;height:32px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:18px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+            <div><div style="font:600 13px/18px Satoshi;color:#090A09">Your day at Northstar Studio</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">FRIDAY 14 AUGUST</div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">NEEDS YOU · 3</div>
+            <div style="font:500 14px/21px Satoshi;color:#090A09">Publish Homepage Concept v2 — blocks the 18 Aug milestone</div>
+            <div style="font:500 14px/21px Satoshi;color:#090A09">Triage Salma’s Arabic FAQ request — 2 days old</div>
+            <div style="font:500 14px/21px Satoshi;color:#090A09">Approve Onboarding flow v4 for Maya</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WAITING ON OTHERS · 2</div>
+            <div style="font:400 14px/21px Manrope;color:#4D5049">Youssef Kamal has had an approval open for 26 hours</div>
+            <div style="font:400 14px/21px Manrope;color:#4D5049">Content migration forecast moved to 8 September</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">NOT INCLUDED</div>
+            <div style="font:400 12px/17px Manrope;color:#74786F">Chat messages, file uploads and automation runs stay in the app. A digest that repeats everything gets ignored.</div>
+          </div>
+          <div style="margin-top:auto;display:flex;gap:10px"><div style="padding:11px 18px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Send me one now</div><div style="padding:11px 18px;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Change schedule</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

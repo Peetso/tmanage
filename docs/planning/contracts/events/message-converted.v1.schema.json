@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.tmanage.example/events/message-converted.v1.schema.json",
+  "title": "message.converted.v1 payload",
+  "type": "object",
+  "required": ["messageId", "conversationId", "projectId", "workItemId", "audience"],
+  "properties": {
+    "messageId": { "type": "string", "format": "uuid" },
+    "conversationId": { "type": "string", "format": "uuid" },
+    "projectId": { "type": "string", "format": "uuid" },
+    "workItemId": { "type": "string", "format": "uuid" },
+    "audience": { "type": "string", "enum": ["internal", "client_visible", "client_action_required"] }
+  },
+  "additionalProperties": false
+}

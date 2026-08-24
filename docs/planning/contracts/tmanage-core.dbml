@@ -1,0 +1,417 @@
+// MySQL/MariaDB conceptual implementation starter.
+// UUIDv7 is application-generated and stored as canonical lowercase CHAR(36).
+// All datetime(3) values are UTC. JSON holds structured content, never tenant/permission relations.
+// Module migrations must add composite (organization_id, id) unique keys and
+// composite tenant foreign keys before production code can read or write tenant data.
+
+Enum membership_status { invited active suspended offboarded }
+Enum audience { internal client_visible client_action_required }
+Enum request_status { submitted triage needs_clarification accepted deferred declined planned delivered withdrawn }
+Enum deliverable_status { draft internal_review ready_for_client client_review changes_requested approved final archived }
+Enum approval_status { draft requested viewed approved changes_requested expired cancelled invalidated }
+Enum file_status { created uploading uploaded verifying scanning ready rejected expired cancelled }
+
+Table users {
+  id char(36) [pk]
+  email varchar [not null, unique]
+  display_name varchar [not null]
+  locale varchar [not null, default: 'en']
+  timezone varchar [not null, default: 'UTC']
+  created_at datetime(3) [not null]
+}
+
+Table organizations {
+  id char(36) [pk]
+  name varchar [not null]
+  slug varchar [not null, unique]
+  default_locale varchar [not null]
+  timezone varchar [not null]
+  created_at datetime(3) [not null]
+}
+
+Table memberships {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  user_id char(36) [not null, ref: > users.id]
+  role varchar [not null]
+  status membership_status [not null]
+  version bigint [not null, default: 1]
+  created_at datetime(3) [not null]
+  indexes { (organization_id, user_id) [unique] }
+}
+
+Table sessions {
+  id char(36) [pk]
+  user_id char(36) [not null, ref: > users.id]
+  refresh_token_hash varchar [not null]
+  expires_at datetime(3) [not null]
+  revoked_at datetime(3)
+  created_at datetime(3) [not null]
+}
+
+Table workspaces {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  name varchar [not null]
+  created_at datetime(3) [not null]
+  indexes { organization_id }
+}
+
+Table projects {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  workspace_id char(36) [not null, ref: > workspaces.id]
+  name varchar [not null]
+  status varchar [not null, default: 'active']
+  owner_user_id char(36) [ref: > users.id]
+  committed_at datetime(3)
+  forecast_at datetime(3)
+  created_at datetime(3) [not null]
+  archived_at datetime(3)
+  indexes { (organization_id, workspace_id) }
+}
+
+Table project_memberships {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  project_id char(36) [not null, ref: > projects.id]
+  user_id char(36) [not null, ref: > users.id]
+  role varchar [not null]
+  created_at datetime(3) [not null]
+  indexes { (organization_id, project_id, user_id) [unique] }
+}
+
+Table client_organizations {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  name varchar [not null]
+  created_at datetime(3) [not null]
+  indexes { organization_id }
+}
+
+Table client_memberships {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  client_organization_id char(36) [not null, ref: > client_organizations.id]
+  user_id char(36) [not null, ref: > users.id]
+  role varchar [not null]
+  status membership_status [not null]
+  expires_at datetime(3)
+  created_at datetime(3) [not null]
+  indexes { (organization_id, client_organization_id, user_id) [unique] }
+}
+
+Table project_clients {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  project_id char(36) [not null, ref: > projects.id]
+  client_organization_id char(36) [not null, ref: > client_organizations.id]
+  created_at datetime(3) [not null]
+  indexes { (organization_id, project_id, client_organization_id) [unique] }
+}
+
+Table conversations {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  project_id char(36) [ref: > projects.id]
+  kind varchar [not null]
+  audience audience [not null, default: 'internal']
+  name varchar
+  created_at datetime(3) [not null]
+  indexes { (organization_id, project_id) }
+}
+
+Table messages {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  conversation_id char(36) [not null, ref: > conversations.id]
+  author_user_id char(36) [not null, ref: > users.id]
+  parent_message_id char(36) [ref: > messages.id]
+  sequence_no bigint [not null]
+  content_json json [not null]
+  audience audience [not null]
+  edited_at datetime(3)
+  created_at datetime(3) [not null]
+  indexes { (organization_id, conversation_id, sequence_no) [unique] }
+}
+
+Table work_items {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  project_id char(36) [not null, ref: > projects.id]
+  source_message_id char(36) [ref: > messages.id]
+  type varchar [not null]
+  title varchar [not null]
+  state varchar [not null]
+  owner_user_id char(36) [ref: > users.id]
+  audience audience [not null, default: 'internal']
+  start_at datetime(3)
+  due_at datetime(3)
+  version bigint [not null, default: 1]
+  created_at datetime(3) [not null]
+  updated_at datetime(3) [not null]
+  indexes { (organization_id, project_id, state, due_at) (organization_id, owner_user_id, state, due_at) }
+}
+
+Table client_requests {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  project_id char(36) [not null, ref: > projects.id]
+  client_organization_id char(36) [not null, ref: > client_organizations.id]
+  requester_user_id char(36) [not null, ref: > users.id]
+  accepted_work_item_id char(36) [ref: > work_items.id]
+  title varchar [not null]
+  description_json json [not null]
+  desired_at datetime(3)
+  committed_at datetime(3)
+  status request_status [not null]
+  version bigint [not null, default: 1]
+  created_at datetime(3) [not null]
+  updated_at datetime(3) [not null]
+  indexes { (organization_id, project_id, status) }
+}
+
+Table file_assets {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  owner_user_id char(36) [not null, ref: > users.id]
+  name varchar [not null]
+  status file_status [not null]
+  created_at datetime(3) [not null]
+  indexes { organization_id }
+}
+
+Table file_versions {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  file_asset_id char(36) [not null, ref: > file_assets.id]
+  version_no int [not null]
+  object_key varchar [not null]
+  content_hash varchar [not null]
+  mime_type varchar [not null]
+  size_bytes bigint [not null]
+  created_at datetime(3) [not null]
+  indexes { (organization_id, file_asset_id, version_no) [unique] }
+}
+
+Table plan_versions {
+  id char(36) [pk]
+  plan_code varchar [not null]
+  version_no int [not null]
+  entitlements_json json [not null]
+  effective_at datetime(3) [not null]
+  retired_at datetime(3)
+  created_at datetime(3) [not null]
+  indexes { (plan_code, version_no) [unique] (plan_code, effective_at) }
+}
+
+Table subscriptions {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  plan_version_id char(36) [not null, ref: > plan_versions.id]
+  status varchar [not null]
+  provider varchar
+  provider_customer_ref varchar
+  provider_subscription_ref varchar
+  current_period_start datetime(3)
+  current_period_end datetime(3)
+  created_at datetime(3) [not null]
+  updated_at datetime(3) [not null]
+  indexes { (organization_id, status) (provider, provider_subscription_ref) [unique] }
+}
+
+Table organization_entitlements {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  subscription_id char(36) [ref: > subscriptions.id]
+  entitlement_key varchar [not null]
+  value_json json [not null]
+  source varchar [not null]
+  effective_at datetime(3) [not null]
+  expires_at datetime(3)
+  created_at datetime(3) [not null]
+  indexes { (organization_id, entitlement_key, effective_at) }
+}
+
+Table seat_assignments {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  membership_id char(36) [not null, ref: > memberships.id]
+  classification varchar [not null]
+  assigned_at datetime(3) [not null]
+  released_at datetime(3)
+  created_at datetime(3) [not null]
+  indexes { (organization_id, membership_id, released_at) (organization_id, classification, released_at) }
+}
+
+Table usage_counters {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  metric_key varchar [not null]
+  used_value bigint [not null, default: 0]
+  reserved_value bigint [not null, default: 0]
+  version bigint [not null, default: 1]
+  reconciled_at datetime(3)
+  updated_at datetime(3) [not null]
+  indexes { (organization_id, metric_key) [unique] }
+}
+
+Table storage_reservations {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  project_id char(36) [ref: > projects.id]
+  actor_user_id char(36) [not null, ref: > users.id]
+  idempotency_key varchar [not null]
+  declared_bytes bigint [not null]
+  committed_bytes bigint
+  status varchar [not null]
+  expires_at datetime(3) [not null]
+  created_at datetime(3) [not null]
+  completed_at datetime(3)
+  indexes { (organization_id, idempotency_key) [unique] (organization_id, status, expires_at) }
+}
+
+Table usage_ledger_entries {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  project_id char(36) [ref: > projects.id]
+  metric_key varchar [not null]
+  delta_value bigint [not null]
+  reason varchar [not null]
+  object_type varchar
+  object_id char(36)
+  source_event_id char(36)
+  idempotency_key varchar [not null]
+  occurred_at datetime(3) [not null]
+  created_at datetime(3) [not null]
+  indexes { (organization_id, metric_key, occurred_at) (organization_id, idempotency_key) [unique] }
+}
+
+Table billing_events {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  provider varchar
+  provider_event_id varchar
+  type varchar [not null]
+  payload_hash varchar [not null]
+  status varchar [not null]
+  received_at datetime(3) [not null]
+  processed_at datetime(3)
+  indexes { (provider, provider_event_id) [unique] (organization_id, received_at) }
+}
+
+Table deliverables {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  project_id char(36) [not null, ref: > projects.id]
+  title varchar [not null]
+  status deliverable_status [not null]
+  created_at datetime(3) [not null]
+  indexes { (organization_id, project_id, status) }
+}
+
+Table deliverable_versions {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  deliverable_id char(36) [not null, ref: > deliverables.id]
+  version_no int [not null]
+  content_hash varchar [not null]
+  client_projection_json json
+  published_at datetime(3)
+  created_at datetime(3) [not null]
+  indexes { (organization_id, deliverable_id, version_no) [unique] }
+}
+
+Table deliverable_version_files {
+  organization_id char(36) [not null, ref: > organizations.id]
+  deliverable_version_id char(36) [not null, ref: > deliverable_versions.id]
+  file_version_id char(36) [not null, ref: > file_versions.id]
+  indexes { (organization_id, deliverable_version_id, file_version_id) [pk] }
+}
+
+Table approvals {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  deliverable_version_id char(36) [not null, ref: > deliverable_versions.id]
+  content_hash varchar [not null]
+  policy varchar [not null]
+  status approval_status [not null]
+  due_at datetime(3)
+  created_at datetime(3) [not null]
+  indexes { (organization_id, deliverable_version_id, status) }
+}
+
+Table approval_reviewers {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  approval_id char(36) [not null, ref: > approvals.id]
+  reviewer_user_id char(36) [not null, ref: > users.id]
+  sequence_no int
+  status approval_status [not null]
+  created_at datetime(3) [not null]
+  indexes { (organization_id, approval_id, reviewer_user_id) [unique] }
+}
+
+Table approval_decisions {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  approval_reviewer_id char(36) [not null, ref: > approval_reviewers.id]
+  decision varchar [not null]
+  content_hash varchar [not null]
+  feedback_json json
+  decided_at datetime(3) [not null]
+  indexes { (organization_id, approval_reviewer_id) }
+}
+
+Table notifications {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  recipient_user_id char(36) [not null, ref: > users.id]
+  type varchar [not null]
+  object_type varchar [not null]
+  object_id char(36) [not null]
+  dedupe_key varchar [not null]
+  read_at datetime(3)
+  created_at datetime(3) [not null]
+  indexes { (organization_id, recipient_user_id, created_at) (organization_id, recipient_user_id, dedupe_key) [unique] }
+}
+
+Table audit_events {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  actor_user_id char(36) [ref: > users.id]
+  effective_actor_id char(36) [ref: > users.id]
+  action varchar [not null]
+  object_type varchar [not null]
+  object_id char(36)
+  result varchar [not null]
+  correlation_id char(36) [not null]
+  metadata_json json [not null]
+  created_at datetime(3) [not null]
+  indexes { (organization_id, created_at) (organization_id, actor_user_id, created_at) }
+}
+
+Table outbox_events {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  type varchar [not null]
+  schema_version int [not null]
+  aggregate_type varchar [not null]
+  aggregate_id char(36) [not null]
+  payload_json json [not null]
+  occurred_at datetime(3) [not null]
+  published_at datetime(3)
+  indexes { (published_at, occurred_at) (organization_id, aggregate_type, aggregate_id) }
+}
+
+Table idempotency_records {
+  id char(36) [pk]
+  organization_id char(36) [not null, ref: > organizations.id]
+  actor_user_id char(36) [not null, ref: > users.id]
+  operation varchar [not null]
+  key varchar [not null]
+  request_hash varchar [not null]
+  response_json json
+  expires_at datetime(3) [not null]
+  indexes { (organization_id, actor_user_id, operation, key) [unique] }
+}

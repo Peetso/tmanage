@@ -1,0 +1,46 @@
+:root {
+  /* ink */
+  --ink-950:#090A09; --ink-800:#232521; --ink-650:#4D5049; --ink-500:#74786F;
+  /* paper */
+  --paper-0:#FFFFFF; --paper-50:#F7F7F3; --paper-150:#E9E9E5; --paper-250:#D5D6D1; --paper-350:#E4E4DF;
+  /* line */
+  --line-700:#2C2E29; --line-300:#C5C7C0;
+  /* lime — meaning: current / next / live only */
+  --lime-600:#9CEA3F; --lime-500:#B7FF57; --lime-100:#E9FFD0;
+  /* semantic, deliberately small */
+  --client-500:#7755C7; --success-600:#1D8A63; --warning-600:#C96F18; --danger-600:#D9474F;
+  /* type */
+  --font-latin:'Manrope',system-ui,sans-serif; --font-arabic:'Alexandria',system-ui,sans-serif; --font-mono:'Geist Mono',monospace;
+  /* geometry */
+  --r-micro:10px; --r-control:14px; --r-compact:18px; --r-card:24px; --r-sheet:28px; --r-feature:32px; --r-capsule:999px;
+  --b-quiet:1px; --b-structural:1.5px; --b-expressive:2px;
+  --focus-ring:0 0 0 2px var(--ink-950), 0 0 0 5px var(--lime-500);
+  /* space */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s10:40px; --s12:48px; --s16:64px;
+  /* layout */
+  --rail:88px; --context-rail:248px; --lens:360px; --reading:680px;
+  /* motion */
+  --t-micro:140ms; --t-selection:180ms; --t-panel:240ms; --t-track:300ms; --ease:cubic-bezier(0.2,0.6,0.2,1);
+}
+
+[data-theme="dark"] {
+  --ink-950:#F5F6F0; --ink-800:#F5F6F0; --ink-650:#A7ACA0; --ink-500:#A7ACA0;
+  --paper-0:#1B1D19; --paper-50:#1B1D19; --paper-150:#121311; --paper-250:#242720; --paper-350:#171814;
+  --line-700:#F5F6F0; --line-300:#3A3E35;
+  --lime-500:#A9ED55; --lime-600:#8FD23C; --lime-100:#29351D;
+  --client-500:#A98AE5; --warning-600:#E9A85C; --danger-600:#FF7780;
+  --focus-ring:0 0 0 2px #F5F6F0, 0 0 0 5px #A9ED55;
+}
+
+[data-contrast="high"] {
+  --line-300:var(--line-700); --b-quiet:1.5px; --ink-650:var(--ink-800);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-micro:0ms; --t-selection:0ms; --t-panel:0ms; --t-track:0ms; }
+}
+
+/* Laws that are not negotiable */
+/* 1. Text on --lime-500 is always --ink-950. White on lime is prohibited (1.5:1). */
+/* 2. Lime never means success, warning or selection-of-many. Only current / next / live. */
+/* 3. Every state that uses colour also carries a word and a shape. */

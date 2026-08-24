@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+dist/
+.next/
+coverage/
+storybook-static/
+# Immutable source material copied from the planning pack and design export.
+# Formatting it would modify artifacts that must stay byte-identical to their source.
+docs/planning/
+docs/design/source/

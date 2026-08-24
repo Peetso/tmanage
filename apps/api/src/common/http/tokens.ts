@@ -1,0 +1,23 @@
+/**
+ * Dependency-injection tokens.
+ *
+ * Every provider in this application is registered under an explicit token and every injected
+ * constructor parameter carries `@Inject(TOKEN)`. That is not a style preference — see
+ * ADR-0003. vitest transforms TypeScript with esbuild, which does not implement
+ * `emitDecoratorMetadata`, so DI that relied on `design:paramtypes` would resolve `undefined`
+ * for every parameter in the one suite that exists to prove the request pipeline works.
+ *
+ * `Symbol.for` rather than `Symbol`: the database suite and the application can end up holding
+ * two instances of this module under vitest's transform pipeline, and two distinct `Symbol()`
+ * values would then look like two different providers with the same description — a
+ * "Nest can't resolve dependencies" failure with no visible cause. The global registry makes
+ * the token identity survive that.
+ */
+
+export const TENANT_DATABASE = Symbol.for('tmanage.TenantDatabase');
+export const API_CONFIG = Symbol.for('tmanage.ApiConfig');
+export const SESSION_SERVICE = Symbol.for('tmanage.SessionService');
+export const MEMBERSHIP_RESOLVER = Symbol.for('tmanage.MembershipResolver');
+export const PRINCIPAL_REPOSITORY = Symbol.for('tmanage.PrincipalRepository');
+export const PROJECTS_REPOSITORY = Symbol.for('tmanage.ProjectsRepository');
+export const PROJECTS_SERVICE = Symbol.for('tmanage.ProjectsService');

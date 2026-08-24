@@ -1,0 +1,795 @@
+openapi: 3.1.0
+info:
+  title: TManage Product API
+  version: 0.1.0-mvp
+  description: Execution contract for the MVP request-to-approval vertical slice. Server authorization and tenant isolation are mandatory for every operation.
+servers:
+  - url: https://api.staging.tmanage.example/v1
+    description: Placeholder staging base; replace after domain clearance.
+security:
+  - sessionCookie: []
+tags:
+  - name: Organizations
+  - name: Projects
+  - name: ClientRequests
+  - name: Conversations
+  - name: Work
+  - name: Files
+  - name: Deliverables
+  - name: Approvals
+  - name: Awareness
+  - name: Administration
+  - name: Billing
+paths:
+  /organizations:
+    post:
+      tags: [Organizations]
+      operationId: createOrganization
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrganizationRequest' }
+      responses:
+        '201':
+          description: Organization and owner membership created transactionally.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Organization' } } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /organizations/{organizationId}/projects:
+    post:
+      tags: [Projects]
+      operationId: createProject
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateProjectRequest' } } }
+      responses:
+        '201': { description: Project created, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /organizations/{organizationId}/projects/{projectId}/client-organizations:
+    post:
+      tags: [Projects]
+      operationId: linkClientOrganization
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/LinkClientOrganizationRequest' } } }
+      responses:
+        '201': { description: Client organization linked with explicit policy, content: { application/json: { schema: { $ref: '#/components/schemas/ClientOrganization' } } } }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+  /organizations/{organizationId}/projects/{projectId}/client-requests:
+    post:
+      tags: [ClientRequests]
+      operationId: createClientRequest
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateClientRequestRequest' } } }
+      responses:
+        '201': { description: Request submitted; desired date is not committed, content: { application/json: { schema: { $ref: '#/components/schemas/ClientRequest' } } } }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    get:
+      tags: [ClientRequests]
+      operationId: listClientRequests
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ClientRequestStatus' }
+      responses:
+        '200': { description: Authorized requests, content: { application/json: { schema: { $ref: '#/components/schemas/ClientRequestPage' } } } }
+  /organizations/{organizationId}/client-requests/{requestId}:
+    get:
+      tags: [ClientRequests]
+      operationId: getClientRequest
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/RequestId' }
+      responses:
+        '200': { description: Client-safe or internal projection according to principal, content: { application/json: { schema: { $ref: '#/components/schemas/ClientRequest' } } } }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /organizations/{organizationId}/client-requests/{requestId}/transitions:
+    post:
+      tags: [ClientRequests]
+      operationId: transitionClientRequest
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/RequestId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TransitionClientRequest' } } }
+      responses:
+        '200': { description: Transition applied with audit event, content: { application/json: { schema: { $ref: '#/components/schemas/ClientRequest' } } } }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organizationId}/conversations/{conversationId}/messages:
+    post:
+      tags: [Conversations]
+      operationId: createMessage
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/ConversationId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateMessageRequest' } } }
+      responses:
+        '201': { description: Message committed and assigned a sequence, content: { application/json: { schema: { $ref: '#/components/schemas/Message' } } } }
+  /organizations/{organizationId}/messages/{messageId}/convert:
+    post:
+      tags: [Conversations, Work]
+      operationId: convertMessageToWork
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/MessageId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ConvertMessageRequest' } } }
+      responses:
+        '201': { description: Linked work item created without copying source context, content: { application/json: { schema: { $ref: '#/components/schemas/WorkItem' } } } }
+        '409': { description: Existing conversion returned or request fingerprint conflict, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /organizations/{organizationId}/projects/{projectId}/work-items:
+    post:
+      tags: [Work]
+      operationId: createWorkItem
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateWorkItemRequest' } } }
+      responses:
+        '201': { description: Work item created, content: { application/json: { schema: { $ref: '#/components/schemas/WorkItem' } } } }
+  /organizations/{organizationId}/work-items/{workItemId}:
+    patch:
+      tags: [Work]
+      operationId: updateWorkItem
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/WorkItemId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateWorkItemRequest' } } }
+      responses:
+        '200': { description: Updated with optimistic version increment, content: { application/json: { schema: { $ref: '#/components/schemas/WorkItem' } } } }
+        '409': { $ref: '#/components/responses/ConflictError' }
+  /organizations/{organizationId}/upload-sessions:
+    post:
+      tags: [Files]
+      operationId: createUploadSession
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateUploadSessionRequest' } } }
+      responses:
+        '201': { description: Scoped multipart upload session, content: { application/json: { schema: { $ref: '#/components/schemas/UploadSession' } } } }
+  /organizations/{organizationId}/upload-sessions/{uploadSessionId}/complete:
+    post:
+      tags: [Files]
+      operationId: completeUploadSession
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - name: uploadSessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CompleteUploadRequest' } } }
+      responses:
+        '202': { description: Upload accepted for verification and scan, content: { application/json: { schema: { $ref: '#/components/schemas/FileAsset' } } } }
+  /organizations/{organizationId}/projects/{projectId}/deliverables:
+    post:
+      tags: [Deliverables]
+      operationId: createDeliverable
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateDeliverableRequest' } } }
+      responses:
+        '201': { description: Deliverable created internal by default, content: { application/json: { schema: { $ref: '#/components/schemas/Deliverable' } } } }
+  /organizations/{organizationId}/deliverables/{deliverableId}/versions:
+    post:
+      tags: [Deliverables]
+      operationId: createDeliverableVersion
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/DeliverableId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateDeliverableVersionRequest' } } }
+      responses:
+        '201': { description: Immutable version created, content: { application/json: { schema: { $ref: '#/components/schemas/DeliverableVersion' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organizationId}/deliverable-versions/{versionId}/client-preview:
+    post:
+      tags: [Deliverables]
+      operationId: previewClientProjection
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/VersionId' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ClientPreviewRequest' } } }
+      responses:
+        '200': { description: Real-policy client projection plus warnings, content: { application/json: { schema: { $ref: '#/components/schemas/ClientPreview' } } } }
+  /organizations/{organizationId}/deliverable-versions/{versionId}/publish:
+    post:
+      tags: [Deliverables, Approvals]
+      operationId: publishDeliverableVersion
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/VersionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PublishDeliverableRequest' } } }
+      responses:
+        '201': { description: Client projection and approval created transactionally, content: { application/json: { schema: { $ref: '#/components/schemas/Approval' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organizationId}/approvals/{approvalId}:
+    get:
+      tags: [Approvals]
+      operationId: getApproval
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/ApprovalId' }
+      responses:
+        '200': { description: Reviewer-safe exact governed version, content: { application/json: { schema: { $ref: '#/components/schemas/Approval' } } } }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+  /organizations/{organizationId}/approvals/{approvalId}/decisions:
+    post:
+      tags: [Approvals]
+      operationId: decideApproval
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/ApprovalId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalDecisionRequest' } } }
+      responses:
+        '201': { description: Immutable reviewer decision, content: { application/json: { schema: { $ref: '#/components/schemas/ApprovalDecision' } } } }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organizationId}/home:
+    get:
+      tags: [Awareness]
+      operationId: getHome
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      responses:
+        '200': { description: Permission-filtered My Day, content: { application/json: { schema: { $ref: '#/components/schemas/Home' } } } }
+  /organizations/{organizationId}/inbox:
+    get:
+      tags: [Awareness]
+      operationId: getInbox
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - name: mode
+          in: query
+          schema: { type: string, enum: [important, all, waiting_on_me, client_actions] }
+      responses:
+        '200': { description: Recipient-only notification bundles, content: { application/json: { schema: { $ref: '#/components/schemas/InboxPage' } } } }
+  /organizations/{organizationId}/search:
+    get:
+      tags: [Awareness]
+      operationId: search
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 300 }
+        - name: type
+          in: query
+          schema: { type: array, items: { type: string } }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200': { description: Authorized results only, content: { application/json: { schema: { $ref: '#/components/schemas/SearchPage' } } } }
+  /organizations/{organizationId}/members/{membershipId}/offboarding-impact:
+    get:
+      tags: [Administration]
+      operationId: getOffboardingImpact
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - name: membershipId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Ownership/access impact without executing changes, content: { application/json: { schema: { $ref: '#/components/schemas/OffboardingImpact' } } } }
+  /organizations/{organizationId}/members/{membershipId}/offboard:
+    post:
+      tags: [Administration]
+      operationId: offboardMember
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - name: membershipId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OffboardMemberRequest' } } }
+      responses:
+        '202': { description: Membership suspended immediately; transfer workflow started, content: { application/json: { schema: { $ref: '#/components/schemas/OffboardingJob' } } } }
+  /organizations/{organizationId}/audit-events:
+    get:
+      tags: [Administration]
+      operationId: listAuditEvents
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: actorId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Scope-redacted audit events, content: { application/json: { schema: { $ref: '#/components/schemas/AuditPage' } } } }
+  /organizations/{organizationId}/billing/usage:
+    get:
+      tags: [Billing]
+      operationId: getOrganizationPlanUsage
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+      responses:
+        '200':
+          description: Authorized workspace plan and usage summary. Client principals and ordinary members cannot read billing data.
+          content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationPlanUsage' } } }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-tmanage_session
+  parameters:
+    OrganizationId:
+      name: organizationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RequestId:
+      name: requestId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MessageId:
+      name: messageId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    WorkItemId:
+      name: workItemId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DeliverableId:
+      name: deliverableId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VersionId:
+      name: versionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ApprovalId:
+      name: approvalId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string, maxLength: 500 }
+  responses:
+    ValidationError:
+      description: Invalid request or transition.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ForbiddenError:
+      description: Principal lacks capability; response does not reveal hidden object details.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFoundError:
+      description: Object absent or intentionally indistinguishable from inaccessible.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ConflictError:
+      description: Version, state, or idempotency fingerprint conflict.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  schemas:
+    Id:
+      type: string
+      format: uuid
+    Timestamp:
+      type: string
+      format: date-time
+    Audience:
+      type: string
+      enum: [internal, client_visible, client_action_required]
+    Error:
+      type: object
+      required: [code, message, correlationId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        correlationId: { $ref: '#/components/schemas/Id' }
+        fieldErrors: { type: object, additionalProperties: { type: array, items: { type: string } } }
+    CreateOrganizationRequest:
+      type: object
+      required: [name, timezone, defaultLocale]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        timezone: { type: string, example: Africa/Cairo }
+        defaultLocale: { type: string, enum: [en, ar] }
+    Organization:
+      type: object
+      required: [id, name, slug, timezone, defaultLocale]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        name: { type: string }
+        slug: { type: string }
+        timezone: { type: string }
+        defaultLocale: { type: string }
+    CreateProjectRequest:
+      type: object
+      required: [workspaceId, name, ownerUserId]
+      properties:
+        workspaceId: { $ref: '#/components/schemas/Id' }
+        name: { type: string, minLength: 2, maxLength: 160 }
+        ownerUserId: { $ref: '#/components/schemas/Id' }
+        targetAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        template: { type: string, enum: [agency_delivery, software_studio, consulting_engagement] }
+    Project:
+      type: object
+      required: [id, organizationId, workspaceId, name, ownerUserId]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        organizationId: { $ref: '#/components/schemas/Id' }
+        workspaceId: { $ref: '#/components/schemas/Id' }
+        name: { type: string }
+        ownerUserId: { $ref: '#/components/schemas/Id' }
+        committedAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        forecastAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+    LinkClientOrganizationRequest:
+      type: object
+      required: [name, approvalPolicy]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 160 }
+        approvalPolicy: { type: string, enum: [all_required, any_one, ordered] }
+        defaultInvitationExpiryDays: { type: integer, minimum: 1, maximum: 90, default: 14 }
+    ClientOrganization:
+      type: object
+      required: [id, organizationId, name]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        organizationId: { $ref: '#/components/schemas/Id' }
+        name: { type: string }
+    ClientRequestStatus:
+      type: string
+      enum: [submitted, triage, needs_clarification, accepted, deferred, declined, planned, delivered, withdrawn]
+    CreateClientRequestRequest:
+      type: object
+      required: [title, description]
+      properties:
+        title: { type: string, minLength: 3, maxLength: 200 }
+        description: { type: object, description: Structured rich-text document }
+        category: { type: string, maxLength: 80 }
+        urgencyReason: { type: string, maxLength: 500 }
+        desiredAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        fileAssetIds: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/Id' } }
+    ClientRequest:
+      type: object
+      required: [id, projectId, title, status, version, createdAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        projectId: { $ref: '#/components/schemas/Id' }
+        title: { type: string }
+        description: { type: object }
+        status: { $ref: '#/components/schemas/ClientRequestStatus' }
+        desiredAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        committedAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        clientSafeReason: { type: string }
+        acceptedWorkItemId: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        version: { type: integer, minimum: 1 }
+        createdAt: { $ref: '#/components/schemas/Timestamp' }
+    ClientRequestPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ClientRequest' } }
+        nextCursor: { type: [string, 'null'] }
+    TransitionClientRequest:
+      type: object
+      required: [toStatus, expectedVersion]
+      properties:
+        toStatus: { $ref: '#/components/schemas/ClientRequestStatus' }
+        expectedVersion: { type: integer, minimum: 1 }
+        clientSafeReason: { type: string, maxLength: 2000 }
+        committedAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        acceptedWork:
+          oneOf:
+            - { $ref: '#/components/schemas/CreateWorkItemRequest' }
+            - { type: 'null' }
+    CreateMessageRequest:
+      type: object
+      required: [content, clientGeneratedId]
+      properties:
+        content: { type: object }
+        parentMessageId: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        clientGeneratedId: { type: string, minLength: 8, maxLength: 128 }
+    Message:
+      type: object
+      required: [id, conversationId, authorUserId, sequenceNo, content, audience, createdAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        conversationId: { $ref: '#/components/schemas/Id' }
+        authorUserId: { $ref: '#/components/schemas/Id' }
+        sequenceNo: { type: integer }
+        content: { type: object }
+        audience: { $ref: '#/components/schemas/Audience' }
+        createdAt: { $ref: '#/components/schemas/Timestamp' }
+    ConvertMessageRequest:
+      allOf:
+        - { $ref: '#/components/schemas/CreateWorkItemRequest' }
+        - type: object
+          required: [sourceMessageExpectedVersion]
+          properties:
+            sourceMessageExpectedVersion: { type: integer, minimum: 1 }
+    CreateWorkItemRequest:
+      type: object
+      required: [type, title, state, audience]
+      properties:
+        type: { type: string, enum: [task, milestone, approval, request] }
+        title: { type: string, minLength: 3, maxLength: 240 }
+        state: { type: string, enum: [backlog, ready, in_progress, blocked, internal_review, done, archived] }
+        ownerUserId: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        dueAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        audience: { $ref: '#/components/schemas/Audience' }
+    UpdateWorkItemRequest:
+      type: object
+      required: [expectedVersion]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 3, maxLength: 240 }
+        state: { type: string }
+        ownerUserId: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        dueAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        audience: { $ref: '#/components/schemas/Audience' }
+        transitionReason: { type: string, maxLength: 1000 }
+    WorkItem:
+      type: object
+      required: [id, projectId, type, title, state, audience, version]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        projectId: { $ref: '#/components/schemas/Id' }
+        sourceMessageId: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        type: { type: string }
+        title: { type: string }
+        state: { type: string }
+        ownerUserId: { oneOf: [{ $ref: '#/components/schemas/Id' }, { type: 'null' }] }
+        dueAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        audience: { $ref: '#/components/schemas/Audience' }
+        version: { type: integer }
+    CreateUploadSessionRequest:
+      type: object
+      required: [fileName, mimeType, sizeBytes, purpose]
+      properties:
+        fileName: { type: string, minLength: 1, maxLength: 255 }
+        mimeType: { type: string, maxLength: 150 }
+        sizeBytes: { type: integer, minimum: 1, maximum: 5368709120 }
+        contentHash: { type: string, maxLength: 128 }
+        purpose: { type: string, enum: [message_attachment, request_attachment, deliverable, document] }
+        objectId: { $ref: '#/components/schemas/Id' }
+    UploadSession:
+      type: object
+      required: [id, expiresAt, partSizeBytes, reservedBytes, uploadUrls]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        expiresAt: { $ref: '#/components/schemas/Timestamp' }
+        partSizeBytes: { type: integer }
+        reservedBytes: { type: integer, minimum: 1, description: Bytes atomically reserved against the owning workspace quota. }
+        uploadUrls: { type: array, items: { type: object, properties: { partNumber: { type: integer }, url: { type: string, format: uri } } } }
+    CompleteUploadRequest:
+      type: object
+      required: [parts]
+      properties:
+        parts: { type: array, minItems: 1, items: { type: object, required: [partNumber, etag], properties: { partNumber: { type: integer }, etag: { type: string } } } }
+    FileAsset:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        name: { type: string }
+        status: { type: string, enum: [created, uploading, uploaded, verifying, scanning, ready, rejected, expired, cancelled] }
+    CreateDeliverableRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 200 }
+        description: { type: string, maxLength: 5000 }
+    Deliverable:
+      type: object
+      required: [id, projectId, title, status]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        projectId: { $ref: '#/components/schemas/Id' }
+        title: { type: string }
+        status: { type: string }
+    CreateDeliverableVersionRequest:
+      type: object
+      required: [fileVersionIds, summary]
+      properties:
+        fileVersionIds: { type: array, minItems: 1, maxItems: 50, items: { $ref: '#/components/schemas/Id' } }
+        summary: { type: string, minLength: 1, maxLength: 3000 }
+        criteria: { type: array, maxItems: 30, items: { type: string, maxLength: 500 } }
+    DeliverableVersion:
+      type: object
+      required: [id, deliverableId, versionNo, contentHash, status]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        deliverableId: { $ref: '#/components/schemas/Id' }
+        versionNo: { type: integer, minimum: 1 }
+        contentHash: { type: string }
+        status: { type: string }
+        publishedAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+    ClientPreviewRequest:
+      type: object
+      required: [clientOrganizationId, role]
+      properties:
+        clientOrganizationId: { $ref: '#/components/schemas/Id' }
+        role: { type: string, enum: [client_admin, client_reviewer, client_member, client_viewer] }
+    ClientPreview:
+      type: object
+      required: [projection, warnings, policyFingerprint]
+      properties:
+        projection: { type: object, description: Explicit allowlisted fields only }
+        warnings: { type: array, items: { type: object, properties: { code: { type: string }, message: { type: string }, blocking: { type: boolean } } } }
+        policyFingerprint: { type: string }
+    PublishDeliverableRequest:
+      type: object
+      required: [clientOrganizationId, reviewerUserIds, approvalPolicy, expectedContentHash, policyFingerprint]
+      properties:
+        clientOrganizationId: { $ref: '#/components/schemas/Id' }
+        reviewerUserIds: { type: array, minItems: 1, maxItems: 20, items: { $ref: '#/components/schemas/Id' } }
+        approvalPolicy: { type: string, enum: [all_required, any_one, ordered] }
+        dueAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        expectedContentHash: { type: string }
+        policyFingerprint: { type: string }
+    Approval:
+      type: object
+      required: [id, deliverableVersion, contentHash, status, reviewers]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        deliverableVersion: { $ref: '#/components/schemas/DeliverableVersion' }
+        contentHash: { type: string }
+        status: { type: string, enum: [draft, requested, viewed, approved, changes_requested, expired, cancelled, invalidated] }
+        dueAt: { oneOf: [{ $ref: '#/components/schemas/Timestamp' }, { type: 'null' }] }
+        reviewers: { type: array, items: { type: object, properties: { userId: { $ref: '#/components/schemas/Id' }, status: { type: string }, sequenceNo: { type: integer } } } }
+    ApprovalDecisionRequest:
+      type: object
+      required: [decision, expectedContentHash]
+      properties:
+        decision: { type: string, enum: [approved, changes_requested] }
+        expectedContentHash: { type: string }
+        feedback:
+          type: array
+          maxItems: 100
+          items: { type: object, required: [affectedArea, requiredChange], properties: { affectedArea: { type: string, maxLength: 300 }, requiredChange: { type: string, maxLength: 3000 } } }
+    ApprovalDecision:
+      type: object
+      required: [id, approvalId, reviewerUserId, decision, contentHash, decidedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        approvalId: { $ref: '#/components/schemas/Id' }
+        reviewerUserId: { $ref: '#/components/schemas/Id' }
+        decision: { type: string }
+        contentHash: { type: string }
+        decidedAt: { $ref: '#/components/schemas/Timestamp' }
+    Home:
+      type: object
+      properties:
+        recommended: { type: array, items: { type: object } }
+        due: { type: array, items: { $ref: '#/components/schemas/WorkItem' } }
+        blocked: { type: array, items: { $ref: '#/components/schemas/WorkItem' } }
+        waiting: { type: array, items: { type: object } }
+    InboxPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { type: object, properties: { bundleId: { $ref: '#/components/schemas/Id' }, objectType: { type: string }, objectId: { $ref: '#/components/schemas/Id' }, count: { type: integer }, action: { type: object } } } }
+        nextCursor: { type: [string, 'null'] }
+    SearchPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { type: object, properties: { type: { type: string }, id: { $ref: '#/components/schemas/Id' }, title: { type: string }, safeSnippet: { type: string }, matchedOn: { type: string } } } }
+        nextCursor: { type: [string, 'null'] }
+    OffboardingImpact:
+      type: object
+      properties:
+        activeSessions: { type: integer }
+        ownedWorkCount: { type: integer }
+        pendingApprovalCount: { type: integer }
+        externalShareCount: { type: integer }
+        requiredTransferTypes: { type: array, items: { type: string } }
+    OffboardMemberRequest:
+      type: object
+      required: [transferToUserId, confirmation]
+      properties:
+        transferToUserId: { $ref: '#/components/schemas/Id' }
+        confirmation: { type: string, const: OFFBOARD }
+    OffboardingJob:
+      type: object
+      required: [id, status]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        status: { type: string, enum: [suspending, transferring, reviewing_external_access, completed, failed_partial] }
+    AuditPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { type: object, properties: { id: { $ref: '#/components/schemas/Id' }, actorUserId: { $ref: '#/components/schemas/Id' }, action: { type: string }, objectType: { type: string }, objectId: { $ref: '#/components/schemas/Id' }, result: { type: string }, createdAt: { $ref: '#/components/schemas/Timestamp' } } } }
+        nextCursor: { type: [string, 'null'] }
+    UsageDimension:
+      type: object
+      required: [key, used, reserved, limit, unit]
+      properties:
+        key: { type: string, enum: [internal_seats, active_projects, storage_bytes] }
+        used: { type: integer, minimum: 0 }
+        reserved: { type: integer, minimum: 0 }
+        limit: { type: integer, minimum: 0 }
+        unit: { type: string, enum: [count, bytes] }
+        thresholdPercent: { type: integer, enum: [70, 85, 95, 100] }
+    OrganizationPlanUsage:
+      type: object
+      required: [planCode, planVersion, dimensions, clientUsersIncluded, measuredAt]
+      properties:
+        planCode: { type: string }
+        planVersion: { type: integer, minimum: 1 }
+        dimensions: { type: array, items: { $ref: '#/components/schemas/UsageDimension' } }
+        clientUsersIncluded: { type: boolean, const: true }
+        measuredAt: { $ref: '#/components/schemas/Timestamp' }

@@ -1,0 +1,45 @@
+# gitleaks configuration — PLAT-003 secret scanning.
+#
+# 50-BOOTSTRAP §9: "Never encode provider credentials or real endpoints in source control."
+# The default ruleset is extended, never replaced: a hand-written rule list is a list of
+# the credential formats someone thought of on the day they wrote it.
+
+title = "TManage secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "tmanage-hostinger-or-provider-endpoint"
+description = "A real provider host in source control (50-BOOTSTRAP §9)"
+# The bootstrap providers are named throughout the planning pack in prose, which is fine.
+# A *connection string* pointing at one of them is not — it means an environment's real
+# endpoint has been committed alongside whatever credential precedes it.
+regex = '''(?i)(mysql|redis|rediss|https?)://[^\s'"]*@[^\s'"]*\.(hostinger|upstash|r2\.cloudflarestorage)\.[a-z]+'''
+tags = ["endpoint", "bootstrap"]
+
+[allowlist]
+description = """
+Local-development placeholders, and only those.
+
+Every committed credential in this repository is prefixed `local_dev_only_`, by convention
+enforced here: compose.yaml's service passwords, scripts/db/users.sql's user passwords, and
+.env.example's session and CSRF secrets. `packages/config` refuses to boot with any of them
+when NODE_ENV=production, so they cannot reach a deployed environment even by accident.
+
+The allowlist is deliberately anchored to that literal prefix rather than to the files that
+currently contain them. A path-based exclusion would silently stop scanning those files
+entirely — including for a real secret added to them later. This regex lets a real secret in
+compose.yaml still fail the build.
+"""
+regexes = [
+  '''local_dev_only_[A-Za-z0-9_]+''',
+]
+paths = [
+  # The design export ships vendored font binaries and minified prototype HTML, whose
+  # high-entropy strings are not credentials. These files are byte-identical to the planning
+  # pack and cannot be edited (see docs/implementation-status.md), so a secret could not be
+  # removed from them here in any case — it would have to be removed at the source.
+  '''^docs/design/source/project/uploads/''',
+  '''^pnpm-lock\.yaml$''',
+]

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family:'Satoshi'; src:url('./design/assets/fonts/Satoshi-Variable.woff2') format('woff2'); font-weight:300 900; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Manrope'; src:url('./design/assets/fonts/Manrope-Variable.ttf') format('truetype'); font-weight:200 800; font-style:normal; font-display:swap; }
+  body { margin:0; background:#2C2E29; font-family:Satoshi, Manrope, system-ui, sans-serif; }
+  a { color:#4D5049; text-decoration:none; border-bottom:1px solid #C5C7C0; }
+  a:hover { color:#090A09; border-bottom-color:#9CEA3F; }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#2C2E29;padding:40px;display:flex;flex-direction:column;align-items:center;gap:24px">
+
+  <div style="width:1440px;display:flex;align-items:flex-end;gap:24px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">CLICKABLE PROTOTYPE · PROTOTYPE MAP FLOWS 1, 2 AND 6</div>
+      <div style="font:500 30px/36px Satoshi;letter-spacing:-0.02em;color:#F5F6F0">{{ flowTitle }}</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+        <div onClick="{{ t.go }}" style="padding:10px 18px;border-radius:999px;font:600 12px/17px Satoshi;cursor:pointer;background:{{ t.bg }};color:{{ t.fg }}">{{ t.label }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="width:1440px;display:flex;align-items:center;gap:8px;background:#232521;border-radius:999px;padding:12px 18px;flex-wrap:wrap">
+    <sc-for list="{{ steps }}" as="s" hint-placeholder-count="6">
+      <div onClick="{{ s.go }}" style="display:flex;align-items:center;gap:9px;padding:6px 12px;border-radius:999px;cursor:pointer;background:{{ s.bg }}">
+        <div style="width:9px;height:9px;border-radius:999px;background:{{ s.dot }}"></div>
+        <div style="font:500 11px/16px 'Geist Mono',monospace;letter-spacing:0.1em;color:{{ s.fg }}">{{ s.id }}</div>
+        <div style="font:500 12px/17px Satoshi;color:{{ s.fg }}">{{ s.label }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="width:1440px;height:760px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+    <div style="height:60px;flex-shrink:0;padding:0 28px;display:flex;align-items:center;gap:16px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+      <div style="width:34px;height:34px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:19px;display:block"></div>
+      <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">{{ crumb }}</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+        <div style="font:500 11px/16px 'Geist Mono',monospace;color:#74786F">{{ counter }}</div>
+        <div onClick="{{ back }}" style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;cursor:pointer">Back</div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-height:0;padding:28px;display:flex;gap:22px">
+      <div style="flex:1.5;min-width:0;display:flex;flex-direction:column;gap:18px">
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">{{ screenId }}</div>
+          <div style="font:500 34px/40px Satoshi;letter-spacing:-0.025em;color:#090A09;text-wrap:pretty">{{ heading }}</div>
+        </div>
+
+        <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px;flex:1;min-height:0">
+          <div style="font:400 15px/23px Manrope;color:#4D5049;text-wrap:pretty">{{ body }}</div>
+          <div style="height:1px;background:#E9E9E5"></div>
+          <div style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:14px;height:52px;border-bottom:1px solid #E9E9E5;padding-left:12px;border-left:3px solid {{ r.edge }}">
+                <div style="width:9px;height:9px;background:{{ r.mark }}"></div>
+                <div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">{{ r.title }}</div><div style="font:400 11px/15px Manrope;color:#74786F">{{ r.sub }}</div></div>
+                <div style="font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">{{ r.meta }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:auto;display:flex;align-items:center;gap:12px">
+            <div onClick="{{ next }}" style="padding:13px 22px;background:#090A09;border-radius:999px;font:600 13px/18px Satoshi;color:#F7F7F3;cursor:pointer">{{ primary }}</div>
+            <div onClick="{{ trip }}" style="padding:13px 22px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:600 13px/18px Satoshi;color:#C96F18;cursor:pointer">{{ secondary }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="width:420px;flex-shrink:0;display:flex;flex-direction:column;gap:16px">
+        <div style="background:#090A09;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">WHAT THIS STEP PROVES</div></div>
+          <div style="font:500 19px/26px Satoshi;color:#F5F6F0;text-wrap:pretty">{{ proves }}</div>
+          <div style="font:400 13px/19px Manrope;color:#A7ACA0;text-wrap:pretty">{{ provesSub }}</div>
+        </div>
+
+        <sc-if value="{{ warned }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#FFFFFF;border:1px solid #C96F18;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#C96F18">{{ warnKind }}</div>
+            <div style="font:500 18px/25px Satoshi;color:#090A09;text-wrap:pretty">{{ warnTitle }}</div>
+            <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">{{ warnBody }}</div>
+            <div onClick="{{ clear }}" style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;cursor:pointer;align-self:flex-start">{{ warnAction }}</div>
+          </div>
+        </sc-if>
+
+        <div style="background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:10px;flex:1">
+          <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">OBJECT CARRIED THROUGH</div>
+          <div style="font:500 16px/22px Satoshi;color:#090A09">{{ objectName }}</div>
+          <div style="font:500 13px/19px 'Geist Mono',monospace;color:#232521">{{ objectId }}</div>
+          <div style="height:1px;background:#E9E9E5"></div>
+          <div style="font:400 12px/18px Manrope;color:#74786F;text-wrap:pretty">{{ objectNote }}</div>
+          <div style="margin-top:auto;font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">{{ audience }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:1440px;font:400 13px/19px Manrope;color:#A7ACA0">Click the primary action to move forward, the orange action to take the failure or permission path, or any step in the rail to jump. Screens are the prototype's own compositions of the drawn artifacts, not replacements for them.</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1520,&quot;height&quot;:1000}}">
+const FLOWS = {
+  A: {
+    tab: "Flow 1 · onboarding",
+    title: "Flow 1 — organization, project and client, set up in one sitting",
+    object: { name: "Atlas Website Relaunch", id: "ORG·northstar → PRJ·atlas-relaunch", note: "Everything created here is the same object the client will eventually see through the portal. The client preview exists so nobody discovers that fact after the invitations are sent.", audience: "AUDIENCE · INTERNAL UNTIL ON-08" },
+    steps: [
+      { id: "ON-01", label: "Welcome", crumb: "ONBOARDING / WELCOME",
+        heading: "Maya Hassan sets up Northstar Studio",
+        body: "Onboarding asks for the smallest set of facts that make the rest of the product correct: who you are, what you deliver, and who you deliver it to.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "Organization · Northstar Studio", sub: "8 people, design and build", meta: "STEP 1" },
+          { mark: "#090A09", edge: "transparent", title: "Working languages · English, Arabic", sub: "sets portal defaults and type stack", meta: "REQUIRED" },
+          { mark: "#74786F", edge: "transparent", title: "Time zone · Africa/Cairo", sub: "used for every committed date", meta: "REQUIRED" }
+        ],
+        primary: "Create the organization", secondary: "Skip and explore first",
+        proves: "Setup collects facts, not preferences.", provesSub: "Each field here changes behaviour later — dates, language, portal defaults — so none of it is decoration.",
+        warn: { kind: "SKIP AND RETURN", title: "You can explore with seeded example data", body: "Nothing you do in the example organization carries over. The skip is offered because the alternative is people inventing a fake client to look around.", action: "Set it up properly" } },
+      { id: "ON-03", label: "Invite team", crumb: "ONBOARDING / YOUR TEAM",
+        heading: "Five people, four different amounts of power",
+        body: "Roles are chosen at invitation time because the first project will otherwise be built by whoever happens to be an owner.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "Omar Adel · project manager", sub: "commits dates, publishes to clients", meta: "PM" },
+          { mark: "#090A09", edge: "transparent", title: "Maya Hassan · administrator", sub: "billing, members, integrations", meta: "ADMIN" },
+          { mark: "#090A09", edge: "transparent", title: "Lina Samir, Karim Nabil, Noor Fathy", sub: "forecast, deliver, cannot commit", meta: "MEMBER" },
+          { mark: "#C96F18", edge: "transparent", title: "No second administrator yet", sub: "one admin is a single point of failure", meta: "ADVISORY" }
+        ],
+        primary: "Send the five invitations", secondary: "Invite everyone as owners",
+        proves: "The commit/forecast split starts at invitation.", provesSub: "Who may promise a date to a client is decided before there is anything to promise.",
+        warn: { kind: "PERMISSION PATH", title: "Everyone as owner removes the flow's only guardrail", body: "With five owners, any member can commit a date and publish to the portal. The product allows it and says plainly what is lost.", action: "Use the suggested roles" } },
+      { id: "ON-05", label: "First project", crumb: "ONBOARDING / FIRST PROJECT",
+        heading: "Atlas Website Relaunch, with one committed date",
+        body: "A project starts with a launch date and a first milestone. Everything else — 214 work items eventually — is derived from those two commitments.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Launch · committed 30 Sep", sub: "the only date the client is promised at first", meta: "COMMITTED" },
+          { mark: "#090A09", edge: "transparent", title: "Milestone · Homepage direction", sub: "committed 18 Aug", meta: "COMMITTED" },
+          { mark: "#74786F", edge: "transparent", title: "Content migration", sub: "no date yet · forecast once scoped", meta: "UNKNOWN" }
+        ],
+        primary: "Add the client", secondary: "Commit every milestone now",
+        proves: "Unknown is a legitimate state.", provesSub: "The Pulse Track draws unknown dates as dashed rather than forcing a guess into a commitment.",
+        warn: { kind: "WHY NOT", title: "Committing eight dates on day one makes seven of them fiction", body: "Forecasts move as work is scoped; commitments do not move without a conversation. Committing everything early destroys the difference.", action: "Commit two, forecast the rest" } },
+      { id: "ON-06", label: "Add client", crumb: "ONBOARDING / CLIENT / ATLAS HOSPITALITY",
+        heading: "Atlas Hospitality, and who is allowed to decide",
+        body: "Client people are added with an authority, not just an email. Approval authority is the field that keeps deliverables from stalling.",
+        rows: [
+          { mark: "#7755C7", edge: "#7755C7", title: "Salma Riad · client administrator", sub: "manages her side, raises requests", meta: "CLIENT ADMIN" },
+          { mark: "#7755C7", edge: "transparent", title: "Youssef Kamal · reviewer", sub: "holds approval authority", meta: "APPROVER" },
+          { mark: "#7755C7", edge: "transparent", title: "Dina Ashraf · viewer", sub: "reads, cannot decide", meta: "VIEWER" },
+          { mark: "#C96F18", edge: "transparent", title: "Domain atlashospitality.com already known", sub: "matched from an earlier trial workspace", meta: "DUPLICATE" }
+        ],
+        primary: "Preview what they will see", secondary: "Resolve the duplicate domain",
+        proves: "Approval authority is set before anything needs approving.", provesSub: "Without this, flow 5 ends in a deliverable that nobody at the client is allowed to decide on.",
+        warn: { kind: "DUPLICATE DOMAIN", title: "Two Atlas records would split the same client's history", body: "The trial workspace holds three files and one thread. Merging keeps them; separating means the portal shows a client with no past.", action: "Merge into this client" } },
+      { id: "ON-07", label: "Client preview", crumb: "ONBOARDING / CLIENT PREVIEW", 
+        heading: "See the portal as Atlas before Atlas does",
+        body: "The preview is not a screenshot in a marketing page — it is the real projection, rendered from the project as it stands right now.",
+        rows: [
+          { mark: "#7755C7", edge: "#7755C7", title: "Visible · launch 30 Sep, homepage 18 Aug", sub: "committed dates only", meta: "SHOWN" },
+          { mark: "#090A09", edge: "transparent", title: "Hidden · forecasts, assignees, internal chat", sub: "per Atlas portal defaults", meta: "HIDDEN" },
+          { mark: "#C96F18", edge: "transparent", title: "Empty · no deliverables yet", sub: "the portal will read as unstarted", meta: "ADVISORY" }
+        ],
+        primary: "Invite Salma and Youssef", secondary: "Send invitations without previewing",
+        proves: "Nothing reaches a client that the studio has not seen first.", provesSub: "The Client Preview pattern is the same surface used for every later publication in flow 5.",
+        warn: { kind: "IF YOU SKIP THE PREVIEW", title: "The first thing Atlas sees is an empty portal", body: "It is technically correct and reads as neglect. Publishing one deliverable first costs ten minutes and sets the tone.", action: "Preview it after all" } },
+      { id: "ON-08", label: "Invited", crumb: "ONBOARDING / DONE",
+        heading: "Set up, with the client waiting on nothing",
+        body: "The organization exists, the project holds two commitments, and the portal is populated enough to be worth logging into.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Invitations sent · Salma, Youssef, Dina", sub: "Arabic interface offered to all three", meta: "SENT" },
+          { mark: "#090A09", edge: "transparent", title: "Team joined · 5 of 5", sub: "roles as invited", meta: "DONE" },
+          { mark: "#7755C7", edge: "transparent", title: "Portal live", sub: "two committed dates, one deliverable placeholder", meta: "CLIENT" }
+        ],
+        primary: "Restart flow 1", secondary: "Show what an empty portal looks like",
+        proves: "Onboarding ends with a real project, not a tour.", provesSub: "Flow 6 picks up exactly here, from Salma's side of the invitation.",
+        warn: { kind: "EMPTY STATE", title: "An empty portal states what is coming and when", body: "It says the next thing Atlas will be asked to decide, and the date it is expected. Empty is not the same as blank.", action: "Understood" } }
+    ]
+  },
+  B: {
+    tab: "Flow 2 · request to commitment",
+    title: "Flow 2 — a client request becomes a date the studio will defend",
+    object: { name: "Arabic booking FAQ", id: "REQ·8841", note: "The request keeps two dates for its whole life: the one Salma wanted and the one Omar committed. They are never merged into a single field.", audience: "AUDIENCE · CLIENT VISIBLE FROM CL-09" },
+    steps: [
+      { id: "CL-09", label: "Client request", crumb: "ATLAS HOSPITALITY PORTAL / REQUESTS / NEW",
+        heading: "Salma raises the request from her own side",
+        body: "The portal asks for what she needs and when she wants it, and states plainly that the second field is a wish, not an agreement.",
+        rows: [
+          { mark: "#7755C7", edge: "#7755C7", title: "Arabic booking FAQ", sub: "the booking flow pages, Arabic only", meta: "REQUEST" },
+          { mark: "#7755C7", edge: "transparent", title: "Desired · 3 Sep", sub: "labelled: not yet agreed by Northstar", meta: "DESIRED" },
+          { mark: "#090A09", edge: "transparent", title: "Raised by · Salma Riad", sub: "client administrator", meta: "CLIENT" }
+        ],
+        primary: "Submit the request", secondary: "Mark it urgent instead",
+        proves: "A desired date is visibly not a commitment.", provesSub: "The distinction is made at the moment of asking, in the client's own words.",
+        warn: { kind: "NO URGENCY FIELD", title: "Urgency is expressed as a date, not a flag", body: "Flags inflate and stop meaning anything. If it is needed sooner, the desired date says so and the studio answers with a committed date or a reason.", action: "Set a date instead" } },
+      { id: "REQ-01", label: "Triage", crumb: "ATLAS WEBSITE RELAUNCH / REQUESTS / REQ·8841",
+        heading: "Omar reads it against what is already promised",
+        body: "Triage is a comparison, not an inbox action. The request is placed next to the commitments it would compete with.",
+        rows: [
+          { mark: "#7755C7", edge: "#7755C7", title: "REQ·8841 · desired 3 Sep", sub: "unestimated", meta: "NEW" },
+          { mark: "#C96F18", edge: "#C96F18", title: "Content migration · forecast 8 Sep", sub: "committed 1 Sep — already 7 days late", meta: "AT RISK" },
+          { mark: "#090A09", edge: "transparent", title: "Launch · committed 30 Sep", sub: "unaffected either way", meta: "COMMITTED" }
+        ],
+        primary: "Ask what it covers", secondary: "Decline it",
+        proves: "New work is judged against existing promises.", provesSub: "The migration slip is on screen while the decision is made, so the cost of saying yes is visible.",
+        warn: { kind: "DECLINE WITH REASON", title: "A decline names the promise it protects", body: "Salma sees that the migration commitment of 1 Sep is already at risk, which is a better answer than a silent no or an unmet yes.", action: "Ask instead of declining" } },
+      { id: "REQ-02", label: "Clarify", crumb: "REQUESTS / REQ·8841 / CLARIFICATION",
+        heading: "One question, asked in the client's channel",
+        body: "The clarification lives in chat because that is where Salma already is. The request stays open and the clock is visibly on the studio.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "\u201cDoes this cover the cancellation policy page?\u201d", sub: "Omar Adel · #relaunch", meta: "ASKED" },
+          { mark: "#7755C7", edge: "transparent", title: "\u201cYes, and the deposit terms.\u201d", sub: "Salma Riad · 41 minutes later", meta: "ANSWERED" },
+          { mark: "#090A09", edge: "transparent", title: "Scope · 4 pages, not 2", sub: "estimate doubles", meta: "REVISED" }
+        ],
+        primary: "Estimate the revised scope", secondary: "Estimate the original scope",
+        proves: "Clarification changes the estimate before the promise.", provesSub: "The loop is short and recorded, so the doubling is attributable to an answer rather than to drift.",
+        warn: { kind: "CLARIFICATION LOOP", title: "Estimating two pages would commit to the wrong thing", body: "The commitment would be met on paper and wrong in practice. This is the most common way a defensible date becomes an argument.", action: "Use the revised scope" } },
+      { id: "REQ-03", label: "Commit", crumb: "REQUESTS / REQ·8841 / COMMITMENT",
+        heading: "Committed 5 Sep, two days after Salma asked",
+        body: "Omar commits a date he can defend and states why it is not the requested one. The desired date stays on the record beside it.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Committed · 5 Sep", sub: "by Omar Adel, project manager", meta: "COMMITTED" },
+          { mark: "#7755C7", edge: "transparent", title: "Desired · 3 Sep", sub: "retained, not overwritten", meta: "DESIRED" },
+          { mark: "#090A09", edge: "transparent", title: "Reason · English copy lands 28 Aug", sub: "shown to Atlas with the date", meta: "STATED" },
+          { mark: "#090A09", edge: "transparent", title: "Owner · Noor Fathy", sub: "content, Arabic", meta: "ASSIGNED" }
+        ],
+        primary: "Create the work item", secondary: "Commit 3 Sep to keep her happy",
+        proves: "Two dates, one of them a promise.", provesSub: "Keeping the desired date visible is what makes a two-day difference a conversation instead of a failure.",
+        warn: { kind: "PERMISSION PATH", title: "Committing 3 Sep would need the copy five days early", body: "The forecast says 5 Sep. Committing earlier without changing anything upstream is how the migration commitment already slipped.", action: "Commit 5 Sep" } },
+      { id: "WK-09", label: "Work item", crumb: "ATLAS WEBSITE RELAUNCH / WORK / WK·9120",
+        heading: "The request now exists as work, in both views",
+        body: "One object, two audiences: the studio sees the forecast and the dependency, Atlas sees a committed date and its reason.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "WK·9120 · Arabic booking FAQ", sub: "from REQ·8841 · source link preserved", meta: "CURRENT" },
+          { mark: "#090A09", edge: "transparent", title: "Blocked by · final English copy", sub: "28 Aug", meta: "DEPENDENCY" },
+          { mark: "#7755C7", edge: "transparent", title: "Client sees · committed 5 Sep", sub: "with the reason, without the forecast", meta: "PROJECTED" }
+        ],
+        primary: "Restart flow 2", secondary: "Show the request with no work item",
+        proves: "The request and the work are the same object.", provesSub: "Closing the work item closes the request, so a client is never left watching something that has already shipped.",
+        warn: { kind: "ORPHANED REQUEST", title: "A committed request with no work item is invisible", body: "It appears in the portal as agreed and in nobody's My Day. This is the state the flow exists to make impossible.", action: "Understood" } }
+    ]
+  },
+  C: {
+    tab: "Flow 6 · client login to action",
+    title: "Flow 6 — Youssef logs in and knows where things stand in thirty seconds",
+    object: { name: "Homepage Concept v2", id: "8f2c·d41a", note: "The client's whole session is about one artefact and one question. Everything else on screen exists to make that question answerable without asking anyone.", audience: "AUDIENCE · CLIENT VISIBLE THROUGHOUT" },
+    steps: [
+      { id: "ID-01", label: "Sign in", crumb: "TMANAGE / SIGN IN",
+        heading: "Youssef Kamal signs in, in Arabic",
+        body: "The client's language was set when Atlas was added, so the first screen is already correct. Nothing asks him to configure anything.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "youssef.kamal@atlashospitality.com", sub: "invited by Maya Hassan, 4 Aug", meta: "CLIENT" },
+          { mark: "#090A09", edge: "transparent", title: "Interface · العربية", sub: "RTL, Alexandria type stack", meta: "AR" },
+          { mark: "#74786F", edge: "transparent", title: "One organization", sub: "no workspace picker for client users", meta: "DIRECT" }
+        ],
+        primary: "Open the portal", secondary: "Wrong password",
+        proves: "A client never chooses a workspace.", provesSub: "Client sign-in lands on the only place they can go, in the language they were invited in.",
+        warn: { kind: "RECOVERY", title: "Recovery does not reveal whether the account exists", body: "The message is the same either way, and the email arrives in Arabic. Failure states are localized too.", action: "Signed in" } },
+      { id: "CL-01", label: "Overview", crumb: "ATLAS HOSPITALITY PORTAL / OVERVIEW",
+        heading: "One sentence, then the evidence for it",
+        body: "The overview answers is it on track, what is asked of me, and what happens next — in that order, above the fold.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "On track for launch, 30 Sep", sub: "one thing waiting on you", meta: "STATUS" },
+          { mark: "#7755C7", edge: "#7755C7", title: "Homepage Concept v2", sub: "asked of you before 18 Aug", meta: "YOUR TURN" },
+          { mark: "#090A09", edge: "transparent", title: "Homepage direction · 18 Aug", sub: "committed milestone", meta: "NEXT" },
+          { mark: "#74786F", edge: "transparent", title: "Content migration", sub: "in progress, no date asked of you", meta: "OURS" }
+        ],
+        primary: "Open what is asked of me", secondary: "Look for a project plan",
+        proves: "Thirty-second comprehension by subtraction.", provesSub: "No forecasts, no assignees, no burndown. The Audience Halo marks the one row that requires him.",
+        warn: { kind: "NOT SHOWN", title: "The portal has no Gantt chart", body: "Committed dates and their status are shown; internal sequencing is not. A client who needs the plan is being asked to manage the project.", action: "Continue" } },
+      { id: "CL-05", label: "Deliverable", crumb: "PORTAL / DELIVERABLES / HOMEPAGE CONCEPT V2",
+        heading: "The artefact, the question, and both consequences",
+        body: "Before he decides, he can see what changed since the version he approved on 4 Aug and what each answer does to the 18 Aug milestone.",
+        rows: [
+          { mark: "#7755C7", edge: "#7755C7", title: "Homepage Concept v2", sub: "hash 8f2c·d41a · published 10:14", meta: "TO DECIDE" },
+          { mark: "#090A09", edge: "transparent", title: "Changed since v1", sub: "hero, booking entry point", meta: "DIFF" },
+          { mark: "#B7FF57", edge: "transparent", title: "If approved", sub: "milestone closes on 18 Aug as committed", meta: "OUTCOME" },
+          { mark: "#C96F18", edge: "transparent", title: "If changes requested", sub: "v3 needed · 18 Aug at risk", meta: "OUTCOME" }
+        ],
+        primary: "Ask for changes", secondary: "Approve without reading the diff",
+        proves: "Both outcomes are stated before the decision.", provesSub: "A client who knows the cost of asking for changes asks for the ones that matter.",
+        warn: { kind: "ALLOWED", title: "Approving without opening the diff is permitted", body: "The record notes that the diff was not opened. Nothing is blocked, and nothing is hidden about how the decision was made.", action: "Read it, then decide" } },
+      { id: "CL-06", label: "Feedback", crumb: "PORTAL / DELIVERABLES / CHANGES REQUESTED",
+        heading: "Feedback has to be actionable to be sent",
+        body: "The portal asks him to point at something and say what is wrong. \u201cIt does not feel right\u201d cannot be submitted on its own.",
+        rows: [
+          { mark: "#C96F18", edge: "#C96F18", title: "\u201cThe Arabic hero line reads as a translation\u201d", sub: "pinned to the hero region", meta: "BLOCKING" },
+          { mark: "#7755C7", edge: "transparent", title: "\u201cBooking entry is much clearer\u201d", sub: "not blocking, sent as praise", meta: "NOTE" },
+          { mark: "#090A09", edge: "transparent", title: "Goes to · Northstar Studio", sub: "routed to the Arabic content owner", meta: "SENT" },
+          { mark: "#B7FF57", edge: "transparent", title: "Milestone 18 Aug", sub: "still committed · Northstar answers by 16 Aug", meta: "PROMISED" }
+        ],
+        primary: "Restart flow 6",
+        secondary: "Submit \u201cnot sure about it\u201d",
+        proves: "The client leaves knowing what happens next.", provesSub: "Every exit from the portal names a date and a person, which is what stops the follow-up email.",
+        warn: { kind: "NOT ACTIONABLE", title: "Unpinned, unspecific feedback is refused", body: "The studio cannot act on it and would spend a day asking what he meant — a day the 18 Aug commitment does not have.", action: "Point at the hero" } }
+    ]
+  }
+};
+
+class Component extends DCLogic {
+  state = { flow: "A", i: 0, warned: false };
+
+  set(i) { const f = FLOWS[this.state.flow]; this.setState({ i: (i + f.steps.length) % f.steps.length, warned: false }); }
+
+  renderVals() {
+    const f = FLOWS[this.state.flow];
+    const st = f.steps[this.state.i];
+    return {
+      flowTitle: f.title,
+      tabs: Object.keys(FLOWS).map(k => ({
+        label: FLOWS[k].tab,
+        bg: k === this.state.flow ? "#B7FF57" : "#232521",
+        fg: k === this.state.flow ? "#090A09" : "#A7ACA0",
+        go: () => this.setState({ flow: k, i: 0, warned: false })
+      })),
+      steps: f.steps.map((s, n) => ({
+        id: s.id, label: s.label,
+        bg: n === this.state.i ? "#3A3E35" : "transparent",
+        dot: n === this.state.i ? "#B7FF57" : n < this.state.i ? "#F5F6F0" : "#4D5049",
+        fg: n === this.state.i ? "#F5F6F0" : "#A7ACA0",
+        go: () => this.set(n)
+      })),
+      counter: "STEP " + (this.state.i + 1) + " OF " + f.steps.length,
+      crumb: st.crumb, screenId: st.id + " · " + st.label.toUpperCase(),
+      heading: st.heading, body: st.body,
+      rows: st.rows,
+      primary: st.primary, secondary: st.secondary,
+      proves: st.proves, provesSub: st.provesSub,
+      next: () => this.set(this.state.i + 1),
+      back: () => this.set(this.state.i - 1),
+      trip: () => this.setState({ warned: true }),
+      clear: () => this.set(this.state.i + 1),
+      warned: this.state.warned,
+      warnKind: st.warn.kind, warnTitle: st.warn.title, warnBody: st.warn.body, warnAction: st.warn.action,
+      objectName: f.object.name, objectId: f.object.id, objectNote: f.object.note, audience: f.object.audience
+    };
+  }
+}
+</script>
+</body>
+</html>

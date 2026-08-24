@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family:'Satoshi'; src:url('./design/assets/fonts/Satoshi-Variable.woff2') format('woff2'); font-weight:300 900; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Manrope'; src:url('./design/assets/fonts/Manrope-Variable.ttf') format('truetype'); font-weight:200 800; font-style:normal; font-display:swap; }
+  body { margin:0; background:#2C2E29; font-family:Satoshi, Manrope, system-ui, sans-serif; }
+  a { color:#4D5049; text-decoration:none; border-bottom:1px solid #C5C7C0; }
+  a:hover { color:#090A09; border-bottom-color:#9CEA3F; }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#2C2E29;padding:40px;display:flex;flex-direction:column;align-items:center;gap:24px">
+
+  <div style="width:1440px;display:flex;align-items:flex-end;gap:24px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">CLICKABLE PROTOTYPE · PROTOTYPE MAP FLOWS 4, 7, 8, 9 AND 10</div>
+      <div style="font:500 30px/36px Satoshi;letter-spacing:-0.02em;color:#F5F6F0">{{ flowTitle }}</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:640px">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <div onClick="{{ t.go }}" style="padding:9px 16px;border-radius:999px;font:600 12px/17px Satoshi;cursor:pointer;background:{{ t.bg }};color:{{ t.fg }}">{{ t.label }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="width:1440px;display:flex;align-items:center;gap:8px;background:#232521;border-radius:999px;padding:12px 18px;flex-wrap:wrap">
+    <sc-for list="{{ steps }}" as="s" hint-placeholder-count="5">
+      <div onClick="{{ s.go }}" style="display:flex;align-items:center;gap:9px;padding:6px 12px;border-radius:999px;cursor:pointer;background:{{ s.bg }}">
+        <div style="width:9px;height:9px;border-radius:999px;background:{{ s.dot }}"></div>
+        <div style="font:500 11px/16px 'Geist Mono',monospace;letter-spacing:0.1em;color:{{ s.fg }}">{{ s.id }}</div>
+        <div style="font:500 12px/17px Satoshi;color:{{ s.fg }}">{{ s.label }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="width:1440px;height:760px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+    <div style="height:60px;flex-shrink:0;padding:0 28px;display:flex;align-items:center;gap:16px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+      <div style="width:34px;height:34px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:19px;display:block"></div>
+      <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">{{ crumb }}</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+        <div style="font:500 11px/16px 'Geist Mono',monospace;color:#74786F">{{ counter }}</div>
+        <div onClick="{{ back }}" style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;cursor:pointer">Back</div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-height:0;padding:28px;display:flex;gap:22px">
+      <div style="flex:1.5;min-width:0;display:flex;flex-direction:column;gap:18px">
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">{{ screenId }}</div>
+          <div style="font:500 34px/40px Satoshi;letter-spacing:-0.025em;color:#090A09;text-wrap:pretty">{{ heading }}</div>
+        </div>
+
+        <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px;flex:1;min-height:0">
+          <div style="font:400 15px/23px Manrope;color:#4D5049;text-wrap:pretty">{{ body }}</div>
+          <div style="height:1px;background:#E9E9E5"></div>
+          <div style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:14px;height:52px;border-bottom:1px solid #E9E9E5;padding-left:12px;border-left:3px solid {{ r.edge }}">
+                <div style="width:9px;height:9px;background:{{ r.mark }}"></div>
+                <div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">{{ r.title }}</div><div style="font:400 11px/15px Manrope;color:#74786F">{{ r.sub }}</div></div>
+                <div style="font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">{{ r.meta }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:auto;display:flex;align-items:center;gap:12px">
+            <div onClick="{{ next }}" style="padding:13px 22px;background:#090A09;border-radius:999px;font:600 13px/18px Satoshi;color:#F7F7F3;cursor:pointer">{{ primary }}</div>
+            <div onClick="{{ trip }}" style="padding:13px 22px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:600 13px/18px Satoshi;color:#C96F18;cursor:pointer">{{ secondary }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="width:420px;flex-shrink:0;display:flex;flex-direction:column;gap:16px">
+        <div style="background:#090A09;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">WHAT THIS STEP PROVES</div></div>
+          <div style="font:500 19px/26px Satoshi;color:#F5F6F0;text-wrap:pretty">{{ proves }}</div>
+          <div style="font:400 13px/19px Manrope;color:#A7ACA0;text-wrap:pretty">{{ provesSub }}</div>
+        </div>
+
+        <sc-if value="{{ warned }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#FFFFFF;border:1px solid #C96F18;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#C96F18">{{ warnKind }}</div>
+            <div style="font:500 18px/25px Satoshi;color:#090A09;text-wrap:pretty">{{ warnTitle }}</div>
+            <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">{{ warnBody }}</div>
+            <div onClick="{{ clear }}" style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;cursor:pointer;align-self:flex-start">{{ warnAction }}</div>
+          </div>
+        </sc-if>
+
+        <div style="background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:10px;flex:1">
+          <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">OBJECT CARRIED THROUGH</div>
+          <div style="font:500 16px/22px Satoshi;color:#090A09">{{ objectName }}</div>
+          <div style="font:500 13px/19px 'Geist Mono',monospace;color:#232521">{{ objectId }}</div>
+          <div style="height:1px;background:#E9E9E5"></div>
+          <div style="font:400 12px/18px Manrope;color:#74786F;text-wrap:pretty">{{ objectNote }}</div>
+          <div style="margin-top:auto;font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">{{ audience }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:1440px;font:400 13px/19px Manrope;color:#A7ACA0">Click the primary action to move forward, the orange action to take the failure or permission path, or any step in the rail to jump. With flows 1, 2, 3, 5 and 6 in the other two prototype files, all ten flows from the prototype map are now clickable.</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1520,&quot;height&quot;:1000}}">
+const FLOWS = {
+  D: {
+    tab: "4 · blocker",
+    title: "Flow 4 — a blocker moves a forecast, and says so",
+    object: { name: "Content migration", id: "WK·8802 · committed 1 Sep", note: "The forecast is recalculated by the product; the commitment can only be changed by a person. This flow is the moment those two numbers disagree.", audience: "AUDIENCE · INTERNAL, CLIENT SEES THE SLIP AT PRJ-01" },
+    steps: [
+      { id: "PRJ-02", label: "Plan", crumb: "ATLAS WEBSITE RELAUNCH / PLAN",
+        heading: "The plan, three days before the migration was promised",
+        body: "Nothing is late yet. The migration is the one chain of work with no slack, which is why it is drawn as a single track rather than as rows.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Content migration · committed 1 Sep", sub: "forecast 1 Sep · 214 rows behind it", meta: "CURRENT" },
+          { mark: "#090A09", edge: "transparent", title: "Depends on · CMS credentials from Atlas", sub: "requested 12 Aug", meta: "EXTERNAL" },
+          { mark: "#74786F", edge: "transparent", title: "Launch · committed 30 Sep", sub: "29 days of slack after migration", meta: "COMMITTED" }
+        ],
+        primary: "Open the blocked item", secondary: "Re-plan around it now",
+        proves: "Slack is visible before it is spent.", provesSub: "The plan shows where a slip would be absorbed and where it would reach the client.",
+        warn: { kind: "TOO EARLY", title: "Re-planning before the blocker is understood moves dates twice", body: "The credentials may arrive today. A forecast that changes twice in a week is a forecast nobody reads.", action: "Look at the blocker first" } },
+      { id: "WK-12", label: "Blocker", crumb: "WORK / WK·8802 / BLOCKER",
+        heading: "Atlas has not sent the CMS credentials",
+        body: "A blocker names who is blocking, since when, and what it costs. Waiting on the client is recorded as such, in hours.",
+        rows: [
+          { mark: "#C96F18", edge: "#C96F18", title: "Waiting on Atlas Hospitality", sub: "4 days · Salma Riad asked 12 Aug", meta: "96H" },
+          { mark: "#090A09", edge: "transparent", title: "Cost · 1 day of slip per day waited", sub: "no parallel work available", meta: "MEASURED" },
+          { mark: "#090A09", edge: "transparent", title: "Forecast · 8 Sep", sub: "recomputed from today", meta: "COMPUTED" },
+          { mark: "#B7FF57", edge: "transparent", title: "Committed · 1 Sep", sub: "unchanged, still what Atlas was promised", meta: "COMMITTED" }
+        ],
+        primary: "Try to move it to done", secondary: "Change the commitment quietly",
+        proves: "A slip has an owner and a start time.", provesSub: "Seven days of forecast movement is attributed to 96 hours of waiting, not to the team.",
+        warn: { kind: "NOT POSSIBLE", title: "A commitment cannot be edited without a reason", body: "Changing a committed date requires a stated cause and notifies the client. That is the difference between a commitment and a note.", action: "State the reason" } },
+      { id: "WK-03", label: "Invalid move", crumb: "WORK / BOARD",
+        heading: "The blocked item refuses to move to done",
+        body: "Karim drags it anyway. The board explains what would have to be true first, rather than snapping the card back with no message.",
+        rows: [
+          { mark: "#C96F18", edge: "#C96F18", title: "Blocked → Done rejected", sub: "an open external blocker exists", meta: "INVALID" },
+          { mark: "#090A09", edge: "transparent", title: "Allowed · Blocked → In review", sub: "if the migration script is written", meta: "OFFERED" },
+          { mark: "#090A09", edge: "transparent", title: "Keyboard · same rules", sub: "move with ⌘↑ and ⌘↓, same refusal", meta: "A11Y" }
+        ],
+        primary: "Resolve the dependency instead", secondary: "Force the transition",
+        proves: "A refused action explains itself and offers the legal one.", provesSub: "Keyboard movement obeys the same state machine, so the rules are not a property of dragging.",
+        warn: { kind: "NO OVERRIDE", title: "There is no force option for state transitions", body: "An item marked done while blocked would make every metric in Insights a lie. The blocker is closed first, or the item stays blocked.", action: "Resolve it" } },
+      { id: "WK-09", label: "Resolved", crumb: "WORK / WK·8802",
+        heading: "Credentials arrive, and the forecast moves once",
+        body: "The chain is recalculated in one pass. Every downstream item that moved says which blocker moved it.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Blocker closed", sub: "Salma Riad sent credentials 16 Aug 09:40", meta: "CLEARED" },
+          { mark: "#090A09", edge: "transparent", title: "Forecast · 8 Sep", sub: "held · the 4 days cannot be recovered", meta: "COMPUTED" },
+          { mark: "#C96F18", edge: "#C96F18", title: "Committed 1 Sep now unachievable", sub: "needs a new commitment and a reason", meta: "BREACH" },
+          { mark: "#74786F", edge: "transparent", title: "Launch 30 Sep", sub: "still safe · 22 days of slack left", meta: "UNAFFECTED" }
+        ],
+        primary: "Recommit with the reason", secondary: "Ask the team to absorb it",
+        proves: "One recalculation, fully attributed.", provesSub: "Nobody has to reconstruct why a date moved, because the blocker that moved it is attached to it.",
+        warn: { kind: "OVERTIME PATH", title: "Absorbing four days is a decision, not a default", body: "The product will not quietly assume weekend work to protect a date. If the studio chooses it, the choice is recorded against the commitment.", action: "Recommit honestly" } },
+      { id: "PRJ-01", label: "Project", crumb: "ATLAS WEBSITE RELAUNCH / OVERVIEW",
+        heading: "Recommitted 8 Sep, with the reason attached",
+        body: "The project overview shows one changed commitment and why. Atlas sees the same sentence in the portal, without the internal detail.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Content migration · committed 8 Sep", sub: "was 1 Sep · reason: credentials received 4 days late", meta: "RECOMMITTED" },
+          { mark: "#7755C7", edge: "transparent", title: "Atlas notified", sub: "one change, one sentence, no blame", meta: "CLIENT" },
+          { mark: "#090A09", edge: "transparent", title: "Launch 30 Sep", sub: "unchanged", meta: "COMMITTED" }
+        ],
+        primary: "Restart flow 4", secondary: "Show it without the reason",
+        proves: "A moved commitment carries its cause forever.", provesSub: "This is what makes the Pulse Track's orange risk edge worth trusting at the end of a project.",
+        warn: { kind: "WITHOUT A REASON", title: "A date that changes silently is the thing clients remember", body: "The reason field is required precisely because it is the part everyone would rather skip.", action: "Understood" } }
+    ]
+  },
+  G: {
+    tab: "7 · meeting",
+    title: "Flow 7 — a meeting becomes decisions and owned work",
+    object: { name: "Weekly review, 16 Aug", id: "MTG·4417", note: "The meeting produces two kinds of object: decisions, which are permanent, and work items, which are owned. The transcript is evidence for both.", audience: "AUDIENCE · INTERNAL, DECISIONS MAY BE PUBLISHED" },
+    steps: [
+      { id: "CAL-03", label: "Calendar", crumb: "CALENDAR / 16 AUG",
+        heading: "Thirty minutes with the two things that need deciding",
+        body: "The agenda is built from the project, not typed: open decisions and items whose forecast has moved since the last meeting.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Weekly review · 14:00, 30 min", sub: "Omar, Lina, Karim, Noor", meta: "NEXT" },
+          { mark: "#C96F18", edge: "transparent", title: "Agenda · migration slip to 8 Sep", sub: "pulled from the plan", meta: "AUTO" },
+          { mark: "#7755C7", edge: "transparent", title: "Agenda · Arabic FAQ scope, 4 pages", sub: "pulled from REQ·8841", meta: "AUTO" }
+        ],
+        primary: "Start the meeting", secondary: "Add every open item to the agenda",
+        proves: "The agenda is a query, not a document.", provesSub: "It cannot go stale between the invitation and the meeting.",
+        warn: { kind: "WHY NOT", title: "A 27-item agenda is a status meeting", body: "The product proposes only decisions and changes. Everything else is readable without four people in a room.", action: "Keep the two items" } },
+      { id: "MTG-02", label: "In meeting", crumb: "MEETINGS / MTG·4417 / LIVE",
+        heading: "Capture is a side effect of talking",
+        body: "Notes are taken against agenda items, so a sentence lands on the object it is about. Nothing is published while the meeting is running.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "\u201cWe accept 8 Sep, launch is unaffected\u201d", sub: "against the migration item", meta: "DECISION?" },
+          { mark: "#090A09", edge: "transparent", title: "\u201cNoor takes the 4-page FAQ, needs copy 28 Aug\u201d", sub: "against REQ·8841", meta: "ACTION?" },
+          { mark: "#74786F", edge: "transparent", title: "Draft · nothing is visible yet", sub: "not to the team, not to Atlas", meta: "PRIVATE" }
+        ],
+        primary: "End and review the draft", secondary: "Publish notes as they are",
+        proves: "Capture and publication are separate acts.", provesSub: "The question marks matter: the product proposes what looks like a decision, a person confirms it.",
+        warn: { kind: "NOT ALLOWED", title: "Raw notes are never published automatically", body: "A misheard sentence would become a decision of record. Every meeting output passes through a human confirmation.", action: "Review the draft" } },
+      { id: "MTG-03", label: "Summary", crumb: "MEETINGS / MTG·4417 / SUMMARY",
+        heading: "Omar confirms three things and deletes two",
+        body: "The draft summary is a proposal with checkboxes. What survives becomes real; what does not stays in the transcript only.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Decision · accept 8 Sep migration date", sub: "confirmed", meta: "KEEP" },
+          { mark: "#B7FF57", edge: "transparent", title: "Action · Arabic FAQ, 4 pages, Noor", sub: "confirmed · committed 5 Sep", meta: "KEEP" },
+          { mark: "#74786F", edge: "transparent", title: "\u201cMaybe rethink the footer\u201d", sub: "removed · not a decision", meta: "DROP" },
+          { mark: "#74786F", edge: "transparent", title: "\u201cAsk about phase two budget\u201d", sub: "removed · belongs to Maya", meta: "DROP" }
+        ],
+        primary: "Publish the summary", secondary: "Keep everything just in case",
+        proves: "A summary is what someone stands behind.", provesSub: "Two of four proposals are dropped, which is the normal ratio and the reason the step exists.",
+        warn: { kind: "COST OF KEEPING", title: "Four decisions of record, two of them meaningless", body: "The decisions log is only useful if everything in it was genuinely decided. Padding it is how it stops being read.", action: "Publish the three" } },
+      { id: "DEC-01", label: "Decision", crumb: "DECISIONS / DEC·0212",
+        heading: "The migration date decision, on the record",
+        body: "A decision names what was decided, by whom, what it changed and what it rejected. It is not editable after publication.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "Accept 8 Sep for content migration", sub: "Omar Adel · 16 Aug 14:22 · MTG·4417", meta: "DECIDED" },
+          { mark: "#090A09", edge: "transparent", title: "Rejected · weekend work to hold 1 Sep", sub: "recorded with the decision", meta: "ALTERNATIVE" },
+          { mark: "#7755C7", edge: "transparent", title: "Visible to Atlas", sub: "the date and the reason only", meta: "PUBLISHED" }
+        ],
+        primary: "Open the created work",
+        secondary: "Edit the decision",
+        proves: "The rejected option is part of the record.", provesSub: "Six weeks later, the question is never what was decided but what else was on the table.",
+        warn: { kind: "IMMUTABLE", title: "Decisions are superseded, never edited", body: "A new decision can reverse this one and will link back to it. The original stays, because it explains what people believed at the time.", action: "Understood" } },
+      { id: "WK-09", label: "Work", crumb: "WORK / WK·9120",
+        heading: "The action item is ordinary work by the time the meeting ends",
+        body: "It has an owner, a committed date, a source meeting and a dependency. Nobody has to remember to create it.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Arabic booking FAQ · 4 pages", sub: "Noor Fathy · committed 5 Sep", meta: "CURRENT" },
+          { mark: "#090A09", edge: "transparent", title: "Source · MTG·4417, 14:18", sub: "and REQ·8841 before it", meta: "LINKED" },
+          { mark: "#090A09", edge: "transparent", title: "On Noor's My Day", sub: "with the reason it is next", meta: "ROUTED" }
+        ],
+        primary: "Restart flow 7",
+        secondary: "Show a meeting with no outputs",
+        proves: "The meeting ends with objects, not minutes.", provesSub: "Two decisions and one owned item, each traceable to the sentence that produced it.",
+        warn: { kind: "LEGITIMATE", title: "A meeting can end with nothing", body: "The summary then records that no decision was reached and why, which is more useful than an invented action item.", action: "Understood" } }
+    ]
+  },
+  H: {
+    tab: "8 · search and AI",
+    title: "Flow 8 — an answer with citations, then a guarded action",
+    object: { name: "Arabic hero line question", id: "AI·2290", note: "The answer is only as good as what it cites. Every claim in it links to a message, a version or a decision that a person can open.", audience: "AUDIENCE · INTERNAL · ANSWERS RESPECT THE ASKER'S PERMISSIONS" },
+    steps: [
+      { id: "SR-01", label: "Search", crumb: "SEARCH",
+        heading: "\u201cwhy is the arabic hero line still english\u201d",
+        body: "Search opens over whatever you were doing, as a dark overlay, and answers in objects before it answers in prose.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "Internal comment · Omar Adel, 09:52", sub: "\u201cThe Arabic hero line is still English\u201d", meta: "MESSAGE" },
+          { mark: "#7755C7", edge: "transparent", title: "Approval · Youssef Kamal, 11:30", sub: "changes requested, same point", meta: "APPROVAL" },
+          { mark: "#090A09", edge: "transparent", title: "Deliverable · Homepage Concept v2", sub: "hash 8f2c·d41a", meta: "FILE" }
+        ],
+        primary: "Ask for an answer", secondary: "Search someone else's channels",
+        proves: "Results are objects with dates, not passages.", provesSub: "Three results, each one openable, before any generated sentence appears.",
+        warn: { kind: "PERMISSION PATH", title: "Search never returns what you cannot open", body: "Karim's search for the same phrase returns two results, not three: he is not on the Atlas approval. Permissions are applied before ranking, not after.", action: "Continue as Omar" } },
+      { id: "SR-02", label: "Filtered", crumb: "SEARCH / FILTERED",
+        heading: "Narrowed to this project, this fortnight",
+        body: "Filters are the same vocabulary as the rest of the product: project, audience, object type, committed date.",
+        rows: [
+          { mark: "#090A09", edge: "transparent", title: "Project · Atlas Website Relaunch", sub: "9 of 40 channels", meta: "FILTER" },
+          { mark: "#7755C7", edge: "transparent", title: "Audience · client visible", sub: "2 results", meta: "FILTER" },
+          { mark: "#090A09", edge: "transparent", title: "Since · 4 Aug, the v1 approval", sub: "the last known-good state", meta: "FILTER" }
+        ],
+        primary: "Show the answer", secondary: "Search everything instead",
+        proves: "Filtering by audience is a first-class idea.", provesSub: "Asking what the client can see is one click, not a guess.",
+        warn: { kind: "40 CHANNELS", title: "Unfiltered search returns 61 matches", body: "Most are the same sentence quoted onward. The filters exist because the studio's history is larger than any one question.", action: "Keep the filters" } },
+      { id: "SR-03", label: "Answer", crumb: "SEARCH / ANSWER",
+        heading: "Four sentences, six citations",
+        body: "The answer is short and every clause is numbered. An uncited claim is not shown at all, even when the model is confident.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "Flagged internally before the client saw it", sub: "cites Omar 09:52, excluded at DEL-04", meta: "1, 2" },
+          { mark: "#7755C7", edge: "transparent", title: "Client raised the same point at 11:30", sub: "cites APP-03", meta: "3" },
+          { mark: "#090A09", edge: "transparent", title: "Owner is Noor Fathy, copy lands 28 Aug", sub: "cites WK·9120", meta: "4, 5" },
+          { mark: "#C96F18", edge: "#C96F18", title: "Withheld · why the exclusion was chosen", sub: "no record supports an answer", meta: "NO SOURCE" }
+        ],
+        primary: "Act on this",
+        secondary: "Ask it to guess anyway",
+        proves: "The model is allowed to say there is no record.", provesSub: "The withheld row is the most important one on this screen.",
+        warn: { kind: "REFUSED", title: "Speculation is not offered as an answer", body: "It would be indistinguishable from the cited sentences beside it. The product asks Omar instead, since he made the decision.", action: "Ask Omar" } },
+      { id: "AI-03", label: "Action", crumb: "AI / SUGGESTED ACTION",
+        heading: "It proposes work, and names what that would change",
+        body: "A consequential action is shown as a diff before it happens: what is created, who is notified, which commitment it touches.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "Create · rewrite Arabic hero line", sub: "owner Noor Fathy, forecast 17 Aug", meta: "PROPOSED" },
+          { mark: "#7755C7", edge: "transparent", title: "Notifies · Youssef Kamal", sub: "his change request would be answered", meta: "CLIENT" },
+          { mark: "#C96F18", edge: "transparent", title: "Touches · milestone 18 Aug", sub: "committed · no date change proposed", meta: "SAFE" }
+        ],
+        primary: "Confirm and create it",
+        secondary: "Let it act automatically",
+        proves: "AI proposes; a person confirms.", provesSub: "The confirmation shows the client notification, because that is the part with consequences outside the studio.",
+        warn: { kind: "NOT AVAILABLE", title: "Nothing that touches a client acts without confirmation", body: "Automations can create internal work unattended. Anything that notifies a client or moves a commitment needs a name against it.", action: "Confirm it yourself" } },
+      { id: "WK-09", label: "Created", crumb: "WORK / WK·9131",
+        heading: "Created by Omar, suggested by search",
+        body: "Both facts are on the item. Attribution to a person and to the tool that proposed it are separate fields.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "WK·9131 · rewrite Arabic hero line", sub: "confirmed by Omar Adel 16 Aug", meta: "CURRENT" },
+          { mark: "#090A09", edge: "transparent", title: "Proposed by · answer AI·2290", sub: "with its six citations", meta: "SOURCE" },
+          { mark: "#7755C7", edge: "transparent", title: "Answers · APP-03 change request", sub: "Youssef notified", meta: "CLIENT" }
+        ],
+        primary: "Restart flow 8",
+        secondary: "Show an answer with no citations",
+        proves: "AI-created work is auditable as such.", provesSub: "Six months of these items can be reviewed as a group, which is how the studio decides whether to trust the feature.",
+        warn: { kind: "NOT POSSIBLE", title: "An answer with no citations is not rendered", body: "The surface has no uncited state. If nothing supports an answer, the product shows the search results and stops.", action: "Understood" } }
+    ]
+  },
+  I: {
+    tab: "9 · automation",
+    title: "Flow 9 — build an automation, dry run it, survive its failure",
+    object: { name: "Approval reminder", id: "AUT·118", note: "An automation is a visible object with a run history. Every run either produced an effect or explains why it did not.", audience: "AUDIENCE · INTERNAL · EFFECTS MAY REACH CLIENTS" },
+    steps: [
+      { id: "AUT-01", label: "Build", crumb: "CONTROL CENTER / AUTOMATIONS / NEW",
+        heading: "When a client approval waits 24 hours, remind once",
+        body: "Automations are written in the product's own nouns. There is no expression language, because the objects already carry the state.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "When · approval waiting > 24h", sub: "client-visible deliverables only", meta: "TRIGGER" },
+          { mark: "#090A09", edge: "transparent", title: "Then · remind the named approver", sub: "in the portal and by email", meta: "EFFECT" },
+          { mark: "#C96F18", edge: "transparent", title: "Limit · once per version", sub: "prevents a reminder loop", meta: "GUARD" }
+        ],
+        primary: "Dry run it", secondary: "Activate it immediately",
+        proves: "Every automation needs a stated limit.", provesSub: "The once-per-version guard is required, not optional, because a client cannot mute the studio.",
+        warn: { kind: "BLOCKED", title: "Activation without a dry run is not offered", body: "An untested automation that emails clients is the fastest way to lose a portal's credibility. The dry run costs one click.", action: "Dry run it" } },
+      { id: "AUT-02", label: "Dry run", crumb: "AUTOMATIONS / AUT·118 / DRY RUN",
+        heading: "What it would have done over the last 30 days",
+        body: "The dry run is executed against real history with all effects suppressed, so the output is a list of emails that were not sent.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "Would have fired 4 times", sub: "3 deliverables, 2 clients", meta: "SIMULATED" },
+          { mark: "#7755C7", edge: "transparent", title: "Homepage Concept v2 · 26h wait", sub: "Youssef Kamal would be reminded", meta: "CORRECT" },
+          { mark: "#C96F18", edge: "#C96F18", title: "Twice on the same v1 approval", sub: "guard would have suppressed the second", meta: "CAUGHT" },
+          { mark: "#74786F", edge: "transparent", title: "Nothing was sent", sub: "effects suppressed in dry run", meta: "SAFE" }
+        ],
+        primary: "Activate it", secondary: "Change the window to 6 hours",
+        proves: "The guard is proven before the automation is trusted.", provesSub: "Without the dry run, the duplicate on v1 would have been discovered by a client receiving two emails.",
+        warn: { kind: "TOO AGGRESSIVE", title: "A 6-hour window would have fired 19 times", body: "Eleven of those were inside the same working day. A reminder that arrives before the client has read the first message is noise.", action: "Keep 24 hours" } },
+      { id: "AUT-03", label: "Blocked", crumb: "AUTOMATIONS / AUT·118 / ACTIVATION",
+        heading: "Karim cannot activate something that emails clients",
+        body: "Activation is a permission, separate from building. Karim's automation is saved, tested and waiting for someone who may switch it on.",
+        rows: [
+          { mark: "#C96F18", edge: "#C96F18", title: "Activation requires client-communication rights", sub: "Karim Nabil · member", meta: "DENIED" },
+          { mark: "#090A09", edge: "transparent", title: "Sent to · Maya Hassan", sub: "with the dry run attached", meta: "REQUEST" },
+          { mark: "#090A09", edge: "transparent", title: "Draft preserved", sub: "nothing has to be rebuilt", meta: "SAVED" }
+        ],
+        primary: "Maya activates it", secondary: "Ask her without the dry run",
+        proves: "Building and switching on are different rights.", provesSub: "The person who approves it sees the same 30-day simulation the builder saw.",
+        warn: { kind: "WHY IT MATTERS", title: "A request with no dry run is a request to trust you", body: "Maya would be asked to authorise client emails on description alone. The dry run is what makes the approval a five-second decision.", action: "Attach the dry run" } },
+      { id: "AUT-04", label: "Failure", crumb: "AUTOMATIONS / AUT·118 / RUNS",
+        heading: "Run 7 failed: the email provider rejected the send",
+        body: "A failure is a first-class run, with the reason from the system that failed and the retry schedule already visible.",
+        rows: [
+          { mark: "#D9474F", edge: "#D9474F", title: "Run 7 failed 09:41", sub: "provider returned 502 · Atlas domain", meta: "FAILED" },
+          { mark: "#090A09", edge: "transparent", title: "Retry 1 · 09:46", sub: "failed, same reason", meta: "RETRIED" },
+          { mark: "#090A09", edge: "transparent", title: "Retry 2 · 10:01", sub: "delivered", meta: "RECOVERED" },
+          { mark: "#7755C7", edge: "transparent", title: "Portal reminder", sub: "shown throughout · never depended on email", meta: "CLIENT" }
+        ],
+        primary: "See the run history", secondary: "Retry a fourth time",
+        proves: "Two retries, then a person.", provesSub: "The in-product reminder is not coupled to email, so the client was informed even while delivery was failing.",
+        warn: { kind: "RAISED INSTEAD", title: "After two retries it becomes a task for Maya", body: "Endless retries hide an outage. The third failure creates work in the Control Center with the provider's own error attached.", action: "Understood" } },
+      { id: "AUT-05", label: "History", crumb: "AUTOMATIONS / AUT·118 / HISTORY",
+        heading: "Eleven runs, and what each one changed",
+        body: "The history is the reason to trust the automation at all: every effect it has ever had on a client is listed and openable.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "11 runs · 10 delivered, 1 recovered", sub: "since 16 Aug", meta: "ACTIVE" },
+          { mark: "#090A09", edge: "transparent", title: "Suppressed 3 times by the guard", sub: "same version already reminded", meta: "GUARD" },
+          { mark: "#7755C7", edge: "transparent", title: "Median wait before reminder", sub: "24h · median approval after it, 3h", meta: "EFFECT" }
+        ],
+        primary: "Restart flow 9",
+        secondary: "Turn it off",
+        proves: "An automation earns its place with numbers.", provesSub: "Twenty-six-hour waits are the problem; a three-hour median response after a reminder is the evidence it helps.",
+        warn: { kind: "REVERSIBLE", title: "Turning it off keeps the history", body: "The eleven runs stay readable, so a later decision to switch it back on is made against evidence rather than memory.", action: "Leave it on" } }
+    ]
+  },
+  J: {
+    tab: "10 · offboarding",
+    title: "Flow 10 — someone leaves, and nothing they held is orphaned",
+    object: { name: "Karim Nabil, engineering", id: "MEM·0043 → receipt REC·0091", note: "Offboarding produces a receipt: what was transferred, what was revoked, when, and by whom. It is immutable and downloadable.", audience: "AUDIENCE · INTERNAL · CLIENT SEES ONLY NEW OWNERSHIP" },
+    steps: [
+      { id: "ADM-02", label: "Member", crumb: "CONTROL CENTER / PEOPLE / KARIM NABIL",
+        heading: "What Karim holds, before anything is switched off",
+        body: "Offboarding starts from an inventory, not from a delete button. Everything with his name on it is listed with its consequence.",
+        rows: [
+          { mark: "#090A09", edge: "#090A09", title: "Owns 22 work items", sub: "4 of them blocking committed dates", meta: "TRANSFER" },
+          { mark: "#090A09", edge: "transparent", title: "Sole owner of 2 integrations", sub: "CMS deploy hook, staging environment", meta: "TRANSFER" },
+          { mark: "#7755C7", edge: "transparent", title: "In 3 client channels", sub: "Atlas Hospitality and two others", meta: "REVOKE" },
+          { mark: "#090A09", edge: "transparent", title: "Authored 14 decisions", sub: "stay attributed to him permanently", meta: "KEEP" }
+        ],
+        primary: "Start offboarding", secondary: "Just delete the account",
+        proves: "Authorship is never transferred.", provesSub: "Work moves to a new owner; the record of who decided what does not, because that would falsify the history.",
+        warn: { kind: "NOT POSSIBLE", title: "An account with sole-owned integrations cannot be deleted", body: "The staging deploy would fail silently on the next release. Ownership is transferred first, and the product will not offer a shortcut.", action: "Transfer first" } },
+      { id: "ADM-12", label: "Transfer", crumb: "PEOPLE / KARIM NABIL / TRANSFER",
+        heading: "Twenty-two items to two people, with the blockers first",
+        body: "The transfer is proposed by the product from project membership, then edited. The four items behind committed dates are shown apart from the rest.",
+        rows: [
+          { mark: "#C96F18", edge: "#C96F18", title: "4 blocking items → Omar Adel", sub: "committed 8 Sep and 30 Sep affected", meta: "URGENT" },
+          { mark: "#090A09", edge: "transparent", title: "18 items → Lina Samir", sub: "no committed dates involved", meta: "ROUTINE" },
+          { mark: "#090A09", edge: "transparent", title: "2 integrations → Maya Hassan", sub: "administrator, can hold credentials", meta: "OWNERSHIP" },
+          { mark: "#74786F", edge: "transparent", title: "Nothing to the unassigned pool", sub: "an unowned blocker is how dates slip", meta: "POLICY" }
+        ],
+        primary: "Confirm the transfer", secondary: "Leave the routine items unassigned",
+        proves: "Blocking work is transferred deliberately.", provesSub: "The people receiving it are told which items are behind a client commitment and which are not.",
+        warn: { kind: "ALLOWED, WITH A COST", title: "Eighteen unowned items appear in nobody's My Day", body: "They are legal but invisible until someone reviews the pool. The product allows it and marks the project as holding unowned work.", action: "Assign them to Lina" } },
+      { id: "ADM-13", label: "Revoke", crumb: "PEOPLE / KARIM NABIL / ACCESS",
+        heading: "Sessions, tokens and client channels, in one act",
+        body: "Revocation happens after transfer and covers everything at once, because partial revocation is how access quietly survives.",
+        rows: [
+          { mark: "#D9474F", edge: "#D9474F", title: "4 sessions ended", sub: "2 desktop, 2 mobile · immediately", meta: "REVOKED" },
+          { mark: "#D9474F", edge: "transparent", title: "3 client channels removed", sub: "Atlas notified of the membership change", meta: "REVOKED" },
+          { mark: "#090A09", edge: "transparent", title: "1 personal access token deleted", sub: "created 11 Jun, last used 15 Aug", meta: "REVOKED" },
+          { mark: "#090A09", edge: "transparent", title: "Files he uploaded", sub: "stay with the project, attributed", meta: "KEEP" }
+        ],
+        primary: "Issue the receipt", secondary: "Keep his session for handover",
+        proves: "Revocation is one act, not a checklist.", provesSub: "The token nobody remembered is the reason this screen enumerates rather than asks.",
+        warn: { kind: "NOT OFFERED", title: "Access does not continue after offboarding", body: "A handover happens before this step, with him present. Extending access afterwards means the receipt no longer describes reality.", action: "Revoke everything" } },
+      { id: "CL-14", label: "Receipt", crumb: "ATLAS HOSPITALITY / MEMBERSHIP RECEIPT",
+        heading: "The receipt, and what Atlas is told",
+        body: "The studio gets a full receipt. The client gets one line: who now owns their work. Nothing about why he left.",
+        rows: [
+          { mark: "#B7FF57", edge: "#090A09", title: "REC·0091 · 16 Aug 17:02", sub: "by Maya Hassan · immutable, downloadable", meta: "RECEIPT" },
+          { mark: "#7755C7", edge: "transparent", title: "Atlas sees · Omar Adel is your engineering contact", sub: "effective today", meta: "CLIENT" },
+          { mark: "#090A09", edge: "transparent", title: "Not shown to Atlas", sub: "the reason, the item counts, the revocations", meta: "HIDDEN" },
+          { mark: "#090A09", edge: "transparent", title: "14 decisions still attributed to Karim Nabil", sub: "permanently", meta: "HISTORY" }
+        ],
+        primary: "Restart flow 10",
+        secondary: "Try to amend the receipt",
+        proves: "One event, two truthful accounts.", provesSub: "The studio's record is complete; the client's is accurate and none of their business beyond the handover.",
+        warn: { kind: "IMMUTABLE", title: "A receipt is superseded, never amended", body: "If something was missed, a second receipt records the correction and links to this one. That is what makes either of them worth keeping.", action: "Understood" } }
+    ]
+  }
+};
+
+class Component extends DCLogic {
+  state = { flow: "D", i: 0, warned: false };
+
+  set(i) { const f = FLOWS[this.state.flow]; this.setState({ i: (i + f.steps.length) % f.steps.length, warned: false }); }
+
+  renderVals() {
+    const f = FLOWS[this.state.flow];
+    const st = f.steps[this.state.i];
+    return {
+      flowTitle: f.title,
+      tabs: Object.keys(FLOWS).map(k => ({
+        label: FLOWS[k].tab,
+        bg: k === this.state.flow ? "#B7FF57" : "#232521",
+        fg: k === this.state.flow ? "#090A09" : "#A7ACA0",
+        go: () => this.setState({ flow: k, i: 0, warned: false })
+      })),
+      steps: f.steps.map((s, n) => ({
+        id: s.id, label: s.label,
+        bg: n === this.state.i ? "#3A3E35" : "transparent",
+        dot: n === this.state.i ? "#B7FF57" : n < this.state.i ? "#F5F6F0" : "#4D5049",
+        fg: n === this.state.i ? "#F5F6F0" : "#A7ACA0",
+        go: () => this.set(n)
+      })),
+      counter: "STEP " + (this.state.i + 1) + " OF " + f.steps.length,
+      crumb: st.crumb, screenId: st.id + " · " + st.label.toUpperCase(),
+      heading: st.heading, body: st.body,
+      rows: st.rows,
+      primary: st.primary, secondary: st.secondary,
+      proves: st.proves, provesSub: st.provesSub,
+      next: () => this.set(this.state.i + 1),
+      back: () => this.set(this.state.i - 1),
+      trip: () => this.setState({ warned: true }),
+      clear: () => this.set(this.state.i + 1),
+      warned: this.state.warned,
+      warnKind: st.warn.kind, warnTitle: st.warn.title, warnBody: st.warn.body, warnAction: st.warn.action,
+      objectName: f.object.name, objectId: f.object.id, objectNote: f.object.note, audience: f.object.audience
+    };
+  }
+}
+</script>
+</body>
+</html>

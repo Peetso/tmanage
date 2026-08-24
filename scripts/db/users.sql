@@ -1,0 +1,119 @@
+-- Least-privilege database users — ADR-0001 layer 2.
+--
+-- 25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md §5:
+--   "Separate migration and runtime database users. The runtime user has only the DML
+--    privileges the application needs and cannot alter schema, grant privileges, create
+--    users, or access other databases."
+--
+-- MySQL has no row-level security, so the credential boundary is one of the few controls
+-- that still holds if application code is bypassed entirely. Layers 3 (query guard) and 4
+-- (lint boundary) live inside the application and do nothing for a direct SQL session.
+--
+-- ## Who applies this, and when
+--
+-- **An administrative credential, not the migration credential.** The statements below
+-- issue `CREATE USER` and `GRANT`, which need the server-global `CREATE USER` privilege and
+-- `GRANT OPTION`. `tmanage_migrator` holds privileges on the `tmanage` database only and is
+-- correctly refused — provisioning credentials is an administrative act, separate from
+-- migrating a schema, and the two are separate for the same reason the users are.
+--
+-- **After `pnpm db:migrate`** — `pnpm db:grants` does exactly that. Every grant
+-- below is table-level, and MySQL and MariaDB both reject a table-level GRANT naming a
+-- table that does not exist (`ER_NO_SUCH_TABLE`, 1146). An earlier revision of
+-- `compose.yaml` mounted this file into `/docker-entrypoint-initdb.d/`, which runs on the
+-- server's *first boot* — necessarily before any migration. That mount could never have
+-- succeeded, and has been removed rather than worked around by loosening the grants.
+--
+-- ## Why every grant is table-level
+--
+-- MySQL privileges are additive and cannot be revoked for a single table once granted
+-- database-wide. Withholding UPDATE and DELETE on `audit_events`, and INSERT on
+-- `schema_migrations`, therefore requires never granting them database-wide in the first
+-- place. `SELECT` is the one exception: it is granted database-wide because a read of any
+-- table is not a privilege escalation, and because a new module's tables would otherwise
+-- be unreadable until someone remembered to amend this file. Writes get no such courtesy —
+-- a table this file does not name cannot be written by the application at all, and that
+-- failure is loud.
+--
+-- Local development passwords only. Deployed environments provision these users from the
+-- secret store; see docs/runbooks/deploy.md. On Hostinger, apply as far as the plan permits
+-- and record any shortfall in the environment runbook (50-BOOTSTRAP §4).
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Runtime user
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE USER IF NOT EXISTS 'tmanage_app'@'%' IDENTIFIED BY 'local_dev_only_app';
+
+-- Deliberately NOT granted: CREATE, ALTER, DROP, INDEX, REFERENCES, GRANT OPTION,
+-- CREATE USER, FILE, SUPER, PROCESS, LOCK TABLES, CREATE TEMPORARY TABLES. The application
+-- can read this one database and write the rows named below, and can do nothing else — to
+-- it or to any other database on the server.
+GRANT SELECT ON `tmanage`.* TO 'tmanage_app'@'%';
+
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`organizations`        TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`users`                TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`sessions`             TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`memberships`          TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`workspaces`           TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`projects`             TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_memberships`  TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`client_organizations` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`client_memberships`   TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_clients`      TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_items`           TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
+
+-- `audit_events` gets INSERT and nothing else: the runtime user may append and read, never
+-- amend or remove. The append-only triggers in 0002_platform_primitives.sql enforce the
+-- same rule for every other credential, including this script's own migrator — but a
+-- trigger is a runtime check and a missing privilege is a structural one, so both exist.
+-- Retention and purge are consequently a privileged, separately-credentialed procedure: an
+-- audit log the application can quietly trim is not an audit log.
+GRANT INSERT ON `tmanage`.`audit_events` TO 'tmanage_app'@'%';
+
+-- `session_refresh_tokens` gets INSERT and nothing else, for the same reason and with more
+-- force. The ledger of superseded refresh-token hashes *is* the reuse detector: an attacker
+-- who could delete their replayed hash would make a stolen token look merely unknown, and a
+-- session compromise would be indistinguishable from a stale browser tab. Append-only
+-- triggers in 0003_session_rotation.sql enforce this for every credential; withholding the
+-- privileges means the runtime user cannot even make the attempt.
+GRANT INSERT ON `tmanage`.`session_refresh_tokens` TO 'tmanage_app'@'%';
+
+-- `schema_migrations` is named nowhere above, so the runtime user can read the migration
+-- ledger and cannot write it — not even to append. Only the migrator records what it
+-- applied, which is the property `pnpm db:status` depends on to be trustworthy.
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Worker user — narrower still
+-- ─────────────────────────────────────────────────────────────────────────────
+-- The relay marks outbox rows dispatched and appends audit rows; it never deletes domain
+-- data and never creates tenants, users, or memberships. DELETE is withheld everywhere so
+-- a defective consumer cannot destroy work.
+CREATE USER IF NOT EXISTS 'tmanage_worker'@'%' IDENTIFIED BY 'local_dev_only_worker';
+
+GRANT SELECT ON `tmanage`.* TO 'tmanage_worker'@'%';
+
+GRANT INSERT, UPDATE ON `tmanage`.`outbox_events`       TO 'tmanage_worker'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`idempotency_records` TO 'tmanage_worker'@'%';
+GRANT UPDATE         ON `tmanage`.`work_items`          TO 'tmanage_worker'@'%';
+GRANT INSERT         ON `tmanage`.`audit_events`        TO 'tmanage_worker'@'%';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migration user
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Owns the schema. Used only by the migrator, never by a running application process.
+-- `packages/config` refuses to boot when DATABASE_URL equals DATABASE_MIGRATION_URL, so
+-- collapsing the two into one credential is a validation error rather than a code review
+-- someone might skip.
+--
+-- Created here as well as by `compose.yaml`'s MARIADB_USER, because this file must also
+-- work against a server that was not provisioned by that compose file — a CI service
+-- container, or a Hostinger database created through the panel. MySQL 8 and MariaDB 10.4+
+-- both refuse `GRANT` to a user that does not exist, so the create cannot be skipped.
+-- `IF NOT EXISTS` leaves an existing user's password untouched.
+CREATE USER IF NOT EXISTS 'tmanage_migrator'@'%' IDENTIFIED BY 'local_dev_only_migrator';
+
+GRANT ALL PRIVILEGES ON `tmanage`.* TO 'tmanage_migrator'@'%';
+
+FLUSH PRIVILEGES;

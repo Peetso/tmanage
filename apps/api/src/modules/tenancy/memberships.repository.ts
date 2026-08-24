@@ -1,0 +1,291 @@
+import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
+import { uuidv7 } from '@tmanage/domain';
+import type { InternalRole } from '@tmanage/domain';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { type MEMBERSHIP_STATUS, memberships } from '../../common/database/schema.js';
+import type { MembershipRow } from '../../common/database/schema.js';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { defaultOrgWideScope } from './principal.repository.js';
+
+/**
+ * The membership aggregate — TEN-001, and the row every `TenantContext` is built from.
+ *
+ * Follows `ProjectsRepository`: `TenantContext` first, no `organizationId` on any input type,
+ * keyset pagination, optimistic concurrency, not-found rather than conflict for a caller in
+ * the wrong tenant.
+ *
+ * Two things differ from the projects repository, and both come from the schema rather than
+ * from taste:
+ *
+ * 1. **Concurrency is a `version` column, not `updated_at`.** `memberships` has one. It is
+ *    the better token — two role changes in the same millisecond are distinguishable, where
+ *    `DATETIME(3)` equality is not — and the repository uses whichever the table actually
+ *    provides rather than a single house style applied over the top of both.
+ * 2. **Status moves through a checked transition, not a free assignment.** The states are
+ *    an authorization fact: an `active` row is what lets someone into the tenant at all.
+ *
+ * ## Why `offboarded` is terminal here
+ *
+ * `packages/domain`'s offboarding machine records `OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS`,
+ * and this is the storage-layer half of it. Re-admitting someone is a new membership — a
+ * deliberate act, freshly audited, with a new id — not the reversal of a status flag. A
+ * reversible terminal state is how a revoked contractor is restored by a bulk edit nobody
+ * reviews.
+ */
+
+export type MembershipStatus = (typeof MEMBERSHIP_STATUS)[number];
+
+/**
+ * Which status changes are permitted. Absent pairs are refused, and `offboarded` has no
+ * outbound entry at all.
+ */
+const ALLOWED_TRANSITIONS: Readonly<Record<MembershipStatus, readonly MembershipStatus[]>> =
+  Object.freeze({
+    invited: ['active', 'offboarded'],
+    active: ['suspended', 'offboarded'],
+    suspended: ['active', 'offboarded'],
+    offboarded: [],
+  });
+
+export class MembershipNotFoundError extends Error {
+  constructor(readonly membershipId: string) {
+    super(`Membership ${membershipId} was not found`);
+    this.name = 'MembershipNotFoundError';
+  }
+}
+
+export class MembershipVersionConflictError extends Error {
+  constructor(
+    readonly membershipId: string,
+    readonly expectedVersion: number,
+  ) {
+    super(
+      `Membership ${membershipId} was modified concurrently (expected version ${expectedVersion})`,
+    );
+    this.name = 'MembershipVersionConflictError';
+  }
+}
+
+export class MembershipTransitionError extends Error {
+  constructor(
+    readonly from: MembershipStatus,
+    readonly to: MembershipStatus,
+  ) {
+    super(`A membership cannot move from ${from} to ${to}`);
+    this.name = 'MembershipTransitionError';
+  }
+}
+
+export interface InviteMembershipInput {
+  readonly userId: string;
+  readonly role: InternalRole;
+  /**
+   * Overrides {@link defaultOrgWideScope}. Present so that granting organization-wide reach
+   * is a recorded decision rather than a consequence of a role name — the column is stored
+   * rather than derived precisely so a later policy change cannot widen it retroactively.
+   */
+  readonly hasOrgWideScope?: boolean;
+}
+
+export interface ListMembershipsOptions {
+  readonly after?: string;
+  readonly limit?: number;
+  /** Defaults to active memberships only; the invited and suspended are opt-in. */
+  readonly statuses?: readonly MembershipStatus[];
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+
+export class MembershipsRepository {
+  async list(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: ListMembershipsOptions = {},
+  ): Promise<readonly MembershipRow[]> {
+    const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+    const statuses = options.statuses ?? (['active'] as const);
+
+    const predicates = [
+      eq(memberships.organizationId, context.organizationId),
+      inArray(memberships.status, [...statuses]),
+    ];
+    if (options.after) predicates.push(gt(memberships.id, options.after));
+
+    return tenantDrizzle(runner)
+      .select()
+      .from(memberships)
+      .where(and(...predicates))
+      .orderBy(asc(memberships.id))
+      .limit(limit);
+  }
+
+  async findById(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+  ): Promise<MembershipRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.id, membershipId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async requireById(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+  ): Promise<MembershipRow> {
+    const found = await this.findById(runner, context, membershipId);
+    if (!found) throw new MembershipNotFoundError(membershipId);
+    return found;
+  }
+
+  /**
+   * One person's membership in the acting tenant.
+   *
+   * Scoped by `(organization_id, user_id)`, which is a unique key. Note what this is *not*:
+   * a way to ask which organizations a user belongs to. That question spans tenants, has no
+   * predicate to carry, and is answered by the membership resolver's bootstrap read — the
+   * one place permitted to ask it.
+   */
+  async findByUserId(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<MembershipRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(memberships)
+      .where(
+        and(eq(memberships.organizationId, context.organizationId), eq(memberships.userId, userId)),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Invite someone into the tenant.
+   *
+   * The row starts `invited`, not `active`: spec section 2 accepts an organization only after
+   * confirming an **active** membership, so an unaccepted invitation authorises nothing and
+   * the resolver refuses it. `uq_memberships_org_user` makes a second invitation for the same
+   * person a duplicate-key error rather than a second row — one membership per person per
+   * organization, enforced by the schema rather than by a check-then-insert race.
+   */
+  async invite(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: InviteMembershipInput,
+  ): Promise<MembershipRow> {
+    const id = uuidv7();
+
+    await tenantDrizzle(runner)
+      .insert(memberships)
+      .values({
+        id,
+        // From the context. Not from `input` — there is no such field.
+        organizationId: context.organizationId,
+        userId: input.userId,
+        role: input.role,
+        status: 'invited',
+        hasOrgWideScope: input.hasOrgWideScope ?? defaultOrgWideScope(input.role),
+        version: 1,
+        createdAt: sql`current_timestamp(3)`,
+        updatedAt: sql`current_timestamp(3)`,
+      });
+
+    return this.requireById(runner, context, id);
+  }
+
+  /**
+   * Change a role, refusing a stale write.
+   *
+   * `12-PERMISSION-MATRIX` §5 lists role elevation among the changes needing reauthorization,
+   * and section 12 of the isolation spec makes it audit-required. Neither is this method's
+   * job — both belong to the command that calls it — but the `version` token is: two admins
+   * editing the same membership must not silently overwrite one another, because the loser's
+   * intent would disappear without any error to notice.
+   */
+  async changeRole(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+    expectedVersion: number,
+    role: InternalRole,
+    hasOrgWideScope?: boolean,
+  ): Promise<MembershipRow> {
+    const result = await tenantDrizzle(runner)
+      .update(memberships)
+      .set({
+        role,
+        hasOrgWideScope: hasOrgWideScope ?? defaultOrgWideScope(role),
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.id, membershipId),
+          eq(memberships.version, expectedVersion),
+        ),
+      );
+
+    if (result[0].affectedRows === 0) {
+      const current = await this.findById(runner, context, membershipId);
+      if (!current) throw new MembershipNotFoundError(membershipId);
+      throw new MembershipVersionConflictError(membershipId, current.version);
+    }
+
+    return this.requireById(runner, context, membershipId);
+  }
+
+  /**
+   * Move a membership to another status, refusing both a stale write and an illegal move.
+   *
+   * The current status is read inside the same unit of work and the transition is checked
+   * against it, then the write itself re-states `version` — so a concurrent change between
+   * the read and the write loses rather than slipping through the check.
+   */
+  async transitionStatus(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipId: string,
+    expectedVersion: number,
+    to: MembershipStatus,
+  ): Promise<MembershipRow> {
+    const current = await this.requireById(runner, context, membershipId);
+    if (current.version !== expectedVersion) {
+      throw new MembershipVersionConflictError(membershipId, current.version);
+    }
+    if (!ALLOWED_TRANSITIONS[current.status].includes(to)) {
+      throw new MembershipTransitionError(current.status, to);
+    }
+
+    const result = await tenantDrizzle(runner)
+      .update(memberships)
+      .set({ status: to, version: sql`version + 1`, updatedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.id, membershipId),
+          eq(memberships.version, expectedVersion),
+        ),
+      );
+
+    if (result[0].affectedRows === 0) {
+      const latest = await this.findById(runner, context, membershipId);
+      if (!latest) throw new MembershipNotFoundError(membershipId);
+      throw new MembershipVersionConflictError(membershipId, latest.version);
+    }
+
+    return this.requireById(runner, context, membershipId);
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.tmanage.example/events/approval-decided.v1.schema.json",
+  "title": "approval.decided.v1 payload",
+  "type": "object",
+  "required": ["approvalId", "approvalReviewerId", "reviewerUserId", "deliverableVersionId", "contentHash", "decision", "decidedAt"],
+  "properties": {
+    "approvalId": { "type": "string", "format": "uuid" },
+    "approvalReviewerId": { "type": "string", "format": "uuid" },
+    "reviewerUserId": { "type": "string", "format": "uuid" },
+    "deliverableVersionId": { "type": "string", "format": "uuid" },
+    "contentHash": { "type": "string", "minLength": 32, "maxLength": 128 },
+    "decision": { "type": "string", "enum": ["approved", "changes_requested"] },
+    "feedbackItemIds": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+    "decidedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

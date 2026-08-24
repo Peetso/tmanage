@@ -1,0 +1,255 @@
+# PLAT-003 — CI gates (28-SPRINT-TICKETS §3).
+#
+# This workflow exists to convert two claims in docs/implementation-status.md from promises
+# into evidence. Both were, until it ran, load-bearing and unverified:
+#
+#   1. "The MySQL-vs-MariaDB fidelity gap is closed by CI running compose.yaml."
+#      ADR-0002 defers the engine skew here and nowhere else. The `database` job therefore
+#      runs the canonical containerised stack — MariaDB 11.4 from compose.yaml — and not
+#      the `mysql-memory-server` substitute the local suite uses. The isolation corpus
+#      fails outright if it finds itself on the substitute while CI is set (see
+#      test/tenant-isolation.db.test.ts, "records which engine and which credential").
+#
+#   2. "scripts/db/users.sql has no environment to be applied and verified in."
+#      That file had never executed anywhere. It is applied here after the migrations —
+#      the only order in which it can succeed, since every grant in it is table-level — and
+#      the isolation corpus is then re-run under the least-privilege `tmanage_app`
+#      credential it creates, alongside a suite that proves what that credential cannot do.
+#      That is ADR-0001 layer 2, the one layer the other four cannot substitute for.
+#
+# Gate order is the order a developer runs locally, cheapest first, so the common failure
+# is reported in seconds rather than after a container boot.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  # Dependency advisories change without the code changing, so the security job also runs
+  # on a schedule. A clean scan on Monday is not evidence about Friday.
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+# A second push to the same branch makes the first run's answer irrelevant, not merely late.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pinned rather than floating: a Node minor bump changing a result should be a visible
+  # commit, not a Tuesday.
+  NODE_VERSION: '22.22.0'
+  PNPM_VERSION: '10.15.0'
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Static gates and the unit suite. No services, no containers.
+  # ───────────────────────────────────────────────────────────────────────────
+  static:
+    name: format · typecheck · lint · test · audit:design
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # --frozen-lockfile is the gate, not a speed-up: it fails when pnpm-lock.yaml does not
+      # satisfy the manifests, so a dependency cannot enter the tree without the lockfile
+      # change being reviewable in the diff.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: format:check
+        run: pnpm format:check
+
+      - name: typecheck
+        run: pnpm typecheck
+
+      - name: lint
+        run: pnpm lint
+
+      - name: test (unit)
+        run: pnpm test
+
+      - name: audit:design
+        run: pnpm audit:design
+
+      # The audit rewrites docs/design/design-source-audit.md. If the committed file no
+      # longer matches what the design source produces, the repository is describing a
+      # design export it no longer contains.
+      - name: design audit output is committed and current
+        run: git diff --exit-code -- docs/design/design-source-audit.md
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # The containerised stack. This job is the only place MariaDB is exercised.
+  # ───────────────────────────────────────────────────────────────────────────
+  database:
+    name: test:db on containerised MariaDB 11.4
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      # These are compose.yaml's local-development placeholders, committed on purpose and
+      # excluded in .gitleaks.toml by exact value. They are not secrets and must never
+      # appear in a deployed environment — packages/config refuses production boot on them.
+      MYSQL_ROOT_URL: mysql://root:local_dev_only_root@127.0.0.1:3306/tmanage
+      DATABASE_MIGRATION_URL: mysql://tmanage_migrator:local_dev_only_migrator@127.0.0.1:3306/tmanage
+      TMANAGE_TEST_DATABASE_URL: mysql://root:local_dev_only_root@127.0.0.1:3306/tmanage
+      TMANAGE_TEST_APP_DATABASE_URL: mysql://tmanage_app:local_dev_only_app@127.0.0.1:3306/tmanage
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # compose.yaml itself, not a re-declaration of it as a `services:` block. A CI-only
+      # copy of the stack would drift from the file developers run, and the point of this
+      # job is that the committed stack works.
+      - name: Start the canonical stack
+        run: docker compose up -d --wait mariadb valkey minio
+
+      # PLAT-002 claims "one-command local stack". The bucket bootstrap is part of that
+      # claim, so its exit status is checked rather than assumed.
+      - name: Create the MinIO buckets
+        run: |
+          set -euo pipefail
+          docker compose up -d minio-init
+          status="$(docker wait "$(docker compose ps -q minio-init)")"
+          docker compose logs --no-color minio-init
+          test "$status" = "0"
+
+      - name: Record the engine under test
+        run: |
+          set -euo pipefail
+          docker compose exec -T mariadb \
+            mariadb -uroot -plocal_dev_only_root -e "SELECT VERSION(); SELECT @@sql_mode; SELECT @@character_set_server, @@collation_server, @@time_zone;"
+
+      # The migration credential owns the schema and nothing else.
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      # scripts/db/users.sql — ADR-0001 layer 2, executed for the first time.
+      #
+      # Run as root, not as the migration user: the file issues CREATE USER and GRANT, which
+      # need the global CREATE USER privilege and GRANT OPTION. tmanage_migrator holds
+      # privileges on `tmanage` only and would be refused — which is itself the correct
+      # behaviour, and is why layer 2 provisioning is an administrative act separate from
+      # migrating.
+      - name: Apply least-privilege users
+        run: pnpm db:grants
+        env:
+          DATABASE_MIGRATION_URL: ${{ env.MYSQL_ROOT_URL }}
+
+      - name: Show the granted privileges
+        run: |
+          set -euo pipefail
+          docker compose exec -T mariadb \
+            mariadb -uroot -plocal_dev_only_root -e "SHOW GRANTS FOR 'tmanage_app'@'%'; SHOW GRANTS FOR 'tmanage_worker'@'%';"
+
+      # Runs the isolation corpus as tmanage_app, the migrator suite on scratch databases,
+      # and the least-privilege suite that proves what tmanage_app cannot do.
+      - name: test:db
+        run: pnpm test:db
+
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Secret and dependency scanning — PLAT-003.
+  # ───────────────────────────────────────────────────────────────────────────
+  security:
+    name: secret and dependency scanning
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks scans history, not just the working tree. A secret removed in a later
+          # commit is still a leaked secret, so a shallow clone would report the wrong answer.
+          fetch-depth: 0
+
+      # Run from the image rather than the marketplace action: gitleaks-action gates
+      # organization use behind a licence key, and a scanner that stops running when a
+      # billing detail lapses is not a control.
+      #
+      # OPEN ITEM: `:latest` is a mutable tag. Before this is treated as a release gate it
+      # must be pinned to a digest — recorded in docs/implementation-status.md rather than
+      # left implicit. It is not pinned here because the digest cannot be resolved from the
+      # implementation machine, and inventing one would fail the first run.
+      - name: Secret scan (gitleaks)
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:latest \
+            detect --source /repo --config /repo/.gitleaks.toml \
+                   --redact --verbose --exit-code 1 \
+                   --report-format sarif --report-path /repo/gitleaks.sarif
+
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-sarif
+          path: gitleaks.sarif
+          if-no-files-found: ignore
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Production dependencies are the ones that reach a running tenant's data, so they
+      # gate. A high-severity advisory fails the build.
+      - name: Dependency audit (production, gating)
+        run: pnpm audit --prod --audit-level=high
+
+      # Dev-dependency advisories are reported but do not gate: a vulnerable test formatter
+      # is a real thing to fix and not a reason to block a security fix from shipping.
+      - name: Dependency audit (full, informational)
+        if: always()
+        continue-on-error: true
+        run: pnpm audit --audit-level=low
+
+      # 50-BOOTSTRAP §9: "Never encode provider credentials or real endpoints in source
+      # control." gitleaks finds credential *shapes*; this finds the specific mistake of
+      # committing a .env, which carries both.
+      - name: No committed environment files
+        run: |
+          set -euo pipefail
+          if git ls-files --error-unmatch '.env' '.env.*' 2>/dev/null | grep -v '^\.env\.example$'; then
+            echo "::error::A .env file is tracked. Only .env.example may be committed (50-BOOTSTRAP §9)."
+            exit 1
+          fi
+          echo "no tracked .env files"

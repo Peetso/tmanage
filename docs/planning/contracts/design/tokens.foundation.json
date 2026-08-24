@@ -1,0 +1,23 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "meta": { "name": "TManage Limeframe", "version": "0.4.0-planning", "reference": "assets/references/TManage-primary-visual-reference.webp" },
+  "color": {
+    "light": {
+      "ink": { "950": { "$type": "color", "$value": "#090A09" }, "800": { "$type": "color", "$value": "#232521" }, "650": { "$type": "color", "$value": "#4D5049" }, "500": { "$type": "color", "$value": "#74786F" } },
+      "paper": { "0": { "$type": "color", "$value": "#FFFFFF" }, "50": { "$type": "color", "$value": "#F7F7F3" }, "150": { "$type": "color", "$value": "#E9E9E5" }, "250": { "$type": "color", "$value": "#D5D6D1" } },
+      "line": { "700": { "$type": "color", "$value": "#2C2E29" }, "300": { "$type": "color", "$value": "#C5C7C0" } },
+      "lime": { "600": { "$type": "color", "$value": "#9CEA3F" }, "500": { "$type": "color", "$value": "#B7FF57" }, "100": { "$type": "color", "$value": "#E9FFD0" } },
+      "client": { "500": { "$type": "color", "$value": "#7755C7" } },
+      "success": { "600": { "$type": "color", "$value": "#1D8A63" } },
+      "warning": { "600": { "$type": "color", "$value": "#C96F18" } },
+      "danger": { "600": { "$type": "color", "$value": "#D9474F" } }
+    },
+    "dark": {
+      "canvas": { "$type": "color", "$value": "#121311" }, "surface1": { "$type": "color", "$value": "#1B1D19" }, "surface2": { "$type": "color", "$value": "#242720" }, "line": { "$type": "color", "$value": "#3A3E35" }, "ink": { "$type": "color", "$value": "#F5F6F0" }, "muted": { "$type": "color", "$value": "#A7ACA0" }, "lime": { "$type": "color", "$value": "#A9ED55" }
+    }
+  },
+  "space": { "1": { "$type": "dimension", "$value": "4px" }, "2": { "$type": "dimension", "$value": "8px" }, "3": { "$type": "dimension", "$value": "12px" }, "4": { "$type": "dimension", "$value": "16px" }, "5": { "$type": "dimension", "$value": "20px" }, "6": { "$type": "dimension", "$value": "24px" }, "8": { "$type": "dimension", "$value": "32px" }, "10": { "$type": "dimension", "$value": "40px" }, "12": { "$type": "dimension", "$value": "48px" }, "16": { "$type": "dimension", "$value": "64px" }, "20": { "$type": "dimension", "$value": "80px" }, "24": { "$type": "dimension", "$value": "96px" } },
+  "radius": { "micro": { "$type": "dimension", "$value": "10px" }, "control": { "$type": "dimension", "$value": "14px" }, "compactSurface": { "$type": "dimension", "$value": "18px" }, "card": { "$type": "dimension", "$value": "24px" }, "sheet": { "$type": "dimension", "$value": "28px" }, "feature": { "$type": "dimension", "$value": "32px" }, "capsule": { "$type": "dimension", "$value": "999px" } },
+  "layout": { "orbitalRail": { "$type": "dimension", "$value": "72px" }, "contextRail": { "$type": "dimension", "$value": "248px" }, "contextLens": { "$type": "dimension", "$value": "360px" }, "readingWidth": { "$type": "dimension", "$value": "680px" } },
+  "motion": { "micro": { "$type": "duration", "$value": "140ms" }, "selection": { "$type": "duration", "$value": "180ms" }, "panel": { "$type": "duration", "$value": "240ms" }, "track": { "$type": "duration", "$value": "300ms" } }
+}

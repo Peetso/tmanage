@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.tmanage.example/events/event-envelope.schema.json",
+  "title": "TManage Event Envelope",
+  "type": "object",
+  "required": ["eventId", "type", "schemaVersion", "occurredAt", "organizationId", "aggregate", "correlationId", "payload"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "type": { "type": "string", "pattern": "^[a-z_]+\\.[a-z_]+\\.v[1-9][0-9]*$" },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "organizationId": { "type": "string", "format": "uuid" },
+    "actor": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["user", "service", "automation", "system"] },
+        "actorId": { "type": ["string", "null"], "format": "uuid" },
+        "effectiveActorId": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "additionalProperties": false
+    },
+    "aggregate": {
+      "type": "object",
+      "required": ["type", "id", "version"],
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string", "format": "uuid" },
+        "version": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "correlationId": { "type": "string", "format": "uuid" },
+    "causationId": { "type": ["string", "null"], "format": "uuid" },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": false
+}

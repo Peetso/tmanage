@@ -1,0 +1,11 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Keep transitive resolution deterministic across the workspace.
+# The committed pnpm-lock.yaml is the authoritative pin; package.json carries
+# compatible ranges so security patches can be adopted deliberately via
+# `pnpm update --latest <pkg>` followed by the full `pnpm verify` gate.
+
+onlyBuiltDependencies:
+  - esbuild

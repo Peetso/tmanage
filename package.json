@@ -1,0 +1,47 @@
+{
+  "name": "tmanage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TManage — multi-tenant Work Operating System for service teams and their clients",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22.12.0 <23",
+    "pnpm": ">=10.15.0"
+  },
+  "scripts": {
+    "audit:design": "node scripts/audit-design-source.mjs",
+    "build": "pnpm build:packages && pnpm -r --filter=./apps/** build",
+    "build:packages": "pnpm -r --filter=./packages/** build",
+    "typecheck": "pnpm build:packages && pnpm -r typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm build:packages && pnpm -r test",
+    "test:unit": "pnpm build:packages && pnpm -r test:unit",
+    "test:db": "pnpm build:packages && pnpm --filter @tmanage/api test:db",
+    "db:migrate": "pnpm --filter @tmanage/api db:migrate",
+    "db:status": "pnpm --filter @tmanage/api db:status",
+    "db:grants": "pnpm --filter @tmanage/api db:grants",
+    "db:reset": "pnpm --filter @tmanage/api db:reset",
+    "db:seed": "pnpm --filter @tmanage/api db:seed",
+    "contracts:validate": "pnpm --filter @tmanage/contracts validate",
+    "contracts:generate": "pnpm --filter @tmanage/contracts generate",
+    "dev": "pnpm --parallel --filter @tmanage/api --filter @tmanage/web --filter @tmanage/worker dev",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm contracts:validate && pnpm audit:design && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.44.0",
+    "vitest": "^3.2.4"
+  }
+}

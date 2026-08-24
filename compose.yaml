@@ -1,0 +1,120 @@
+# TManage — one-command local stack.
+#
+#   docker compose up -d          start MariaDB, Valkey, MinIO
+#   pnpm db:migrate               create the schema (migration credential)
+#   pnpm db:grants                apply scripts/db/users.sql — least-privilege users
+#   pnpm dev                      run api + web + worker
+#
+# The migrate-then-grant order is mandatory, not stylistic: every grant in users.sql is
+# table-level, and both MySQL and MariaDB reject a table-level GRANT for a table that does
+# not exist. See the note on the mariadb service below.
+#
+# This mirrors the BOOTSTRAP deployment profile (50-BOOTSTRAP-DEPLOYMENT §4): MariaDB
+# stands in for the Hostinger-included database, Valkey for Upstash Redis, MinIO for
+# Cloudflare R2. Local development never contacts those free-tier accounts (§9).
+#
+# If no container runtime is available, `pnpm test:db` falls back to an embedded MySQL
+# server and the filesystem/in-memory drivers — see ADR-0002, including the recorded
+# MySQL-vs-MariaDB engine gap that CI closes by running this stack.
+#
+# Credentials below are local-development placeholders and must never appear deployed.
+
+name: tmanage
+
+services:
+  mariadb:
+    # MariaDB, not MySQL: this is what Hostinger Cloud provides (50-BOOTSTRAP §10).
+    image: mariadb:11.4.5-noble
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: local_dev_only_root
+      MARIADB_DATABASE: tmanage
+      # The MIGRATION user. Owns the schema. scripts/db/users.sql then creates the
+      # runtime user with DML privileges only (25-AUTH-AND-TENANT-ISOLATION §5).
+      MARIADB_USER: tmanage_migrator
+      MARIADB_PASSWORD: local_dev_only_migrator
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # Strict mode is required by §5. Without it MySQL silently truncates and coerces,
+      # which would turn a constraint violation into corrupted tenant data.
+      - --sql-mode=STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION,ERROR_FOR_DIVISION_BY_ZERO
+      - --default-storage-engine=InnoDB
+      # UTC everywhere; IANA timezones are stored per-record where wall-clock meaning
+      # matters (03-TECHNICAL-ARCHITECTURE §7).
+      - --default-time-zone=+00:00
+      - --innodb-flush-log-at-trx-commit=1
+      - --max-connections=100
+    ports:
+      - '3306:3306'
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      # scripts/db/users.sql is deliberately NOT mounted into /docker-entrypoint-initdb.d/.
+      # That directory runs on the server's first boot, before any migration has run, and
+      # every grant in that file is table-level — MariaDB would abort with
+      # ER_NO_SUCH_TABLE (1146) on the first `GRANT ... ON tmanage.organizations`. The file
+      # is applied by `pnpm db:grants` after `pnpm db:migrate` instead, which is also how
+      # CI applies it and how a deployed environment must.
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    restart: unless-stopped
+    command: ['valkey-server', '--appendonly', 'yes', '--save', '60', '1']
+    ports:
+      - '6379:6379'
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: local_dev_only_minio
+      MINIO_ROOT_PASSWORD: local_dev_only_minio_secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Creates the private, versioned bucket the API expects, then exits. Mirrors the R2
+  # bucket layout: private, separated by environment and trust state.
+  minio-init:
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 local_dev_only_minio local_dev_only_minio_secret &&
+      mc mb --ignore-existing local/tmanage-local-quarantine &&
+      mc mb --ignore-existing local/tmanage-local-ready &&
+      mc mb --ignore-existing local/tmanage-local-derived &&
+      mc version enable local/tmanage-local-ready &&
+      mc anonymous set none local/tmanage-local-quarantine &&
+      mc anonymous set none local/tmanage-local-ready &&
+      mc anonymous set none local/tmanage-local-derived &&
+      echo 'buckets ready: quarantine / ready (versioned) / derived, all private'
+      "
+    restart: 'no'
+
+volumes:
+  mariadb-data:
+  valkey-data:
+  minio-data:

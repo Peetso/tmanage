@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "resolveJsonModule": true,
+
+    // NestJS is fixed by the pack (03-TECHNICAL-ARCHITECTURE §2) and uses legacy decorators,
+    // so this is required rather than chosen.
+    //
+    // `emitDecoratorMetadata` is deliberately NOT enabled — see ADR-0003. vitest transforms
+    // TypeScript with esbuild, which does not implement it, so DI that depended on
+    // `design:paramtypes` would resolve `undefined` for every constructor parameter in the
+    // one suite that exists to prove the pipeline works. Every injected parameter therefore
+    // carries an explicit `@Inject(TOKEN)`.
+    "experimentalDecorators": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
+  "references": [{ "path": "../../packages/config" }, { "path": "../../packages/domain" }]
+}

@@ -1,0 +1,17 @@
+{
+  // Typecheck covers `test/` as well as `src/`, which the build config deliberately does
+  // not: the isolation corpus is the evidence for ADR-0001, and evidence that does not
+  // compile is not evidence. A test referencing a field the schema no longer has should
+  // fail here rather than at runtime, three minutes into a database run.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

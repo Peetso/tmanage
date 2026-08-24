@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family:'Satoshi'; src:url('./design/assets/fonts/Satoshi-Variable.woff2') format('woff2'); font-weight:300 900; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Manrope'; src:url('./design/assets/fonts/Manrope-Variable.ttf') format('truetype'); font-weight:200 800; font-style:normal; font-display:swap; }
+  body { margin:0; background:#2C2E29; font-family:Satoshi, Manrope, system-ui, sans-serif; }
+  a { color:#4D5049; text-decoration:none; border-bottom:1px solid #C5C7C0; }
+  a:hover { color:#090A09; border-bottom-color:#9CEA3F; }
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;gap:56px;padding:56px;background:#2C2E29;min-height:100vh">
+
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:1440px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">PHASE 8 · ADMINISTRATION · ADM-01…14</div>
+    <div style="font:500 34px/40px Satoshi;letter-spacing:-0.02em;color:#F5F6F0">Control Center — administration</div>
+    <div style="font:400 15px/22px Manrope;color:#A7ACA0;max-width:900px;text-wrap:pretty">All fourteen administration surfaces, drawn on one Control Center shell: 64px context bar, 208px section column, operational density (36–38px rows, 18px radius, 3px ink left edge on selection). Owner/Admin role only — the Control Center orb is the sole entry. Seed data from file 19 throughout.</div>
+  </div>
+
+  <div data-screen-label="ADM-01 Control Center home" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-01 · CONTROL CENTER HOME · ATTENTION + SECTION MAP · 1440×820</div>
+    <div style="width:1440px;height:820px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / OVERVIEW</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Northstar Studio</div>
+          <div style="width:36px;height:36px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#F7F7F3;white-space:nowrap">MH</div>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="width:208px;flex-shrink:0;padding:22px 14px;display:flex;flex-direction:column;gap:3px;background:#E4E4DF;border-right:1px solid #C5C7C0">
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:0 12px 8px">PEOPLE</div>
+          <div style="padding:8px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:10px;font:600 12px/17px Satoshi;color:#090A09">Overview</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Members and roles</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Roles</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Client organizations</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Invitations</div>
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:14px 12px 8px">WORK SETUP</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Templates and workflows</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Fields and statuses</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Automations</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Integrations</div>
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:14px 12px 8px">TRUST</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Security</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Audit log</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Data and retention</div>
+          <div style="margin-top:auto;display:flex;flex-direction:column;gap:3px">
+            <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Organization</div>
+            <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Billing</div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;padding:28px 32px;display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;align-items:flex-end;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">OWNER VIEW · MAYA HASSAN</div>
+              <div style="font:500 46px/50px Satoshi;letter-spacing:-0.03em;color:#090A09">What needs a decision</div>
+            </div>
+            <div style="margin-left:auto;padding:10px 18px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Everything is logged</div>
+          </div>
+
+          <div style="background:#090A09;border-radius:28px;padding:24px 26px;display:flex;align-items:center;gap:24px">
+            <div style="flex:1;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:22px;height:22px;border-radius:999px;background:#B7FF57"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">ACT FIRST</div></div>
+              <div style="font:500 24px/31px Satoshi;color:#F5F6F0;text-wrap:pretty">Karim Nabil leaves on 22 Aug and still owns 14 work items and 1 committed milestone</div>
+              <div style="font:400 13px/19px Manrope;color:#A7ACA0">Why now — the Atlas launch is committed 30 Sep. Transfer ownership before the last working day so nothing lands unowned.</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;width:220px">
+              <div style="padding:11px 16px;background:#B7FF57;border-radius:999px;font:600 12px/17px Satoshi;color:#090A09;text-align:center;white-space:nowrap">Review offboarding impact</div>
+              <div style="padding:11px 16px;background:#242720;border-radius:999px;font:500 12px/17px Satoshi;color:#F5F6F0;text-align:center;white-space:nowrap">Remind me 18 Aug</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:8px">
+              <div style="font:500 42px/46px Satoshi;letter-spacing:-0.02em;color:#090A09">3</div>
+              <div style="font:500 14px/20px Satoshi;color:#232521">invitations waiting on a policy exception</div>
+              <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">SOURCE · INVITATION POLICY</div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:8px">
+              <div style="font:500 42px/46px Satoshi;letter-spacing:-0.02em;color:#090A09">9 of 12</div>
+              <div style="font:500 14px/20px Satoshi;color:#232521">seats used, next renewal 1 Oct</div>
+              <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">SOURCE · BILLING</div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C96F18;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:8px">
+              <div style="font:500 42px/46px Satoshi;letter-spacing:-0.02em;color:#C96F18">1</div>
+              <div style="font:500 14px/20px Satoshi;color:#232521">integration token expired — client drive mirror</div>
+              <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">SOURCE · INTEGRATIONS</div>
+            </div>
+          </div>
+
+          <div style="flex:1;min-height:0;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:12px"><div style="font:600 18px/25px Satoshi;color:#090A09">Recent changes to the way this studio works</div><div style="margin-left:auto;font:500 11px/16px Satoshi;color:#4D5049"><a href="#">Open audit log</a></div></div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;gap:16px;height:38px;border-bottom:1px solid #E9E9E5"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">TODAY 09:40</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Maya Hassan tightened client-visible file defaults on Atlas Hospitality</div><div style="width:9px;height:9px;background:#7755C7"></div></div>
+              <div style="display:flex;align-items:center;gap:16px;height:38px;border-bottom:1px solid #E9E9E5"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">YEST 16:12</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Omar Adel added the "Content migration" stage to the Relaunch template</div><div style="width:9px;height:9px;background:#090A09"></div></div>
+              <div style="display:flex;align-items:center;gap:16px;height:38px;border-bottom:1px solid #E9E9E5"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">13 AUG</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Maya Hassan required two-factor sign-in for everyone with approval authority</div><div style="width:9px;height:9px;background:#090A09"></div></div>
+              <div style="display:flex;align-items:center;gap:16px;height:38px"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">11 AUG</div><div style="flex:1;font:500 13px/18px Satoshi;color:#4D5049">Retention for chat messages set to 24 months, deletions queued for 1 Sep</div><div style="width:9px;height:9px;background:#090A09"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-02 Members and roles" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-02 · MEMBERS AND ROLES · SEATS + ACCESS REALITY · 1440×760</div>
+    <div style="width:1440px;height:760px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / MEMBERS AND ROLES</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Export list</div>
+          <div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Invite people</div>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="width:208px;flex-shrink:0;padding:22px 14px;display:flex;flex-direction:column;gap:3px;background:#E4E4DF;border-right:1px solid #C5C7C0">
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:0 12px 8px">PEOPLE</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Overview</div>
+          <div style="padding:8px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:10px;font:600 12px/17px Satoshi;color:#090A09">Members and roles</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Roles</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Client organizations</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Invitations</div>
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:14px 12px 8px">WORK SETUP</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Templates and workflows</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Fields and statuses</div>
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:14px 12px 8px">TRUST</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Security</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Audit log</div>
+        </div>
+        <div style="flex:1;min-width:0;padding:26px 32px;display:flex;gap:22px">
+          <div style="flex:1.6;min-width:0;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;align-items:baseline;gap:14px">
+              <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">9 members</div>
+              <div style="font:400 13px/19px Manrope;color:#74786F">5 in Northstar Studio · 3 client people · 1 leaving</div>
+              <div style="margin-left:auto;display:flex;gap:8px">
+                <div style="padding:7px 14px;background:#FFFFFF;border:1px solid #090A09;border-radius:999px;font:600 11px/16px Satoshi;color:#090A09;white-space:nowrap">Internal</div>
+                <div style="padding:7px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#4D5049;white-space:nowrap">Client</div>
+                <div style="padding:7px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#4D5049;white-space:nowrap">Deactivated</div>
+              </div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:14px;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0">
+                <div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#74786F">PERSON</div>
+                <div style="width:150px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">ROLE</div>
+                <div style="width:120px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">PROJECTS</div>
+                <div style="width:92px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">LAST ACTIVE</div>
+                <div style="width:70px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">SEAT</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 18px;border-bottom:1px solid #E9E9E5;border-left:3px solid #090A09;background:#F7F7F3">
+                <div style="flex:1;display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#F7F7F3;white-space:nowrap">MH</div><div><div style="font:600 13px/18px Satoshi;color:#090A09;white-space:nowrap">Maya Hassan</div><div style="font:400 11px/15px Manrope;color:#74786F">maya@northstar.studio · you</div></div></div>
+                <div style="width:150px;font:500 12px/17px Satoshi;color:#232521">Owner / Admin</div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">All</div>
+                <div style="width:92px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">NOW</div>
+                <div style="width:70px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#B7FF57;border-radius:999px;font:600 11px/15px Satoshi;color:#090A09;white-space:nowrap">Full</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 18px;border-bottom:1px solid #E9E9E5">
+                <div style="flex:1;display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#4D5049;white-space:nowrap">OA</div><div><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Omar Adel</div><div style="font:400 11px/15px Manrope;color:#74786F">omar@northstar.studio</div></div></div>
+                <div style="width:150px;font:500 12px/17px Satoshi;color:#232521">Project manager</div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">4 projects</div>
+                <div style="width:92px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">12 MIN</div>
+                <div style="width:70px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">Full</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 18px;border-bottom:1px solid #E9E9E5">
+                <div style="flex:1;display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#4D5049;white-space:nowrap">LS</div><div><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Lina Samir</div><div style="font:400 11px/15px Manrope;color:#74786F">lina@northstar.studio · design</div></div></div>
+                <div style="width:150px;font:500 12px/17px Satoshi;color:#232521">Team member</div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">2 projects</div>
+                <div style="width:92px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">1H</div>
+                <div style="width:70px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">Full</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 18px;border-bottom:1px solid #E9E9E5;border-left:3px solid #C96F18">
+                <div style="flex:1;display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#4D5049;white-space:nowrap">KN</div><div><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Karim Nabil</div><div style="font:400 11px/15px Manrope;color:#C96F18">last working day 22 Aug · owns 14 items</div></div></div>
+                <div style="width:150px;font:500 12px/17px Satoshi;color:#232521">Team member</div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">3 projects</div>
+                <div style="width:92px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">3H</div>
+                <div style="width:70px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:600 11px/15px Satoshi;color:#C96F18;white-space:nowrap">Ending</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 18px;border-bottom:1px solid #E9E9E5">
+                <div style="flex:1;display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#4D5049;white-space:nowrap">NF</div><div><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Noor Fathy</div><div style="font:400 11px/15px Manrope;color:#74786F">noor@northstar.studio · content</div></div></div>
+                <div style="width:150px;font:500 12px/17px Satoshi;color:#232521">Team member</div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">2 projects</div>
+                <div style="width:92px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">YESTERDAY</div>
+                <div style="width:70px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">Full</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 18px;border-bottom:1px solid #E9E9E5;background:#F7F7F3">
+                <div style="flex:1;display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:999px;background:#FFFFFF;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#7755C7;white-space:nowrap">SR</div><div><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Salma Riad</div><div style="font:400 11px/15px Manrope;color:#74786F">Atlas Hospitality · client admin</div></div></div>
+                <div style="width:150px;display:flex;align-items:center;gap:7px"><div style="width:9px;height:9px;border-radius:999px;border:1.5px solid #7755C7"></div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Client admin</div></div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">Portal only</div>
+                <div style="width:92px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">2 DAYS</div>
+                <div style="width:70px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#E9E9E5;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">Free</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:56px;padding:0 18px;background:#F7F7F3">
+                <div style="flex:1;display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:999px;background:#FFFFFF;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#7755C7;white-space:nowrap">YK</div><div><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Youssef Kamal</div><div style="font:400 11px/15px Manrope;color:#74786F">Atlas Hospitality · approval authority</div></div></div>
+                <div style="width:150px;display:flex;align-items:center;gap:7px"><div style="width:9px;height:9px;border-radius:999px;border:1.5px solid #7755C7"></div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Client reviewer</div></div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">Portal only</div>
+                <div style="width:92px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">26H</div>
+                <div style="width:70px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#E9E9E5;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">Free</div></div>
+              </div>
+            </div>
+            <div style="font:400 12px/17px Manrope;color:#74786F">Client people never consume a paid seat. Two more people below the fold.</div>
+          </div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px">
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">SELECTED · MAYA HASSAN</div>
+              <div style="font:600 20px/27px Satoshi;color:#090A09">What this person can actually reach</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:10px"><div style="width:9px;height:9px;background:#090A09"></div><div style="font:400 13px/19px Manrope;color:#232521">Every project, including archived</div></div>
+                <div style="display:flex;align-items:center;gap:10px"><div style="width:9px;height:9px;background:#090A09"></div><div style="font:400 13px/19px Manrope;color:#232521">Policy, roles, billing and audit</div></div>
+                <div style="display:flex;align-items:center;gap:10px"><div style="width:9px;height:9px;border-radius:999px;border:1.5px solid #7755C7"></div><div style="font:400 13px/19px Manrope;color:#232521">Can publish to client portals</div></div>
+                <div style="display:flex;align-items:center;gap:10px"><div style="width:9px;height:9px;background:#D9474F"></div><div style="font:400 13px/19px Manrope;color:#232521">Can delete an organization — 1 of 1 owner</div></div>
+              </div>
+              <div style="height:1px;background:#E9E9E5"></div>
+              <div style="font:400 12px/18px Manrope;color:#74786F;text-wrap:pretty">A single owner is a risk. Add a second owner so account recovery does not depend on one person.</div>
+              <div style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;align-self:flex-start;white-space:nowrap">Add a second owner</div>
+            </div>
+            <div style="background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px;flex:1">
+              <div style="font:600 16px/22px Satoshi;color:#090A09">Seats</div>
+              <div style="display:flex;align-items:flex-end;gap:8px"><div style="font:500 34px/38px Satoshi;color:#090A09">9</div><div style="font:400 13px/19px Manrope;color:#74786F">of 12 · 3 free</div></div>
+              <div style="height:14px;border-radius:999px;background:#E9E9E5;overflow:hidden"><div style="width:75%;height:14px;background:#090A09"></div></div>
+              <div style="font:400 12px/18px Manrope;color:#74786F">Karim's seat frees on 22 Aug. Nothing is billed until the next renewal on 1 Oct.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-03 Role editor" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-03 · ROLE EDITOR · PERMISSION MATRIX + EFFECT PREVIEW · 1440×780</div>
+    <div style="width:1440px;height:780px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / ROLES / PROJECT MANAGER</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Discard</div>
+          <div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Save · affects 1 person</div>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="width:208px;flex-shrink:0;padding:22px 14px;display:flex;flex-direction:column;gap:3px;background:#E4E4DF;border-right:1px solid #C5C7C0">
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:0 12px 8px">ROLES</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Owner / Admin</div>
+          <div style="padding:8px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:10px;font:600 12px/17px Satoshi;color:#090A09">Project manager</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Team member</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Contractor</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Client admin</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Client reviewer</div>
+          <div style="padding:8px 12px;font:500 12px/17px Satoshi;color:#4D5049">Client viewer</div>
+          <div style="margin-top:18px;padding:8px 12px;border:1px dashed #C5C7C0;border-radius:10px;font:500 12px/17px Satoshi;color:#4D5049;text-align:center">New role</div>
+        </div>
+        <div style="flex:1;min-width:0;padding:26px 32px;display:flex;gap:22px">
+          <div style="flex:1.5;min-width:0;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">Project manager</div>
+              <div style="font:400 14px/21px Manrope;color:#4D5049;max-width:620px;text-wrap:pretty">Runs delivery on their own projects. Can commit dates and speak to clients. Cannot change studio policy, roles or billing.</div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;overflow:hidden">
+              <div style="display:flex;align-items:center;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0">
+                <div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#74786F">CAPABILITY</div>
+                <div style="width:86px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:center">NONE</div>
+                <div style="width:86px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:center">OWN</div>
+                <div style="width:86px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:center">ALL</div>
+              </div>
+              <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">See projects</div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;background:#090A09"></div></div></div>
+              <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Commit a date</div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;background:#090A09"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div></div>
+              <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5;background:#F7F7F3;border-left:3px solid #090A09"><div style="flex:1;display:flex;align-items:center;gap:9px"><div style="font:600 13px/18px Satoshi;color:#090A09">Publish to a client portal</div><div style="width:9px;height:9px;border-radius:999px;border:1.5px solid #7755C7"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;background:#090A09;box-shadow:0 0 0 3px #B7FF57"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div></div>
+              <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Decide an approval on the client's behalf</div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;background:#090A09"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px dashed #C5C7C0"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px dashed #C5C7C0"></div></div></div>
+              <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Invite internal people</div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;background:#090A09"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div></div>
+              <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Change fields, statuses and templates</div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;background:#090A09"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div></div>
+              <div style="display:flex;align-items:center;height:44px;padding:0 18px"><div style="flex:1;font:500 13px/18px Satoshi;color:#4D5049">Read the audit log</div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;background:#090A09"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div><div style="width:86px;display:grid;place-items:center"><div style="width:18px;height:18px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div></div>
+            </div>
+            <div style="font:400 12px/18px Manrope;color:#74786F">Dashed circles are combinations the product forbids: only the client can decide their own approval.</div>
+          </div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px">
+            <div style="background:#090A09;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">EFFECT OF THIS EDIT</div>
+              <div style="font:500 20px/27px Satoshi;color:#F5F6F0;text-wrap:pretty">Omar Adel gains the ability to publish updates to the Atlas portal without a second pair of eyes.</div>
+              <div style="font:400 13px/19px Manrope;color:#A7ACA0">Three surfaces change for him: the portal composer, the deliverable release action, and the weekly digest sign-off.</div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px;flex:1">
+              <div style="font:600 16px/22px Satoshi;color:#090A09">Who holds this role</div>
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 13px/1 Satoshi;color:#4D5049;white-space:nowrap">OA</div><div><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Omar Adel</div><div style="font:400 11px/15px Manrope;color:#74786F">4 projects · since Mar 2025</div></div></div>
+              <div style="height:1px;background:#E9E9E5"></div>
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">HISTORY</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="font:400 12px/18px Manrope;color:#4D5049">2 Aug — Maya Hassan removed "delete a project"</div>
+                <div style="font:400 12px/18px Manrope;color:#4D5049">14 Jun — role created from Team member</div>
+              </div>
+              <div style="margin-top:auto;padding:10px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;align-self:flex-start;white-space:nowrap">Compare with Team member</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-04 Client organizations" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-04 · CLIENT ORGANIZATIONS · PORTAL DEFAULTS · 1440×740</div>
+    <div style="width:1440px;height:740px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / CLIENT ORGANIZATIONS</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #7755C7;border-radius:999px;font:600 11px/16px Satoshi;color:#7755C7;white-space:nowrap">Preview as client</div>
+          <div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Add organization</div>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="width:260px;flex-shrink:0;padding:22px 16px;display:flex;flex-direction:column;gap:10px;background:#E4E4DF;border-right:1px solid #C5C7C0">
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:0 6px 4px">4 ORGANIZATIONS</div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-left:3px solid #7755C7;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px"><div style="font:600 14px/20px Satoshi;color:#090A09">Atlas Hospitality</div><div style="font:400 11px/16px Manrope;color:#74786F">3 people · 1 project · portal live</div></div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:6px"><div style="font:500 14px/20px Satoshi;color:#232521">Cedar Foods</div><div style="font:400 11px/16px Manrope;color:#74786F">2 people · 1 project</div></div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:6px"><div style="font:500 14px/20px Satoshi;color:#232521">Nile Robotics</div><div style="font:400 11px/16px Manrope;color:#74786F">1 person · portal not opened</div></div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:6px"><div style="font:500 14px/20px Satoshi;color:#4D5049">Meridian Press</div><div style="font:400 11px/16px Manrope;color:#74786F">archived Jun 2026</div></div>
+        </div>
+        <div style="flex:1;min-width:0;padding:26px 32px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;align-items:flex-end;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:10px;height:10px;border-radius:999px;border:2px solid #7755C7"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#7755C7">CLIENT VISIBLE SPACE</div></div>
+              <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">Atlas Hospitality</div>
+            </div>
+            <div style="margin-left:auto;font:400 13px/19px Manrope;color:#74786F">Portal opened 4 Jul 2026 · last visit 26h ago</div>
+          </div>
+          <div style="display:flex;gap:20px;flex:1;min-height:0">
+            <div style="flex:1.2;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px">
+              <div style="font:600 18px/25px Satoshi;color:#090A09">What this client sees by default</div>
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Timeline with committed dates only</div><div style="width:44px;height:26px;border-radius:999px;background:#090A09;padding:3px;display:flex;justify-content:flex-end"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div></div></div>
+                <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Deliverables and version history</div><div style="width:44px;height:26px;border-radius:999px;background:#090A09;padding:3px;display:flex;justify-content:flex-end"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div></div></div>
+                <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Internal forecast dates</div><div style="width:44px;height:26px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;padding:3px;display:flex"><div style="width:20px;height:20px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0"></div></div></div>
+                <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Who on the team did what</div><div style="width:44px;height:26px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;padding:3px;display:flex"><div style="width:20px;height:20px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0"></div></div></div>
+                <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">File comments from the studio</div><div style="width:44px;height:26px;border-radius:999px;background:#090A09;padding:3px;display:flex;justify-content:flex-end"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div></div></div>
+              </div>
+              <div style="height:1px;background:#E9E9E5"></div>
+              <div style="display:flex;align-items:flex-start;gap:12px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:18px;padding:16px">
+                <div style="font:600 13px/19px Satoshi;color:#7755C7">◎</div>
+                <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">Defaults set the starting point. Anything published to the portal still shows its own halo, and a PM can always narrow it further per item.</div>
+              </div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+              <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px;flex:1">
+                <div style="font:600 16px/22px Satoshi;color:#090A09">People at Atlas</div>
+                <div style="display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid #E9E9E5"><div style="width:36px;height:36px;border-radius:999px;background:#FFFFFF;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#7755C7;white-space:nowrap">SR</div><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Salma Riad</div><div style="font:400 11px/15px Manrope;color:#74786F">client admin · manages her own people</div></div></div>
+                <div style="display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid #E9E9E5"><div style="width:36px;height:36px;border-radius:999px;background:#FFFFFF;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#7755C7;white-space:nowrap">YK</div><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Youssef Kamal</div><div style="font:400 11px/15px Manrope;color:#74786F">reviewer · approval authority</div></div><div style="padding:3px 10px;background:#B7FF57;border-radius:999px;font:600 10px/14px Satoshi;color:#090A09;white-space:nowrap">Can approve</div></div>
+                <div style="display:flex;align-items:center;gap:12px"><div style="width:36px;height:36px;border-radius:999px;background:#FFFFFF;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#7755C7;white-space:nowrap">DA</div><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Dina Ashraf</div><div style="font:400 11px/15px Manrope;color:#74786F">viewer · read only</div></div></div>
+              </div>
+              <div style="background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:10px">
+                <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">LANGUAGE</div>
+                <div style="font:500 14px/20px Satoshi;color:#232521">Portal renders in Arabic for Salma Riad</div>
+                <div style="font:400 12px/18px Manrope;color:#74786F">Right-to-left, Alexandria type, Africa/Cairo dates.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-05 Invitation policy" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-05 · INVITATION POLICY · PENDING QUEUE + EXCEPTION · 1440×720</div>
+    <div style="width:1440px;height:720px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / INVITATIONS</div>
+        <div style="margin-left:auto;padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Invite people</div>
+      </div>
+      <div style="flex:1;min-height:0;padding:28px 32px;display:flex;gap:22px">
+        <div style="flex:1;display:flex;flex-direction:column;gap:18px">
+          <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">Who may let someone in</div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">INTERNAL PEOPLE</div>
+              <div style="display:flex;gap:10px">
+                <div style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Owner and PMs</div>
+                <div style="padding:10px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#4D5049;white-space:nowrap">Owner only</div>
+                <div style="padding:10px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#4D5049;white-space:nowrap">Anyone</div>
+              </div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CLIENT PEOPLE</div>
+              <div style="display:flex;gap:10px">
+                <div style="padding:10px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#4D5049;white-space:nowrap">PM of the project</div>
+                <div style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">PM, and the client admin for their own org</div>
+              </div>
+              <div style="font:400 12px/18px Manrope;color:#74786F">Salma Riad can add her own colleagues as viewers, never as reviewers.</div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">RULES</div>
+              <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Only <span style="font-family:'Geist Mono',monospace;font-size:12px">@northstar.studio</span> addresses may hold an internal role</div><div style="width:44px;height:26px;border-radius:999px;background:#090A09;padding:3px;display:flex;justify-content:flex-end"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div></div></div>
+              <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Invitation links expire after 7 days</div><div style="width:44px;height:26px;border-radius:999px;background:#090A09;padding:3px;display:flex;justify-content:flex-end"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div></div></div>
+              <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Approval authority always needs owner sign-off</div><div style="width:44px;height:26px;border-radius:999px;background:#090A09;padding:3px;display:flex;justify-content:flex-end"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#090A09;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:22px;height:22px;border-radius:999px;background:#B7FF57"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">WAITING ON YOU</div></div>
+            <div style="font:500 22px/29px Satoshi;color:#F5F6F0;text-wrap:pretty">Omar Adel invited a freelance photographer with a gmail address</div>
+            <div style="font:400 13px/19px Manrope;color:#A7ACA0">Why now — the domain rule blocked it 2 days ago and the shoot is on 20 Aug. Approving grants a Contractor role limited to Atlas Relaunch.</div>
+            <div style="display:flex;gap:10px"><div style="padding:11px 16px;background:#B7FF57;border-radius:999px;font:600 12px/17px Satoshi;color:#090A09;white-space:nowrap">Allow as contractor</div><div style="padding:11px 16px;background:#242720;border-radius:999px;font:500 12px/17px Satoshi;color:#F5F6F0;white-space:nowrap">Decline</div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden;flex:1">
+            <div style="display:flex;align-items:center;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">PENDING · 3</div><div style="width:90px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">SENT</div></div>
+            <div style="display:flex;align-items:center;height:52px;padding:0 18px;border-bottom:1px solid #E9E9E5;border-left:3px solid #C96F18"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">rana.photo@gmail.com</div><div style="font:400 11px/15px Manrope;color:#C96F18">blocked by domain rule · needs an exception</div></div><div style="width:90px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">2 DAYS</div></div>
+            <div style="display:flex;align-items:center;height:52px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">dina.ashraf@atlas-hospitality.com</div><div style="font:400 11px/15px Manrope;color:#74786F">client viewer · invited by Salma Riad</div></div><div style="width:90px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">4H</div></div>
+            <div style="display:flex;align-items:center;height:52px;padding:0 18px"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">hana@northstar.studio</div><div style="font:400 11px/15px Manrope;color:#74786F">team member · expires in 5 days</div></div><div style="width:90px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">2 DAYS</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-06 Templates and workflows" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-06 · TEMPLATES AND WORKFLOWS · STAGE EDITOR · 1440×760</div>
+    <div style="width:1440px;height:760px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / TEMPLATES / WEBSITE RELAUNCH</div>
+        <div style="margin-left:auto;display:flex;gap:8px"><div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Duplicate</div><div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Save template</div></div>
+      </div>
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="width:250px;flex-shrink:0;padding:22px 16px;display:flex;flex-direction:column;gap:8px;background:#E4E4DF;border-right:1px solid #C5C7C0">
+          <div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F;padding:0 6px 4px">5 TEMPLATES</div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-left:3px solid #090A09;border-radius:14px;padding:13px;display:flex;flex-direction:column;gap:5px"><div style="font:600 13px/18px Satoshi;color:#090A09">Website relaunch</div><div style="font:400 11px/15px Manrope;color:#74786F">7 stages · used by 3 projects</div></div>
+          <div style="padding:13px;display:flex;flex-direction:column;gap:5px"><div style="font:500 13px/18px Satoshi;color:#232521">Brand identity</div><div style="font:400 11px/15px Manrope;color:#74786F">5 stages · 1 project</div></div>
+          <div style="padding:13px;display:flex;flex-direction:column;gap:5px"><div style="font:500 13px/18px Satoshi;color:#232521">Content retainer</div><div style="font:400 11px/15px Manrope;color:#74786F">3 stages · 2 projects</div></div>
+          <div style="padding:13px;display:flex;flex-direction:column;gap:5px"><div style="font:500 13px/18px Satoshi;color:#232521">Campaign sprint</div><div style="font:400 11px/15px Manrope;color:#74786F">4 stages · unused</div></div>
+          <div style="padding:13px;display:flex;flex-direction:column;gap:5px"><div style="font:500 13px/18px Satoshi;color:#4D5049">Discovery only</div><div style="font:400 11px/15px Manrope;color:#74786F">2 stages · draft</div></div>
+        </div>
+        <div style="flex:1;min-width:0;padding:26px 32px;display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;align-items:flex-end;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">TEMPLATE · 7 STAGES · 41 SEEDED WORK ITEMS</div><div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">Website relaunch</div></div>
+            <div style="margin-left:auto;font:400 13px/19px Manrope;color:#74786F;max-width:300px;text-wrap:pretty">Editing a stage does not touch projects already running on this template.</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:26px;display:flex;flex-direction:column;gap:20px">
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Stages, in order</div>
+            <div style="display:flex;align-items:center;gap:0">
+              <div style="display:flex;flex-direction:column;gap:8px;flex:1"><div style="height:10px;background:#090A09;border-radius:999px"></div><div style="font:500 12px/17px Satoshi;color:#090A09;white-space:nowrap">Discovery</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">4 ITEMS</div></div>
+              <div style="width:10px"></div>
+              <div style="display:flex;flex-direction:column;gap:8px;flex:1"><div style="height:10px;background:#090A09;border-radius:999px"></div><div style="font:500 12px/17px Satoshi;color:#090A09">Direction</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">6 ITEMS</div></div>
+              <div style="width:10px"></div>
+              <div style="display:flex;flex-direction:column;gap:8px;flex:1.2"><div style="height:10px;background:#B7FF57;border-radius:999px"></div><div style="font:600 12px/17px Satoshi;color:#090A09">Content migration · new</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">9 ITEMS</div></div>
+              <div style="width:10px"></div>
+              <div style="display:flex;flex-direction:column;gap:8px;flex:1"><div style="height:10px;border:1px solid #C5C7C0;border-radius:999px"></div><div style="font:500 12px/17px Satoshi;color:#4D5049">Build</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">12 ITEMS</div></div>
+              <div style="width:10px"></div>
+              <div style="display:flex;flex-direction:column;gap:8px;flex:1"><div style="height:10px;border:1px solid #C5C7C0;border-radius:999px"></div><div style="font:500 12px/17px Satoshi;color:#4D5049">Review</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">5 ITEMS</div></div>
+              <div style="width:10px"></div>
+              <div style="display:flex;flex-direction:column;gap:8px;flex:1"><div style="height:10px;border:1px solid #C5C7C0;border-radius:999px"></div><div style="font:500 12px/17px Satoshi;color:#4D5049">Launch</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">3 ITEMS</div></div>
+              <div style="width:10px"></div>
+              <div style="display:flex;flex-direction:column;gap:8px;flex:0.8"><div style="height:10px;border:1px dashed #C5C7C0;border-radius:999px"></div><div style="font:500 12px/17px Satoshi;color:#4D5049">Care</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">2 ITEMS</div></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:20px;flex:1;min-height:0">
+            <div style="flex:1.3;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden">
+              <div style="display:flex;align-items:center;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">CONTENT MIGRATION · SEEDED ITEMS</div><div style="width:110px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">DEFAULT OWNER</div><div style="width:80px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">HALO</div></div>
+              <div style="display:flex;align-items:center;height:38px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Inventory existing pages</div><div style="width:110px;font:500 12px/17px Satoshi;color:#4D5049">Content lead</div><div style="width:80px;display:flex;justify-content:flex-end"><div style="width:9px;height:9px;background:#090A09"></div></div></div>
+              <div style="display:flex;align-items:center;height:38px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Agree what does not move</div><div style="width:110px;font:500 12px/17px Satoshi;color:#4D5049">PM</div><div style="width:80px;display:flex;justify-content:flex-end"><div style="width:9px;height:9px;border-radius:999px;border:1.5px solid #7755C7"></div></div></div>
+              <div style="display:flex;align-items:center;height:38px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Arabic copy pass</div><div style="width:110px;font:500 12px/17px Satoshi;color:#4D5049">Content lead</div><div style="width:80px;display:flex;justify-content:flex-end"><div style="width:9px;height:9px;background:#090A09"></div></div></div>
+              <div style="display:flex;align-items:center;height:38px;padding:0 18px"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Client sign-off on the final set</div><div style="width:110px;font:500 12px/17px Satoshi;color:#4D5049">PM</div><div style="width:80px;display:flex;justify-content:flex-end"><div style="font:600 12px/17px Satoshi;color:#C96F18">!</div></div></div>
+            </div>
+            <div style="flex:1;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+              <div style="font:600 16px/22px Satoshi;color:#090A09">Rules carried by this template</div>
+              <div style="font:400 13px/19px Manrope;color:#4D5049">Every stage ends with a decision record. Client sign-off items always carry the "client action required" halo. Committed dates can only be set by a PM.</div>
+              <div style="height:1px;background:#E9E9E5"></div>
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">LAST EDIT</div>
+              <div style="font:400 12px/18px Manrope;color:#4D5049">Omar Adel added Content migration yesterday 16:12 after the Atlas forecast slipped from 1 Sep to 8 Sep.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-07 Fields, types and statuses" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-07 · FIELDS, TYPES AND STATUSES · 1440×740</div>
+    <div style="width:1440px;height:740px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / FIELDS AND STATUSES</div>
+        <div style="margin-left:auto;display:flex;gap:8px"><div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Work types</div><div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">New field</div></div>
+      </div>
+      <div style="flex:1;min-height:0;padding:28px 32px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;align-items:flex-end;gap:20px">
+          <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">The vocabulary of work</div>
+          <div style="margin-left:auto;font:400 13px/19px Manrope;color:#74786F;max-width:420px;text-wrap:pretty">Statuses describe where a thing is. Only three of them are allowed to mean "waiting on the client".</div>
+        </div>
+        <div style="display:flex;gap:20px;flex:1;min-height:0">
+          <div style="flex:1;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px">
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Statuses · Work</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:12px;height:38px;border-bottom:1px solid #E9E9E5"><div style="width:12px;height:12px;border-radius:999px;border:1.5px solid #C5C7C0"></div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Not started</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">OPEN</div></div>
+              <div style="display:flex;align-items:center;gap:12px;height:38px;border-bottom:1px solid #E9E9E5"><div style="width:12px;height:12px;border-radius:999px;background:#B7FF57"></div><div style="flex:1;font:600 13px/18px Satoshi;color:#090A09">In progress</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">OPEN · CURRENT</div></div>
+              <div style="display:flex;align-items:center;gap:12px;height:38px;border-bottom:1px solid #E9E9E5"><div style="width:12px;height:12px;border-radius:999px;background:#7755C7"></div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Waiting on client</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#7755C7">STOPS THE CLOCK</div></div>
+              <div style="display:flex;align-items:center;gap:12px;height:38px;border-bottom:1px solid #E9E9E5"><div style="width:12px;height:12px;border-radius:999px;background:#C96F18"></div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Blocked</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">OPEN · AT RISK</div></div>
+              <div style="display:flex;align-items:center;gap:12px;height:38px;border-bottom:1px solid #E9E9E5"><div style="width:12px;height:12px;border-radius:999px;background:#090A09"></div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Done</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">CLOSED</div></div>
+              <div style="display:flex;align-items:center;gap:12px;height:38px"><div style="width:12px;height:12px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0"></div><div style="flex:1;font:500 13px/18px Satoshi;color:#4D5049">Dropped</div><div style="font:400 10px/14px 'Geist Mono',monospace;color:#74786F">CLOSED · NEEDS REASON</div></div>
+            </div>
+          </div>
+          <div style="flex:1.2;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden">
+            <div style="display:flex;align-items:center;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">CUSTOM FIELDS · 8</div><div style="width:96px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">TYPE</div><div style="width:86px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">APPLIES TO</div><div style="width:60px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">REQ</div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5;background:#F7F7F3;border-left:3px solid #090A09"><div style="flex:1"><div style="font:600 13px/18px Satoshi;color:#090A09">Reason for a date change</div><div style="font:400 11px/15px Manrope;color:#74786F">shown to the client when a committed date moves</div></div><div style="width:96px;font:500 12px/17px Satoshi;color:#232521">Short text</div><div style="width:86px;font:500 12px/17px Satoshi;color:#232521">Milestone</div><div style="width:60px;display:flex;justify-content:flex-end"><div style="padding:3px 9px;background:#B7FF57;border-radius:999px;font:600 10px/14px Satoshi;color:#090A09;white-space:nowrap">Yes</div></div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Effort</div><div style="font:400 11px/15px Manrope;color:#74786F">hours, internal only</div></div><div style="width:96px;font:500 12px/17px Satoshi;color:#232521">Number</div><div style="width:86px;font:500 12px/17px Satoshi;color:#232521">Work item</div><div style="width:60px;display:flex;justify-content:flex-end"><div style="font:500 11px/15px Satoshi;color:#74786F">No</div></div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Language</div><div style="font:400 11px/15px Manrope;color:#74786F">Arabic / English / both</div></div><div style="width:96px;font:500 12px/17px Satoshi;color:#232521">Choice</div><div style="width:86px;font:500 12px/17px Satoshi;color:#232521">Deliverable</div><div style="width:60px;display:flex;justify-content:flex-end"><div style="padding:3px 9px;background:#B7FF57;border-radius:999px;font:600 10px/14px Satoshi;color:#090A09;white-space:nowrap">Yes</div></div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Approval authority</div><div style="font:400 11px/15px Manrope;color:#74786F">who at the client may decide</div></div><div style="width:96px;font:500 12px/17px Satoshi;color:#232521">Person</div><div style="width:86px;font:500 12px/17px Satoshi;color:#232521">Approval</div><div style="width:60px;display:flex;justify-content:flex-end"><div style="padding:3px 9px;background:#B7FF57;border-radius:999px;font:600 10px/14px Satoshi;color:#090A09;white-space:nowrap">Yes</div></div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#4D5049;white-space:nowrap">Client reference number</div><div style="font:400 11px/15px Manrope;color:#74786F">unused for 6 months · 0 values</div></div><div style="width:96px;font:500 12px/17px Satoshi;color:#232521">Short text</div><div style="width:86px;font:500 12px/17px Satoshi;color:#232521">Project</div><div style="width:60px;display:flex;justify-content:flex-end"><div style="font:500 11px/15px Satoshi;color:#74786F">No</div></div></div>
+            <div style="display:flex;align-items:center;height:44px;padding:0 18px"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Risk note</div><div style="font:400 11px/15px Manrope;color:#74786F">internal only, appears on the Pulse Track</div></div><div style="width:96px;font:500 12px/17px Satoshi;color:#232521">Long text</div><div style="width:86px;font:500 12px/17px Satoshi;color:#232521">Milestone</div><div style="width:60px;display:flex;justify-content:flex-end"><div style="font:500 11px/15px Satoshi;color:#74786F">No</div></div></div>
+          </div>
+          <div style="width:280px;flex-shrink:0;display:flex;flex-direction:column;gap:16px">
+            <div style="background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:10px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WORK TYPES</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <div style="padding:7px 13px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Task</div>
+                <div style="padding:7px 13px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Milestone</div>
+                <div style="padding:7px 13px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Deliverable</div>
+                <div style="padding:7px 13px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Request</div>
+                <div style="padding:7px 13px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Decision</div>
+                <div style="padding:7px 13px;background:#FFFFFF;border:1px dashed #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#74786F;white-space:nowrap">Meeting</div>
+              </div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C96F18;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:10px;flex:1">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#C96F18">BEFORE YOU DELETE</div>
+              <div style="font:500 16px/22px Satoshi;color:#090A09">"Client reference number" holds no values</div>
+              <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">Removing it changes 4 saved views and one export. Deleted fields stay recoverable for 30 days.</div>
+              <div style="margin-top:auto;padding:10px 16px;background:#FFFFFF;border:1px solid #D9474F;border-radius:999px;font:600 12px/17px Satoshi;color:#D9474F;align-self:flex-start;white-space:nowrap">Delete field</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-08 Security" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-08 · SECURITY · SIGN-IN, SESSIONS, DEVICES · 1440×740</div>
+    <div style="width:1440px;height:740px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / SECURITY</div>
+        <div style="margin-left:auto;padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Security summary for a client</div>
+      </div>
+      <div style="flex:1;min-height:0;padding:28px 32px;display:flex;gap:22px">
+        <div style="flex:1.15;display:flex;flex-direction:column;gap:18px">
+          <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">How people get in</div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;align-items:flex-start;gap:16px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:4px"><div style="font:600 14px/20px Satoshi;color:#090A09">Single sign-on</div><div style="font:400 12px/18px Manrope;color:#74786F">Google Workspace, northstar.studio</div></div>
+              <div style="padding:5px 12px;background:#B7FF57;border-radius:999px;font:600 11px/16px Satoshi;color:#090A09;white-space:nowrap">On</div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;align-items:flex-start;gap:16px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:4px"><div style="font:600 14px/20px Satoshi;color:#090A09">Two-factor for approval authority</div><div style="font:400 12px/18px Manrope;color:#74786F">required since 13 Aug · 2 of 2 people enrolled</div></div>
+              <div style="padding:5px 12px;background:#B7FF57;border-radius:999px;font:600 11px/16px Satoshi;color:#090A09;white-space:nowrap">On</div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;gap:16px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:4px"><div style="font:600 14px/20px Satoshi;color:#090A09">Client portal sign-in</div><div style="font:400 12px/18px Manrope;color:#74786F">email link, 30-day trusted device</div></div>
+              <div style="padding:5px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#4D5049;white-space:nowrap">Link only</div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;gap:16px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:4px"><div style="font:600 14px/20px Satoshi;color:#090A09">Session length</div><div style="font:400 12px/18px Manrope;color:#74786F">14 days internal · 7 days client</div></div>
+              <div style="padding:5px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#4D5049;white-space:nowrap">Edit</div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;gap:16px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:4px"><div style="font:600 14px/20px Satoshi;color:#4D5049">Restrict by IP range</div><div style="font:400 12px/18px Manrope;color:#74786F">off — the studio works from anywhere</div></div>
+              <div style="padding:5px 12px;background:#E9E9E5;border-radius:999px;font:500 11px/16px Satoshi;color:#4D5049;white-space:nowrap">Off</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #C96F18;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#C96F18">ONE THING TO LOOK AT</div>
+            <div style="font:500 20px/27px Satoshi;color:#090A09;text-wrap:pretty">Karim Nabil has three active sessions, one on a personal phone last seen in a different city</div>
+            <div style="font:400 13px/19px Manrope;color:#4D5049">His last working day is 22 Aug. Revoking now signs him out everywhere and keeps his work intact.</div>
+            <div style="display:flex;gap:10px"><div style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Revoke his sessions</div><div style="padding:10px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">See devices</div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden;flex:1">
+            <div style="display:flex;align-items:center;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">ACTIVE SESSIONS · 17</div><div style="width:90px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">LAST SEEN</div></div>
+            <div style="display:flex;align-items:center;height:46px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Maya Hassan · macOS, Cairo</div><div style="font:400 11px/15px Manrope;color:#74786F">this device</div></div><div style="width:90px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">NOW</div></div>
+            <div style="display:flex;align-items:center;height:46px;padding:0 18px;border-bottom:1px solid #E9E9E5;border-left:3px solid #C96F18"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Karim Nabil · Android, Alexandria</div><div style="font:400 11px/15px Manrope;color:#C96F18">personal device, not managed</div></div><div style="width:90px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">3H</div></div>
+            <div style="display:flex;align-items:center;height:46px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Youssef Kamal · iOS, portal</div><div style="font:400 11px/15px Manrope;color:#74786F">trusted device, expires 4 Sep</div></div><div style="width:90px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">26H</div></div>
+            <div style="display:flex;align-items:center;height:46px;padding:0 18px"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Omar Adel · Windows, Cairo</div><div style="font:400 11px/15px Manrope;color:#74786F">managed</div></div><div style="width:90px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">12 MIN</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-09 Audit log" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-09 · AUDIT LOG · IMMUTABLE EVENT STREAM · 1440×780</div>
+    <div style="width:1440px;height:780px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / AUDIT LOG</div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Last 30 days</div>
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #090A09;border-radius:999px;font:600 11px/16px Satoshi;color:#090A09;white-space:nowrap">Policy changes</div>
+          <div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Export signed CSV</div>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="flex:1.5;min-width:0;padding:26px 20px 26px 32px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:baseline;gap:14px"><div style="font:500 34px/40px Satoshi;letter-spacing:-0.02em;color:#090A09">612 events</div><div style="font:400 13px/19px Manrope;color:#74786F">41 policy · 108 access · 463 content</div></div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;overflow:hidden;flex:1;min-height:0">
+            <div style="display:flex;align-items:center;gap:14px;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0">
+              <div style="width:96px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">WHEN</div>
+              <div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">WHO · WHAT CHANGED</div>
+              <div style="width:96px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">EVENT</div>
+              <div style="width:74px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">CLASS</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 18px;border-bottom:1px solid #E9E9E5;background:#F7F7F3;border-left:3px solid #090A09"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">TODAY 09:40</div><div style="flex:1;min-width:0"><div style="font:600 13px/18px Satoshi;color:#090A09">Maya Hassan turned off "who did what" for Atlas Hospitality</div><div style="font:400 11px/15px Manrope;color:#74786F">client visibility default · was on since 4 Jul</div></div><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">EV·9C41</div><div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #7755C7;border-radius:999px;font:600 10px/14px Satoshi;color:#7755C7;white-space:nowrap">Client</div></div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">TODAY 08:02</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Automation "Remind reviewer" notified Youssef Kamal</div><div style="font:400 11px/15px Manrope;color:#74786F">enabled by Maya Hassan · run RUN·4B90</div></div><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">EV·9C38</div><div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#E9E9E5;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Content</div></div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">YEST 16:12</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Omar Adel added stage "Content migration" to Website relaunch</div><div style="font:400 11px/15px Manrope;color:#74786F">template edit · 9 seeded items</div></div><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">EV·9C11</div><div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Policy</div></div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">YEST 11:30</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Youssef Kamal approved Homepage Concept v2</div><div style="font:400 11px/15px Manrope;color:#74786F">version 8f2c·d41a · signed from a trusted device</div></div><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">EV·9BF7</div><div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #7755C7;border-radius:999px;font:600 10px/14px Satoshi;color:#7755C7;white-space:nowrap">Client</div></div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">13 AUG 10:04</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Maya Hassan required two-factor for approval authority</div><div style="font:400 11px/15px Manrope;color:#74786F">security policy · affected 2 people</div></div><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">EV·9AC2</div><div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Policy</div></div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">12 AUG 14:20</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Omar Adel moved the Content migration forecast to 8 Sep</div><div style="font:400 11px/15px Manrope;color:#74786F">committed date 1 Sep unchanged · reason recorded</div></div><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">EV·9A80</div><div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#E9E9E5;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Content</div></div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 18px"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">11 AUG 09:15</div><div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#4D5049">Maya Hassan set chat retention to 24 months</div><div style="font:400 11px/15px Manrope;color:#74786F">first deletion pass queued for 1 Sep</div></div><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">EV·9A31</div><div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Policy</div></div></div>
+          </div>
+        </div>
+        <div style="width:400px;flex-shrink:0;padding:26px 32px 26px 0;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:14px;flex:1">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">EVENT EV·9C41</div>
+            <div style="font:600 20px/27px Satoshi;color:#090A09">Client visibility default changed</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:12px"><div style="width:88px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">ACTOR</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Maya Hassan · Owner</div></div>
+              <div style="display:flex;gap:12px"><div style="width:88px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">TARGET</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Atlas Hospitality · portal defaults</div></div>
+              <div style="display:flex;gap:12px"><div style="width:88px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">BEFORE</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">team attribution visible</div></div>
+              <div style="display:flex;gap:12px"><div style="width:88px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">AFTER</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">hidden from all client roles</div></div>
+              <div style="display:flex;gap:12px"><div style="width:88px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">DEVICE</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">macOS, Cairo · SSO session</div></div>
+              <div style="display:flex;gap:12px"><div style="width:88px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">HASH</div><div style="flex:1;font:500 13px/18px 'Geist Mono',monospace;color:#090A09">a71b·0e94</div></div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">Audit entries cannot be edited or deleted, including by an owner. Exports are signed so a client can verify them.</div>
+            <div style="margin-top:auto;display:flex;gap:10px"><div style="padding:10px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Copy hash</div><div style="padding:10px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Open the target</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-10 Data import and export" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-10 · DATA IMPORT AND EXPORT · IN-FLIGHT JOB · 1440×720</div>
+    <div style="width:1440px;height:720px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / DATA</div>
+        <div style="margin-left:auto;display:flex;gap:8px"><div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Import</div><div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Export everything</div></div>
+      </div>
+      <div style="flex:1;min-height:0;padding:28px 32px;display:flex;gap:22px">
+        <div style="flex:1.1;display:flex;flex-direction:column;gap:18px">
+          <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">Your data leaves whenever you want</div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px">
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Export bundle</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:18px;height:18px;border-radius:5px;background:#090A09;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#B7FF57">✓</div><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Projects, work items, milestones, decisions</div><div style="font:500 11px/16px 'Geist Mono',monospace;color:#74786F">CSV + JSON</div></div>
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:18px;height:18px;border-radius:5px;background:#090A09;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#B7FF57">✓</div><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Files at their latest version</div><div style="font:500 11px/16px 'Geist Mono',monospace;color:#74786F">ORIGINALS</div></div>
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:18px;height:18px;border-radius:5px;background:#090A09;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#B7FF57">✓</div><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Approval records with signatures and hashes</div><div style="font:500 11px/16px 'Geist Mono',monospace;color:#74786F">PDF + JSON</div></div>
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:18px;height:18px;border-radius:5px;border:1.5px solid #C5C7C0"></div><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Chat history, all 40 channels</div><div style="font:500 11px/16px 'Geist Mono',monospace;color:#74786F">1.8 GB</div></div>
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:18px;height:18px;border-radius:5px;border:1.5px solid #C5C7C0"></div><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Every file version, not just the latest</div><div style="font:500 11px/16px 'Geist Mono',monospace;color:#74786F">14 GB</div></div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:400 12px/18px Manrope;color:#74786F">Bundles are encrypted, expire after 7 days, and appear in the audit log.</div><div style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Build bundle · 3.2 GB</div></div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#090A09;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:22px;height:22px;border-radius:999px;background:#B7FF57"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">IMPORT RUNNING</div></div>
+            <div style="font:500 20px/27px Satoshi;color:#F5F6F0">Cedar Foods backlog · 312 of 480 rows</div>
+            <div style="height:12px;border-radius:999px;background:#242720;overflow:hidden"><div style="width:65%;height:12px;background:#B7FF57"></div></div>
+            <div style="font:400 13px/19px Manrope;color:#A7ACA0">Nothing is written until you accept the preview. 6 rows have no owner and 2 dates could not be read.</div>
+            <div style="display:flex;gap:10px"><div style="padding:10px 16px;background:#B7FF57;border-radius:999px;font:600 12px/17px Satoshi;color:#090A09;white-space:nowrap">Review 8 problems</div><div style="padding:10px 16px;background:#242720;border-radius:999px;font:500 12px/17px Satoshi;color:#F5F6F0;white-space:nowrap">Cancel import</div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden;flex:1">
+            <div style="display:flex;align-items:center;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">RECENT JOBS</div><div style="width:80px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">RESULT</div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Full export for Atlas Hospitality</div><div style="font:400 11px/15px Manrope;color:#74786F">requested by Salma Riad · 9 Aug</div></div><div style="width:80px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #1D8A63;border-radius:999px;font:600 10px/14px Satoshi;color:#1D8A63;white-space:nowrap">Sent</div></div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Work item import · Nile Robotics</div><div style="font:400 11px/15px Manrope;color:#74786F">98 rows · 3 skipped duplicates</div></div><div style="width:80px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#E9E9E5;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Done</div></div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Chat archive export</div><div style="font:400 11px/15px Manrope;color:#D9474F">failed — bundle exceeded 20 GB, split by project</div></div><div style="width:80px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #D9474F;border-radius:999px;font:600 10px/14px Satoshi;color:#D9474F;white-space:nowrap">Failed</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-11 Retention and deletion" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-11 · RETENTION AND DELETION · PER-OBJECT RULES · 1440×700</div>
+    <div style="width:1440px;height:700px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / RETENTION</div>
+        <div style="margin-left:auto;padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Save rules</div>
+      </div>
+      <div style="flex:1;min-height:0;padding:28px 32px;display:flex;gap:22px">
+        <div style="flex:1.4;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;align-items:flex-end;gap:20px"><div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">What we keep, and for how long</div></div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden">
+            <div style="display:flex;align-items:center;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">OBJECT</div><div style="width:150px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">KEEP FOR</div><div style="width:130px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">THEN</div><div style="width:110px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">NEXT PASS</div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Chat messages</div><div style="width:150px"><div style="padding:5px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;display:inline-block;white-space:nowrap">24 months</div></div><div style="width:130px;font:500 12px/17px Satoshi;color:#232521">Delete</div><div style="width:110px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">1 SEP</div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">File versions beyond the latest 5</div><div style="width:150px"><div style="padding:5px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;display:inline-block;white-space:nowrap">12 months</div></div><div style="width:130px;font:500 12px/17px Satoshi;color:#232521">Cold storage</div><div style="width:110px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">1 SEP</div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px;border-bottom:1px solid #E9E9E5;background:#F7F7F3;border-left:3px solid #090A09"><div style="flex:1;display:flex;align-items:center;gap:9px"><div style="font:600 13px/18px Satoshi;color:#090A09">Approval and decision records</div></div><div style="width:150px"><div style="padding:5px 12px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;display:inline-block;white-space:nowrap">Forever</div></div><div style="width:130px;font:500 12px/17px Satoshi;color:#4D5049">Cannot be deleted</div><div style="width:110px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F;text-align:right">—</div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Archived projects</div><div style="width:150px"><div style="padding:5px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;display:inline-block;white-space:nowrap">36 months</div></div><div style="width:130px;font:500 12px/17px Satoshi;color:#232521">Export then delete</div><div style="width:110px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;text-align:right">1 JAN 2027</div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Deactivated people</div><div style="width:150px"><div style="padding:5px 12px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;display:inline-block;white-space:nowrap">Name kept</div></div><div style="width:130px;font:500 12px/17px Satoshi;color:#232521">Attribution stays</div><div style="width:110px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F;text-align:right">—</div></div>
+            <div style="display:flex;align-items:center;height:48px;padding:0 18px"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Audit log</div><div style="width:150px"><div style="padding:5px 12px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;display:inline-block;white-space:nowrap">7 years</div></div><div style="width:130px;font:500 12px/17px Satoshi;color:#4D5049">Immutable</div><div style="width:110px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F;text-align:right">—</div></div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #C96F18;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#C96F18">FIRST DELETION PASS · 1 SEP</div>
+            <div style="font:500 20px/27px Satoshi;color:#090A09;text-wrap:pretty">18,400 chat messages and 2,110 old file versions will be removed</div>
+            <div style="font:400 13px/19px Manrope;color:#4D5049">Includes 340 messages from the Atlas booking FAQ thread. Nothing attached to an approval is touched.</div>
+            <div style="display:flex;gap:10px"><div style="padding:10px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">See the list</div><div style="padding:10px 16px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:600 12px/17px Satoshi;color:#C96F18;white-space:nowrap">Postpone 30 days</div></div>
+          </div>
+          <div style="background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px;flex:1">
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Deleting an organization</div>
+            <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">Removal is a two-person action: an owner requests it, a second owner confirms within 72 hours. The studio keeps a signed receipt of what was destroyed.</div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="font:400 12px/18px Manrope;color:#74786F">Northstar Studio has one owner, so this action is unavailable until a second owner exists.</div>
+            <div style="margin-top:auto;padding:10px 16px;background:#E9E9E5;border-radius:999px;font:500 12px/17px Satoshi;color:#74786F;align-self:flex-start;white-space:nowrap">Delete organization · unavailable</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-12 Offboarding impact" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-12 · OFFBOARDING IMPACT · WHAT BREAKS IF NOTHING IS DONE · 1440×760</div>
+    <div style="width:1440px;height:760px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / MEMBERS / KARIM NABIL / OFFBOARDING</div>
+        <div style="margin-left:auto;display:flex;gap:8px"><div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Back to member</div><div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Continue to transfer</div></div>
+      </div>
+      <div style="flex:1;min-height:0;padding:28px 32px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;align-items:center;gap:20px">
+          <div style="width:64px;height:64px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 20px/1 Satoshi;color:#4D5049;white-space:nowrap">KN</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#C96F18">LAST WORKING DAY 22 AUG · 7 DAYS AWAY</div>
+            <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">If Karim Nabil left today</div>
+          </div>
+          <div style="margin-left:auto;max-width:340px;font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">Nothing here is a guess. Every number below is a live count of things that name him as the responsible person.</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #C96F18;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:8px"><div style="font:500 42px/46px Satoshi;letter-spacing:-0.02em;color:#C96F18">1</div><div style="font:500 14px/20px Satoshi;color:#232521">committed milestone becomes unowned</div><div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">HOMEPAGE DIRECTION · 18 AUG</div></div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:8px"><div style="font:500 42px/46px Satoshi;letter-spacing:-0.02em;color:#090A09">14</div><div style="font:500 14px/20px Satoshi;color:#232521">open work items lose their owner</div><div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">3 PROJECTS</div></div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:8px"><div style="font:500 42px/46px Satoshi;letter-spacing:-0.02em;color:#090A09">6</div><div style="font:500 14px/20px Satoshi;color:#232521">automations name him as the fallback</div><div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WOULD SILENTLY STOP</div></div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:8px"><div style="font:500 42px/46px Satoshi;letter-spacing:-0.02em;color:#090A09">2</div><div style="font:500 14px/20px Satoshi;color:#232521">documents have only him as editor</div><div style="font:500 10px/14px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">INCLUDES DEPLOY RUNBOOK</div></div>
+        </div>
+        <div style="display:flex;gap:20px;flex:1;min-height:0">
+          <div style="flex:1.4;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;height:38px;padding:0 20px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">WHAT HE OWNS · TRANSFER TO</div><div style="width:190px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">SUGGESTED OWNER</div><div style="width:90px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">RISK</div></div>
+            <div style="display:flex;align-items:center;height:56px;padding:0 20px;border-bottom:1px solid #E9E9E5;border-left:3px solid #C96F18;background:#F7F7F3"><div style="flex:1"><div style="font:600 13px/18px Satoshi;color:#090A09">Homepage direction · committed milestone</div><div style="font:400 11px/15px Manrope;color:#74786F">client-visible date, 3 days away</div></div><div style="width:190px;display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#4D5049;white-space:nowrap">OA</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Omar Adel</div></div><div style="width:90px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:600 10px/14px Satoshi;color:#C96F18;white-space:nowrap">High</div></div></div>
+            <div style="display:flex;align-items:center;height:56px;padding:0 20px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">9 build items · Atlas Website Relaunch</div><div style="font:400 11px/15px Manrope;color:#74786F">4 in progress, 5 not started</div></div><div style="width:190px;display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#4D5049;white-space:nowrap">LS</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Lina Samir</div></div><div style="width:90px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#E9E9E5;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Medium</div></div></div>
+            <div style="display:flex;align-items:center;height:56px;padding:0 20px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">Deploy runbook · sole editor</div><div style="font:400 11px/15px Manrope;color:#74786F">last edited 4 Aug</div></div><div style="width:190px;display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:999px;border:1px dashed #C5C7C0;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#74786F;white-space:nowrap">?</div><div style="font:500 12px/17px Satoshi;color:#C96F18;white-space:nowrap">No one chosen</div></div><div style="width:90px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:600 10px/14px Satoshi;color:#C96F18;white-space:nowrap">High</div></div></div>
+            <div style="display:flex;align-items:center;height:56px;padding:0 20px;border-bottom:1px solid #E9E9E5"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">6 automations · fallback recipient</div><div style="font:400 11px/15px Manrope;color:#74786F">including the 48h blocker escalation</div></div><div style="width:190px;display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#F7F7F3;white-space:nowrap">MH</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Maya Hassan</div></div><div style="width:90px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#E9E9E5;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Low</div></div></div>
+            <div style="display:flex;align-items:center;height:56px;padding:0 20px"><div style="flex:1"><div style="font:500 13px/18px Satoshi;color:#090A09">3 chat channels · only member from the studio</div><div style="font:400 11px/15px Manrope;color:#74786F">2 include people from Atlas</div></div><div style="width:190px;display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#4D5049;white-space:nowrap">OA</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Omar Adel</div></div><div style="width:90px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#E9E9E5;border-radius:999px;font:500 10px/14px Satoshi;color:#4D5049;white-space:nowrap">Medium</div></div></div>
+          </div>
+          <div style="flex:1;background:#090A09;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:14px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">WHAT THE CLIENT WOULD SEE</div>
+            <div style="font:500 22px/29px Satoshi;color:#F5F6F0;text-wrap:pretty">Nothing. Ownership is internal, so Atlas keeps seeing the same committed dates and the same portal.</div>
+            <div style="font:400 13px/19px Manrope;color:#A7ACA0">The only client-facing risk is silence: if the Homepage direction milestone slips because no one picked it up, the 18 Aug date has to move, and that is a conversation.</div>
+            <div style="height:1px;background:#3A3E35"></div>
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#A7ACA0">TWO CHOICES LEFT</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:9px;height:9px;background:#C96F18"></div><div style="font:400 13px/19px Manrope;color:#F5F6F0">Deploy runbook needs an editor</div></div>
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:9px;height:9px;background:#C96F18"></div><div style="font:400 13px/19px Manrope;color:#F5F6F0">Decide whether his account is kept for 30 days, read only</div></div>
+            </div>
+            <div style="margin-top:auto;padding:12px 18px;background:#B7FF57;border-radius:999px;font:600 13px/18px Satoshi;color:#090A09;text-align:center;white-space:nowrap">Continue to transfer</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-13 Offboarding execution" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-13 · OFFBOARDING EXECUTION · RUNNING + RECEIPT · 1440×720</div>
+    <div style="width:1440px;height:720px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / OFFBOARDING / KARIM NABIL · STEP 3 OF 3</div>
+        <div style="margin-left:auto;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">RUN·OFF·22A7</div>
+      </div>
+      <div style="flex:1;min-height:0;padding:28px 32px;display:flex;gap:22px">
+        <div style="flex:1.3;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">STARTED 09:44 · 4 OF 6 STEPS DONE</div>
+            <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">Handing over Karim's work</div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:26px;display:flex;flex-direction:column;gap:0">
+            <div style="display:flex;gap:16px;padding-bottom:18px"><div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#B7FF57;white-space:nowrap">✓</div><div style="width:2px;flex:1;background:#090A09"></div></div><div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 14px/20px Satoshi;color:#090A09">14 work items moved</div><div style="font:400 12px/18px Manrope;color:#74786F">9 to Lina Samir, 5 to Omar Adel · owners notified in Inbox</div></div></div>
+            <div style="display:flex;gap:16px;padding-bottom:18px"><div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#B7FF57;white-space:nowrap">✓</div><div style="width:2px;flex:1;background:#090A09"></div></div><div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 14px/20px Satoshi;color:#090A09">Homepage direction milestone reassigned to Omar Adel</div><div style="font:400 12px/18px Manrope;color:#74786F">committed date 18 Aug untouched · client sees no change</div></div></div>
+            <div style="display:flex;gap:16px;padding-bottom:18px"><div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#B7FF57;white-space:nowrap">✓</div><div style="width:2px;flex:1;background:#090A09"></div></div><div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 14px/20px Satoshi;color:#090A09">6 automations repointed to Maya Hassan</div><div style="font:400 12px/18px Manrope;color:#74786F">none paused · next run 15:00 today</div></div></div>
+            <div style="display:flex;gap:16px;padding-bottom:18px"><div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#B7FF57;white-space:nowrap">✓</div><div style="width:2px;flex:1;background:#B7FF57"></div></div><div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 14px/20px Satoshi;color:#090A09">Deploy runbook given to Omar Adel as editor</div><div style="font:400 12px/18px Manrope;color:#74786F">Karim keeps read access until 22 Aug</div></div></div>
+            <div style="display:flex;gap:16px;padding-bottom:18px"><div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:999px;background:#B7FF57;display:grid;place-items:center"></div><div style="width:2px;flex:1;border-left:2px dashed #C5C7C0"></div></div><div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 14px/20px Satoshi;color:#090A09">Revoking 3 sessions and 1 personal device</div><div style="font:400 12px/18px Manrope;color:#74786F">running now · he will be signed out within a minute</div></div></div>
+            <div style="display:flex;gap:16px"><div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:999px;border:1.5px solid #C5C7C0"></div></div><div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:500 14px/20px Satoshi;color:#4D5049">Account becomes read-only on 22 Aug, closed on 21 Sep</div><div style="font:400 12px/18px Manrope;color:#74786F">his name stays on everything he did</div></div></div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:14px;flex:1">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">RECEIPT · IMMUTABLE</div>
+            <div style="font:600 20px/27px Satoshi;color:#090A09">Offboarding of Karim Nabil</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:12px"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">REQUESTED</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Maya Hassan · today 09:44</div></div>
+              <div style="display:flex;gap:12px"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">MOVED</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">14 items · 1 milestone · 2 documents</div></div>
+              <div style="display:flex;gap:12px"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">UNCHANGED</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">every committed date, every approval</div></div>
+              <div style="display:flex;gap:12px"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">REVOKED</div><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">3 sessions · 1 unmanaged device</div></div>
+              <div style="display:flex;gap:12px"><div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">HASH</div><div style="flex:1;font:500 13px/18px 'Geist Mono',monospace;color:#090A09">c30d·1f56</div></div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">The receipt is written to the audit log as one event. Individual transfers each carry their own entry so a future reader can see exactly who took what.</div>
+            <div style="margin-top:auto;display:flex;gap:10px"><div style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Download receipt</div><div style="padding:10px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Open in audit log</div></div>
+          </div>
+          <div style="background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:20px;display:flex;align-items:center;gap:14px">
+            <div style="flex:1;font:400 13px/19px Manrope;color:#4D5049">A transfer can be undone for 24 hours. After that, move ownership by hand.</div>
+            <div style="padding:10px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Undo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="ADM-14 Organization settings" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">ADM-14 · ORGANIZATION SETTINGS · IDENTITY, TIME, LANGUAGE · 1440×700</div>
+    <div style="width:1440px;height:700px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage" style="width:20px;display:block"></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / ORGANIZATION</div>
+        <div style="margin-left:auto;display:flex;gap:8px"><div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Discard</div><div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Save</div></div>
+      </div>
+      <div style="flex:1;min-height:0;padding:28px 32px;display:flex;gap:22px">
+        <div style="flex:1.1;display:flex;flex-direction:column;gap:18px">
+          <div style="font:500 38px/44px Satoshi;letter-spacing:-0.025em;color:#090A09">Northstar Studio</div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">STUDIO NAME · SHOWN TO CLIENTS</div>
+              <div style="height:46px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:12px;padding:0 16px;display:flex;align-items:center;font:500 15px/21px Satoshi;color:#090A09">Northstar Studio</div>
+            </div>
+            <div style="display:flex;gap:16px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">TIME ZONE</div>
+                <div style="height:46px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:12px;padding:0 16px;display:flex;align-items:center;font:500 15px/21px Satoshi;color:#090A09">Africa/Cairo · GMT+3</div>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WEEK STARTS</div>
+                <div style="height:46px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:12px;padding:0 16px;display:flex;align-items:center;font:500 15px/21px Satoshi;color:#090A09">Sunday</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WORKING DAYS · USED BY EVERY FORECAST</div>
+              <div style="display:flex;gap:8px">
+                <div style="width:52px;height:40px;border-radius:12px;background:#090A09;display:grid;place-items:center;font:600 12px/17px Satoshi;color:#F7F7F3">Sun</div>
+                <div style="width:52px;height:40px;border-radius:12px;background:#090A09;display:grid;place-items:center;font:600 12px/17px Satoshi;color:#F7F7F3">Mon</div>
+                <div style="width:52px;height:40px;border-radius:12px;background:#090A09;display:grid;place-items:center;font:600 12px/17px Satoshi;color:#F7F7F3">Tue</div>
+                <div style="width:52px;height:40px;border-radius:12px;background:#090A09;display:grid;place-items:center;font:600 12px/17px Satoshi;color:#F7F7F3">Wed</div>
+                <div style="width:52px;height:40px;border-radius:12px;background:#090A09;display:grid;place-items:center;font:600 12px/17px Satoshi;color:#F7F7F3">Thu</div>
+                <div style="width:52px;height:40px;border-radius:12px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 12px/17px Satoshi;color:#74786F">Fri</div>
+                <div style="width:52px;height:40px;border-radius:12px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 12px/17px Satoshi;color:#74786F">Sat</div>
+              </div>
+              <div style="font:400 12px/18px Manrope;color:#74786F">Atlas Hospitality works Monday to Friday. Shared dates already account for both calendars.</div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;gap:16px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">DEFAULT LANGUAGE</div>
+                <div style="display:flex;gap:8px"><div style="padding:10px 16px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">English</div><div style="padding:10px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#4D5049;font-family:Alexandria,Satoshi,sans-serif;white-space:nowrap">العربية</div></div>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">DATE FORMAT</div>
+                <div style="height:46px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:12px;padding:0 16px;display:flex;align-items:center;font:500 15px/21px Satoshi;color:#090A09">18 Aug 2026</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px">
+            <div style="font:600 16px/22px Satoshi;color:#090A09">Mark shown in client portals</div>
+            <div style="display:flex;align-items:center;gap:18px">
+              <div style="width:64px;height:64px;border-radius:999px;background:#090A09;display:grid;place-items:center"><img src="./design/assets/tmanage-icon-lime.svg" alt="TManage mark" style="width:34px;display:block"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px"><div style="font:500 13px/19px Satoshi;color:#232521">Studio mark on lime</div><div style="font:400 11px/16px Manrope;color:#74786F">SVG · used at 32–64px in the portal header</div></div>
+              <div style="padding:9px 14px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Replace</div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Show the studio mark to clients</div><div style="width:44px;height:26px;border-radius:999px;background:#090A09;padding:3px;display:flex;justify-content:flex-end"><div style="width:20px;height:20px;border-radius:999px;background:#B7FF57"></div></div></div>
+            <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;font:500 13px/19px Satoshi;color:#232521">Let each client see their own logo instead</div><div style="width:44px;height:26px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;padding:3px;display:flex"><div style="width:20px;height:20px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0"></div></div></div>
+          </div>
+          <div style="background:#F7F7F3;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px;flex:1">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CHANGING A WORKING WEEK</div>
+            <div style="font:500 16px/22px Satoshi;color:#090A09">Turning Friday on would move 41 forecasts</div>
+            <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">Committed dates never move on their own. Forecasts recalculate and any milestone that becomes at-risk shows an orange edge on its Pulse Track.</div>
+            <div style="margin-top:auto;padding:10px 16px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;align-self:flex-start;white-space:nowrap">Preview the effect</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+</body>
+</html>

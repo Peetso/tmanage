@@ -1,0 +1,31 @@
+node_modules/
+dist/
+build/
+coverage/
+.next/
+out/
+*.tsbuildinfo
+.turbo/
+
+# Environment — only .env.example is committed. Never commit a real .env.
+.env
+.env.*
+!.env.example
+
+# Local development substitutes (see ADR-0002)
+.local/
+storage-local/
+pgdata/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test + tooling output
+playwright-report/
+test-results/
+storybook-static/
+*.log

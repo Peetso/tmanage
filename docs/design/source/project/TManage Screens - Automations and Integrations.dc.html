@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family:'Satoshi'; src:url('./design/assets/fonts/Satoshi-Variable.woff2') format('woff2'); font-weight:300 900; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Manrope'; src:url('./design/assets/fonts/Manrope-Variable.ttf') format('truetype'); font-weight:200 800; font-style:normal; font-display:swap; }
+  body { margin:0; background:#2C2E29; font-family:Satoshi, Manrope, system-ui, sans-serif; }
+  a { color:#4D5049; text-decoration:none; border-bottom:1px solid #C5C7C0; }
+  a:hover { color:#090A09; border-bottom-color:#9CEA3F; }
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;gap:56px;padding:56px;background:#2C2E29;min-height:100vh">
+
+  <div data-screen-label="AUT-01 Automation library" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">AUT-01 · AUTOMATION LIBRARY · CONTROL CENTER · 1440×880</div>
+    <div style="width:1440px;height:880px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex">
+
+      <div style="width:88px;flex-shrink:0;padding:20px 0;display:flex;flex-direction:column;align-items:center;gap:16px;background:#E4E4DF">
+        <div style="width:48px;height:48px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:26px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+        <div style="width:24px;height:1px;background:#C5C7C0"></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">◉</div><div style="font:500 9px/12px Satoshi;color:#4D5049">My Day</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">✉</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Inbox</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">◌</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Chat</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">▤</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Work</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">◫</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Docs</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">⇪</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Files</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1.5px solid #7755C7;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#7755C7;white-space:nowrap">◎</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Clients</div></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">◔</div><div style="font:500 9px/12px Satoshi;color:#4D5049">Insights</div></div>
+        <div style="margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:14px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:44px;height:44px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#F7F7F3;white-space:nowrap">⚙</div><div style="font:600 9px/12px Satoshi;color:#090A09">Control</div></div>
+          <div style="width:44px;height:44px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 14px/1 Satoshi;color:#F7F7F3;white-space:nowrap">MH</div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;padding:32px 40px 0 16px;display:flex;flex-direction:column;gap:26px">
+        <div style="display:flex;align-items:flex-end;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">CONTROL CENTER · AUTOMATIONS · NORTHSTAR STUDIO</div>
+            <div style="font:500 52px/56px Satoshi;letter-spacing:-0.03em;color:#090A09">Rules that act on your behalf</div>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+            <div style="padding:10px 18px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Run history</div>
+            <div style="padding:10px 18px;background:#090A09;border-radius:999px;font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">New automation</div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:26px;border-bottom:1px solid #C5C7C0;padding-bottom:0">
+          <div style="display:flex;flex-direction:column;gap:9px"><div style="display:flex;align-items:center;gap:8px"><div style="font:600 14px/19px Satoshi;color:#090A09">Library</div><div style="padding:1px 8px;background:#E9E9E5;border-radius:999px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">11</div></div><div style="height:2px;background:#090A09"></div></div>
+          <div style="display:flex;flex-direction:column;gap:9px"><div style="font:500 14px/19px Satoshi;color:#74786F">Templates</div><div style="height:1px;background:transparent"></div></div>
+          <div style="display:flex;flex-direction:column;gap:9px"><div style="font:500 14px/19px Satoshi;color:#74786F">Runs</div><div style="height:1px;background:transparent"></div></div>
+          <div style="display:flex;flex-direction:column;gap:9px"><div style="font:500 14px/19px Satoshi;color:#74786F">Guardrails</div><div style="height:1px;background:transparent"></div></div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding-bottom:9px">
+            <div style="padding:7px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">All projects</div>
+            <div style="padding:7px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Any trigger</div>
+            <div style="padding:7px 14px;background:#FFFFFF;border:1px solid #090A09;border-radius:999px;font:600 11px/16px Satoshi;color:#090A09;white-space:nowrap">Client-visible only · 3</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:24px;flex:1;min-height:0">
+          <div style="flex:1.45;min-width:0;display:flex;flex-direction:column;gap:14px">
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:14px;height:36px;padding:0 20px;background:#F7F7F3;border-bottom:1px solid #C5C7C0">
+                <div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#74786F">AUTOMATION</div>
+                <div style="width:120px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">SCOPE</div>
+                <div style="width:96px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">LAST RUN</div>
+                <div style="width:74px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">STATE</div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:14px;height:66px;padding:0 20px;border-bottom:1px solid #E9E9E5;border-left:3px solid #090A09;background:#F7F7F3">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <div style="display:flex;align-items:center;gap:8px"><div style="font:600 14px/20px Satoshi;color:#090A09">Remind reviewer 24h before a committed date</div><div style="width:9px;height:9px;background:#7755C7"></div></div>
+                  <div style="font:400 11px/16px Manrope;color:#74786F">when approval open ≥ 24h → notify Youssef Kamal in portal + email</div>
+                </div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">Atlas Relaunch</div>
+                <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">2H AGO</div>
+                <div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#B7FF57;border-radius:999px;font:600 11px/15px Satoshi;color:#090A09;white-space:nowrap">Live</div></div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:14px;height:66px;padding:0 20px;border-bottom:1px solid #E9E9E5">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <div style="display:flex;align-items:center;gap:8px"><div style="font:500 14px/20px Satoshi;color:#090A09">Move approved deliverable to Delivered</div><div style="width:9px;height:9px;background:#090A09"></div></div>
+                  <div style="font:400 11px/16px Manrope;color:#74786F">when approval decided = approved → set stage, stamp version hash</div>
+                </div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">All projects</div>
+                <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">YESTERDAY</div>
+                <div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">On</div></div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:14px;height:66px;padding:0 20px;border-bottom:1px solid #E9E9E5;border-left:3px solid #C96F18">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <div style="display:flex;align-items:center;gap:8px"><div style="font:500 14px/20px Satoshi;color:#090A09">Escalate a blocker unowned for 48h</div><div style="width:9px;height:9px;background:#090A09"></div></div>
+                  <div style="font:400 11px/16px Manrope;color:#74786F">3 runs suppressed by the quiet-hours guardrail · <a href="#">see why</a></div>
+                </div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">All projects</div>
+                <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#C96F18">HELD 09:12</div>
+                <div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:600 11px/15px Satoshi;color:#C96F18;white-space:nowrap">Held</div></div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:14px;height:66px;padding:0 20px;border-bottom:1px solid #E9E9E5">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <div style="display:flex;align-items:center;gap:8px"><div style="font:500 14px/20px Satoshi;color:#090A09">Triage requests created from chat</div><div style="width:9px;height:9px;background:#090A09"></div></div>
+                  <div style="font:400 11px/16px Manrope;color:#74786F">when request has no committed date after 1 day → queue for Omar Adel</div>
+                </div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">All projects</div>
+                <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">4H AGO</div>
+                <div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">On</div></div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:14px;height:66px;padding:0 20px;border-bottom:1px solid #E9E9E5">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <div style="display:flex;align-items:center;gap:8px"><div style="font:500 14px/20px Satoshi;color:#4D5049">Publish weekly client digest</div><div style="width:9px;height:9px;background:#7755C7"></div></div>
+                  <div style="font:400 11px/16px Manrope;color:#74786F">every Friday 16:00 Africa/Cairo → portal post, awaiting PM sign-off</div>
+                </div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">Atlas Hospitality</div>
+                <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">NEVER</div>
+                <div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#FFFFFF;border:1px dashed #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#74786F;white-space:nowrap">Draft</div></div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:14px;height:66px;padding:0 20px">
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                  <div style="display:flex;align-items:center;gap:8px"><div style="font:500 14px/20px Satoshi;color:#4D5049">Auto-close decisions with no objection in 5 days</div><div style="width:9px;height:9px;background:#090A09"></div></div>
+                  <div style="font:400 11px/16px Manrope;color:#74786F">paused by Maya Hassan on 4 Aug — decision records must stay human-closed</div>
+                </div>
+                <div style="width:120px;font:500 12px/17px Satoshi;color:#232521">All projects</div>
+                <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">11 DAYS</div>
+                <div style="width:74px;display:flex;justify-content:flex-end"><div style="padding:4px 11px;background:#E9E9E5;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">Off</div></div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;font:400 12px/17px Manrope;color:#74786F"><div style="display:flex;align-items:center;gap:7px"><div style="width:9px;height:9px;background:#090A09"></div>internal effect only</div><div style="display:flex;align-items:center;gap:7px"><div style="width:9px;height:9px;background:#7755C7"></div>client sees the result</div><div>5 more automations below the fold</div></div>
+          </div>
+
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px">
+            <div style="background:#090A09;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:22px;height:22px;border-radius:999px;background:#B7FF57"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">NEXT SCHEDULED ACTION</div></div>
+              <div style="font:500 22px/29px Satoshi;color:#F5F6F0;text-wrap:pretty">Reminder to Youssef Kamal about Homepage Concept v2</div>
+              <div style="font:400 13px/19px Manrope;color:#A7ACA0">Why now — the approval has been open 26h and the committed milestone date is 18 Aug. Fires today 15:00 Africa/Cairo.</div>
+              <div style="display:flex;align-items:center;gap:10px"><div style="padding:10px 16px;background:#B7FF57;border-radius:999px;font:600 12px/17px Satoshi;color:#090A09;white-space:nowrap">Send now</div><div style="padding:10px 16px;background:#242720;border-radius:999px;font:500 12px/17px Satoshi;color:#F5F6F0;white-space:nowrap">Skip this run</div></div>
+            </div>
+
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px;flex:1">
+              <div style="font:600 18px/25px Satoshi;color:#090A09">Last 14 days</div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;align-items:center;gap:12px"><div style="width:104px;font:500 12px/17px Satoshi;color:#232521">Ran as expected</div><div style="flex:1;height:14px;border-radius:999px;background:#E9E9E5;overflow:hidden"><div style="width:82%;height:14px;background:#090A09"></div></div><div style="width:34px;font:500 12px/17px 'Geist Mono',monospace;color:#090A09;text-align:right">148</div></div>
+                <div style="display:flex;align-items:center;gap:12px"><div style="width:104px;font:500 12px/17px Satoshi;color:#232521">Held by guardrail</div><div style="flex:1;height:14px;border-radius:999px;background:#E9E9E5;overflow:hidden"><div style="width:18%;height:14px;background:#C96F18"></div></div><div style="width:34px;font:500 12px/17px 'Geist Mono',monospace;color:#090A09;text-align:right">19</div></div>
+                <div style="display:flex;align-items:center;gap:12px"><div style="width:104px;font:500 12px/17px Satoshi;color:#232521">Failed</div><div style="flex:1;height:14px;border-radius:999px;background:#E9E9E5;overflow:hidden"><div style="width:4%;height:14px;background:#D9474F"></div></div><div style="width:34px;font:500 12px/17px 'Geist Mono',monospace;color:#090A09;text-align:right">4</div></div>
+                <div style="display:flex;align-items:center;gap:12px"><div style="width:104px;font:500 12px/17px Satoshi;color:#232521">Undone by a human</div><div style="flex:1;height:14px;border-radius:999px;background:#E9E9E5;overflow:hidden"><div style="width:2%;height:14px;background:#4D5049"></div></div><div style="width:34px;font:500 12px/17px 'Geist Mono',monospace;color:#090A09;text-align:right">2</div></div>
+              </div>
+              <div style="height:1px;background:#E9E9E5"></div>
+              <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">Every automated action is attributed to the rule and the person who enabled it, and every one can be undone for 24 hours.</div>
+              <div style="padding:10px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;align-self:flex-start;white-space:nowrap">Open run history</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="AUT-04 Automation run history" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">AUT-04 · RUN HISTORY + SINGLE RUN EVIDENCE · UNDO WINDOW · 1440×820</div>
+    <div style="width:1440px;height:820px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:20px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / AUTOMATIONS / RUN HISTORY</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Last 7 days</div>
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">All outcomes</div>
+          <div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Export log</div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="flex:1.25;min-width:0;padding:26px 20px 26px 32px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:baseline;gap:14px"><div style="font:500 34px/40px Satoshi;letter-spacing:-0.02em;color:#090A09">171 runs</div><div style="font:400 13px/19px Manrope;color:#74786F">148 as expected · 19 held · 4 failed</div></div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;overflow:hidden;flex:1;min-height:0">
+            <div style="display:flex;align-items:center;gap:14px;height:34px;padding:0 18px;background:#F7F7F3;border-bottom:1px solid #C5C7C0">
+              <div style="width:78px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">TIME</div>
+              <div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">RULE · WHAT IT DID</div>
+              <div style="width:96px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">RUN ID</div>
+              <div style="width:88px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">OUTCOME</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;border-bottom:1px solid #E9E9E5;background:#F7F7F3;border-left:3px solid #090A09">
+              <div style="width:78px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">TODAY 09:12</div>
+              <div style="flex:1;min-width:0"><div style="font:600 13px/18px Satoshi;color:#090A09">Escalate a blocker unowned for 48h</div><div style="font:400 11px/15px Manrope;color:#C96F18">held — quiet hours for Karim Nabil until 09:30</div></div>
+              <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">RUN·4C1E</div>
+              <div style="width:88px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #C96F18;border-radius:999px;font:600 11px/15px Satoshi;color:#C96F18;white-space:nowrap">Held</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;border-bottom:1px solid #E9E9E5">
+              <div style="width:78px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">TODAY 08:00</div>
+              <div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Remind reviewer 24h before a committed date</div><div style="font:400 11px/15px Manrope;color:#74786F">notified Youssef Kamal · portal + email</div></div>
+              <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">RUN·4B90</div>
+              <div style="width:88px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#B7FF57;border-radius:999px;font:600 11px/15px Satoshi;color:#090A09;white-space:nowrap">Sent</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;border-bottom:1px solid #E9E9E5;border-left:3px solid #D9474F">
+              <div style="width:78px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">YEST 17:44</div>
+              <div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Mirror file to client drive</div><div style="font:400 11px/15px Manrope;color:#D9474F">failed — storage token expired, 0 files moved</div></div>
+              <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">RUN·4A32</div>
+              <div style="width:88px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #D9474F;border-radius:999px;font:600 11px/15px Satoshi;color:#D9474F;white-space:nowrap">Failed</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;border-bottom:1px solid #E9E9E5">
+              <div style="width:78px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">YEST 15:02</div>
+              <div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Move approved deliverable to Delivered</div><div style="font:400 11px/15px Manrope;color:#74786F">Homepage Concept v1 · stamped 8f2c·d41a</div></div>
+              <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">RUN·49F7</div>
+              <div style="width:88px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#1D8A63;white-space:nowrap">Applied</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;border-bottom:1px solid #E9E9E5">
+              <div style="width:78px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">YEST 11:20</div>
+              <div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Triage requests created from chat</div><div style="font:400 11px/15px Manrope;color:#4D5049">undone by Omar Adel 4 minutes later</div></div>
+              <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">RUN·49C1</div>
+              <div style="width:88px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#E9E9E5;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">Undone</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;border-bottom:1px solid #E9E9E5">
+              <div style="width:78px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">13 AUG 16:00</div>
+              <div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Remind reviewer 24h before a committed date</div><div style="font:400 11px/15px Manrope;color:#74786F">notified Salma Riad · portal only</div></div>
+              <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">RUN·4881</div>
+              <div style="width:88px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#B7FF57;border-radius:999px;font:600 11px/15px Satoshi;color:#090A09;white-space:nowrap">Sent</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 18px">
+              <div style="width:78px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">13 AUG 09:05</div>
+              <div style="flex:1;min-width:0"><div style="font:500 13px/18px Satoshi;color:#090A09">Escalate a blocker unowned for 48h</div><div style="font:400 11px/15px Manrope;color:#74786F">reassigned brand asset blocker to Maya Hassan</div></div>
+              <div style="width:96px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049">RUN·4820</div>
+              <div style="width:88px;display:flex;justify-content:flex-end"><div style="padding:3px 10px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#1D8A63;white-space:nowrap">Applied</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="width:452px;flex-shrink:0;padding:26px 32px 26px 20px;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:18px;flex:1">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">RUN·4C1E · 15 AUG 09:12:04 AFRICA/CAIRO</div>
+              <div style="font:500 26px/32px Satoshi;letter-spacing:-0.02em;color:#090A09">Held before it acted</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0">
+              <div style="display:flex;gap:14px"><div style="width:22px;display:flex;flex-direction:column;align-items:center;gap:0"><div style="width:11px;height:11px;border-radius:999px;background:#090A09"></div><div style="width:1px;flex:1;background:#C5C7C0"></div></div><div style="padding-bottom:18px;display:flex;flex-direction:column;gap:3px"><div style="font:600 13px/18px Satoshi;color:#090A09;white-space:nowrap">Trigger matched</div><div style="font:400 12px/17px Manrope;color:#4D5049">Brand asset blocker has had no owner change for 51h.</div></div></div>
+              <div style="display:flex;gap:14px"><div style="width:22px;display:flex;flex-direction:column;align-items:center"><div style="width:11px;height:11px;border-radius:999px;background:#090A09"></div><div style="width:1px;flex:1;background:#C5C7C0"></div></div><div style="padding-bottom:18px;display:flex;flex-direction:column;gap:3px"><div style="font:600 13px/18px Satoshi;color:#090A09;white-space:nowrap">Conditions checked</div><div style="font:400 12px/17px Manrope;color:#4D5049">Project active ✓ · blocker still open ✓ · audience internal ✓</div></div></div>
+              <div style="display:flex;gap:14px"><div style="width:22px;display:flex;flex-direction:column;align-items:center"><div style="width:11px;height:11px;border-radius:999px;background:#FFFFFF;border:2px solid #C96F18;box-sizing:border-box"></div><div style="width:1px;flex:1;background:#C5C7C0"></div></div><div style="padding-bottom:18px;display:flex;flex-direction:column;gap:3px"><div style="font:600 13px/18px Satoshi;color:#C96F18">Guardrail stopped it</div><div style="font:400 12px/17px Manrope;color:#4D5049">Quiet hours for Karim Nabil run until 09:30. Notifications outside working hours are never sent, only queued.</div></div></div>
+              <div style="display:flex;gap:14px"><div style="width:22px;display:flex;flex-direction:column;align-items:center"><div style="width:11px;height:11px;border-radius:999px;background:#FFFFFF;border:1px dashed #74786F;box-sizing:border-box"></div></div><div style="display:flex;flex-direction:column;gap:3px"><div style="font:600 13px/18px Satoshi;color:#4D5049">Would have done</div><div style="font:400 12px/17px Manrope;color:#4D5049">Reassign blocker to Maya Hassan and post one line in the Atlas Relaunch channel.</div></div></div>
+            </div>
+            <div style="height:1px;background:#E9E9E5"></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">ATTRIBUTION</div>
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#F7F7F3;white-space:nowrap">MH</div><div style="font:400 12px/17px Manrope;color:#4D5049">Enabled by Maya Hassan, 22 Jul. Any action it takes is recorded against this rule, not against a person.</div></div>
+            </div>
+            <div style="margin-top:auto;display:flex;align-items:center;gap:10px">
+              <div style="padding:11px 18px;background:#090A09;border-radius:999px;font:600 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Run it now anyway</div>
+              <div style="padding:11px 18px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Edit guardrail</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="AUT-05 Automation guardrails" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">AUT-05 · GUARDRAILS + FAILURE POLICY · WHAT AUTOMATION MAY NEVER DO · 1440×760</div>
+    <div style="width:1440px;height:760px;background:#F7F7F3;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:20px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / AUTOMATIONS / GUARDRAILS</div>
+        <div style="margin-left:auto;padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Workspace policy · Maya Hassan</div>
+      </div>
+
+      <div style="flex:1;min-height:0;padding:32px;display:flex;gap:24px">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font:500 44px/48px Satoshi;letter-spacing:-0.03em;color:#090A09">Limits, set once</div>
+            <div style="font:400 15px/23px Manrope;color:#4D5049;max-width:520px;text-wrap:pretty">Guardrails apply to every automation in the workspace and cannot be overridden by an individual rule. A held run is always visible in the run history with what it would have done.</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;padding:18px 20px;display:flex;align-items:center;gap:18px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 15px/21px Satoshi;color:#090A09">Respect quiet hours and working days</div><div style="font:400 12px/17px Manrope;color:#74786F">Queued, never dropped. Per-person hours from Preferences.</div></div>
+              <div style="width:52px;height:30px;border-radius:999px;background:#090A09;padding:3px;box-sizing:border-box;display:flex;justify-content:flex-end"><div style="width:24px;height:24px;border-radius:999px;background:#B7FF57"></div></div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;padding:18px 20px;display:flex;align-items:center;gap:18px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 15px/21px Satoshi;color:#090A09">Cap client-visible messages at 3 per day per client</div><div style="font:400 12px/17px Manrope;color:#74786F">Atlas Hospitality is at 2 of 3 today.</div></div>
+              <div style="width:52px;height:30px;border-radius:999px;background:#090A09;padding:3px;box-sizing:border-box;display:flex;justify-content:flex-end"><div style="width:24px;height:24px;border-radius:999px;background:#B7FF57"></div></div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;padding:18px 20px;display:flex;align-items:center;gap:18px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 15px/21px Satoshi;color:#090A09">Hold every run for 60 seconds before it acts</div><div style="font:400 12px/17px Manrope;color:#74786F">Gives the person who triggered it a chance to cancel.</div></div>
+              <div style="width:52px;height:30px;border-radius:999px;background:#E9E9E5;border:1px solid #C5C7C0;box-sizing:border-box;padding:3px;display:flex"><div style="width:22px;height:22px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;box-sizing:border-box"></div></div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:18px;padding:18px 20px;display:flex;align-items:center;gap:18px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="font:600 15px/21px Satoshi;color:#090A09">Undo window on any automated change</div><div style="font:400 12px/17px Manrope;color:#74786F">24 hours · anyone with edit rights on the item.</div></div>
+              <div style="display:flex;align-items:center;gap:8px"><div style="padding:7px 13px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">1H</div><div style="padding:7px 13px;background:#090A09;border-radius:999px;font:600 11px/16px 'Geist Mono',monospace;color:#B7FF57;white-space:nowrap">24H</div><div style="padding:7px 13px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">7D</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="width:496px;flex-shrink:0;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#121311;border-radius:24px;padding:26px;display:flex;flex-direction:column;gap:16px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#A7ACA0">AUTOMATION MAY NEVER</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;gap:12px;align-items:flex-start"><div style="margin-top:6px;width:9px;height:9px;background:#FF7780;flex-shrink:0"></div><div style="font:400 14px/21px Manrope;color:#F5F6F0">Approve, reject or close a decision on a person's behalf</div></div>
+              <div style="display:flex;gap:12px;align-items:flex-start"><div style="margin-top:6px;width:9px;height:9px;background:#FF7780;flex-shrink:0"></div><div style="font:400 14px/21px Manrope;color:#F5F6F0">Change a committed date without a named owner accepting it</div></div>
+              <div style="display:flex;gap:12px;align-items:flex-start"><div style="margin-top:6px;width:9px;height:9px;background:#FF7780;flex-shrink:0"></div><div style="font:400 14px/21px Manrope;color:#F5F6F0">Publish anything to a client portal that no human has signed off</div></div>
+              <div style="display:flex;gap:12px;align-items:flex-start"><div style="margin-top:6px;width:9px;height:9px;background:#FF7780;flex-shrink:0"></div><div style="font:400 14px/21px Manrope;color:#F5F6F0">Delete a file, message or version record</div></div>
+            </div>
+            <div style="height:1px;background:#3A3E35"></div>
+            <div style="font:400 13px/19px Manrope;color:#A7ACA0;text-wrap:pretty">These are product limits, not settings. No role, including workspace owner, can switch them off.</div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1.5px solid #D9474F;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:14px;flex:1">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:9px;height:9px;background:#D9474F"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#D9474F">WHEN A RUN FAILS</div></div>
+            <div style="font:500 20px/27px Satoshi;color:#090A09">Stop, keep the state it started with, tell one person</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:26px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">01</div><div style="font:400 13px/19px Manrope;color:#4D5049">Nothing partial is left behind — a failed run rolls back its own steps.</div></div>
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:26px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">02</div><div style="font:400 13px/19px Manrope;color:#4D5049">The rule pauses after 3 consecutive failures.</div></div>
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:26px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">03</div><div style="font:400 13px/19px Manrope;color:#4D5049">The person who enabled it gets one notice, not one per attempt.</div></div>
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:26px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">04</div><div style="font:400 13px/19px Manrope;color:#4D5049">Clients are never told an automation failed.</div></div>
+            </div>
+            <div style="margin-top:auto;padding:14px 18px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:18px;display:flex;align-items:center;gap:12px"><div style="font:500 11px/16px 'Geist Mono',monospace;color:#D9474F">1 PAUSED</div><div style="flex:1;font:400 12px/17px Manrope;color:#4D5049">Mirror file to client drive — storage token expired</div><div style="font:600 12px/17px Satoshi;color:#090A09">Fix</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="INT-01 Integrations directory" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">INT-01 · INTEGRATIONS DIRECTORY · CONTROL CENTER · 1440×840</div>
+    <div style="width:1440px;height:840px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:20px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / INTEGRATIONS</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Audit access</div>
+          <div style="padding:8px 14px;background:#090A09;border-radius:999px;font:500 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">Connect a tool</div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;padding:32px;display:flex;flex-direction:column;gap:24px">
+        <div style="display:flex;align-items:flex-end;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font:500 44px/48px Satoshi;letter-spacing:-0.03em;color:#090A09">Four connected, one broken</div>
+            <div style="font:400 15px/23px Manrope;color:#4D5049;max-width:620px;text-wrap:pretty">TManage stays the record. Integrations bring information in or copy it out; they never become the place a decision lives.</div>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+            <div style="padding:8px 14px;background:#090A09;border-radius:999px;font:600 11px/16px Satoshi;color:#F7F7F3;white-space:nowrap">All · 12</div>
+            <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Connected · 4</div>
+            <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Calendar</div>
+            <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Storage</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between"><div style="width:44px;height:44px;border-radius:14px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049">▦</div><div style="padding:4px 11px;background:#B7FF57;border-radius:999px;font:600 11px/15px Satoshi;color:#090A09;white-space:nowrap">Connected</div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><div style="font:600 17px/23px Satoshi;color:#090A09">Work calendar</div><div style="font:400 12px/18px Manrope;color:#74786F">Two-way for meetings, one-way for committed dates.</div></div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px"><div style="height:1px;background:#E9E9E5"></div><div style="display:flex;justify-content:space-between;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049"><div>SYNCED</div><div>4 MIN AGO</div></div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between"><div style="width:44px;height:44px;border-radius:14px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049">✉</div><div style="padding:4px 11px;background:#B7FF57;border-radius:999px;font:600 11px/15px Satoshi;color:#090A09;white-space:nowrap">Connected</div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><div style="font:600 17px/23px Satoshi;color:#090A09">Email</div><div style="font:400 12px/18px Manrope;color:#74786F">Client replies land in the right project thread.</div></div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px"><div style="height:1px;background:#E9E9E5"></div><div style="display:flex;justify-content:space-between;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049"><div>SYNCED</div><div>JUST NOW</div></div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1.5px solid #D9474F;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between"><div style="width:44px;height:44px;border-radius:14px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049">⇪</div><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #D9474F;border-radius:999px;font:600 11px/15px Satoshi;color:#D9474F;white-space:nowrap">Broken</div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><div style="font:600 17px/23px Satoshi;color:#090A09">Cloud storage</div><div style="font:400 12px/18px Manrope;color:#D9474F">Token expired 17 Aug. 12 files not mirrored.</div></div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px"><div style="height:1px;background:#E9E9E5"></div><div style="padding:9px 14px;background:#090A09;border-radius:999px;font:600 11px/16px Satoshi;color:#F7F7F3;text-align:center;white-space:nowrap">Reconnect</div></div>
+          </div>
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between"><div style="width:44px;height:44px;border-radius:14px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049">◫</div><div style="padding:4px 11px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/15px Satoshi;color:#4D5049;white-space:nowrap">Read only</div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><div style="font:600 17px/23px Satoshi;color:#090A09">Design tool</div><div style="font:400 12px/18px Manrope;color:#74786F">Version previews and hashes for approval records.</div></div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px"><div style="height:1px;background:#E9E9E5"></div><div style="display:flex;justify-content:space-between;font:500 11px/16px 'Geist Mono',monospace;color:#4D5049"><div>SYNCED</div><div>26 MIN AGO</div></div></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:24px;flex:1;min-height:0">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:14px"><div style="font:600 20px/27px Satoshi;color:#090A09">Available</div><div style="font:400 12px/17px Manrope;color:#74786F">connecting one always shows the scopes first</div></div>
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:14px;height:58px;padding:0 20px;border-bottom:1px solid #E9E9E5">
+                <div style="width:34px;height:34px;border-radius:10px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#4D5049">◌</div>
+                <div style="flex:1;min-width:0"><div style="font:500 14px/20px Satoshi;color:#090A09">Team messaging</div><div style="font:400 11px/15px Manrope;color:#74786F">mirror a project channel outward — read only, no client content</div></div>
+                <div style="padding:8px 15px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Connect</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:58px;padding:0 20px;border-bottom:1px solid #E9E9E5">
+                <div style="width:34px;height:34px;border-radius:10px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#4D5049">◔</div>
+                <div style="flex:1;min-width:0"><div style="font:500 14px/20px Satoshi;color:#090A09">Time tracking</div><div style="font:400 11px/15px Manrope;color:#74786F">import hours against work items · never per-person scores</div></div>
+                <div style="padding:8px 15px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Connect</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:58px;padding:0 20px;border-bottom:1px solid #E9E9E5">
+                <div style="width:34px;height:34px;border-radius:10px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#4D5049">◈</div>
+                <div style="flex:1;min-width:0"><div style="font:500 14px/20px Satoshi;color:#090A09">Accounting</div><div style="font:400 11px/15px Manrope;color:#74786F">push approved deliverables to an invoice draft</div></div>
+                <div style="padding:8px 15px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Connect</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;height:58px;padding:0 20px">
+                <div style="width:34px;height:34px;border-radius:10px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#4D5049">{ }</div>
+                <div style="flex:1;min-width:0"><div style="font:500 14px/20px Satoshi;color:#090A09">Webhooks and API keys</div><div style="font:400 11px/15px Manrope;color:#74786F">2 active keys · last used 12 Aug by Karim Nabil</div></div>
+                <div style="padding:8px 15px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">Manage</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="width:420px;flex-shrink:0;background:#090A09;border-radius:24px;padding:26px;display:flex;flex-direction:column;gap:16px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">THE RULE FOR EVERY INTEGRATION</div>
+            <div style="font:500 24px/31px Satoshi;color:#F5F6F0;text-wrap:pretty">If it leaves TManage, a person chose to send it</div>
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <div style="display:flex;gap:12px"><div style="width:9px;height:9px;background:#B7FF57;margin-top:6px;flex-shrink:0"></div><div style="font:400 13px/19px Manrope;color:#A7ACA0">No integration reads client-visible threads unless the client's workspace admin allows it.</div></div>
+              <div style="display:flex;gap:12px"><div style="width:9px;height:9px;background:#B7FF57;margin-top:6px;flex-shrink:0"></div><div style="font:400 13px/19px Manrope;color:#A7ACA0">Scopes are shown in plain words before consent, and re-shown when they change.</div></div>
+              <div style="display:flex;gap:12px"><div style="width:9px;height:9px;background:#B7FF57;margin-top:6px;flex-shrink:0"></div><div style="font:400 13px/19px Manrope;color:#A7ACA0">Disconnecting keeps everything already recorded in TManage.</div></div>
+            </div>
+            <div style="margin-top:auto;padding:16px 18px;background:#242720;border-radius:18px;display:flex;flex-direction:column;gap:6px"><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#A7ACA0">LAST ACCESS REVIEW</div><div style="font:400 13px/19px Manrope;color:#F5F6F0">4 Aug by Maya Hassan · next due 4 Nov</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="INT-02 Integration detail and consent" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">INT-02 · INTEGRATION DETAIL · SCOPE CONSENT + FIELD MAPPING · 1440×800</div>
+    <div style="width:1440px;height:800px;background:#F7F7F3;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:64px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:18px;background:#E4E4DF;border-bottom:1px solid #C5C7C0">
+        <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:20px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+        <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">CONTROL CENTER / INTEGRATIONS / WORK CALENDAR</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 11px/16px Satoshi;color:#232521;white-space:nowrap">View access log</div>
+          <div style="padding:8px 14px;background:#FFFFFF;border:1px solid #D9474F;border-radius:999px;font:500 11px/16px Satoshi;color:#D9474F;white-space:nowrap">Disconnect</div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;padding:32px;display:flex;gap:24px">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;align-items:flex-start;gap:18px">
+            <div style="width:64px;height:64px;border-radius:18px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 22px/1 'Geist Mono',monospace;color:#4D5049">▦</div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;align-items:center;gap:12px"><div style="font:500 38px/44px Satoshi;letter-spacing:-0.02em;color:#090A09">Work calendar</div><div style="padding:4px 11px;background:#B7FF57;border-radius:999px;font:600 11px/15px Satoshi;color:#090A09;white-space:nowrap">Connected</div></div>
+              <div style="font:400 13px/19px Manrope;color:#74786F">Connected by Maya Hassan on 12 Jul · workspace-wide · account <span style="font:500 12px/17px 'Geist Mono',monospace;color:#4D5049">ops@northstar.studio</span></div>
+            </div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between"><div style="font:600 18px/25px Satoshi;color:#090A09">What it may do</div><div style="font:400 11px/15px 'Geist Mono',monospace;letter-spacing:0.1em;color:#74786F">4 SCOPES · REVIEWED 4 AUG</div></div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:14px;padding-bottom:12px;border-bottom:1px solid #E9E9E5"><div style="width:64px;font:500 11px/16px 'Geist Mono',monospace;color:#1D8A63">READ</div><div style="flex:1;font:400 13px/19px Manrope;color:#232521">Busy and free times for people in this workspace</div><div style="font:400 12px/17px Manrope;color:#74786F">no titles</div></div>
+              <div style="display:flex;align-items:center;gap:14px;padding-bottom:12px;border-bottom:1px solid #E9E9E5"><div style="width:64px;font:500 11px/16px 'Geist Mono',monospace;color:#1D8A63">READ</div><div style="flex:1;font:400 13px/19px Manrope;color:#232521">Meetings where a TManage project is named in the invite</div><div style="font:400 12px/17px Manrope;color:#74786F">title + attendees</div></div>
+              <div style="display:flex;align-items:center;gap:14px;padding-bottom:12px;border-bottom:1px solid #E9E9E5"><div style="width:64px;font:500 11px/16px 'Geist Mono',monospace;color:#C96F18">WRITE</div><div style="flex:1;font:400 13px/19px Manrope;color:#232521">Create and update TManage meetings on attendees' calendars</div><div style="font:400 12px/17px Manrope;color:#74786F">TManage-created only</div></div>
+              <div style="display:flex;align-items:center;gap:14px"><div style="width:64px;font:500 11px/16px 'Geist Mono',monospace;color:#D9474F">DENIED</div><div style="flex:1;font:400 13px/19px Manrope;color:#4D5049">Delete or move events it did not create</div><div style="font:400 12px/17px Manrope;color:#74786F">product limit</div></div>
+            </div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:16px">
+            <div style="font:600 18px/25px Satoshi;color:#090A09">Field mapping</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;padding:11px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:12px;font:500 13px/18px Satoshi;color:#232521">TManage meeting · title</div><div style="font:500 13px/18px 'Geist Mono',monospace;color:#4D5049">→</div><div style="flex:1;padding:11px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:12px;font:500 13px/18px Satoshi;color:#232521">Event summary</div></div>
+              <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;padding:11px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:12px;font:500 13px/18px Satoshi;color:#232521">Agenda + decision link</div><div style="font:500 13px/18px 'Geist Mono',monospace;color:#4D5049">→</div><div style="flex:1;padding:11px 16px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:12px;font:500 13px/18px Satoshi;color:#232521">Event description</div></div>
+              <div style="display:flex;align-items:center;gap:14px"><div style="flex:1;padding:11px 16px;background:#FFFFFF;border:1px dashed #C5C7C0;border-radius:12px;font:500 13px/18px Satoshi;color:#74786F">Committed date</div><div style="font:500 13px/18px 'Geist Mono',monospace;color:#4D5049">→</div><div style="flex:1;padding:11px 16px;background:#FFFFFF;border:1px dashed #C5C7C0;border-radius:12px;font:500 13px/18px Satoshi;color:#74786F">All-day event · not mapped</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="width:452px;flex-shrink:0;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#FFFFFF;border:2px solid #090A09;border-radius:24px;padding:26px;display:flex;flex-direction:column;gap:16px;box-shadow:0 18px 44px rgba(9,10,9,0.16)">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">SCOPES CHANGED · CONSENT NEEDED</div>
+            <div style="font:500 26px/32px Satoshi;letter-spacing:-0.02em;color:#090A09">The provider now asks to read meeting attachments</div>
+            <div style="font:400 14px/21px Manrope;color:#4D5049;text-wrap:pretty">TManage will not accept this scope on your behalf. Until someone decides, the calendar keeps working with the four scopes you already approved.</div>
+            <div style="padding:16px 18px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:18px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:11px"><div style="width:9px;height:9px;background:#C96F18"></div><div style="font:500 13px/18px Satoshi;color:#090A09">Read files attached to any event</div></div>
+              <div style="font:400 12px/17px Manrope;color:#74786F">Would let attachments on non-project meetings be indexed by search. Not required for anything TManage does today.</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="padding:12px 20px;background:#090A09;border-radius:999px;font:600 13px/18px Satoshi;color:#F7F7F3;white-space:nowrap">Keep current scopes</div><div style="padding:12px 20px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px;font:500 13px/18px Satoshi;color:#232521;white-space:nowrap">Review and grant</div></div>
+            <div style="font:400 11px/16px Manrope;color:#74786F">Decision is recorded in the access log with your name.</div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:14px;flex:1">
+            <div style="font:600 18px/25px Satoshi;color:#090A09">Recent activity</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;gap:12px"><div style="width:76px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">09:41</div><div style="flex:1;font:400 12px/18px Manrope;color:#4D5049">Read busy times for 6 people</div></div>
+              <div style="display:flex;gap:12px"><div style="width:76px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">09:02</div><div style="flex:1;font:400 12px/18px Manrope;color:#4D5049">Created "Homepage direction review" on 4 calendars</div></div>
+              <div style="display:flex;gap:12px"><div style="width:76px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">YEST 18:20</div><div style="flex:1;font:400 12px/18px Manrope;color:#4D5049">Provider requested a new scope</div></div>
+              <div style="display:flex;gap:12px"><div style="width:76px;font:500 11px/16px 'Geist Mono',monospace;color:#74786F">4 AUG</div><div style="flex:1;font:400 12px/18px Manrope;color:#4D5049">Access reviewed by Maya Hassan · no changes</div></div>
+            </div>
+            <div style="margin-top:auto;font:400 12px/18px Manrope;color:#74786F;text-wrap:pretty">Activity is kept 90 days and is exportable as evidence.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="INT-03 Integration broken and reconnect" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">INT-03 · BROKEN INTEGRATION + RECONNECT · CONSEQUENCE FIRST · 1440×720</div>
+    <div style="width:1440px;height:720px;background:#E9E9E5;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="height:56px;flex-shrink:0;padding:0 32px;display:flex;align-items:center;gap:14px;background:#D9474F">
+        <div style="width:9px;height:9px;background:#FFFFFF"></div>
+        <div style="font:600 13px/18px Satoshi;color:#FFFFFF">Cloud storage disconnected — 12 files have not been mirrored since 17 Aug 09:40</div>
+        <div style="margin-left:auto;font:500 11px/16px 'Geist Mono',monospace;color:#FFFFFF;letter-spacing:0.1em">NO CLIENT WAS NOTIFIED</div>
+      </div>
+
+      <div style="flex:1;min-height:0;padding:32px;display:flex;gap:24px">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">CONTROL CENTER / INTEGRATIONS / CLOUD STORAGE</div>
+            <div style="font:500 44px/48px Satoshi;letter-spacing:-0.03em;color:#090A09">What stopped, and what it cost</div>
+          </div>
+
+          <div style="display:flex;gap:48px">
+            <div style="display:flex;flex-direction:column;gap:5px"><div style="font:400 60px/60px Manrope;letter-spacing:-0.03em;color:#090A09;font-variant-numeric:tabular-nums">12</div><div style="font:500 15px/22px Satoshi;color:#232521">files queued, none lost</div><div style="font:400 12px/17px Manrope;color:#74786F">kept in TManage · <a href="#">list them</a></div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><div style="font:400 60px/60px Manrope;letter-spacing:-0.03em;color:#090A09;font-variant-numeric:tabular-nums">2</div><div style="font:500 15px/22px Satoshi;color:#232521">automations paused as a result</div><div style="font:400 12px/17px Manrope;color:#74786F">mirror file · weekly digest attachment</div></div>
+            <div style="display:flex;flex-direction:column;gap:5px"><div style="font:400 60px/60px Manrope;letter-spacing:-0.03em;color:#090A09;font-variant-numeric:tabular-nums">0</div><div style="font:500 15px/22px Satoshi;color:#232521">approvals affected</div><div style="font:400 12px/17px Manrope;color:#74786F">version hashes live in TManage</div></div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:14px;height:34px;padding:0 20px;background:#F7F7F3;border-bottom:1px solid #C5C7C0"><div style="flex:1;font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.08em;color:#74786F">QUEUED FILE</div><div style="width:150px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F">PROJECT</div><div style="width:96px;font:500 11px/15px 'Geist Mono',monospace;color:#74786F;text-align:right">WAITING</div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 20px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Homepage Concept v2 · <span style="font:500 12px/17px 'Geist Mono',monospace;color:#4D5049">8f2c·d41a</span></div><div style="width:150px;font:500 12px/17px Satoshi;color:#232521">Atlas Relaunch</div><div style="width:96px;text-align:right;font:500 12px/17px 'Geist Mono',monospace;color:#C96F18">2 DAYS</div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 20px;border-bottom:1px solid #E9E9E5"><div style="flex:1;font:500 13px/18px Satoshi;color:#090A09">Arabic booking FAQ draft</div><div style="width:150px;font:500 12px/17px Satoshi;color:#232521">Atlas Relaunch</div><div style="width:96px;text-align:right;font:500 12px/17px 'Geist Mono',monospace;color:#4D5049">1 DAY</div></div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;padding:0 20px"><div style="flex:1;font:500 13px/18px Satoshi;color:#4D5049">9 more files</div><div style="width:150px;font:500 12px/17px Satoshi;color:#232521">Across 2 projects</div><div style="width:96px;text-align:right;font:500 12px/17px 'Geist Mono',monospace;color:#4D5049">&lt; 2 DAYS</div></div>
+          </div>
+        </div>
+
+        <div style="width:452px;flex-shrink:0;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#090A09;border-radius:24px;padding:26px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:22px;height:22px;border-radius:999px;background:#B7FF57"></div><div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#B7FF57">DO THIS NEXT</div></div>
+            <div style="font:500 24px/31px Satoshi;color:#F5F6F0;text-wrap:pretty">Reconnect with the same account, ops@northstar.studio</div>
+            <div style="font:400 13px/19px Manrope;color:#A7ACA0;text-wrap:pretty">Why now — the 12 queued files mirror on reconnect in the order they were added, and the two paused automations resume by themselves. A different account would remap every folder.</div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="padding:12px 20px;background:#B7FF57;border-radius:999px;font:600 13px/18px Satoshi;color:#090A09;white-space:nowrap">Reconnect storage</div><div style="padding:12px 20px;background:#242720;border-radius:999px;font:500 13px/18px Satoshi;color:#F5F6F0;white-space:nowrap">Use another account</div></div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:14px;flex:1">
+            <div style="font:600 18px/25px Satoshi;color:#090A09">While it is down</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;gap:12px;align-items:flex-start"><div style="margin-top:6px;width:9px;height:9px;background:#1D8A63;flex-shrink:0"></div><div style="font:400 13px/19px Manrope;color:#4D5049">Files still upload to TManage and approvals work normally.</div></div>
+              <div style="display:flex;gap:12px;align-items:flex-start"><div style="margin-top:6px;width:9px;height:9px;background:#1D8A63;flex-shrink:0"></div><div style="font:400 13px/19px Manrope;color:#4D5049">Nothing in the client portal changed — the mirror is an internal convenience.</div></div>
+              <div style="display:flex;gap:12px;align-items:flex-start"><div style="margin-top:6px;width:9px;height:9px;background:#C96F18;flex-shrink:0"></div><div style="font:400 13px/19px Manrope;color:#4D5049">Karim Nabil was told once, at 09:40. No repeat notices.</div></div>
+            </div>
+            <div style="margin-top:auto;padding:14px 18px;background:#F7F7F3;border:1px solid #C5C7C0;border-radius:18px;font:400 12px/18px Manrope;color:#4D5049;text-wrap:pretty">If reconnecting is not possible today, you can <a href="#">turn the mirror off</a> and clear the queue. Files stay in TManage either way.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

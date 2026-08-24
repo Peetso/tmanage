@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family:'Satoshi'; src:url('./design/assets/fonts/Satoshi-Variable.woff2') format('woff2'); font-weight:300 900; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Manrope'; src:url('./design/assets/fonts/Manrope-Variable.ttf') format('truetype'); font-weight:200 800; font-style:normal; font-display:swap; }
+  body { margin:0; background:#2C2E29; font-family:Satoshi, Manrope, system-ui, sans-serif; }
+  a { color:#4D5049; text-decoration:none; border-bottom:1px solid #C5C7C0; }
+  a:hover { color:#090A09; border-bottom-color:#9CEA3F; }
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;gap:56px;padding:56px;background:#2C2E29;min-height:100vh">
+
+  <div data-screen-label="CL-01 Portal overview" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">CL-01 · CLIENT PORTAL OVERVIEW · SALMA RIAD (CLIENT ADMIN) · UNDERSTAND PROGRESS IN 30 SECONDS · 1440×980</div>
+    <div style="width:1440px;height:980px;background:#F7F7F3;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+
+      <div style="display:flex;align-items:center;gap:16px;padding:22px 48px;border-bottom:1px solid #E4E4DF">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:44px;height:44px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:24px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+          <div style="display:flex;flex-direction:column"><div style="font:600 15px/20px Satoshi;color:#090A09">Atlas Hospitality</div><div style="font:400 11px/15px Manrope;color:#74786F">delivered by Northstar Studio</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:32px">
+          <div style="padding:10px 20px;background:#090A09;border-radius:999px;font:500 13px/18px Satoshi;color:#F7F7F3;white-space:nowrap">Overview</div>
+          <div style="padding:10px 20px;font:500 13px/18px Satoshi;color:#4D5049">My actions</div>
+          <div style="padding:10px 20px;font:500 13px/18px Satoshi;color:#4D5049">Timeline</div>
+          <div style="padding:10px 20px;font:500 13px/18px Satoshi;color:#4D5049">Deliverables</div>
+          <div style="padding:10px 20px;font:500 13px/18px Satoshi;color:#4D5049">Updates</div>
+          <div style="padding:10px 20px;font:500 13px/18px Satoshi;color:#4D5049">Files</div>
+          <div style="padding:10px 20px;font:500 13px/18px Satoshi;color:#4D5049">People</div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 18px 8px 8px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="width:28px;height:28px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#7755C7;white-space:nowrap">SR</div><div style="font:500 13px/18px Satoshi;color:#232521;white-space:nowrap">Salma Riad</div></div>
+          <div style="width:44px;height:44px;border-radius:999px;background:#FFFFFF;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 14px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">✉</div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;padding:36px 48px;display:flex;flex-direction:column;gap:32px">
+
+        <div style="display:flex;align-items:flex-end;gap:48px">
+          <div style="display:flex;flex-direction:column;gap:14px;max-width:640px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">YOUR PROJECT · ON TRACK FOR THE COMMITTED LAUNCH</div>
+            <div style="font:500 56px/60px Satoshi;letter-spacing:-0.03em;color:#090A09">Website relaunch</div>
+            <div style="font:400 17px/25px Manrope;color:#4D5049;text-wrap:pretty">Everything is moving toward launch on 30 September. One decision from you is needed this week.</div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:48px">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="font:400 64px/64px Manrope;letter-spacing:-0.02em;color:#090A09;font-variant-numeric:tabular-nums">47</div>
+              <div style="font:500 15px/22px Satoshi;color:#232521">days to launch</div>
+              <div style="font:400 11px/16px Manrope;color:#74786F">committed 30 Sep</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:flex-start;gap:8px"><div style="font:400 64px/64px Manrope;letter-spacing:-0.02em;color:#090A09;font-variant-numeric:tabular-nums">1</div><div style="margin-top:12px;padding:3px 10px;background:#B7FF57;border-radius:999px;font:600 10px/14px Satoshi;color:#090A09;white-space:nowrap">this week</div></div>
+              <div style="font:500 15px/22px Satoshi;color:#232521">action waiting for you</div>
+              <div style="font:400 11px/16px Manrope;color:#74786F">approval · about 10 minutes</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.14em;color:#74786F">WHERE THE PROJECT IS</div>
+            <div style="font:400 11px/15px Manrope;color:#74786F">stage 2 of 5 · <a href="#">see the full timeline</a></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;height:64px;padding:0 24px;background:#090A09;border-radius:999px"><div style="font:500 12px/1 'Geist Mono',monospace;color:#B7FF57">✓</div><div style="display:flex;flex-direction:column"><div style="font:500 14px/19px Satoshi;color:#F7F7F3">Discovery</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#A7ACA0">done 28 Jul</div></div></div>
+            <div style="flex:1.5;display:flex;align-items:center;gap:16px;height:64px;padding:0 26px;background:#B7FF57;border-radius:999px">
+              <div style="display:flex;flex-direction:column"><div style="font:600 11px/15px Satoshi;color:#090A09;letter-spacing:0.06em;white-space:nowrap">NOW</div><div style="font:600 17px/22px Satoshi;color:#090A09">Homepage direction</div></div>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+                <div style="display:flex;flex-direction:column;align-items:flex-end"><div style="font:600 13px/18px Satoshi;color:#090A09">waiting for your approval</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#232521">by 18 Aug</div></div>
+                <div style="width:36px;height:36px;border-radius:999px;background:#090A09;display:grid;place-items:center;font:600 12px/1 Satoshi;color:#B7FF57;white-space:nowrap">YK</div>
+              </div>
+            </div>
+            <div style="flex:1;display:flex;align-items:center;height:64px;padding:0 24px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="display:flex;flex-direction:column"><div style="font:500 14px/19px Satoshi;color:#232521;white-space:nowrap">Content migration</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">expected early Sep</div></div></div>
+            <div style="display:flex;align-items:center;height:64px;padding:0 24px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="display:flex;flex-direction:column"><div style="font:500 14px/19px Satoshi;color:#232521;white-space:nowrap">Quality review</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">20 Sep</div></div></div>
+            <div style="display:flex;align-items:center;height:64px;padding:0 24px;border:1px dashed #C5C7C0;border-radius:999px"><div style="display:flex;flex-direction:column"><div style="font:500 14px/19px Satoshi;color:#74786F;white-space:nowrap">Launch</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">30 Sep</div></div></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:24px;flex:1;min-height:0">
+          <div style="flex:1.4;min-width:0;display:flex;flex-direction:column;gap:16px">
+            <div style="font:600 24px/31px Satoshi;color:#090A09">Your actions</div>
+            <div style="background:#B7FF57;border-radius:32px;padding:28px;display:flex;flex-direction:column;gap:16px">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.1em;color:#232521">APPROVAL · ABOUT 10 MINUTES</div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:6px 14px;background:#090A09;border-radius:999px"><div style="font:600 11px/15px Satoshi;color:#F7F7F3;white-space:nowrap">Due 18 Aug</div></div>
+              </div>
+              <div style="font:600 26px/32px Satoshi;letter-spacing:-0.01em;color:#090A09">Approve the homepage direction</div>
+              <div style="font:400 15px/22px Manrope;color:#232521;max-width:560px;text-wrap:pretty">Youssef Kamal is named as the reviewer. Approving this lets content migration start this week and keeps the launch date.</div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <div style="display:flex;align-items:center;gap:12px;padding:6px 24px 6px 6px;background:#090A09;border-radius:999px"><div style="width:36px;height:36px;border-radius:999px;background:#B7FF57;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#090A09;white-space:nowrap">▸</div><div style="font:500 14px/20px Satoshi;color:#F7F7F3;white-space:nowrap">Open the review</div></div>
+                <div style="font:500 13px/18px Satoshi;color:#232521;border-bottom:1px solid rgba(9,10,9,0.3)">Ask a question instead</div>
+              </div>
+            </div>
+
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;align-items:center;gap:18px">
+              <div style="width:44px;height:44px;border-radius:999px;background:#F7F7F3;border:1px solid #C5C7C0;display:grid;place-items:center;font:500 15px/1 'Geist Mono',monospace;color:#4D5049;flex-shrink:0;white-space:nowrap">?</div>
+              <div style="flex:1;min-width:0">
+                <div style="font:600 17px/23px Satoshi;color:#090A09">Answer one question about the Arabic FAQ</div>
+                <div style="font:400 13px/19px Manrope;color:#4D5049">Omar asked on 12 Aug whether the FAQ covers group bookings.</div>
+              </div>
+              <div style="padding:11px 20px;border:1.5px solid #2C2E29;border-radius:999px;font:500 13px/18px Satoshi;color:#090A09;white-space:nowrap">Reply</div>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:14px;padding:18px 22px;background:#FFFFFF;border:1px dashed #C5C7C0;border-radius:24px">
+              <div style="width:32px;height:32px;border-radius:999px;background:#F7F7F3;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#74786F;white-space:nowrap">✓</div>
+              <div style="font:400 14px/20px Manrope;color:#4D5049">After that, nothing else is needed from you. We’ll notify you when your review, file, or answer is needed.</div>
+            </div>
+          </div>
+
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px">
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between"><div style="font:600 18px/25px Satoshi;color:#090A09">Latest update</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">13 AUG</div></div>
+              <div style="font:400 15px/22px Manrope;color:#4D5049;text-wrap:pretty">“Homepage direction is with your reviewer. Once approved, content migration starts the same week and we hold the 30 September launch.”</div>
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:28px;height:28px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#F7F7F3;white-space:nowrap">OA</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Omar Adel · your project manager</div></div>
+            </div>
+
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:14px">
+              <div style="font:600 18px/25px Satoshi;color:#090A09">Deliverables</div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:#F7F7F3;border-radius:18px">
+                <div style="width:32px;height:32px;border-radius:999px;background:#B7FF57;display:grid;place-items:center;font:500 13px/1 'Geist Mono',monospace;color:#090A09;white-space:nowrap">▸</div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/18px Satoshi;color:#090A09;white-space:nowrap">Homepage Concept v2</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">WAITING FOR YOUR APPROVAL</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:#F7F7F3;border-radius:18px">
+                <div style="width:32px;height:32px;border-radius:999px;background:#FFFFFF;border:1px solid #1D8A63;display:grid;place-items:center;font:600 12px/1 'Geist Mono',monospace;color:#1D8A63;white-space:nowrap">✓</div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/18px Satoshi;color:#090A09;white-space:nowrap">Discovery summary v3</div><div style="font:400 11px/15px 'Geist Mono',monospace;color:#74786F">APPROVED 28 JUL · FINAL</div></div>
+                <div style="font:500 12px/17px Satoshi;color:#4D5049;border-bottom:1px solid #C5C7C0">Download</div>
+              </div>
+            </div>
+
+            <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+              <div style="font:600 18px/25px Satoshi;color:#090A09">Your team at Northstar</div>
+              <div style="display:flex;gap:10px">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;background:#F7F7F3;border-radius:999px"><div style="width:28px;height:28px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#F7F7F3;white-space:nowrap">OA</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Omar · PM</div></div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;background:#F7F7F3;border-radius:999px"><div style="width:28px;height:28px;border-radius:999px;background:#4D5049;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#F7F7F3;white-space:nowrap">LS</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Lina · Design</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="CL-05 Approval review" style="display:flex;flex-direction:column;gap:14px">
+    <div style="font:500 11px/1 'Geist Mono',monospace;letter-spacing:0.14em;color:#A7ACA0">CL-05 / APP-02 · CLIENT APPROVAL REVIEW · GOVERNED ARTEFACT OWNS THE PAGE · YOUSSEF KAMAL · 1440×920</div>
+    <div style="width:1440px;height:920px;background:#F7F7F3;border-radius:24px;overflow:hidden;display:flex;flex-direction:column">
+
+      <div style="display:flex;align-items:center;gap:16px;padding:20px 48px;border-bottom:1px solid #E4E4DF">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:40px;height:40px;border-radius:999px;background:#090A09;display:grid;place-items:center"><svg viewBox="0 0 95.4 72.5" style="width:22px;height:auto;display:block;fill:#B7FF57"><path d="M59.3,22h9.7c3.4-.2,6.6-1,9.8-2,9.1-3,15.9-10.2,16.6-20H25.8c-3.5,0-6.6.7-9.7,1.7C7.7,4.4,2.4,11.9,1.4,20.6l-1.4,13.1c1.4-4.5,5.1-7.4,9.6-9.2s9.6-2.5,14.7-2.5h34.9Z"></path><path d="M61.9,31.2c-3,1.2-5,3.8-6.3,6.9-1.4,3.5-1.9,7-1.8,10.9v4c-.4,4.1-.7,4.9-1.5,7.2-.7,2-1.6,3.9-2.8,5.6-1.9,2.2-4.3,3.9-7.1,4.9,0,0,0,0-.1,0-.8.2-1.5.4-2.3.6-.1,0-.2,0-.3,0-.3,0-.6,0-.9.1h-1.1c0,.1-8.5,1.1-8.5,1.1,2.5-.8,6.1-3.6,8.5-9.1.9-1.9,1.6-4.2,2-6.9.7-3.8,1.2-14.3,1.4-15,0,0,0,0,0,0,.5-2.9,1.5-4.8,3.2-6.1.4-.3.8-.6,1.3-.9,0,0,0,0,.1,0,1-.6,2.2-1,3.6-1.4,0,0,.2,0,.2,0,.3,0,.6-.2.9-.3.2,0,.4,0,.6-.1.2,0,.3,0,.5,0,.1,0,.2,0,.3,0,.3,0,.7,0,1-.1l9.1-1Z"></path><path d="M70.9,50c0,.4,0,.8,0,1.3v3.7c-.4,3.7-.6,4.4-1.3,6.5-.6,1.8-1.5,3.5-2.6,5-1.7,2-3.9,3.5-6.4,4.4,0,0,0,0,0,0-.7.2-1.4.4-2.1.5-.1,0-.2,0-.3,0-.3,0-.5,0-.8.1h-1c0,.1-7.6,1-7.6,1,2.2-.7,5.5-3.3,7.7-8.2.8-1.8,1.4-3.8,1.8-6.2.6-3.5,1.1-12.9,1.3-13.5,0,0,0,0,0,0,.4-2.6,1.3-4.3,2.8-5.5.4-.3.8-.6,1.2-.8,0,0,0,0,.1,0,.9-.5,2-.9,3.2-1.3,0,0,.1,0,.2,0,.3,0,.6-.2.8-.2.2,0,.3,0,.5-.1.1,0,.3,0,.4,0,0,0,.2,0,.3,0,.3,0,.6,0,.9-.1h.7c0,0,.3,13.9.3,13.9Z"></path><path d="M34.8,51.2c0,2.8-.7,5.3-1.5,7.9-2.4,7.3-8.2,12.9-16.1,13.4v-24.6c0-2.8.6-5.3,1.4-7.8,2.2-6.8,8.2-11.1,15.3-11.9,4.9-.4,9.9-.8,14.8-1.2-1,.2-7.8,1.3-11.7,7.8-3.2,5.3-2.3,10.6-2,11.9v4.4Z"></path></svg></div>
+          <div style="font:500 13px/18px Satoshi;color:#4D5049">Atlas Hospitality · Website relaunch</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 16px 7px 7px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px">
+          <div style="width:26px;height:26px;border-radius:999px;background:#E9E9E5;display:grid;place-items:center;font:500 11px/1 'Geist Mono',monospace;color:#4D5049;white-space:nowrap">←</div>
+          <div style="font:500 12px/17px Satoshi;color:#4D5049;white-space:nowrap">Back to your actions</div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 16px 8px 8px;background:#FFFFFF;border:1.5px solid #7755C7;border-radius:999px"><div style="width:26px;height:26px;border-radius:999px;background:#F7F7F3;border:1.5px solid #7755C7;display:grid;place-items:center;font:600 10px/1 Satoshi;color:#7755C7;white-space:nowrap">YK</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Youssef Kamal · Reviewer</div></div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="flex:1;min-width:0;padding:32px 32px 32px 48px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">APPROVAL · HOMEPAGE CONCEPT · VERSION 2</div>
+            <div style="font:500 44px/48px Satoshi;letter-spacing:-0.025em;color:#090A09">Does this direction work for you?</div>
+          </div>
+          <div style="flex:1;min-height:0;border-radius:28px;background:url('./design/assets/img/homepage-concept-v2.jpg') center/cover;border:1px solid #C5C7C0;display:grid;place-items:center;position:relative">
+            <div style="position:absolute;bottom:20px;left:20px;display:flex;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Desktop</div></div>
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#090A09;border-radius:999px"><div style="font:500 12px/17px Satoshi;color:#F7F7F3;white-space:nowrap">Mobile</div></div>
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#FFFFFF;border:1px solid #C5C7C0;border-radius:999px"><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Arabic</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="width:460px;flex-shrink:0;padding:32px 48px 32px 0;display:flex;flex-direction:column;gap:18px">
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:28px;padding:26px;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WHAT YOU ARE DECIDING ON</div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#F7F7F3;border-radius:14px">
+                <div style="font:400 12px/17px 'Geist Mono',monospace;color:#090A09">v2 · 8f2c·d41a</div>
+                <div style="margin-left:auto;font:400 11px/15px 'Geist Mono',monospace;color:#74786F">13 AUG 09:12</div>
+              </div>
+              <div style="font:400 13px/19px Manrope;color:#4D5049;text-wrap:pretty">Your decision is recorded against this exact version. If the file changes, the approval stops being valid and we ask you again.</div>
+            </div>
+
+            <div style="height:1px;background:#E9E9E5"></div>
+
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WHAT YOU ARE CONFIRMING</div>
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:20px;height:20px;border-radius:6px;border:1.5px solid #74786F"></div><div style="font:500 14px/20px Satoshi;color:#232521">The brand feels right</div></div>
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:20px;height:20px;border-radius:6px;border:1.5px solid #74786F"></div><div style="font:500 14px/20px Satoshi;color:#232521">Booking is easy to find</div></div>
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:20px;height:20px;border-radius:6px;border:1.5px solid #74786F"></div><div style="font:500 14px/20px Satoshi;color:#232521">Arabic and English match</div></div>
+              <div style="display:flex;align-items:center;gap:10px"><div style="width:20px;height:20px;border-radius:6px;border:1.5px solid #74786F"></div><div style="font:500 14px/20px Satoshi;color:#232521">The phone layout works</div></div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:16px 24px;background:#B7FF57;border-radius:999px"><div style="font:600 16px/22px Satoshi;color:#090A09">Approve version 2</div></div>
+              <div style="display:flex;align-items:center;justify-content:center;padding:15px 24px;border:1.5px solid #2C2E29;border-radius:999px;font:500 15px/21px Satoshi;color:#090A09;white-space:nowrap">Request changes</div>
+              <div style="font:400 12px/17px Manrope;color:#74786F;text-align:center">Requesting changes needs at least one specific point so the team can act on it.</div>
+            </div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #C5C7C0;border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px">
+            <div style="font:500 11px/15px 'Geist Mono',monospace;letter-spacing:0.12em;color:#74786F">WHY IT MATTERS NOW</div>
+            <div style="font:400 14px/21px Manrope;color:#4D5049;text-wrap:pretty">Content migration starts once this is approved. Approving by 18 August keeps the 30 September launch.</div>
+            <div style="display:flex;align-items:center;gap:10px;padding-top:4px"><div style="width:28px;height:28px;border-radius:999px;background:#232521;display:grid;place-items:center;font:600 11px/1 Satoshi;color:#F7F7F3;white-space:nowrap">OA</div><div style="font:500 12px/17px Satoshi;color:#232521;white-space:nowrap">Questions? Message Omar Adel</div></div>
+          </div>
+
+          <div style="display:flex;gap:12px;padding:16px;background:#FFFFFF;border:1px dashed #C5C7C0;border-radius:24px">
+            <div style="width:24px;height:24px;border-radius:999px;border:1.5px solid #7755C7;display:grid;place-items:center;font:500 10px/1 'Geist Mono',monospace;color:#7755C7;flex-shrink:0;white-space:nowrap">◎</div>
+            <div style="font:400 12px/17px Manrope;color:#4D5049;text-wrap:pretty">You are seeing the client view of this project. Internal notes and estimates are not part of it.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "name": "@tmanage/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "test": "vitest run --project unit",
+    "test:unit": "vitest run --project unit",
+    "test:db": "vitest run --project database",
+    "db:migrate": "tsx src/common/database/cli.ts migrate",
+    "db:status": "tsx src/common/database/cli.ts status",
+    "db:grants": "tsx src/common/database/cli.ts grants",
+    "db:reset": "tsx src/common/database/cli.ts reset"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.2.1",
+    "@nestjs/core": "^11.2.1",
+    "@nestjs/platform-fastify": "^11.2.1",
+    "@tmanage/config": "workspace:*",
+    "@tmanage/domain": "workspace:*",
+    "drizzle-orm": "^0.44.5",
+    "mysql2": "^3.15.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^11.2.1",
+    "drizzle-kit": "^0.31.5",
+    "mysql-memory-server": "^1.15.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

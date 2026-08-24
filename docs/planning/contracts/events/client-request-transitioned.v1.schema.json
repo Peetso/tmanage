@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.tmanage.example/events/client-request-transitioned.v1.schema.json",
+  "title": "client_request.transitioned.v1 payload",
+  "type": "object",
+  "required": ["requestId", "projectId", "fromStatus", "toStatus", "requestVersion"],
+  "properties": {
+    "requestId": { "type": "string", "format": "uuid" },
+    "projectId": { "type": "string", "format": "uuid" },
+    "clientOrganizationId": { "type": "string", "format": "uuid" },
+    "fromStatus": { "type": "string" },
+    "toStatus": { "type": "string" },
+    "requestVersion": { "type": "integer", "minimum": 1 },
+    "acceptedWorkItemId": { "type": ["string", "null"], "format": "uuid" },
+    "clientSafeReasonId": { "type": ["string", "null"], "format": "uuid" }
+  },
+  "additionalProperties": false
+}
