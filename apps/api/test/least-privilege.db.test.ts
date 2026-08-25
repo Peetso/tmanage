@@ -103,7 +103,9 @@ describe('ADR-0001 layer 2 — least-privilege runtime credential', () => {
     } else {
       console.warn(
         '[least privilege] skipped — no TMANAGE_TEST_APP_DATABASE_URL. ' +
-          'ADR-0001 layer 2 is proven by the containerised CI job, not by this run.',
+          'ADR-0001 layer 2 is not under test in this run. To run it, point ' +
+          'TMANAGE_TEST_DATABASE_URL and TMANAGE_TEST_APP_DATABASE_URL at a long-lived ' +
+          'server whose `tmanage` database has had scripts/db/users.sql applied.',
       );
     }
   });

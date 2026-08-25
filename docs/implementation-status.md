@@ -15,14 +15,15 @@ A row is only `tested` if a check was **actually executed** and its result recor
 Recorded because two things about this machine have changed since the last session, and both
 change what a command does rather than merely how it is typed.
 
-| Fact                      | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **pnpm is not installed** | There is no `pnpm` on `PATH`. Provision it with `corepack enable pnpm --install-directory <dir>` and prepend that directory. Inside the repository it then resolves to **10.15.0** via `packageManager`, verified before any gate was run this session. Note for a POSIX shell on Windows: `PATH` entries must be `/c/Users/...`, not `C:/Users/...` — a drive-letter colon is a `PATH` separator, so the entry is silently discarded                              |
-| Node                      | 22.22.0 · corepack 0.34.0                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Git state**             | The repository now has one commit (`3206036`). `user.name` / `user.email` are set repo-locally. **No remote.** Nothing is pushed                                                                                                                                                                                                                                                                                                                                   |
-| Containers                | Unchanged and still absent: no Docker, no container runtime, no WSL, no local MySQL or MariaDB. `pnpm test:db` works regardless — it runs a real embedded MySQL 8.0.45 (ADR-0002)                                                                                                                                                                                                                                                                                  |
-| File encoding             | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                     |
-| **A stale second copy**   | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/` |
+| Fact                             | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **pnpm is not installed**        | There is no `pnpm` on `PATH`. Provision it with `corepack enable pnpm --install-directory <dir>` and prepend that directory. Inside the repository it then resolves to **10.15.0** via `packageManager`, verified before any gate was run this session. Note for a POSIX shell on Windows: `PATH` entries must be `/c/Users/...`, not `C:/Users/...` — a drive-letter colon is a `PATH` separator, so the entry is silently discarded                                                                                                                                     |
+| Node                             | 22.22.0 · corepack 0.34.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Git state**                    | Four commits on `master`, pushed to **`https://github.com/Peetso/tmanage` (private)**. `user.name` / `user.email` are set repo-locally. The remote was added on 2026-08-25 after Peter authenticated `gh` himself                                                                                                                                                                                                                                                                                                                                                         |
+| Containers                       | Still absent: no Docker, no container runtime, no Linux distro under WSL 2. `pnpm test:db` works regardless — a real embedded MySQL 8.0.45 (ADR-0002)                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead |
+| File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                            |
+| **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                        |
 
 ---
 
@@ -129,6 +130,168 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## MariaDB 11.4.5, run for the first time — 2026-08-25
+
+ADR-0002 recorded that local development is MySQL, deployment is MariaDB, and **CI is the
+only place the skew between them is caught**. CI has still never run (see the GitHub
+section below), so that gap would have stayed open indefinitely. It is now closed on this
+machine instead, without a container.
+
+MariaDB publishes a plain Windows `.zip` build. `mariadb-11.4.5-winx64` is the same version
+`compose.yaml` pins (`mariadb:11.4.5-noble`), it needs no installer and no administrator
+rights, and it was started with **compose.yaml's own server flags**, copied rather than
+approximated:
+
+```
+--character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+--sql-mode=STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION,ERROR_FOR_DIVISION_BY_ZERO
+--default-storage-engine=InnoDB --default-time-zone=+00:00
+--innodb-flush-log-at-trx-commit=1 --max-connections=100
+```
+
+The server confirmed them: `11.4.5-MariaDB`, `sql_mode` exactly as above, `time_zone
++00:00`, `character_set_server utf8mb4`.
+
+### Result
+
+| Step                                 | Result                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------------------------- |
+| `pnpm db:migrate`                    | **3 migrations, 31 statements, applied clean.** The schema had never run on MariaDB |
+| `pnpm db:grants`                     | **26 statements applied.** `scripts/db/users.sql` works on both engines             |
+| `pnpm --filter @tmanage/api test:db` | **10 files, 321 passed, 0 skipped**                                                 |
+
+Provenance, as the corpus printed it:
+`engine=mariadb 11.4.5-MariaDB · server=external (TMANAGE_TEST_DATABASE_URL) · runtime credential=tmanage_app (least privilege)`.
+
+**ADR-0001 layer 2 is now proven on both engines**, not merely on the one this machine
+happens to run.
+
+### What the first MariaDB run found
+
+**One real defect, in the schema-agreement suite's type normalisation.** The comment in
+`schema.db.test.ts` claimed to handle MariaDB's display widths. It did not, and could not
+have been noticed on MySQL, which stopped reporting display widths in 8.0.19:
+
+- The width branch dropped the **space** along with the width, turning
+  `bigint(20) unsigned` into `bigintunsigned` rather than `bigint unsigned`.
+- It tested `startsWith('int')`, so `smallint(5)` and `mediumint(8)` were never matched at
+  all.
+
+Three columns failed outright — `memberships.version`, `work_items.version`,
+`outbox_events.schema_version`. A fourth type, `smallint(5) unsigned`, passed only because
+of a fallback that compared both forms again with **every** `(N)` removed.
+
+That fallback was the more serious finding. By the rule that made `smallint(5) unsigned`
+agree with `smallint unsigned`, it also made **`varchar(255)` agree with `varchar(64)`** —
+so a column silently widened or narrowed by a migration would have passed the drift check.
+`normaliseType` now handles the widths that are genuinely noise, and the fallback is gone,
+so the comparison is exact. **The suite is stricter after this change than before it.**
+
+Re-run on both engines afterwards, because a normalisation that fixes one engine by
+breaking the other is not a fix:
+
+| Engine                  | Result                                             |
+| ----------------------- | -------------------------------------------------- |
+| MariaDB 11.4.5          | **321 passed, 0 skipped**                          |
+| MySQL 8.0.45 (embedded) | **300 passed, 21 skipped** — 47 schema cases green |
+
+### What the run confirmed rather than changed
+
+- **MariaDB really does report `json` as `longtext`.** That rule had been written from
+  documentation and never executed. It is now observed. It is also safe for this schema
+  specifically: the only `longtext` columns are `audit_events.metadata_json`,
+  `idempotency_records.response_json` and `outbox_events.payload_json`, all genuine JSON
+  columns, so nothing non-JSON is being normalised into agreement.
+- **`SHOW GRANTS` differs in shape, as expected, and nothing depends on it.** MariaDB
+  appends `IDENTIFIED BY PASSWORD '<hash>'` to the `USAGE` line and returns the grants in a
+  different order; MySQL 8 does neither. No assertion reads the grant text — the suite
+  tests what the credential can and cannot _do_ — so the divergence is cosmetic here.
+- **Every error code the least-privilege suite asserts is the same on both engines.** All
+  22 cases passed on MariaDB unchanged.
+
+### Two environment notes, both Windows rather than MariaDB
+
+Recorded because both cost time and neither is a defect in this project.
+
+1. **`MAX_PATH`.** The first attempt put the data directory under the session scratchpad, a
+   path about 210 characters long. Creating
+   `...\tmanage\trg_project_memberships_org_immutable.TRN~` exceeded the 260-character
+   limit and the migration failed at statement 16 of 20 with
+   `Errcode: 2 "No such file or directory"` — which reads like a missing directory and is
+   not. Moving the data directory to a 39-character path fixed it completely.
+2. **`mariadb-install-db.exe` cannot run without an interactive stdin** — it fails with
+   `ERROR: Can't write to mysqld's stdin`. The data directory was bootstrapped directly
+   instead, by feeding `mariadb_system_tables.sql`, `mariadb_system_tables_data.sql` and
+   `mariadb_performance_tables.sql` to `mariadbd --bootstrap`. The optional `sys` schema was
+   omitted: nothing in this project uses it.
+
+The server was stopped afterwards and no stray `mariadbd` or `mysqld` process remains.
+
+---
+
+## GitHub and CI — 2026-08-25
+
+The repository now has a remote. It is **private**, under Peter's own account, created only
+after he authenticated the CLI himself.
+
+| Fact         | Detail                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------ |
+| Remote       | `https://github.com/Peetso/tmanage` — **private**, confirmed by API (`isPrivate=true`) before the first push |
+| Account      | `Peetso`. Authenticated by Peter with `gh auth login`; no token was ever shown in chat or written to a file  |
+| Token scopes | `gist`, `read:org`, `repo`, `workflow` — `workflow` is required to push `.github/workflows/`                 |
+| Pushed       | 3 commits on `master`, tracking `origin/master`                                                              |
+| CI           | **Has still never executed a single job.** See below                                                         |
+
+### The first run failed before it started, and not because of the workflow
+
+The push triggered run `#1`, which ended as `startup_failure` in 0 seconds with no jobs
+created. GitHub's own annotation gives the reason:
+
+> The job was not started because recent account payments have failed or your spending
+> limit needs to be increased. Please check the 'Billing & plans' section in your settings.
+
+**This is an account-billing state, not a defect in this repository.** GitHub Actions
+minutes are metered for private repositories; a failed payment or a spending limit of zero
+stops jobs from being created at all, which is why the run has no logs and no job list.
+
+The workflow file was verified as sound before that conclusion was drawn, so that "billing"
+is not standing in for an unexamined YAML error:
+
+| Check                      | Result                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| YAML parse (`js-yaml`)     | parses; top-level keys `name, on, concurrency, permissions, env, jobs`; 3 jobs with 10, 13 and 9 steps |
+| `actionlint` 1.7.7         | **0 errors**                                                                                           |
+| Encoding                   | valid UTF-8, no BOM, LF endings; pushed blob is byte-identical (11,487 bytes)                          |
+| Repository Actions setting | `enabled: true`, `allowed_actions: all` — not disabled                                                 |
+
+### What this blocks, and the two ways out
+
+Until Actions can run, these stay unproven **by CI** — though the first two are no longer
+unproven at all, having been closed locally in this session:
+
+- ~~MariaDB engine skew~~ — closed locally against MariaDB 11.4.5, above.
+- ~~`scripts/db/users.sql` against a real server~~ — closed locally, above.
+- **gitleaks over the full history in a clean checkout.** Run locally on 2026-08-25 over
+  both history and the working tree with no findings, but not from a clean clone.
+- **`pnpm install --frozen-lockfile` from a clean checkout**, and the whole chain on Linux
+  rather than Windows. Never observed.
+- **`compose.yaml` actually starting.** Still never started anywhere; there is no container
+  runtime on this machine and CI has not run it.
+
+Two ways forward, and the choice is Peter's:
+
+1. **Resolve the billing state** in GitHub's _Billing & plans_ settings, then re-run. This
+   keeps the repository private.
+2. **Make the repository public**, for which Actions minutes are free and unlimited. This is
+   not reversible in any meaningful sense — forks and caches survive a later switch back —
+   and the repository contains the full planning pack and design-system handoff, so it is
+   not a decision to take for the sake of a green tick.
+
+Nothing was changed in either direction. The repository remains private and the billing
+state remains untouched.
+
+---
+
 ## Verification actually run — 2026-08-25, the least-privilege session
 
 This session did one thing the previous six could not: it ran **ADR-0001 layer 2** against a
@@ -218,15 +381,15 @@ executed. It now reports which of the two actually happened.
 
 `pnpm format` was run and its reformatting committed **before** these numbers were taken.
 
-| Check          | Command             | Result                                                | Ran against                                     |
-| -------------- | ------------------- | ----------------------------------------------------- | ----------------------------------------------- |
-| Format         | `pnpm format:check` | **exit 0**                                            | prettier 3.6                                    |
-| Typecheck      | `pnpm typecheck`    | **exit 0**                                            | tsc 5.9                                         |
-| Lint           | `pnpm lint`         | **exit 0** — 0 errors, 0 warnings                     | eslint 9                                        |
-| Unit tests     | `pnpm test`         | **211 passed, 10 files, exit 0**                      | node 22.22                                      |
-| Database tests | `pnpm test:db`      | **300 passed, 21 skipped, 10 files, exit 0** (~396 s) | **real MySQL 8.0.45** via `mysql-memory-server` |
-| Design audit   | `pnpm audit:design` | **exit 0** — 172/172 screen IDs across 29 artifacts   | `docs/design/source/`                           |
-| Format (again) | `pnpm format:check` | **exit 0**                                            | after `audit:design` rewrote its output         |
+| Check          | Command             | Result                                               | Ran against                                     |
+| -------------- | ------------------- | ---------------------------------------------------- | ----------------------------------------------- |
+| Format         | `pnpm format:check` | **exit 0**                                           | prettier 3.6                                    |
+| Typecheck      | `pnpm typecheck`    | **exit 0**                                           | tsc 5.9                                         |
+| Lint           | `pnpm lint`         | **exit 0** — 0 errors, 0 warnings                    | eslint 9                                        |
+| Unit tests     | `pnpm test`         | **211 passed, 10 files, exit 0**                     | node 22.22                                      |
+| Database tests | `pnpm test:db`      | **300 passed, 21 skipped, 10 files, exit 0** (553 s) | **real MySQL 8.0.45** via `mysql-memory-server` |
+| Design audit   | `pnpm audit:design` | **exit 0** — 172/172 screen IDs across 29 artifacts  | `docs/design/source/`                           |
+| Format (again) | `pnpm format:check` | **exit 0**                                           | after `audit:design` rewrote its output         |
 
 The skip count on the default path is **21, not the previous session's 20**, because the
 least-privilege file gained a case. On that path the credential does not exist, so those
@@ -426,16 +589,16 @@ prevent.
 
 ### Not yet run — and why
 
-| Check                             | Status                                                                                                                                                                                                                                               |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **The CI workflow itself**        | **Never executed.** `.github/workflows/ci.yml` is written and its YAML parses, but there is no runner here and GitHub Actions has not run it. Everything in the next section marked _pending CI_ rests on it.                                        |
-| `scripts/db/users.sql`            | **Executed 2026-08-25 against a real MySQL 8.0.45.** All 26 statements applied, `SHOW GRANTS` matches the file, and the 20 least-privilege cases ran rather than skipping. ADR-0001 layer 2 is now proven dynamically on MySQL — **not** on MariaDB. |
-| MariaDB engine                    | Local is **MySQL 8.0.45**. The MySQL-vs-MariaDB gap is unchanged: the workflow that closes it exists, but has not run.                                                                                                                               |
-| `compose.yaml`                    | **Still unstarted.** No container runtime on this machine. The removed init-mount is a reasoned correction, not an observed failure.                                                                                                                 |
-| gitleaks / `pnpm audit`           | **Both now executed locally on 2026-08-25 — see below.** Neither needed Docker or a runner.                                                                                                                                                          |
-| OpenAPI / event-schema validation | `packages/contracts` not yet scaffolded.                                                                                                                                                                                                             |
-| E2E, a11y, RTL, visual regression | Depend on `apps/web`, not yet scaffolded.                                                                                                                                                                                                            |
-| Backup/restore rehearsal          | Requires a deployed environment.                                                                                                                                                                                                                     |
+| Check                             | Status                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **The CI workflow itself**        | **Still never executed a job**, though it now has a runner available. The repository was pushed to GitHub on 2026-08-25 and the first run ended in `startup_failure` in 0s with no jobs created — a **GitHub account billing state**, not a workflow defect (`actionlint` clean, YAML valid, Actions enabled). See "GitHub and CI" above. Everything marked _pending CI_ still rests on it |
+| `scripts/db/users.sql`            | **Executed 2026-08-25 against a real MySQL 8.0.45.** All 26 statements applied, `SHOW GRANTS` matches the file, and the 20 least-privilege cases ran rather than skipping. ADR-0001 layer 2 is now proven dynamically on MySQL — **not** on MariaDB.                                                                                                                                       |
+| MariaDB engine                    | **Closed 2026-08-25.** The full database suite ran on **MariaDB 11.4.5** — the version `compose.yaml` pins — with the least-privilege credential: 321 passed, 0 skipped. It found one real defect in the schema drift check. ADR-0002's statement that CI is the only place the skew is caught is **no longer true**.                                                                      |
+| `compose.yaml`                    | **Still unstarted.** No container runtime on this machine. The MariaDB run above used the same version and the same server flags, but not this file, so `compose.yaml` itself remains unexercised. The removed init-mount is a reasoned correction, not an observed failure.                                                                                                               |
+| gitleaks / `pnpm audit`           | **Both now executed locally on 2026-08-25 — see below.** Neither needed Docker or a runner.                                                                                                                                                                                                                                                                                                |
+| OpenAPI / event-schema validation | `packages/contracts` not yet scaffolded.                                                                                                                                                                                                                                                                                                                                                   |
+| E2E, a11y, RTL, visual regression | Depend on `apps/web`, not yet scaffolded.                                                                                                                                                                                                                                                                                                                                                  |
+| Backup/restore rehearsal          | Requires a deployed environment.                                                                                                                                                                                                                                                                                                                                                           |
 
 No check above is claimed as passing.
 

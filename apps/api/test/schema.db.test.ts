@@ -34,42 +34,44 @@ interface ColumnRow extends RowDataPacket {
 let columnsByTable: Map<string, Map<string, ColumnRow>>;
 
 /**
- * Reduce a Drizzle SQL type and a MySQL `COLUMN_TYPE` to a comparable form.
+ * Reduce a Drizzle SQL type and a MySQL/MariaDB `COLUMN_TYPE` to a comparable form.
  *
  * The equivalences below are real engine facts, each one deliberate rather than a way to
  * make a comparison pass:
  *
  * - Drizzle's `boolean()` emits `boolean`, which both MySQL and MariaDB store as
- *   `tinyint(1)`. There is no separate boolean type in either engine.
- * - `bigint unsigned` and MySQL's `bigint(20) unsigned` differ only by the display width,
- *   which MySQL 8.0.19 deprecated and MariaDB still reports.
+ *   `tinyint(1)`. There is no separate boolean type in either engine. The `(1)` is kept,
+ *   because for `tinyint` the width is how both engines spell a boolean rather than noise.
+ * - `bigint unsigned` and `bigint(20) unsigned` differ only by the display width, which
+ *   MySQL 8.0.19 deprecated and stopped reporting and MariaDB 11.4 still reports. The same
+ *   holds for `int(10)`, `mediumint(8)` and `smallint(5)`.
  * - MariaDB implements `json` as `longtext` with an automatic `CHECK (json_valid(...))`
  *   constraint, so `COLUMN_TYPE` reads `longtext` there and `json` on MySQL. Both accept
- *   and validate JSON; the difference is how the engine spells it.
+ *   and validate JSON; the difference is how the engine spells it. Verified against
+ *   MariaDB 11.4.5 on 2026-08-25: the only `longtext` columns in this schema are
+ *   `audit_events.metadata_json`, `idempotency_records.response_json` and
+ *   `outbox_events.payload_json`, all of them genuine JSON columns.
+ *
+ * This function had never run against MariaDB before 2026-08-25, and the width branch was
+ * wrong: it dropped the space as well as the width, turning `bigint(20) unsigned` into
+ * `bigintunsigned`, and it tested `startsWith('int')` so `smallint` and `mediumint` were
+ * missed entirely. MySQL never reports a display width, so the branch had never executed.
  */
 function normaliseType(type: string): string {
-  return type
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/^boolean$/, 'tinyint(1)')
-    .replace(/^tinyint$/, 'tinyint(1)')
-    .replace(/\((\d+)\)( unsigned)?$/, (_match, width: string, unsigned = '') =>
-      type.toLowerCase().startsWith('bigint') || type.toLowerCase().startsWith('int')
-        ? `${unsigned}`.trim()
-        : `(${width})${unsigned}`,
-    )
-    .replace(/^longtext$/, 'json')
-    .trim();
+  const lowered = type.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (lowered === 'boolean' || lowered === 'tinyint') return 'tinyint(1)';
+  if (lowered === 'longtext') return 'json';
+  return lowered.replace(/^(bigint|mediumint|smallint|int)\(\d+\)/, '$1');
 }
 
 /** Types where the two engines and Drizzle genuinely agree once width noise is removed. */
 function typesAgree(drizzleType: string, columnType: string): boolean {
-  const a = normaliseType(drizzleType);
-  const b = normaliseType(columnType);
-  if (a === b) return true;
-  // `int unsigned` vs `int(10) unsigned`, `bigint unsigned` vs `bigint(20) unsigned`.
-  const strip = (value: string) => value.replace(/\(\d+\)/, '');
-  return strip(a) === strip(b);
+  // No width-stripping fallback. An earlier revision compared the two forms again with
+  // every `(N)` removed, which made `smallint(5) unsigned` agree with `smallint unsigned`
+  // — but by the same rule it made `varchar(255)` agree with `varchar(64)`, so a column
+  // widened or narrowed by a migration would have passed silently. `normaliseType` now
+  // handles the widths that are genuinely noise, so the comparison can be exact.
+  return normaliseType(drizzleType) === normaliseType(columnType);
 }
 
 beforeAll(async () => {
