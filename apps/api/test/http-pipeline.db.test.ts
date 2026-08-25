@@ -139,11 +139,15 @@ async function signIn(userId: string): Promise<SignedIn> {
   };
 }
 
-function get(url: string, session?: SignedIn): Promise<InjectedResponse> {
+function get(
+  url: string,
+  session?: SignedIn,
+  extraHeaders: Record<string, string> = {},
+): Promise<InjectedResponse> {
   return app.inject({
     method: 'GET',
     url,
-    ...(session ? { headers: { cookie: session.cookie } } : {}),
+    headers: { ...(session ? { cookie: session.cookie } : {}), ...extraHeaders },
   }) as unknown as Promise<InjectedResponse>;
 }
 
@@ -310,6 +314,37 @@ describe('steps 2 and 3 — the organization is a claim, not a fact', () => {
     expect(rows[0]?.['name']).toBe(world.northstar.projectName);
   });
 
+  it('ignores a caller-supplied organization header', async () => {
+    const session = await signIn(world.northstar.owner.id);
+
+    // §2: the tenant comes from the membership row the API resolved, and from nothing the
+    // caller sent. Headers are the classic place that rule is lost — a "tenant id" header
+    // added for a proxy, a job runner, or a debugging convenience, then read one line too
+    // early. There is no such header in this application, and this case is what keeps it that
+    // way: it sends every plausible spelling, naming another tenant the caller genuinely
+    // cannot reach, and asserts the response is unchanged.
+    const headers = {
+      'x-organization-id': world.brightops.organizationId,
+      'x-org-id': world.brightops.organizationId,
+      'x-tenant-id': world.brightops.organizationId,
+      'x-organization-slug': 'brightops-consulting',
+    };
+
+    const withHeaders = await get('/v1/organizations/northstar-studio/projects', session, headers);
+    const without = await get('/v1/organizations/northstar-studio/projects', session);
+
+    expect(withHeaders.statusCode).toBe(200);
+    const ids = withHeaders
+      .json<{ projects: readonly { id: string }[] }>()
+      .projects.map((p) => p.id);
+    expect(ids).toContain(world.northstar.projectId);
+    expect(ids).not.toContain(world.brightops.projectId);
+
+    // Byte-identical, not merely both-200: a header that shifted the tenant would most likely
+    // show up as a different row set rather than a different status.
+    expect(withHeaders.body).toBe(without.body);
+  });
+
   it('refuses a suspended internal membership', async () => {
     const session = await signIn(world.northstar.designer.id);
     expect((await get('/v1/organizations/northstar-studio/projects', session)).statusCode).toBe(
@@ -328,8 +363,14 @@ describe('steps 2 and 3 — the organization is a claim, not a fact', () => {
 
   it('refuses an expired client membership', async () => {
     const session = await signIn(world.atlas.reviewer.id);
+
+    // 403, not 200, and the distinction is the point of this case. While the client membership
+    // is live it *resolves*, so step 3 admits the request and the refusal comes from step 5:
+    // `12-PERMISSION-MATRIX` gives Client Reviewer "View internal project: Never", so
+    // `work.read` is outside that role's ceiling and this internal endpoint is closed to it.
+    // Reaching the capability guard at all is the evidence that the membership resolved.
     expect((await get('/v1/organizations/northstar-studio/projects', session)).statusCode).toBe(
-      200,
+      403,
     );
 
     await db.admin.query(
@@ -337,6 +378,10 @@ describe('steps 2 and 3 — the organization is a claim, not a fact', () => {
       [world.atlas.reviewer.membershipId],
     );
 
+    // Now the membership no longer resolves, so the refusal moves one step earlier and changes
+    // shape: 404 from `TenantContextGuard`, indistinguishable from an organization that does
+    // not exist. The 403 → 404 transition is what proves expiry is enforced at step 3 rather
+    // than being masked by the capability denial that follows it.
     expect((await get('/v1/organizations/northstar-studio/projects', session)).statusCode).toBe(
       404,
     );
@@ -367,16 +412,25 @@ describe('steps 4 and 5 — principal and capability', () => {
     expect(ids).toContain(world.northstar.otherProjectId);
   });
 
-  it('scopes a client principal to their own client organization projects', async () => {
+  it('closes the internal projects endpoint to a client principal entirely', async () => {
     const session = await signIn(world.atlas.reviewer.id);
-    const ids = (await get('/v1/organizations/northstar-studio/projects', session))
-      .json<{ projects: readonly { id: string }[] }>()
-      .projects.map((p) => p.id);
+    const response = await get('/v1/organizations/northstar-studio/projects', session);
 
-    // Meridian is a different client of the *same* studio. This is the boundary
-    // `04-SECURITY-PRIVACY` §5 is most emphatic about, and neither the twin nor BrightOps can
-    // test it, because both are separate tenants entirely.
-    expect(ids).not.toContain(world.meridian.projectId);
+    // This endpoint is the *internal* project list. `12-PERMISSION-MATRIX` §2 gives every
+    // client role "View internal project: Never", so the correct answer is a refusal, not a
+    // filtered list — the strongest possible form of the scoping rule, since nothing is
+    // returned to be scoped. `work.read` is simply not in the Client Reviewer ceiling and
+    // `CapabilityGuard` stops the request before any repository runs.
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: { code: 'forbidden' } });
+
+    // The complementary assertion — that a client sees their *own* client organization's work
+    // and not a sibling client's (Meridian is a different client of the same studio, the
+    // boundary `04-SECURITY-PRIVACY` §5 is most emphatic about) — belongs on a Client Portal
+    // endpoint, which serves the client projection rather than the internal record. No such
+    // endpoint exists yet; it arrives with CLIENT-001, and this case must not be satisfied by
+    // granting a client role a capability the matrix withholds.
+    expect(response.body).not.toContain(world.meridian.projectId);
   });
 
   it('refuses a client reviewer the capability to create a project', async () => {
