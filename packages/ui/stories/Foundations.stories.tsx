@@ -1,0 +1,226 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Button } from '../src/components/Button.js';
+import { Field } from '../src/components/Field.js';
+import { StateCapsule } from '../src/components/StateCapsule.js';
+import { contrastRatio } from '../src/a11y/contrast.js';
+import { colorLight, density, orb, radius, space, typeScale } from '../src/tokens/tokens.js';
+
+/**
+ * The foundations page: the palette, the type scale, the geometry, and the densities, all
+ * rendered from the token module rather than typed out again. If a value here looks wrong,
+ * the design export is what changed — nothing on this page is hand-written.
+ */
+const meta = {
+  title: '01 Foundations/Tokens',
+  component: Button,
+  // Every story on this page renders its own composition; the args satisfy the component
+  // type rather than driving anything.
+  args: { children: 'Post update' },
+} satisfies Meta<typeof Button>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const PAPER = colorLight.paper['0'];
+
+function Swatch({ name, value, on }: { name: string; value: string; on?: string }) {
+  const ratio = contrastRatio(on ?? colorLight.ink['950'], value);
+
+  return (
+    <div style={{ display: 'grid', gap: 'var(--s1)' }}>
+      <div
+        style={{
+          background: value,
+          color: on ?? colorLight.ink['950'],
+          border: '1px solid var(--line-300)',
+          borderRadius: 'var(--r-micro)',
+          padding: 'var(--s4)',
+          font: '500 13px/18px var(--font-latin)',
+        }}
+      >
+        Aa
+      </div>
+      <div style={{ font: '500 12px/17px var(--font-latin)', color: 'var(--ink-800)' }}>{name}</div>
+      <div style={{ font: '400 12px/17px var(--font-mono)', color: 'var(--ink-650)' }}>
+        {value} · {ratio.toFixed(2)}:1
+      </div>
+    </div>
+  );
+}
+
+const grid = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+  gap: 'var(--s4)',
+} as const;
+
+export const Palette: Story = {
+  render: () => (
+    <div style={{ display: 'grid', gap: 'var(--s8)' }}>
+      <section>
+        <h2>Ink and paper</h2>
+        <div style={grid}>
+          {Object.entries(colorLight.ink).map(([step, value]) => (
+            <Swatch key={step} name={`ink.${step}`} value={value} on={PAPER} />
+          ))}
+          {Object.entries(colorLight.paper).map(([step, value]) => (
+            <Swatch key={step} name={`paper.${step}`} value={value} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2>Lime — current, next, live. Never success.</h2>
+        <div style={grid}>
+          {Object.entries(colorLight.lime).map(([step, value]) => (
+            <Swatch key={step} name={`lime.${step}`} value={value} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2>Semantic</h2>
+        <p style={{ maxWidth: 'var(--reading)', font: '400 15px/22px var(--font-latin)' }}>
+          The ratio under each swatch is measured against absolute ink. Success, warning and danger
+          are used as borders and glyphs rather than as text on paper, because as text they are
+          4.31:1, 3.64:1 and 4.23:1 — all below AA.
+        </p>
+        <div style={grid}>
+          <Swatch name="client.500" value={colorLight.client['500']} on={PAPER} />
+          <Swatch name="success.600" value={colorLight.success['600']} on={PAPER} />
+          <Swatch name="warning.600" value={colorLight.warning['600']} on={PAPER} />
+          <Swatch name="danger.600" value={colorLight.danger['600']} />
+        </div>
+      </section>
+    </div>
+  ),
+};
+
+export const TypeScale: Story = {
+  render: () => (
+    <div style={{ display: 'grid', gap: 'var(--s5)' }}>
+      {Object.entries(typeScale).map(([name, role]) => (
+        <div key={name}>
+          <div style={{ font: '400 12px/17px var(--font-mono)', color: 'var(--ink-650)' }}>
+            {name} · {role.size}/{role.line} · {role.weight}
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--font-latin)',
+              fontSize: `${role.size}px`,
+              lineHeight: `${role.line}px`,
+              fontWeight: role.weight,
+              color: 'var(--ink-800)',
+            }}
+          >
+            Homepage direction
+          </div>
+        </div>
+      ))}
+    </div>
+  ),
+};
+
+export const Geometry: Story = {
+  render: () => (
+    <div style={{ display: 'grid', gap: 'var(--s8)' }}>
+      <section>
+        <h2>Space</h2>
+        <div style={{ display: 'flex', gap: 'var(--s3)', alignItems: 'flex-end' }}>
+          {Object.entries(space).map(([step, value]) => (
+            <div key={step} style={{ display: 'grid', gap: 'var(--s1)', justifyItems: 'center' }}>
+              <div style={{ width: value, height: value, background: 'var(--ink-950)' }} />
+              <span style={{ font: '400 12px/17px var(--font-mono)' }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2>Radius</h2>
+        <div style={{ display: 'flex', gap: 'var(--s4)', flexWrap: 'wrap' }}>
+          {Object.entries(radius).map(([name, value]) => (
+            <div key={name} style={{ display: 'grid', gap: 'var(--s1)', justifyItems: 'center' }}>
+              <div
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: value,
+                  border: '1.5px solid var(--line-700)',
+                }}
+              />
+              <span style={{ font: '400 12px/17px var(--font-mono)' }}>
+                {name} {value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2>Orbs</h2>
+        <div style={{ display: 'flex', gap: 'var(--s4)', alignItems: 'center' }}>
+          {Object.entries(orb).map(([name, value]) => (
+            <div key={name} style={{ display: 'grid', gap: 'var(--s1)', justifyItems: 'center' }}>
+              <div
+                style={{
+                  width: value,
+                  height: value,
+                  borderRadius: 'var(--r-capsule)',
+                  background: 'var(--ink-950)',
+                }}
+              />
+              <span style={{ font: '400 12px/17px var(--font-mono)' }}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  ),
+};
+
+/**
+ * The same three controls at each composition density. Editorial is screen-defined;
+ * balanced and operational are the user's choice on desktop.
+ */
+export const Densities: Story = {
+  render: () => (
+    <div style={{ display: 'grid', gap: 'var(--s8)' }}>
+      {(Object.keys(density) as Array<keyof typeof density>).map((name) => (
+        <section key={name} data-density={name}>
+          <h2>
+            {name} · row {density[name].row} · control {density[name].control}
+          </h2>
+          <div
+            style={{ display: 'flex', gap: 'var(--s3)', alignItems: 'center', flexWrap: 'wrap' }}
+          >
+            <Button tone="ink">Post update</Button>
+            <Button tone="outline">Cancel</Button>
+            <StateCapsule state="current">In progress</StateCapsule>
+            <div style={{ minWidth: 240 }}>
+              <Field label="Work item title" />
+            </div>
+          </div>
+        </section>
+      ))}
+    </div>
+  ),
+};
+
+/**
+ * Focus is 2px ink plus a 3px lime halo, and it is the same appearance on every control in
+ * the system. Tab through this story — nothing should ever be focused invisibly.
+ */
+export const Focus: Story = {
+  render: () => (
+    <div style={{ display: 'flex', gap: 'var(--s4)', alignItems: 'center', flexWrap: 'wrap' }}>
+      <Button tone="ink">Ink</Button>
+      <Button tone="lime">Lime</Button>
+      <Button tone="outline">Outline</Button>
+      <Button tone="destructive">Delete</Button>
+      <div style={{ minWidth: 240 }}>
+        <Field label="Work item title" />
+      </div>
+    </div>
+  ),
+};
