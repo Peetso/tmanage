@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-08-24 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-08-25 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,10 +26,16 @@ change what a command does rather than merely how it is typed.
 
 ---
 
-## Planning-pack reconciliation — re-verified 2026-08-24, start of the HTTP-surface session
+## Planning-pack reconciliation — re-verified 2026-08-25, start of the least-privilege session
 
 Run before a line of code was written, for the reason the re-baseline notice below gives.
-This is the **fourth** consecutive run with the same result.
+This is the **sixth** consecutive run with the same result, and the table below is that
+run's output, not a copy of the previous one.
+
+Also confirmed on 2026-08-25: the only pack content not copied into the repository is the
+design-handoff `.zip` (extracted into `docs/design/source/`), `TManage-Product-System-Master-Plan.docx`,
+and Claude Code's own tooling for the pack folder. Nothing under `docs/planning/` or
+`docs/design/source/` was written to this session.
 
 | Scope                                     | Result                                                                                                                                                                                                                                                                                                                        |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -123,7 +129,119 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
-## Verification actually run
+## Verification actually run — 2026-08-25, the least-privilege session
+
+This session did one thing the previous six could not: it ran **ADR-0001 layer 2** against a
+real server. `scripts/db/users.sql` had been written, reviewed, statically asserted and
+never executed anywhere. It has now been executed, and the twenty cases that guard it **ran**
+rather than skipping.
+
+No container was involved and none is claimed. The server was a **single long-lived embedded
+MySQL 8.0.45** — the same binary `mysql-memory-server` already downloads for the per-file
+path (ADR-0002), started once outside the per-file lifecycle so that one database could be
+migrated, granted, and then shared by every suite. That is the configuration
+`TMANAGE_TEST_DATABASE_URL` was designed for; it had simply never been pointed at anything
+except a container this machine does not have.
+
+### The sequence, exactly as run
+
+| Step | Command                                                                                                   | Result                                     |
+| ---- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 1    | long-lived embedded server, `dbName: 'tmanage'`                                                           | up on `127.0.0.1:29579`                    |
+| 2    | `DATABASE_MIGRATION_URL=mysql://root@127.0.0.1:29579/tmanage pnpm db:migrate`                             | **applied 3 migrations, 31 statements**    |
+| 3    | `DATABASE_MIGRATION_URL=<root url> pnpm db:grants`                                                        | **applied 26 statements from `users.sql`** |
+| 4    | `pnpm --filter @tmanage/api test:db` with `TMANAGE_TEST_DATABASE_URL` and `TMANAGE_TEST_APP_DATABASE_URL` | **10 files, 321 passed, 0 skipped**        |
+| 5    | server stopped, then `Get-Process mysqld`                                                                 | **no `mysqld` running** — no stray left    |
+
+The database cannot be named `tmanage_test`: every grant in `scripts/db/users.sql` names
+`tmanage` literally, so the credential exists only on a database of that name. Step 3 must
+follow step 2 because every grant is table-level, and MySQL rejects a table-level `GRANT`
+naming a table that does not exist.
+
+The run reported its own provenance, repeated here rather than paraphrased:
+`engine=mysql 8.0.45 · server=external (TMANAGE_TEST_DATABASE_URL) · runtime credential=tmanage_app (least privilege)`.
+
+### What that closes, and what it does not
+
+**Closed — three things that had never been observed:**
+
+1. `scripts/db/users.sql` executes against a real server. All 26 statements applied.
+2. The grants are the ones the file claims. `SHOW GRANTS FOR 'tmanage_app'@'%'` returns
+   `USAGE` globally, `SELECT` on the `tmanage` database, `INSERT/UPDATE/DELETE` on the
+   thirteen named tables, `INSERT` alone on `audit_events` and `session_refresh_tokens`, and
+   **nothing at all on `schema_migrations`** — which is therefore readable through the
+   database-wide `SELECT` and writable by no one but the migrator.
+3. ADR-0001 layer 2 is proven dynamically rather than only statically. The runtime
+   credential was measured, not asserted.
+
+**Not closed:** the engine is still MySQL. MariaDB remains untested, the MySQL-vs-MariaDB
+skew is still deferred to CI, and CI has still never run. Nothing here was containerised.
+
+### Four defects the first real run found
+
+A suite that skips proves nothing, and this one had been skipping since it was written.
+Running it found four faults — three in the suite, one in a log line — and none of them
+could have surfaced any other way.
+
+| #   | Defect                                                                                                                                                 | Why it stayed invisible                                                                                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Seeded without truncating first, so `seedTwoTenants`' fixed slugs collided with `uq_organizations_slug`                                                | On the per-file embedded server every file gets an empty database of its own. Every sibling suite truncates; this one never had to                                   |
+| 2   | The migration-ledger case named columns that do not exist — `filename` and `state`, where the table has `version`, `name`, `status`                    | **The assertion could not have proved what it claimed in any environment.** The `INSERT` would have been rejected for naming an unknown column, not for privilege    |
+| 3   | The `CREATE TRIGGER` case required `ER_TABLEACCESS_DENIED_ERROR`, but with binary logging on MySQL reports `ER_BINLOG_CREATE_ROUTINE_NEED_SUPER` first | `log_bin = 1` is the MySQL 8 default. Both codes are the privilege system refusing and neither is the append-only trigger, which is the distinction the file keeps   |
+| 4   | The session-state case read a bare connection's inherited `sql_mode` and required `STRICT_ALL_TABLES` to be set already                                | It held only because `compose.yaml` launches its MariaDB with `--sql-mode=STRICT_ALL_TABLES,...`. It asserted a server's start-up flags in a file about a credential |
+
+Defect 4 matters beyond this run. **Hostinger's shared MySQL cannot be given server start-up
+flags**, and 50-BOOTSTRAP targets exactly that environment. The case now asserts what the
+credential actually owns — that `tmanage_app` can _establish_ the session state itself,
+which is what `createTenantPool` does on every connection it hands out — and a second case
+covers the guarded pool, the path the application really uses. That is strictly stronger:
+the old assertion passed whether or not the runtime user held the privilege to set anything.
+
+**No assertion was weakened.** Cases 3 and 4 accept a wider range of servers and a narrower
+range of behaviour.
+
+### One false claim removed
+
+The isolation corpus printed `server=containerised (compose.yaml)` for **any** external URL,
+including this run, which used no container. `external` means only that
+`TMANAGE_TEST_DATABASE_URL` was supplied. The label now reads
+`external (TMANAGE_TEST_DATABASE_URL)`, and the engine and version printed beside it are
+what distinguish CI's MariaDB from a local MySQL. The CI assertions that _require_ MariaDB,
+an external server and the least-privilege credential are unchanged.
+
+Separately, the non-CI branch of `guards CI against a silent skip` logged
+`skipped — no TMANAGE_TEST_APP_DATABASE_URL` unconditionally. The first local run that did
+supply the credential therefore printed "skipped" beside twenty cases that had in fact
+executed. It now reports which of the two actually happened.
+
+### The full chain, re-run afterwards on the default path
+
+`pnpm format` was run and its reformatting committed **before** these numbers were taken.
+
+| Check          | Command             | Result                                                | Ran against                                     |
+| -------------- | ------------------- | ----------------------------------------------------- | ----------------------------------------------- |
+| Format         | `pnpm format:check` | **exit 0**                                            | prettier 3.6                                    |
+| Typecheck      | `pnpm typecheck`    | **exit 0**                                            | tsc 5.9                                         |
+| Lint           | `pnpm lint`         | **exit 0** — 0 errors, 0 warnings                     | eslint 9                                        |
+| Unit tests     | `pnpm test`         | **211 passed, 10 files, exit 0**                      | node 22.22                                      |
+| Database tests | `pnpm test:db`      | **300 passed, 21 skipped, 10 files, exit 0** (~396 s) | **real MySQL 8.0.45** via `mysql-memory-server` |
+| Design audit   | `pnpm audit:design` | **exit 0** — 172/172 screen IDs across 29 artifacts   | `docs/design/source/`                           |
+| Format (again) | `pnpm format:check` | **exit 0**                                            | after `audit:design` rewrote its output         |
+
+The skip count on the default path is **21, not the previous session's 20**, because the
+least-privilege file gained a case. On that path the credential does not exist, so those
+cases skip; on the long-lived-server path in the table above every one of them ran and the
+total was **321 passed, 0 skipped**. Both numbers are real and they do not conflict — they
+are the same suite under two configurations.
+
+---
+
+## Verification actually run — 2026-08-24, the HTTP-surface and PROJ-001 session
+
+Kept as the record of that session. Where it says the least-privilege credential "only
+exists once `scripts/db/users.sql` has been applied to the containerised MariaDB", that was
+the belief at the time and it was wrong: a long-lived embedded server does just as well, as
+the 2026-08-25 section above now shows.
 
 Every gate below was executed on **2026-08-24** in the order the task specified, on this
 machine, against the drivers named in the last column. Prettier reformatted this session's
@@ -308,16 +426,16 @@ prevent.
 
 ### Not yet run — and why
 
-| Check                             | Status                                                                                                                                                                                                        |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **The CI workflow itself**        | **Never executed.** `.github/workflows/ci.yml` is written and its YAML parses, but there is no runner here and GitHub Actions has not run it. Everything in the next section marked _pending CI_ rests on it. |
-| `scripts/db/users.sql`            | **Still never executed against a server.** Two defects in it were found by reading and by static assertion, not by running it. ADR-0001 layer 2 is proven statically and remains unproven dynamically.        |
-| MariaDB engine                    | Local is **MySQL 8.0.45**. The MySQL-vs-MariaDB gap is unchanged: the workflow that closes it exists, but has not run.                                                                                        |
-| `compose.yaml`                    | **Still unstarted.** No container runtime on this machine. The removed init-mount is a reasoned correction, not an observed failure.                                                                          |
-| gitleaks / `pnpm audit`           | **Both now executed locally on 2026-08-25 — see below.** Neither needed Docker or a runner.                                                                                                                   |
-| OpenAPI / event-schema validation | `packages/contracts` not yet scaffolded.                                                                                                                                                                      |
-| E2E, a11y, RTL, visual regression | Depend on `apps/web`, not yet scaffolded.                                                                                                                                                                     |
-| Backup/restore rehearsal          | Requires a deployed environment.                                                                                                                                                                              |
+| Check                             | Status                                                                                                                                                                                                                                               |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The CI workflow itself**        | **Never executed.** `.github/workflows/ci.yml` is written and its YAML parses, but there is no runner here and GitHub Actions has not run it. Everything in the next section marked _pending CI_ rests on it.                                        |
+| `scripts/db/users.sql`            | **Executed 2026-08-25 against a real MySQL 8.0.45.** All 26 statements applied, `SHOW GRANTS` matches the file, and the 20 least-privilege cases ran rather than skipping. ADR-0001 layer 2 is now proven dynamically on MySQL — **not** on MariaDB. |
+| MariaDB engine                    | Local is **MySQL 8.0.45**. The MySQL-vs-MariaDB gap is unchanged: the workflow that closes it exists, but has not run.                                                                                                                               |
+| `compose.yaml`                    | **Still unstarted.** No container runtime on this machine. The removed init-mount is a reasoned correction, not an observed failure.                                                                                                                 |
+| gitleaks / `pnpm audit`           | **Both now executed locally on 2026-08-25 — see below.** Neither needed Docker or a runner.                                                                                                                                                          |
+| OpenAPI / event-schema validation | `packages/contracts` not yet scaffolded.                                                                                                                                                                                                             |
+| E2E, a11y, RTL, visual regression | Depend on `apps/web`, not yet scaffolded.                                                                                                                                                                                                            |
+| Backup/restore rehearsal          | Requires a deployed environment.                                                                                                                                                                                                                     |
 
 No check above is claimed as passing.
 
