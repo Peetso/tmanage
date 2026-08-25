@@ -2,6 +2,8 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 /**
  * Workspace lint rules.
@@ -83,6 +85,57 @@ export default tseslint.config(
               group: ['@tmanage/*'],
               message:
                 'packages/domain is the lowest layer and must not depend on other workspace packages.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // ── React surfaces: accessibility is a lint error, not a review note ────────
+  //
+  // 40-DESIGN-SYSTEM §10 sets WCAG 2.2 AA as the target and lists the rules that matter
+  // most here — every control has an accessible name, every interactive element is
+  // reachable from the keyboard, nothing relies on a mouse-only handler. `jsx-a11y`
+  // catches the static half of that at the point of writing; `tests/axe.ts` catches the
+  // rendered half. Neither is sufficient alone, and the four human-validation items (NVDA,
+  // VoiceOver, native Arabic RTL review, 200% zoom) are recorded as open in
+  // `docs/implementation-status.md` rather than implied by a green lint run.
+  {
+    files: ['packages/ui/**/*.{ts,tsx}', 'apps/web/**/*.{ts,tsx}'],
+    plugins: { 'jsx-a11y': jsxA11y, 'react-hooks': reactHooks },
+    languageOptions: {
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    rules: {
+      ...jsxA11y.flatConfigs.recommended.rules,
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
+  },
+
+  // ── Boundary: the design system knows nothing about the product ─────────────
+  //
+  // 18-REPOSITORY-STRUCTURE puts `ui` beside `contracts` and `domain` rather than above
+  // them. A primitive that imports a work-item type is no longer a primitive: it cannot be
+  // reused by the client portal, it cannot be rendered in isolation, and it drags the API
+  // surface into every consumer.
+  {
+    files: ['packages/ui/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@tmanage/*', '**/apps/**'],
+              message:
+                'packages/ui is a design system: tokens, primitives and styles only. It does not import product code, contracts, or domain types (18-REPOSITORY-STRUCTURE).',
+            },
+            {
+              group: ['next', 'next/*', 'mysql2', 'drizzle-orm', 'drizzle-orm/*', '@nestjs/*'],
+              message:
+                'The design system is framework-agnostic React. A Next.js or server import here would make every consumer inherit it.',
             },
           ],
         },

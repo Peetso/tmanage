@@ -1,0 +1,588 @@
+/*
+ * Primitive component layer.
+ *
+ * Plain class names, no bundler plugin, no CSS-in-JS: the package is consumed by a
+ * Next.js app that imports one stylesheet, and by the test harness, which needs the class
+ * names to be stable strings rather than hashed at build time.
+ *
+ * Every rule here uses logical properties (`inset-inline`, `padding-inline`,
+ * `margin-inline`) rather than left/right. 42-INTERACTION-MOTION-RESPONSIVE-AND-RTL
+ * requires Arabic RTL for the whole interface, and a physical `padding-left` is how an
+ * RTL layout silently develops a limp.
+ */
+
+:root {
+  /*
+   * `--ink-950` inverts with the theme — in dark it is #F5F6F0 — so a surface painted with
+   * a colour that does *not* invert cannot use the themed token and stay legible. This is
+   * the absolute value. It is a consequence of the laws below rather than a design token,
+   * which is why it lives in the component layer and not in `tokens.css`.
+   */
+  --tm-ink-absolute: #090a09;
+
+  /*
+   * Law 1 of the token export: "Text on --lime-500 is always --ink-950. White on lime is
+   * prohibited (1.5:1)." Measured: ink on lime is 16.48:1 light, 14.10:1 dark; white on
+   * lime is 1.20:1. `tests/contrast.test.ts` asserts all three.
+   */
+  --tm-on-lime: var(--tm-ink-absolute);
+
+  /*
+   * The three semantic colours are used as *text* by the design artifacts — a danger
+   * capsule draws `border:1px #D9474F; color:#D9474F` on paper. Measured against
+   * `--paper-0`, those pairings are 4.23:1 (danger), 4.31:1 (success) and 3.64:1
+   * (warning): all three are below the 4.5:1 that 40-DESIGN-SYSTEM §10 sets as the AA
+   * target for body-sized text.
+   *
+   * So the component layer keeps the colour where it is legible — the border and the
+   * glyph, which are non-text and need 3:1 — and sets the word itself in ink. The state is
+   * still carried by a colour, a shape and a word, which is law 3; it is simply the shape
+   * and not the word that is tinted. Widening the palette instead would mean editing the
+   * design export, which is immutable.
+   */
+  --tm-on-tone: var(--ink-800);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────────── */
+
+.tm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-block-size: var(--tm-control-h, var(--control));
+  padding-inline: var(--s5);
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-capsule);
+  font-family: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--t-micro) var(--ease),
+    color var(--t-micro) var(--ease),
+    border-color var(--t-micro) var(--ease);
+}
+
+.tm-button--compact {
+  --tm-control-h: 36px;
+  padding-inline: var(--s4);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-button--default {
+  --tm-control-h: 40px;
+}
+
+/* 40-DESIGN-SYSTEM §10: 44px is the accessible primary target on mobile. */
+.tm-button--accessible {
+  --tm-control-h: 44px;
+}
+
+.tm-button--feature {
+  --tm-control-h: 48px;
+  padding-inline: var(--s6);
+  font-size: var(--t-body-md);
+}
+
+.tm-button--ink {
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-button--ink:hover:not(:disabled) {
+  background: var(--ink-800);
+}
+
+.tm-button--lime {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-button--lime:hover:not(:disabled),
+.tm-button--lime:active:not(:disabled) {
+  background: var(--lime-600);
+}
+
+.tm-button--outline {
+  background: transparent;
+  color: var(--ink-800);
+  border-color: var(--line-300);
+  border-width: var(--b-structural);
+}
+
+.tm-button--outline:hover:not(:disabled) {
+  border-color: var(--line-700);
+}
+
+.tm-button--text {
+  background: transparent;
+  color: var(--ink-800);
+  padding-inline: var(--s2);
+}
+
+.tm-button--text:hover:not(:disabled) {
+  color: var(--ink-950);
+  text-decoration: underline;
+}
+
+/*
+ * Ink rather than paper on the danger fill: white on `--danger-600` is 4.23:1 and fails
+ * AA, ink is 4.69:1 and passes. The destructive action is the last control in the system
+ * that should be hard to read.
+ */
+.tm-button--destructive {
+  background: var(--danger-600);
+  color: var(--tm-ink-absolute);
+}
+
+.tm-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * Loading is a state, not a spinner. The button keeps its box, the label is replaced by a
+ * busy label, and `aria-busy` carries it to a screen reader — the component decides that;
+ * this rule only stops the pointer.
+ */
+.tm-button[aria-busy='true'] {
+  cursor: progress;
+}
+
+/* ── OrbButton ────────────────────────────────────────────────────────────────── */
+
+.tm-orb-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--tm-orb, var(--orb-default));
+  block-size: var(--tm-orb, var(--orb-default));
+  padding: 0;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  cursor: pointer;
+  transition:
+    background-color var(--t-micro) var(--ease),
+    border-color var(--t-micro) var(--ease);
+}
+
+.tm-orb-button--compact {
+  --tm-orb: var(--orb-compact);
+}
+
+.tm-orb-button--default {
+  --tm-orb: var(--orb-default);
+}
+
+.tm-orb-button--comfortable {
+  --tm-orb: var(--orb-comfortable);
+}
+
+.tm-orb-button--navigation {
+  --tm-orb: var(--orb-navigation);
+}
+
+.tm-orb-button--feature {
+  --tm-orb: var(--orb-feature);
+}
+
+.tm-orb-button--hero {
+  --tm-orb: var(--orb-hero);
+}
+
+.tm-orb-button--ink {
+  background: var(--ink-950);
+  color: var(--paper-0);
+}
+
+.tm-orb-button--lime {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-orb-button--outline {
+  background: transparent;
+  border-color: var(--line-300);
+  border-width: var(--b-structural);
+}
+
+.tm-orb-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── SplitCapsuleButton ───────────────────────────────────────────────────────── */
+
+/*
+ * Two independent actions inside one capsule (Home "New work", Project "Post update").
+ * They are two buttons rather than one button with a hidden trigger, because a keyboard
+ * user has to reach the secondary action without invoking the primary one.
+ */
+.tm-split-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+}
+
+/* ── Field ────────────────────────────────────────────────────────────────────── */
+
+.tm-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-field__label {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-field__required {
+  color: var(--danger-600);
+  margin-inline-start: var(--s1);
+}
+
+.tm-field__control {
+  min-block-size: var(--control);
+  padding-inline: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-family: inherit;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.tm-field__control::placeholder {
+  color: var(--ink-500);
+}
+
+.tm-field__control[aria-invalid='true'] {
+  border-color: var(--danger-600);
+  border-width: var(--b-structural);
+}
+
+.tm-field__control:disabled {
+  background: var(--paper-50);
+  color: var(--ink-500);
+  cursor: not-allowed;
+}
+
+.tm-field__control[readonly] {
+  background: var(--paper-50);
+}
+
+.tm-field__hint {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+/*
+ * The error carries a glyph as well as the colour. Law 3: "Every state that uses colour
+ * also carries a word and a shape."
+ */
+.tm-field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--tm-on-tone);
+}
+
+.tm-field__error .tm-inline-alert__glyph {
+  color: var(--danger-600);
+}
+
+.tm-search-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tm-search-field__control {
+  padding-inline-start: var(--s10);
+  border-radius: var(--r-capsule);
+}
+
+.tm-search-field__glyph {
+  position: absolute;
+  inset-inline-start: var(--s4);
+  pointer-events: none;
+  color: var(--ink-500);
+}
+
+/* ── Avatar ───────────────────────────────────────────────────────────────────── */
+
+.tm-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--tm-orb, var(--orb-default));
+  block-size: var(--tm-orb, var(--orb-default));
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  overflow: hidden;
+}
+
+/*
+ * The client ring is the external-boundary signal from the semantic law ("Violet =
+ * external/client boundary"). It is never the only carrier: `Avatar` renders the audience
+ * word into the accessible name.
+ */
+.tm-avatar--client {
+  box-shadow: 0 0 0 var(--b-expressive) var(--client-500);
+}
+
+.tm-avatar--overflow {
+  background: var(--paper-150);
+  color: var(--ink-650);
+}
+
+.tm-avatar__image {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/* ── StatusDot, Badge, StateCapsule ───────────────────────────────────────────── */
+
+.tm-status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-status-dot__mark {
+  inline-size: var(--s2);
+  block-size: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--ink-500);
+  flex: none;
+}
+
+.tm-status-dot--live .tm-status-dot__mark {
+  background: var(--lime-500);
+  box-shadow: 0 0 0 var(--b-quiet) var(--ink-950);
+}
+
+.tm-status-dot--success .tm-status-dot__mark {
+  background: var(--success-600);
+}
+
+.tm-status-dot--warning .tm-status-dot__mark {
+  background: var(--warning-600);
+}
+
+.tm-status-dot--danger .tm-status-dot__mark {
+  background: var(--danger-600);
+}
+
+.tm-status-dot--client .tm-status-dot__mark {
+  background: var(--client-500);
+}
+
+.tm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-capsule);
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  color: var(--ink-800);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+.tm-badge--client {
+  border-color: var(--client-500);
+  color: var(--client-500);
+}
+
+.tm-badge--mono {
+  font-family: var(--font-mono);
+}
+
+/*
+ * StateCapsule always shows a glyph and a word. The state matrix lists `stale`,
+ * `invalidated`, `permission-limited` and `conflict` alongside the ordinary states, and
+ * none of them are distinguishable by colour alone at high contrast or for a colour-blind
+ * reader — so the glyph is not decoration, and the component refuses to render without a
+ * label.
+ */
+.tm-state-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-capsule);
+  border: var(--b-structural) solid var(--line-300);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-state-capsule__glyph {
+  font-family: var(--font-mono);
+  flex: none;
+}
+
+/* Lime marks the current/live state only — never success, never selection. */
+.tm-state-capsule--current {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+  border-color: var(--ink-950);
+}
+
+.tm-state-capsule--done {
+  border-color: var(--success-600);
+  color: var(--tm-on-tone);
+}
+
+.tm-state-capsule--done .tm-state-capsule__glyph {
+  color: var(--success-600);
+}
+
+.tm-state-capsule--blocked {
+  border-color: var(--danger-600);
+  color: var(--tm-on-tone);
+}
+
+.tm-state-capsule--blocked .tm-state-capsule__glyph {
+  color: var(--danger-600);
+}
+
+.tm-state-capsule--waiting {
+  border-color: var(--warning-600);
+  color: var(--tm-on-tone);
+}
+
+.tm-state-capsule--waiting .tm-state-capsule__glyph {
+  color: var(--warning-600);
+}
+
+/*
+ * Client violet is 5.37:1 on paper and is the one semantic colour that does hold as text,
+ * so the external-boundary capsule keeps its word tinted.
+ */
+.tm-state-capsule--client {
+  border-color: var(--client-500);
+  color: var(--client-500);
+}
+
+.tm-state-capsule--future {
+  border-style: dashed;
+  color: var(--ink-650);
+}
+
+.tm-state-capsule--archived {
+  background: var(--paper-150);
+  color: var(--ink-650);
+}
+
+/* ── InlineAlert ──────────────────────────────────────────────────────────────── */
+
+.tm-inline-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r-compact);
+  border: var(--b-structural) solid var(--line-300);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.tm-inline-alert__glyph {
+  font-family: var(--font-mono);
+  flex: none;
+}
+
+.tm-inline-alert__title {
+  font-weight: 600;
+}
+
+.tm-inline-alert--success {
+  border-color: var(--success-600);
+}
+
+.tm-inline-alert--warning {
+  border-color: var(--warning-600);
+}
+
+.tm-inline-alert--danger {
+  border-color: var(--danger-600);
+}
+
+.tm-inline-alert--client {
+  border-color: var(--client-500);
+}
+
+/* ── Skeleton ─────────────────────────────────────────────────────────────────── */
+
+.tm-skeleton {
+  display: block;
+  border-radius: var(--r-micro);
+  background: linear-gradient(
+    90deg,
+    var(--paper-150) 0%,
+    var(--paper-250) 50%,
+    var(--paper-150) 100%
+  );
+  background-size: 200% 100%;
+  animation: tm-skeleton-sweep 1200ms linear infinite;
+}
+
+@keyframes tm-skeleton-sweep {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/*
+ * Reduced motion is a hard stop, not a slower sweep. `tokens.css` zeroes the durations; an
+ * infinite animation has to be cancelled outright.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .tm-skeleton {
+    animation: none;
+  }
+
+  .tm-button,
+  .tm-orb-button,
+  .tm-skip-link {
+    transition: none;
+  }
+}

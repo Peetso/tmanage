@@ -1,0 +1,11 @@
+/*
+ * The single entry point an application imports:
+ *
+ *   import '@tmanage/ui/styles.css';
+ *
+ * Order matters. Tokens define the custom properties, base sets the document, components
+ * consume both.
+ */
+@import './tokens.css';
+@import './base.css';
+@import './components.css';

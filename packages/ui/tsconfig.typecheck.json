@@ -1,0 +1,26 @@
+{
+  // Typecheck covers `tests/` and `stories/` as well as `src/`, which the build config
+  // deliberately does not. A story or a test that no longer compiles against a component's
+  // props is the first evidence that the component's contract moved, and evidence that is
+  // never compiled is not evidence.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "stories/**/*.ts",
+    "stories/**/*.tsx",
+    "vitest.config.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

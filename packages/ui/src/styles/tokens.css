@@ -1,0 +1,186 @@
+/*
+ * Limeframe tokens.
+ *
+ * Every value in this file is taken from the design export at
+ * `docs/design/source/project/design/tokens/` — `tokens.css` for the themed custom
+ * properties, `tokens.json` for the scales the stylesheet does not declare (orb sizes,
+ * the type scale, density). That export is immutable source material: it is never edited
+ * from here, and `tests/tokens.drift.test.ts` fails if any value below stops agreeing
+ * with it. This file exists so the design system ships as a package rather than as a
+ * stylesheet that has to be copied by hand into every app.
+ *
+ * Three laws are carried in the comments at the foot of the export and are enforced by
+ * `components.css` and by the tests, not by convention:
+ *   1. Text on `--lime-500` is always `--ink-950`. White on lime is 1.5:1 and prohibited.
+ *   2. Lime never means success, warning, or selection-of-many. Only current / next / live.
+ *   3. Every state that uses colour also carries a word and a shape.
+ */
+
+:root {
+  /* ink */
+  --ink-950: #090a09;
+  --ink-800: #232521;
+  --ink-650: #4d5049;
+  --ink-500: #74786f;
+
+  /* paper */
+  --paper-0: #ffffff;
+  --paper-50: #f7f7f3;
+  --paper-150: #e9e9e5;
+  --paper-250: #d5d6d1;
+  --paper-350: #e4e4df;
+
+  /* line */
+  --line-700: #2c2e29;
+  --line-300: #c5c7c0;
+
+  /* lime — meaning: current / next / live only */
+  --lime-600: #9cea3f;
+  --lime-500: #b7ff57;
+  --lime-100: #e9ffd0;
+
+  /* semantic, deliberately small */
+  --client-500: #7755c7;
+  --success-600: #1d8a63;
+  --warning-600: #c96f18;
+  --danger-600: #d9474f;
+
+  /* type */
+  --font-latin: 'Manrope', system-ui, sans-serif;
+  --font-arabic: 'Alexandria', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+
+  /* type scale — tokens.json `type.scale`, desktop values */
+  --t-display-xl: 72px;
+  --t-display-xl-line: 76px;
+  --t-display-lg: 56px;
+  --t-display-lg-line: 62px;
+  --t-display-metric: 64px;
+  --t-display-metric-line: 64px;
+  --t-heading-page: 36px;
+  --t-heading-page-line: 42px;
+  --t-heading-section: 24px;
+  --t-heading-section-line: 31px;
+  --t-heading-card: 20px;
+  --t-heading-card-line: 27px;
+  --t-body-lg: 17px;
+  --t-body-lg-line: 25px;
+  --t-body-md: 15px;
+  --t-body-md-line: 22px;
+  --t-ui-md: 14px;
+  --t-ui-md-line: 20px;
+  --t-ui-sm: 13px;
+  --t-ui-sm-line: 18px;
+  --t-caption: 12px;
+  --t-caption-line: 17px;
+
+  /* geometry */
+  --r-micro: 10px;
+  --r-control: 14px;
+  --r-compact: 18px;
+  --r-card: 24px;
+  --r-sheet: 28px;
+  --r-feature: 32px;
+  --r-capsule: 999px;
+  --b-quiet: 1px;
+  --b-structural: 1.5px;
+  --b-expressive: 2px;
+  --focus-ring: 0 0 0 2px var(--ink-950), 0 0 0 5px var(--lime-500);
+
+  /* orb sizes — tokens.json `orb` */
+  --orb-compact: 32px;
+  --orb-default: 40px;
+  --orb-comfortable: 44px;
+  --orb-navigation: 48px;
+  --orb-feature: 56px;
+  --orb-hero: 64px;
+
+  /* space */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+  --s12: 48px;
+  --s16: 64px;
+  --s20: 80px;
+  --s24: 96px;
+
+  /* layout */
+  --rail: 88px;
+  --rail-compact: 72px;
+  --context-rail: 248px;
+  --context-rail-min: 200px;
+  --lens: 360px;
+  --reading: 680px;
+  --doc: 820px;
+
+  /* motion */
+  --t-micro: 140ms;
+  --t-selection: 180ms;
+  --t-panel: 240ms;
+  --t-track: 300ms;
+  --ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* density — tokens.json `density`; the default composition is balanced */
+  --row: 42px;
+  --control: 40px;
+  --surface-radius: var(--r-card);
+}
+
+[data-theme='dark'] {
+  --ink-950: #f5f6f0;
+  --ink-800: #f5f6f0;
+  --ink-650: #a7aca0;
+  --ink-500: #a7aca0;
+  --paper-0: #1b1d19;
+  --paper-50: #1b1d19;
+  --paper-150: #121311;
+  --paper-250: #242720;
+  --paper-350: #171814;
+  --line-700: #f5f6f0;
+  --line-300: #3a3e35;
+  --lime-500: #a9ed55;
+  --lime-600: #8fd23c;
+  --lime-100: #29351d;
+  --client-500: #a98ae5;
+  --warning-600: #e9a85c;
+  --danger-600: #ff7780;
+  --focus-ring: 0 0 0 2px #f5f6f0, 0 0 0 5px #a9ed55;
+}
+
+[data-contrast='high'] {
+  --line-300: var(--line-700);
+  --b-quiet: 1.5px;
+  --ink-650: var(--ink-800);
+}
+
+[data-density='editorial'] {
+  --row: 56px;
+  --control: 48px;
+  --surface-radius: var(--r-feature);
+}
+
+[data-density='balanced'] {
+  --row: 42px;
+  --control: 40px;
+  --surface-radius: var(--r-card);
+}
+
+[data-density='operational'] {
+  --row: 38px;
+  --control: 36px;
+  --surface-radius: var(--r-compact);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-micro: 0ms;
+    --t-selection: 0ms;
+    --t-panel: 0ms;
+    --t-track: 0ms;
+  }
+}
