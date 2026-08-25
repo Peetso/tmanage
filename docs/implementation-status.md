@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-08-25 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-08-26 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,24 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-08-26, start of the AUD-001 session
+
+Run before a line of code was written, for the reason the re-baseline notice below gives.
+This is the **eighth** consecutive run with the same result, and the table below is that
+run's output rather than a copy of the previous one.
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 extra                                                                                                                                                                                                                                  |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                                               |
+| Modification times                        | **No pack file is newer than its copy**, compared pair by pair rather than newest-against-newest                                                                                                                                                                                           |
+| Uncopied pack content                     | The same as every previous run, all deliberate: the design-handoff `.zip` (extracted into `docs/design/source/`), `TManage-Product-System-Master-Plan.docx`, and three Claude Code tooling files for the pack folder — `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                                               |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session.
 
 ---
 
@@ -129,6 +147,62 @@ once already.
 | Residual PostgreSQL references | 5, all deliberate contrast ("MySQL has no PostgreSQL-style RLS"). Zero `jsonb`, `gen_random_uuid`, or `citext`.                                                                                                                                                 |
 
 The MySQL revision is fully landed in `docs/planning/`.
+
+---
+
+## Verification actually run — 2026-08-26, the AUD-001 session
+
+The full chain, on the default local path (embedded MySQL 8.0.45, admin credential). Run
+**after** `pnpm format`, because Prettier reformats new files and recording a green
+`format:check` that only passed because it was never run against the new code would be a
+false claim.
+
+```
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db &&
+pnpm audit:design && pnpm format:check
+```
+
+| Gate                    | Result                                                   |
+| ----------------------- | -------------------------------------------------------- |
+| `format:check` (before) | clean                                                    |
+| `typecheck`             | clean — `packages/config`, `packages/domain`, `apps/api` |
+| `lint`                  | clean                                                    |
+| `test` (unit)           | **238 passed** — config 25, domain 102, api 111          |
+| `test:db`               | **324 passed, 21 skipped**, 11 files, 327.75 s           |
+| `audit:design`          | **172/172** screen IDs across 29 artifacts, 0 missing    |
+| `format:check` (after)  | clean                                                    |
+| Exit code               | **0**                                                    |
+
+Deltas against the 2026-08-25 run: unit 211 → 238 (+27), database 300 → 324 (+24). The 24
+new database cases are AUD-001's 23 plus one end-to-end assertion added to
+`http-pipeline.db.test.ts`. The 21 skips are the least-privilege cases, which skip on the
+default per-file path because it has no `tmanage_app` credential — they are **not** new, and
+they were run to 0 skips on 2026-08-25 against both engines.
+
+`Get-Process mysqld` after the run: **none**. The leak recorded in the toolchain table did not
+reproduce on this run; it is intermittent, so the check stays in the table.
+
+### The one failure this chain found, and what it was
+
+`http-pipeline.db.test.ts` failed first time on an assertion this session added, and the
+failure was in the **expectation**, not the code:
+
+```
+expected 'capability_not_in_role_ceiling' to be 'capability_is_internal_only'
+```
+
+`CapabilityGuard` makes two independent ceiling checks. The test used a `client_reviewer`
+attempting `project.create`, and that role does not hold the capability _at all_, so the first
+check refuses and the second is never reached. The expectation was corrected to the code that
+actually fires, with a comment saying why — asserting _which_ refusal happened is the point of
+the case, so relaxing it to "some audit code" would have removed the only thing it tests.
+
+### An earlier chain run was discarded rather than reported
+
+A first background run was started and then **stopped**, because source files were edited
+while it was in flight. Its result would have described a tree that never existed. It is
+recorded here rather than omitted: the numbers above come from a single clean run over the
+final tree.
 
 ---
 
@@ -1231,7 +1305,12 @@ would otherwise have to take on trust:
    than letting the column decide — so the defect is latent, not active, and a test asserts
    the created row is `backlog`. **Correcting the default is a migration**, which this task
    explicitly scoped out, so it is left here for a decision rather than changed quietly.
-2. **Removing a project membership is a real `DELETE`, and nothing records that it happened.**
+2. ~~**Removing a project membership is a real `DELETE`, and nothing records that it happened.**~~
+   **Closed by AUD-001 on 2026-08-26** — `ProjectMembershipsService.remove()` reads the row,
+   deletes it, and appends `project_membership.revoked` in the same transaction. The original
+   text is kept below, because it is the reasoning the fix had to satisfy.
+
+   **Removing a project membership is a real `DELETE`, and nothing records that it happened.**
    Everywhere else removal is a state, because audit events reference the row. A project
    membership is a _grant_, not a record of something that happened: nothing references it,
    and a soft-deleted grant is one forgotten `WHERE deleted_at IS NULL` away from being live
@@ -1239,6 +1318,130 @@ would otherwise have to take on trust:
    not, because AUD-001 has no service. `remove()` returns a boolean precisely so the command
    that will write that event knows whether anything was revoked. **This is a gap, not a
    design.**
+
+---
+
+## AUD-001 — the audit service, and the first thing that writes to it
+
+`28-SPRINT-TICKETS` §4 scopes AUD-001 as "append-only audit service/view model", 5 points,
+depending on PLAT-004. PLAT-004 built the table, its indexes and its immutability triggers in
+`0002_platform_primitives.sql` and they have been tested since; what did not exist was
+anything that wrote a row. **No migration was written and none was needed.**
+
+| File                                                    | Role                                                                                      |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `packages/domain/src/policies/audit.ts`                 | The closed action vocabulary and the safe-metadata rule. Engine-agnostic, no dependencies |
+| `apps/api/src/modules/audit/audit-events.repository.ts` | Append and the view-model reads. No update, no delete — see below                         |
+| `apps/api/src/modules/audit/audit.service.ts`           | `record` (joins the caller's transaction), `recordDenial` (its own), `view`               |
+| `apps/api/src/modules/audit/audit.module.ts`            | Global, deliberately — the reason is recorded in the file                                 |
+| `src/modules/projects/project-memberships.service.ts`   | The first producer: grant, role change, revocation                                        |
+
+### Four decisions that carry the ticket
+
+1. **The action vocabulary is closed.** `audit_events.action` is a `VARCHAR(190)`, so the
+   database would accept anything, and a query for "every role change last quarter" is only
+   answerable if every writer spelled the action identically. `AUDIT_ACTION_CATALOG` pairs
+   each action with its object type and with the §12 clause that requires it, and the object
+   type is **derived from the action** rather than passed in — two call sites cannot write
+   `project_membership` and `projectMembership` and make `ix_audit_events_org_object` useless.
+
+   The catalogue holds four actions, not §12's thirteen. Approvals, publication, exports and
+   webhook credentials have no implementation, so naming them would create members no query
+   could ever return and a reader could not distinguish "never happened" from "never built".
+
+2. **"Safe metadata" is a refusal, not a convention.** §12 says safe metadata; `24-EVENT-CATALOG`
+   §1 says "Secrets, full message bodies, raw file content, and unnecessary personal data are
+   forbidden". `assertSafeAuditMetadata` admits identifiers and classifications — UUIDs, slugs,
+   enum members, counts, flags — and refuses everything else: values limited to
+   `[A-Za-z0-9._:-]` at 64 characters (so no sentence, no address, no path), no nested objects,
+   no non-finite numbers, `snake_case` keys, and a denylist of key segments. It is called at
+   the **repository's write boundary**, so every path into the table crosses it, and it never
+   quotes the suspect value back in the error — an error message is a place content leaks to
+   as readily as a column.
+
+3. **`record` cannot open a transaction.** §3 step 8 requires the audit row and the state
+   change to commit together. `AuditService.record` takes the caller's `TenantQueryRunner` and
+   has no access to a pool, so a command physically cannot commit a state change and its audit
+   row separately. The database suite proves the property that would otherwise be lost: a
+   transaction that fails after both writes leaves **no** audit row.
+
+4. **`recordDenial` may lose an event, and says so.** A refusal has no state change to be
+   atomic with, and by the time it is being recorded the response is decided. So that path
+   opens its own transaction and swallows its own failures — an audit write that turned a 403
+   into a 500 would tell the caller _more_ because the server tried to record that it was
+   telling them less. It returns `false` rather than throwing, and a test asserts that against
+   a context naming a non-existent organization.
+
+### What this closes
+
+**The gap PROJ-001 recorded in code is closed.** `ProjectMembershipsRepository.remove()` is
+the only real `DELETE` in this codebase, justified on the grounds that a grant is not history
+— but its own comment said the trade "only holds if the revocation is recorded somewhere
+else, and today it is not". `ProjectMembershipsService.remove()` is that somewhere else. It
+**reads the row before deleting it**, because afterwards the facts are gone: the audit event
+carries the project, the person and the role, so it names something rather than only an id.
+
+It writes **nothing** when nothing was removed. That is what the repository's boolean return
+was always for, and it is why a caller cannot manufacture evidence of a revocation by
+retrying a delete against an already-absent grant.
+
+**Denied sensitive attempts are recorded** — §12's last sentence. The write is in
+`CapabilityGuard` rather than in the exception filter, for three reasons stated in that file:
+by that point a membership has been proved, so there is an organization to file the event
+under; every attempt reaching that guard is authenticated and inside a tenant, which is what
+makes it sensitive and what stops the table becoming a function of what an anonymous crawler
+sends; and a filter receives an `ArgumentsHost`, not an `ExecutionContext`, so it cannot name
+the capability that was refused.
+
+### Three defects and one collision, found by writing it
+
+1. **The metadata gate refused its own first producer.** `subject_user_id` — the person an
+   action is taken upon — trips the `subject` segment, which is on the denylist because an
+   email subject line is content. The key was renamed to `target_user_id`; the denylist was
+   **not** relaxed. A rule relaxed once for a good reason is a rule the next person relaxes
+   for a worse one. A unit case now pins both halves so the decision is found rather than
+   rediscovered.
+2. **Substring matching would have refused `membership_id`.** The first draft matched
+   forbidden fragments as substrings of the key. `ip` appears inside `membership`, so the most
+   common legitimate key this system will ever write would have been rejected. Fixed to match
+   underscore-separated segments, singular and plural, with a unit case for it.
+3. **`project_memberships.role` is a `VARCHAR(64)`, not an enum, and accepts any string.**
+   Found because the first draft of the database suite used `'designer'` and `'project_lead'`
+   as roles — neither of which exists; `INTERNAL_ROLES` is
+   `owner · org_admin · workspace_admin · manager · moderator · member · guest`. The **types**
+   caught it and the **database did not**: the rows inserted and read back happily. The suite
+   was corrected to real roles. Constraining the column is a migration and is recorded below
+   as an open item rather than changed quietly.
+4. **A flag was deleted before it shipped.** An early `deniedAttemptIsSecurityEvent` per
+   action could not be given a coherent polarity for `security.capability_denied` — an action
+   whose only legal result is `denied`, for which "was the denial denied" is not a question —
+   and nothing consumed it. Removed, with a note in the file saying what a coherent version
+   would have to look like.
+
+### Named gaps in AUD-001, carried deliberately
+
+1. **The view model is narrower than `12-PERMISSION-MATRIX` §2 allows.** §2's audit row reads
+   Owner **Full**, Admin **Full**, Workspace Admin **Workspace scope**, Project Lead **Project
+   sensitive subset**, Manager **Own activity**, Client Admin **Client-side subset**, Client
+   Reviewer **Own decisions**. Two of those are expressible and five are not, because
+   `audit_events` has no `workspace_id`, no `project_id` and no `client_organization_id`.
+   `view()` implements organization-wide for a principal with organization-wide scope and
+   own-activity for everyone else holding `audit.read`, which is the **narrower** reading in
+   every unexpressible case. Closing it needs columns and a migration.
+2. **No HTTP surface.** The audit _viewer_ is ADMIN-002. A route now would expose a scope
+   narrowing the table cannot support.
+3. **No outbox event.** §3 step 8 pairs audit with outbox; PLAT-004's relay is still not
+   written, so the commands here write the audit half only. The transaction boundary they
+   establish is where the second half goes.
+4. **Denials before tenant resolution are not recorded.** A missing session, a bad CSRF token
+   and an unresolvable organization all refuse _before_ an organization exists, and
+   `audit_events.organization_id` is `NOT NULL` with a foreign key. Those refusals leave no
+   audit row. Making them recordable means either a nullable tenant column or a separate
+   security-event table — a schema decision, not a service one.
+5. **`project_memberships.role` is unconstrained at the database.** See defect 3 above.
+   `VARCHAR(64) NOT NULL DEFAULT 'member'` accepts any string, so a typo in a future caller
+   that bypasses the TypeScript union persists silently. Correcting it is a migration and is
+   the same class of decision as `work_items.state DEFAULT 'triage'`.
 
 ---
 
@@ -1263,7 +1466,7 @@ would otherwise have to take on trust:
 | TEN-001  | organization/workspace/membership aggregates   | `tested`      | 21 database cases. Organizations, workspaces and memberships, plus the membership resolver's 24 cases. **Exception:** organization _creation_ is not written — see below                                                                                                                                                                                                |
 | TEN-002  | roles/capabilities and policy evaluator        | `tested`      | The evaluator itself was already tested (29 cases, `packages/domain`). This session wired it: `PrincipalRepository` assembles a `Principal` from a resolved membership plus a scoped project-relation read                                                                                                                                                              |
 | TEN-003  | invitation issue/accept/revoke/expiry          | `implemented` | The storage half only: `invite()` writes an `invited` row that authorises nothing, and `transitionStatus()` accepts it. Still no invitation token, no email, no expiry job. ID-001 has landed, so the remaining blockers are the notification surface and a single-use hashed token table of its own                                                                    |
-| AUD-001  | append-only audit service/view model           | `not_started` | The table and its triggers are tested; no service writes to it yet                                                                                                                                                                                                                                                                                                      |
+| AUD-001  | append-only audit service/view model           | `tested`      | 23 database cases + 26 unit cases. Closed action vocabulary, a safe-metadata rule that refuses content at the write boundary, an append that joins the caller's transaction, and the first producer (project-membership grant/role-change/revocation). Five named gaps below, of which the view-model narrowing is the one that matters                                 |
 | WEB-001  | identity/onboarding screens                    | `not_started` | Depends on UI-001 and contracts                                                                                                                                                                                                                                                                                                                                         |
 | TEST-001 | tenant/role matrix harness and two-tenant seed | `implemented` | The seed world and the adversarial pair are exercised by every database run. The **role** half of the §11 matrix — every role against every grid column — is not yet a generated harness                                                                                                                                                                                |
 
@@ -1383,6 +1586,8 @@ module migration cannot add a tenant table that the guard silently ignores.
 | `apps/api` — sessions (ID-001)                          | `tested`      | 43 database cases + 27 unit cases. Rotation, reuse detection, global cutoff, device list; the append-only ledger is proven immutable under the admin credential                                                                                                                                |
 | `apps/api` — identity database path                     | `tested`      | `identityRead` / `identityTransaction`. Zero tenant tables reachable, enforced in `observe` mode as well as `enforce`; no guard event across a whole session lifecycle                                                                                                                         |
 | `apps/api` — HTTP                                       | `tested`      | NestJS 11 + Fastify. The four-guard pipeline, the stable error envelope, correlation ids, session routes and the first tenant-scoped endpoints: 36 database cases in `http-pipeline.db.test.ts` plus 16 CSRF unit cases and 2 DI cases. Eight mutations confirm the guards fire                |
+| `apps/api` — audit (AUD-001)                            | `tested`      | 23 database cases + 26 unit cases. Append-only proved against the **migration** credential, not only the runtime one; the metadata gate refuses content at the write boundary; a rolled-back command leaves no row; a guard denial is recorded end to end through the real application         |
+| `apps/api` — project-membership commands                | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                         |
 | `apps/web`, `apps/worker`                               | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                       |
 | `packages/ui`, `contracts`, `observability`, `test-kit` | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                       |
 | CI pipeline                                             | `implemented` | Three jobs written, YAML parses, guards proven to fire under `CI=1`. **Never executed** — no runner here                                                                                                                                                                                       |
@@ -1465,13 +1670,12 @@ to. An independent check refuses any statement mentioning a tenant table before 
 and in `observe` mode as well — so a guard mode set for a documented incident cannot turn the
 pre-authentication path into a route to tenant data. Layer 3 still has exactly one waiver.
 
-**Layer 2 (least-privilege database users) has moved but is not delivered.** It is now
-implemented as SQL that has been corrected against three real defects, is held to the schema
-by 12 static assertions that run on every commit, and has 20 dynamic cases plus a
-whole-corpus re-run waiting for it in CI. What it still does not have is a single execution
-against a database server. Until the workflow runs, layer 2 is _verified by construction and
-unverified by observation_ — which is better than the previous session's position and is not
-the same thing as proven.
+**Layer 2 (least-privilege database users) is delivered and observed.** This paragraph said
+the opposite until 2026-08-25 and the correction is the point: `scripts/db/users.sql` has now
+been executed against a real server twice — a long-lived embedded MySQL 8.0.45 and a portable
+MariaDB 11.4.5, the version `compose.yaml` pins — with the whole corpus re-run under the real
+`tmanage_app` credential and 0 skips. It found four defects, all fixed at the root. It has
+still never run in a container, and it has still never run on Linux.
 
 Engine and access layer are **fixed by the pack** (`03-TECHNICAL-ARCHITECTURE` §2), so
 neither was an open decision. ADR-0001 decides only what replaces row-level security.
@@ -1480,60 +1684,72 @@ neither was an open decision. ADR-0001 decides only what replaces row-level secu
 
 ## Next task (recommended)
 
-**Push to a remote and let the workflow run.** This is not a coding task and it is the only
-thing that discharges PLAT-003. The repository has **one commit** (`3206036`) and **no
-remote**.
-Until CI executes once, the following are written but unobserved: the containerised MariaDB
-run, `scripts/db/users.sql` against a server, the 20 least-privilege cases, the isolation
-corpus under `tmanage_app`, gitleaks, and `pnpm audit`.
+**This section was stale until 2026-08-26 and is replaced rather than amended.** It previously
+read "push to a remote and let the workflow run", written when the repository had one commit
+and no remote. Both changed on 2026-08-25: the repository is at
+`https://github.com/Peetso/tmanage`, private, and the workflow **will never run** — the first
+attempt failed with `startup_failure` in 0 seconds for a billing reason, and Peter has decided
+not to pay for GitHub and to keep the repository private. `ci.yml` is not defective;
+actionlint reports 0 errors and the YAML parses to 3 jobs. Everything CI was to prove is now
+proven locally instead, on both engines.
 
-Expect the first run to find things. The most likely places, in order:
+### The deployment target, recorded 2026-08-26
 
-1. **MariaDB-vs-MySQL divergence in the two `information_schema` suites.** MariaDB
-   implements `JSON` as `LONGTEXT` with an automatic `CHECK (json_valid(...))` constraint,
-   so `COLUMN_TYPE` reads `longtext` there and `json` on MySQL. `schema.db.test.ts` already
-   normalises that equivalence explicitly — but the normalisation was written from
-   documentation and has only ever been exercised against MySQL. This is the single most
-   likely first-run failure, and it is a test-expectation fix, not a schema fix.
-2. **`SHOW GRANTS` shape and error codes.** MariaDB's grant output and error strings differ
-   from MySQL's in wording; the least-privilege suite asserts on error _codes_ specifically
-   to survive that, but the codes themselves are unconfirmed on MariaDB.
-3. **gitleaks findings in `docs/planning/` and `docs/design/source/`.** Both are immutable
-   copies of the planning pack and cannot be edited to satisfy a scanner — a finding there
-   has to be resolved in the pack or allowlisted with a reason.
+Peter confirmed the target is **Hostinger shared hosting**, in a subfolder of an existing
+site: `/home/u152275336/domains/peetrix.com/public_html/tmanage`. `50-BOOTSTRAP` §3 assumes
+**Hostinger Cloud** and deploys `apps/web`, `apps/api` and `apps/worker` as three Node.js
+applications. That assumption does not hold, and the planning pack is immutable, so the
+divergence is recorded here and belongs in an ADR when a deploy is actually attempted:
 
-Fix what it finds in the SQL, the test expectations and the workflow. Do not weaken an
-assertion to make the first green run happen sooner.
+- hPanel **does** offer Node.js on this plan (confirmed by Peter), so the platform can run the
+  application. The shape differs: the panel starts one application and reverse-proxies it; it
+  is not served out of `public_html`, and the plan is unlikely to host three separate
+  long-running processes. `apps/worker` is the probable casualty, and §3 already anticipates
+  that — "otherwise run controlled worker batches and document the limitation".
+- Nothing is deployable yet. `apps/web` and `apps/worker` are empty directories.
+- `compose.yaml` is no more usable there than it is here.
 
-**Then, in dependency order:**
+### The next coding task is a choice, and it is a real one
 
-1. ~~The membership resolver~~ — **done.** 24 database cases; the escape hatch is audited,
-   read-only and table-limited, and all three constraints are mutation-tested.
-2. ~~The remaining TEN-001 repositories and TEN-002's wiring~~ — **done**, with the four named
-   gaps recorded under Sprint 1 above.
-3. ~~ID-001, §3 step 1~~ — **done.** 43 database cases and 27 unit cases; twelve mutations
-   confirm the guards fire. Seven named gaps recorded above, of which the first — nothing yet
-   authenticates a person — is the one that matters for sequencing.
-4. ~~The HTTP surface~~ (NestJS + Fastify) — **done this session.** The four-guard pipeline
-   runs §3's steps in order for a real request: `SessionAuthGuard` (401) → `CsrfGuard` (403) →
-   `TenantContextGuard` (404) → `CapabilityGuard` (403). 36 database cases, eight mutations,
-   two ADRs (0003, 0004). Six named gaps recorded above.
-5. ~~PROJ-001's remaining repositories~~ — **done this session.** Client organizations, client
-   memberships, project memberships and work items, 49 database cases, no migration. Two
-   findings recorded under PROJ-001 above, one of which (`work_items.state DEFAULT 'triage'`)
-   needs a decision before it is fixed, because fixing it is a migration.
-6. **The next coding task is a choice between two, and it is a real choice:**
-   - **AUD-001** — the audit service. Every refusal in the pipeline already carries an exact
-     `auditCode` and nothing consumes it; `ProjectMembershipsRepository.remove()` already
-     returns a boolean whose only purpose is to tell an audit writer whether anything was
-     revoked. Two named gaps close the moment it exists.
-   - **CLIENT-001** — the client portal endpoints. The storage half is now complete, and one
-     assertion in `http-pipeline.db.test.ts` is explicitly parked until there is a client
-     endpoint to make it against ("a client sees only their own client organization's
-     projects").
+1. **UI-001 — the design system.** `packages/ui` is an empty directory and **every** `WEB-*`
+   ticket is blocked on it. Tokens are already in `docs/design/source/project/design/tokens/`
+   and 172 screens are already designed and audited. This is the only candidate that produces
+   something a person can look at, and after AUD-001 the backend has more proven surface than
+   the frontend has any surface.
+2. **ID-002 — passwords, passkeys, MFA.** Nothing authenticates a person. `SessionService.start()`
+   takes an already-proved `userId` from a development-only route. Until this lands, TEN-001's
+   missing organization creation cannot land either, because provisioning needs a verified
+   session and a founding-owner membership in one transaction.
+3. **WORK-001/002 — the work aggregate and its endpoints.** The next step of the Phase 1
+   vertical loop. The state machine and the table both exist. Needs a decision on
+   `work_items.state DEFAULT 'triage'` first, because fixing it is a migration.
+4. **CLIENT-001 — the client portal endpoints.** The storage half is complete, and one
+   assertion in `http-pipeline.db.test.ts` is explicitly parked until a client endpoint exists
+   to make it against.
 
-**A note on ordering.** ID-002 (passwords/passkeys/MFA) is what makes `SessionService.start()`
-reachable by a real person. The HTTP surface can be built and tested before it — a sign-in
-route that calls `start()` with a `userId` established by a clearly-labelled development-only
-path is honest, where a session layer that pretended to authenticate would not be. Which comes
-first is a scheduling call, not a correctness one.
+**Recommendation: UI-001.** The foundation is disproportionately far ahead of everything
+built on it, and every remaining screen ticket queues behind this one.
+
+### Done, in the order it happened
+
+1. ~~The membership resolver~~ — 24 database cases; the escape hatch is audited, read-only and
+   table-limited, all three mutation-tested.
+2. ~~The remaining TEN-001 repositories and TEN-002's wiring~~ — four named gaps recorded.
+3. ~~ID-001 §3 step 1~~ — 43 database cases, 27 unit cases, twelve mutations. Seven named gaps.
+4. ~~The HTTP surface~~ — the four-guard pipeline runs §3's steps in order for a real request.
+   36 database cases, eight mutations, two ADRs (0003, 0004). Six named gaps.
+5. ~~PROJ-001's remaining repositories~~ — 49 database cases, no migration. Two findings, one of
+   which still needs a decision.
+6. ~~ADR-0001 layer 2 against a real server~~ — `users.sql` executed for the first time, on
+   MySQL 8.0.45 and then MariaDB 11.4.5. Four defects found and fixed, plus one hole in the
+   drift check that had made `varchar(255)` agree with `varchar(64)`.
+7. ~~AUD-001~~ — **done this session.** The audit service, its view model, and the first
+   producer. Closes the `DELETE`-with-no-record gap PROJ-001 recorded in code, and implements
+   §12's "denied sensitive attempts are security events". Five named gaps recorded, and three
+   defects plus one denylist collision found by building it.
+
+**A note on ordering.** ID-002 is what makes `SessionService.start()` reachable by a real
+person, and UI-001 is what makes anything visible. They do not block each other: a screen can
+be built against the development-only sign-in route, and that route is honest precisely
+because it is labelled rather than pretending to authenticate. Which comes first is a
+scheduling call, not a correctness one.

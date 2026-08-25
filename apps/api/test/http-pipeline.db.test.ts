@@ -444,6 +444,52 @@ describe('steps 4 and 5 — principal and capability', () => {
     expect(response.json()).toMatchObject({ error: { code: 'forbidden' } });
   });
 
+  /**
+   * AUD-001, end to end — §12's "denied sensitive attempts are security events".
+   *
+   * The unit of this is tested in `aud-001-audit.db.test.ts`; what only this file can show is
+   * that the wiring survives the real application: a global `APP_GUARD` resolving
+   * `AUDIT_SERVICE` from the root injector, an `await` inside `canActivate`, and a row that
+   * has landed by the time the 403 reaches the caller. The read is through the admin pool
+   * rather than the repository, so it observes the committed row rather than the code path
+   * that wrote it.
+   */
+  it('records the refused attempt as a security event, without leaking it', async () => {
+    const session = await signIn(world.atlas.reviewer.id);
+    const response = await post('/v1/organizations/northstar-studio/projects', session, {
+      workspaceId: world.northstar.workspaceId,
+      name: 'Should never exist',
+    });
+    expect(response.statusCode).toBe(403);
+
+    const correlationId = response.headers['x-correlation-id'];
+    const rows = await observe(
+      `select action, result, object_type, metadata_json, actor_user_id, organization_id
+         from audit_events where correlation_id = ?`,
+      [correlationId],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!['action']).toBe('security.capability_denied');
+    expect(rows[0]!['result']).toBe('denied');
+    expect(rows[0]!['object_type']).toBe('capability');
+    // Filed under the tenant the request reached, and against the person who tried.
+    expect(rows[0]!['organization_id']).toBe(world.northstar.organizationId);
+    expect(rows[0]!['actor_user_id']).toBe(world.atlas.reviewer.id);
+
+    const metadata = rows[0]!['metadata_json'] as Record<string, unknown>;
+    // The precision the response deliberately drops is kept here, which is the whole point
+    // of `ApiError.auditCode` — and the assertion below proves the response still drops it.
+    expect(metadata['capability']).toBe('project.create');
+    // The *first* of the guard's two ceiling checks, not the second: `client_reviewer` does
+    // not hold `project.create` at all, so `hasCapability` refuses before the internal-only
+    // check is reached. Asserting the exact code rather than merely "some code" is what makes
+    // this a test of which refusal happened.
+    expect(metadata['audit_code']).toBe('capability_not_in_role_ceiling');
+    expect(metadata['principal_kind']).toBe('client');
+    expect(response.body).not.toContain('capability_not_in_role_ceiling');
+  });
+
   it('never returns the denial reason to the caller', async () => {
     const session = await signIn(world.atlas.reviewer.id);
     const response = await post('/v1/organizations/northstar-studio/projects', session, {

@@ -12,6 +12,7 @@ import { CapabilityGuard } from './common/http/guards/capability.guard.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
+import { AuditModule } from './modules/audit/audit.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -63,6 +64,9 @@ export class AppModule {
       imports: [
         ApiConfigModule.forConfig(options.config),
         options.database,
+        // Before the modules whose commands write audit events, and before the global
+        // `CapabilityGuard` below resolves `AUDIT_SERVICE` from this injector.
+        AuditModule.register(),
         TenancyModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()

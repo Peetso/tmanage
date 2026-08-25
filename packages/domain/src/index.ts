@@ -109,3 +109,23 @@ export {
   isContentHash,
 } from './value-objects/content-hash.js';
 export type { ContentHash } from './value-objects/content-hash.js';
+
+// Audit — 25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md §12, 24-EVENT-CATALOG.md §1
+export {
+  AUDIT_ACTION_CATALOG,
+  AUDIT_ACTIONS,
+  AUDIT_RESULTS,
+  UnsafeAuditMetadataError,
+  assertSafeAuditMetadata,
+  auditObjectTypeFor,
+  isAuditAction,
+  isSafeAuditMetadata,
+} from './policies/audit.js';
+export type {
+  AuditAction,
+  AuditActionDefinition,
+  AuditMetadata,
+  AuditMetadataScalar,
+  AuditMetadataValue,
+  AuditResult,
+} from './policies/audit.js';

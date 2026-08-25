@@ -21,3 +21,7 @@ export const MEMBERSHIP_RESOLVER = Symbol.for('tmanage.MembershipResolver');
 export const PRINCIPAL_REPOSITORY = Symbol.for('tmanage.PrincipalRepository');
 export const PROJECTS_REPOSITORY = Symbol.for('tmanage.ProjectsRepository');
 export const PROJECTS_SERVICE = Symbol.for('tmanage.ProjectsService');
+export const AUDIT_EVENTS_REPOSITORY = Symbol.for('tmanage.AuditEventsRepository');
+export const AUDIT_SERVICE = Symbol.for('tmanage.AuditService');
+export const PROJECT_MEMBERSHIPS_REPOSITORY = Symbol.for('tmanage.ProjectMembershipsRepository');
+export const PROJECT_MEMBERSHIPS_SERVICE = Symbol.for('tmanage.ProjectMembershipsService');
