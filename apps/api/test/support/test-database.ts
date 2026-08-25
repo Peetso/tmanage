@@ -86,7 +86,13 @@ export interface StartOptions {
 
 export const migrationsDirectory = MIGRATIONS_DIR;
 
-/** True when a containerised server was supplied, i.e. when the CI path is in use. */
+/**
+ * True when a server URL was supplied rather than one being started per file.
+ *
+ * That is the CI path, but it is not exclusively a containerised one: a single long-lived
+ * embedded server started outside the per-file lifecycle sets this too, which is how the
+ * least-privilege suite can run on a machine with no container runtime.
+ */
 export const usingExternalDatabase = EXTERNAL_URL !== undefined && EXTERNAL_URL !== '';
 
 /** True when the least-privilege runtime credential was supplied. */

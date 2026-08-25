@@ -101,7 +101,13 @@ describe('the harness itself', () => {
     expect(['mysql', 'mariadb']).toContain(db.engine.name);
     console.warn(
       `[isolation corpus] engine=${db.engine.name} ${db.engine.version} · ` +
-        `server=${db.external ? 'containerised (compose.yaml)' : 'embedded (ADR-0002)'} · ` +
+        // `external` means only that TMANAGE_TEST_DATABASE_URL was supplied. It does not
+        // mean a container: a long-lived embedded server started outside the per-file
+        // lifecycle reaches this branch too, and labelling that run "containerised
+        // (compose.yaml)" put a claim in the log that the harness had no way to check.
+        // The engine and version printed beside it are what actually distinguish CI's
+        // MariaDB from a local MySQL.
+        `server=${db.external ? 'external (TMANAGE_TEST_DATABASE_URL)' : 'embedded (ADR-0002)'} · ` +
         `runtime credential=${db.leastPrivilege ? 'tmanage_app (least privilege)' : 'admin'}`,
     );
 

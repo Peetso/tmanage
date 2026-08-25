@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createPool } from 'mysql2/promise';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { uuidv7 } from '@tmanage/domain';
-import { startTestDatabase } from './support/test-database.js';
+import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import {
   leastPrivilegeDatabaseUrl,
@@ -43,6 +43,12 @@ const ER_TABLEACCESS_DENIED = 'ER_TABLEACCESS_DENIED_ERROR';
 const ER_DBACCESS_DENIED = 'ER_DBACCESS_DENIED_ERROR';
 /** ER_SPECIFIC_ACCESS_DENIED_ERROR — a global privilege (CREATE USER, RELOAD) is missing. */
 const ER_SPECIFIC_ACCESS_DENIED = 'ER_SPECIFIC_ACCESS_DENIED_ERROR';
+/**
+ * ER_BINLOG_CREATE_ROUTINE_NEED_SUPER — creating a stored program needs SUPER (or
+ * SET_USER_ID) while binary logging is on. Still the privilege system refusing, checked
+ * ahead of the object privilege; see the CREATE TRIGGER case for why both are accepted.
+ */
+const ER_BINLOG_CREATE_ROUTINE_NEED_SUPER = 'ER_BINLOG_CREATE_ROUTINE_NEED_SUPER';
 
 interface DriverError {
   readonly code?: string;
@@ -69,10 +75,12 @@ let db: TestDatabase;
 let world: SeedWorld;
 let app: Pool;
 
-// Skipped where there is no least-privilege credential to test — which on this machine is
-// every run, because the credential is created by `scripts/db/users.sql` against the
-// containerised MariaDB. `guards CI against a silent skip` below is NOT skipped, and fails
-// the build if CI ever reaches this file without the credential configured.
+// Skipped where there is no least-privilege credential to test. That is not necessarily a
+// containerised run: any long-lived server which has had `scripts/db/users.sql` applied to
+// the database named by `TMANAGE_TEST_APP_DATABASE_URL` will do, including a single
+// embedded MySQL started outside the per-file lifecycle. `guards CI against a silent skip`
+// below is NOT skipped, and fails the build if CI ever reaches this file without the
+// credential configured.
 const withCredential = describe.skipIf(!usingLeastPrivilegeCredential);
 
 describe('ADR-0001 layer 2 — least-privilege runtime credential', () => {
@@ -83,6 +91,15 @@ describe('ADR-0001 layer 2 — least-privilege runtime credential', () => {
         'TMANAGE_TEST_APP_DATABASE_URL must be set in CI: without it every case in this ' +
           'file is skipped and ADR-0001 layer 2 stays unproven while the suite reports green',
       ).toBe(true);
+    } else if (usingLeastPrivilegeCredential) {
+      // Reported rather than assumed. An earlier revision warned unconditionally outside
+      // CI, so the first local run that *did* supply the credential still printed
+      // "skipped" beside twenty cases that had in fact executed — a log line that would
+      // have made a genuine result look like a non-result.
+      console.warn(
+        '[least privilege] running against TMANAGE_TEST_APP_DATABASE_URL. ' +
+          'ADR-0001 layer 2 is under test in this run.',
+      );
     } else {
       console.warn(
         '[least privilege] skipped — no TMANAGE_TEST_APP_DATABASE_URL. ' +
@@ -95,6 +112,12 @@ describe('ADR-0001 layer 2 — least-privilege runtime credential', () => {
 withCredential('the runtime user (tmanage_app)', () => {
   beforeAll(async () => {
     db = await startTestDatabase();
+    // Every other seeding suite truncates first; this one did not, and against the
+    // per-file embedded server that omission was invisible because each file received an
+    // empty database of its own. On a shared long-lived server — the configuration this
+    // file exists to exercise — the previous suite's rows are still present and
+    // `seedTwoTenants`' fixed slugs collide with `uq_organizations_slug`.
+    await truncateAll(db.admin);
     world = await seedTwoTenants(db.admin);
 
     // A bare pool, not `createTenantPool`: the tenant guard is layer 3 and would reject
@@ -173,12 +196,17 @@ withCredential('the runtime user (tmanage_app)', () => {
 
   // ── The migration ledger ───────────────────────────────────────────────────
 
+  // The column names below are `version` / `name` / `status`, not `filename` / `state`. An
+  // earlier revision of this file used the latter, which do not exist: the SELECT died with
+  // ER_BAD_FIELD_ERROR, and the INSERT would have been rejected for naming an unknown column
+  // rather than for want of a privilege. The assertion could not have proved what it claimed
+  // in any environment — the file had simply never been executed anywhere.
   it('can read the migration ledger but cannot append to it', async () => {
-    await expect(app.query('select filename from schema_migrations')).resolves.toBeDefined();
+    await expect(app.query('select version, name from schema_migrations')).resolves.toBeDefined();
     const error = await refused(
       app,
-      `insert into schema_migrations (filename, checksum, statements_total, applied_by)
-       values ('9999_forged.sql', ?, 1, 'attacker')`,
+      `insert into schema_migrations (version, name, checksum, statements_total, applied_by)
+       values (9999, '9999_forged.sql', ?, 1, 'attacker')`,
       ['0'.repeat(64)],
     );
     expect(error.code).toBe(ER_TABLEACCESS_DENIED);
@@ -186,7 +214,7 @@ withCredential('the runtime user (tmanage_app)', () => {
   });
 
   it('cannot rewrite the migration ledger', async () => {
-    const error = await refused(app, 'update schema_migrations set state = ? where 1 = 1', [
+    const error = await refused(app, 'update schema_migrations set status = ? where 1 = 1', [
       'applied',
     ]);
     expect(error.code).toBe(ER_TABLEACCESS_DENIED);
@@ -231,7 +259,16 @@ withCredential('the runtime user (tmanage_app)', () => {
       app,
       'create trigger trg_smuggled before insert on work_items for each row set @x = 1',
     );
-    expect(error.code).toBe(ER_TABLEACCESS_DENIED);
+    // Two codes, both the privilege system and neither the append-only trigger, which is
+    // the distinction this file exists to keep. `tmanage_app` holds no TRIGGER privilege on
+    // any table — `SHOW GRANTS` confirms it — so the statement is refused either way. Which
+    // refusal is reported depends on whether binary logging is on: with `log_bin = 1`
+    // (the default for MySQL 8 and for the embedded server) MySQL evaluates the
+    // SUPER/binlog requirement for stored programs *before* the TRIGGER privilege and
+    // reports ER_BINLOG_CREATE_ROUTINE_NEED_SUPER; with binary logging off it reaches the
+    // privilege check and reports ER_TABLEACCESS_DENIED_ERROR. Accepting only the latter
+    // asserted a server configuration rather than a credential.
+    expect([ER_TABLEACCESS_DENIED, ER_BINLOG_CREATE_ROUTINE_NEED_SUPER]).toContain(error.code);
   });
 
   it('cannot create a view that reads across tenants', async () => {
@@ -309,13 +346,44 @@ withCredential('the runtime user (tmanage_app)', () => {
     ]);
   });
 
-  it('still has the session state the schema depends on', async () => {
+  it('can still apply the session state the schema depends on', async () => {
     // Layer 2 must not cost layer 1: strict mode is a session setting, and a user without
-    // the privilege to set it would silently fall back to truncating writes.
-    const [rows] = await app.query<RowDataPacket[]>(
-      'select @@session.sql_mode as m, @@session.time_zone as tz',
-    );
-    expect(String(rows[0]?.['m'])).toContain('STRICT_ALL_TABLES');
-    expect(String(rows[0]?.['tz'])).toBe('+00:00');
+    // the privilege to set it would silently fall back to truncating writes — a UUID
+    // stored into CHAR(36) would become a different UUID rather than an error.
+    //
+    // What is asserted here is that `tmanage_app` can *establish* that state, because that
+    // is the part the credential owns. An earlier revision instead read the session's
+    // inherited `sql_mode` on a bare connection and required STRICT_ALL_TABLES to be
+    // present already. That only ever held because `compose.yaml` launches its MariaDB with
+    // `--sql-mode=STRICT_ALL_TABLES,...`; it was an assertion about a server's start-up
+    // flags wearing a credential's clothing, and it fails on any server those flags cannot
+    // be passed to — the embedded MySQL here, and Hostinger's shared MySQL in production,
+    // which is the environment 50-BOOTSTRAP actually targets.
+    //
+    // One pinned connection rather than the pool: `SET SESSION` and the read that verifies
+    // it must land on the same connection.
+    const connection = await app.getConnection();
+    try {
+      await connection.query(
+        `SET SESSION sql_mode = 'STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,` +
+          `ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION', time_zone = '+00:00'`,
+      );
+      const [rows] = await connection.query<RowDataPacket[]>(
+        'select @@session.sql_mode as m, @@session.time_zone as tz',
+      );
+      expect(String(rows[0]?.['m'])).toContain('STRICT_ALL_TABLES');
+      expect(String(rows[0]?.['tz'])).toBe('+00:00');
+    } finally {
+      connection.release();
+    }
+  });
+
+  it('gets that session state automatically on the pool the application actually uses', async () => {
+    // The bare pool above is the leaked-credential scenario. This is the real one:
+    // `createTenantPool` applies the session state on every connection it hands out, and in
+    // this run that pool holds the least-privilege credential rather than the admin one —
+    // so this is the production connect sequence, executed.
+    expect(db.leastPrivilege).toBe(true);
+    expect(db.connectionErrors).toEqual([]);
   });
 });
