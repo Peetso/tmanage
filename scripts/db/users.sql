@@ -61,6 +61,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`client_organizations` TO 'tmanage_app
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`client_memberships`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_clients`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_items`           TO 'tmanage_app'@'%';
+-- TEN-003 invitations. **No DELETE**, and that is the point of listing it separately: an
+-- invitation is never removed, it moves to `accepted`, `revoked` or `expired`. "Who invited
+-- this person, when, and who withdrew it" is the trail a role change is investigated by, and a
+-- runtime credential that could delete the row could erase the grant's own history. UPDATE is
+-- needed for exactly those three status moves; the immutability trigger in 0005 refuses the
+-- two columns that must never change.
+GRANT INSERT, UPDATE         ON `tmanage`.`invitations`           TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 
