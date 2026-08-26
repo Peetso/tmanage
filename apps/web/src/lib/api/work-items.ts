@@ -35,6 +35,16 @@ export interface WorkItemSummary {
   readonly deletedAt: string | null;
 }
 
+/**
+ * The largest page the API will return — `MAX_PAGE_SIZE` in `WorkItemsRepository`.
+ *
+ * Named here because a screen that asks for it needs to know when it got exactly that many
+ * back: a full page means there may be more, and a list that showed the first fifty of two
+ * hundred without saying so would read as "this is the work". Cursor paging through `after` is
+ * the second half of WEB-002; saying so plainly is what this half owes.
+ */
+export const MAX_WORK_ITEM_PAGE = 200;
+
 export interface ListWorkItemsQuery {
   readonly projectId?: string;
   /** A set of states. Sent comma-separated, which is what the API's `state` parameter takes. */

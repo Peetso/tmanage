@@ -10,7 +10,7 @@ import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
-import { listWorkItems } from '../../lib/api/work-items';
+import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import {
   audienceLabel,
@@ -90,6 +90,7 @@ export function WorkListScreen({
     queryKey: ['work-items', organizationSlug, projectId, [...states].sort().join(',')],
     queryFn: () =>
       listWorkItems(api, organizationSlug, {
+        limit: MAX_WORK_ITEM_PAGE,
         ...(projectId === '' ? {} : { projectId }),
         ...(states.length === 0 ? {} : { states }),
       }),
@@ -194,6 +195,14 @@ export function WorkListScreen({
           {projectId === '' && states.length === 0
             ? 'No work items exist in this organization. Create one from a project.'
             : 'No work items match these filters. Clear one to widen the list.'}
+        </InlineAlert>
+      ) : null}
+
+      {rows.length >= MAX_WORK_ITEM_PAGE ? (
+        <InlineAlert tone="warning" title="This is not all of it">
+          The API returns at most {MAX_WORK_ITEM_PAGE} items in one page and it returned a full one,
+          so there is more work than is listed below. Filter by project or by state to see the rest.
+          Paging through the whole list is the second half of this screen.
         </InlineAlert>
       ) : null}
 

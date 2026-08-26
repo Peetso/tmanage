@@ -253,6 +253,69 @@ describe('TM-10 the work list', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
+  it('asks for the largest page the API will give', async () => {
+    const { client, calls } = clientOver((call) =>
+      call.url.includes('/work-items') ? json({ workItems: [] }) : json(PROJECTS),
+    );
+
+    render(
+      withQuery(
+        <WorkListScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('limit=200'))).toBe(true);
+    });
+  });
+
+  it('says so when the page came back full, rather than implying that is all the work', async () => {
+    const full = Array.from({ length: 200 }, (_, index) =>
+      workItem({ id: `wi-${index}`, title: `Item ${index}` }),
+    );
+    const { client } = clientOver((call) =>
+      call.url.includes('/work-items') ? json({ workItems: full }) : json(PROJECTS),
+    );
+
+    render(
+      withQuery(
+        <WorkListScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
+
+    expect(await screen.findByText(/This is not all of it/)).toBeInTheDocument();
+  });
+
+  it('says nothing about paging when the page was not full', async () => {
+    const { client } = clientOver((call) =>
+      call.url.includes('/work-items') ? json({ workItems: [workItem()] }) : json(PROJECTS),
+    );
+
+    render(
+      withQuery(
+        <WorkListScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
+
+    await screen.findByRole('table');
+    expect(screen.queryByText(/This is not all of it/)).not.toBeInTheDocument();
+  });
+
   it('has no axe violations', async () => {
     const { client } = clientOver((call) =>
       call.url.includes('/work-items') ? json({ workItems: [workItem()] }) : json(PROJECTS),
@@ -472,6 +535,16 @@ describe('TM-03 the project overview', () => {
       await screen.findByText('One item is blocked, and one item is past its due date.'),
     ).toBeInTheDocument();
     expect(screen.getByText(/These are counts, not a score/)).toBeInTheDocument();
+  });
+
+  it('says its counts are a page rather than a total when the page came back full', async () => {
+    renderOverview(
+      Array.from({ length: 200 }, (_, index) =>
+        workItem({ id: `wi-${index}`, title: `Item ${index}` }),
+      ),
+    );
+
+    expect(await screen.findByText(/These counts are a page, not a total/)).toBeInTheDocument();
   });
 
   it('lists blockers separately from next actions', async () => {

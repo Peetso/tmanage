@@ -7,7 +7,7 @@ import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
-import { listWorkItems } from '../../lib/api/work-items';
+import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
 import type { WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import {
@@ -72,7 +72,7 @@ export function ProjectOverviewScreen({
 
   const workItems = useQuery({
     queryKey: ['work-items', organizationSlug, projectId, ''],
-    queryFn: () => listWorkItems(api, organizationSlug, { projectId }),
+    queryFn: () => listWorkItems(api, organizationSlug, { projectId, limit: MAX_WORK_ITEM_PAGE }),
   });
 
   const items = workItems.data ?? [];
@@ -203,6 +203,12 @@ export function ProjectOverviewScreen({
               These are counts, not a score. Every one of them is a number you can check in the work
               list.
             </p>
+            {items.length >= MAX_WORK_ITEM_PAGE ? (
+              <InlineAlert tone="warning" title="These counts are a page, not a total">
+                This project has at least {MAX_WORK_ITEM_PAGE} work items, which is a full page from
+                the API. The counts above describe what was fetched, not the whole project.
+              </InlineAlert>
+            ) : null}
           </>
         )}
       </section>
