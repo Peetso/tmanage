@@ -18,7 +18,6 @@ import {
   FIXTURE_EXISTING_MEMBERS,
   FIXTURE_INVITATION,
   FIXTURE_ORGANIZATION_DOMAIN,
-  FIXTURE_OWNERS,
   FIXTURE_SIGNED_IN_AS,
 } from '../src/lib/fixtures';
 import { expectNoAxeViolations } from './axe';
@@ -46,22 +45,34 @@ function withQuery(children: ReactNode) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-/** An `ApiClient` whose directory is empty, for the screens that only need to mount. */
+/**
+ * An `ApiClient` that answers every list this file's screens ask for, with one row where a
+ * row is needed and none where it is not.
+ *
+ * `ID-04` wants organizations and renders its empty state for `[]`; `ON-03` wants workspaces
+ * and cannot submit without one. One body carrying both keys is simpler than routing on the
+ * URL, and neither screen reads the other's key.
+ */
 function emptyDirectoryClient(): ApiClient {
   return new ApiClient({
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
     fetch: (() =>
       Promise.resolve(
-        new Response(JSON.stringify({ organizations: [] }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify({
+            organizations: [],
+            workspaces: [{ id: 'ws-1', name: 'Northstar Studio', createdAt: NOW }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
       )) as typeof globalThis.fetch,
     readCsrfToken: () => undefined,
     newCorrelationId: () => 'correlation-fixed',
   });
 }
+
+const NOW = '2026-08-26T00:00:00.000Z';
 
 const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
   { name: 'ID-01 Sign in', render: () => <SignInScreen developmentSignInEnabled /> },
@@ -85,7 +96,16 @@ const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
   },
   {
     name: 'ON-03 First project',
-    render: () => <FirstProjectScreen signedInAs={SIGNED_IN_AS} owners={FIXTURE_OWNERS} />,
+    // Fetches the organization's workspaces as of PROJ-002, so it needs a query client and a
+    // fetch that answers. The behaviour is covered in `project-flow.test.tsx`.
+    render: () =>
+      withQuery(
+        <FirstProjectScreen
+          signedInAs={SIGNED_IN_AS}
+          organizationSlug="northstar"
+          client={emptyDirectoryClient()}
+        />,
+      ),
   },
   {
     name: 'ON-04 Invite team',
@@ -345,28 +365,39 @@ describe('ON-02 Operating template', () => {
 });
 
 describe('ON-03 First project', () => {
+  const renderFirstProject = () =>
+    withQuery(
+      <FirstProjectScreen
+        signedInAs={SIGNED_IN_AS}
+        organizationSlug="northstar"
+        client={emptyDirectoryClient()}
+      />,
+    );
+
   it('calls the date a target and says what would make it a commitment', () => {
-    render(<FirstProjectScreen signedInAs={SIGNED_IN_AS} owners={FIXTURE_OWNERS} />);
+    render(renderFirstProject());
     expect(screen.getByLabelText(/Target date/)).toBeInTheDocument();
     expect(screen.getByText(/target, not a commitment/i)).toBeInTheDocument();
   });
 
   it('warns about a date in the past without refusing it', async () => {
     const user = userEvent.setup();
-    render(<FirstProjectScreen signedInAs={SIGNED_IN_AS} owners={FIXTURE_OWNERS} />);
+    render(renderFirstProject());
     await user.type(screen.getByLabelText(/Target date/), '2000-01-01');
     expect(screen.getByText(/That date has passed/)).toBeInTheDocument();
   });
 
   it('states that new content starts internal', () => {
-    render(<FirstProjectScreen signedInAs={SIGNED_IN_AS} owners={FIXTURE_OWNERS} />);
+    render(renderFirstProject());
     expect(screen.getByText('Default audience: internal')).toBeInTheDocument();
   });
 
-  it('offers every owner it was given', () => {
-    render(<FirstProjectScreen signedInAs={SIGNED_IN_AS} owners={FIXTURE_OWNERS} />);
-    const select = screen.getByLabelText(/Project owner/);
-    expect(within(select).getAllByRole('option')).toHaveLength(FIXTURE_OWNERS.length);
+  it('states the owner rather than offering a picker that is a fiction', () => {
+    render(renderFirstProject());
+    expect(screen.getByText('Project owner')).toBeInTheDocument();
+    expect(screen.getByText(SIGNED_IN_AS)).toBeInTheDocument();
+    // No select. There is no endpoint that lists the people in an organization.
+    expect(screen.queryByRole('combobox', { name: /owner/i })).toBeNull();
   });
 });
 

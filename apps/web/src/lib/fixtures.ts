@@ -13,7 +13,8 @@ import type { InvitationDetails } from '../components/screens/InvitationScreen';
  * without a mental substitution.
  *
  * This file shrinks as tickets land. `FIXTURE_ORGANIZATIONS` left it when TEN-001's directory
- * endpoint arrived and `ID-04` began fetching its own list.
+ * endpoint arrived and `ID-04` began fetching its own list; `FIXTURE_OWNERS` left it when
+ * PROJ-002 made `ON-03` real and the owner became a statement rather than a picker.
  */
 
 export const FIXTURE_SIGNED_IN_AS = 'omar@northstar.studio';
@@ -24,12 +25,6 @@ export const FIXTURE_EXISTING_MEMBERS: readonly string[] = [
   'omar@northstar.studio',
   'karim@northstar.studio',
 ];
-
-export const FIXTURE_OWNERS = [
-  { id: 'omar', name: 'Omar Adel' },
-  { id: 'maya', name: 'Maya Hassan' },
-  { id: 'lina', name: 'Lina Saad' },
-] as const;
 
 export const FIXTURE_INVITATION: InvitationDetails = {
   inviterName: 'Omar Adel',

@@ -1,14 +1,22 @@
 'use client';
 
-import { useState } from 'react';
-import { Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
+import { useState, type FormEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Button, Field, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { BackendPending } from './BackendPending';
+import { browserApiClient } from '../../lib/api/browser-client';
+import { createProject, listWorkspaces } from '../../lib/api/projects';
+import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import type { ApiClient } from '../../lib/api/client';
 
 export interface FirstProjectScreenProps {
   signedInAs: string;
-  /** Who the project can be owned by. Passed in — there is no people endpoint yet. */
-  owners: readonly { readonly id: string; readonly name: string }[];
+  /** The organization this project goes in. From the route, which the guard resolves. */
+  organizationSlug: string;
+  client?: ApiClient;
+  /** Called with the new project's id once it exists. */
+  onCreated?: (projectId: string) => void;
 }
 
 /**
@@ -30,16 +38,88 @@ export interface FirstProjectScreenProps {
  * is a project that can leak by default. Widening it is a deliberate act on the project
  * itself, later, by someone with the capability to do it.
  *
- * Nothing is created. `PROJ-001` built the repositories; the create-project endpoint and the
- * organization this project would belong to are both unwritten.
+ * ## What is real, and what is still collected and dropped
+ *
+ * The project, its name and its target date are created for real as of `PROJ-002`. Two of the
+ * fields the specification lists are not:
+ *
+ * - **Client or internal.** `projects` has no audience column; a project is shared with a
+ *   client by linking it to a client organization in `project_clients`, which is `CLIENT-001`.
+ *   The choice is collected, marked as not yet saved, and the default stays internal.
+ * - **The owner.** There is no endpoint that lists the people in an organization — that is
+ *   `PEOPLE-001` — so the API defaults the owner to whoever created the project, and this
+ *   screen says so rather than offering a picker with one invented name in it.
  */
-export function FirstProjectScreen({ signedInAs, owners }: FirstProjectScreenProps) {
+export function FirstProjectScreen({
+  signedInAs,
+  organizationSlug,
+  client,
+  onCreated,
+}: FirstProjectScreenProps) {
+  const api = client ?? browserApiClient();
+
   const [name, setName] = useState('');
   const [audience, setAudience] = useState<'client' | 'internal'>('client');
-  const [ownerId, setOwnerId] = useState<string>(owners[0]?.id ?? '');
   const [targetDate, setTargetDate] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [serverDateError, setServerDateError] = useState<string | undefined>(undefined);
 
-  const dateProblem = describeDateProblem(targetDate);
+  /**
+   * The workspace the project goes in.
+   *
+   * Fetched rather than assumed. Provisioning creates exactly one, so in practice this is a
+   * list of one — but an organization gains a second the moment anyone adds one, and a screen
+   * that had hard-coded "the first" would then be filing projects in the wrong place silently.
+   */
+  const workspaces = useQuery({
+    queryKey: ['workspaces', organizationSlug],
+    queryFn: () => listWorkspaces(api, organizationSlug),
+  });
+
+  const workspaceId = workspaces.data?.[0]?.id;
+  const localDateProblem = describeDateProblem(targetDate);
+  const dateProblem = localDateProblem ?? serverDateError;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFailure(undefined);
+    setServerDateError(undefined);
+
+    if (name.trim() === '') {
+      setFailure('Enter a project name.');
+      return;
+    }
+    if (!workspaceId) {
+      setFailure('This organization has no workspace to put a project in.');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const created = await createProject(api, organizationSlug, {
+        workspaceId,
+        name: name.trim(),
+        ...(targetDate === '' ? {} : { targetDate }),
+      });
+      onCreated?.(created.id);
+    } catch (error) {
+      if (error instanceof ApiRequestError) {
+        const dateMessage = error.fieldErrors().get('targetDate');
+        if (dateMessage !== undefined) {
+          setServerDateError(dateMessage);
+        } else {
+          setFailure(error.message);
+        }
+      } else if (error instanceof NetworkError) {
+        setFailure('The API did not answer. Is it running?');
+      } else {
+        setFailure('Something went wrong. Try again.');
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <OnboardingShell
@@ -48,12 +128,21 @@ export function FirstProjectScreen({ signedInAs, owners }: FirstProjectScreenPro
       title="Create your first project"
       description="One project is enough to start. Milestones, deliverables and the client portal all hang off it."
     >
-      <BackendPending ticket="PROJ-002">
-        Creating a project is not implemented. `PROJ-001` built the repositories underneath it; the
-        endpoint and the organization it would belong to are both still to come.
+      <BackendPending ticket="CLIENT-001 · PEOPLE-001">
+        The project itself is created. Choosing a client and choosing an owner are not saved yet: a
+        project is shared with a client by linking it to a client organization, and there is no
+        endpoint that lists the people in this organization. The owner will be you.
       </BackendPending>
 
-      <form className="tm-stack tm-stack--loose" onSubmit={(event) => event.preventDefault()}>
+      {workspaces.isError ? (
+        <InlineAlert tone="danger" title="Could not load this organization" live>
+          {workspaces.error instanceof ApiRequestError
+            ? workspaces.error.message
+            : 'The API did not answer. Is it running?'}
+        </InlineAlert>
+      ) : null}
+
+      <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
         <Field
           label="Project name"
           name="projectName"
@@ -97,24 +186,19 @@ export function FirstProjectScreen({ signedInAs, owners }: FirstProjectScreenPro
           </div>
         </fieldset>
 
+        {/*
+          A statement rather than a picker.
+          `22` §3 lists an owner field, and there is no endpoint that lists the people in an
+          organization — that is `PEOPLE-001`. A select with one invented name in it would
+          look like a choice and be a fiction; the API defaults the owner to the person
+          creating the project, and this says so.
+        */}
         <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-owner">
-            Project owner
-          </label>
-          <select
-            id="tm-owner"
-            className="tm-field__control"
-            value={ownerId}
-            onChange={(event) => setOwnerId(event.target.value)}
-          >
-            {owners.map((owner) => (
-              <option key={owner.id} value={owner.id}>
-                {owner.name}
-              </option>
-            ))}
-          </select>
+          <span className="tm-field__label">Project owner</span>
+          <p className="tm-prose">{signedInAs}</p>
           <span className="tm-field__hint">
-            The person accountable for the project. It can be changed at any time.
+            You, because there is nobody else in this organization yet. It can be changed at any
+            time once you have invited your team.
           </span>
         </div>
 
@@ -134,6 +218,12 @@ export function FirstProjectScreen({ signedInAs, owners }: FirstProjectScreenPro
             What will be created
           </h2>
           <div className="tm-row">
+            <StateCapsule state="future">
+              {audience === 'client' ? 'For a client' : 'Internal'}
+            </StateCapsule>
+            <span className="tm-prose">Not saved yet — CLIENT-001</span>
+          </div>
+          <div className="tm-row">
             <StateCapsule state="future">Target</StateCapsule>
             <span className="tm-prose">
               {targetDate === '' ? 'No date yet' : formatDate(targetDate)}
@@ -145,9 +235,29 @@ export function FirstProjectScreen({ signedInAs, owners }: FirstProjectScreenPro
           </InlineAlert>
         </section>
 
+        {workspaces.isPending ? (
+          <div aria-busy="true" aria-live="polite">
+            <span className="tm-visually-hidden">Loading this organization.</span>
+            <Skeleton height="var(--row)" />
+          </div>
+        ) : null}
+
+        {failure ? (
+          <InlineAlert tone="danger" title="Could not create the project" live>
+            {failure}
+          </InlineAlert>
+        ) : null}
+
         <div className="tm-row">
-          <Button type="submit" tone="ink" size="accessible" disabled>
-            Continue to milestones
+          <Button
+            type="submit"
+            tone="ink"
+            size="accessible"
+            loading={creating}
+            loadingLabel="Creating"
+            disabled={workspaces.isPending}
+          >
+            Create project
           </Button>
         </div>
       </form>
