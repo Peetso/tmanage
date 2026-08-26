@@ -19,13 +19,33 @@ change what a command does rather than merely how it is typed.
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **pnpm is not installed**        | There is no `pnpm` on `PATH`. Provision it with `corepack enable pnpm --install-directory <dir>` and prepend that directory. Inside the repository it then resolves to **10.15.0** via `packageManager`, verified before any gate was run this session. Note for a POSIX shell on Windows: `PATH` entries must be `/c/Users/...`, not `C:/Users/...` — a drive-letter colon is a `PATH` separator, so the entry is silently discarded                                                                                                                                                                                             |
 | Node                             | 22.22.0 · corepack 0.34.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| **Git state**                    | Four commits on `master`, pushed to **`https://github.com/Peetso/tmanage` (private)**. `user.name` / `user.email` are set repo-locally. The remote was added on 2026-08-25 after Peter authenticated `gh` himself                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Git state**                    | Nine commits on `master`, pushed to **`https://github.com/Peetso/tmanage` (private)**. `user.name` / `user.email` are set repo-locally. The remote was added on 2026-08-25 after Peter authenticated `gh` himself                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Containers                       | Still absent: no Docker, no container runtime, no Linux distro under WSL 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | **A local MySQL does exist**     | Corrected 2026-08-25. Earlier revisions of this table said there was "no local MySQL or MariaDB". There is: **MySQL Server 8.0 is installed** at `C:\Program Files\MySQL\MySQL Server 8.0`, registered as service `MySQL80` (**Stopped**, start type Manual, nothing listening on 3306). It matters because `mysql-memory-server` runs **that binary** rather than downloading one — the `mysqld` processes the suite starts are `C:\Program Files\MySQL\...\mysqld` on a random high port with a scratch datadir under `%TEMP%\mysqlmsn`. ADR-0002's "a real MySQL server binary" is therefore true, but it is the installed one |
 | **Check for strays after a run** | `pnpm test:db` has been observed to **leak one `mysqld`** after the suite exits. Check with `Get-Process mysqld` and stop it by PID; a leaked server holds a scratch datadir and a port                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-08-26, start of the UI-001 session
+
+The **ninth** consecutive run, and the table below is that run's output rather than a copy of
+the previous one. It matters more than usual this session: UI-001 copies values out of the
+design export, so a stale copy would have been baked into a package rather than merely read.
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 extra                                                                                                                                                                                                                                       |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                                                    |
+| Modification times                        | **No pack file is newer than its copy**, compared pair by pair rather than newest-against-newest                                                                                                                                                                                                |
+| Uncopied pack content                     | The same five as every previous run, all deliberate: the design-handoff `.zip` (extracted into `docs/design/source/`), `TManage-Product-System-Master-Plan.docx`, and three Claude Code tooling files for the pack folder — `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                                                    |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. The token
+package reads the export at **test time** and never copies it into the repository, so the
+relationship stays one-directional by construction rather than by discipline.
 
 ---
 
@@ -147,6 +167,60 @@ once already.
 | Residual PostgreSQL references | 5, all deliberate contrast ("MySQL has no PostgreSQL-style RLS"). Zero `jsonb`, `gen_random_uuid`, or `citext`.                                                                                                                                                 |
 
 The MySQL revision is fully landed in `docs/planning/`.
+
+---
+
+## Verification actually run — 2026-08-26, the UI-001 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`5m 22s` wall, **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`, because Prettier reformats every new file                      |
+| `typecheck`              | Clean across `packages/config`, `packages/domain`, `packages/ui`, `apps/api`                       |
+| `lint`                   | Clean, including the two new rule groups                                                           |
+| `test` (unit)            | **344 passed**, 17 files — domain 102, config 25, **ui 106**, api 111. Was 238 before this session |
+| `test:db`                | **324 passed, 21 skipped**, 11 files, **274.24 s**. Unchanged: UI-001 adds no database surface     |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                              |
+| `format:check` (closing) | Clean                                                                                              |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run; nothing was left behind                 |
+
+The 21 skips are the same least-privilege cases as before — they skip on the default per-file
+path and were run to 0 skips on 2026-08-25 against MySQL 8.0.45 and MariaDB 11.4.5. They are
+skips, and they are recorded as skips.
+
+### Checks that are new this session, and what each one is worth
+
+| Check                                    | What it proves                                                                                                                                     | What it does not                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 14 token-drift cases                     | The package agrees with the design export in both directions, value by value                                                                       | That the export is right                                                     |
+| 33 contrast cases                        | Every pairing the primitives paint meets AA, computed with WCAG 2.2 arithmetic                                                                     | What a browser actually renders — no layout, no overlay, no inherited colour |
+| 59 component and theme cases             | Names, roles, keyboard reachability, `aria-busy`, description order, and axe over the whole primitive surface in four theme/direction combinations | Anything visual                                                              |
+| `storybook build` + three driven stories | The stories compile, render, and receive the toolbar globals                                                                                       | Visual regression — there is no baseline and no browser to take one with     |
+
+### The lint boundaries were verified to fire, not merely to pass
+
+Two deliberate violations were written, run, and deleted:
+
+- a `.tsx` probe with an `<img>` with no `alt` and a `<div onClick>` — three `jsx-a11y` errors
+  (`alt-text`, `click-events-have-key-events`, `no-static-element-interactions`);
+- a `.ts` probe importing `@tmanage/domain` from `packages/ui` — the design-system boundary
+  error.
+
+A boundary that has only ever passed has not been tested.
+
+### One defect the harness found in its own first run
+
+Three `Field` assertions failed on the first run, and all three were the test being wrong
+rather than the component. The `aria-hidden` required-asterisk is excluded from the accessible
+description, and the label's _text_ is "Title \*" while its _name_ is "Title" — so the query had
+to be by role and accessible name, which is the property actually worth asserting. The
+expectations were corrected; nothing in the component was relaxed to make them pass.
 
 ---
 
@@ -1445,18 +1519,141 @@ the capability that was refused.
 
 ---
 
+## UI-001 — the design system, and the defects that measuring it found
+
+`packages/ui` was an empty directory. Every `WEB-*` ticket was blocked on it, 172 screens were
+already designed and audited, and nothing in this repository had ever been rendered.
+
+### The token package is checked against its source, not trusted
+
+The design export at `docs/design/source/project/design/tokens/` is immutable, and copying
+values out of it by hand is how a design system quietly forks from its design. So the copy is
+verified rather than trusted: `tests/tokens.drift.test.ts` reads `tokens.json` and `tokens.css`
+at test time and compares them against `src/tokens/tokens.ts` and `src/styles/tokens.css` in
+both directions — nothing missing, nothing changed, and nothing **added** that the export does
+not contain.
+
+The export's own stylesheet is a subset of its own JSON: `tokens.css` omits the orb sizes, the
+type scale, the density compositions and two space steps that `tokens.json` declares. The
+package declares them so a component can reach them as custom properties, and the drift test
+pins those additions to a named list, each one asserted against the JSON value it came from. A
+token cannot enter this package by being typed into a stylesheet.
+
+### Three real accessibility defects, found by computing the contrast rather than trusting it
+
+jsdom has no layout and no paint, so axe-core cannot run its `color-contrast` rule there — it
+reports the pairing as _incomplete_, not as a pass. Leaving the rule enabled would have
+produced a green result that had checked nothing. It is disabled, the reason is written at the
+disabling, and the palette is checked arithmetically instead in `tests/contrast.test.ts`.
+
+That check found three things:
+
+1. **`danger.600`, `success.600` and `warning.600` are used as text by the design artifacts,
+   and all three fail AA.** A danger capsule in `TManage Foundations.dc.html` draws
+   `border:1px #D9474F; color:#D9474F` on paper. Measured against `paper.0` those are
+   **4.23:1**, **4.31:1** and **3.64:1** — below the 4.5:1 that `40-DESIGN-SYSTEM` §10 sets as
+   the target. The export is immutable and the palette cannot be widened, so the component
+   layer keeps the colour where it is legible — the border and the glyph, which are non-text
+   and need 3:1, where all three pass — and sets the word itself in ink (15.46:1). Law 3 still
+   holds: the state carries a colour, a shape and a word; it is the shape and not the word that
+   is tinted. `client.500` is the one semantic colour that does hold as text (5.37:1) and keeps
+   its tint.
+2. **The destructive button could not use paper text.** White on `danger.600` is 4.23:1 and
+   fails; absolute ink is **4.69:1** and passes. The last control in the system that should be
+   hard to read is the one that deletes something.
+3. **The export's own "Verified pairings" line is wrong in all five entries.**
+   `themes-light-dark-high-contrast.md` claims 12.9 · 14.1 · 6.4 · 11.6 · 6.9; WCAG 2.2
+   produces **16.48 · 15.63 · 7.32 · 13.25 · 8.27**. Every printed figure understates the real
+   ratio, so no accessibility claim fails because of it — but not one of them is the number.
+   The test asserts the claims as floors and records the measured values beside them, rather
+   than correcting a file this repository may not write to.
+
+### The laws are enforced by the type system where they can be
+
+- `--ink-950` inverts with the theme: in dark it is `#F5F6F0`. A lime surface that used it
+  would be unreadable in dark, which is the exact failure law 1 exists to prevent, so lime and
+  danger surfaces carry an absolute ink value in the component layer. The test that proves the
+  trap is real is the one asserting that themed ink on dark lime fails AA.
+- `OrbButton` cannot be rendered without a `label`, `Field` cannot be rendered without a
+  `label`, and `StateCapsule` and `StatusDot` cannot be rendered without their word. A missing
+  accessible name is a **type error** rather than an audit finding.
+- Every rule in `components.css` uses logical properties. Arabic RTL is a first-class
+  requirement in `42-INTERACTION-MOTION-RESPONSIVE-AND-RTL`, and a physical `padding-left` is
+  how an RTL layout silently develops a limp.
+
+### Two new lint boundaries, both verified to fire
+
+`jsx-a11y` on every React surface, and a rule that stops the design system importing product
+code, contracts, domain types or Next.js — `packages/ui` sits beside `domain` in
+`18-REPOSITORY-STRUCTURE`, not above it. Both were proven by writing deliberate violations and
+watching them fail (`alt-text`, `click-events-have-key-events`,
+`no-static-element-interactions`, and a `@tmanage/domain` import), then deleting the probes.
+
+### Storybook, and what it is for
+
+Theme, contrast, density and direction are toolbar globals rather than separate stories: the
+state matrix requires light, dark, high contrast, RTL and reduced motion for **every**
+component, and five copies of each story would guarantee that four of them drift. The
+foundations page renders the palette, the type scale, the geometry and the three densities from
+the token module and prints the measured contrast ratio under each colour.
+
+`storybook build` completes, and the dev server was driven through three stories rather than
+merely started: the palette page computes `lime.500` at 16.48:1, the button-states story
+renders `aria-busy` and `disabled` correctly, and the dark toolbar global reaches the subtree as
+`data-theme="dark"`.
+
+### Named gaps in UI-001, carried deliberately
+
+- **No visual-regression harness.** `48-CLAUDE-CODE-IMPLEMENTATION-START-PROMPT` Phase B lists
+  one. It needs a real browser or a hosted service; there is no container runtime here and no
+  budget for a paid one. Not built, and not faked.
+- **No colour-contrast check on rendered output.** The arithmetic proves the palette; it cannot
+  prove that a gradient, an overlay or an inherited colour has not ruined a pairing at runtime.
+- **The quiet line is 1.71:1 on paper**, below the 3:1 WCAG 1.4.11 asks of a control boundary.
+  That is a property of the export's palette rather than of this package, and
+  `[data-contrast="high"]` promotes it to `line.700` (13.73:1). Asserted in the tests so it
+  cannot be forgotten; closing it in the default theme would mean changing the design.
+- **Fonts are not packaged.** The binaries are in the export (Manrope under OFL, Satoshi under
+  its own licence), but nothing serves them yet and the licence files have to travel with them.
+  The `--font-*` tokens name the families and fall back to `system-ui`.
+- **`Select`, `Combobox`, `Checkbox`, `Radio`, `Switch`, date/time, `Tooltip` and `Toast` are
+  not built.** The design inventory marks them **specified** rather than **built**, and the
+  shell, planning, collaboration, delivery and administration families are compositions that
+  belong to the `WEB-*` tickets.
+- **The four human-validation items are untouched and stay open**: real NVDA and VoiceOver
+  passes, a native Arabic RTL screen-reader review, and the Client Portal at 200% zoom. No
+  automated check in this package substitutes for any of them.
+
+### Divergences between the planning pack and the design export, recorded rather than resolved
+
+`40-DESIGN-SYSTEM-TOKENS-AND-COMPONENTS.md` §1 calls its own values "executable starter tokens"
+that the design phase may tune with evidence, so where the two disagree the export
+(`1.0.0-design`) wins over the pack (`0.4.0-planning`). The differences found while building:
+
+| Item            | Planning pack                | Design export                                                |
+| --------------- | ---------------------------- | ------------------------------------------------------------ |
+| Orbital rail    | 72px expanded / 60px compact | 88px, with a 72px compact                                    |
+| Heading weights | 550                          | 600                                                          |
+| Latin typeface  | Manrope                      | Manrope in the tokens, **Satoshi in the rendered artifacts** |
+
+The typeface row is the one that needs a decision later: the `.dc.html` screens set
+`font:500 14px/20px Satoshi`, while both token files name Manrope. Nothing depends on it yet —
+no font is packaged — but WEB-001 cannot ship without an answer.
+
+---
+
 ## Sprint 0 (`28-SPRINT-TICKETS` §3)
 
-| Ticket    | Scope                                              | Status        | Evidence                                                                                                                                                                                                                                     |
-| --------- | -------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PLAT-001  | pnpm monorepo, shared config, ownership boundaries | `implemented` | Workspace builds; boundary rules encoded as lint errors in `eslint.config.js`, and the `db` boundary is proven to fire                                                                                                                       |
-| PLAT-002  | one-command local stack                            | `implemented` | `compose.yaml` (MariaDB 11.4 · Valkey 8.1 · MinIO). One defect fixed this session (the `users.sql` init-mount could never have succeeded). **Still never started** — no container runtime here; the CI `database` job is what will verify it |
-| PLAT-003  | CI gates, secret/dependency scans                  | `implemented` | `.github/workflows/ci.yml` + `.gitleaks.toml` + `db:grants` + the least-privilege suite. **Not `tested`: the workflow has never run.** Artifact signing deferred (nothing to sign yet); branch protection is an owner action                 |
-| OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                            |
-| DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                           |
-| AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                    |
-| PLAT-004  | transactional outbox + idempotency                 | `implemented` | Tables, append-only audit, per-tenant idempotency uniqueness and the relay escape hatch are tested. The relay/dispatcher itself is **not written**                                                                                           |
-| UI-001    | tokens, primitives, Storybook, visual harness      | `not_started` | Design tokens available at `docs/design/source/project/design/tokens/`                                                                                                                                                                       |
+| Ticket    | Scope                                              | Status        | Evidence                                                                                                                                                                                                                                                                                                                                         |
+| --------- | -------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PLAT-001  | pnpm monorepo, shared config, ownership boundaries | `implemented` | Workspace builds; boundary rules encoded as lint errors in `eslint.config.js`, and the `db` boundary is proven to fire                                                                                                                                                                                                                           |
+| PLAT-002  | one-command local stack                            | `implemented` | `compose.yaml` (MariaDB 11.4 · Valkey 8.1 · MinIO). One defect fixed this session (the `users.sql` init-mount could never have succeeded). **Still never started** — no container runtime here; the CI `database` job is what will verify it                                                                                                     |
+| PLAT-003  | CI gates, secret/dependency scans                  | `implemented` | `.github/workflows/ci.yml` + `.gitleaks.toml` + `db:grants` + the least-privilege suite. **Not `tested`: the workflow has never run.** Artifact signing deferred (nothing to sign yet); branch protection is an owner action                                                                                                                     |
+| OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                                                                                                                                |
+| DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                                                                                                                               |
+| AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                                                                                                                        |
+| PLAT-004  | transactional outbox + idempotency                 | `implemented` | Tables, append-only audit, per-tenant idempotency uniqueness and the relay escape hatch are tested. The relay/dispatcher itself is **not written**                                                                                                                                                                                               |
+| UI-001    | tokens, primitives, Storybook, visual harness      | `tested`      | 106 cases in `packages/ui`: 33 contrast, 14 token drift, 59 component/theme including axe over the whole primitive surface in light, dark, high contrast and Arabic RTL. Storybook builds and was driven through three stories. **The visual-regression harness is not built** — it needs a real browser, and there is no container runtime here |
 
 ## Sprint 1 (`28-SPRINT-TICKETS` §4)
 
@@ -1467,7 +1664,7 @@ the capability that was refused.
 | TEN-002  | roles/capabilities and policy evaluator        | `tested`      | The evaluator itself was already tested (29 cases, `packages/domain`). This session wired it: `PrincipalRepository` assembles a `Principal` from a resolved membership plus a scoped project-relation read                                                                                                                                                              |
 | TEN-003  | invitation issue/accept/revoke/expiry          | `implemented` | The storage half only: `invite()` writes an `invited` row that authorises nothing, and `transitionStatus()` accepts it. Still no invitation token, no email, no expiry job. ID-001 has landed, so the remaining blockers are the notification surface and a single-use hashed token table of its own                                                                    |
 | AUD-001  | append-only audit service/view model           | `tested`      | 23 database cases + 26 unit cases. Closed action vocabulary, a safe-metadata rule that refuses content at the write boundary, an append that joins the caller's transaction, and the first producer (project-membership grant/role-change/revocation). Five named gaps below, of which the view-model narrowing is the one that matters                                 |
-| WEB-001  | identity/onboarding screens                    | `not_started` | Depends on UI-001 and contracts                                                                                                                                                                                                                                                                                                                                         |
+| WEB-001  | identity/onboarding screens                    | `not_started` | **Unblocked on the UI side** — UI-001 landed. Still needs `apps/web` (an empty directory) and the generated contracts                                                                                                                                                                                                                                                   |
 | TEST-001 | tenant/role matrix harness and two-tenant seed | `implemented` | The seed world and the adversarial pair are exercised by every database run. The **role** half of the §11 matrix — every role against every grid column — is not yet a generated harness                                                                                                                                                                                |
 
 ### Named gaps in TEN-001/TEN-002, carried deliberately
@@ -1569,30 +1766,31 @@ module migration cannot add a tenant table that the guard silently ignores.
 
 ## Component status
 
-| Component                                               | Status        | Notes                                                                                                                                                                                                                                                                                          |
-| ------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/config`                                       | `tested`      | 25 tests. MySQL schemes, `DEPLOYMENT_PROFILE`, `TENANT_GUARD_MODE`; production refuses dev substitutes and placeholder secrets                                                                                                                                                                 |
-| `packages/domain` — state machines                      | `tested`      | 35 tests across all 7 lifecycles in `23-ERD` §5–§11                                                                                                                                                                                                                                            |
-| `packages/domain` — authorization                       | `tested`      | 29 tests over the §11 grid — application layer                                                                                                                                                                                                                                                 |
-| `packages/domain` — value objects                       | `tested`      | 11 tests. UUIDv7 (incl. >2³² ms), content hash                                                                                                                                                                                                                                                 |
-| `apps/api` — migrator                                   | `tested`      | 15 database tests, 9 splitter tests                                                                                                                                                                                                                                                            |
-| `apps/api` — schema (0001, 0002)                        | `tested`      | Applied from empty on every database run; invariants read back from `information_schema`                                                                                                                                                                                                       |
-| `apps/api` — tenant context + guard                     | `tested`      | 45 analyser tests, 44 corpus tests                                                                                                                                                                                                                                                             |
-| `apps/api` — least-privilege credentials                | `tested`      | 12 static assertions, plus **21 dynamic cases that now actually run** — against a long-lived MySQL 8.0.45 and again against MariaDB 11.4.5, both with the real `tmanage_app` credential. No container was involved. They still skip on the default per-file path, which has no such credential |
-| `apps/api` — Drizzle schema + guarded seam              | `tested`      | 44 drift cases against `information_schema`, mutation-tested; the seam is proven to keep the guard on the query path                                                                                                                                                                           |
-| `apps/api` — repositories                               | `tested`      | Projects (18 cases), organizations/workspaces/memberships (21), and **client organizations, client memberships, project memberships and work items (49)**. All eight follow one shape; two findings from the last four are recorded under PROJ-001 above                                       |
-| `apps/api` — membership resolver + bootstrap read       | `tested`      | 24 database cases. The only waiver of ADR-0001 layer 3, bounded by an audited reason, a read-only rule and a table allowlist — all three mutation-tested                                                                                                                                       |
-| `apps/api` — principal assembly (TEN-002)               | `tested`      | Project relation loaded on the scoped path; a test asserts no guard event is emitted while a principal is assembled                                                                                                                                                                            |
-| `apps/api` — sessions (ID-001)                          | `tested`      | 43 database cases + 27 unit cases. Rotation, reuse detection, global cutoff, device list; the append-only ledger is proven immutable under the admin credential                                                                                                                                |
-| `apps/api` — identity database path                     | `tested`      | `identityRead` / `identityTransaction`. Zero tenant tables reachable, enforced in `observe` mode as well as `enforce`; no guard event across a whole session lifecycle                                                                                                                         |
-| `apps/api` — HTTP                                       | `tested`      | NestJS 11 + Fastify. The four-guard pipeline, the stable error envelope, correlation ids, session routes and the first tenant-scoped endpoints: 36 database cases in `http-pipeline.db.test.ts` plus 16 CSRF unit cases and 2 DI cases. Eight mutations confirm the guards fire                |
-| `apps/api` — audit (AUD-001)                            | `tested`      | 23 database cases + 26 unit cases. Append-only proved against the **migration** credential, not only the runtime one; the metadata gate refuses content at the write boundary; a rolled-back command leaves no row; a guard denial is recorded end to end through the real application         |
-| `apps/api` — project-membership commands                | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                         |
-| `apps/web`, `apps/worker`                               | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                       |
-| `packages/ui`, `contracts`, `observability`, `test-kit` | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                       |
-| CI pipeline                                             | `implemented` | Three jobs written, YAML parses, guards proven to fire under `CI=1`. **Never executed** — no runner here                                                                                                                                                                                       |
-| Design source audit                                     | `tested`      | 172/172, and now Prettier-idempotent so `audit:design` no longer turns `format:check` red                                                                                                                                                                                                      |
-| Seed world                                              | `tested`      | Exercised by every database run                                                                                                                                                                                                                                                                |
+| Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/config`                                 | `tested`      | 25 tests. MySQL schemes, `DEPLOYMENT_PROFILE`, `TENANT_GUARD_MODE`; production refuses dev substitutes and placeholder secrets                                                                                                                                                                 |
+| `packages/domain` — state machines                | `tested`      | 35 tests across all 7 lifecycles in `23-ERD` §5–§11                                                                                                                                                                                                                                            |
+| `packages/domain` — authorization                 | `tested`      | 29 tests over the §11 grid — application layer                                                                                                                                                                                                                                                 |
+| `packages/domain` — value objects                 | `tested`      | 11 tests. UUIDv7 (incl. >2³² ms), content hash                                                                                                                                                                                                                                                 |
+| `apps/api` — migrator                             | `tested`      | 15 database tests, 9 splitter tests                                                                                                                                                                                                                                                            |
+| `apps/api` — schema (0001, 0002)                  | `tested`      | Applied from empty on every database run; invariants read back from `information_schema`                                                                                                                                                                                                       |
+| `apps/api` — tenant context + guard               | `tested`      | 45 analyser tests, 44 corpus tests                                                                                                                                                                                                                                                             |
+| `apps/api` — least-privilege credentials          | `tested`      | 12 static assertions, plus **21 dynamic cases that now actually run** — against a long-lived MySQL 8.0.45 and again against MariaDB 11.4.5, both with the real `tmanage_app` credential. No container was involved. They still skip on the default per-file path, which has no such credential |
+| `apps/api` — Drizzle schema + guarded seam        | `tested`      | 44 drift cases against `information_schema`, mutation-tested; the seam is proven to keep the guard on the query path                                                                                                                                                                           |
+| `apps/api` — repositories                         | `tested`      | Projects (18 cases), organizations/workspaces/memberships (21), and **client organizations, client memberships, project memberships and work items (49)**. All eight follow one shape; two findings from the last four are recorded under PROJ-001 above                                       |
+| `apps/api` — membership resolver + bootstrap read | `tested`      | 24 database cases. The only waiver of ADR-0001 layer 3, bounded by an audited reason, a read-only rule and a table allowlist — all three mutation-tested                                                                                                                                       |
+| `apps/api` — principal assembly (TEN-002)         | `tested`      | Project relation loaded on the scoped path; a test asserts no guard event is emitted while a principal is assembled                                                                                                                                                                            |
+| `apps/api` — sessions (ID-001)                    | `tested`      | 43 database cases + 27 unit cases. Rotation, reuse detection, global cutoff, device list; the append-only ledger is proven immutable under the admin credential                                                                                                                                |
+| `apps/api` — identity database path               | `tested`      | `identityRead` / `identityTransaction`. Zero tenant tables reachable, enforced in `observe` mode as well as `enforce`; no guard event across a whole session lifecycle                                                                                                                         |
+| `apps/api` — HTTP                                 | `tested`      | NestJS 11 + Fastify. The four-guard pipeline, the stable error envelope, correlation ids, session routes and the first tenant-scoped endpoints: 36 database cases in `http-pipeline.db.test.ts` plus 16 CSRF unit cases and 2 DI cases. Eight mutations confirm the guards fire                |
+| `apps/api` — audit (AUD-001)                      | `tested`      | 23 database cases + 26 unit cases. Append-only proved against the **migration** credential, not only the runtime one; the metadata gate refuses content at the write boundary; a rolled-back command leaves no row; a guard denial is recorded end to end through the real application         |
+| `apps/api` — project-membership commands          | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                         |
+| `apps/web`, `apps/worker`                         | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                       |
+| `packages/ui` (UI-001)                            | `tested`      | Token package drift-tested against the design export in both directions; 13 primitives; the contrast arithmetic that jsdom cannot do; Storybook with theme, contrast, density and direction as globals. Three AA defects found and fixed in the component layer                                |
+| `packages/contracts`, `observability`, `test-kit` | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                       |
+| CI pipeline                                       | `implemented` | Three jobs written, YAML parses, guards proven to fire under `CI=1`. **Never executed** — no runner here                                                                                                                                                                                       |
+| Design source audit                               | `tested`      | 172/172, and now Prettier-idempotent so `audit:design` no longer turns `format:check` red                                                                                                                                                                                                      |
+| Seed world                                        | `tested`      | Exercised by every database run                                                                                                                                                                                                                                                                |
 
 ---
 
@@ -1711,15 +1909,20 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task is a choice, and it is a real one
 
-1. **UI-001 — the design system.** `packages/ui` is an empty directory and **every** `WEB-*`
-   ticket is blocked on it. Tokens are already in `docs/design/source/project/design/tokens/`
-   and 172 screens are already designed and audited. This is the only candidate that produces
-   something a person can look at, and after AUD-001 the backend has more proven surface than
-   the frontend has any surface.
-2. **ID-002 — passwords, passkeys, MFA.** Nothing authenticates a person. `SessionService.start()`
-   takes an already-proved `userId` from a development-only route. Until this lands, TEN-001's
-   missing organization creation cannot land either, because provisioning needs a verified
-   session and a founding-owner membership in one transaction.
+UI-001 is done, so the list is one shorter and the shape of the remaining choice has changed:
+the design system now exists but has nothing to render, and the API now has a great deal to
+render but no one who can log in to see it.
+
+1. **ID-002 — passwords, passkeys, MFA.** Nothing authenticates a person.
+   `SessionService.start()` takes an already-proved `userId` from a development-only route.
+   Until this lands, TEN-001's missing organization creation cannot land either, because
+   provisioning needs a verified session and a founding-owner membership in one transaction.
+2. **WEB-001 — the identity and onboarding screens, ID-01 to ON-04.** Now unblocked on the UI
+   side. It needs `apps/web` to exist first: the directory is empty, so this ticket includes
+   standing up the Next.js app, the app shell, and the client-portal shell from the design
+   artifacts. It is the first ticket that would put a real screen in front of a person, and it
+   can be built against the development-only sign-in route — that route is honest precisely
+   because it is labelled rather than pretending to authenticate.
 3. **WORK-001/002 — the work aggregate and its endpoints.** The next step of the Phase 1
    vertical loop. The state machine and the table both exist. Needs a decision on
    `work_items.state DEFAULT 'triage'` first, because fixing it is a migration.
@@ -1727,8 +1930,17 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
    assertion in `http-pipeline.db.test.ts` is explicitly parked until a client endpoint exists
    to make it against.
 
-**Recommendation: UI-001.** The foundation is disproportionately far ahead of everything
-built on it, and every remaining screen ticket queues behind this one.
+**Recommendation: WEB-001**, and the reason has changed rather than merely persisted. Before
+this session the argument for UI-001 was that nothing was visible; that is still true of the
+product, but the obstacle is no longer the design system. Every layer beneath a screen —
+tenancy, session, policy, project, audit, the HTTP pipeline — is built and tested, and the
+design system on top of it now exists and renders. `apps/web` is the only empty link left in
+that chain, and until it is filled the whole proof stops at a test runner.
+
+ID-002 is the honest alternative and the argument for it is not weak: a screen built against a
+development-only sign-in is a screen that has never met a real user session, and ID-002 also
+unblocks organization creation. The two do not block each other. Which comes first is a
+scheduling call, not a correctness one.
 
 ### Done, in the order it happened
 
@@ -1743,13 +1955,17 @@ built on it, and every remaining screen ticket queues behind this one.
 6. ~~ADR-0001 layer 2 against a real server~~ — `users.sql` executed for the first time, on
    MySQL 8.0.45 and then MariaDB 11.4.5. Four defects found and fixed, plus one hole in the
    drift check that had made `varchar(255)` agree with `varchar(64)`.
-7. ~~AUD-001~~ — **done this session.** The audit service, its view model, and the first
-   producer. Closes the `DELETE`-with-no-record gap PROJ-001 recorded in code, and implements
-   §12's "denied sensitive attempts are security events". Five named gaps recorded, and three
-   defects plus one denylist collision found by building it.
+7. ~~AUD-001~~ — the audit service, its view model, and the first producer. Closes the
+   `DELETE`-with-no-record gap PROJ-001 recorded in code, and implements §12's "denied
+   sensitive attempts are security events". Five named gaps, three defects and one denylist
+   collision found by building it.
+8. ~~UI-001~~ — **done this session.** The token package, thirteen primitives, the component
+   harness and Storybook. 106 new cases. Three real AA defects found by computing the contrast
+   the design export only claimed, and fixed in the component layer rather than by editing an
+   immutable artifact. Six named gaps, the largest being that no visual-regression harness
+   exists.
 
-**A note on ordering.** ID-002 is what makes `SessionService.start()` reachable by a real
-person, and UI-001 is what makes anything visible. They do not block each other: a screen can
-be built against the development-only sign-in route, and that route is honest precisely
-because it is labelled rather than pretending to authenticate. Which comes first is a
-scheduling call, not a correctness one.
+### Progress
+
+**13 of 74 tickets. 84 of 615 story points, about 14%, across Sprints 0–9.** Screens built:
+still **0 of 11** — UI-001 delivers the parts a screen is made of, not a screen.
