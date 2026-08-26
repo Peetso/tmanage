@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ApiConfigModule } from './common/http/api-config.js';
 import type { ApiConfig } from './common/http/api-config.js';
 import { CorrelationInterceptor } from './common/http/correlation.interceptor.js';
+import { ClientProjectionInterceptor } from './common/http/client-projection.interceptor.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { SessionAuthGuard } from './common/http/guards/session-auth.guard.js';
 import { CsrfGuard } from './common/http/guards/csrf.guard.js';
@@ -85,6 +86,10 @@ export class AppModule {
       ],
       providers: [
         { provide: APP_INTERCEPTOR, useClass: CorrelationInterceptor },
+        // SEC-001. After the correlation interceptor, so a refusal it raises still carries the
+        // id a log line is findable by. It only inspects responses on the client's side of the
+        // boundary — see `ClientProjectionInterceptor`.
+        { provide: APP_INTERCEPTOR, useClass: ClientProjectionInterceptor },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
         { provide: APP_GUARD, useClass: SessionAuthGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },

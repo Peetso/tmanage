@@ -64,8 +64,10 @@ type Outcome = 'clarify' | 'accept' | 'defer' | 'decline' | null;
  * ## The schedule impact is real or it is absent
  *
  * `WEB-005`'s name includes "schedule impact" and the artifact draws "Impact: collides with
- * Content migration, which already forecasts 8 Sep". Milestones are `MILE-001` and do not exist,
- * and nothing in this system models capacity — so an impact line here would be invented.
+ * Content migration, which already forecasts 8 Sep". Milestones do not exist, and **no ticket
+ * in `28-SPRINT-TICKETS` schedules them** — they appear in `07-DATA-MODEL` and in `PRJ-02` and
+ * nowhere in the plan's own backlog. Nothing models capacity either, so an impact line here
+ * would be invented.
  *
  * What this screen shows instead is a **fact it can check**: the work already due in the same
  * project in the week around the date being promised, counted from `work_items.due_at`. It is
@@ -341,7 +343,7 @@ export function RequestTriageScreen({
             />
           )}
 
-          <BackendPending ticket="MILE-001 · CONV-001 · FILE-001">
+          <BackendPending ticket="CHAT-001 · FILE-001 · milestones, unscheduled">
             The design draws a collision warning — &ldquo;collides with Content migration, which
             already forecasts 8 Sep&rdquo; — a discussion thread, the client&rsquo;s own request
             history, and a duplicate suggestion. Milestones, messaging and files are not built, and
@@ -702,9 +704,9 @@ function CommitmentReview({
 /**
  * What else is already due in this project in the week around a proposed date.
  *
- * A count of rows, not a capacity judgement, and the wording says so. `MILE-001` is what the
- * artifact's collision warning needs and it does not exist; this is the honest thing that can be
- * computed from `work_items.due_at` today.
+ * A count of rows, not a capacity judgement, and the wording says so. Milestones are what the
+ * artifact's collision warning needs; they do not exist and no ticket schedules them. This is the
+ * honest thing that can be computed from `work_items.due_at` today.
  */
 function impactOf(workItems: readonly WorkItemSummary[], committedDay: string | null): string {
   if (committedDay === null || committedDay === '') {

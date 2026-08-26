@@ -189,6 +189,141 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the SEC-001 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`815 s` wall (13 m 35 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                  |
+| `typecheck`              | Clean across five projects                                                                                          |
+| `lint`                   | Clean                                                                                                               |
+| `test` (unit)            | **800 passed**, 35 files — config 25, domain 102, ui 106, **api 250**, web 317. Was 791; nine new interceptor cases |
+| `test:db`                | **608 passed, 22 skipped**, **21 files**, **729.30 s**. Was 592/22 across 20; one new suite, 16 cases               |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                               |
+| `format:check` (closing) | Clean                                                                                                               |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                           |
+
+`next build` was **not** re-run and no claim is made about it. SEC-001 adds no route to
+`apps/web`; the twenty-two routes recorded in the WEB-005 section are unchanged.
+
+---
+
+## SEC-001 — the rule that had no enforcement point, and the grid that had no operations
+
+`28-SPRINT-TICKETS` §7: `SEC-001 client projection/query policies and cross-tenant isolation
+corpus`, 8 points, the last ticket of Sprint 4.
+
+Two things were missing, and both were created by work landing around a rule rather than
+through it.
+
+### 1. `findForbiddenClientFields` had no caller
+
+`25-AUTHORIZATION-AND-TENANT-ISOLATION` §7 lists the fields a client must never see — "internal
+notes, private comments/messages, estimates/cost/margin, staff evaluation, internal risk
+rationale, security metadata, other-client identities, hidden custom fields, unreleased versions,
+and internal file keys" — and `packages/domain` has expressed that list as
+`findForbiddenClientFields` since the audience policy landed.
+
+**Nothing in the application called it.** A rule with no enforcement point holds exactly as long
+as everybody remembers it, and §7's own closing sentence — "Never implement client access as
+`serializeInternalObject(); delete fields`" — describes the mistake somebody makes at four in the
+afternoon.
+
+`ClientProjectionInterceptor` is that enforcement point. It inspects every response on a path
+whose segments include `portal` and refuses one carrying a forbidden key.
+
+Three decisions inside it are worth the words:
+
+- **It refuses rather than filters.** A first draft stripped the offending keys and let the
+  response through. That was wrong: a projection that quietly loses a field is one whose author
+  never learns, and the next field they add — one this list does not name — travels all the way
+  to the client. The refusal is a **500**, because a response the interceptor objects to is a
+  programming error and not anything the caller did.
+- **It is global, not a decorator on `PortalController`.** A decorator is one a new client-facing
+  controller can be written without. `/portal` is already what the API treats as the client
+  boundary — that controller's own note calls it "a path of its own" and a security property
+  rather than a routing preference — so matching the path means a new portal route is covered by
+  existing.
+- **It is defence in depth and says so.** The control is that `PortalService` and
+  `ClientRequestsService` build client views field by field and never select an internal row.
+  This is the check that would catch the day somebody stopped doing that.
+
+The field **name** travels on the error's `auditCode`; the value never does. Names are keys of a
+fixed list in `packages/domain`, and a test asserts the value is absent from both the message and
+the code.
+
+### 2. §11's grid is over operations, and the corpus was over tables
+
+`tenant-isolation.db.test.ts` is thorough and it was written **before any client-facing surface
+existed**: its 45 cases describe a system with no portal and no client request in it. §11 asks
+for something that file cannot express — "Every operation is tested for: correct internal project;
+same organization/different project; same organization/different client; different organization;
+suspended membership; expired client membership; direct-ID enumeration; changed role after
+session; archived/deleted object" — and the operations in question are HTTP requests made by a
+client principal.
+
+`sec-001-client-projection.db.test.ts` is that grid. The three client-reachable read operations
+are written **as data**, so a new client endpoint has an obvious place to be added and the grid
+cannot cover two of three and look complete.
+
+The two suites overlap deliberately and prove different things: remove the query guard and
+`tenant-isolation` fails; keep the guard and let `PortalService` start returning the internal
+record, and only SEC-001 does.
+
+### The three holes it closes, each created since the storage corpus was written
+
+1. **`client_requests` had no cross-boundary case.** It was registered in `TENANT_TABLES` and the
+   registration was asserted — but nothing drove a client's read of one across a boundary and
+   watched it refuse.
+2. **`clientOrganizationName` had no database case at all.** The WEB-005 verification section
+   said so in as many words: it was proved by a web test over a mocked response, which proves
+   the screen renders it and not that the API produces it. It now has three, one of which first
+   asserts that a `manager` really is refused `GET client-organizations` — because the whole
+   reason the name is on the projection is that this call fails for them.
+3. **The client-to-client boundary was proved endpoint by endpoint** across three suites. It is
+   now enumerated once, alongside every other §11 condition.
+
+### What the grid found
+
+**Nothing.** All sixteen cases passed on their first run, and that is worth stating rather than
+glossing: the controls they exercise were built by `TEN-002`, `CLIENT-002` and `REQ-001` and each
+was tested when it landed. What SEC-001 adds is that they are now checked **together, as one
+enumerated rule**, so a future change that satisfies one endpoint's test and breaks the boundary
+somewhere else has somewhere to fail.
+
+A corpus finding nothing on the day it is written is the expected outcome. It earns its place on
+the day somebody changes a projection.
+
+### Named gaps in SEC-001, carried deliberately
+
+1. **§11 lists conditions this system has nothing to test.** "Stale cache/search", "delayed job",
+   "realtime subscription before revocation" — there is no cache, no search, no job runner and no
+   websocket. They are absent rather than skipped, and they belong to the tickets that build
+   those things.
+2. **§11 also lists surfaces that do not exist:** "exports, search, notifications, websockets,
+   files, jobs". The grid covers reads, writes and the client projection, which is what exists.
+3. **The "changed role after session" case proves less than its name.** A client viewer keeps
+   `client_request.submit` — `12-PERMISSION-MATRIX` §2 says "Policy" for that row — and the
+   capability a viewer actually loses is `approval.decide`, for which there is no endpoint. What
+   the case proves today is that the role is **re-read per request** rather than carried on the
+   session; the sharper version arrives with `APPR-001`.
+4. **The interceptor cannot see a field this codebase has not named.** `FORBIDDEN_CLIENT_FIELDS`
+   is §7's list transcribed, and a leak through a key nobody thought of passes it. It is a
+   backstop for the known list, not a general-purpose filter, and the field-by-field projections
+   remain the actual control.
+5. **No mutation test on the interceptor.** Other controls in this codebase are proved by
+   breaking them and watching a test fail; this one is proved by nine unit cases that force a
+   body it must refuse. Forcing a real projection to leak would mean shipping a leak to prove it
+   is caught, and that is the wrong trade.
+
+---
+
 ## Verification actually run — 2026-08-26, the WEB-005 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -313,9 +448,9 @@ request link.
 
 ### Named gaps in WEB-005, carried deliberately
 
-1. **No collision analysis**, as above. `MILE-001`.
+1. **No collision analysis**, as above. Milestones are scheduled by **no ticket** — see the correction below.
 2. **No discussion thread.** The artifact draws one on the triage screen as it does on the
-   client's. `CONV-001`. The clarification question is the only thing a manager can say to a
+   client's. `CHAT-001`. The clarification question is the only thing a manager can say to a
    client, and the only thing a client can read back.
 3. **No client history on the request.** `TM-12` lists it, `GET :id/history` exists and returns
    the audit trail, and **the screen does not render it**: the rows carry actor ids and no
@@ -596,7 +731,7 @@ every other product they have used, just set a deadline.
    state — `submitted` is the initial one — so a draft would be a state the lifecycle does not
    have.
 3. **No conversation.** The `CL-10` artifact's largest panel is a message thread with a reply
-   box. That is `CONV-001`; there is no `messages` table. The one thing the studio can say to a
+   box. That is `CHAT-001`; there is no `messages` table. The one thing the studio can say to a
    client today is a clarification question, and it is rendered as prominently as the artifact
    renders the thread — **but the client cannot answer it in the portal.** They are told to reply
    however they normally reach the studio, which is the honest instruction and a poor product.
@@ -4031,6 +4166,7 @@ module migration cannot add a tenant table that the guard silently ignores.
 | `apps/api` — HTTP                                 | `tested`      | NestJS 11 + Fastify. The four-guard pipeline, the stable error envelope, correlation ids, session routes and the first tenant-scoped endpoints: 36 database cases in `http-pipeline.db.test.ts` plus 16 CSRF unit cases and 2 DI cases. Eight mutations confirm the guards fire                                                                                                                             |
 | `apps/api` — audit (AUD-001)                      | `tested`      | 23 database cases + 26 unit cases. Append-only proved against the **migration** credential, not only the runtime one; the metadata gate refuses content at the write boundary; a rolled-back command leaves no row; a guard denial is recorded end to end through the real application                                                                                                                      |
 | `apps/api` — project-membership commands          | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                                                                                                                                      |
+| `apps/api` — client projection boundary (SEC-001) | `tested`      | 16 database cases over §11's grid and 9 unit cases over the interceptor. `findForbiddenClientFields` finally has a caller: a client response carrying a forbidden field is refused as a 500, not filtered                                                                                                                                                                                                   |
 | `apps/api` — client requests (REQ-001, REQ-002)   | `tested`      | 47 database cases over real HTTP, 1 skipped. One table with no delete and no update path; the facts §6 requires are written only by the transition that required them; the commitment coherence rule is a trigger, so it holds on a direct SQL session too. Two projections built separately, not one filtered. **REQ-002** makes an acceptance and its work one transaction, with one door onto `accepted` |
 | `apps/worker`                                     | `not_started` | Directory exists, empty. `outbox_events` still has no producer and no relay                                                                                                                                                                                                                                                                                                                                 |
 | `apps/web`                                        | `tested`      | 317 unit cases across 15 files; **twenty-two routes** at `next build`. `CL-09`/`CL-10` ship with WEB-004's second half; `REQ-01`/`REQ-02`/`REQ-03` with WEB-005; `CL-02` renders two of §6's five kinds of card                                                                                                                                                                                             |
@@ -4158,44 +4294,73 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
   processes rather than three, which is closer to what this plan can host.
 - `compose.yaml` is no more usable there than it is here.
 
+### A correction to ticket names, found at the end of the SEC-001 session
+
+`28-SPRINT-TICKETS` was re-read to check one name and **three names this file uses are not in
+it**:
+
+| Name used here | Reality                                                                                                                                                                                 |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CONV-001`     | The real ticket is **`CHAT-001`** — "conversations/messages/thread sequence model", 8 SP, depends on PROJ-001. Corrected everywhere, in code comments and here                          |
+| `MILE-001`     | **Not a ticket.** No row in `28-SPRINT-TICKETS` schedules milestones at all. They appear in `07-DATA-MODEL` and as screen `PRJ-02 Project plan`, and nothing in the backlog builds them |
+| `PROJ-002`     | **Not a ticket.** §5 has `PROJ-001` and no `PROJ-002`. The work recorded under that name — project creation, the workspace list, `ON-03` — was real and is done; the id was this file's |
+
+`PEOPLE-001` was already recorded as this file's invention, and `PULSE-001` — used in two
+screens' `BackendPending` notices — is not in the list either. That makes **five**, and the
+pattern is the same each time: a real gap needed something to point at, and a plausible id was
+written instead of a quotation.
+
+**Only the ids written this session were corrected in code.** `CHAT-001` replaced `CONV-001`
+everywhere, and `MILE-001` was removed from `RequestTriageScreen`, which is this session's file.
+`MILE-001`, `PULSE-001` and `PEOPLE-001` **still appear** in `ClientOverviewScreen`,
+`ProjectOverviewScreen` and `FirstProjectScreen`, and one of them is asserted by
+`project-flow.test.tsx`. Leaving them is deliberate rather than tidy: correcting a screen's
+visible copy at the end of a session, after the chain that proved it had already run, is how a
+recorded result stops describing the tree it was run against. They are the next session's, and
+they are small.
+
+**Consequence for the numbers, stated rather than quietly corrected.** The Progress section
+counts "27½ of 74 tickets" and 191 story points, and at least one entry in the done list —
+`PROJ-002` — is not a ticket in the plan being counted. **The count has not been re-derived**,
+because it was found at the end of a session and re-auditing it properly means walking every
+entry against `28-SPRINT-TICKETS` §§3–12. The next session should do that before quoting a
+percentage. Everything _built_ is unaffected; only the bookkeeping is.
+
+---
+
 ### The next coding task
 
-**`WEB-005` shipped on 2026-08-26 and this section is replaced rather than amended.**
+**`SEC-001` shipped on 2026-08-26 and this section is replaced rather than amended. Sprint 4 is
+complete** — the first sprint in this plan that is.
 
-**The next one is `SEC-001` — client projection and query policies, and the cross-tenant
-isolation corpus.**
+**The next one is `CHAT-001` — conversations, messages and the thread sequence model**, 8
+points, depending on `PROJ-001`, which has been met since Sprint 2. It is next because of what the
+last five tickets built rather than because it is the next number.
 
-Eight points, the last ticket of Sprint 4, and its dependency (`CLIENT-001`) has been met for
-several sessions. It is next because of what the last four tickets did rather than in spite of
-it: this session added a client-facing write, two client-facing projections, an internal
-projection carrying a customer's name, and five screens over them. `tenant-isolation.db.test.ts`
-was written before any of that existed, and its 45 cases still describe a system with no client
-request in it.
+The client request loop now works at both ends and it **cannot hold a conversation**. A manager
+can ask one question; the client reads it and is told to reply however they normally reach the
+studio. That sentence is in `ClientRequestDetailScreen` and it is honest, and it is also the
+largest thing standing between this loop and a team using it for a week. Both `CL-10` and
+`REQ-02` draw a message thread as their largest panel; neither has one.
 
-Three specific holes the corpus does not cover today, each created by work that has landed since
-it was written:
+`13-ENGINEERING-EXECUTION-SPEC` §3 lists `message.created/converted` among the durable events,
+and `07-DATA-MODEL` names `Conversation`, `Channel`, `ConversationMembership`, `Message` and
+`Thread`. `CHAT-002` and `CHAT-003` follow it in §6, and `US-B03 Convert message to task` is the
+story that joins this aggregate to `WORK-001`.
 
-1. **`client_requests` is not in the corpus.** It is registered in `TENANT_TABLES` and
-   `tenant-isolation.db.test.ts` asserts that registration, so the guard covers it — but no case
-   drives a client-request read without a tenant predicate and watches the guard refuse, which is
-   what the corpus does for every older table.
-2. **`clientOrganizationName` has no database case at all.** The WEB-005 verification section
-   above says so plainly: it is proved by a web test over a mocked response, which proves the
-   screen renders it and not that the API produces it.
-3. **The client-to-client boundary is proved per endpoint rather than as a rule.** Atlas cannot
-   read Meridian's requests, work items or portal — three separate cases in three suites. SEC-001
-   is where that becomes one enumerated grid, the way `25-AUTH-AND-TENANT-ISOLATION` §11 asks.
+This id was checked against `28-SPRINT-TICKETS` before being written down, which is not
+something this file has always done — see the correction above.
 
 The alternatives, in order after it:
 
 2. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
    the bulk audience change the specification singles out for a separate confirmation. It would
-   also give the request inbox the cursor paging it currently lacks — that screen silently shows
-   the oldest 200.
+   also give the request inbox the cursor paging it lacks — that screen silently shows the
+   oldest 200.
 3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
    it. `28-SPRINT-TICKETS` does not schedule this, and the name `MAIL-001` used elsewhere in
    this file is this file's, not the plan's.
-4. **`PLAT-004`'s relay** — the outbox dispatcher. Twelve tickets have now established the
+4. **`PLAT-004`'s relay** — the outbox dispatcher. Thirteen tickets have now established the
    transaction boundary it will publish from, `24-EVENT-CATALOG` names two client-request events
    that nothing emits, and `apps/worker` is still an empty directory. It is also where the rule
    connecting two lifecycles belongs: nothing moves a request to `planned` or `delivered` when
@@ -4207,10 +4372,11 @@ The alternatives, in order after it:
 
 A note on a name this file uses: **PEOPLE-001 is not a ticket.** `28-SPRINT-TICKETS` does not
 schedule a people directory, and earlier entries here named one anyway to have something to
-point at. The gap is real and it has now cost three screens something specific — the request
-inbox cannot name who submitted, the triage screen cannot render a history that is only actor
-ids, and no acceptance can name an owner — but the ticket number is this file's invention and is
-recorded as such rather than repeated as though the plan contained it.
+point at. The gap is real and has now cost four screens something specific — the request inbox
+cannot name who submitted, the triage screen cannot render a history that is only actor ids, no
+acceptance can name an owner, and every work item's owner reads "Assigned" — but the ticket
+number is this file's invention and is recorded as such rather than repeated as though the plan
+contained it.
 
 ### Done, in the order it happened
 
@@ -4279,21 +4445,27 @@ recorded as such rather than repeated as though the plan contained it.
     acceptance now leaves no task in the plan describing work nobody agreed to, `accepted` has
     exactly one door, and the request's history is a read of the append-only audit trail rather
     than a second, mutable copy of it. 12 database cases, no migration.
-23. ~~WEB-005~~ — **done this session.** `REQ-01`, `REQ-02` and `REQ-03`: the inbox a manager
+23. ~~WEB-005~~ — `REQ-01`, `REQ-02` and `REQ-03`: the inbox a manager
     opens to see what is waiting, the four outcomes each naming the reason they need, and a
     commitment review that shows the sentence the client will read and states the gap between
     the promised date and the one asked for. 21 web cases. The screen found a second hole in a
     projection — a manager could not learn which client had asked — and it was fixed in the
     projection. Its own title's "schedule impact" is the ticket's one deliberate shortfall.
+24. ~~SEC-001~~ — **done this session.** `findForbiddenClientFields` had lived in
+    `packages/domain` with **no caller**; it now has one, as a global interceptor that refuses a
+    client response carrying a forbidden field rather than filtering it. And §11's grid — which
+    is over _operations_ — is written for the first time against the surfaces a client can
+    actually reach. 16 database cases and 9 unit cases. The grid found nothing, which is the
+    expected outcome on the day a corpus is written.
 
 ### Progress
 
-**26½ of 74 tickets. 183 of 615 story points, about 30%, across Sprints 0–9.** WEB-002 counts
-half of its 13 points, rounded down. WEB-004 is whole and counts all 13; REQ-001, REQ-002 and
-WEB-005 count their full 8 each. Screen tickets: **4½ of 11** — seven of WEB-001's nine screens
-do what they say, three of WEB-002's, all of WEB-004's, and all three of WEB-005's.
+**27½ of 74 tickets. 191 of 615 story points, about 31%, across Sprints 0–9.** WEB-002 counts
+half of its 13 points, rounded down. WEB-004 is whole and counts all 13; REQ-001, REQ-002,
+WEB-005 and SEC-001 count their full 8 each. Screen tickets: **4½ of 11** — seven of WEB-001's
+nine screens do what they say, three of WEB-002's, all of WEB-004's, and all three of WEB-005's.
 
-**Sprint 4 is six of its seven tickets.** `SEC-001` is the one outstanding.
+**Sprint 4 is complete**, all seven tickets. It is the first sprint in this plan that is.
 
 **The client request loop is closed end to end, on both sides and in a browser.** A client asks
 for something, is told plainly that their date is a wish, and can withdraw it while it is still
@@ -4323,7 +4495,7 @@ team could use for a week:
 
    What it still cannot do is **hold a conversation**. The studio can ask one question and the
    client cannot answer it in the portal; they are told to reply however they normally reach the
-   studio. That is `CONV-001`, and it is the largest thing standing between this loop and a team
+   studio. That is `CHAT-001`, and it is the largest thing standing between this loop and a team
    using it for a week.
 
 3. **Approving, requesting changes and uploading are still in the position requests were in.**

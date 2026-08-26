@@ -55,7 +55,7 @@ export interface ClientRequestDetailScreenProps {
  * ## What the design draws and this does not
  *
  * The artifact's largest panel is a conversation with the studio — two messages, timestamps,
- * a reply box. That is `CONV-001` and it does not exist; there is no `messages` table and no
+ * a reply box. That is `CHAT-001` and it does not exist; there is no `messages` table and no
  * endpoint. What does exist is the clarification question, which is the one thing the studio can
  * actually say to a client today, and it is rendered as prominently as the artifact renders the
  * thread. Attachments are `FILE-001`, also absent.
@@ -288,7 +288,7 @@ export function ClientRequestDetailScreen({
             )}
           </section>
 
-          <BackendPending ticket="CONV-001 · FILE-001">
+          <BackendPending ticket="CHAT-001 · FILE-001">
             The design draws a conversation with {providerName} on this page, with their messages
             and a box to reply in. Messaging is not built, so the one thing they can say to you here
             is a question when they need something — shown above when there is one. Attachments are
