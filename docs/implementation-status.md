@@ -170,6 +170,143 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the WORK-001 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`645 s` wall (10 m 45 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                              |
+| `typecheck`              | Clean across five projects                                                                      |
+| `lint`                   | Clean                                                                                           |
+| `test` (unit)            | **701 passed**, 31 files — config 25, domain 102, ui 106, api 241, web 227. Unchanged           |
+| `test:db`                | **470 passed, 21 skipped**, 16 files, **512.58 s**. Was 438 across 15 — one new suite, 32 cases |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                           |
+| `format:check` (closing) | Clean                                                                                           |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                       |
+
+The 21 skips are the same least-privilege cases as every previous session, and are recorded
+as skips.
+
+### The first run of this chain failed, and the failure is the point
+
+An earlier run of the same chain exited 1 at `pnpm test`, on one case in
+`packages/domain/src/policies/audit.test.ts`:
+
+```
+AssertionError: expected '§5 — a state change is what the work …' to contain '§12'
+```
+
+The clause on `work_item.transitioned` cited §5 — the state machine in `23-ERD` — where the
+vocabulary test requires §12 of `04-SECURITY-PRIVACY`, which is the clause that obliges the
+record to exist at all. §5 says the move is legal; §12 says it must be accounted for. The
+clause now cites §12 and names §5 as the source of the move, which is what is actually true.
+
+It is recorded because the ticket's own 32-case database suite was green when this fired: the
+clause is prose, and nothing but that one vocabulary test ever reads it. A session that had
+committed on the strength of the feature suite alone would have pushed a red tree.
+
+---
+
+## WORK-001 — the work aggregate, and four rules it had to get right
+
+A person could sign in, create an organization and create a project, and the project was
+empty. Work items are the first thing that goes in one. `work_items` was already in
+`0001_tenancy.sql`, `WorkItemsRepository` was already written and `workItemStateMachine` was
+already 35 tested cases in `packages/domain` — what was missing was the service, the six
+routes, and the transition rules wired to the machine rather than restated beside it.
+
+Six endpoints under `/v1/organizations/:slug/work-items`: list, read, create, update,
+transition, soft delete.
+
+### 1. State is not a field
+
+There is no `state` on the create body or the update body. An item starts at the lifecycle's
+initial state and moves only through `POST :id/transitions`, which hands the machine the
+target and the facts the caller supplied.
+
+A `PATCH` that accepted `{ state: 'done' }` would be a way around §5's requirements — an owner
+and a completion time — and nothing would notice it happening. Making the transition its own
+sub-resource is what makes the requirement unavoidable rather than merely documented.
+
+The controller does not know which facts each move needs and must not learn: `packages/domain`
+is the one place the lifecycle is written, and the machine's own refusal already names what
+was missing.
+
+### 2. Audience is the whole of client isolation
+
+A client principal reads `client_visible` and `client_action_required` and nothing else. An
+item outside that set answers **404**, which is the same answer an id that does not exist
+gets — so the endpoint cannot be probed to discover that internal work exists.
+
+Widening an item is audited with both sides of the change, because widening is a disclosure
+decision and "who showed this to the client, and when" is the question asked afterwards.
+
+### 3. Optimistic concurrency is a 409, not a 500
+
+`work_items.version` is the token and the API refuses a write that names a stale one. The
+first run of the suite showed the refusal escaping as a 500, because the repository's
+`WorkItemVersionConflictError` was translated nowhere.
+
+That mattered more than a wrong number: a 500 reads as a server fault, a client retries a
+server fault, and a retry with a fresh version is exactly the lost update the token exists to
+prevent. `writing()` now translates it at the service boundary, and the test asserts the first
+writer's title is still the one stored.
+
+### 4. A soft-deleted item reads as absent everywhere
+
+`findById` still returns a deleted row — the repository is deliberately literal — and the list
+already excluded it. `GET :id` did not, so "deleted" meant two different things depending on
+how the row was reached. The service now refuses it explicitly rather than leaving it to the
+`lifecycle` field in the authorization verdict.
+
+### Two defects this ticket's own suite found
+
+Both were fixed rather than accommodated.
+
+- **`facts_supplied` was a comma-joined string.** `VALUE_PATTERN` in `isSafeAuditMetadata`
+  forbids a comma, so every transition carrying facts became a 500 at the audit boundary —
+  the write guard doing its job on its own author. It travels as an array now, which the
+  metadata contract already supported.
+- **`create` authorized a project id it had not proved exists.** `authorize()` was given the
+  caller's own organization, so a foreign project id passed the check and reached the insert,
+  where the composite foreign key refused it as a 500. Nothing crossed the tenant boundary
+  either way, but the status was wrong: a scoped read now answers 404, the same as every other
+  "no relation to this".
+
+### What is recorded, and what is not
+
+| Recorded                                      | Not recorded                                                                                                    |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Creation, with the project and initial state  | An ordinary field edit — a title change writes no audit row                                                     |
+| Every transition, with the states either side | The content of any fact — a blocker reason is prose, and §12's metadata rule is identifiers and classifications |
+| Which facts were supplied                     |                                                                                                                 |
+| Every audience change, with both sides        |                                                                                                                 |
+| The soft delete, with the state it was in     |                                                                                                                 |
+
+`work-001-work-items.db.test.ts` asserts the absence as well as the presence: an ordinary edit
+writing an audit row would fail the suite, because an audit log that records everything is one
+nobody reads.
+
+### Named gaps
+
+1. **`work_items.state DEFAULT 'triage'` still diverges from `23-ERD` §5's `'backlog'`.**
+   Peter decided on 2026-08-25 to leave it. The service inserts an explicit `'backlog'` and
+   never relies on the default, so the divergence is inert — but it is still there.
+2. **The owner is not validated against the organization.** The same gap `PROJ-002` recorded:
+   `owner_user_id` accepts any user id, and `PEOPLE-001` is the ticket that can check it.
+3. **`type` is a free string.** `work_items.type` is `VARCHAR(32)` with no vocabulary in
+   `23-ERD`, so the API bounds the length and does not invent a set of types.
+4. **No pagination beyond `after` and `limit`.** The list takes a cursor and a limit and
+   returns no total; a work list with saved views is `WEB-002`'s second half.
+
+---
+
 ## Verification actually run — 2026-08-26, the PROJ-002 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -2587,29 +2724,28 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**WORK-001 — the work aggregate and its endpoints**, and the reason is now the plain one: a
-person can sign in, create an organization and create a project inside it, and the project is
-empty. Work items are the first thing that goes in one.
+**WEB-002 — project overview, work list, detail**, and it is no longer blocked: WORK-001
+landed this session, so there is something for these screens to render. The API stores work
+items and nothing shows them, which is the same sentence this file has carried one layer down
+each session.
 
-Everything it needs exists. `work_items` is in `0001_tenancy.sql`, `WorkItemsRepository` is
-written, `workItemStateMachine` is 35 tested cases in `packages/domain`, and `PROJ-002` just
-established that a project can be created to put them in. What is missing is the service, the
-routes, and the transition rules wired to the machine rather than restated beside it.
-
-One decision is waiting and belongs to Peter rather than to the ticket:
-`work_items.state DEFAULT 'triage'` is a client-request state, and `23-ERD` §5 gives
-`'backlog'`. Peter decided on 2026-08-25 to leave it. WORK-001 can be built either way — the
-service can insert an explicit `'backlog'` and never rely on the default — so this does not
-block, and the divergence stays recorded rather than silently fixed.
+The three screens are `TM-03`, `TM-10` and `TM-13`. `28-SPRINT-TICKETS` §4 already marks the
+ticket "13→split", so the first half is the three screens reading and writing what WORK-001
+exposes, and the second half is saved views, sorting, selection and bulk actions — the last of
+which the specification singles out for a separate confirmation, because a bulk audience change
+is the action that can disclose a dozen items to a client in one click.
 
 The other three, unchanged in order:
 
-2. **WEB-002 — project overview, work list, detail.** The screens that render what WORK-001
-   stores. Blocked on it, and the larger of the two.
-3. **CLIENT-001 — the client portal endpoints.** The storage half is complete, the portal
+2. **CLIENT-001 — the client portal endpoints.** The storage half is complete, the portal
    shell exists, one assertion in `http-pipeline.db.test.ts` is parked until a client endpoint
-   exists, and `ON-03`'s client-or-internal choice cannot be saved without it.
-4. **PLAT-004's relay** — the outbox dispatcher. Three tickets have now established the
+   exists, and `ON-03`'s client-or-internal choice cannot be saved without it. WORK-001 makes
+   this sharper: items are already marked `client_visible`, and there is no portal to read
+   them in.
+3. **PEOPLE-001 — the people directory.** Named by three tickets in a row now. `PROJ-002`
+   cannot validate a project owner, WORK-001 cannot validate a work item owner, and every
+   screen that shows an owner shows "Assigned" rather than a name.
+4. **PLAT-004's relay** — the outbox dispatcher. Four tickets have now established the
    transaction boundary it will publish from, and `apps/worker` is still an empty directory.
 
 ### Done, in the order it happened
@@ -2631,15 +2767,20 @@ The other three, unchanged in order:
     security log, six routes, and the sign-in screen wired to them. 213 cases.
 11. ~~TEN-001's second half~~ — provisioning and the organization directory. 26 database cases
     and 18 web. Corrects a wrong inference this file carried from the day TEN-001 landed.
-12. ~~PROJ-002~~ — **done this session.** Project creation with a target date that stays a
-    target, the workspace list that makes filing possible, and `ON-03` wired to both. 19
-    database cases and 13 web. Six named gaps, the sharpest being that the owner is not
-    validated against the organization.
+12. ~~PROJ-002~~ — project creation with a target date that stays a target, the workspace
+    list that makes filing possible, and `ON-03` wired to both. 19 database cases and 13 web.
+    Six named gaps, the sharpest being that the owner is not validated against the
+    organization.
+13. ~~WORK-001~~ — **done this session.** The work aggregate and its six endpoints: the
+    lifecycle wired to the machine rather than restated, audience as the whole of client
+    isolation, and a stale version refused as a 409 rather than escaping as a 500. 32 database
+    cases. Two defects found by its own suite and one by the domain vocabulary test.
 
 ### Progress
 
-**17 of 74 tickets. 110 of 615 story points, about 18%, across Sprints 0–9.** Screen tickets:
-**1 of 11** — five of WEB-001's nine screens now do what they say.
+**18 of 74 tickets. 118 of 615 story points, about 19%, across Sprints 0–9.** Screen tickets:
+**1 of 11** — five of WEB-001's nine screens now do what they say. WORK-001 adds no screen.
 
-The sentence above the percentage, for the fourth time today: **a person signs in, creates an
-organization, creates a project in it, and the project is empty.** Work items are next.
+The sentence moves one layer down: **a person signs in, creates an organization, creates a
+project in it, puts work in the project — and cannot see any of it.** Six endpoints store
+work items and no screen renders one. WEB-002 is next.
