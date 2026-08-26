@@ -1,0 +1,180 @@
+import type { ApiClient } from './client';
+
+/**
+ * The studio's side of a client request — `REQ-001`'s and `REQ-002`'s internal endpoints.
+ *
+ * A separate module from `portal.ts`, for the same reason the API keeps two services: these are
+ * the **internal record**, and `portal.ts` is the client projection.
+ * `25-AUTH-AND-TENANT-ISOLATION` §7 forbids building the second from the first, and a shared
+ * type here would be the first step towards exactly that.
+ *
+ * What is here and not in `portal.ts` is the point: the internal `state` including `triage`, the
+ * linked work item, the id of the person who submitted it, and the name of the client
+ * organization that asked.
+ */
+
+/** `23-ERD` §6's states, as the studio sees them. `triage` is here; on the portal it is not. */
+export type ClientRequestState =
+  | 'submitted'
+  | 'triage'
+  | 'needs_clarification'
+  | 'accepted'
+  | 'deferred'
+  | 'declined'
+  | 'planned'
+  | 'delivered'
+  | 'withdrawn';
+
+export interface ClientRequestRecord {
+  readonly id: string;
+  readonly projectId: string;
+  readonly clientOrganizationId: string;
+  /** Which client asked, in words. Null when the row could not be read — see the API's note. */
+  readonly clientOrganizationName: string | null;
+  readonly submittedByUserId: string;
+  readonly title: string;
+  readonly category: string;
+  readonly description: string;
+  readonly urgencyReason: string | null;
+  /** What the client asked for. Never a commitment. */
+  readonly desiredAt: string | null;
+  readonly state: ClientRequestState;
+  readonly clarificationQuestion: string | null;
+  readonly clientVisibleReason: string | null;
+  readonly clientSafeScopeSummary: string | null;
+  readonly commitment: 'committed' | 'unscheduled' | null;
+  readonly committedAt: string | null;
+  readonly linkedWorkItemId: string | null;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ListClientRequestsQuery {
+  readonly projectId?: string;
+  readonly clientOrganizationId?: string;
+  readonly states?: readonly ClientRequestState[];
+  readonly limit?: number;
+}
+
+export async function listClientRequestRecords(
+  client: ApiClient,
+  organizationSlug: string,
+  query: ListClientRequestsQuery = {},
+): Promise<readonly ClientRequestRecord[]> {
+  const parameters = new URLSearchParams();
+  if (query.projectId) parameters.set('projectId', query.projectId);
+  if (query.clientOrganizationId) {
+    parameters.set('clientOrganizationId', query.clientOrganizationId);
+  }
+  if (query.states && query.states.length > 0) parameters.set('state', query.states.join(','));
+  if (query.limit !== undefined) parameters.set('limit', String(query.limit));
+
+  const suffix = parameters.size === 0 ? '' : `?${parameters.toString()}`;
+  const { data } = await client.request<{ clientRequests: readonly ClientRequestRecord[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/client-requests${suffix}`,
+  });
+  return data.clientRequests;
+}
+
+export async function getClientRequestRecord(
+  client: ApiClient,
+  organizationSlug: string,
+  clientRequestId: string,
+): Promise<ClientRequestRecord> {
+  const { data } = await client.request<ClientRequestRecord>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/client-requests/${encodeURIComponent(clientRequestId)}`,
+  });
+  return data;
+}
+
+/**
+ * The three transitions that are not an acceptance.
+ *
+ * `accepted` is deliberately absent from the type. REQ-002 made acceptance a route of its own
+ * because it creates the work in the same transaction, and the API refuses it here — so the type
+ * says the same thing the server does rather than letting a caller find out at runtime.
+ */
+export type TriageMove =
+  | { readonly to: 'triage' }
+  | { readonly to: 'needs_clarification'; readonly clarificationQuestion: string }
+  | { readonly to: 'deferred'; readonly clientVisibleReason: string }
+  | { readonly to: 'declined'; readonly clientVisibleReason: string }
+  | { readonly to: 'planned' }
+  | { readonly to: 'delivered' };
+
+export async function transitionClientRequest(
+  client: ApiClient,
+  organizationSlug: string,
+  clientRequestId: string,
+  version: number,
+  move: TriageMove,
+): Promise<ClientRequestRecord> {
+  const { data } = await client.request<ClientRequestRecord>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/client-requests/${encodeURIComponent(clientRequestId)}/transitions`,
+    body: { version, ...move },
+  });
+  return data;
+}
+
+export interface AcceptClientRequestBody {
+  readonly version: number;
+  readonly clientSafeScopeSummary: string;
+  /** `"unscheduled"` or an ISO 8601 instant. Required — silence is not an answer to "when". */
+  readonly commitment: string;
+  /** Point at existing work. Mutually exclusive with `work`. */
+  readonly linkedWorkItemId?: string;
+  readonly work?: {
+    readonly title?: string;
+    readonly ownerUserId?: string;
+    readonly audience?: 'internal' | 'client_visible' | 'client_action_required';
+  };
+}
+
+export interface AcceptedClientRequest {
+  readonly request: ClientRequestRecord;
+  readonly workItemId: string;
+  readonly workItemCreated: boolean;
+}
+
+/**
+ * Accept, and commit the work — REQ-002's one transaction.
+ *
+ * The response says whether the work was created here or merely linked, which is what the
+ * confirmation screen tells the manager they have just done.
+ */
+export async function acceptClientRequest(
+  client: ApiClient,
+  organizationSlug: string,
+  clientRequestId: string,
+  body: AcceptClientRequestBody,
+): Promise<AcceptedClientRequest> {
+  const { data } = await client.request<AcceptedClientRequest>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/client-requests/${encodeURIComponent(clientRequestId)}/acceptance`,
+    body,
+  });
+  return data;
+}
+
+export interface ClientRequestHistoryEntry {
+  readonly id: string;
+  readonly action: string;
+  readonly objectType: string;
+  readonly objectId: string | null;
+  readonly result: string;
+  readonly actorUserId: string | null;
+  readonly createdAt: string;
+}
+
+export async function getClientRequestHistory(
+  client: ApiClient,
+  organizationSlug: string,
+  clientRequestId: string,
+): Promise<readonly ClientRequestHistoryEntry[]> {
+  const { data } = await client.request<{ history: readonly ClientRequestHistoryEntry[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/client-requests/${encodeURIComponent(clientRequestId)}/history`,
+  });
+  return data.history;
+}

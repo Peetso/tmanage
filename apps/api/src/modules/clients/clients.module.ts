@@ -154,6 +154,7 @@ export class ClientsModule {
           audit,
           new ProjectsRepository(),
           new WorkItemsRepository(),
+          new ClientOrganizationsRepository(),
         ),
     };
 

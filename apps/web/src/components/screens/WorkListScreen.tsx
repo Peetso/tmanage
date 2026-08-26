@@ -117,6 +117,18 @@ export function WorkListScreen({
       title="Work"
       description="Everything this organization is delivering, across every project."
     >
+      {/*
+        The way into `REQ-01 Request inbox`. It lives here rather than on the rail because
+        `22-SCREEN-BY-SCREEN` §1 fixes the internal rail at eight destinations and Requests is not
+        one of them — and the design artifact's own breadcrumb reads "WORK · REQUESTS", so under
+        Work is where it belongs.
+      */}
+      <p className="tm-prose">
+        <Link href={`/${organizationSlug}/work/requests`}>
+          Client requests waiting for an answer
+        </Link>
+      </p>
+
       <BackendPending ticket="WEB-002 second half · WORK-002">
         Saved views, sorting, row selection and bulk actions are not built yet. Priority and the
         blocker reason are not columns because neither is stored: priority is not in the data model,

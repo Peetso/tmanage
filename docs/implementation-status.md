@@ -189,6 +189,152 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the WEB-005 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`721 s` wall (12 m 1 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                         |
+| `typecheck`              | Clean across five projects                                                                                                 |
+| `lint`                   | Clean                                                                                                                      |
+| `test` (unit)            | **791 passed**, 35 files — config 25, domain 102, ui 106, api 241, **web 317**. Was 770 across 34; one new suite, 21 cases |
+| `test:db`                | **592 passed, 22 skipped**, 20 files, **631.89 s**. Unchanged: WEB-005 adds no database surface                            |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                      |
+| `format:check` (closing) | Clean                                                                                                                      |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                                  |
+
+`next build` was run separately and succeeded: **twenty-two routes**, was twenty. The two new
+ones are `/[orgSlug]/work/requests` and `/[orgSlug]/work/requests/[requestId]`.
+
+The database count is unchanged even though this session changed the API: `clientOrganizationName`
+was added to the internal projection and **no database case asserts it**, because every existing
+case reads the fields it was written for and none of them reads that one. It is covered by the
+web suite, over a mocked response, which proves the screen renders it and does **not** prove the
+API produces it. That is a real hole and it is named here rather than counted as coverage.
+
+---
+
+## WEB-005 — the screen the studio answers on
+
+`REQ-001` and `REQ-002` gave the studio everything: a queue, a clarification, a decline with a
+client-safe reason, and an acceptance that commits the work in one transaction. **None of it had
+a screen.** A client could ask for something in a browser and nobody at the agency could answer
+without an HTTP client — a worse position than the client had been in that morning, when they at
+least had a portal to read.
+
+`28-SPRINT-TICKETS` §7: `WEB-005 manager triage screen and schedule impact`, 8 points, depending
+on REQ-002.
+
+### What shipped
+
+| Piece                                       | What it is                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `RequestInboxScreen`                        | `REQ-01`. Counts by bucket, a filter that stays on the page, a table sorted by age          |
+| `RequestTriageScreen`                       | `REQ-02` and `REQ-03` — the four outcomes, and the commitment review before a promise       |
+| `lib/triage-presentation.ts`                | The **internal** vocabulary of §6's nine states, and the date-gap and preview sentences     |
+| `lib/api/client-requests.ts`                | The studio's endpoints, kept apart from `portal.ts` for the reason the API keeps them apart |
+| Two routes under `/[orgSlug]/work/requests` | The inbox and one request                                                                   |
+| `WorkListScreen`                            | The way in                                                                                  |
+| `ClientRequestView.clientOrganizationName`  | An API addition this screen could not work without — see below                              |
+| 21 web cases                                | Three of them unit cases over the presentation module                                       |
+
+### The API addition, and why the screen forced it
+
+A manager triaging a request could not find out **which client had asked**.
+`GET client-organizations` is gated on `org.manage`, which only `owner` holds; `client_request.triage`
+belongs to `owner`, `org_admin`, `workspace_admin` and `manager`. So three of the four roles the
+matrix trusts to answer a client could not learn the client's name.
+
+`clientOrganizationName` is now on the **internal** projection, resolved by a scoped read — one
+read for a whole page rather than one per row, because a queue that issued a query per request
+would be quadratic in its own length. It is not a disclosure: it is a studio reading its own
+customer list, which is the same list `ClientsController` serves to an owner.
+
+This is the third time in this session that a screen has found a hole in a projection, after
+`canWithdraw`. Both were the same shape — a view built for one reader turning out to be
+unusable by another — and both were fixed in the projection rather than worked around in the
+screen.
+
+### Accepting is two steps, because it is a promise
+
+`REQ-03 Commitment review` is a separate artboard in the design, headed "You are about to promise
+a date to Atlas Hospitality", and it earns the extra click: an acceptance creates work, commits a
+date and tells a client, and REQ-002 makes all three one transaction.
+
+The review shows **the sentence the client will read**, built from the same two fields the API is
+about to store rather than from a template that could drift from them. And it states the gap. The
+artifact is emphatic — "10 SEP ≠ THEIR DESIRED 3 SEP · THE DIFFERENCE IS STATED, NOT HIDDEN" — so
+a manager promising a later date than the one asked for reads that sentence while the date can
+still be changed. Nothing is written until the second button.
+
+### Every outcome names its own price
+
+The artifact's four actions are "Commit with a date · Ask another question · Defer with a reason ·
+Decline with a reason", under the caption **"EVERY OUTCOME REQUIRES A REASON THE CLIENT CAN
+READ."** Each control says what it needs in its own label, so the cost of an outcome is visible
+before it is chosen.
+
+The screen is not what enforces it. `23-ERD` §6 attaches the facts to the moves and
+`clientRequestStateMachine` refuses a move that arrives without them; the labels describe a rule
+that already holds. That is the right relationship between a screen and a lifecycle, and the
+opposite of a form that is the only thing between a user and a bad row.
+
+A request nobody has opened gets a fifth control, "Start triaging", because §6 routes every
+answer through `triage` — a manager should not discover that by being refused.
+
+### The schedule impact is a fact or it is absent
+
+`WEB-005`'s own name promises "schedule impact", and the artifact draws "Impact: collides with
+Content migration, which already forecasts 8 Sep". **Milestones are `MILE-001` and do not exist,
+and nothing in this system models capacity**, so that line here would be invented.
+
+What the screen shows instead is something it can check: the work already due in the same project
+within three days either side of the date being promised, counted from `work_items.due_at`, with
+the titles. The sentence ends by saying what it is not — "a count of dated work, not a check of
+anybody's capacity — nothing in this system models that yet" — and a test asserts that sentence
+is present. A count a manager can verify beats a warning they cannot.
+
+**This is the ticket's one deliberate shortfall against its own title**, and it is recorded here
+rather than papered over.
+
+### No rail item, for the third time
+
+`22-SCREEN-BY-SCREEN` §1 fixes the internal rail at eight destinations and Requests is not one of
+them. The design artifact's breadcrumb reads "WORK · REQUESTS", which settles it: the inbox lives
+under `Work` and is reached from `TM-03`. `INTERNAL_NAVIGATION` was not touched, exactly as
+`CLIENT_NAVIGATION` was not on the client side, and a test asserts the rail still contains no
+request link.
+
+### Named gaps in WEB-005, carried deliberately
+
+1. **No collision analysis**, as above. `MILE-001`.
+2. **No discussion thread.** The artifact draws one on the triage screen as it does on the
+   client's. `CONV-001`. The clarification question is the only thing a manager can say to a
+   client, and the only thing a client can read back.
+3. **No client history on the request.** `TM-12` lists it, `GET :id/history` exists and returns
+   the audit trail, and **the screen does not render it**: the rows carry actor ids and no
+   names, so a history panel today would be a list of UUIDs. It is a gap in the screen with the
+   endpoint already behind it, which is the cheapest kind to close once a people directory
+   exists.
+4. **No duplicate suggestion.** `TM-12` lists it; similarity is a judgement nothing computes.
+5. **No files.** `FILE-001`.
+6. **No owner on the acceptance.** `TM-12` says "Acceptance requires committed scope/owner/date"
+   and `REQ-002`'s body accepts `work.ownerUserId` — the screen does not offer it, because
+   nothing lists the people in an organization and a picker would have one invented name in it.
+   The work item is created unowned, which is what `WorkItemsRepository` does anyway.
+7. **The inbox pages at 200 and says nothing when it fills.** `WorkListScreen` warns when its
+   page is full; this one does not. A studio with more than 200 requests would silently see the
+   oldest 200 — recorded rather than fixed, because the fix is the same cursor paging
+   `WEB-002`'s second half owes the work list.
+
+---
+
 ## Verification actually run — 2026-08-26, the REQ-002 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -3887,7 +4033,7 @@ module migration cannot add a tenant table that the guard silently ignores.
 | `apps/api` — project-membership commands          | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                                                                                                                                      |
 | `apps/api` — client requests (REQ-001, REQ-002)   | `tested`      | 47 database cases over real HTTP, 1 skipped. One table with no delete and no update path; the facts §6 requires are written only by the transition that required them; the commitment coherence rule is a trigger, so it holds on a direct SQL session too. Two projections built separately, not one filtered. **REQ-002** makes an acceptance and its work one transaction, with one door onto `accepted` |
 | `apps/worker`                                     | `not_started` | Directory exists, empty. `outbox_events` still has no producer and no relay                                                                                                                                                                                                                                                                                                                                 |
-| `apps/web`                                        | `tested`      | 296 unit cases across 14 files; **twenty routes** at `next build`. `CL-09` and `CL-10` ship with WEB-004's second half, and `CL-02` now renders two of §6's five kinds of card                                                                                                                                                                                                                              |
+| `apps/web`                                        | `tested`      | 317 unit cases across 15 files; **twenty-two routes** at `next build`. `CL-09`/`CL-10` ship with WEB-004's second half; `REQ-01`/`REQ-02`/`REQ-03` with WEB-005; `CL-02` renders two of §6's five kinds of card                                                                                                                                                                                             |
 | `packages/ui` (UI-001)                            | `tested`      | Token package drift-tested against the design export in both directions; 13 primitives; the contrast arithmetic that jsdom cannot do; Storybook with theme, contrast, density and direction as globals. Three AA defects found and fixed in the component layer                                                                                                                                             |
 | `packages/contracts`, `observability`, `test-kit` | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                                                                                                                                    |
 | CI pipeline                                       | `implemented` | Three jobs written, YAML parses, guards proven to fire under `CI=1`. **Never executed** — no runner here                                                                                                                                                                                                                                                                                                    |
@@ -4014,60 +4160,57 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**`REQ-002` shipped on 2026-08-26 and this section is replaced rather than amended.** It named
-REQ-002 as next and said the triage screen "belongs with REQ-002", which was **wrong**:
-`28-SPRINT-TICKETS` §7 schedules `WEB-005 manager triage screen and schedule impact` as its own
-8-point ticket depending on REQ-002. The correction matters because this file's whole discipline
-is not inventing tickets, and that sentence quietly merged two.
+**`WEB-005` shipped on 2026-08-26 and this section is replaced rather than amended.**
 
-**The next one is `WEB-005` — the manager triage screen.**
+**The next one is `SEC-001` — client projection and query policies, and the cross-tenant
+isolation corpus.**
 
-It is the same argument that made `CL-06` next after REQ-001, from the other side of the
-relationship. `REQ-001` and `REQ-002` gave the studio everything: a queue, a clarification, a
-decline with a client-safe reason, and an acceptance that commits the work in one transaction.
-**None of it has a screen.** A client can now ask for something in a browser and nobody at the
-agency can answer without an HTTP client, which is a worse position than the client was in this
-morning — they at least had a portal to read.
+Eight points, the last ticket of Sprint 4, and its dependency (`CLIENT-001`) has been met for
+several sessions. It is next because of what the last four tickets did rather than in spite of
+it: this session added a client-facing write, two client-facing projections, an internal
+projection carrying a customer's name, and five screens over them. `tenant-isolation.db.test.ts`
+was written before any of that existed, and its 45 cases still describe a system with no client
+request in it.
 
-`22-SCREEN-BY-SCREEN` §5 `TM-12` lists what it needs: "Request content, desired date disclaimer,
-files, discussion, client history, duplicate suggestion. Actions: ask clarification, accept,
-defer, decline. Acceptance requires committed scope/owner/date. Schedule-impact preview before
-accept."
+Three specific holes the corpus does not cover today, each created by work that has landed since
+it was written:
 
-Four of those exist and three do not, and the split is already documented: the content, the
-disclaimer, the history endpoint and all four actions are built; files are `FILE-001`, discussion
-is `CONV-001`, and duplicate suggestion is a similarity judgement nothing computes. The
-**schedule-impact preview** is the one that needs a decision rather than a ticket — nothing in
-this system models capacity, so a preview would either be invented or honestly absent, and the
-screen should say which.
+1. **`client_requests` is not in the corpus.** It is registered in `TENANT_TABLES` and
+   `tenant-isolation.db.test.ts` asserts that registration, so the guard covers it — but no case
+   drives a client-request read without a tenant predicate and watches the guard refuse, which is
+   what the corpus does for every older table.
+2. **`clientOrganizationName` has no database case at all.** The WEB-005 verification section
+   above says so plainly: it is proved by a web test over a mocked response, which proves the
+   screen renders it and not that the API produces it.
+3. **The client-to-client boundary is proved per endpoint rather than as a rule.** Atlas cannot
+   read Meridian's requests, work items or portal — three separate cases in three suites. SEC-001
+   is where that becomes one enumerated grid, the way `25-AUTH-AND-TENANT-ISOLATION` §11 asks.
 
 The alternatives, in order after it:
 
-2. **`SEC-001` — client projection and query policies, and the cross-tenant isolation corpus.**
-   Eight points, the last of Sprint 4 besides WEB-005, and its dependency (`CLIENT-001`) has
-   been met for two sessions. Much of what it asks for exists as tests already; what it would
-   add is the corpus grown to cover the client-projection surfaces that did not exist when
-   `tenant-isolation.db.test.ts` was written.
-3. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
-   the bulk audience change the specification singles out for a separate confirmation.
-4. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
+2. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
+   the bulk audience change the specification singles out for a separate confirmation. It would
+   also give the request inbox the cursor paging it currently lacks — that screen silently shows
+   the oldest 200.
+3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
    it. `28-SPRINT-TICKETS` does not schedule this, and the name `MAIL-001` used elsewhere in
    this file is this file's, not the plan's.
-5. **`PLAT-004`'s relay** — the outbox dispatcher. Eleven tickets have now established the
+4. **`PLAT-004`'s relay** — the outbox dispatcher. Twelve tickets have now established the
    transaction boundary it will publish from, `24-EVENT-CATALOG` names two client-request events
    that nothing emits, and `apps/worker` is still an empty directory. It is also where the rule
    connecting two lifecycles belongs: nothing moves a request to `planned` or `delivered` when
    its linked work item moves.
-6. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
+5. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
    `projects.committed_at` and `client_requests.desired_at` are all `DATETIME(3)` holding
    midnight UTC, so a reader west of UTC sees every calendar date a day early. Not scheduled by
-   `28-SPRINT-TICKETS`; it is a migration, and it is recorded in the WEB-004 gaps above.
+   `28-SPRINT-TICKETS`; it is a migration, recorded in the WEB-004 gaps above.
 
 A note on a name this file uses: **PEOPLE-001 is not a ticket.** `28-SPRINT-TICKETS` does not
 schedule a people directory, and earlier entries here named one anyway to have something to
-point at. The gap is real — nothing returns a person's name, so every owner reads "Assigned" —
-but the ticket number is this file's invention and is recorded as such rather than repeated as
-though the plan contained it.
+point at. The gap is real and it has now cost three screens something specific — the request
+inbox cannot name who submitted, the triage screen cannot render a history that is only actor
+ids, and no acceptance can name an owner — but the ticket number is this file's invention and is
+recorded as such rather than repeated as though the plan contained it.
 
 ### Done, in the order it happened
 
@@ -4132,24 +4275,34 @@ though the plan contained it.
     the machine would allow it, and `CL-02`'s second kind of card. 21 web cases. Two defects
     found by re-reading and fixed before the chain was recorded, and two divergences inside the
     planning pack recorded rather than resolved.
-22. ~~REQ-002~~ — **done this session.** An acceptance and its work as one transaction: a refused
+22. ~~REQ-002~~ — An acceptance and its work as one transaction: a refused
     acceptance now leaves no task in the plan describing work nobody agreed to, `accepted` has
     exactly one door, and the request's history is a read of the append-only audit trail rather
     than a second, mutable copy of it. 12 database cases, no migration.
+23. ~~WEB-005~~ — **done this session.** `REQ-01`, `REQ-02` and `REQ-03`: the inbox a manager
+    opens to see what is waiting, the four outcomes each naming the reason they need, and a
+    commitment review that shows the sentence the client will read and states the gap between
+    the promised date and the one asked for. 21 web cases. The screen found a second hole in a
+    projection — a manager could not learn which client had asked — and it was fixed in the
+    projection. Its own title's "schedule impact" is the ticket's one deliberate shortfall.
 
 ### Progress
 
-**25½ of 74 tickets. 175 of 615 story points, about 28%, across Sprints 0–9.** WEB-002 counts
-half of its 13 points, rounded down. **WEB-004 is whole** and counts all 13; REQ-001 and REQ-002
-count their full 8 each. Screen tickets: **3½ of 11** — seven of WEB-001's nine screens do what
-they say, three of WEB-002's, and all of WEB-004's.
+**26½ of 74 tickets. 183 of 615 story points, about 30%, across Sprints 0–9.** WEB-002 counts
+half of its 13 points, rounded down. WEB-004 is whole and counts all 13; REQ-001, REQ-002 and
+WEB-005 count their full 8 each. Screen tickets: **4½ of 11** — seven of WEB-001's nine screens
+do what they say, three of WEB-002's, all of WEB-004's, and all three of WEB-005's.
 
-**Sprint 4 is now five of its seven tickets**, and the two outstanding are `SEC-001` and
-`WEB-005`.
+**Sprint 4 is six of its seven tickets.** `SEC-001` is the one outstanding.
 
-The portal is the most finished surface in the product: a client can read what was published to
-them, see what is waiting on them, ask for something new, and follow what happened to it. The
-studio can answer all of it — over HTTP, with no screen of its own yet.
+**The client request loop is closed end to end, on both sides and in a browser.** A client asks
+for something, is told plainly that their date is a wish, and can withdraw it while it is still
+theirs to withdraw. A manager sees it in an inbox, asks a question, defers or declines with a
+reason the client reads, or commits a date — and sees the sentence the client will read, and the
+gap between that date and the one they were asked for, before promising anything. The acceptance
+and the work it commits are one transaction.
+
+That is the first loop in this product that is complete at both ends.
 
 **Both loops are closed in the browser.** A person signs in, creates an organization, creates a
 project, puts work in it, moves that work through its lifecycle, sets up a client organization,
@@ -4162,12 +4315,17 @@ team could use for a week:
 
 1. **Nothing sends the invitation.** The link is printed on screen and a person has to send it
    by hand. Nothing else in the loop needs a human to carry it.
-2. **The client can now answer, and the studio's half of it has no screen.** `REQ-001` built
-   the request, `WEB-004`'s second half built the client's side of it, and `REQ-002` made
-   accepting one and committing the work a single transaction. A client asks for something in
-   the browser, is told plainly that their date is a wish, and reads the answer with a
-   client-safe reason attached. **The studio triages over HTTP only** — there is no triage
-   screen, which is the mirror image of where the client was this morning. That is `WEB-005`.
+2. **The client request loop is closed at both ends** — the first loop in this product that is.
+   A client asks for something in a browser and is told plainly that their date is a wish. A
+   manager sees it in an inbox, asks a question, defers or declines with a reason the client
+   reads, or commits a date — seeing the sentence the client will read, and the gap between that
+   date and the one they were asked for, before promising anything.
+
+   What it still cannot do is **hold a conversation**. The studio can ask one question and the
+   client cannot answer it in the portal; they are told to reply however they normally reach the
+   studio. That is `CONV-001`, and it is the largest thing standing between this loop and a team
+   using it for a week.
+
 3. **Approving, requesting changes and uploading are still in the position requests were in.**
    `approval.decide` and `file.upload` are in client ceilings with nothing behind them.
    `DEL-001`, `APPR-001` and `FILE-001` are those aggregates, and none has started.

@@ -10,6 +10,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { ClientOrganizationsRepository } from '../clients/client-organizations.repository.js';
 import {
   ClientRequestNotFoundError,
   ClientRequestTransitionError,
@@ -66,6 +67,19 @@ export interface ClientRequestView {
   readonly id: string;
   readonly projectId: string;
   readonly clientOrganizationId: string;
+  /**
+   * Which client asked, in words — WEB-005.
+   *
+   * The id alone is useless on a triage screen, and a manager cannot look it up:
+   * `GET client-organizations` is gated on `org.manage`, which only `owner` holds, while
+   * `client_request.triage` belongs to `owner`, `org_admin`, `workspace_admin` and `manager`.
+   * So a manager could triage a request and not know whose it was.
+   *
+   * Internal-facing and not a disclosure: this is a studio reading its own customer list, which
+   * is the same list `ClientsController` serves to an owner. `null` only when the row is
+   * unreadable for a reason the caller may not learn — see {@link ClientRequestsService.list}.
+   */
+  readonly clientOrganizationName: string | null;
   readonly submittedByUserId: string;
   readonly title: string;
   readonly category: string;
@@ -196,11 +210,12 @@ function iso(value: Date | null): string | null {
   return value ? value.toISOString() : null;
 }
 
-function toView(row: ClientRequestRow): ClientRequestView {
+function toView(row: ClientRequestRow, clientOrganizationName: string | null): ClientRequestView {
   return {
     id: row.id,
     projectId: row.projectId,
     clientOrganizationId: row.clientOrganizationId,
+    clientOrganizationName,
     submittedByUserId: row.submittedByUserId,
     title: row.title,
     category: row.category,
@@ -304,6 +319,12 @@ export class ClientRequestsService {
      * refuses the row, and a 500 is the wrong way to tell a manager they mistyped an id.
      */
     private readonly workItems: WorkItemsRepository = new WorkItemsRepository(),
+    /**
+     * Read-only, and used for one thing: putting a **name** on the client a request came from,
+     * for the internal view only. It is never consulted on a client path — see the note on
+     * `ClientRequestView.clientOrganizationName`.
+     */
+    private readonly clientOrganizations: ClientOrganizationsRepository = new ClientOrganizationsRepository(),
   ) {}
 
   // ── The studio's side ──────────────────────────────────────────────────────
@@ -323,7 +344,12 @@ export class ClientRequestsService {
     const rows = await this.database.read(context, (runner) =>
       this.requests.list(runner, context, options),
     );
-    return rows.filter((row) => this.mayTriage(principal, row)).map(toView);
+    const visible = rows.filter((row) => this.mayTriage(principal, row));
+    // One read for the whole page rather than one per row. The tenant's client organizations
+    // are a short list — `ClientsController` pages them at 50 — and a triage queue that issued
+    // a query per request would make the cost of the queue quadratic in its own length.
+    const names = await this.clientOrganizationNames(context, visible);
+    return visible.map((row) => toView(row, names.get(row.clientOrganizationId) ?? null));
   }
 
   /** Read one, internally. Absent or unrelated both produce the same 404. */
@@ -336,7 +362,7 @@ export class ClientRequestsService {
     if (!this.mayTriage(principal, row)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
-    return toView(row);
+    return toView(row, await this.clientOrganizationName(context, row.clientOrganizationId));
   }
 
   /**
@@ -359,9 +385,15 @@ export class ClientRequestsService {
     to: ClientRequestState,
     facts: TransitionFacts = {},
   ): Promise<ClientRequestView> {
-    return toView(
-      await this.transition(context, principal, clientRequestId, expectedVersion, to, facts),
+    const moved = await this.transition(
+      context,
+      principal,
+      clientRequestId,
+      expectedVersion,
+      to,
+      facts,
     );
+    return toView(moved, await this.clientOrganizationName(context, moved.clientOrganizationId));
   }
 
   /**
@@ -575,7 +607,10 @@ export class ClientRequestsService {
       );
 
       return {
-        request: toView(result.moved),
+        request: toView(
+          result.moved,
+          await this.clientOrganizationName(context, result.moved.clientOrganizationId),
+        ),
         workItemId: result.workItemId,
         workItemCreated: result.created,
       };
@@ -814,6 +849,33 @@ export class ClientRequestsService {
     }
 
     return before;
+  }
+
+  /**
+   * The names of the client organizations these requests belong to, in one read.
+   *
+   * A `Map` rather than a decorated list, because the caller needs to look one up per row and a
+   * second array would have to be kept in step with the first.
+   */
+  private async clientOrganizationNames(
+    context: TenantContext,
+    rows: readonly ClientRequestRow[],
+  ): Promise<ReadonlyMap<string, string>> {
+    if (rows.length === 0) return new Map();
+    const organizations = await this.database.read(context, (runner) =>
+      this.clientOrganizations.list(runner, context, { limit: 200 }),
+    );
+    return new Map(organizations.map((organization) => [organization.id, organization.name]));
+  }
+
+  private async clientOrganizationName(
+    context: TenantContext,
+    clientOrganizationId: string,
+  ): Promise<string | null> {
+    const found = await this.database.read(context, (runner) =>
+      this.clientOrganizations.findById(runner, context, clientOrganizationId),
+    );
+    return found?.name ?? null;
   }
 
   private async readOr404(

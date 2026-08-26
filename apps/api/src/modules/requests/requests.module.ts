@@ -10,6 +10,7 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { ClientOrganizationsRepository } from '../clients/client-organizations.repository.js';
 import { ClientRequestsRepository } from './client-requests.repository.js';
 import { ClientRequestsService } from './client-requests.service.js';
 import { ClientRequestsController } from './client-requests.controller.js';
@@ -50,6 +51,7 @@ export class RequestsModule {
           audit,
           new ProjectsRepository(),
           new WorkItemsRepository(),
+          new ClientOrganizationsRepository(),
         ),
     };
 
