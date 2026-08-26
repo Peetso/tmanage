@@ -170,6 +170,147 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the WEB-002 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`526 s` wall (8 m 46 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                          |
+| `typecheck`              | Clean across five projects                                                                                                  |
+| `lint`                   | Clean                                                                                                                       |
+| `test` (unit)            | **726 passed**, 32 files — config 25, domain 102, ui 106, api 241, **web 252**. Was 701 across 31 — one new suite, 25 cases |
+| `test:db`                | **470 passed, 21 skipped**, 16 files, **525.72 s**. Unchanged: WEB-002 adds no database surface                             |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                       |
+| `format:check` (closing) | Clean                                                                                                                       |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                                   |
+
+`next build` was run separately and succeeded: **fifteen routes**, was twelve. The three new
+ones are `/[orgSlug]/work`, `/[orgSlug]/work/[workItemId]` and
+`/[orgSlug]/projects/[projectId]`, all server-rendered on demand because each reads a route
+parameter or a query string.
+
+The 21 skips are the same least-privilege cases as every previous session, and are recorded
+as skips.
+
+### A run was stopped rather than recorded
+
+An earlier run of this chain was killed part-way through, deliberately, and is not counted
+above. Mid-run it became clear that both new screens asked the work-items API for its
+**default** page of 50 and rendered whatever came back — so a project with 200 items would
+have shown fifty of them as though that were the work, and the project overview's counts would
+have been a page's arithmetic presented as the project's.
+
+Finishing the run would have produced a green chain describing a tree with that defect in it.
+The run was stopped, the defect fixed, four cases added, and the chain above is the one that
+ran against the fixed tree.
+
+---
+
+## WEB-002's first half — the screens that show the work
+
+`WORK-001` gave the API six endpoints and no screen rendered one. This is the ticket that
+closes that gap for the three screens `28-SPRINT-TICKETS` §4 names: `TM-03` project overview,
+`TM-10` work list, `TM-13` work item detail. The ticket is marked "13→split" in the sprint
+table, and this is the first half of that split.
+
+Three screens, three routes, one API module, one presentation module, and the table styles the
+application had never needed before.
+
+### The transition form asks the machine rather than restating it
+
+`22-SCREEN-BY-SCREEN` §5 on `TM-13`: "Transition presents only fields required for next
+state."
+
+The form asks `workItemStateMachine` two questions and renders exactly the answers:
+`allowedFrom(state)` fills the select, and `requirementsFor(from, to)` decides which facts are
+asked for. Nothing in `apps/web` restates §5. A transition added to the machine tomorrow
+appears in this screen without the screen being edited, and the one place the lifecycle is
+written stays the one place.
+
+The server validates the same facts through the same machine, so the form is a courtesy rather
+than a gate: it exists so that nobody is refused for a fact they were never asked for. A screen
+that had guessed at the requirements would eventually have guessed wrong, and the refusal would
+have arrived with the fields already filled in.
+
+### A 409 is an outcome, and it is never retried
+
+`WORK-001` made a stale write a 409. This screen shows it as what happened — somebody else
+changed this first, your change was not applied, here is the item as it now stands — and
+refetches.
+
+It does not retry. A retry with a fresh version is exactly the lost update the token exists to
+prevent, and doing it automatically would make the whole mechanism ornamental. The test asserts
+the count: one POST, not two.
+
+### Widening the audience is confirmed; narrowing is not
+
+Widening names the item's **title** in the confirmation, because the title is the thing the
+client will read and the moment to check it says what you meant is before it is shown, not
+after.
+
+Narrowing back to internal is sent without a confirmation. It takes something away from a
+client who may already have read it, which is worth doing and is not worth a modal, because
+nothing new escapes. The asymmetry is the point and both directions are asserted.
+
+### "Health explanation" is an explanation, not a score
+
+`22` §4 asks `TM-03` for a "health explanation". This screen gives the explanation and nothing
+else: how many items are blocked, how many are past their due date, how much is finished, in a
+sentence and then as counts.
+
+There is no letter grade, no traffic light and no percentage, and that is a decision rather
+than an omission. A score would be an opinion the data model has not been asked to hold, and
+once a colour appears beside a project name people manage the colour rather than the work. The
+counts are arithmetic anybody can repeat against the work list.
+
+A scored indicator belongs to a later ticket and needs a stated formula before it can be drawn.
+
+### The work list is a real `<table>`
+
+§5 asks for keyboard row navigation, selection and sorting. Every one of those is free in a
+table element and has to be rebuilt from nothing in a grid of `<div>`s — and a screen reader
+announces "row 4, State, Blocked" from the first and nothing from the second. The title cell is
+the row header and carries the link, so a row is reachable by Tab and openable in a new tab.
+
+The wrapper scrolls, not the document. Seven columns do not fit a phone, and a table that
+widens the page makes every other screen scroll sideways with it.
+
+### What is deliberately not drawn
+
+| Asked for by §5 / §4                                           | Why it is absent                                                                                                                                                              |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Priority column                                                | There is no priority on `work_items` and none in `23-ERD` §5. A column reading "Normal" for every row is a fiction people would then sort by                                  |
+| Blocker column                                                 | The blocker reason is a **transition fact**, not a field. There is nothing to put in the cell; the `Blocked` capsule is the part that is real                                 |
+| Saved views, sorting, selection                                | The ticket's second half                                                                                                                                                      |
+| Bulk actions, with policy preview                              | The second half, and the one §5 singles out for a separate confirmation — a bulk audience change can disclose a dozen items in one click, and half of that is worse than none |
+| Milestones, latest internal pulse                              | Neither has storage. An empty "Milestones" heading reads as a project nobody has planned rather than a feature that does not exist                                            |
+| Description, checklist, files, discussion, decisions, activity | Each its own object and its own ticket. Named once in `BackendPending` rather than drawn as empty sections                                                                    |
+| Owner **names**                                                | Nothing returns a person's name. Every owner cell says "Assigned" or "Unassigned", which is the part that answers "what is this waiting on"                                   |
+
+### Named gaps
+
+1. **The organization's display name is still a fixture.** No endpoint returns one
+   organization's profile by slug; `ID-04` fetches the whole directory. The name is invented
+   once in `fixtures.ts` and the shell reads it.
+2. **The work list still does not page.** It asks for the API's maximum (200) and says so
+   when it gets a full one, but it does not follow the `after` cursor — that is the second
+   half, alongside saved views. Caught during this session: both screens originally asked for
+   the API's _default_ of 50 and rendered whatever came back, which would have shown fifty of
+   two hundred items as though that were the work.
+3. **The project overview's counts are a page.** Same cause and the same notice: with more
+   than 200 items in one project the counts describe what was fetched, and the screen says so
+   rather than presenting a page's arithmetic as the project's.
+4. **The client-publication section lists what a client _would_ see.** There is no portal to
+   read it in — `CLIENT-001` — and the screen says so rather than implying one exists.
+
+---
+
 ## Verification actually run — 2026-08-26, the WORK-001 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -2724,25 +2865,32 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**WEB-002 — project overview, work list, detail**, and it is no longer blocked: WORK-001
-landed this session, so there is something for these screens to render. The API stores work
-items and nothing shows them, which is the same sentence this file has carried one layer down
-each session.
+**CLIENT-001 — client organizations, their people, and which projects they can see.**
 
-The three screens are `TM-03`, `TM-10` and `TM-13`. `28-SPRINT-TICKETS` §4 already marks the
-ticket "13→split", so the first half is the three screens reading and writing what WORK-001
-exposes, and the second half is saved views, sorting, selection and bulk actions — the last of
-which the specification singles out for a separate confirmation, because a bulk audience change
-is the action that can disclose a dozen items to a client in one click.
+The storage half has been complete and tested against a real server since PROJ-001:
+`ClientOrganizationsRepository` and `ClientMembershipsRepository` both exist, and
+`PrincipalRepository.projectScope` already reads `project_clients` to decide what a client
+principal can reach. What is missing is everything above them — no route creates a client
+organization, invites anybody into one, or shares a project with one, so the entire client
+half of the product is storage nobody can put anything into.
+
+Three things make it the right next ticket rather than the next one alphabetically:
+
+- WEB-002 just shipped a screen that lists what a client _would_ see and has to say there is
+  no portal to see it in. `ON-03`'s client-or-internal choice is still collected and dropped
+  for the same reason.
+- The parked assertion in `http-pipeline.db.test.ts` names this ticket by number: a client
+  seeing their own client organization's work and not a sibling client's "belongs on a Client
+  Portal endpoint … it arrives with CLIENT-001".
+- `12-PERMISSION-MATRIX` §2's "Invite client users: **within own client org/policy**" is the
+  hardest sentence in the matrix to get right, and the seed world already has two clients of
+  the same studio — Atlas and Meridian — to prove it against.
 
 The other three, unchanged in order:
 
-2. **CLIENT-001 — the client portal endpoints.** The storage half is complete, the portal
-   shell exists, one assertion in `http-pipeline.db.test.ts` is parked until a client endpoint
-   exists, and `ON-03`'s client-or-internal choice cannot be saved without it. WORK-001 makes
-   this sharper: items are already marked `client_visible`, and there is no portal to read
-   them in.
-3. **PEOPLE-001 — the people directory.** Named by three tickets in a row now. `PROJ-002`
+2. **WEB-002's second half.** Saved views, sorting, row selection and bulk actions, including
+   the bulk audience change the specification singles out for a separate confirmation.
+3. **PEOPLE-001 — the people directory.** Named by four tickets in a row now. `PROJ-002`
    cannot validate a project owner, WORK-001 cannot validate a work item owner, and every
    screen that shows an owner shows "Assigned" rather than a name.
 4. **PLAT-004's relay** — the outbox dispatcher. Four tickets have now established the
@@ -2771,16 +2919,26 @@ The other three, unchanged in order:
     list that makes filing possible, and `ON-03` wired to both. 19 database cases and 13 web.
     Six named gaps, the sharpest being that the owner is not validated against the
     organization.
-13. ~~WORK-001~~ — **done this session.** The work aggregate and its six endpoints: the
-    lifecycle wired to the machine rather than restated, audience as the whole of client
-    isolation, and a stale version refused as a 409 rather than escaping as a 500. 32 database
-    cases. Two defects found by its own suite and one by the domain vocabulary test.
+13. ~~WORK-001~~ — the work aggregate and its six endpoints: the lifecycle wired to the
+    machine rather than restated, audience as the whole of client isolation, and a stale
+    version refused as a 409 rather than escaping as a 500. 32 database cases. Two defects
+    found by its own suite and one by the domain vocabulary test.
+14. ~~WEB-002's first half~~ — **done this session.** `TM-03`, `TM-10` and `TM-13`: the
+    transition form asks the state machine rather than restating it, a 409 is shown and never
+    retried, and widening the audience is confirmed while narrowing is not. 25 web cases. One
+    defect caught mid-chain — both screens were showing a page of work as though it were all
+    of it.
 
 ### Progress
 
-**18 of 74 tickets. 118 of 615 story points, about 19%, across Sprints 0–9.** Screen tickets:
-**1 of 11** — five of WEB-001's nine screens now do what they say. WORK-001 adds no screen.
+**19 of 74 tickets. 125 of 615 story points, about 20%, across Sprints 0–9.** WEB-002 counts
+as half of its 13 points, rounded down, because half of it is what shipped. Screen tickets:
+**1½ of 11** — five of WEB-001's nine screens do what they say, and three more now exist.
 
-The sentence moves one layer down: **a person signs in, creates an organization, creates a
-project in it, puts work in the project — and cannot see any of it.** Six endpoints store
-work items and no screen renders one. WEB-002 is next.
+The sentence changes shape for the first time in four sessions. **A person signs in, creates
+an organization, creates a project, puts work in it, moves that work through its lifecycle,
+and can see all of it.** That is a loop somebody could actually use.
+
+What they cannot do is show any of it to a client. Items can be marked `client_visible` and
+there is nothing to view them in — no client organization can be created, nobody can be
+invited into one, and no project can be shared. CLIENT-001 is next.
