@@ -1,0 +1,11 @@
+{
+  // Typecheck covers `tests/` as well as `src/`, for the reason `packages/ui` gives: a
+  // test that no longer compiles against a component's props is the first evidence that
+  // the component's contract moved, and evidence that is never compiled is not evidence.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"],
+  "exclude": ["node_modules", ".next"]
+}

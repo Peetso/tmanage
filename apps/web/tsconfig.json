@@ -1,0 +1,34 @@
+{
+  // Next.js compiles this app itself, so the TypeScript settings here exist to typecheck
+  // it, not to emit it. Three options diverge from `tsconfig.base.json` and each has to:
+  //
+  //   - `moduleResolution: "bundler"` — the App Router resolves extensionless relative
+  //     imports and package `exports` maps the way a bundler does, not the way NodeNext
+  //     does. Keeping NodeNext here would force `.js` suffixes on every local import in a
+  //     tree that Next never asks for them in.
+  //   - `jsx: "preserve"` — the SWC pipeline transforms JSX, so tsc must leave it alone.
+  //   - `noEmit` — nothing in this package is built by tsc.
+  //
+  // `composite` is off for the same reason: there is no build output to reference.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "allowJs": true,
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": [],
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", ".next"]
+}

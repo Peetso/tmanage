@@ -1,0 +1,785 @@
+/*
+ * Application layout.
+ *
+ * `@tmanage/ui` owns the tokens, the base layer and every component. Nothing here restyles a
+ * primitive or invents a colour: this file composes the shells and the screen layouts out of
+ * the same custom properties, and it is the only place in `apps/web` that writes CSS.
+ *
+ * ## The four inverted surfaces
+ *
+ * The identity backdrop, the orbital rail, the portal header and the preview bar all sit on
+ * a dark ground in the light theme. That cannot be written as `var(--line-700)` directly,
+ * because `[data-theme="dark"]` inverts `--line-700` to `#F5F6F0` — a rail painted with it
+ * would turn white in dark mode. The four semantic properties below resolve to the right
+ * token in each theme, so every rule that needs an inverted surface names one of them and no
+ * rule hard-codes a hex value that the drift test could not see.
+ *
+ * Every pairing declared here is asserted in `tests/contrast.test.ts` with its measured
+ * ratio. Three of them are close enough to the 4.5:1 floor to be worth naming: `--ink-500`
+ * on `--paper-0` is 4.51, on `--paper-50` it is 4.20 and on `--paper-150` it is 3.70. Only
+ * the first passes, so secondary text in this file is `--ink-650` throughout (6.74:1 at its
+ * worst) and `--ink-500` is used for no text at all.
+ */
+
+:root {
+  --tm-inverted-ground: var(--line-700);
+  --tm-inverted-ink: var(--paper-50);
+  --tm-inverted-muted: var(--line-300);
+  --tm-inverted-line: var(--ink-650);
+}
+
+[data-theme='dark'] {
+  --tm-inverted-ground: var(--paper-350);
+  --tm-inverted-ink: var(--ink-950);
+  --tm-inverted-muted: var(--ink-650);
+  --tm-inverted-line: var(--line-300);
+}
+
+body {
+  font-family: var(--font-manrope, var(--font-latin));
+}
+
+/* ── Brand mark ─────────────────────────────────────────────────────────────
+ *
+ * A mask over `currentColor` rather than a coloured image, so one asset is correct in
+ * light, dark and high contrast. See `components/brand/Wordmark.tsx`.
+ */
+
+.tm-mark {
+  display: inline-block;
+  background-color: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.tm-mark--wordmark {
+  width: 100px;
+  height: 22px;
+  mask-image: url('/brand/tmanage-wordmark.svg');
+  -webkit-mask-image: url('/brand/tmanage-wordmark.svg');
+}
+
+.tm-mark--icon {
+  width: 24px;
+  height: 18px;
+  mask-image: url('/brand/tmanage-icon.svg');
+  -webkit-mask-image: url('/brand/tmanage-icon.svg');
+}
+
+/* ── Shared screen furniture ────────────────────────────────────────────── */
+
+.tm-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-stack--tight {
+  gap: var(--s2);
+}
+
+.tm-stack--loose {
+  gap: var(--s6);
+}
+
+.tm-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.tm-row--end {
+  justify-content: flex-end;
+}
+
+.tm-eyebrow {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-prose {
+  margin: 0;
+  max-inline-size: var(--reading);
+  color: var(--ink-650);
+}
+
+/*
+ * A list that carries meaning as a list — the access summary on ID-03, the invitation list
+ * on ON-04 — without the browser's marker and indent. The element stays `<ul>` or `<ol>`, so
+ * a screen reader still announces "list, 4 items"; only the decoration is removed.
+ */
+.tm-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * The exception: an ordered list whose numbers are the content. `list-style: none` on an
+ * `<ol>` makes some screen readers stop announcing it as a list at all, so the numbered
+ * variant keeps its markers rather than re-creating them with a counter.
+ */
+.tm-list--numbered {
+  padding-inline-start: var(--s5);
+  list-style: decimal;
+}
+
+/* A sequence read left to right — the state flow on ON-02. Wraps rather than scrolls. */
+.tm-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Pushes a control to the end of a `.tm-row`, in logical direction so RTL is correct. */
+.tm-push-end {
+  margin-inline-start: auto;
+}
+
+/*
+ * `<fieldset>` keeps its grouping semantics — a screen reader announces the legend with
+ * every control inside it — and loses only the default border, which the design does not use.
+ */
+.tm-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-fieldset > .tm-field__label {
+  display: block;
+  margin-block-end: var(--s2);
+}
+
+.tm-panel {
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--surface-radius);
+  background: var(--paper-0);
+}
+
+.tm-panel--quiet {
+  background: var(--paper-50);
+}
+
+/*
+ * The rule that separates two ways of doing the same thing — "or email", in the export.
+ * A real `<hr>` would be a thematic break in the document outline, which this is not.
+ */
+.tm-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tm-divider::before,
+.tm-divider::after {
+  content: '';
+  flex: 1;
+  block-size: 1px;
+  background: var(--line-300);
+}
+
+/*
+ * A choice between named options — ON-01's operating templates, ON-03's audience.
+ * The control underneath is always a real radio input; this only styles its label.
+ */
+.tm-choice {
+  display: block;
+  padding: var(--s4);
+  border: var(--b-structural) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  cursor: pointer;
+}
+
+.tm-choice:has(input:checked) {
+  border-color: var(--ink-950);
+  background: var(--lime-100);
+}
+
+.tm-choice:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-choice__input {
+  position: absolute;
+  opacity: 0;
+  inline-size: 1px;
+  block-size: 1px;
+}
+
+.tm-choice__name {
+  display: block;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-choice__detail {
+  display: block;
+  margin-block-start: var(--s1);
+  color: var(--ink-650);
+}
+
+/* ── Identity shell (ID-01 … ID-05) ─────────────────────────────────────── */
+
+.tm-identity {
+  min-block-size: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s8) var(--s4);
+  background: var(--tm-inverted-ground);
+}
+
+.tm-identity__card {
+  inline-size: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  padding: var(--s8);
+  border-radius: var(--r-feature);
+  background: var(--paper-150);
+}
+
+.tm-identity__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  color: var(--ink-950);
+}
+
+.tm-identity__eyebrow {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-identity__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+}
+
+.tm-identity__body:focus {
+  outline: none;
+}
+
+.tm-identity__title {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-identity__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  color: var(--tm-inverted-muted);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-identity__footer a {
+  color: inherit;
+}
+
+/*
+ * One row of the organization list on ID-04. The whole row is the link, so the target is
+ * the size of the row rather than the size of the organization's name — `40-DESIGN-SYSTEM`
+ * §10 asks for a 44px minimum target and a name can be four characters long.
+ */
+.tm-choice-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-block-size: var(--orb-comfortable);
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-choice-row__name {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-choice-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+/* The device string on ID-05. Long, and never trusted to be short. */
+.tm-session__agent {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+/* ── Onboarding shell (ON-01 … ON-04) ───────────────────────────────────── */
+
+.tm-onboarding {
+  min-block-size: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-150);
+}
+
+.tm-onboarding__header {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s5) var(--s8);
+  color: var(--ink-950);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-onboarding__identity {
+  margin: 0;
+  margin-inline-start: auto;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-onboarding__body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--context-rail) minmax(0, 1fr);
+  gap: var(--s8);
+  padding: var(--s8);
+  align-items: start;
+}
+
+.tm-onboarding__step-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-onboarding__step {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-capsule);
+  color: var(--ink-650);
+}
+
+.tm-onboarding__step[data-state='current'] {
+  background: var(--lime-100);
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-onboarding__step[data-state='done'] {
+  color: var(--ink-800);
+}
+
+.tm-onboarding__step-index {
+  display: grid;
+  place-items: center;
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  border-radius: var(--r-capsule);
+  border: var(--b-structural) solid var(--line-300);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-onboarding__step[data-state='current'] .tm-onboarding__step-index,
+.tm-onboarding__step[data-state='done'] .tm-onboarding__step-index {
+  border-color: var(--ink-950);
+}
+
+.tm-onboarding__step-count {
+  margin: var(--s4) 0 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-onboarding__canvas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  max-inline-size: var(--doc);
+  padding: var(--s8);
+  border-radius: var(--r-feature);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-onboarding__canvas:focus {
+  outline: none;
+}
+
+.tm-onboarding__title {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-onboarding__description {
+  margin: 0;
+  max-inline-size: var(--reading);
+  color: var(--ink-650);
+}
+
+/* ── Internal application shell ─────────────────────────────────────────── */
+
+.tm-app {
+  min-block-size: 100vh;
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  background: var(--paper-150);
+}
+
+.tm-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  padding-block: var(--s5);
+  background: var(--tm-inverted-ground);
+  color: var(--tm-inverted-ink);
+}
+
+.tm-rail__brand {
+  color: inherit;
+  display: block;
+}
+
+.tm-rail__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  inline-size: 100%;
+}
+
+.tm-rail__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s1);
+  padding-block: var(--s2);
+  color: var(--tm-inverted-muted);
+  text-decoration: none;
+}
+
+.tm-rail__item:hover,
+.tm-rail__item[aria-current='page'] {
+  color: var(--tm-inverted-ink);
+}
+
+.tm-rail__orb {
+  display: grid;
+  place-items: center;
+  inline-size: var(--orb-navigation);
+  block-size: var(--orb-navigation);
+  border-radius: var(--r-capsule);
+  border: var(--b-structural) solid transparent;
+  font-family: var(--font-mono);
+}
+
+.tm-rail__item[aria-current='page'] .tm-rail__orb {
+  border-color: var(--lime-500);
+  background: var(--tm-inverted-line);
+}
+
+.tm-rail__label {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-app__body {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-canvas-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s6) var(--s8);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-canvas-header__context {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.tm-canvas-header__title {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-canvas-header__description {
+  margin: var(--s1) 0 0;
+  max-inline-size: var(--reading);
+  color: var(--ink-650);
+}
+
+.tm-app__columns {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-block-size: 0;
+}
+
+.tm-context-rail {
+  inline-size: var(--context-rail);
+  min-inline-size: var(--context-rail-min);
+  padding: var(--s5);
+  border-inline-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-canvas {
+  flex: 1;
+  min-inline-size: 0;
+  padding: var(--s6) var(--s8);
+}
+
+.tm-canvas:focus {
+  outline: none;
+}
+
+.tm-lens {
+  inline-size: var(--lens);
+  padding: var(--s5);
+  border-inline-start: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+}
+
+/* ── Client portal shell ────────────────────────────────────────────────── */
+
+.tm-portal {
+  min-block-size: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-150);
+}
+
+.tm-portal__preview-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s6);
+  background: var(--lime-100);
+  border-block-end: var(--b-structural) solid var(--client-500);
+}
+
+.tm-portal__preview-note {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-portal__header {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  padding: var(--s6);
+  background: var(--tm-inverted-ground);
+  color: var(--tm-inverted-ink);
+}
+
+.tm-portal__client {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
+}
+
+.tm-portal__provider {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s1) 0 0;
+  color: var(--tm-inverted-muted);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-portal__context {
+  margin-inline-start: auto;
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.tm-portal__nav {
+  padding: 0 var(--s6);
+  background: var(--paper-0);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-portal__nav-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  gap: var(--s1);
+  flex-wrap: wrap;
+}
+
+.tm-portal__nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  color: var(--ink-650);
+  text-decoration: none;
+  border-block-end: var(--b-expressive) solid transparent;
+}
+
+.tm-portal__nav-item[aria-current='page'] {
+  color: var(--ink-950);
+  border-block-end-color: var(--client-500);
+  font-weight: 600;
+}
+
+.tm-portal__nav-glyph {
+  font-family: var(--font-mono);
+}
+
+.tm-portal__canvas {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s8) var(--s6);
+  max-inline-size: var(--doc);
+}
+
+.tm-portal__canvas:focus {
+  outline: none;
+}
+
+.tm-portal__title {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-portal__description {
+  margin: 0;
+  max-inline-size: var(--reading);
+  color: var(--ink-650);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────
+ *
+ * `22-SCREEN-BY-SCREEN` §1 requires a bottom navigation with no hover dependency on
+ * mobile, and `40-DESIGN-SYSTEM` §10 requires 200% zoom to reflow rather than clip. The
+ * breakpoint below is written in `rem` so that a browser zoom or a raised default font
+ * size triggers it — a `px` breakpoint would keep a two-column layout at 200% zoom, which
+ * is exactly the clipping the rule forbids.
+ */
+
+@media (max-width: 60rem) {
+  .tm-app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-rail {
+    position: sticky;
+    inset-block-end: 0;
+    order: 2;
+    flex-direction: row;
+    justify-content: space-around;
+    padding-block: var(--s2);
+  }
+
+  .tm-rail__brand {
+    display: none;
+  }
+
+  .tm-rail__list {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+
+  .tm-app__columns {
+    flex-direction: column;
+  }
+
+  .tm-context-rail,
+  .tm-lens {
+    inline-size: auto;
+    border: none;
+    border-block-end: var(--b-quiet) solid var(--line-300);
+  }
+
+  .tm-onboarding__body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s5);
+    padding: var(--s4);
+  }
+
+  .tm-onboarding__step-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .tm-onboarding__canvas,
+  .tm-identity__card {
+    padding: var(--s5);
+  }
+}

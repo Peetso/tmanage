@@ -1,0 +1,67 @@
+import type { InvitationDetails } from '../components/screens/InvitationScreen';
+import type { OrganizationChoice } from '../components/screens/OrganizationSelectorScreen';
+
+/**
+ * Fixtures for the screens whose endpoints are not written.
+ *
+ * Every value here is invented, and it is gathered in one file so that it is obvious how
+ * much of WEB-001 is not yet connected to anything. A screen renders a fixture only when the
+ * page passes it one, and each of those screens carries a `BackendPending` notice naming the
+ * ticket that replaces it. Nothing in `src/lib/api/` reads this file.
+ *
+ * The names are the design export's — Northstar Studio, Atlas Hospitality, Omar Adel — so
+ * that a screen in the browser can be compared against the artboard it was built from
+ * without a mental substitution.
+ */
+
+export const FIXTURE_SIGNED_IN_AS = 'omar@northstar.studio';
+
+export const FIXTURE_ORGANIZATION_DOMAIN = 'northstar.studio';
+
+export const FIXTURE_EXISTING_MEMBERS: readonly string[] = [
+  'omar@northstar.studio',
+  'karim@northstar.studio',
+];
+
+export const FIXTURE_OWNERS = [
+  { id: 'omar', name: 'Omar Adel' },
+  { id: 'maya', name: 'Maya Hassan' },
+  { id: 'lina', name: 'Lina Saad' },
+] as const;
+
+export const FIXTURE_ORGANIZATIONS: readonly OrganizationChoice[] = [
+  {
+    slug: 'northstar',
+    name: 'Northstar Studio',
+    audience: 'internal',
+    roleName: 'Project Manager',
+    projectCount: 4,
+    lastUsed: true,
+  },
+  {
+    slug: 'atlas-hospitality',
+    name: 'Atlas Hospitality',
+    audience: 'client',
+    roleName: 'Viewer',
+    projectCount: 1,
+  },
+];
+
+export const FIXTURE_INVITATION: InvitationDetails = {
+  inviterName: 'Omar Adel',
+  inviterEmail: 'omar@northstar.studio',
+  invitedAt: '13 August',
+  organizationName: 'Atlas Hospitality',
+  projectName: 'Website relaunch',
+  roleName: 'Client Reviewer',
+  roleQualifier: 'approval authority',
+  audience: 'client',
+  willSee: [
+    'Progress and milestones for one project',
+    'Deliverables published to you',
+    'Your own actions and requests',
+    'Three named contacts at Northstar Studio',
+  ],
+  willNotSee: 'You will not see internal tasks, costs, internal comments or other clients.',
+  expiresOn: '20 August',
+};
