@@ -6,6 +6,8 @@ import {
   CLIENTS_SERVICE,
   CLIENT_MEMBERSHIPS_REPOSITORY,
   CLIENT_ORGANIZATIONS_REPOSITORY,
+  INVITATIONS_SERVICE,
+  PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
@@ -18,6 +20,12 @@ import { ClientOrganizationsRepository } from './client-organizations.repository
 import { ProjectClientsRepository } from './project-clients.repository.js';
 import { ClientsService } from './clients.service.js';
 import { ClientsController } from './clients.controller.js';
+import { PortalService } from './portal.service.js';
+import { PortalController } from './portal.controller.js';
+import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { InvitationsRepository } from '../tenancy/invitations.repository.js';
+import { InvitationsService } from '../tenancy/invitations.service.js';
+import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 
 /**
  * CLIENT-001's wiring.
@@ -83,11 +91,48 @@ export class ClientsModule {
         ),
     };
 
+    const portal: Provider = {
+      provide: PORTAL_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        // Both repositories constructed here, for the reason the service above constructs its
+        // own `ProjectsRepository`: they are stateless collections of queries, and reaching
+        // for another module's provider would register that dynamic module twice.
+        new PortalService(database, new ProjectsRepository(), new WorkItemsRepository()),
+    };
+
+    /**
+     * The portal's own `InvitationsService`.
+     *
+     * `TenancyModule` provides one and exports it, and both modules are registered through
+     * `.register()` — so importing that module here would construct a second copy of the
+     * dynamic module rather than reuse the first. The service holds no state between calls: it
+     * is a set of commands over repositories that are themselves stateless, so a second
+     * instance behaves identically and shares the same database and audit service.
+     *
+     * The alternative was to put `CL-11`'s route in `TenancyModule` beside the internal
+     * invitation routes, and that would have been worse: the whole point of the route is that
+     * it is a **portal** surface whose body cannot name a client organization, and burying it
+     * among the internal administrator's routes is how that distinction gets lost.
+     */
+    const invitations: Provider = {
+      provide: INVITATIONS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new InvitationsService(
+          database,
+          new InvitationsRepository(),
+          new MembershipsRepository(),
+          new ClientMembershipsRepository(),
+          audit,
+        ),
+    };
+
     return {
       module: ClientsModule,
-      providers: [organizations, memberships, shares, service],
-      exports: [service],
-      controllers: [ClientsController],
+      providers: [organizations, memberships, shares, service, portal, invitations],
+      exports: [service, portal],
+      controllers: [ClientsController, PortalController],
     };
   }
 }

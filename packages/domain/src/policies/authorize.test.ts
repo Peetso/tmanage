@@ -452,6 +452,10 @@ describe('findForbiddenClientFields', () => {
 describe('capability coverage', () => {
   it('classifies every capability as internal-only or client-reachable deliberately', () => {
     const clientReachable: Capability[] = [
+      // CLIENT-002. The decision this test exists to force: a client principal **may** hold
+      // it, because the client projection is the only thing they were ever meant to read.
+      // `work.read` stays internal-only, and the two are not the same surface.
+      'client_projection.read',
       'client_request.submit',
       'approval.read',
       'approval.decide',

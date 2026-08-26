@@ -30,6 +30,16 @@ export const CAPABILITIES = [
   'work.create',
   'work.update',
   'work.transition',
+  /**
+   * CLIENT-002. `12-PERMISSION-MATRIX` §1 has a "View client projection" row and this
+   * codebase had no capability for it, so the one surface every client role exists to read
+   * could not be authorized at all.
+   *
+   * It is the **only** read capability a client principal holds. `work.read` is internal-only
+   * and always will be: §2 gives every client role "View internal project: Never", and the
+   * portal serves the projection described in §4 rather than the internal record.
+   */
+  'client_projection.read',
   'client_request.submit',
   'client_request.triage',
   'deliverable.create',
@@ -129,6 +139,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'work.create',
     'work.update',
     'work.transition',
+    // §2 "View client projection: Scope" — an internal admin can read what a client reads,
+    // which is how anybody checks what was published before a client sees it.
+    'client_projection.read',
     'client_request.triage',
     'deliverable.create',
     'deliverable.review',
@@ -158,6 +171,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'work.create',
     'work.update',
     'work.transition',
+    // §2 "View client projection: Project".
+    'client_projection.read',
     'client_request.triage',
     'deliverable.create',
     'deliverable.review',
@@ -180,6 +195,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'work.create',
     'work.update',
     'work.transition',
+    // §2 "View client projection: Project".
+    'client_projection.read',
     // §2 "Publish to client: Optional" — off unless organization policy enables it.
     'deliverable.create',
     'deliverable.review',
@@ -197,6 +214,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'work.create',
     'work.update',
     'work.transition',
+    // §2 "View client projection: Project".
+    'client_projection.read',
     'deliverable.create',
     'deliverable.review',
     'approval.read',
@@ -215,6 +234,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'conversation.read',
     'work.read',
     'work.update',
+    // §2 "View client projection: Explicit" — the relation check carries all of the weight.
+    'client_projection.read',
     'approval.read',
     'approval.decide',
     'file.download',
@@ -227,6 +248,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
   // load-bearing: client surfaces read the client projection, never the internal record.
 
   client_admin: [
+    // §2 "View client projection: Client org". The one read every client role has.
+    'client_projection.read',
     'client_request.submit',
     'approval.read',
     // §2 "Approve governed version: Policy" for Client Admin.
@@ -240,6 +263,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
   ],
 
   client_reviewer: [
+    // §2 "View client projection: Assigned/shared".
+    'client_projection.read',
     'client_request.submit',
     'approval.read',
     'approval.decide',
@@ -250,6 +275,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
   ],
 
   client_member: [
+    // §2 "View client projection: Shared".
+    'client_projection.read',
     'client_request.submit',
     'approval.read',
     // §2 "Approve governed version: If assigned".
@@ -260,6 +287,8 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
   ],
 
   client_viewer: [
+    // §2 "View client projection: Shared". A viewer reads and does nothing else.
+    'client_projection.read',
     // §2 "Submit client request: Policy" for Client Viewer — ceiling allows, policy decides.
     'client_request.submit',
     'approval.read',

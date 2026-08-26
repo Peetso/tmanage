@@ -30,6 +30,7 @@ export const CLIENT_ORGANIZATIONS_REPOSITORY = Symbol.for('tmanage.ClientOrganiz
 export const CLIENT_MEMBERSHIPS_REPOSITORY = Symbol.for('tmanage.ClientMembershipsRepository');
 export const PROJECT_CLIENTS_REPOSITORY = Symbol.for('tmanage.ProjectClientsRepository');
 export const CLIENTS_SERVICE = Symbol.for('tmanage.ClientsService');
+export const PORTAL_SERVICE = Symbol.for('tmanage.PortalService');
 export const INVITATIONS_REPOSITORY = Symbol.for('tmanage.InvitationsRepository');
 export const INVITATIONS_SERVICE = Symbol.for('tmanage.InvitationsService');
 export const PROJECTS_SERVICE = Symbol.for('tmanage.ProjectsService');

@@ -434,9 +434,14 @@ describe('steps 4 and 5 — principal and capability', () => {
     // The complementary assertion — that a client sees their *own* client organization's work
     // and not a sibling client's (Meridian is a different client of the same studio, the
     // boundary `04-SECURITY-PRIVACY` §5 is most emphatic about) — belongs on a Client Portal
-    // endpoint, which serves the client projection rather than the internal record. No such
-    // endpoint exists yet; it arrives with CLIENT-001, and this case must not be satisfied by
-    // granting a client role a capability the matrix withholds.
+    // endpoint, which serves the client projection rather than the internal record.
+    //
+    // **It exists now.** `CLIENT-002` built it, and the case lives in
+    // `client-002-portal.db.test.ts` under "one client cannot see another". It was satisfied
+    // the way this comment insisted on: by a separate surface with its own capability
+    // (`client_projection.read`, which `12-PERMISSION-MATRIX` §1 names), not by granting a
+    // client role a capability the matrix withholds. `work.read` is still internal-only, which
+    // is what the 403 above proves.
     expect(response.body).not.toContain(world.meridian.projectId);
   });
 

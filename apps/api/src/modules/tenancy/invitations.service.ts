@@ -179,9 +179,9 @@ export class InvitationsService {
     },
     now: Date = new Date(),
   ): Promise<IssuedInvitation> {
-    this.requireInviteCapability(principal, context, 'invitation.issue');
-
     const clientOrganizationId = input.clientOrganizationId ?? null;
+    this.requireInviteCapability(principal, context, 'invitation.issue', clientOrganizationId);
+
     const email = input.email.trim().toLowerCase();
     this.requireRoleMatchesDestination(input.role, clientOrganizationId);
 
@@ -555,21 +555,39 @@ export class InvitationsService {
   }
 
   /**
-   * Who may invite.
+   * Who may invite, and into what.
    *
-   * `org.manage` for an internal invitation and `client_member.manage` for a client one would
-   * be two checks with two shapes; instead both routes require `org.manage`, and the client
-   * route additionally lives behind the same capability the rest of `CLIENT-001` uses. The
-   * narrow case — a client admin inviting into their own client organization — is
-   * `CLIENT-002`, and is deliberately not reachable here: this service can issue an invitation
-   * into **any** client organization of the tenant, which is an internal administrator's
-   * power.
+   * Two paths, because `12-PERMISSION-MATRIX` §2's "Invite client users" row has two entries:
+   * internal administrators get "Policy" and a Client Admin gets **"within own client
+   * org/policy"**. CLIENT-002 is the ticket that made the second one reachable.
+   *
+   * | Caller | May invite into |
+   * | --- | --- |
+   * | Internal, `org.manage` | the organization, or any of its client organizations |
+   * | Client admin, `client_member.manage` | **their own** client organization, and nothing else |
+   *
+   * The narrow path is the one worth reading carefully, because getting it wrong hands one
+   * client the ability to put people inside another. Three things have to hold at once, and
+   * the third is the one a capability check alone would miss:
+   *
+   * 1. The caller holds `client_member.manage` — every client role does not; only
+   *    `client_admin` does.
+   * 2. The invitation names a **client** organization. A client admin cannot issue an
+   *    invitation into the agency itself, whatever role it carries.
+   * 3. The client organization named is the caller's own. A different one is refused with
+   *    **404**, not 403, so a client admin probing ids learns nothing about which exist.
    */
   private requireInviteCapability(
     principal: Principal,
     context: TenantContext,
     action: string,
+    clientOrganizationId: string | null = null,
   ): void {
+    if (principal.kind === 'client') {
+      this.requireOwnClientOrganizationInvite(principal, context, action, clientOrganizationId);
+      return;
+    }
+
     const verdict = authorize({
       principal,
       capability: 'org.manage',
@@ -588,6 +606,50 @@ export class InvitationsService {
         MESSAGES.forbidden,
         undefined,
         `${action}:${verdict.code}`,
+      );
+    }
+  }
+
+  /** The client-admin half of the rule above. */
+  private requireOwnClientOrganizationInvite(
+    principal: Principal,
+    context: TenantContext,
+    action: string,
+    clientOrganizationId: string | null,
+  ): void {
+    const verdict = authorize({
+      principal,
+      capability: 'client_member.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        // A client-facing resource. A synthetic `internal` one would refuse every client
+        // principal before the scope rule ran — the trap `CapabilityGuard` documents, and the
+        // one `ClientsService` was caught by on the first run of its own suite.
+        audience: 'client_visible',
+        clientOrganizationId: principal.clientOrganizationId,
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        `${action}:${verdict.code}`,
+      );
+    }
+
+    // A client admin may not invite into the agency. `clientOrganizationId === null` is an
+    // internal membership invitation, and no client role has any business issuing one.
+    if (clientOrganizationId === null || clientOrganizationId !== principal.clientOrganizationId) {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.notFound,
+        undefined,
+        `${action}:foreign_client`,
       );
     }
   }
