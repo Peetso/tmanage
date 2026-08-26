@@ -113,8 +113,8 @@ export class ProjectsController {
     // constraint doing the work: `fk_projects_owner` references `users (id)` without
     // `organization_id`, because a user is not tenant-owned. So a caller who knows another
     // organization's user id could name them as owner of a project here. It is recorded in
-    // `docs/implementation-status.md`; closing it needs a membership read, which belongs with
-    // `PEOPLE-001`'s people picker rather than bolted on here.
+    // `docs/implementation-status.md`; closing it needs a membership read, and the people
+    // directory it belongs with is not a ticket `28-SPRINT-TICKETS` schedules.
     // Narrowed by the `details.length` check above, which TypeScript cannot see through: the
     // guard is on a separate array rather than on these two bindings. Asserted rather than
     // assumed, so an edit that removes the check fails here instead of inserting a null name.

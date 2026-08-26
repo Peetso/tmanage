@@ -29,6 +29,27 @@ change what a command does rather than merely how it is typed.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-08-26, start of the CHAT-001 session
+
+The **twelfth** consecutive run, and the table below is this run's output rather than a copy of
+the previous one. Every pair was compared by SHA-256 and, separately, by modification time —
+pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                                                            |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                                                             |
+| Modification times                        | **No pack file is newer than its copy** in either scope. Compared pair by pair: 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later, and one planning pair (`00-README.md`) is within two seconds. That is the shape of a copy taken _from_ the pack                       |
+| Uncopied pack content                     | The same five as every previous run, all deliberate: the design-handoff `.zip` (extracted into `docs/design/source/`), `TManage-Product-System-Master-Plan.docx`, and three Claude Code tooling files belonging to the pack folder — `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                                                             |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-08-26, start of the REQ-001 session
 
 The table below is this run's output rather than a copy of the previous one. Every pair was
@@ -186,6 +207,46 @@ once already.
 | Residual PostgreSQL references | 5, all deliberate contrast ("MySQL has no PostgreSQL-style RLS"). Zero `jsonb`, `gen_random_uuid`, or `citext`.                                                                                                                                                 |
 
 The MySQL revision is fully landed in `docs/planning/`.
+
+---
+
+## Verification actually run — 2026-08-26, the ticket-name correction pass
+
+The whole chain, in order, on the tree the correction pass left behind. Nothing below is
+carried over from a previous run.
+
+| Gate                              | Result                                                                                                                                                               |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format` then `format:check` | Clean. `pnpm format` rewrapped `implementation-status.md` and three screens before anything was recorded                                                             |
+| `pnpm typecheck`                  | **Done** — five projects. One real failure on the way: the new gate indexed a regex capture group without narrowing it, and `noUncheckedIndexedAccess` caught it     |
+| `pnpm lint`                       | Clean, no output                                                                                                                                                     |
+| `pnpm test`                       | **802 passed across 38 files** — 25 config, 102 domain, 106 ui, 250 api unit, 319 web. Two more than the previous session's 800, which are this pass's two new cases |
+| `pnpm test:db`                    | **21 files, 608 passed, 22 skipped (630).** Identical to the previous session's figure, which is the point: renaming a test file did not change what runs            |
+| `pnpm audit:design`               | **172/172 screen IDs across 29 artifacts, 0 missing**                                                                                                                |
+| `pnpm format:check` (again)       | Clean — `audit:design` rewrites `docs/design/design-source-audit.md` and is Prettier-idempotent                                                                      |
+| Leaked `mysqld`                   | **None.** `ps` showed no `mysqld` after the suite exited                                                                                                             |
+
+Engine: the embedded **MySQL 8.0.45** from `C:\Program Files\MySQL\MySQL Server 8.0`. The 21
+skips are `least-privilege.db.test.ts` on the default path, which has no `tmanage_app`
+credential, plus one in `req-001` for the same reason. They are skips and are reported as skips.
+
+### Two things about this run that are worth the next session's attention
+
+1. **`pnpm test:db` took 2123 s — about 35 minutes — against a usual 12 to 14.** The cause was
+   this session's own doing rather than the suite's: three `pnpm test` runs were started while
+   the database suite was already in flight, and each spawns a worker per core. The results are
+   sound — no source file was edited during the run, which is the rule that actually matters —
+   but the wall time is not a baseline. **Do not run another suite while `test:db` is running.**
+2. **`apps/web`'s suite flaked once, under that same contention.** `triage-flow.test.tsx` failed
+   a `findByRole` whose implicit timeout is 1 s while the file's own `testTimeout` is 30 s; the
+   run reported `Timeout calling "onTaskUpdate"` and 691 s of test time against a normal 120 s.
+   It passed alone immediately afterwards and passed twice more in full runs. Recorded as a
+   flake rather than a defect **and not fixed**: the gap between Testing Library's 1 s default
+   and vitest's 30 s is real, and closing it means either raising `asyncUtilTimeout` globally or
+   leaving the suite sensitive to machine load. Raising a timeout to make a red run green is the
+   thing this file's constraints forbid doing casually, so it is named here for a session that
+   can decide it on purpose. The new `ticket-ids.test.ts` was moved to the `node` environment to
+   stop it paying several seconds of jsdom setup and adding to the contention it found.
 
 ---
 
@@ -4294,39 +4355,153 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
   processes rather than three, which is closer to what this plan can host.
 - `compose.yaml` is no more usable there than it is here.
 
-### A correction to ticket names, found at the end of the SEC-001 session
+### A correction to ticket names — opened at the end of the SEC-001 session, **closed here**
 
-`28-SPRINT-TICKETS` was re-read to check one name and **three names this file uses are not in
-it**:
+The previous session re-read `28-SPRINT-TICKETS` to check one name, found that several ids this
+file and this codebase used were not in it, and left three of them in the source because
+correcting a screen after its chain had run would have made the recorded result describe a tree
+that never existed. That was the right call and this session pays it off — and the audit found
+more than three.
 
-| Name used here | Reality                                                                                                                                                                                 |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CONV-001`     | The real ticket is **`CHAT-001`** — "conversations/messages/thread sequence model", 8 SP, depends on PROJ-001. Corrected everywhere, in code comments and here                          |
-| `MILE-001`     | **Not a ticket.** No row in `28-SPRINT-TICKETS` schedules milestones at all. They appear in `07-DATA-MODEL` and as screen `PRJ-02 Project plan`, and nothing in the backlog builds them |
-| `PROJ-002`     | **Not a ticket.** §5 has `PROJ-001` and no `PROJ-002`. The work recorded under that name — project creation, the workspace list, `ON-03` — was real and is done; the id was this file's |
+**The pass was mechanical, not judgemental**: every string of the shape `XXX-000` in `apps/`,
+`packages/` and `scripts/` was extracted and checked against the ids `28-SPRINT-TICKETS` §§3–12
+and §12A actually schedule. Seven were inventions.
 
-`PEOPLE-001` was already recorded as this file's invention, and `PULSE-001` — used in two
-screens' `BackendPending` notices — is not in the list either. That makes **five**, and the
-pattern is the same each time: a real gap needed something to point at, and a plausible id was
-written instead of a quotation.
+| Invented id    | What it was pointing at                                                 | Replaced with                                                                                         |
+| -------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `MILE-001`     | Milestones on `CL-01` and `TM-03`                                       | "milestones … — unscheduled". No row in `28-SPRINT-TICKETS` builds milestones at all                  |
+| `PULSE-001`    | The latest internal pulse / client update on the same two screens       | Folded into the same "unscheduled" phrase                                                             |
+| `PEOPLE-001`   | A people directory, on four screens and in two API comments             | "a people directory, unscheduled". The gap is real; the plan schedules nothing that closes it         |
+| `MAIL-001`     | The mailer `ON-04` needs, on `InviteTeamScreen`                         | "a mailer — unscheduled", naming `NOTIF-001` as the nearest real ticket and saying it is not a mailer |
+| `AUD-002`      | The audit read model behind `ID-05`'s security receipt                  | **`ADMIN-002`**, which is the real ticket for an audit viewer                                         |
+| `DOC-001`      | Decisions and docs on `TM-13`                                           | `WORK-003` for dependencies, plus "decisions, unscheduled" for the rest                               |
+| `INSIGHT-001`  | A scored health indicator, in `TM-03`'s doc comment                     | `HOME-001`, the nearest thing the plan schedules                                                      |
+| `PROJ-002`     | Project creation and the workspace list, in six comments and a filename | **`PROJ-001`**, which is the ticket that work belongs to                                              |
+| `CONTRACT-001` | Generating `packages/contracts` from `openapi.yaml`                     | "which no ticket in `28-SPRINT-TICKETS` schedules"                                                    |
 
-**Only the ids written this session were corrected in code.** `CHAT-001` replaced `CONV-001`
-everywhere, and `MILE-001` was removed from `RequestTriageScreen`, which is this session's file.
-`MILE-001`, `PULSE-001` and `PEOPLE-001` **still appear** in `ClientOverviewScreen`,
-`ProjectOverviewScreen` and `FirstProjectScreen`, and one of them is asserted by
-`project-flow.test.tsx`. Leaving them is deliberate rather than tidy: correcting a screen's
-visible copy at the end of a session, after the chain that proved it had already run, is how a
-recorded result stops describing the tree it was run against. They are the next session's, and
-they are small.
+`CONV-001` was corrected to `CHAT-001` in the previous session and is not repeated here.
+`apps/api/test/proj-002-project-creation.db.test.ts` was renamed to `proj-001-…` with `git mv`,
+and the one file that cited it by path was updated.
 
-**Consequence for the numbers, stated rather than quietly corrected.** The Progress section
-counts "27½ of 74 tickets" and 191 story points, and at least one entry in the done list —
-`PROJ-002` — is not a ticket in the plan being counted. **The count has not been re-derived**,
-because it was found at the end of a session and re-auditing it properly means walking every
-entry against `28-SPRINT-TICKETS` §§3–12. The next session should do that before quoting a
-percentage. Everything _built_ is unaffected; only the bookkeeping is.
+**Three false statements were found in the same pass, and they were worse than the ids.** Each
+was true when written and had been overtaken by a ticket that landed afterwards:
 
----
+1. `ProjectOverviewScreen` told a manager "No portal exists to read it in yet — that is
+   CLIENT-001", under a list of the items a client can see. `CLIENT-002` shipped that portal a
+   session earlier. Rewritten to say what the list is: what a client member reading the portal
+   right now would see.
+2. `FirstProjectScreen` said choosing a client was not saved because `CLIENT-001` was unbuilt.
+   `CLIENT-001` shipped `project_clients` and `POST projects/:id/clients`. The gap is this
+   screen's — onboarding does not call the endpoint — and it now says that instead.
+3. The same screen's doc comment said the project is created "as of `PROJ-002`". Corrected with
+   the id.
+
+**One defect was found and deliberately not fixed here.** `ProjectOverviewScreen` renders
+`<Badge>Internal</Badge>` unconditionally. Before `CLIENT-001` that was merely redundant,
+because nothing could be linked; it is now **capable of being wrong** — a project shared with a
+client organization still reads "Internal". `ProjectSummary` carries no client field, so fixing
+it needs an API client function, a query and a test, which is a change to a screen rather than a
+correction of a comment. It is recorded in the WEB-002 second-half list below and marked in the
+source at the point of the defect, in the words above.
+
+### The gate that stops this recurring
+
+Nine sessions of hand-written ticket ids produced nine invented ones, and every one of them was
+readable, plausible and wrong. A comment asking the next author to check would have caught none.
+`apps/web/tests/ticket-ids.test.ts` does, in two cases:
+
+- It parses the ticket ids out of `docs/planning/28-SPRINT-TICKETS-AND-ESTIMATES.md` — the
+  ticket **rows**, not prose mentions — and asserts it finds exactly **76** of them. A hard-coded
+  list here would be a second copy of the backlog, and a second copy is how the drift started.
+- It scans every `.ts`/`.tsx` under `apps/web/src` and fails naming any id the plan does not
+  schedule. Three digits, so screen ids (`CL-09`, `TM-03`, `REQ-01`) and ADR numbers are not
+  matched.
+
+**Mutation-tested rather than assumed**: `FAKE-001` was appended to `apps/web/src/lib/fixtures.ts`
+and the suite failed with `apps/web\src\lib\fixtures.ts: FAKE-001`, then the probe was reverted.
+
+It runs in the `node` environment rather than the suite's default `jsdom`, which costs several
+seconds of setup per file and buys a file that reads two directories nothing at all.
+
+**It covers `apps/web` only.** `18-REPOSITORY-STRUCTURE` puts the web app above the API and
+`eslint.config.js` enforces that boundary, so a test in this package must not walk `apps/api` or
+`packages/*`. Those trees were corrected by hand in the same pass and are **not** guarded.
+Extending the check to them needs a repository-level gate of its own — a `pnpm audit:tickets`
+beside `audit:design` — and that is now a named gap rather than a silent one.
+
+### The progress count, re-derived rather than re-quoted
+
+The previous section said "27½ of 74 tickets, 191 of 615 story points, about 31%" and warned
+that the count had not been walked. It has now been walked, ticket by ticket, against
+`28-SPRINT-TICKETS` §§3–12. **Both the numerator and the denominator were wrong.**
+
+**The denominator.** §§3–12 schedule **70 tickets and 583 story points** — parsed out of the
+document rather than counted by eye, and the same parse the new gate uses. `SEC-002` carries
+"variable" instead of a number and contributes 0. The old "74 / 615" matches no reading of the
+file: §12A's paid-beta gate adds a further 6 tickets and 53 points, which would give 76 and 636,
+and §§3–12 alone give 70 and 583. The figure appears to have been an accumulation rather than a
+count.
+
+**The rule used, stated so the next session can apply the same one.** A ticket counts **whole**
+when everything its own §-row's Scope column names is built and covered by a check that has
+actually run; **half** when a named part of that scope is built and tested and another named part
+is absent; **zero** otherwise. Halves are recorded against the reason, never rounded away.
+
+| §   | Ticket     |  SP | Counted  | Why                                                                                                                                                           |
+| --- | ---------- | --: | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | PLAT-001   |   5 | whole 5  | Workspace, shared config and the ownership boundaries, the last enforced as lint errors and proven to fire                                                    |
+| 3   | PLAT-002   |   5 | half 2.5 | Environment validation is tested (25 cases). The compose stack has **never been started** — no runtime here                                                   |
+| 3   | PLAT-003   |   8 | half 4   | Workflow, gitleaks and the scans are written. The workflow has never run and will not; artifact signing is deferred                                           |
+| 3   | OBS-001    |   5 | 0        | Not started                                                                                                                                                   |
+| 3   | DATA-001   |   5 | whole 5  | Migrator, UUIDv7, the two database roles                                                                                                                      |
+| 3   | AUTHZ-001  |   8 | whole 8  | Tenant context, scoped repository, composite constraints, the corpus                                                                                          |
+| 3   | PLAT-004   |   8 | half 4   | Outbox tables, append-only audit and per-tenant idempotency are tested. **The relay is not written** and `apps/worker` is empty                               |
+| 3   | UI-001     |   8 | half 4   | Token package, 13 primitives, Storybook, 106 cases. Eight primitives the design inventory names are unbuilt and the visual-regression harness needs a browser |
+| 4   | ID-001     |   8 | whole 8  | Session cookie, rotation, reuse detection, CSRF, driven through real HTTP                                                                                     |
+| 4   | ID-002     |   8 | half 4   | Argon2id, TOTP, recovery codes, 213 cases. **Passkeys are in the row's own scope** and are not built; nor are SSO or password recovery                        |
+| 4   | TEN-001    |   8 | whole 8  | Organization, workspace, membership, provisioning, the directory                                                                                              |
+| 4   | TEN-002    |   8 | whole 8  | Roles, capabilities, the evaluator, and the principal assembly that wires it                                                                                  |
+| 4   | TEN-003    |   5 | whole 5  | Issue, accept, revoke, expiry; a hashed single-use token                                                                                                      |
+| 4   | AUD-001    |   5 | whole 5  | The service, the view model, the first producer                                                                                                               |
+| 4   | WEB-001    |   8 | whole 8  | Nine screens, four shells, all wired. The `BackendPending` notices on five of them point at **other tickets'** servers, not at unwritten WEB-001 work         |
+| 4   | TEST-001   |   8 | half 4   | The two-tenant seed and the adversarial pair run on every database pass. The **role** half of §11's matrix is not a generated harness                         |
+| 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                  |
+| 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                               |
+| 5   | WORK-002   |   8 | half 4   | List, read, create, update and the version token are built and tested. **There is no cursor**, and the row names one                                          |
+| 5   | WORK-003   |   8 | 0        | The `blocked` state and its facts belong to WORK-001's machine. No dependency relation, no health signal, no table                                            |
+| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`. Saved views, sorting, selection and bulk actions are not built                                                                     |
+| 5   | TEST-002   |   8 | half 4   | Work database and HTTP fixtures exist and run. No performance fixture; `packages/test-kit` is empty                                                           |
+| 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                             |
+| 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                       |
+| 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                   |
+| 7   | REQ-002    |   8 | whole 8  | Triage, clarify, and an acceptance that is one transaction with its work                                                                                      |
+| 7   | WEB-004    |  13 | whole 13 | `CL-01`, `CL-02`, `CL-09`, `CL-10`                                                                                                                            |
+| 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                  |
+| 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                 |
+
+Every other ticket in §§3–12 — all seven of Sprint 3, all of Sprints 5 through 9 — is zero.
+
+| Sprint        | Tickets       | Points         |
+| ------------- | ------------- | -------------- |
+| Sprint 0 (§3) | 5 of 8        | 32.5 of 52     |
+| Sprint 1 (§4) | 7 of 8        | 50 of 58       |
+| Sprint 2 (§5) | 3½ of 6       | 30.5 of 53     |
+| Sprint 3 (§6) | 0 of 7        | 0 of 66        |
+| Sprint 4 (§7) | **7 of 7**    | **61 of 61**   |
+| Sprints 5–9   | 0 of 34       | 0 of 293       |
+| **§§3–12**    | **22½ of 70** | **174 of 583** |
+
+**22½ of 70 tickets. 174 of 583 story points — 29.8%, and "about 30%" is the honest way to say
+it.** That is lower than the 31% this file quoted, against a denominator that is smaller as well:
+the old figure was optimistic in the numerator and inflated in the denominator, and the two
+errors partly hid each other.
+
+**Screen tickets: 3½ of 11.** WEB-001 whole, WEB-002 half, WEB-004 whole, WEB-005 whole; WEB-003
+and WEB-006 through WEB-011 are untouched. The previous "4½ of 11" counted screens rather than
+tickets.
+
+**Sprint 4 is complete, and that survives the re-derivation** — all seven of §7's tickets, 61 of
+61 points. It is still the first sprint in this plan that is.
 
 ### The next coding task
 
@@ -4370,13 +4545,13 @@ The alternatives, in order after it:
    midnight UTC, so a reader west of UTC sees every calendar date a day early. Not scheduled by
    `28-SPRINT-TICKETS`; it is a migration, recorded in the WEB-004 gaps above.
 
-A note on a name this file uses: **PEOPLE-001 is not a ticket.** `28-SPRINT-TICKETS` does not
-schedule a people directory, and earlier entries here named one anyway to have something to
-point at. The gap is real and has now cost four screens something specific — the request inbox
-cannot name who submitted, the triage screen cannot render a history that is only actor ids, no
-acceptance can name an owner, and every work item's owner reads "Assigned" — but the ticket
-number is this file's invention and is recorded as such rather than repeated as though the plan
-contained it.
+A note on a gap this file used to give a number to: **there is no people-directory ticket.**
+`28-SPRINT-TICKETS` does not schedule one, and earlier entries here wrote `PEOPLE-001` anyway to
+have something to point at. The gap is real and has cost four screens something specific — the
+request inbox cannot name who submitted, the triage screen cannot render a history that is only
+actor ids, no acceptance can name an owner, and every work item's owner reads "Assigned". As of
+2026-08-26 the invented id is gone from the source and each of those screens says "a people
+directory, unscheduled" instead, which is both shorter and true.
 
 ### Done, in the order it happened
 
@@ -4460,12 +4635,15 @@ contained it.
 
 ### Progress
 
-**27½ of 74 tickets. 191 of 615 story points, about 31%, across Sprints 0–9.** WEB-002 counts
-half of its 13 points, rounded down. WEB-004 is whole and counts all 13; REQ-001, REQ-002,
-WEB-005 and SEC-001 count their full 8 each. Screen tickets: **4½ of 11** — seven of WEB-001's
-nine screens do what they say, three of WEB-002's, all of WEB-004's, and all three of WEB-005's.
+**22½ of 70 tickets. 174 of 583 story points — 29.8%, across Sprints 0–9.** Re-derived ticket by
+ticket on 2026-08-26 against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons
+written out in "The progress count, re-derived rather than re-quoted" above. It replaces the
+"27½ of 74 tickets, 191 of 615, about 31%" this section carried, which was wrong in the
+numerator **and** in the denominator. Screen tickets: **3½ of 11** — WEB-001, WEB-004 and WEB-005
+whole, WEB-002 half.
 
-**Sprint 4 is complete**, all seven tickets. It is the first sprint in this plan that is.
+**Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
+re-derivation. It is the first sprint in this plan that is.
 
 **The client request loop is closed end to end, on both sides and in a browser.** A client asks
 for something, is told plainly that their date is a wish, and can withdraw it while it is still

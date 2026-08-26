@@ -4,9 +4,9 @@
  * These types mirror `apps/api/src/common/http/errors.ts` by hand rather than importing it.
  * That is a lint boundary, not an oversight: `18-REPOSITORY-STRUCTURE` puts the web app
  * above the API, never inside it, and `eslint.config.js` blocks `@tmanage/api` imports from
- * `apps/web/**`. When `packages/contracts` is generated from `openapi.yaml` (CONTRACT-001,
- * still unwritten) these declarations are replaced by the generated ones and this file goes
- * away. Until then the duplication is visible and small, which is the honest form of it.
+ * `apps/web/**`. When `packages/contracts` is generated from `openapi.yaml` — which no
+ * ticket in `28-SPRINT-TICKETS` schedules — these declarations are replaced by the generated
+ * ones and this file goes away. Until then the duplication is visible and small, which is the honest form of it.
  *
  * The vocabulary is coarse on purpose, and the web app must not widen it. The API returns
  * one `forbidden` for every authorization denial precisely so a caller cannot distinguish

@@ -12,7 +12,7 @@
  *
  * This file shrinks as tickets land. `FIXTURE_ORGANIZATIONS` left it when TEN-001's directory
  * endpoint arrived and `ID-04` began fetching its own list; `FIXTURE_OWNERS` left it when
- * PROJ-002 made `ON-03` real and the owner became a statement rather than a picker;
+ * PROJ-001 made `ON-03` real and the owner became a statement rather than a picker;
  * `FIXTURE_INVITATION` left when TEN-003 gave `ID-03` a token to resolve.
  */
 

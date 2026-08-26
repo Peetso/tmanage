@@ -1,7 +1,7 @@
 import type { ApiClient } from './client';
 
 /**
- * The project and workspace endpoints — PROJ-001 and PROJ-002, behind `ON-03`.
+ * The project and workspace endpoints — PROJ-001, behind `ON-03`.
  *
  * Every path here carries the organization slug, because these are the first **tenant-scoped**
  * endpoints this application calls. The slug is the claim under test: the API's

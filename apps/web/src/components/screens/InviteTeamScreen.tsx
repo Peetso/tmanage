@@ -155,10 +155,11 @@ export function InviteTeamScreen({
       title="Invite your team"
       description="Only the people who work on delivery. Clients are invited separately, as a client organization with its own portal."
     >
-      <BackendPending ticket="MAIL-001">
+      <BackendPending ticket="a mailer — unscheduled">
         Invitations are created for real. Nothing emails them: the link for each one is shown below,
         once, and you have to send it yourself. There is no way to see it again — the invitation
-        stores only a hash of its token.
+        stores only a hash of its token. No ticket in 28-SPRINT-TICKETS schedules a mailer;
+        NOTIF-001 is the nearest, and it builds notification records rather than delivery.
       </BackendPending>
 
       {/*

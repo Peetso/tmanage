@@ -8,11 +8,11 @@ import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
 
 /**
- * `ON-03` against the endpoints PROJ-002 delivered.
+ * `ON-03` against the endpoints PROJ-001 delivered.
  *
  * The API's behaviour — the forecast/committed distinction, the audit row, the cross-tenant
  * workspace refused by a composite key — is proved in
- * `apps/api/test/proj-002-project-creation.db.test.ts`. What only this file can prove is what
+ * `apps/api/test/proj-001-project-creation.db.test.ts`. What only this file can prove is what
  * the screen sends, and that the one word the specification is strict about survives: the date
  * is posted as `targetDate`, never as anything that sounds like a commitment.
  */
@@ -293,7 +293,11 @@ describe('ON-03 create the first project', () => {
     renderScreen(client);
 
     await screen.findByLabelText(/Project name/);
-    expect(screen.getByText(/Not built yet — CLIENT-001 · PEOPLE-001/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Not built yet — this screen's client link · a people directory, unscheduled/,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText(/The owner will be you/)).toBeInTheDocument();
   });
 

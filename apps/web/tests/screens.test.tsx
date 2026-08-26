@@ -136,7 +136,7 @@ const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
   },
   {
     name: 'ON-03 First project',
-    // Fetches the organization's workspaces as of PROJ-002, so it needs a query client and a
+    // Fetches the organization's workspaces as of PROJ-001, so it needs a query client and a
     // fetch that answers. The behaviour is covered in `project-flow.test.tsx`.
     render: () =>
       withQuery(

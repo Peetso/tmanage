@@ -127,7 +127,7 @@ export function SessionsScreen({ client, onSignedOut }: SessionsScreenProps) {
         </InlineAlert>
       ) : null}
 
-      <BackendPending ticket="ID-002 · AUD-002">
+      <BackendPending ticket="ID-002 · ADMIN-002">
         Revoking one other session, recovery codes, and the security-event receipt are not built.
         Revoking a named session has no route yet; the audit read model that would show the receipt
         is not written.

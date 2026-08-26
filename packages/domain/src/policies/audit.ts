@@ -110,7 +110,7 @@ export const AUDIT_ACTION_CATALOG = {
     clause: '§12 organization settings — the founding grant is the first and largest of them',
   },
   /**
-   * PROJ-002. A project is the container every later object lives in — work items,
+   * PROJ-001. A project is the container every later object lives in — work items,
    * deliverables, approvals, the client's whole view — so "who created this project, and
    * when" is the first question any later investigation of its contents has to answer.
    */

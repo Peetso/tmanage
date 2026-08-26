@@ -169,8 +169,8 @@ export class ProjectsService {
    *
    * The owner defaults to the acting person rather than to null. A project with no owner is
    * a project nothing can be escalated to, and the person creating one on a setup screen is
-   * the obvious answer until there is a people picker to choose otherwise — which is
-   * `PEOPLE-001`, unwritten.
+   * the obvious answer until there is a people picker to choose otherwise. No ticket in
+   * `28-SPRINT-TICKETS` builds one.
    */
   async create(context: TenantContext, input: CreateProjectInput): Promise<ProjectView> {
     const withOwner: CreateProjectInput = {

@@ -249,8 +249,9 @@ export function WorkListScreen({
                   </td>
                   <td>{projectNames.get(item.projectId) ?? 'Another project'}</td>
                   {/*
-                    An id is not a name. `PEOPLE-001` is the ticket that makes a person's name
-                    available; until it exists this says whether the item has an owner at all,
+                    An id is not a name. Nothing exposes a person's name yet, and no ticket in
+                    `28-SPRINT-TICKETS` builds a people directory; until one does this says
+                    whether the item has an owner at all,
                     which is the part that matters for "who is this waiting on".
                   */}
                   <td>{item.ownerUserId === null ? 'Unassigned' : 'Assigned'}</td>

@@ -40,15 +40,18 @@ export interface FirstProjectScreenProps {
  *
  * ## What is real, and what is still collected and dropped
  *
- * The project, its name and its target date are created for real as of `PROJ-002`. Two of the
+ * The project, its name and its target date are created for real as of `PROJ-001`. Two of the
  * fields the specification lists are not:
  *
  * - **Client or internal.** `projects` has no audience column; a project is shared with a
- *   client by linking it to a client organization in `project_clients`, which is `CLIENT-001`.
- *   The choice is collected, marked as not yet saved, and the default stays internal.
- * - **The owner.** There is no endpoint that lists the people in an organization — that is
- *   `PEOPLE-001` — so the API defaults the owner to whoever created the project, and this
- *   screen says so rather than offering a picker with one invented name in it.
+ *   client by linking it to a client organization in `project_clients`. `CLIENT-001` shipped
+ *   that link and its endpoint, so the gap is this screen's rather than the API's: onboarding
+ *   does not call it. The choice is collected, marked as not yet saved, and the default stays
+ *   internal.
+ * - **The owner.** There is no endpoint that lists the people in an organization, and
+ *   `28-SPRINT-TICKETS` schedules no ticket that builds one — so the API defaults the owner to
+ *   whoever created the project, and this screen says so rather than offering a picker with one
+ *   invented name in it.
  */
 export function FirstProjectScreen({
   signedInAs,
@@ -128,10 +131,11 @@ export function FirstProjectScreen({
       title="Create your first project"
       description="One project is enough to start. Milestones, deliverables and the client portal all hang off it."
     >
-      <BackendPending ticket="CLIENT-001 · PEOPLE-001">
-        The project itself is created. Choosing a client and choosing an owner are not saved yet: a
-        project is shared with a client by linking it to a client organization, and there is no
-        endpoint that lists the people in this organization. The owner will be you.
+      <BackendPending ticket="this screen's client link · a people directory, unscheduled">
+        The project itself is created. Choosing a client and choosing an owner are not saved yet. A
+        project is shared with a client by linking it to a client organization, which CLIENT-001
+        built and this onboarding step does not yet call; and there is no endpoint that lists the
+        people in this organization, which no ticket schedules. The owner will be you.
       </BackendPending>
 
       {workspaces.isError ? (
@@ -189,7 +193,7 @@ export function FirstProjectScreen({
         {/*
           A statement rather than a picker.
           `22` §3 lists an owner field, and there is no endpoint that lists the people in an
-          organization — that is `PEOPLE-001`. A select with one invented name in it would
+          organization, and no ticket builds one. A select with one invented name in it would
           look like a choice and be a fiction; the API defaults the owner to the person
           creating the project, and this says so.
         */}

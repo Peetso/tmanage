@@ -46,12 +46,12 @@ export interface ProjectOverviewScreenProps {
  * manage the colour. The counts below are each a link into the work list filtered to exactly
  * the items they counted, so the explanation is checkable rather than assertable.
  *
- * A scored indicator is `INSIGHT-001`'s, and it will need a stated formula before it can be
- * drawn. Until then the honest thing is arithmetic anybody can repeat.
+ * A scored indicator belongs with `HOME-001`'s ranking and explanation, the nearest thing
+ * `28-SPRINT-TICKETS` schedules, and it will need a stated formula before it can be drawn. Until then the honest thing is arithmetic anybody can repeat.
  *
  * ## Committed and forecast stay two dates
  *
- * `PROJ-002` deliberately keeps `committed_at` and `forecast_at` apart, and this is the screen
+ * `PROJ-001` deliberately keeps `committed_at` and `forecast_at` apart, and this is the screen
  * where the distinction earns its keep: a forecast that slips is normal and a commitment that
  * slips is a conversation with a client. Collapsing them into "due" here would undo the whole
  * point of storing two columns.
@@ -122,10 +122,13 @@ export function ProjectOverviewScreen({
           <div className="tm-row tm-row--wrap">
             {/*
               Always internal, and it says why.
-              A project is shared with a client by linking it to a client organization in
-              `project_clients`, which is `CLIENT-001`. Nothing links one yet, so every project
-              is internal — and a badge that read "Client" because a setup screen once asked
-              the question would be describing an access grant that does not exist.
+              Unconditional, and **known to be wrong once a client is linked**. A project is
+              shared with a client by linking it to a client organization in `project_clients`,
+              and `CLIENT-001` shipped both the table and `GET projects/:id/clients`. This
+              screen does not call it, and `ProjectSummary` carries no client field, so the
+              badge cannot tell the two apart and always says "Internal". Recorded in
+              `docs/implementation-status.md` as WEB-002's second half — it needs an API
+              client, a query and a test, which is more than a comment correction.
             */}
             <Badge>Internal</Badge>
             <StateCapsule state={project.data.status === 'active' ? 'current' : 'archived'}>
@@ -258,16 +261,17 @@ export function ProjectOverviewScreen({
           </>
         )}
         <p className="tm-field__hint">
-          No portal exists to read it in yet — that is CLIENT-001. This is the list of what would be
-          shown the moment one does.
+          This is what the client portal shows for this project. CLIENT-002 built that portal, so
+          the list is what a client member reading it right now would see — not a preview of
+          something later.
         </p>
       </section>
 
-      <BackendPending ticket="MILE-001 · PULSE-001 · CLIENT-001">
-        Milestones and the latest internal pulse are not built. Both are sections
-        22-SCREEN-BY-SCREEN asks for and neither has storage yet, so neither is drawn: an empty
-        “Milestones” heading would read as a project nobody has planned rather than a feature that
-        does not exist.
+      <BackendPending ticket="milestones and internal pulse — unscheduled">
+        Milestones and the latest internal pulse are not built, and no ticket in 28-SPRINT-TICKETS
+        builds them. Both are sections 22-SCREEN-BY-SCREEN asks for and neither has storage yet, so
+        neither is drawn: an empty “Milestones” heading would read as a project nobody has planned
+        rather than a feature that does not exist.
       </BackendPending>
     </AppShell>
   );

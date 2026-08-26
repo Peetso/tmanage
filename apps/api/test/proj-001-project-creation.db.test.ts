@@ -16,7 +16,7 @@ import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
 
 /**
- * PROJ-002 over real HTTP — creating a project, and the workspace list that makes it possible.
+ * PROJ-001 over real HTTP — creating a project, and the workspace list that makes it possible.
  *
  * `PROJ-001` built the repositories and proved the tenant scoping. What this suite is about is
  * the three things the endpoint adds:

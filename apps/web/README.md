@@ -40,7 +40,7 @@ ticket that will close it — see `src/components/screens/BackendPending.tsx`.
 | ID-05 Recovery, four states | `/recover?state=`          | Nothing. ID-002                                                             |
 | ON-01 Create organization   | `/onboarding/organization` | Nothing. TEN-001                                                            |
 | ON-02 Operating template    | `/onboarding/template`     | Nothing. TEN-001                                                            |
-| ON-03 First project         | `/onboarding/project`      | Nothing. PROJ-002                                                           |
+| ON-03 First project         | `/onboarding/project`      | Nothing. PROJ-001                                                           |
 | ON-04 Invite team           | `/onboarding/team`         | Nothing. TEN-003                                                            |
 
 The screen ids are the **specification's**. The design export numbers its onboarding
