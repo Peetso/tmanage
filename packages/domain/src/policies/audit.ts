@@ -97,6 +97,18 @@ export interface AuditActionDefinition {
  * "never built".
  */
 export const AUDIT_ACTION_CATALOG = {
+  /**
+   * TEN-001's provisioning transaction.
+   *
+   * The first row an organization ever has, and the only audit row whose `organization_id`
+   * names a row created in the same transaction. §12 lists "organization settings" among the
+   * changes that must be recorded, and there is no settings change more consequential than
+   * the one that decides who owns the organization in the first place.
+   */
+  'organization.provisioned': {
+    objectType: 'organization',
+    clause: '§12 organization settings — the founding grant is the first and largest of them',
+  },
   'project_membership.granted': {
     objectType: 'project_membership',
     clause: '§12 role changes — a project grant is the narrowest role change in the system',

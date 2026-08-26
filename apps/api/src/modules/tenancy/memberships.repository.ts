@@ -180,6 +180,53 @@ export class MembershipsRepository {
    * person a duplicate-key error rather than a second row — one membership per person per
    * organization, enforced by the schema rather than by a check-then-insert race.
    */
+  /**
+   * The founding membership, created `active` rather than `invited`.
+   *
+   * This is the one place a membership is born already authorising something, and the reason
+   * is that there is nobody to accept an invitation from. `invite()` writes `status:
+   * 'invited'` precisely so that a grant authorises nothing until the person accepts — a
+   * distinction worth having everywhere except here, where the person creating the
+   * organization *is* the person being granted, and an invitation they would have to accept
+   * from themselves is ceremony rather than a control.
+   *
+   * It is a separate method rather than a flag on `invite()` so that the exception is
+   * countable: one call site, in `ProvisioningService`, and any second one is a diff.
+   *
+   * The id is supplied by the caller for the same reason `OrganizationsRepository.create`
+   * takes one — provisioning builds the `TenantContext` from ids it generated, and this
+   * membership's id is inside that context.
+   */
+  async createFounder(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: { readonly id: string; readonly userId: string; readonly role: string },
+  ): Promise<MembershipRow> {
+    if (input.id !== context.membershipId) {
+      throw new Error(
+        'createFounder() was given an id that is not the membership its context names; the ' +
+          'row would not be the one that authorised writing it',
+      );
+    }
+
+    await tenantDrizzle(runner)
+      .insert(memberships)
+      .values({
+        id: input.id,
+        organizationId: context.organizationId,
+        userId: input.userId,
+        role: input.role,
+        // The exception, stated in one word.
+        status: 'active',
+        hasOrgWideScope: defaultOrgWideScope(input.role),
+        version: 1,
+        createdAt: sql`current_timestamp(3)`,
+        updatedAt: sql`current_timestamp(3)`,
+      });
+
+    return this.requireById(runner, context, input.id);
+  }
+
   async invite(
     runner: TenantQueryRunner,
     context: TenantContext,
