@@ -96,6 +96,15 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   'sessions',
   'session_refresh_tokens',
   'schema_migrations',
+  // ID-002. A person is one account holding memberships in many organizations, so their
+  // credentials cannot be forked per tenant: doing so would mean revoking a password in one
+  // organization left it working in the rest. `authentication_events` is non-tenant for a
+  // sharper reason still — it records attempts made before any tenant has been resolved, and
+  // some of them name no user at all.
+  'user_passwords',
+  'user_mfa_factors',
+  'user_recovery_codes',
+  'authentication_events',
 ]);
 
 export function isTenantTable(name: string): boolean {

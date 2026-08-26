@@ -64,6 +64,16 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_items`           TO 'tmanage_app
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 
+-- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
+-- changed in place, and a factor records the counter of the last code it accepted on every
+-- successful verification. `user_recovery_codes` needs UPDATE to spend a code and to revoke
+-- a superseded batch, and DELETE is withheld: a spent code must stay spent and visible,
+-- because "this code was used on the 3rd" is the sentence that distinguishes a legitimate
+-- recovery from a stolen one.
+GRANT INSERT, UPDATE ON `tmanage`.`user_passwords`      TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
+
 -- `audit_events` gets INSERT and nothing else: the runtime user may append and read, never
 -- amend or remove. The append-only triggers in 0002_platform_primitives.sql enforce the
 -- same rule for every other credential, including this script's own migrator — but a
@@ -79,6 +89,15 @@ GRANT INSERT ON `tmanage`.`audit_events` TO 'tmanage_app'@'%';
 -- triggers in 0003_session_rotation.sql enforce this for every credential; withholding the
 -- privileges means the runtime user cannot even make the attempt.
 GRANT INSERT ON `tmanage`.`session_refresh_tokens` TO 'tmanage_app'@'%';
+
+-- `authentication_events` gets INSERT and nothing else, for the third time and the same
+-- reason. This log is where the precision the API's responses deliberately drop is kept: the
+-- caller is told one thing for every sign-in failure so that "no such account" cannot be
+-- distinguished from "wrong password", and the specific cause is written here. An
+-- application that could amend it could erase the only record of a credential-stuffing run
+-- against a customer. Append-only triggers in 0004_credentials.sql cover every other
+-- credential; withholding the privilege means this one cannot make the attempt.
+GRANT INSERT ON `tmanage`.`authentication_events` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

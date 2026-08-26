@@ -259,6 +259,13 @@ export async function truncateAll(admin: Pool): Promise<void> {
   try {
     for (const table of [
       'audit_events',
+      // ID-002. `authentication_events` is append-only by trigger, so a test cannot clear it
+      // with DELETE — TRUNCATE is DDL and bypasses row triggers, which is exactly why it is
+      // used here and why the trigger is not weakened for the suite's convenience.
+      'authentication_events',
+      'user_recovery_codes',
+      'user_mfa_factors',
+      'user_passwords',
       'idempotency_records',
       'outbox_events',
       'work_items',

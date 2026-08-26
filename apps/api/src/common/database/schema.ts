@@ -430,6 +430,108 @@ export const auditEvents = mysqlTable(
   ],
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Credentials — ID-002, migration 0004
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// None of these four carries an `organization_id`, for the reason `users` and `sessions`
+// do not: a person is one account holding memberships in many organizations. They are
+// listed in the tenant guard's `NON_TENANT_TABLES`, so the omission is declared rather
+// than merely true.
+
+/** One row per user, or none. `user_id` is the key: a second password is not a state. */
+export const userPasswords = mysqlTable('user_passwords', {
+  userId: char('user_id', { length: 36 }).primaryKey(),
+  /** Argon2id PHC string. The salt and every cost parameter travel inside the value. */
+  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  setAt: datetime('set_at', { mode: 'date', fsp: 3 }).notNull(),
+  updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+});
+
+/**
+ * Second factors. A table rather than a column because the plural is the real case — a
+ * phone, a tablet, and later a passkey.
+ */
+export const userMfaFactors = mysqlTable(
+  'user_mfa_factors',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    /** `totp` is the only kind implemented. `webauthn` would be a value, not a table. */
+    kind: varchar('kind', { length: 32 }).notNull(),
+    label: varchar('label', { length: 190 }).notNull(),
+    /**
+     * The base32 shared secret, stored recoverably because TOTP verification needs the
+     * secret itself. That is a property of the algorithm and the reason a passkey is the
+     * better credential: a WebAuthn public key is useless to whoever steals the database.
+     */
+    secret: varchar('secret', { length: 255 }).notNull(),
+    /** NULL until a code has been produced from it. An unconfirmed factor authorises nothing. */
+    confirmedAt: datetime('confirmed_at', { mode: 'date', fsp: 3 }),
+    /** RFC 6238 counter of the last accepted code — the column that prevents replay. */
+    lastAcceptedCounter: bigint('last_accepted_counter', { mode: 'number' }),
+    lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** Soft-disabled: "this factor was removed on the 3rd" is a question a deletion cannot answer. */
+    disabledAt: datetime('disabled_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [index('ix_user_mfa_factors_user').on(table.userId, table.disabledAt)],
+);
+
+/**
+ * One row per recovery code.
+ *
+ * A row rather than a JSON blob because codes are individually single-use: spending one is
+ * an `UPDATE ... WHERE used_at IS NULL`, which the database serialises, instead of a
+ * read-modify-write of ten that two concurrent spends would race on.
+ */
+export const userRecoveryCodes = mysqlTable(
+  'user_recovery_codes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    /** Groups the ten issued together, so regenerating revokes the old set in one statement. */
+    batchId: char('batch_id', { length: 36 }).notNull(),
+    codeHash: char('code_hash', { length: 64 }).notNull(),
+    usedAt: datetime('used_at', { mode: 'date', fsp: 3 }),
+    /** Distinct from `usedAt`: "spent" and "replaced" are different answers. */
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_user_recovery_codes_hash').on(table.codeHash),
+    index('ix_user_recovery_codes_user').on(table.userId, table.usedAt, table.revokedAt),
+    index('ix_user_recovery_codes_batch').on(table.batchId),
+  ],
+);
+
+/**
+ * The pre-tenant security log — append-only, enforced by triggers and by grants.
+ *
+ * Not `audit_events`, because that table's `organization_id` is NOT NULL and authentication
+ * happens before any tenant exists. Migration 0004's header carries the full argument.
+ */
+export const authenticationEvents = mysqlTable(
+  'authentication_events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    /** NULL when the attempt named an address no account holds. That row is the enumeration trace. */
+    userId: char('user_id', { length: 36 }),
+    action: varchar('action', { length: 64 }).notNull(),
+    outcome: varchar('outcome', { length: 16 }).notNull(),
+    /** The precise cause. Recorded here and never returned to the caller. */
+    reason: varchar('reason', { length: 64 }),
+    ip: varchar('ip', { length: 45 }),
+    userAgent: varchar('user_agent', { length: 255 }),
+    correlationId: char('correlation_id', { length: 36 }),
+    occurredAt: datetime('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index('ix_authentication_events_user').on(table.userId, table.occurredAt),
+    index('ix_authentication_events_occurred').on(table.occurredAt),
+  ],
+);
+
 /**
  * Every table this schema describes, keyed by its SQL name.
  *
@@ -452,6 +554,10 @@ export const TABLES = {
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
+  user_passwords: userPasswords,
+  user_mfa_factors: userMfaFactors,
+  user_recovery_codes: userRecoveryCodes,
+  authentication_events: authenticationEvents,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -467,3 +573,7 @@ export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
+export type UserPasswordRow = typeof userPasswords.$inferSelect;
+export type UserMfaFactorRow = typeof userMfaFactors.$inferSelect;
+export type UserRecoveryCodeRow = typeof userRecoveryCodes.$inferSelect;
+export type AuthenticationEventRow = typeof authenticationEvents.$inferSelect;
