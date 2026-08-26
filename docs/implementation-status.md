@@ -170,6 +170,198 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the ID-002 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`418 s` wall (6 m 58 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                        |
+| `typecheck`              | Clean across five projects                                                                                                |
+| `lint`                   | Clean                                                                                                                     |
+| `test` (unit)            | **675 passed**, 29 files — config 25, domain 102, ui 106, **api 241**, **web 201**. Was 531 across 24 before this session |
+| `test:db`                | **393 passed, 21 skipped**, 13 files, **337.65 s**. Was 324 across 11 — two new suites and 69 new cases                   |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                     |
+| `format:check` (closing) | Clean                                                                                                                     |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                                 |
+
+The 21 skips are the same least-privilege cases as every previous session. They skip on the
+default per-file path and were run to 0 skips on 2026-08-25 against MySQL 8.0.45 and MariaDB
+11.4.5. They are skips, and they are recorded as skips.
+
+### What the 213 new cases are worth
+
+| Check                        | What it proves                                                                                                     | What it does not                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| 52 TOTP cases                | Every published RFC 4226 and RFC 6238 test vector, the drift window, and replay refusal                            | That a real authenticator app agrees — no phone has been paired              |
+| 35 password cases            | Argon2id round-trip, the PHC parameters, rehash detection, Unicode normalisation, and every screening rule         | That the bundled list resembles a real breach corpus                         |
+| 23 recovery-code cases       | 50 bits, no confusable characters, single-use attribution, and every accepted spelling of one code                 | Nothing about storage — that is the database suite                           |
+| 20 challenge-token cases     | Signature, purpose binding, expiry order, tamper refusal, and that the Argon2 constants match `packages/config`    | That five minutes is the right window                                        |
+| 37 credential database cases | One answer for three causes, the enumeration trace, the lockout, TOTP replay, and recovery codes under a race      | Anything about HTTP                                                          |
+| 20 auth HTTP cases           | The refusal is **byte-identical**, a real session comes out, and the enrolment routes act only on their own user   | That a browser behaves the same — `app.inject()` is Fastify without a socket |
+| 26 web cases (net +14)       | The screen posts what it should, renders the API's own refusal, and never puts the challenge token in the document | Anything a real browser renders                                              |
+
+---
+
+## ID-002 — what actually proves a person is who they say they are
+
+`SessionService.start()` has taken a `userId` "established by whatever proved the person's
+identity" since ID-001 landed. This is that whatever, and the two stay separate: this decides
+_whether_ a person is authenticated, `SessionService` decides what a session _is_.
+
+**A person can now sign in.** That sentence has not been true of this codebase before.
+
+### The one rule the whole ticket is arranged around
+
+**Every failure looks the same from outside.**
+
+An unknown email address, an address with no password set, a wrong password, a wrong TOTP
+code, a replayed code, an expired challenge and a spent recovery code are seven rows in
+`authentication_events` and **one** answer to the caller. `id-002-auth-http.db.test.ts`
+asserts it by comparing whole response bodies with the correlation id masked — a status-only
+assertion would pass while the body gave the game away.
+
+That is not enough on its own, and the second half is the part that is easy to skip. An
+unknown email would return in a millisecond while a wrong password took the 15 ms an Argon2
+verify costs, and that difference is measurable over a few hundred requests. So the
+unknown-user path **runs a verify anyway**, against a hash of a value nobody knows. The work
+is wasted deliberately.
+
+The one deliberate exception is a lockout: 429 rather than 401. It does tell an attacker the
+account exists, and `22-SCREEN-BY-SCREEN` §3's `ID-02` specifies a rate-limited state on the
+screen — a person who has locked themselves out needs to know that waiting is the fix rather
+than being sent round the password loop again.
+
+### What is built, and what each piece costs
+
+| Piece                | Decision                                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **Passwords**        | Argon2id at OWASP's first recommended configuration — m = 19 MiB, t = 2, p = 1. Measured at **15 ms** on this machine |
+| **Second factor**    | TOTP, RFC 6238, verified against every published vector before anything was written on top of it                      |
+| **Recovery codes**   | Ten codes of 50 bits, Crockford's alphabet, SHA-256 at rest, individually single-use                                  |
+| **The challenge**    | A signed, purpose-bound, five-minute token. Stateless                                                                 |
+| **The lockout**      | A `COUNT(*)` over `authentication_events` inside a window                                                             |
+| **The security log** | `authentication_events` — append-only by trigger **and** by grant, non-tenant                                         |
+
+Each of those has a reason that is worth stating once rather than being inferred:
+
+- **19 MiB rather than 64.** `50-BOOTSTRAP` targets a shared host, where a sign-in burst
+  allocating 64 MiB per concurrent hash exhausts the plan's memory long before an attacker's.
+- **The PHC string carries its own parameters**, so raising the cost later invalidates no
+  credential. `needsRehash` notices on the next successful sign-in, which is the one moment
+  the plaintext is legitimately in memory.
+- **No composition rules.** NIST 800-63B removed them deliberately and they are why
+  `Password1!` exists. Length is counted in code points, so eight emoji is eight characters.
+- **SHA-1 for TOTP**, and that is not a judgement about the hash. Essentially every
+  authenticator application ignores the `algorithm` parameter in the `otpauth://` URI and
+  assumes SHA-1; choosing SHA-256 produces codes that silently do not match on most phones.
+- **`verifyTotp` returns the counter it matched**, not a boolean, because a code stays valid
+  for up to 90 seconds with the drift window and one observed over a shoulder is otherwise
+  replayable for all of it. Every candidate in the window is checked even after a match, so
+  the running time does not leak how far the presenter's clock is from the server's.
+- **Recovery codes are SHA-256, not Argon2id**, and that is deliberate rather than an
+  inconsistency. They are 50 bits of randomness with no dictionary to run against them, and
+  ten Argon2 verifications per attempt on a pre-authentication endpoint is a denial-of-service
+  amplifier with a factor of ten built in.
+- **The Argon2 verify runs outside any transaction.** Inside one it would pin a pooled
+  connection for 15 ms on every sign-in attempt, which is the cheapest way to turn a password
+  endpoint into connection-pool exhaustion.
+
+### The gap this closes, and the table it closes it with
+
+`docs/implementation-status.md` has carried this since the HTTP surface landed:
+
+> Denials before tenant resolution (no session, bad CSRF, unresolvable org) leave no audit
+> row, because `audit_events.organization_id` is NOT NULL with a foreign key.
+
+A failed sign-in is the sharpest case of it, and it cannot go in `audit_events`:
+authentication happens **before any tenant exists**, and an attempt that names an address no
+account holds names no user either. Rather than loosening a NOT NULL on an append-only table
+so that half its rows answer a different question from the other half, identity gets its own
+append-only log beside the other non-tenant identity tables.
+
+That row — `user_id NULL`, `reason = 'no_such_user'` — is the only trace an enumeration sweep
+leaves anywhere in the system. It is asserted.
+
+The gap is **narrowed, not closed**: a bad CSRF token and an unresolvable organization slug
+still leave no row, because those denials happen in the HTTP guards rather than in this
+service. That remains open.
+
+### Four tables, and why not three columns on `users`
+
+- A person may hold **several** second factors — a phone, a tablet, later a passkey — and a
+  column holds one.
+- Recovery codes are **individually single-use**. A JSON blob of ten would have to be
+  rewritten to spend one, and two concurrent spends of different codes would race and lose
+  one. A row per code makes spending an `UPDATE … WHERE used_at IS NULL` that the database
+  serialises. Asserted with two simultaneous attempts on the same code: exactly one succeeds.
+- `users` is read on paths that have nothing to do with authentication. A password hash in
+  that row is a password hash in every `SELECT *`, every log line that dumps a user, and every
+  future projection built from it.
+
+### One finding, from the suite's own first run
+
+The ID-002 database suite failed on its first run — not on an assertion, but in `beforeEach`:
+
+```
+authentication_events is append-only: rows cannot be deleted
+```
+
+The append-only trigger fired on the test's own cleanup, under the **migrator** credential.
+That is the guarantee working on its author. The suite now clears the table with `TRUNCATE`,
+which is DDL and does not fire row triggers; the trigger was not weakened for the suite's
+convenience.
+
+### Named gaps — ID-002
+
+1. **Passkeys are not built**, and the reason is not preference. WebAuthn registration needs
+   a browser and an authenticator; this machine has neither, and a server-side verifier that
+   has never seen a real attestation is not evidence of anything. `04-SECURITY-PRIVACY` §3
+   lists passkeys first, and TOTP is the weaker credential — it has a shared secret the
+   server must store recoverably, which a WebAuthn public key does not.
+2. **SSO and SAML are not built.** Same shape of reason: no identity provider exists here.
+3. **Breached-password screening is a bundled list, not a corpus.** §3 asks for real
+   screening; HIBP's k-anonymity range API is the way to do it and is a network call to a
+   third party this machine has never made. `BreachedPasswordScreen` exists so the call slots
+   in without changing a caller, and its `undefined` return distinguishes "could not check"
+   from "not breached" — a remote screen that fails open silently is worse than none.
+4. **Email verification is not wired.** `users.email_verified_at` has existed since 0001 and
+   nothing sets it. Sign-in does not require it, which means an unverified address can hold a
+   password. Closing it needs the notification surface.
+5. **Password recovery is not built.** `ID-05`'s four recovery states are still inert: a
+   reset link needs email, which needs the notification surface.
+6. **The lockout is per user, not per source.** It stops credential stuffing against one
+   account and does nothing about one attempt each against a thousand accounts.
+   `13-ENGINEERING-EXECUTION-SPEC` §1 assumes Redis; there is none here and none on the
+   shared host.
+7. **The lockout window is a counter, not a lock.** Two attempts arriving together can both
+   read a count below the threshold. Closing it would need `SELECT … FOR UPDATE` on a row that
+   does not exist yet; the attacker's gain from the race is one extra guess.
+8. **The challenge token is replayable inside its five-minute window.** It is stateless by
+   choice — the alternative is a table and a sweeper on the hottest unauthenticated path —
+   and it is not a credential on its own: presenting it earns the right to be asked for a
+   code, and `last_accepted_counter` refuses a replayed one.
+9. **Nothing revokes sessions when a password changes.** Changing a password should end every
+   other session; `SessionService.revokeAllForUser` exists and is not called from here.
+10. **No `trust this device` duration**, which `22` §3 lists for `ID-02`. It needs a device
+    identifier the session does not carry.
+11. **TOTP secrets are stored recoverably.** They must be — the algorithm needs the secret to
+    compute the same code — so a database disclosure hands the reader every second factor.
+    That is the argument for passkeys, and it is the reason gap 1 matters more than its
+    position suggests.
+12. **No admin-assisted verification**, the third fallback the export's `ID-02` draws.
+13. **Sign-in emits no analytics.** `34-ANALYTICS` defines `sign_in_started` / `succeeded` /
+    `failed`; there is no telemetry transport.
+14. **Nobody has signed in through a browser.** Every path is proved by `app.inject()` and by
+    jsdom. No human has typed a password into this application.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-08-26, start of the WEB-001 session
 
 The tenth verification, and the tenth identical result. Both trees were compared by SHA-256,
@@ -357,8 +549,10 @@ material. That is the real cost of a reversal and it is recorded in the ADR.
 
 These are open, recorded rather than hidden, and none of them should be closed by guessing.
 
-1. **Nine of the ten screen states have no server.** Listed in the table above. This is the
-   ticket's largest gap and it is stated on every affected screen.
+1. **Seven of the ten screen states have no server**, and this line read "nine" when WEB-001
+   landed. ID-002 closed two of them the same day: `ID-01` and `ID-02` now sign a person in.
+   The rest — the invitation, the organization list, recovery, and the four onboarding steps —
+   still say so on the screen with the ticket that closes each one.
 2. **The sessions list cannot mark "this device".** The API's `SessionSummary` has five
    fields and `current` is not among them. Guessing from the user agent would be wrong the
    moment two tabs hold two sessions, so the rows are unmarked.
@@ -1735,11 +1929,14 @@ the capability that was refused.
 3. **No outbox event.** §3 step 8 pairs audit with outbox; PLAT-004's relay is still not
    written, so the commands here write the audit half only. The transaction boundary they
    establish is where the second half goes.
-4. **Denials before tenant resolution are not recorded.** A missing session, a bad CSRF token
-   and an unresolvable organization all refuse _before_ an organization exists, and
-   `audit_events.organization_id` is `NOT NULL` with a foreign key. Those refusals leave no
-   audit row. Making them recordable means either a nullable tenant column or a separate
-   security-event table — a schema decision, not a service one.
+4. **Denials before tenant resolution are only half recorded**, and this line read "not
+   recorded" until ID-002. That ticket took the second of the two options this sentence used
+   to offer — a separate security-event table — and `authentication_events` now records every
+   sign-in attempt, including ones that name no user at all. What is still unrecorded is the
+   other half: a **missing session** and a **bad CSRF token** are refused in the HTTP guards
+   rather than in an identity service, and an unresolvable organization slug is refused by
+   `MembershipResolver`. None of the three writes anywhere. Extending
+   `authentication_events` to cover the guards is the obvious next step and is not ID-002.
 5. **`project_memberships.role` is unconstrained at the database.** See defect 3 above.
    `VARCHAR(64) NOT NULL DEFAULT 'member'` accepts any string, so a typo in a future caller
    that bypasses the TypeScript union persists silently. Correcting it is a migration and is
@@ -1889,15 +2086,16 @@ win over the tokens, and it is settled on a ground §1 does not speak to.
 
 ## Sprint 1 (`28-SPRINT-TICKETS` §4)
 
-| Ticket   | Scope                                          | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                |
-| -------- | ---------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ID-001   | session cookie, refresh rotation/reuse         | `tested`      | 43 database cases + 27 unit cases, now driven through real HTTP as well. Session cookie, rotation, reuse detection, global cutoff, device list, and **CSRF (gap 2 closed — ADR-0004)**. Twenty mutations across two sessions confirm the guards fire. **Nothing authenticates a person yet** — sign-in takes an already-proved `userId` (ID-002); six named gaps remain |
-| TEN-001  | organization/workspace/membership aggregates   | `tested`      | 21 database cases. Organizations, workspaces and memberships, plus the membership resolver's 24 cases. **Exception:** organization _creation_ is not written — see below                                                                                                                                                                                                |
-| TEN-002  | roles/capabilities and policy evaluator        | `tested`      | The evaluator itself was already tested (29 cases, `packages/domain`). This session wired it: `PrincipalRepository` assembles a `Principal` from a resolved membership plus a scoped project-relation read                                                                                                                                                              |
-| TEN-003  | invitation issue/accept/revoke/expiry          | `implemented` | The storage half only: `invite()` writes an `invited` row that authorises nothing, and `transitionStatus()` accepts it. Still no invitation token, no email, no expiry job. ID-001 has landed, so the remaining blockers are the notification surface and a single-use hashed token table of its own                                                                    |
-| AUD-001  | append-only audit service/view model           | `tested`      | 23 database cases + 26 unit cases. Closed action vocabulary, a safe-metadata rule that refuses content at the write boundary, an append that joins the caller's transaction, and the first producer (project-membership grant/role-change/revocation). Five named gaps below, of which the view-model narrowing is the one that matters                                 |
-| WEB-001  | identity/onboarding screens                    | `tested`      | 187 cases in `apps/web`: 18 API client, 21 slug, 25 invitation checks, 19 shell, 69 screen (axe over all nine, `region` rule enabled), 11 session flow, 24 contrast. Nine screens, four shells, `next build` green. **Nine of the ten screen states have no server** and each says so on the screen; fourteen named gaps below                                          |
-| TEST-001 | tenant/role matrix harness and two-tenant seed | `implemented` | The seed world and the adversarial pair are exercised by every database run. The **role** half of the §11 matrix — every role against every grid column — is not yet a generated harness                                                                                                                                                                                |
+| Ticket   | Scope                                          | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------- | ---------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ID-001   | session cookie, refresh rotation/reuse         | `tested`      | 43 database cases + 27 unit cases, now driven through real HTTP as well. Session cookie, rotation, reuse detection, global cutoff, device list, and **CSRF (gap 2 closed — ADR-0004)**. Twenty mutations across two sessions confirm the guards fire. **ID-002 has landed**, so sign-in is real: `AuthenticationService` proves the person and `SessionService.start()` takes the id it established. Six named gaps remain |
+| ID-002   | MFA/passkey/recovery architecture              | `tested`      | 213 cases: 52 TOTP against every published RFC vector, 35 password, 23 recovery code, 20 challenge token, 37 credential database cases and 20 over real HTTP, plus 26 in the web app. Argon2id, TOTP, single-use recovery codes and the pre-tenant security log. **Passkeys, SSO, breached-password screening and password recovery are not built** — fourteen named gaps below                                            |
+| TEN-001  | organization/workspace/membership aggregates   | `tested`      | 21 database cases. Organizations, workspaces and memberships, plus the membership resolver's 24 cases. **Exception:** organization _creation_ is not written — see below                                                                                                                                                                                                                                                   |
+| TEN-002  | roles/capabilities and policy evaluator        | `tested`      | The evaluator itself was already tested (29 cases, `packages/domain`). This session wired it: `PrincipalRepository` assembles a `Principal` from a resolved membership plus a scoped project-relation read                                                                                                                                                                                                                 |
+| TEN-003  | invitation issue/accept/revoke/expiry          | `implemented` | The storage half only: `invite()` writes an `invited` row that authorises nothing, and `transitionStatus()` accepts it. Still no invitation token, no email, no expiry job. ID-001 has landed, so the remaining blockers are the notification surface and a single-use hashed token table of its own                                                                                                                       |
+| AUD-001  | append-only audit service/view model           | `tested`      | 23 database cases + 26 unit cases. Closed action vocabulary, a safe-metadata rule that refuses content at the write boundary, an append that joins the caller's transaction, and the first producer (project-membership grant/role-change/revocation). Five named gaps below, of which the view-model narrowing is the one that matters                                                                                    |
+| WEB-001  | identity/onboarding screens                    | `tested`      | 201 cases in `apps/web` after ID-002 wired two of the screens up: 18 API client, 21 slug, 25 invitation checks, 19 shell, 71 screen (axe over all nine, `region` rule enabled), 11 session flow, 12 sign-in flow, 24 contrast. Nine screens, four shells, `next build` green. **Seven of the ten screen states still have no server** and each says so on the screen; fourteen named gaps below                            |
+| TEST-001 | tenant/role matrix harness and two-tenant seed | `implemented` | The seed world and the adversarial pair are exercised by every database run. The **role** half of the §11 matrix — every role against every grid column — is not yet a generated harness                                                                                                                                                                                                                                   |
 
 ### Named gaps in TEN-001/TEN-002, carried deliberately
 
@@ -2142,41 +2340,39 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
   processes rather than three, which is closer to what this plan can host.
 - `compose.yaml` is no more usable there than it is here.
 
-### The next coding task — and this time the recommendation is not a close call
+### The next coding task
 
-WEB-001 is done, and finishing it changed the shape of the remaining list rather than merely
-shortening it. There are now nine screens a person can open, and **not one of them can be
-reached by a person who is not already trusted**, because nothing authenticates anybody. The
-gap that was abstract is now visible: the sign-in screen exists, and it cannot sign anyone in.
+ID-002 is done, so the sentence that shaped the last two recommendations no longer applies:
+a person can sign in. What is left is that they cannot get anywhere afterwards, because
+nothing creates the organization they would sign in to.
 
-1. **ID-002 — passwords, passkeys, MFA, SSO.** `SessionService.start()` takes a `userId` that
-   something else has already proved, and that something else does not exist. ID-01 and ID-02
-   are built and waiting for it, and TEN-001's missing organization creation is blocked behind
-   it too, because provisioning needs a verified session and a founding-owner membership in
-   one transaction.
-2. **TEN-001's unbuilt half — organization creation, and listing a person's organizations.**
-   ON-01 collects and validates everything the transaction needs and cannot save it; ID-04
-   renders a fixture because there is no endpoint that says which organizations a person
-   belongs to. Both are small screens over a transaction that has to be got right once.
-3. **WORK-001/002 — the work aggregate and its endpoints.** The next step of the Phase 1
+1. **TEN-001's unbuilt half — organization creation, and listing a person's organizations.**
+   This is now the blocking one. `ON-01` collects and validates everything the transaction
+   needs and cannot save it; `ID-04` renders a fixture because there is no endpoint that says
+   which organizations a person belongs to. Provisioning has to create the organization, its
+   workspace and the founding owner membership in one transaction, or a failure halfway
+   leaves an organization nobody can administer. Everything it needs now exists: a verified
+   session, the repositories, and the audit service to record it.
+2. **WORK-001/002 — the work aggregate and its endpoints.** The next step of the Phase 1
    vertical loop. The state machine and the table both exist. `work_items.state DEFAULT
 'triage'` was left as it is by Peter's decision on 2026-08-25; changing it is a migration
    and is not part of this.
-4. **CLIENT-001 — the client portal endpoints.** The storage half is complete, the portal
-   shell now exists, and one assertion in `http-pipeline.db.test.ts` is still parked until a
+3. **CLIENT-001 — the client portal endpoints.** The storage half is complete, the portal
+   shell exists, and one assertion in `http-pipeline.db.test.ts` is still parked until a
    client endpoint exists to make it against.
+4. **PLAT-004's relay** — the outbox dispatcher. Tables, append-only audit and per-tenant
+   idempotency are tested; the process that reads the outbox and dispatches is not written,
+   and `apps/worker` is still an empty directory.
 
-**Recommendation: ID-002.** Every previous session could argue that authentication was
-someone else's turn because nothing was visible anyway. That argument is gone. The
-development-only sign-in route was honest scaffolding while there were no screens; now that
-there are, it is the single thing standing between a tested system and a person using it.
-ID-002 also unblocks TEN-001, which unblocks ON-01 and ID-04, which are two of the nine
-screens that currently render a notice instead of doing their job.
+**Recommendation: TEN-001's remaining half.** It is the only ticket whose absence makes an
+already-built screen useless, and there are two of those. It is also the shortest path to a
+person signing in and seeing something that belongs to them, which is the first end-to-end
+proof this system has never had.
 
-TEN-001's unbuilt half is the alternative worth naming, and the case for it is that it turns
-two built screens into working ones for less work than ID-002 takes. It is a smaller step in
-the same direction; it is not a substitute, because a provisioning transaction that runs for
-an unauthenticated caller is not a feature.
+The honest counter-argument is that provisioning is the transaction most likely to be got
+wrong once and lived with, and that WORK-001 is a wider slice of the product for the same
+effort. That is true and it is still second: a wider slice of a product nobody can reach is
+still unreachable.
 
 ### Done, in the order it happened
 
@@ -2191,26 +2387,24 @@ an unauthenticated caller is not a feature.
 6. ~~ADR-0001 layer 2 against a real server~~ — `users.sql` executed for the first time, on
    MySQL 8.0.45 and then MariaDB 11.4.5. Four defects found and fixed, plus one hole in the
    drift check that had made `varchar(255)` agree with `varchar(64)`.
-7. ~~AUD-001~~ — the audit service, its view model, and the first producer. Closes the
-   `DELETE`-with-no-record gap PROJ-001 recorded in code, and implements §12's "denied
-   sensitive attempts are security events". Five named gaps, three defects and one denylist
-   collision found by building it.
+7. ~~AUD-001~~ — the audit service, its view model, and the first producer. Five named gaps,
+   three defects and one denylist collision found by building it.
 8. ~~UI-001~~ — the token package, thirteen primitives, the component harness and Storybook.
    106 cases. Three real AA defects found by computing the contrast the design export only
-   claimed, and fixed in the component layer rather than by editing an immutable artifact.
-   Six named gaps, the largest being that no visual-regression harness exists.
-9. ~~WEB-001~~ — **done this session.** The Next.js application, four shells, and the nine
-   identity and onboarding screens. 187 cases. Three findings, each asserted rather than
-   commented, and the typeface question settled by ADR-0005 on licence grounds. Fourteen
-   named gaps, the largest being that nine of the ten screen states have no server behind
-   them and every one of them says so on the screen.
+   claimed. Six named gaps.
+9. ~~WEB-001~~ — the Next.js application, four shells, and the nine identity and onboarding
+   screens. 187 cases. Three findings and the typeface question settled by ADR-0005 on licence
+   grounds. Fourteen named gaps.
+10. ~~ID-002~~ — **done this session.** Argon2id passwords, RFC 6238 TOTP, single-use recovery
+    codes, the pre-tenant security log, six HTTP routes, and the sign-in screen wired to them.
+    213 cases. Fourteen named gaps, the largest being that passkeys are not built and TOTP is
+    the weaker credential it replaces them with.
 
 ### Progress
 
-**14 of 74 tickets. 92 of 615 story points, about 15%, across Sprints 0–9.** Screen tickets:
-**1 of 11** — WEB-001 is the identity and onboarding set; WEB-002 to WEB-011 are the rest.
+**15 of 74 tickets. 100 of 615 story points, about 16%, across Sprints 0–9.** Screen tickets:
+**1 of 11**.
 
-The percentage understates one thing and overstates another, and both are worth saying. It
-understates the work, because the foundation — tenancy, sessions, policy, audit, the HTTP
-pipeline, the design system — is built once and reused by every ticket after it. It overstates
-the product, because a person still cannot log in.
+Two sentences that are worth more than the percentage. **A person can now sign in** — that has
+never been true before today. And **a person who signs in still arrives nowhere**, because no
+endpoint creates the organization they would arrive at. That is the next ticket.
