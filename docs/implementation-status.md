@@ -170,6 +170,108 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the PROJ-002 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`536 s` wall (8 m 56 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                  |
+| `typecheck`              | Clean across five projects                                                                          |
+| `lint`                   | Clean                                                                                               |
+| `test` (unit)            | **701 passed**, 31 files — config 25, domain 102, ui 106, api 241, **web 227**. Was 688 across 30   |
+| `test:db`                | **438 passed, 21 skipped**, 15 files, **448.25 s**. Was 419 across 14 — one new suite, 19 new cases |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                               |
+| `format:check` (closing) | Clean                                                                                               |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                           |
+
+The 21 skips are the same least-privilege cases as every previous session, and are recorded
+as skips.
+
+---
+
+## PROJ-002 — creating a project, and one word the specification is strict about
+
+`PROJ-001` built the repositories and proved the tenant scoping. The create route existed and
+took a name and a workspace id; `ON-03` asks for four things. This adds the other two, the
+endpoint that makes the first reachable, and the audit row.
+
+### The date is a forecast, and the column says so
+
+`22-SCREEN-BY-SCREEN` §3, `ON-03`: "Date is marked **target** until milestone plan confirmed."
+
+That is a schema decision expressed as a sentence, and `projects` already carried both
+columns because the design language draws the same line — the pulse track separates
+**committed** from **forecast** from **desired**. A date typed on a setup screen, before
+anyone has planned the work, is a forecast. So:
+
+- the request field is `targetDate`, not `dueDate` and not `deadline`;
+- it lands in `forecast_at`, and `committed_at` is left null;
+- the database suite asserts both columns, and the web suite asserts the request body carries
+  none of the three words that would describe it as a promise.
+
+Dates are parsed at **midnight UTC**. A calendar date interpreted in the server's local zone
+means different instants on two machines and shifts by a day for anyone west of Greenwich.
+`2026-02-31` is refused by round-tripping the parse, because some engines roll it into March
+rather than failing.
+
+### The workspace list exists so that a client can file something
+
+Without it there is no way to learn a `workspaceId`, and `fk_projects_workspace_tenant` — the
+composite key including `organization_id` — means one cannot be guessed. It is `work.read`
+rather than `workspace.manage`, because it is a list of names needed in order to file
+something rather than a management surface, and `12-PERMISSION-MATRIX` gives `work.read` to
+every internal role including `guest`.
+
+There is no create, rename or archive route beside it. The repository supports all three; a
+route with no screen behind it is how an API surface grows faster than anything can exercise
+it.
+
+### Two things `ON-03` collects and still cannot save, both said on the screen
+
+- **Client or internal.** `projects` has no audience column. A project is shared with a client
+  by linking it to a client organization in `project_clients`, which is `CLIENT-001`.
+- **The owner.** There is no endpoint that lists the people in an organization — `PEOPLE-001`
+  — so the screen states the owner rather than offering a picker. A select with one invented
+  name in it would look like a choice and be a fiction. The API defaults the owner to whoever
+  created the project, because a project with no owner is one nothing can be escalated to.
+
+### The onboarding sequence moved under the organization
+
+`ON-02`, `ON-03` and `ON-04` are now at `/[orgSlug]/onboarding/...`. `ON-01` stays at
+`/onboarding/organization`, because it creates the organization and there is no slug to be
+under; it hands off to `/[slug]/onboarding/template`.
+
+A slug in a URL is safe and the two comments in the code say why: it is public, it is in every
+link a customer sends, and holding it grants nothing — the API's `TenantContextGuard` resolves
+it against a membership row before any handler runs. That is the exact opposite of the MFA
+challenge token, which is deliberately kept out of URLs.
+
+### Named gaps — PROJ-002
+
+1. **The owner is not validated against the organization.** `fk_projects_owner` references
+   `users (id)` without `organization_id`, because a user is not tenant-owned — so a caller
+   who knows another organization's user id could name them as owner of a project here. The
+   screen cannot do it (it sends no owner at all), but the endpoint would accept it. Closing
+   it needs a membership read that belongs with `PEOPLE-001`.
+2. **No outbox event.** The transaction is the right one and `PLAT-004`'s relay is still not
+   written, so `project.created` is audited and not published.
+3. **`committed_at` is never written by anything.** It becomes writable when a milestone plan
+   can be confirmed, which is `WORK-002`/`MILE-001`.
+4. **`ON-02`'s operating template still saves nothing.** There is no column for it.
+5. **No project update or archive route.** The repository has both, with optimistic
+   concurrency on `updated_at`; the screens that would call them are `WEB-002`.
+6. **A project has no members yet.** `ProjectMembershipsService` exists and is audited, and
+   nothing routes to it — so a project created here is visible to org-wide roles and to nobody
+   else.
+
+---
+
 ## Verification actually run — 2026-08-26, the TEN-001 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -688,11 +790,11 @@ material. That is the real cost of a reversal and it is recorded in the ADR.
 
 These are open, recorded rather than hidden, and none of them should be closed by guessing.
 
-1. **Five of the ten screen states have no server.** This line read "nine" when WEB-001
-   landed, "seven" after ID-002 connected `ID-01` and `ID-02`, and five now that TEN-001's
-   second half connected `ID-04` and `ON-01`. What remains — the invitation, recovery, the
-   operating template, the first project, and the team invitations — still says so on the
-   screen with the ticket that closes each one.
+1. **Four of the ten screen states have no server.** This line read "nine" when WEB-001
+   landed, "seven" after ID-002 connected `ID-01` and `ID-02`, "five" after TEN-001's second
+   half connected `ID-04` and `ON-01`, and four now that PROJ-002 connected `ON-03`. What
+   remains — the invitation, recovery, the operating template, and the team invitations —
+   still says so on the screen with the ticket that closes each one.
 2. **The sessions list cannot mark "this device".** The API's `SessionSummary` has five
    fields and `current` is not among them. Guessing from the user agent would be wrong the
    moment two tabs hold two sessions, so the rows are unmarked.
@@ -2226,16 +2328,16 @@ win over the tokens, and it is settled on a ground §1 does not speak to.
 
 ## Sprint 1 (`28-SPRINT-TICKETS` §4)
 
-| Ticket   | Scope                                          | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| -------- | ---------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ID-001   | session cookie, refresh rotation/reuse         | `tested`      | 43 database cases + 27 unit cases, now driven through real HTTP as well. Session cookie, rotation, reuse detection, global cutoff, device list, and **CSRF (gap 2 closed — ADR-0004)**. Twenty mutations across two sessions confirm the guards fire. **ID-002 has landed**, so sign-in is real: `AuthenticationService` proves the person and `SessionService.start()` takes the id it established. Six named gaps remain         |
-| ID-002   | MFA/passkey/recovery architecture              | `tested`      | 213 cases: 52 TOTP against every published RFC vector, 35 password, 23 recovery code, 20 challenge token, 37 credential database cases and 20 over real HTTP, plus 26 in the web app. Argon2id, TOTP, single-use recovery codes and the pre-tenant security log. **Passkeys, SSO, breached-password screening and password recovery are not built** — fourteen named gaps below                                                    |
-| TEN-001  | organization/workspace/membership aggregates   | `tested`      | 21 database cases, plus the membership resolver's 24 and **26 more for provisioning and the directory**. Organization creation now exists: organization, first workspace, founding owner membership and the audit row in one transaction, inside a `TenantContext` bound to the organization being created. Slug changes, workspace-scoped admin and a stored `policyVersion` are still open                                       |
-| TEN-002  | roles/capabilities and policy evaluator        | `tested`      | The evaluator itself was already tested (29 cases, `packages/domain`). This session wired it: `PrincipalRepository` assembles a `Principal` from a resolved membership plus a scoped project-relation read                                                                                                                                                                                                                         |
-| TEN-003  | invitation issue/accept/revoke/expiry          | `implemented` | The storage half only: `invite()` writes an `invited` row that authorises nothing, and `transitionStatus()` accepts it. Still no invitation token, no email, no expiry job. ID-001 has landed, so the remaining blockers are the notification surface and a single-use hashed token table of its own                                                                                                                               |
-| AUD-001  | append-only audit service/view model           | `tested`      | 23 database cases + 26 unit cases. Closed action vocabulary, a safe-metadata rule that refuses content at the write boundary, an append that joins the caller's transaction, and the first producer (project-membership grant/role-change/revocation). Five named gaps below, of which the view-model narrowing is the one that matters                                                                                            |
-| WEB-001  | identity/onboarding screens                    | `tested`      | 214 cases in `apps/web` after ID-002 and TEN-001 connected four of the screens: 18 API client, 21 slug, 25 invitation checks, 19 shell, 66 screen (axe over all nine, `region` rule enabled), 11 session flow, 12 sign-in flow, 18 organization flow, 24 contrast. Nine screens, four shells, `next build` green. **Five of the ten screen states still have no server** and each says so on the screen; fourteen named gaps below |
-| TEST-001 | tenant/role matrix harness and two-tenant seed | `implemented` | The seed world and the adversarial pair are exercised by every database run. The **role** half of the §11 matrix — every role against every grid column — is not yet a generated harness                                                                                                                                                                                                                                           |
+| Ticket   | Scope                                          | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------- | ---------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ID-001   | session cookie, refresh rotation/reuse         | `tested`      | 43 database cases + 27 unit cases, now driven through real HTTP as well. Session cookie, rotation, reuse detection, global cutoff, device list, and **CSRF (gap 2 closed — ADR-0004)**. Twenty mutations across two sessions confirm the guards fire. **ID-002 has landed**, so sign-in is real: `AuthenticationService` proves the person and `SessionService.start()` takes the id it established. Six named gaps remain                                    |
+| ID-002   | MFA/passkey/recovery architecture              | `tested`      | 213 cases: 52 TOTP against every published RFC vector, 35 password, 23 recovery code, 20 challenge token, 37 credential database cases and 20 over real HTTP, plus 26 in the web app. Argon2id, TOTP, single-use recovery codes and the pre-tenant security log. **Passkeys, SSO, breached-password screening and password recovery are not built** — fourteen named gaps below                                                                               |
+| TEN-001  | organization/workspace/membership aggregates   | `tested`      | 21 database cases, plus the membership resolver's 24 and **26 more for provisioning and the directory**. Organization creation now exists: organization, first workspace, founding owner membership and the audit row in one transaction, inside a `TenantContext` bound to the organization being created. Slug changes, workspace-scoped admin and a stored `policyVersion` are still open                                                                  |
+| TEN-002  | roles/capabilities and policy evaluator        | `tested`      | The evaluator itself was already tested (29 cases, `packages/domain`). This session wired it: `PrincipalRepository` assembles a `Principal` from a resolved membership plus a scoped project-relation read                                                                                                                                                                                                                                                    |
+| TEN-003  | invitation issue/accept/revoke/expiry          | `implemented` | The storage half only: `invite()` writes an `invited` row that authorises nothing, and `transitionStatus()` accepts it. Still no invitation token, no email, no expiry job. ID-001 has landed, so the remaining blockers are the notification surface and a single-use hashed token table of its own                                                                                                                                                          |
+| AUD-001  | append-only audit service/view model           | `tested`      | 23 database cases + 26 unit cases. Closed action vocabulary, a safe-metadata rule that refuses content at the write boundary, an append that joins the caller's transaction, and the first producer (project-membership grant/role-change/revocation). Five named gaps below, of which the view-model narrowing is the one that matters                                                                                                                       |
+| WEB-001  | identity/onboarding screens                    | `tested`      | 227 cases in `apps/web` after ID-002, TEN-001 and PROJ-002 connected five of the screens: 18 API client, 21 slug, 25 invitation checks, 19 shell, 66 screen (axe over all nine, `region` rule enabled), 11 session flow, 12 sign-in flow, 18 organization flow, 13 project flow, 24 contrast. Nine screens, four shells, `next build` green. **Four of the ten screen states still have no server** and each says so on the screen; fourteen named gaps below |
+| TEST-001 | tenant/role matrix harness and two-tenant seed | `implemented` | The seed world and the adversarial pair are exercised by every database run. The **role** half of the §11 matrix — every role against every grid column — is not yet a generated harness                                                                                                                                                                                                                                                                      |
 
 ### Named gaps in TEN-001/TEN-002, carried deliberately
 
@@ -2350,7 +2452,7 @@ module migration cannot add a tenant table that the guard silently ignores.
 | `apps/api` — tenant context + guard               | `tested`      | 45 analyser tests, 44 corpus tests                                                                                                                                                                                                                                                             |
 | `apps/api` — least-privilege credentials          | `tested`      | 12 static assertions, plus **21 dynamic cases that now actually run** — against a long-lived MySQL 8.0.45 and again against MariaDB 11.4.5, both with the real `tmanage_app` credential. No container was involved. They still skip on the default per-file path, which has no such credential |
 | `apps/api` — Drizzle schema + guarded seam        | `tested`      | 44 drift cases against `information_schema`, mutation-tested; the seam is proven to keep the guard on the query path                                                                                                                                                                           |
-| `apps/api` — repositories                         | `tested`      | Projects (18 cases), organizations/workspaces/memberships (21), and **client organizations, client memberships, project memberships and work items (49)**. All eight follow one shape; two findings from the last four are recorded under PROJ-001 above                                       |
+| `apps/api` — repositories                         | `tested`      | Projects (18 cases), organizations/workspaces/memberships (21), and **client organizations, client memberships, project memberships and work items (49)**. All eight follow one shape. **PROJ-002 adds 19 HTTP cases** over project creation and the workspace list                            |
 | `apps/api` — membership resolver + bootstrap read | `tested`      | 24 database cases. The only waiver of ADR-0001 layer 3, bounded by an audited reason, a read-only rule and a table allowlist — all three mutation-tested                                                                                                                                       |
 | `apps/api` — principal assembly (TEN-002)         | `tested`      | Project relation loaded on the scoped path; a test asserts no guard event is emitted while a principal is assembled                                                                                                                                                                            |
 | `apps/api` — sessions (ID-001)                    | `tested`      | 43 database cases + 27 unit cases. Rotation, reuse detection, global cutoff, device list; the append-only ledger is proven immutable under the admin credential                                                                                                                                |
@@ -2485,69 +2587,59 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-Three sessions ago a person could not sign in. Two sessions ago they could not be
-authenticated. One session ago they could not create anything. All three are now false, and
-the loop closes: **sign in, create an organization, and it is yours on the next request** —
-proved end to end against a real server.
+**WORK-001 — the work aggregate and its endpoints**, and the reason is now the plain one: a
+person can sign in, create an organization and create a project inside it, and the project is
+empty. Work items are the first thing that goes in one.
 
-What a person finds after that is an empty product.
+Everything it needs exists. `work_items` is in `0001_tenancy.sql`, `WorkItemsRepository` is
+written, `workItemStateMachine` is 35 tested cases in `packages/domain`, and `PROJ-002` just
+established that a project can be created to put them in. What is missing is the service, the
+routes, and the transition rules wired to the machine rather than restated beside it.
 
-1. **WORK-001/002 — the work aggregate and its endpoints.** The next step of the Phase 1
-   vertical loop and the first thing that would put content inside an organization. The state
-   machine, the table and the repository all exist; what is missing is the service and the
-   routes. `work_items.state DEFAULT 'triage'` was left as it is by Peter's decision on
-   2026-08-25 — changing it is a migration and is not part of this.
-2. **WEB-002 — project overview, work list, detail.** The screens that would render what
-   WORK-001 stores. Blocked on it, and the larger of the two.
-3. **PROJ-002 — the create-project endpoint.** Smaller than WORK-001 and closes `ON-03`, the
-   third of the three onboarding screens that still save nothing. Projects are also what work
-   items belong to, so WORK-001 needs one to exist.
-4. **CLIENT-001 — the client portal endpoints.** The storage half is complete, the portal
-   shell exists, and one assertion in `http-pipeline.db.test.ts` is still parked until a
-   client endpoint exists to make it against.
+One decision is waiting and belongs to Peter rather than to the ticket:
+`work_items.state DEFAULT 'triage'` is a client-request state, and `23-ERD` §5 gives
+`'backlog'`. Peter decided on 2026-08-25 to leave it. WORK-001 can be built either way — the
+service can insert an explicit `'backlog'` and never rely on the default — so this does not
+block, and the divergence stays recorded rather than silently fixed.
 
-**Recommendation: PROJ-002 first, then WORK-001.** They are one direction rather than two, and
-the order is forced rather than preferred: a work item belongs to a project, and there is no
-endpoint that creates a project. PROJ-002 is also the smaller of the two — `PROJ-001` built
-the repositories and the tenant scoping already — and it closes `ON-03`, which means the
-onboarding sequence a founder now actually walks stops being three-quarters inert.
+The other three, unchanged in order:
 
-The counter-argument is that WORK-001 is the ticket the roadmap calls the vertical slice, and
-doing PROJ-002 first delays it by a session. That is true. It is also true that WORK-001 would
-have to invent a project to test against, and inventing one in a fixture is how a ticket ends
-up proving something about a world that does not exist.
+2. **WEB-002 — project overview, work list, detail.** The screens that render what WORK-001
+   stores. Blocked on it, and the larger of the two.
+3. **CLIENT-001 — the client portal endpoints.** The storage half is complete, the portal
+   shell exists, one assertion in `http-pipeline.db.test.ts` is parked until a client endpoint
+   exists, and `ON-03`'s client-or-internal choice cannot be saved without it.
+4. **PLAT-004's relay** — the outbox dispatcher. Three tickets have now established the
+   transaction boundary it will publish from, and `apps/worker` is still an empty directory.
 
 ### Done, in the order it happened
 
 1. ~~The membership resolver~~ — 24 database cases; the escape hatch is audited, read-only and
    table-limited, all three mutation-tested.
 2. ~~The remaining TEN-001 repositories and TEN-002's wiring~~ — four named gaps recorded.
-3. ~~ID-001 §3 step 1~~ — 43 database cases, 27 unit cases, twelve mutations. Seven named gaps.
+3. ~~ID-001 §3 step 1~~ — 43 database cases, 27 unit cases, twelve mutations.
 4. ~~The HTTP surface~~ — the four-guard pipeline runs §3's steps in order for a real request.
-   36 database cases, eight mutations, two ADRs (0003, 0004). Six named gaps.
+   36 database cases, eight mutations, two ADRs (0003, 0004).
 5. ~~PROJ-001's remaining repositories~~ — 49 database cases, no migration.
 6. ~~ADR-0001 layer 2 against a real server~~ — `users.sql` executed for the first time, on
    MySQL 8.0.45 and then MariaDB 11.4.5. Four defects found and fixed.
-7. ~~AUD-001~~ — the audit service, its view model, and the first producer. Five named gaps.
+7. ~~AUD-001~~ — the audit service, its view model, and the first producer.
 8. ~~UI-001~~ — the token package, thirteen primitives, the harness and Storybook. 106 cases.
    Three real AA defects found by computing the contrast the export only claimed.
-9. ~~WEB-001~~ — the Next.js application, four shells, nine screens. 187 cases. The typeface
-   question settled by ADR-0005 on licence grounds. Fourteen named gaps.
+9. ~~WEB-001~~ — the Next.js application, four shells, nine screens. 187 cases. ADR-0005.
 10. ~~ID-002~~ — Argon2id passwords, RFC 6238 TOTP, single-use recovery codes, the pre-tenant
-    security log, six routes, and the sign-in screen wired to them. 213 cases. Fourteen named
-    gaps, the largest being that passkeys are not built.
-11. ~~TEN-001's second half~~ — **done this session.** Provisioning, the organization
-    directory, and the two screens they unblock. 26 database cases and 18 in the web organization flow. Corrects a wrong inference this
-    file had carried since TEN-001 first landed: provisioning does not need a hole in the
-    tenant guard, and does not have one. Nine named gaps.
+    security log, six routes, and the sign-in screen wired to them. 213 cases.
+11. ~~TEN-001's second half~~ — provisioning and the organization directory. 26 database cases
+    and 18 web. Corrects a wrong inference this file carried from the day TEN-001 landed.
+12. ~~PROJ-002~~ — **done this session.** Project creation with a target date that stays a
+    target, the workspace list that makes filing possible, and `ON-03` wired to both. 19
+    database cases and 13 web. Six named gaps, the sharpest being that the owner is not
+    validated against the organization.
 
 ### Progress
 
-**16 of 74 tickets. 105 of 615 story points, about 17%, across Sprints 0–9.** Screen tickets:
-**1 of 11** — WEB-001 is still the only one, and three of its nine screens are now connected
-end to end.
+**17 of 74 tickets. 110 of 615 story points, about 18%, across Sprints 0–9.** Screen tickets:
+**1 of 11** — five of WEB-001's nine screens now do what they say.
 
-The sentence worth having above the percentage has changed twice in one day. It was "a person
-cannot sign in". Then it was "a person signs in and arrives nowhere". It is now: **a person
-signs in, creates an organization, and finds it empty** — because nothing yet creates a
-project or a work item inside it. That is the next ticket, and the one after it.
+The sentence above the percentage, for the fourth time today: **a person signs in, creates an
+organization, creates a project in it, and the project is empty.** Work items are next.
