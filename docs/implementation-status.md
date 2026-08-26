@@ -170,6 +170,142 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the CLIENT-001 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`597 s` wall (9 m 57 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                              |
+| `typecheck`              | Clean across five projects                                                                      |
+| `lint`                   | Clean                                                                                           |
+| `test` (unit)            | **726 passed**, 32 files — config 25, domain 102, ui 106, api 241, web 252. Unchanged           |
+| `test:db`                | **495 passed, 21 skipped**, 17 files, **597.26 s**. Was 470 across 16 — one new suite, 25 cases |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                           |
+| `format:check` (closing) | Clean                                                                                           |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                       |
+
+The 21 skips are the same least-privilege cases as every previous session, and are recorded
+as skips.
+
+### Ten of the twenty-five failed on the first run, and four causes are worth keeping
+
+Recorded because three of the four were real and one was a test that asserted the wrong thing.
+
+1. **A client admin got 403 on their own client organization's members.** The service asked
+   `authorize()` with a synthetic `internal` resource, and `authorize()` denies **any** client
+   principal an internal resource — so the check refused every client admin before the scope
+   rule ran. This is the exact trap `CapabilityGuard` documents at the top of its own file and
+   the reason that guard stopped calling `authorize()` itself. The audience now depends on who
+   is asking.
+2. **`ClientsModule` could not resolve `PROJECTS_REPOSITORY`.** `ProjectsModule` provides it
+   and does not export it, and both modules register through `.register()`, so importing it
+   would have built a second copy of the dynamic module. The module constructs its own
+   instead — a repository is stateless — and says why in place.
+3. **`metadata_json` came back already parsed.** The driver returns a MySQL `JSON` column as an
+   object; the test called `JSON.parse` on it. One helper now handles both, so a driver change
+   cannot break the suite.
+4. **A test compared two whole refusal bodies**, which include a per-request correlation id, so
+   it was comparing two random uuids and would never have passed. It compares everything that
+   describes _what happened_ and excludes the one field designed to differ.
+
+---
+
+## CLIENT-001 — the client half of the product, made reachable
+
+The repositories landed with PROJ-001 and have been tested against a real server ever since.
+Nothing could reach them: no route created a client organization, invited anybody into one, or
+shared a project with one, so the entire client half of the product was storage with no door.
+
+Thirteen routes, one new repository, nine new audit actions.
+
+### Three sentences describe the whole ticket
+
+1. A **client organization** is a boundary object. It has a name, and what matters about it is
+   that memberships and shares hang off it.
+2. A **client membership** is why a person outside the company can sign in and see anything.
+3. A **`project_clients` row** is why they can see a particular project. It is the _only_
+   reason: `PrincipalRepository.projectScope` reads that table and nothing else for a client,
+   and `authorize()` rule 10 refuses any project outside the list it returns.
+
+### The hardest sentence in the permission matrix
+
+`12-PERMISSION-MATRIX` §2: "Invite client users: **within own client org/policy**."
+
+An internal principal with `client_member.manage` manages every client of the tenant. A client
+admin manages exactly their own — and getting that wrong hands one client the other's people,
+which is the boundary `04-SECURITY-PRIVACY` §5 is most emphatic about. The seed world already
+had two clients of the same studio, Atlas and Meridian, so the case is proved rather than
+argued.
+
+A request naming a sibling client is **refused with 404**, not filtered down to an empty list.
+An empty list reads as "there is nobody there", which is a claim about a boundary this caller
+must not be able to see across.
+
+### Four decisions worth reading
+
+- **Every write here is audited, and most work-item writes are not.** §12 lists role changes
+  and publication among the events that must be recorded, and every method in this service is
+  one or the other. The rule is the same one `WorkItemsService` follows — record what decides
+  access — and it produces a short list there and a complete one here.
+- **Archiving a client organization revokes nothing.** The audit row carries the count of
+  active grants it left behind, so the archive cannot be read as an offboarding. Ending a
+  relationship is two acts, and a record that implied otherwise would be false.
+- **Sharing is idempotent; unsharing is recorded even when there was nothing to unshare.** A
+  caller who retried a request whose response was lost should not be told the grant failed, and
+  "somebody tried to revoke access that was not there" is exactly what a mistaken revoke looks
+  like from the outside.
+- **The audience passed to `authorize()` depends on who is asking.** A synthetic `internal`
+  resource would 403 every client admin before the scope rule ran — the exact trap
+  `CapabilityGuard` documents at the top of its own file, and the reason that guard stopped
+  calling `authorize()` itself. The suite caught it here for the same reason it caught it
+  there.
+
+### The token is `updated_at`, and it is required
+
+`client_organizations` and `client_memberships` have no `version` column, so the timestamp is
+the concurrency token — the same position `projects` is in. It is a required field on every
+write that changes an existing row, so a caller cannot opt out of optimistic concurrency by
+leaving it off, and it is compared as an **instant** rather than as text: the same moment can
+be written several ways and a string comparison would refuse a correct token.
+
+A stale one is a **409**. A caller who saw a 500 would retry, and a retry with a fresh token is
+the lost update the token exists to prevent.
+
+### One request changes one thing
+
+`PATCH /client-memberships/:id` accepts exactly one of `role`, `expiresAt` and `status`. Each
+is a separate audit event describing a separate decision; a body that changed a role and
+offboarded somebody at once would have to be recorded as either one lie or two events that did
+not happen independently.
+
+### Named gaps
+
+1. **There is still no client-readable endpoint**, so the effect of a share can only be
+   asserted at the row that grants it. The internal endpoints answer 403 to a client before and
+   after a revoke, which proves nothing about the share. The projection endpoint is
+   `CLIENT-002`, and the parked assertion in `http-pipeline.db.test.ts` waits on the same
+   thing — it names `CLIENT-001`, and that expectation is corrected here rather than left to
+   look satisfied.
+2. **Nothing invites a client by email.** `invite` takes a `userId`, so a person must already
+   exist as a user. `TEN-003`/`CLIENT-002` is the invitation flow.
+3. **An expiry is enforced by the resolver, not by a job.** A grant past `expires_at` stops
+   resolving, and nothing sweeps the rows or notifies anybody. That is correct for access and
+   incomplete for administration — the list of "people whose access ends this month" has no
+   query behind it yet.
+4. **`ClientsModule` builds its own `ProjectsRepository`.** `ProjectsModule` provides
+   `PROJECTS_REPOSITORY` and does not export it, and both modules are registered through
+   `.register()`, so importing it would construct a second copy of the dynamic module. A
+   repository is a stateless collection of queries, so a second instance costs nothing —
+   recorded because it is a wiring choice somebody will otherwise wonder about.
+
+---
+
 ## Verification actually run — 2026-08-26, the WEB-002 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -2865,36 +3001,38 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**CLIENT-001 — client organizations, their people, and which projects they can see.**
+**TEN-003 — invitation issue, accept, revoke and expiry.**
 
-The storage half has been complete and tested against a real server since PROJ-001:
-`ClientOrganizationsRepository` and `ClientMembershipsRepository` both exist, and
-`PrincipalRepository.projectScope` already reads `project_clients` to decide what a client
-principal can reach. What is missing is everything above them — no route creates a client
-organization, invites anybody into one, or shares a project with one, so the entire client
-half of the product is storage nobody can put anything into.
+Five story points, both dependencies met (`ID-001`, `TEN-002`), and it is the one thing
+standing between everything built so far and a second person using it. Today an organization
+has exactly one member: the founder. `CLIENT-001` can create a client organization and cannot
+put anybody in it, because `invite` takes a `userId` and the invitee has no account yet.
+`ON-04` collects addresses and drops them. `ID-03` renders a fixture.
 
-Three things make it the right next ticket rather than the next one alphabetically:
+It also unblocks the queue: `CLIENT-002` — the client portal's session context, and the
+endpoint the parked assertion in `http-pipeline.db.test.ts` has been waiting for since the HTTP
+surface landed — depends on `CLIENT-001` **and** `TEN-003`, and only the second is missing.
 
-- WEB-002 just shipped a screen that lists what a client _would_ see and has to say there is
-  no portal to see it in. `ON-03`'s client-or-internal choice is still collected and dropped
-  for the same reason.
-- The parked assertion in `http-pipeline.db.test.ts` names this ticket by number: a client
-  seeing their own client organization's work and not a sibling client's "belongs on a Client
-  Portal endpoint … it arrives with CLIENT-001".
-- `12-PERMISSION-MATRIX` §2's "Invite client users: **within own client org/policy**" is the
-  hardest sentence in the matrix to get right, and the seed world already has two clients of
-  the same studio — Atlas and Meridian — to prove it against.
+`23-ERD` §9 gives the machine in two sentences: "`pending → accepted | expired | revoked`.
+Tokens are single-use, hashed, and never recoverable. Role/scope change after issuance revokes
+old invitation and issues a new one." The hard part is not the machine — it is that
+**accepting happens before any membership exists**, so `TenantContextGuard` has nothing to
+resolve and the row itself has to say which organization the request is about.
 
 The other three, unchanged in order:
 
 2. **WEB-002's second half.** Saved views, sorting, row selection and bulk actions, including
    the bulk audience change the specification singles out for a separate confirmation.
-3. **PEOPLE-001 — the people directory.** Named by four tickets in a row now. `PROJ-002`
-   cannot validate a project owner, WORK-001 cannot validate a work item owner, and every
-   screen that shows an owner shows "Assigned" rather than a name.
-4. **PLAT-004's relay** — the outbox dispatcher. Four tickets have now established the
+3. **CLIENT-002 — the client portal's route and session context**, and with it the projection
+   endpoint that `CLIENT-001` could not deliver. Blocked on TEN-003.
+4. **PLAT-004's relay** — the outbox dispatcher. Five tickets have now established the
    transaction boundary it will publish from, and `apps/worker` is still an empty directory.
+
+A note on a name this file uses: **PEOPLE-001 is not a ticket.** `28-SPRINT-TICKETS` does not
+schedule a people directory, and earlier entries here named one anyway to have something to
+point at. The gap is real — nothing returns a person's name, so every owner reads "Assigned"
+— but the ticket number is this file's invention and is recorded as such rather than repeated
+as though the plan contained it.
 
 ### Done, in the order it happened
 
@@ -2923,22 +3061,28 @@ The other three, unchanged in order:
     machine rather than restated, audience as the whole of client isolation, and a stale
     version refused as a 409 rather than escaping as a 500. 32 database cases. Two defects
     found by its own suite and one by the domain vocabulary test.
-14. ~~WEB-002's first half~~ — **done this session.** `TM-03`, `TM-10` and `TM-13`: the
-    transition form asks the state machine rather than restating it, a 409 is shown and never
-    retried, and widening the audience is confirmed while narrowing is not. 25 web cases. One
-    defect caught mid-chain — both screens were showing a page of work as though it were all
-    of it.
+14. ~~WEB-002's first half~~ — `TM-03`, `TM-10` and `TM-13`: the transition form asks the
+    state machine rather than restating it, a 409 is shown and never retried, and widening the
+    audience is confirmed while narrowing is not. 25 web cases. One defect caught mid-chain —
+    both screens were showing a page of work as though it were all of it.
+15. ~~CLIENT-001~~ — **done this session.** Client organizations, their people and project
+    access: thirteen routes, one new repository, nine audit actions, and the matrix's hardest
+    sentence — a client admin manages their own client organization and nobody else's —
+    proved from both sides. 25 database cases. Three real defects found by its own suite.
 
 ### Progress
 
-**19 of 74 tickets. 125 of 615 story points, about 20%, across Sprints 0–9.** WEB-002 counts
+**20 of 74 tickets. 133 of 615 story points, about 22%, across Sprints 0–9.** WEB-002 counts
 as half of its 13 points, rounded down, because half of it is what shipped. Screen tickets:
-**1½ of 11** — five of WEB-001's nine screens do what they say, and three more now exist.
+**1½ of 11**.
 
-The sentence changes shape for the first time in four sessions. **A person signs in, creates
-an organization, creates a project, puts work in it, moves that work through its lifecycle,
-and can see all of it.** That is a loop somebody could actually use.
+The loop that exists: **a person signs in, creates an organization, creates a project, puts
+work in it, moves that work through its lifecycle, sees all of it, sets up a client
+organization and shares the project with it.**
 
-What they cannot do is show any of it to a client. Items can be marked `client_visible` and
-there is nothing to view them in — no client organization can be created, nobody can be
-invited into one, and no project can be shared. CLIENT-001 is next.
+The sentence that is left is a short one. **That person is still alone.** An organization has
+exactly one member — whoever created it — and nothing can add a second: `CLIENT-001`'s invite
+takes a `userId`, so the person must already have an account, and there is no way to give one
+to somebody who has not got one. `ON-04` collects addresses and drops them; `ID-03` renders a
+fixture. TEN-003 is next, and it is the whole of what stands between this system and two
+people using it.
