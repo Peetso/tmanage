@@ -7,6 +7,7 @@ import {
   PRINCIPAL_REPOSITORY,
   PROVISIONING_SERVICE,
   TENANT_DATABASE,
+  WORKSPACES_REPOSITORY,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -15,6 +16,8 @@ import { OrganizationDirectoryRepository } from './organization-directory.reposi
 import { OrganizationsController } from './organizations.controller.js';
 import { PrincipalRepository } from './principal.repository.js';
 import { ProvisioningService } from './provisioning.service.js';
+import { WorkspacesController } from './workspaces.controller.js';
+import { WorkspacesRepository } from './workspaces.repository.js';
 
 /**
  * Spec §3 steps 2 to 4, made injectable — plus, since TEN-001's second half landed, the two
@@ -55,11 +58,16 @@ export class TenancyModule {
         new ProvisioningService(database, audit),
     };
 
+    const workspaces: Provider = {
+      provide: WORKSPACES_REPOSITORY,
+      useFactory: () => new WorkspacesRepository(),
+    };
+
     return {
       module: TenancyModule,
-      providers: [resolver, principals, directory, provisioning],
-      exports: [resolver, principals, directory, provisioning],
-      controllers: [OrganizationsController],
+      providers: [resolver, principals, directory, provisioning, workspaces],
+      exports: [resolver, principals, directory, provisioning, workspaces],
+      controllers: [OrganizationsController, WorkspacesController],
     };
   }
 }

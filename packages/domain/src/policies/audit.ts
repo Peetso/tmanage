@@ -109,6 +109,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'organization',
     clause: '§12 organization settings — the founding grant is the first and largest of them',
   },
+  /**
+   * PROJ-002. A project is the container every later object lives in — work items,
+   * deliverables, approvals, the client's whole view — so "who created this project, and
+   * when" is the first question any later investigation of its contents has to answer.
+   */
+  'project.created': {
+    objectType: 'project',
+    clause: '§12 organization settings — a project is the unit every later object belongs to',
+  },
   'project_membership.granted': {
     objectType: 'project_membership',
     clause: '§12 role changes — a project grant is the narrowest role change in the system',

@@ -25,9 +25,9 @@ export class ProjectsModule {
     };
     const service: Provider = {
       provide: PROJECTS_SERVICE,
-      inject: [TENANT_DATABASE, PROJECTS_REPOSITORY],
-      useFactory: (database: TenantDatabase, projects: ProjectsRepository) =>
-        new ProjectsService(database, projects),
+      inject: [TENANT_DATABASE, PROJECTS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, projects: ProjectsRepository, audit: AuditService) =>
+        new ProjectsService(database, projects, audit),
     };
 
     const membershipsRepository: Provider = {

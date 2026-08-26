@@ -69,6 +69,17 @@ export interface CreateProjectInput {
   readonly name: string;
   readonly ownerUserId?: string | null;
   readonly status?: string;
+  /**
+   * `ON-03`'s date, and it lands in `forecast_at` rather than `committed_at`.
+   *
+   * That is the whole of the specification's rule for this screen, expressed as a column
+   * choice: "Date is marked **target** until milestone plan confirmed." The schema already
+   * carries both, and the design language draws the same line — the pulse track separates
+   * committed from forecast from desired. A date typed on a setup screen, before anyone has
+   * planned the work, is a forecast. Writing it to `committed_at` would make a promise on
+   * the team's behalf that nobody made.
+   */
+  readonly forecastAt?: Date | null;
 }
 
 export interface UpdateProjectInput {
@@ -177,6 +188,7 @@ export class ProjectsRepository {
       name: input.name,
       status: input.status ?? 'active',
       ownerUserId: input.ownerUserId ?? null,
+      forecastAt: input.forecastAt ?? null,
       createdAt: sql`current_timestamp(3)`,
       updatedAt: sql`current_timestamp(3)`,
     });

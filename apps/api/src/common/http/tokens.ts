@@ -21,6 +21,7 @@ export const AUTHENTICATION_SERVICE = Symbol.for('tmanage.AuthenticationService'
 export const MEMBERSHIP_RESOLVER = Symbol.for('tmanage.MembershipResolver');
 export const PRINCIPAL_REPOSITORY = Symbol.for('tmanage.PrincipalRepository');
 export const PROVISIONING_SERVICE = Symbol.for('tmanage.ProvisioningService');
+export const WORKSPACES_REPOSITORY = Symbol.for('tmanage.WorkspacesRepository');
 export const ORGANIZATION_DIRECTORY_REPOSITORY = Symbol.for(
   'tmanage.OrganizationDirectoryRepository',
 );

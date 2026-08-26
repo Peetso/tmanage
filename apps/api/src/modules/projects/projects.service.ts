@@ -5,6 +5,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { ProjectsRepository } from './projects.repository.js';
 import type { CreateProjectInput, ListProjectsOptions } from './projects.repository.js';
 import type { ProjectRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * The application service between the controller and the repository — spec §3 steps 5 to 7.
@@ -33,6 +34,15 @@ export interface ProjectView {
   readonly name: string;
   readonly status: string;
   readonly ownerUserId: string | null;
+  /**
+   * The two dates, kept apart in the projection because they mean different things.
+   *
+   * `committedAt` is a promise; `forecastAt` is an estimate. Collapsing them into one
+   * `dueAt` would be convenient and would lose the distinction `22-SCREEN-BY-SCREEN` §3
+   * makes on `ON-03` and the design language draws on every pulse track.
+   */
+  readonly committedAt: string | null;
+  readonly forecastAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly archivedAt: string | null;
@@ -55,6 +65,8 @@ function toView(row: ProjectRow): ProjectView {
     name: row.name,
     status: row.status,
     ownerUserId: row.ownerUserId,
+    committedAt: row.committedAt ? row.committedAt.toISOString() : null,
+    forecastAt: row.forecastAt ? row.forecastAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
@@ -65,6 +77,13 @@ export class ProjectsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    /**
+     * Optional so that every existing construction of this service keeps working, and so a
+     * test can assert the audit row without wiring one. It is supplied by `ProjectsModule` in
+     * the running application; a `create` with no audit service writes no audit row, which is
+     * a fact a test can assert rather than a silence it has to trust.
+     */
+    private readonly audit?: AuditService,
   ) {}
 
   /**
@@ -143,15 +162,42 @@ export class ProjectsService {
   /**
    * Create a project.
    *
-   * In a transaction even though it is one insert: step 8 puts the outbox and audit events in
-   * the same transaction as the state change, and neither writer exists yet (PLAT-004's relay
-   * and AUD-001). Establishing the boundary now means adding them is one line inside an
-   * existing `transaction()` rather than a change to the shape of the command.
+   * The transaction was here before the audit writer existed — the note used to say so, and
+   * to say that adding it would be "one line inside an existing `transaction()` rather than a
+   * change to the shape of the command". That turned out to be exactly right, and this is the
+   * line. The outbox event is still missing, because `PLAT-004`'s relay is still not written.
+   *
+   * The owner defaults to the acting person rather than to null. A project with no owner is
+   * a project nothing can be escalated to, and the person creating one on a setup screen is
+   * the obvious answer until there is a people picker to choose otherwise — which is
+   * `PEOPLE-001`, unwritten.
    */
   async create(context: TenantContext, input: CreateProjectInput): Promise<ProjectView> {
-    const row = await this.database.transaction(context, (tx) =>
-      this.projects.create(tx, context, input),
-    );
+    const withOwner: CreateProjectInput = {
+      ...input,
+      ownerUserId: input.ownerUserId ?? context.userId,
+    };
+
+    const row = await this.database.transaction(context, async (tx) => {
+      const created = await this.projects.create(tx, context, withOwner);
+
+      await this.audit?.record(tx, context, {
+        action: 'project.created',
+        objectId: created.id,
+        result: 'allowed',
+        metadata: {
+          workspace_id: created.workspaceId,
+          owner_user_id: created.ownerUserId,
+          // Whether a target date was set, not the date itself. A date is a fact about the
+          // work rather than an identifier, and §12's rule for metadata is identifiers and
+          // classifications only.
+          has_forecast_date: created.forecastAt !== null,
+        },
+      });
+
+      return created;
+    });
+
     return toView(row);
   }
 }
