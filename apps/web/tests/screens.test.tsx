@@ -71,6 +71,39 @@ function emptyDirectoryClient(): ApiClient {
   });
 }
 
+/**
+ * A client that answers `ID-03`'s preview with a real one.
+ *
+ * `emptyDirectoryClient` answers every request with the same object, which for this screen is
+ * a 200 carrying the wrong shape — so `Avatar` was handed `undefined` and threw *after* the
+ * assertions had passed. Vitest reported "262 passed" and "1 error" in the same breath, which
+ * is the shape of a false positive: a green test beside an unhandled exception.
+ */
+function invitationPreviewClient(): ApiClient {
+  return new ApiClient({
+    baseUrl: 'https://api.example.test',
+    csrfCookieName: 'tm_session_csrf',
+    fetch: (() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            organizationName: 'Northstar Studio',
+            inviterName: 'Omar Adel',
+            inviterEmail: 'omar@northstar.studio',
+            role: 'member',
+            audience: 'internal',
+            clientOrganizationName: null,
+            invitedAt: '2026-08-26T00:00:00.000Z',
+            expiresAt: '2026-09-09T00:00:00.000Z',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      )) as typeof globalThis.fetch,
+    readCsrfToken: () => undefined,
+    newCorrelationId: () => 'correlation-fixed',
+  });
+}
+
 const NOW = '2026-08-26T00:00:00.000Z';
 
 const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
@@ -83,7 +116,7 @@ const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
     // only has to mount for the shared landmark and axe assertions, which it does in its
     // loading state — that state carries the `<h1>` too, deliberately.
     render: () =>
-      withQuery(<InvitationScreen token={'a'.repeat(43)} client={emptyDirectoryClient()} />),
+      withQuery(<InvitationScreen token={'a'.repeat(43)} client={invitationPreviewClient()} />),
   },
   {
     name: 'ID-04 Organization selector',
