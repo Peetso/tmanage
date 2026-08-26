@@ -25,6 +25,11 @@ export interface ApiConfig extends SessionServiceOptions {
    * refusing — see `identity.module.ts`.
    */
   readonly allowDevelopmentSignIn: boolean;
+  /** ID-002. The lockout window, counted from `authentication_events` because there is no Redis. */
+  readonly maxFailuresInWindow: number;
+  readonly failureWindowSeconds: number;
+  /** The issuer an authenticator application shows beside the code. */
+  readonly totpIssuer: string;
 }
 
 export interface ApiConfigSource {
@@ -35,6 +40,9 @@ export interface ApiConfigSource {
   readonly REFRESH_TTL_SECONDS: number;
   readonly CSRF_SECRET: string;
   readonly API_PUBLIC_URL: string;
+  readonly AUTH_MAX_FAILURES_IN_WINDOW: number;
+  readonly AUTH_FAILURE_WINDOW_SECONDS: number;
+  readonly AUTH_TOTP_ISSUER: string;
 }
 
 /**
@@ -60,6 +68,9 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     csrfSecret: env.CSRF_SECRET,
     csrfCookieName: `${env.SESSION_COOKIE_NAME}_csrf`,
     allowDevelopmentSignIn: env.NODE_ENV !== 'production',
+    maxFailuresInWindow: env.AUTH_MAX_FAILURES_IN_WINDOW,
+    failureWindowSeconds: env.AUTH_FAILURE_WINDOW_SECONDS,
+    totpIssuer: env.AUTH_TOTP_ISSUER,
   };
 }
 

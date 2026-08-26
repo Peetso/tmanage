@@ -61,6 +61,12 @@ const CONFIG: ApiConfig = apiConfigFrom({
   // `packages/config` refuses a non-https public URL in production, so this cannot become the
   // production shape by accident.
   API_PUBLIC_URL: 'http://localhost:4000',
+  // ID-002's lockout window. Deliberately generous here: this suite is about the four-guard
+  // pipeline, and a case that signed in a few times in a row must not trip a limiter it is
+  // not testing. The window itself is covered by `id-002-credentials.db.test.ts`.
+  AUTH_MAX_FAILURES_IN_WINDOW: 50,
+  AUTH_FAILURE_WINDOW_SECONDS: 900,
+  AUTH_TOTP_ISSUER: 'TManage',
 });
 
 interface InjectedResponse {

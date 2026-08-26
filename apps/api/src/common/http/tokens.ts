@@ -17,6 +17,7 @@
 export const TENANT_DATABASE = Symbol.for('tmanage.TenantDatabase');
 export const API_CONFIG = Symbol.for('tmanage.ApiConfig');
 export const SESSION_SERVICE = Symbol.for('tmanage.SessionService');
+export const AUTHENTICATION_SERVICE = Symbol.for('tmanage.AuthenticationService');
 export const MEMBERSHIP_RESOLVER = Symbol.for('tmanage.MembershipResolver');
 export const PRINCIPAL_REPOSITORY = Symbol.for('tmanage.PrincipalRepository');
 export const PROJECTS_REPOSITORY = Symbol.for('tmanage.ProjectsRepository');

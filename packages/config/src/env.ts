@@ -131,6 +131,16 @@ export const envSchema = z
     PASSWORD_ARGON2_TIME_COST: positiveInt.default(2),
     PASSWORD_ARGON2_PARALLELISM: positiveInt.default(1),
 
+    // ID-002's lockout window. `13-ENGINEERING-EXECUTION-SPEC` §1 assumes Redis for rate
+    // limits; there is none on the shared host `50-BOOTSTRAP` targets, so this is counted
+    // from `authentication_events`. Both values are per **user**, which is the limitation
+    // recorded in `docs/implementation-status.md` rather than smoothed over here.
+    AUTH_MAX_FAILURES_IN_WINDOW: positiveInt.default(5),
+    AUTH_FAILURE_WINDOW_SECONDS: positiveInt.default(900),
+    // The issuer an authenticator application shows beside the code. A brand string, not a
+    // secret; it appears in the `otpauth://` URI and therefore in the QR code.
+    AUTH_TOTP_ISSUER: nonEmpty('AUTH_TOTP_ISSUER').default('TManage'),
+
     // Invitations and client access
     INVITATION_TTL_HOURS: positiveInt.default(168),
     CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: positiveInt.default(180),

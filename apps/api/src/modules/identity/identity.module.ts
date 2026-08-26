@@ -1,10 +1,17 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
-import { API_CONFIG, SESSION_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import {
+  API_CONFIG,
+  AUTHENTICATION_SERVICE,
+  SESSION_SERVICE,
+  TENANT_DATABASE,
+} from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { SessionService } from './session.service.js';
 import { DevelopmentSignInController, SessionController } from './session.controller.js';
+import { AuthenticationService } from './authentication.service.js';
+import { AuthenticationController, CredentialsController } from './authentication.controller.js';
 
 /**
  * ID-001's HTTP surface.
@@ -30,11 +37,27 @@ export class IdentityModule {
         new SessionService(database, config),
     };
 
+    const authenticationService: Provider = {
+      provide: AUTHENTICATION_SERVICE,
+      inject: [TENANT_DATABASE, API_CONFIG],
+      useFactory: (database: TenantDatabase, config: ApiConfig) =>
+        new AuthenticationService(database, {
+          sessionSecret: config.sessionSecret,
+          maxFailuresInWindow: config.maxFailuresInWindow,
+          failureWindowSeconds: config.failureWindowSeconds,
+          totpIssuer: config.totpIssuer,
+          // No breached-password screen is wired. HIBP's range API is a network call to a
+          // third party and nothing here has ever made it; `password.ts` still screens
+          // against the bundled list, and the gap is recorded rather than filled with a
+          // screen that would fail open.
+        }),
+    };
+
     return {
       module: IdentityModule,
-      providers: [sessionService],
-      exports: [sessionService],
-      controllers: [SessionController],
+      providers: [sessionService, authenticationService],
+      exports: [sessionService, authenticationService],
+      controllers: [SessionController, AuthenticationController, CredentialsController],
     };
   }
 
