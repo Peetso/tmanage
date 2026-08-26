@@ -85,13 +85,20 @@ describe.each(SCREENS)('$name', ({ render: renderScreen }) => {
 });
 
 describe('ID-01 Sign in', () => {
-  it('disables every real sign-in method and names the ticket that builds them', () => {
+  it('offers a real email and password form', () => {
+    render(<SignInScreen developmentSignInEnabled={false} />);
+
+    expect(screen.getByLabelText(/Work email/)).toBeEnabled();
+    expect(screen.getByLabelText(/^Password/)).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+  });
+
+  it('still disables the two methods that are not built, and names why', () => {
     render(<SignInScreen developmentSignInEnabled={false} />);
 
     expect(screen.getByRole('button', { name: /passkey/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /company SSO/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled();
-    expect(screen.getByText(/Not built yet — ID-002/)).toBeInTheDocument();
+    expect(screen.getByText(/Not built yet — ID-002 · passkeys and SSO/)).toBeInTheDocument();
   });
 
   it('does not render the development panel when the API would not accept it', () => {
@@ -101,7 +108,7 @@ describe('ID-01 Sign in', () => {
 
   it('keeps the email field left-to-right, as the specification requires', () => {
     render(<SignInScreen developmentSignInEnabled={false} />);
-    expect(screen.getByLabelText('Work email')).toHaveAttribute('dir', 'ltr');
+    expect(screen.getByLabelText(/Work email/)).toHaveAttribute('dir', 'ltr');
   });
 
   it('links to recovery', () => {
@@ -112,42 +119,49 @@ describe('ID-01 Sign in', () => {
 
 describe('ID-02 MFA', () => {
   it('uses one code field with a one-time-code autocomplete, not six boxes', () => {
-    render(<MfaChallengeScreen />);
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" />);
     const field = screen.getByLabelText(/Six-digit code/);
     expect(field).toHaveAttribute('autocomplete', 'one-time-code');
     expect(field).toHaveAttribute('inputmode', 'numeric');
     expect(screen.getAllByRole('textbox')).toHaveLength(1);
   });
 
-  it('refuses an incomplete code before it refuses anything else', async () => {
+  it('refuses an incomplete code before it sends anything', async () => {
     const user = userEvent.setup();
-    render(<MfaChallengeScreen />);
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" />);
     await user.type(screen.getByLabelText(/Six-digit code/), '417');
     await user.click(screen.getByRole('button', { name: 'Verify' }));
-    expect(screen.getByText('Enter all six digits.')).toBeInTheDocument();
+    expect(screen.getByText(/Enter all six digits/)).toBeInTheDocument();
   });
 
-  it('says verification is unbuilt rather than accepting a complete code', async () => {
+  it('offers a recovery code as a distinct method, not as a guess from the shape', async () => {
+    const user = userEvent.setup();
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" />);
+
+    await user.click(screen.getByRole('radio', { name: /A recovery code/ }));
+    expect(screen.getByLabelText(/Recovery code/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Six-digit code/)).toBeNull();
+  });
+
+  it('says so, and refuses to submit, when opened without a challenge', async () => {
     const user = userEvent.setup();
     render(<MfaChallengeScreen />);
+
+    expect(screen.getByText('There is nothing to verify here')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Verify' })).toBeDisabled();
     await user.type(screen.getByLabelText(/Six-digit code/), '417295');
-    await user.click(screen.getByRole('button', { name: 'Verify' }));
-    expect(screen.getByText(/not built yet \(ID-002\)/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Verify' })).toBeDisabled();
   });
 
   it('names no account when it is rate limited', () => {
-    render(<MfaChallengeScreen rateLimited />);
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" rateLimited />);
     expect(screen.getByText('Rate limited')).toBeInTheDocument();
     expect(screen.queryByText(/@/)).toBeNull();
   });
 
-  it('gives each fallback control a distinct accessible name', () => {
-    render(<MfaChallengeScreen />);
-    expect(
-      screen.getByRole('button', { name: 'Use a passkey on this device' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Enter a recovery code' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ask an admin to verify you' })).toBeInTheDocument();
+  it('names the factor from the challenge as device context', () => {
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" factorLabel="Omar’s iPhone" />);
+    expect(screen.getByText('Omar’s iPhone')).toBeInTheDocument();
   });
 });
 

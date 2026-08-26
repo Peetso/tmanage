@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { BackendPending } from './BackendPending';
+import { MfaChallengeScreen } from './MfaChallengeScreen';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { signInWithPassword, type MfaRequiredResponse } from '../../lib/api/auth';
 import { developmentSignIn } from '../../lib/api/session';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -21,6 +23,10 @@ export interface SignInScreenProps {
    * Mirrors the API, which does not *register* `/v1/dev/sessions` in production rather than
    * registering it and refusing — a route that exists and returns 403 is one edit away from
    * existing and returning a session.
+   *
+   * It is still rendered even though real sign-in now works, because it is the only way to
+   * reach a session for a user who has never set a password — which is every seeded user
+   * until TEN-001 provisions one.
    */
   developmentSignInEnabled?: boolean;
 }
@@ -32,57 +38,107 @@ export interface SignInScreenProps {
  * mark, organization-aware SSO when known, privacy/support links. Actions: continue, use
  * passkey, enterprise SSO, recovery."
  *
- * All four of those actions are disabled, and the screen says so. ID-002 is unwritten:
- * nothing in this system checks a password, verifies a passkey, or talks to an identity
- * provider. The layout is the export's, the copy is the specification's, and the controls
- * are inert with a named reason — see `BackendPending`.
+ * Email and password are real as of ID-002. Passkeys and enterprise SSO are not, and their
+ * controls stay disabled and labelled — `04-SECURITY-PRIVACY` §3 lists both, and neither can
+ * be built on a machine with no browser authenticator and no identity provider.
  *
- * What does work is the development sign-in, which posts a user id the server takes on
- * trust. It is fenced into its own panel, labelled as development-only, and rendered only
- * when the API would accept it. That is the honest shape: the one working path is the one
- * that visibly is not authentication.
+ * ## The second factor renders here rather than at its own route
  *
- * ## What this screen deliberately does not do
+ * When the API answers `mfa_required` it returns a challenge token. That token is a
+ * credential-adjacent value, and the obvious way to carry it to `/sign-in/verify` — a query
+ * parameter — would put it in the address bar, in browser history, and in the `Referer`
+ * header of the next outbound request. `localStorage` is forbidden by the workspace lint
+ * rule and would be worse.
  *
- * - It does not tell the caller whether an email address is known. `22` §3 for ID-02 —
- *   "Never expose whether an unrelated account exists" — applies here too: an error that
- *   distinguished "no such account" from "wrong password" would enumerate the customer base.
- *   The error copy is the export's and names neither.
- * - It emits no `sign_in_started` / `succeeded` / `failed` events. `34-ANALYTICS` defines
- *   them and no telemetry transport exists; firing them into a console is not instrumentation.
+ * So the challenge is held in React state and `MfaChallengeScreen` is rendered in place. A
+ * reload loses it and sends the person back to the password step, which is the right trade:
+ * it costs them one password and costs an attacker the whole token.
+ *
+ * ## What this screen still refuses to do
+ *
+ * It does not tell the caller whether an email address is known. The API returns one refusal
+ * for an unknown address, an address with no password, and a wrong password — asserted
+ * byte-for-byte in `id-002-auth-http.db.test.ts` — and this screen renders whatever it is
+ * given rather than trying to be more helpful.
+ *
+ * It emits no `sign_in_started` / `succeeded` / `failed` events. `34-ANALYTICS` defines them
+ * and there is no telemetry transport; firing them into a console is not instrumentation.
  */
 export function SignInScreen({
   client,
   onSignedIn,
   developmentSignInEnabled = process.env.NODE_ENV !== 'production',
 }: SignInScreenProps) {
-  const [userId, setUserId] = useState('');
-  const [state, setState] = useState<'idle' | 'working' | 'signed-in'>('idle');
+  const api = client ?? browserApiClient();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [challenge, setChallenge] = useState<MfaRequiredResponse | undefined>(undefined);
+
+  const [userId, setUserId] = useState('');
+  const [developmentState, setDevelopmentState] = useState<'idle' | 'working' | 'signed-in'>(
+    'idle',
+  );
+  const [developmentFailure, setDevelopmentFailure] = useState<string | undefined>(undefined);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (email.trim() === '' || password === '') {
+      setFailure('Enter your work email and password.');
+      return;
+    }
+
+    setSigningIn(true);
+    setFailure(undefined);
+
+    try {
+      const outcome = await signInWithPassword(api, { email: email.trim(), password });
+      if (outcome.status === 'mfa_required') {
+        setChallenge(outcome);
+        // The password is dropped the moment it is no longer needed. It has already been
+        // sent; keeping it in state for the rest of the sign-in buys nothing and leaves it in
+        // a React fibre, in a devtools inspection, and in any error report that serialises it.
+        setPassword('');
+        return;
+      }
+      onSignedIn?.();
+    } catch (error) {
+      setFailure(describe(error));
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  if (challenge) {
+    return (
+      <MfaChallengeScreen
+        client={api}
+        challengeToken={challenge.challengeToken}
+        {...(challenge.factors[0] ? { factorLabel: challenge.factors[0].label } : {})}
+        {...(onSignedIn ? { onCompleted: onSignedIn } : {})}
+      />
+    );
+  }
 
   async function submitDevelopmentSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (userId.trim() === '') {
-      setFailure('Enter the user id to sign in as.');
+      setDevelopmentFailure('Enter the user id to sign in as.');
       return;
     }
 
-    setState('working');
-    setFailure(undefined);
+    setDevelopmentState('working');
+    setDevelopmentFailure(undefined);
 
     try {
-      await developmentSignIn(client ?? browserApiClient(), userId.trim());
-      setState('signed-in');
+      await developmentSignIn(api, userId.trim());
+      setDevelopmentState('signed-in');
       onSignedIn?.();
     } catch (error) {
-      setState('idle');
-      if (error instanceof ApiRequestError) {
-        setFailure(error.message);
-      } else if (error instanceof NetworkError) {
-        setFailure('The API did not answer. Is it running?');
-      } else {
-        setFailure('Something went wrong. Try again.');
-      }
+      setDevelopmentState('idle');
+      setDevelopmentFailure(describe(error));
     }
   }
 
@@ -103,11 +159,6 @@ export function SignInScreen({
         <p className="tm-prose">You will choose the organization after this step.</p>
       </div>
 
-      <BackendPending ticket="ID-002">
-        Passwords, passkeys and company SSO are not built. The controls below are shown as the
-        design specifies them and are switched off until there is something behind them.
-      </BackendPending>
-
       <div className="tm-stack tm-stack--tight">
         <Button tone="ink" size="accessible" disabled>
           Continue with a passkey
@@ -117,18 +168,20 @@ export function SignInScreen({
         </Button>
       </div>
 
+      <BackendPending ticket="ID-002 · passkeys and SSO">
+        Passkeys and company SSO are not built. WebAuthn needs a browser authenticator and SSO needs
+        an identity provider; email and password below are real.
+      </BackendPending>
+
       <p className="tm-divider">Or email</p>
 
       {/*
-        A real form, with a real submit button, so the field semantics and the tab order are
-        the ones a person will eventually use. `onSubmit` is prevented and the submit control
-        is disabled — the form cannot post anywhere, because there is nowhere to post to.
+        `noValidate` because this form does its own checking and reports it through the design
+        system's error affordance. Without it the browser refuses to submit an
+        `input[type="email"]` it dislikes and shows a native bubble instead — unstyleable, not
+        associated with the field for a screen reader, and gone on the next click.
       */}
-      <form
-        className="tm-stack"
-        onSubmit={(event) => event.preventDefault()}
-        aria-describedby="tm-sign-in-unavailable"
-      >
+      <form className="tm-stack" noValidate onSubmit={submit}>
         <Field
           label="Work email"
           type="email"
@@ -137,24 +190,44 @@ export function SignInScreen({
           inputMode="email"
           // 22 §3: "Mobile/RTL: single column; email direction remains LTR."
           dir="ltr"
-          disabled
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setFailure(undefined);
+          }}
+          required
         />
         <Field
           label="Password"
           type="password"
           name="password"
           autoComplete="current-password"
-          disabled
+          value={password}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setFailure(undefined);
+          }}
+          required
         />
+
+        {failure ? (
+          <InlineAlert tone="danger" title="Could not sign you in" live>
+            {failure}
+          </InlineAlert>
+        ) : null}
+
         <div className="tm-row">
-          <Button type="submit" tone="ink" size="accessible" disabled>
+          <Button
+            type="submit"
+            tone="ink"
+            size="accessible"
+            loading={signingIn}
+            loadingLabel="Signing in"
+          >
             Sign in
           </Button>
           <Link href="/recover">Forgot access</Link>
         </div>
-        <p id="tm-sign-in-unavailable" className="tm-visually-hidden">
-          Email sign-in is not available yet. It is delivered by ticket ID-002.
-        </p>
       </form>
 
       <InlineAlert tone="neutral">
@@ -167,11 +240,11 @@ export function SignInScreen({
             Development sign-in — not authentication
           </h2>
           <p className="tm-prose">
-            This posts a user id the API accepts on trust. It exists so the screens behind sign-in
-            can be built before ID-002 lands, and it is not registered in production.
+            This posts a user id the API accepts on trust. It is how a seeded account that has never
+            set a password can still be reached, and it is not registered in production.
           </p>
 
-          <form className="tm-stack" onSubmit={submitDevelopmentSignIn}>
+          <form className="tm-stack" noValidate onSubmit={submitDevelopmentSignIn}>
             <Field
               label="User id"
               name="userId"
@@ -180,13 +253,13 @@ export function SignInScreen({
               autoComplete="off"
               spellCheck={false}
               hint="The uuid of an existing row in users."
-              {...(failure === undefined ? {} : { error: failure })}
+              {...(developmentFailure === undefined ? {} : { error: developmentFailure })}
             />
             <div className="tm-row">
               <Button
                 type="submit"
                 tone="lime"
-                loading={state === 'working'}
+                loading={developmentState === 'working'}
                 loadingLabel="Starting a session"
               >
                 Start a development session
@@ -194,7 +267,7 @@ export function SignInScreen({
             </div>
           </form>
 
-          {state === 'signed-in' ? (
+          {developmentState === 'signed-in' ? (
             <InlineAlert tone="success" title="Session started" live>
               The session cookies are set. Choose an organization next.
             </InlineAlert>
@@ -203,4 +276,18 @@ export function SignInScreen({
       ) : null}
     </IdentityShell>
   );
+}
+
+/**
+ * Turn a thrown value into a sentence.
+ *
+ * `ApiRequestError.message` is rendered verbatim, and that is safe precisely because the API
+ * is careful: every credential refusal carries the same message, so there is nothing here to
+ * leak. A screen that rewrote the message per status would be reintroducing the distinction
+ * the API removed.
+ */
+function describe(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.message;
+  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
+  return 'Something went wrong. Try again.';
 }
