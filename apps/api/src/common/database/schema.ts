@@ -10,6 +10,7 @@ import {
   smallint,
   int,
   text,
+  tinyint,
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/mysql-core';
@@ -420,6 +421,124 @@ export const clientRequests = mysqlTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Conversations
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * CHAT-001. A project channel — `22-SCREEN-BY-SCREEN` §4 TM-06.
+ *
+ * `projectId` is `NOT NULL` because `conversation.read` is relation-gated on project
+ * membership and a conversation with no project has no relation for the evaluator to check.
+ * TM-07's direct messages need that relation before they can exist; see `0007_conversations.sql`.
+ *
+ * `nextSequenceNo` is the allocator behind `messages.sequenceNo`. A message insert takes this
+ * row's lock, writes the value it read, and increments it, inside one transaction.
+ */
+export const conversations = mysqlTable(
+  'conversations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    nextSequenceNo: bigint('next_sequence_no', { mode: 'number', unsigned: true })
+      .notNull()
+      .default(1),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_conversations_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_conversations_project_name').on(
+      table.organizationId,
+      table.projectId,
+      table.name,
+    ),
+  ],
+);
+
+/**
+ * CHAT-001. Who is in a channel.
+ *
+ * No `role` column: `12-PERMISSION-MATRIX` §2 makes "Moderate messages" a property of the
+ * organization role rather than of a per-channel grant.
+ */
+export const conversationMemberships = mysqlTable(
+  'conversation_memberships',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    conversationId: char('conversation_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_conversation_memberships_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_conversation_memberships_identity').on(
+      table.organizationId,
+      table.conversationId,
+      table.userId,
+    ),
+    index('ix_conversation_memberships_user').on(table.organizationId, table.userId),
+  ],
+);
+
+/**
+ * CHAT-001. One thing somebody said.
+ *
+ * `depth` and `parentDepth` are not redundant bookkeeping: together with
+ * `uq_messages_org_id_depth` they are how `fk_messages_parent_is_root` forces a reply's parent
+ * to be a top-level message, so "a thread is one level deep" is an invariant InnoDB holds
+ * rather than one this application promises. `0007_conversations.sql` has the argument.
+ *
+ * `body` is plain text as of this ticket. `CHAT-002` is the one that decides what markup is
+ * admissible and sanitises it.
+ */
+export const messages = mysqlTable(
+  'messages',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    conversationId: char('conversation_id', { length: 36 }).notNull(),
+    authorUserId: char('author_user_id', { length: 36 }).notNull(),
+    /** Allocated from `conversations.nextSequenceNo`. Never supplied by a caller. */
+    sequenceNo: bigint('sequence_no', { mode: 'number', unsigned: true }).notNull(),
+    parentMessageId: char('parent_message_id', { length: 36 }),
+    depth: tinyint('depth', { unsigned: true }).notNull().default(0),
+    parentDepth: tinyint('parent_depth', { unsigned: true }),
+    body: text('body').notNull(),
+    clientGeneratedId: char('client_generated_id', { length: 36 }),
+    editedAt: datetime('edited_at', { mode: 'date', fsp: 3 }),
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
+    deletedByUserId: char('deleted_by_user_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_messages_org_id_depth').on(table.organizationId, table.id, table.depth),
+    uniqueIndex('uq_messages_sequence').on(
+      table.organizationId,
+      table.conversationId,
+      table.sequenceNo,
+    ),
+    uniqueIndex('uq_messages_client_generated').on(
+      table.organizationId,
+      table.authorUserId,
+      table.clientGeneratedId,
+    ),
+    index('ix_messages_thread').on(
+      table.organizationId,
+      table.conversationId,
+      table.parentMessageId,
+      table.sequenceNo,
+    ),
+  ],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Platform primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -646,6 +765,9 @@ export const TABLES = {
   project_clients: projectClients,
   work_items: workItems,
   client_requests: clientRequests,
+  conversations,
+  conversation_memberships: conversationMemberships,
+  messages,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -664,6 +786,9 @@ export type NewProjectRow = typeof projects.$inferInsert;
 export type WorkItemRow = typeof workItems.$inferSelect;
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type ClientRequestRow = typeof clientRequests.$inferSelect;
+export type ConversationRow = typeof conversations.$inferSelect;
+export type ConversationMembershipRow = typeof conversationMemberships.$inferSelect;
+export type MessageRow = typeof messages.$inferSelect;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;

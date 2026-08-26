@@ -75,6 +75,20 @@ GRANT INSERT, UPDATE         ON `tmanage`.`client_requests`      TO 'tmanage_app
 -- needed for exactly those three status moves; the immutability trigger in 0005 refuses the
 -- two columns that must never change.
 GRANT INSERT, UPDATE         ON `tmanage`.`invitations`           TO 'tmanage_app'@'%';
+-- CHAT-001 conversations. A channel is archived rather than dropped, so **no DELETE**: the
+-- messages in it are the project's record of how a decision was reached, and a credential that
+-- could remove the channel could remove the thread that explains the work.
+GRANT INSERT, UPDATE         ON `tmanage`.`conversations`         TO 'tmanage_app'@'%';
+-- Leaving a channel is an ordinary revocation, so DELETE is granted here exactly as it is for
+-- `project_memberships`, and the audit row records the facts the DELETE destroys.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`conversation_memberships` TO 'tmanage_app'@'%';
+-- **No DELETE**, and this is the sharpest case of the rule in this file. `12-PERMISSION-MATRIX`
+-- §2 lets a moderator take a message down; `messages.deleted_at` and `deleted_by_user_id`
+-- record that they did. A runtime credential able to remove the row could make a message
+-- vanish with nothing to show it was ever said, which is the difference between moderation and
+-- erasure. UPDATE is needed for an edit and for a moderation, and the trigger in 0007 refuses
+-- the six columns that say what the message *is*.
+GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 

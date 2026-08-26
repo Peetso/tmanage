@@ -210,6 +210,225 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the CHAT-001 session
+
+The whole chain, in order, on the tree CHAT-001 left behind.
+
+| Gate                              | Result                                                                                                            |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `pnpm format` then `format:check` | Clean, before anything below was recorded                                                                         |
+| `pnpm typecheck`                  | **Done** — five projects                                                                                          |
+| `pnpm lint`                       | Clean, no output                                                                                                  |
+| `pnpm test`                       | **802 passed across 38 files** — unchanged. CHAT-001 adds no unit case: everything it asserts needs a real server |
+| `pnpm test:db`                    | **22 files, 662 passed, 23 skipped (685).** Up from 21 files and 608 + 22. Duration 1166 s                        |
+| `pnpm audit:design`               | **172/172 screen IDs across 29 artifacts, 0 missing**                                                             |
+| `pnpm format:check` (again)       | Clean                                                                                                             |
+| Leaked `mysqld`                   | **None.** `ps` showed no `mysqld` after the suite exited                                                          |
+
+Engine: the embedded **MySQL 8.0.45**. The 23 skips are `least-privilege.db.test.ts` on the
+default path (21), one in `req-001` and one in `chat-001` — all three files skip the same thing
+for the same reason, which is that the default path has no `tmanage_app` credential to test
+ADR-0001 layer 2 against. They are skips and are reported as skips.
+
+### The arithmetic of the database count, because it does not add up on its own
+
+CHAT-001's own file contributes **45 passed and 1 skipped**. 608 + 45 is 653, and the suite
+reports 662. The missing nine are **not** this ticket's assertions: `schema.db.test.ts`,
+`tenant-isolation.db.test.ts` and `migrator.db.test.ts` generate cases from
+`information_schema` and from the migrations directory, so three new tables and one new
+migration produced nine more cases without a line being written for them. `tenant-isolation`
+went from 44 to 45 and `migrator` from 15 to 16 for exactly that reason.
+
+That is the drift gate working as designed: a module that added tables and forgot to register
+them in `TENANT_TABLES` would have failed there rather than shipped.
+
+---
+
+## CHAT-001 — the room the studio talks in, and the number that says who spoke first
+
+**`13-ENGINEERING-EXECUTION-SPEC` §5 has named `conversations`, `conversation_memberships` and
+`messages` since the plan was written, and none of them existed.** Five tickets built a client
+request loop that works at both ends and cannot hold a conversation: a manager asks one
+question and the client is told to reply however they normally reach the studio.
+
+### What shipped
+
+- **`0007_conversations.sql`** — three tables and four triggers.
+- **`apps/api/src/modules/conversations/`** — repository, service, controller, module.
+- **Twelve routes** under `/v1/organizations/:orgSlug`: list, read, create, rename and archive a
+  channel; list, add and remove its members; list, post, edit and take down messages.
+- **Four audit actions** in `packages/domain`: `conversation.created`,
+  `conversation.member_added`, `conversation.member_removed`, `message.deleted`.
+- **`apps/api/test/chat-001-conversations.db.test.ts`** — 45 cases and 1 skip over real HTTP.
+
+### Project channels only, and the omission is the decision
+
+`22-SCREEN-BY-SCREEN` §4 has TM-06 project channels **and** TM-07 direct/group messages. This
+ticket builds the first: `conversations.project_id` is `NOT NULL`.
+
+The reason is authorization rather than effort. `conversation.read` is relation-gated in
+`packages/domain/src/policies/authorize.ts`, and the relation it checks is **project
+membership**. A conversation with no project has no relation for the evaluator to check, so
+every internal principal holding the capability would pass — the right answer for a project
+channel and precisely the wrong one for a direct message between two people. TM-07 needs a
+relation the evaluator does not have, and adding one inside a storage migration is how an
+authorization core acquires a rule nobody reviewed.
+
+There is deliberately **no `kind` column** carrying one legal value, for the reason
+`client_requests.category` was left as free text: a vocabulary no screen agreed to is worse
+than no vocabulary.
+
+### Threads are one level deep, and InnoDB is what refuses the second
+
+TM-08 draws a thread as a source message with replies. It does not draw a reply to a reply, and
+a tree would make "the thread pane" an unbounded recursion rather than a panel.
+
+Enforcing that needs a fact about the **parent** row, which a trigger cannot read — MySQL will
+not let a trigger query its own subject table. So the fact is carried in the key instead.
+`depth` is 0 for a root and 1 for a reply, `(organization_id, id, depth)` is unique, and a
+reply's foreign key names `(organization_id, parent_message_id, 0)`, so the parent must be a row
+whose depth is 0. `parent_depth` exists only to give that foreign key its third column.
+
+The redundant column is the price of an invariant InnoDB holds rather than one the service
+promises. ADR-0001 layers 3 and 4 are application-side; this survives them, and a test proves it
+by writing a nested reply straight to the database and watching it fail.
+
+The repository does **not** read the parent first to check its depth. A read-then-write check is
+a race and a foreign key is not.
+
+### The sequence number is allocated, never supplied
+
+`23-ERD` §4 requires `(organization_id, conversation_id, sequence_no)` to be unique and INT-08
+requires it to be monotonic per conversation. `conversations.next_sequence_no` is the allocator:
+a message insert takes that row's lock with `SELECT ... FOR UPDATE`, writes the value it read,
+and increments it, all inside the transaction that inserts the message.
+
+`MAX(sequence_no) + 1` was the obvious alternative and it is wrong under concurrency without a
+lock of its own — and the row it would have to lock is the row it is trying to insert. The
+unique key is the backstop either way; with the counter it is a backstop rather than the
+mechanism.
+
+**Proved rather than asserted.** Ten posts fired concurrently at one channel come back holding
+exactly 1 through 10. A single writer would have passed with either design, which is why the
+suite does not test one.
+
+There is no `sequenceNo` field on the input type or on the request body, so there is no path
+that numbers a message by hand. A body that supplies one is ignored, and a test says so.
+
+### Two gates, and the narrower one is not the evaluator's
+
+`authorize()` runs first and is authoritative. Then the service requires that the acting
+principal be a **member of the conversation**, or hold organization-wide scope.
+
+The order is the whole of the rule. No amount of conversation membership admits a client
+principal or a suspended member, because the evaluator refuses those before any of this
+module's code runs; the membership check can only ever take access away. A gate that could add
+access would be a second authorization system, which `25-AUTH-AND-TENANT-ISOLATION` §4 forbids
+policy from being.
+
+It earns its keep immediately: a project can hold more than one channel, and a person on the
+project is not thereby in every room on it. The suite proves a project member outside a channel
+gets 404 and sees it in no list, and that an Owner reads it without ever being added.
+
+The same rule runs backwards when somebody is **added**: the person being added must already be
+on the project, or a channel membership would be a way to grant project access the evaluator
+would have refused.
+
+### What this ticket does not do, stated because the motivation suggests otherwise
+
+**CHAT-001 does not let a client reply to a clarification.** No client role holds
+`conversation.read`, `conversation.write` or `conversation.moderate` — `12-PERMISSION-MATRIX` §2
+gives them no internal read at all, and `capabilities.ts` records the absence as load-bearing.
+`authorize()` refuses them twice: once on the ceiling and once on the independent internal-only
+guard, and the suite checks all three verbs come back 403.
+
+This builds the room the studio talks in. A client-facing thread needs a projection and an
+evaluator relation that do not exist; it is a named gap below rather than something smuggled in
+behind a capability nobody granted.
+
+### A message is not an audit event; taking one down is
+
+Three actions record conversation membership and creation, and a fourth records moderation.
+**Posting a message records nothing**, and the suite asserts the absence so a later author does
+not "fix" it.
+
+§12 lists the changes that are security events, and somebody speaking in a channel they belong
+to is not one. A row per message would be an audit table growing faster than the table it
+audits. `24-EVENT-CATALOG` does name `message.created.v1` — as a **durable event** for realtime,
+mentions and search, which is a different mechanism, and one nothing publishes yet because
+`PLAT-004`'s relay is unwritten.
+
+Moderation is somebody exercising authority over what another person said, which is exactly
+§12's subject.
+
+### Nobody can rewrite somebody else's words
+
+A moderator may take a message down. **Only its author may edit one** — not a Manager, not an
+Owner, and the suite checks the Owner specifically, because organization-wide scope reaches
+everything else in this system.
+
+Moderation keeps the row: `users.sql` grants no `DELETE` on `messages`, so the absence is
+structural rather than the repository's restraint. The projection returns `body: null` once a
+message is taken down rather than the text with a flag beside it — the point of a removal is
+that people stop reading it, and a flag leaves that to whoever writes the screen.
+
+### Two defects, both found by this ticket's own suite
+
+1. **Every duplicate and every bad thread parent arrived as a 500.** Drizzle wraps anything
+   thrown during execution in a `DrizzleQueryError` whose `code` is its own, and
+   `TenantDatabase` strips that only at the transaction boundary — which is outside every
+   `catch` in this repository. `OrganizationsRepository` documented this trap when TEN-001
+   landed and the helper it needs, `unwrapQueryError`, already existed. Six failing cases;
+   `driverErrorCode` now unwraps first and also falls back to `errno`, so MariaDB's spelling
+   works too.
+2. **Every moderation was a 500, and the reason is a rule this codebase wrote against itself.**
+   The audit metadata gate refuses any key whose underscore-separated segments include
+   `message`. The flag describing a moderation was called `own_message` — so the key that would
+   have described a take-down could not be written **in a take-down's audit row**. Renamed
+   `actor_is_author`. AUD-001's own notes anticipated this shape of collision (`subject_user_id`
+   was renamed for the same reason) and recorded the resolution as renaming the key rather than
+   relaxing the denylist. That is what was done.
+
+### Two divergences from the pack, recorded rather than resolved
+
+1. **`13-ENGINEERING` §3 writes the route as `POST /v1/conversations/{id}/messages`** and this
+   controller mounts it under the organization slug like every other route in the application.
+   An unprefixed path would have no slug for `TenantContextGuard` to resolve, and every route
+   that exists would have to move for the sake of one that does not. The pack's form reads as
+   shorthand rather than a decision.
+2. **`07-DATA-MODEL` §2 names `Thread` as an entity** and `13-ENGINEERING` §5's table list does
+   not have one. There is no `threads` table here: a thread is a root message and the messages
+   whose `parent_message_id` names it. The two documents disagree and the table list is the one
+   that enumerates storage.
+
+### Named gaps in CHAT-001, carried deliberately
+
+1. **TM-07 direct and group messages are not built.** The reason is above and it is an
+   authorization gap, not a schema one. Closing it needs an evaluator relation for a
+   conversation with no project.
+2. **No screen.** `WEB-003` is "channel/thread/convert dialog" and is a separate ticket. TM-06,
+   TM-07, TM-08 and TM-09 all have an API now and no browser.
+3. **Bodies are plain text.** `CHAT-002` is "create/read messages and sanitized rich-text" and
+   is the ticket that decides what markup is admissible. Storing rich text first would mean
+   storing it before anything could sanitise it.
+4. **Edit history is a column, not a table.** `edited_at` records _that_ an edit happened. TM-06
+   lists "edit history" among the message actions and the history itself has no storage.
+5. **No outbox row.** `24-EVENT-CATALOG` names `message.created.v1` and `message.converted.v1`;
+   nothing emits either, because `PLAT-004`'s relay is unwritten and `apps/worker` is still an
+   empty directory. `CHAT-003` is the ticket that needs the second one.
+6. **No mentions, reactions, pinned context, presence or read state.** TM-06 lists all of them.
+   `conversation_memberships` has no `last_read_sequence_no`, so there is nothing for an unread
+   count to read; that belongs with `INBOX-001`.
+7. **A channel-shared-with-a-client has no representation.** TM-06's "client-shared channels use
+   persistent external audience banner" needs an audience on a conversation and a projection
+   behind it. No column was added, because a column with no reader and no enforcement is the
+   kind of thing this file has had to correct before.
+8. **Archiving a channel is not cascaded.** An archived channel refuses posts and hides from the
+   default list; its messages stay readable. Nothing archives a channel when its project is
+   archived, because nothing archives a project either.
+
+---
+
 ## Verification actually run — 2026-08-26, the ticket-name correction pass
 
 The whole chain, in order, on the tree the correction pass left behind. Nothing below is
@@ -4208,34 +4427,35 @@ module migration cannot add a tenant table that the guard silently ignores.
 
 ## Component status
 
-| Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/config`                                 | `tested`      | 25 tests. MySQL schemes, `DEPLOYMENT_PROFILE`, `TENANT_GUARD_MODE`; production refuses dev substitutes and placeholder secrets                                                                                                                                                                                                                                                                              |
-| `packages/domain` — state machines                | `tested`      | 35 tests across all 7 lifecycles in `23-ERD` §5–§11                                                                                                                                                                                                                                                                                                                                                         |
-| `packages/domain` — authorization                 | `tested`      | 29 tests over the §11 grid — application layer                                                                                                                                                                                                                                                                                                                                                              |
-| `packages/domain` — value objects                 | `tested`      | 11 tests. UUIDv7 (incl. >2³² ms), content hash                                                                                                                                                                                                                                                                                                                                                              |
-| `apps/api` — migrator                             | `tested`      | 15 database tests, 9 splitter tests                                                                                                                                                                                                                                                                                                                                                                         |
-| `apps/api` — schema (0001, 0002)                  | `tested`      | Applied from empty on every database run; invariants read back from `information_schema`                                                                                                                                                                                                                                                                                                                    |
-| `apps/api` — tenant context + guard               | `tested`      | 45 analyser tests, 44 corpus tests                                                                                                                                                                                                                                                                                                                                                                          |
-| `apps/api` — least-privilege credentials          | `tested`      | 12 static assertions, plus **21 dynamic cases that now actually run** — against a long-lived MySQL 8.0.45 and again against MariaDB 11.4.5, both with the real `tmanage_app` credential. No container was involved. They still skip on the default per-file path, which has no such credential                                                                                                              |
-| `apps/api` — Drizzle schema + guarded seam        | `tested`      | 44 drift cases against `information_schema`, mutation-tested; the seam is proven to keep the guard on the query path                                                                                                                                                                                                                                                                                        |
-| `apps/api` — repositories                         | `tested`      | Projects (18 cases), organizations/workspaces/memberships (21), and **client organizations, client memberships, project memberships and work items (49)**. All eight follow one shape. **PROJ-002 adds 19 HTTP cases** over project creation and the workspace list                                                                                                                                         |
-| `apps/api` — membership resolver + bootstrap read | `tested`      | 24 database cases. The only waiver of ADR-0001 layer 3, bounded by an audited reason, a read-only rule and a table allowlist — all three mutation-tested                                                                                                                                                                                                                                                    |
-| `apps/api` — principal assembly (TEN-002)         | `tested`      | Project relation loaded on the scoped path; a test asserts no guard event is emitted while a principal is assembled                                                                                                                                                                                                                                                                                         |
-| `apps/api` — sessions (ID-001)                    | `tested`      | 43 database cases + 27 unit cases. Rotation, reuse detection, global cutoff, device list; the append-only ledger is proven immutable under the admin credential                                                                                                                                                                                                                                             |
-| `apps/api` — identity database path               | `tested`      | `identityRead` / `identityTransaction`. Zero tenant tables reachable, enforced in `observe` mode as well as `enforce`; no guard event across a whole session lifecycle                                                                                                                                                                                                                                      |
-| `apps/api` — HTTP                                 | `tested`      | NestJS 11 + Fastify. The four-guard pipeline, the stable error envelope, correlation ids, session routes and the first tenant-scoped endpoints: 36 database cases in `http-pipeline.db.test.ts` plus 16 CSRF unit cases and 2 DI cases. Eight mutations confirm the guards fire                                                                                                                             |
-| `apps/api` — audit (AUD-001)                      | `tested`      | 23 database cases + 26 unit cases. Append-only proved against the **migration** credential, not only the runtime one; the metadata gate refuses content at the write boundary; a rolled-back command leaves no row; a guard denial is recorded end to end through the real application                                                                                                                      |
-| `apps/api` — project-membership commands          | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                                                                                                                                      |
-| `apps/api` — client projection boundary (SEC-001) | `tested`      | 16 database cases over §11's grid and 9 unit cases over the interceptor. `findForbiddenClientFields` finally has a caller: a client response carrying a forbidden field is refused as a 500, not filtered                                                                                                                                                                                                   |
-| `apps/api` — client requests (REQ-001, REQ-002)   | `tested`      | 47 database cases over real HTTP, 1 skipped. One table with no delete and no update path; the facts §6 requires are written only by the transition that required them; the commitment coherence rule is a trigger, so it holds on a direct SQL session too. Two projections built separately, not one filtered. **REQ-002** makes an acceptance and its work one transaction, with one door onto `accepted` |
-| `apps/worker`                                     | `not_started` | Directory exists, empty. `outbox_events` still has no producer and no relay                                                                                                                                                                                                                                                                                                                                 |
-| `apps/web`                                        | `tested`      | 317 unit cases across 15 files; **twenty-two routes** at `next build`. `CL-09`/`CL-10` ship with WEB-004's second half; `REQ-01`/`REQ-02`/`REQ-03` with WEB-005; `CL-02` renders two of §6's five kinds of card                                                                                                                                                                                             |
-| `packages/ui` (UI-001)                            | `tested`      | Token package drift-tested against the design export in both directions; 13 primitives; the contrast arithmetic that jsdom cannot do; Storybook with theme, contrast, density and direction as globals. Three AA defects found and fixed in the component layer                                                                                                                                             |
-| `packages/contracts`, `observability`, `test-kit` | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                                                                                                                                    |
-| CI pipeline                                       | `implemented` | Three jobs written, YAML parses, guards proven to fire under `CI=1`. **Never executed** — no runner here                                                                                                                                                                                                                                                                                                    |
-| Design source audit                               | `tested`      | 172/172, and now Prettier-idempotent so `audit:design` no longer turns `format:check` red                                                                                                                                                                                                                                                                                                                   |
-| Seed world                                        | `tested`      | Exercised by every database run                                                                                                                                                                                                                                                                                                                                                                             |
+| Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/config`                                 | `tested`      | 25 tests. MySQL schemes, `DEPLOYMENT_PROFILE`, `TENANT_GUARD_MODE`; production refuses dev substitutes and placeholder secrets                                                                                                                                                                                                                                                                                  |
+| `packages/domain` — state machines                | `tested`      | 35 tests across all 7 lifecycles in `23-ERD` §5–§11                                                                                                                                                                                                                                                                                                                                                             |
+| `packages/domain` — authorization                 | `tested`      | 29 tests over the §11 grid — application layer                                                                                                                                                                                                                                                                                                                                                                  |
+| `packages/domain` — value objects                 | `tested`      | 11 tests. UUIDv7 (incl. >2³² ms), content hash                                                                                                                                                                                                                                                                                                                                                                  |
+| `apps/api` — migrator                             | `tested`      | 15 database tests, 9 splitter tests                                                                                                                                                                                                                                                                                                                                                                             |
+| `apps/api` — schema (0001, 0002)                  | `tested`      | Applied from empty on every database run; invariants read back from `information_schema`                                                                                                                                                                                                                                                                                                                        |
+| `apps/api` — tenant context + guard               | `tested`      | 45 analyser tests, 44 corpus tests                                                                                                                                                                                                                                                                                                                                                                              |
+| `apps/api` — least-privilege credentials          | `tested`      | 12 static assertions, plus **21 dynamic cases that now actually run** — against a long-lived MySQL 8.0.45 and again against MariaDB 11.4.5, both with the real `tmanage_app` credential. No container was involved. They still skip on the default per-file path, which has no such credential                                                                                                                  |
+| `apps/api` — Drizzle schema + guarded seam        | `tested`      | 44 drift cases against `information_schema`, mutation-tested; the seam is proven to keep the guard on the query path                                                                                                                                                                                                                                                                                            |
+| `apps/api` — repositories                         | `tested`      | Projects (18 cases), organizations/workspaces/memberships (21), and **client organizations, client memberships, project memberships and work items (49)**. All eight follow one shape. **PROJ-002 adds 19 HTTP cases** over project creation and the workspace list                                                                                                                                             |
+| `apps/api` — membership resolver + bootstrap read | `tested`      | 24 database cases. The only waiver of ADR-0001 layer 3, bounded by an audited reason, a read-only rule and a table allowlist — all three mutation-tested                                                                                                                                                                                                                                                        |
+| `apps/api` — principal assembly (TEN-002)         | `tested`      | Project relation loaded on the scoped path; a test asserts no guard event is emitted while a principal is assembled                                                                                                                                                                                                                                                                                             |
+| `apps/api` — sessions (ID-001)                    | `tested`      | 43 database cases + 27 unit cases. Rotation, reuse detection, global cutoff, device list; the append-only ledger is proven immutable under the admin credential                                                                                                                                                                                                                                                 |
+| `apps/api` — identity database path               | `tested`      | `identityRead` / `identityTransaction`. Zero tenant tables reachable, enforced in `observe` mode as well as `enforce`; no guard event across a whole session lifecycle                                                                                                                                                                                                                                          |
+| `apps/api` — HTTP                                 | `tested`      | NestJS 11 + Fastify. The four-guard pipeline, the stable error envelope, correlation ids, session routes and the first tenant-scoped endpoints: 36 database cases in `http-pipeline.db.test.ts` plus 16 CSRF unit cases and 2 DI cases. Eight mutations confirm the guards fire                                                                                                                                 |
+| `apps/api` — audit (AUD-001)                      | `tested`      | 23 database cases + 26 unit cases. Append-only proved against the **migration** credential, not only the runtime one; the metadata gate refuses content at the write boundary; a rolled-back command leaves no row; a guard denial is recorded end to end through the real application                                                                                                                          |
+| `apps/api` — project-membership commands          | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                                                                                                                                          |
+| `apps/api` — client projection boundary (SEC-001) | `tested`      | 16 database cases over §11's grid and 9 unit cases over the interceptor. `findForbiddenClientFields` finally has a caller: a client response carrying a forbidden field is refused as a 500, not filtered                                                                                                                                                                                                       |
+| `apps/api` — client requests (REQ-001, REQ-002)   | `tested`      | 47 database cases over real HTTP, 1 skipped. One table with no delete and no update path; the facts §6 requires are written only by the transition that required them; the commitment coherence rule is a trigger, so it holds on a direct SQL session too. Two projections built separately, not one filtered. **REQ-002** makes an acceptance and its work one transaction, with one door onto `accepted`     |
+| `apps/api` — conversations (CHAT-001)             | `tested`      | 45 database cases over real HTTP, 1 skipped. Three tables, twelve routes. The sequence allocator holds under ten concurrent posts; a thread is one level deep because `fk_messages_parent_is_root` refuses the second, not because the service promises it. A message is never deleted — `users.sql` grants no DELETE — and a moderation returns the row with its body gone. Two defects found by its own suite |
+| `apps/worker`                                     | `not_started` | Directory exists, empty. `outbox_events` still has no producer and no relay. CHAT-001 adds two more named events nothing emits — `message.created.v1` and `message.converted.v1`                                                                                                                                                                                                                                |
+| `apps/web`                                        | `tested`      | 317 unit cases across 15 files; **twenty-two routes** at `next build`. `CL-09`/`CL-10` ship with WEB-004's second half; `REQ-01`/`REQ-02`/`REQ-03` with WEB-005; `CL-02` renders two of §6's five kinds of card                                                                                                                                                                                                 |
+| `packages/ui` (UI-001)                            | `tested`      | Token package drift-tested against the design export in both directions; 13 primitives; the contrast arithmetic that jsdom cannot do; Storybook with theme, contrast, density and direction as globals. Three AA defects found and fixed in the component layer                                                                                                                                                 |
+| `packages/contracts`, `observability`, `test-kit` | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                                                                                                                                        |
+| CI pipeline                                       | `implemented` | Three jobs written, YAML parses, guards proven to fire under `CI=1`. **Never executed** — no runner here                                                                                                                                                                                                                                                                                                        |
+| Design source audit                               | `tested`      | 172/172, and now Prettier-idempotent so `audit:design` no longer turns `format:check` red                                                                                                                                                                                                                                                                                                                       |
+| Seed world                                        | `tested`      | Exercised by every database run                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ---
 
@@ -4471,6 +4691,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 5   | WORK-003   |   8 | 0        | The `blocked` state and its facts belong to WORK-001's machine. No dependency relation, no health signal, no table                                            |
 | 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`. Saved views, sorting, selection and bulk actions are not built                                                                     |
 | 5   | TEST-002   |   8 | half 4   | Work database and HTTP fixtures exist and run. No performance fixture; `packages/test-kit` is empty                                                           |
+| 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                   |
 | 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                             |
 | 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                       |
 | 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                   |
@@ -4479,22 +4700,28 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                  |
 | 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                 |
 
-Every other ticket in §§3–12 — all seven of Sprint 3, all of Sprints 5 through 9 — is zero.
+Every other ticket in §§3–12 — six of Sprint 3's seven, and all of Sprints 5 through 9 — is
+zero. **CHAT-001 was added to this table on 2026-08-26**, and it is the first entry Sprint 3 has.
 
 | Sprint        | Tickets       | Points         |
 | ------------- | ------------- | -------------- |
 | Sprint 0 (§3) | 5 of 8        | 32.5 of 52     |
 | Sprint 1 (§4) | 7 of 8        | 50 of 58       |
 | Sprint 2 (§5) | 3½ of 6       | 30.5 of 53     |
-| Sprint 3 (§6) | 0 of 7        | 0 of 66        |
+| Sprint 3 (§6) | 1 of 7        | 8 of 66        |
 | Sprint 4 (§7) | **7 of 7**    | **61 of 61**   |
 | Sprints 5–9   | 0 of 34       | 0 of 293       |
-| **§§3–12**    | **22½ of 70** | **174 of 583** |
+| **§§3–12**    | **23½ of 70** | **182 of 583** |
 
-**22½ of 70 tickets. 174 of 583 story points — 29.8%, and "about 30%" is the honest way to say
-it.** That is lower than the 31% this file quoted, against a denominator that is smaller as well:
+**As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That
+was lower than the 31% this file used to quote, against a denominator that is smaller as well:
 the old figure was optimistic in the numerator and inflated in the denominator, and the two
 errors partly hid each other.
+
+**With CHAT-001, which landed the same day: 23½ of 70 tickets and 182 of 583 — 31.2%.** The
+Progress section below carries this figure. CHAT-001 counts whole because everything §6's row
+names — conversations, messages and the thread sequence model — is built and covered by a suite
+that ran.
 
 **Screen tickets: 3½ of 11.** WEB-001 whole, WEB-002 half, WEB-004 whole, WEB-005 whole; WEB-003
 and WEB-006 through WEB-011 are untouched. The previous "4½ of 11" counted screens rather than
@@ -4505,45 +4732,57 @@ tickets.
 
 ### The next coding task
 
-**`SEC-001` shipped on 2026-08-26 and this section is replaced rather than amended. Sprint 4 is
-complete** — the first sprint in this plan that is.
+**`CHAT-001` shipped on 2026-08-26 and this section is replaced rather than amended.** Sprint 3
+has its first ticket; Sprint 4 is still the only complete one.
 
-**The next one is `CHAT-001` — conversations, messages and the thread sequence model**, 8
-points, depending on `PROJ-001`, which has been met since Sprint 2. It is next because of what the
-last five tickets built rather than because it is the next number.
+**The next one is `CHAT-002` — create/read messages and sanitized rich-text**, 8 points,
+depending on `CHAT-001`, which is now met. It is next for a reason that is unusual and worth
+stating: **CHAT-001 shipped a message body that is plain text, and that is a decision with a
+shelf life.** Rich text stored before anything can sanitise it is rich text nobody can safely
+render, so the ordering matters more here than the numbering does.
 
-The client request loop now works at both ends and it **cannot hold a conversation**. A manager
-can ask one question; the client reads it and is told to reply however they normally reach the
-studio. That sentence is in `ClientRequestDetailScreen` and it is honest, and it is also the
-largest thing standing between this loop and a team using it for a week. Both `CL-10` and
-`REQ-02` draw a message thread as their largest panel; neither has one.
+What `CHAT-002` has to decide, and `CHAT-001` deliberately did not:
 
-`13-ENGINEERING-EXECUTION-SPEC` §3 lists `message.created/converted` among the durable events,
-and `07-DATA-MODEL` names `Conversation`, `Channel`, `ConversationMembership`, `Message` and
-`Thread`. `CHAT-002` and `CHAT-003` follow it in §6, and `US-B03 Convert message to task` is the
-story that joins this aggregate to `WORK-001`.
-
-This id was checked against `28-SPRINT-TICKETS` before being written down, which is not
-something this file has always done — see the correction above.
+- **What markup is admissible.** `09-MVP-PRD`'s Collaboration scope lists mentions, attachments and reactions
+  alongside rich text; `24-EVENT-CATALOG` §1 forbids full message bodies from durable events,
+  which is a constraint on what a sanitiser may leak rather than on what it may accept.
+- **Where sanitising happens.** At the write boundary, at the read boundary, or both. The
+  codebase's habit — `assertSafeAuditMetadata` refusing content at the _write_ boundary — is the
+  precedent, and it is the stricter one.
+- **The edit-history table.** `22` §4 TM-06 lists "edit history" among the message actions.
+  `CHAT-001` has an `edited_at` column and no history, so a message can be shown to have changed
+  and not to what.
 
 The alternatives, in order after it:
 
-2. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
+2. **`WEB-003`** — the channel, thread and convert dialog. `CHAT-001` gave TM-06, TM-07, TM-08
+   and TM-09 an API and no browser, which is the same position `REQ-01`–`REQ-03` were in before
+   `WEB-005`. It is a 13-point ticket the plan already marks "13→split".
+3. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
    the bulk audience change the specification singles out for a separate confirmation. It would
    also give the request inbox the cursor paging it lacks — that screen silently shows the
-   oldest 200.
-3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
-   it. `28-SPRINT-TICKETS` does not schedule this, and the name `MAIL-001` used elsewhere in
-   this file is this file's, not the plan's.
-4. **`PLAT-004`'s relay** — the outbox dispatcher. Thirteen tickets have now established the
+   oldest 200 — and it is where `ProjectOverviewScreen`'s unconditional "Internal" badge gets
+   fixed. That badge became capable of being wrong the day `CLIENT-001` shipped.
+4. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
+   it. `28-SPRINT-TICKETS` does not schedule this at all; `NOTIF-001` is the nearest real ticket
+   and it builds notification records rather than delivery.
+5. **`PLAT-004`'s relay** — the outbox dispatcher. Fourteen tickets have now established the
    transaction boundary it will publish from, `24-EVENT-CATALOG` names two client-request events
-   that nothing emits, and `apps/worker` is still an empty directory. It is also where the rule
-   connecting two lifecycles belongs: nothing moves a request to `planned` or `delivered` when
-   its linked work item moves.
-5. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
+   and two message events that nothing emits, and `apps/worker` is still an empty directory. It
+   is also where the rule connecting two lifecycles belongs: nothing moves a request to
+   `planned` or `delivered` when its linked work item moves.
+6. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
    `projects.committed_at` and `client_requests.desired_at` are all `DATETIME(3)` holding
    midnight UTC, so a reader west of UTC sees every calendar date a day early. Not scheduled by
    `28-SPRINT-TICKETS`; it is a migration, recorded in the WEB-004 gaps above.
+
+**A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
+The client request loop still cannot hold a conversation _with a client_. `CHAT-001` built the
+room the studio talks in, and no client role holds any conversation capability — so
+`ClientRequestDetailScreen` still tells a client to reply however they normally reach the studio,
+and that sentence is still honest. Closing it needs an audience on a conversation, a projection
+behind it, and an evaluator relation for a client principal reading one. None of the three is
+scheduled by `28-SPRINT-TICKETS`, so it is a gap rather than a ticket.
 
 A note on a gap this file used to give a number to: **there is no people-directory ticket.**
 `28-SPRINT-TICKETS` does not schedule one, and earlier entries here wrote `PEOPLE-001` anyway to
@@ -4633,14 +4872,23 @@ directory, unscheduled" instead, which is both shorter and true.
     actually reach. 16 database cases and 9 unit cases. The grid found nothing, which is the
     expected outcome on the day a corpus is written.
 
+25. ~~CHAT-001~~ — **done this session.** Conversations, messages and the thread sequence
+    model: a channel on a project, a sequence number allocated under the channel's own row lock
+    and proved correct with ten posts fired at once, and a thread that is one level deep because
+    InnoDB refuses the second rather than because the service promises it. 45 database cases and
+    1 skip. Two defects found by its own suite — every duplicate arrived as a 500 because
+    Drizzle wraps driver errors, and every moderation arrived as a 500 because the audit
+    metadata gate refuses any key containing the word `message`.
+
 ### Progress
 
-**22½ of 70 tickets. 174 of 583 story points — 29.8%, across Sprints 0–9.** Re-derived ticket by
-ticket on 2026-08-26 against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons
-written out in "The progress count, re-derived rather than re-quoted" above. It replaces the
-"27½ of 74 tickets, 191 of 615, about 31%" this section carried, which was wrong in the
-numerator **and** in the denominator. Screen tickets: **3½ of 11** — WEB-001, WEB-004 and WEB-005
-whole, WEB-002 half.
+**23½ of 70 tickets. 182 of 583 story points — 31.2%, across Sprints 0–9.** Derived ticket by
+ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
+in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
+"27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
+numerator **and** in the denominator; the percentage reads similarly today only because CHAT-001
+has since been added to an honest count. Screen tickets: **3½ of 11** — WEB-001, WEB-004 and
+WEB-005 whole, WEB-002 half. **Sprint 3 has its first ticket.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.

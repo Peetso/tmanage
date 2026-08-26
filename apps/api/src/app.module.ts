@@ -15,6 +15,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
+import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 
@@ -83,6 +84,10 @@ export class AppModule {
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),
+        // CHAT-001. After `ProjectsModule` for the same reason: a channel names a project, and
+        // a caller who names one that is not theirs should get 404 rather than a foreign-key
+        // violation surfacing as 500.
+        ConversationsModule.register(),
       ],
       providers: [
         { provide: APP_INTERCEPTOR, useClass: CorrelationInterceptor },

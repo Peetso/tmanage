@@ -80,6 +80,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
   // NOT NULL, so every row belongs both to a studio and to one of its clients.
   client_requests: 'organization_id',
+  // CHAT-001. All three are tenant-owned, and `messages` is the table in this system whose
+  // content is most obviously somebody else's: an unscoped `SELECT ... FROM messages` is a
+  // transcript of every studio on the server.
+  conversations: 'organization_id',
+  conversation_memberships: 'organization_id',
+  messages: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',

@@ -280,6 +280,44 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 — accepting, deferring and declining are decisions only an internal manager may ' +
       'take (23-ERD §6), and the accounting for them is what a disputed scope is settled by',
   },
+  /**
+   * CHAT-001. Three actions, and — as with `work_item.*` — the shape of the set is the
+   * argument.
+   *
+   * **A message being posted is not here, and that is deliberate.** §12 lists the changes that
+   * are security events, and somebody speaking in a channel they belong to is not one of them.
+   * A row per message would be an audit table growing faster than the table it audits, and it
+   * would bury the rows that matter. `24-EVENT-CATALOG` does name `message.created.v1` — as a
+   * **durable event** for realtime, mentions and search, which is a different mechanism with a
+   * different purpose, and one nothing publishes yet because `PLAT-004`'s relay is unwritten.
+   *
+   * **A message being taken down is here.** Moderation is somebody exercising authority over
+   * what another person said, which is exactly §12's subject. The row records who and when;
+   * `messages.deleted_at` survives, so the record cannot be completed by deleting it.
+   *
+   * **Conversation membership is here** for the reason `project_membership.*` is: it decides
+   * who can read the content, so it is an access grant rather than a preference.
+   */
+  'conversation.created': {
+    objectType: 'conversation',
+    clause: '§12 organization settings — a channel is a room, and creating one decides it exists',
+  },
+  'conversation.member_added': {
+    objectType: 'conversation',
+    clause: '§12 permission change — conversation membership is who may read the content',
+  },
+  'conversation.member_removed': {
+    objectType: 'conversation',
+    clause:
+      '§12 permission change — the DELETE destroys the grant, so the row that records it is ' +
+      'the only remaining evidence the person was ever in the room',
+  },
+  'message.deleted': {
+    objectType: 'message',
+    clause:
+      '§12 — moderation is authority exercised over what somebody else said, and "who took ' +
+      'this down, and when" is the question a disputed removal turns on',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the
