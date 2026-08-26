@@ -170,6 +170,138 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, wiring ON-04 and ID-03
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`652 s` wall (10 m 52 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                                                                                    |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                                                                                        |
+| `typecheck`              | Clean across five projects                                                                                                                                                                |
+| `lint`                   | Clean                                                                                                                                                                                     |
+| `test` (unit)            | **736 passed**, 33 files — config 25, domain 102, ui 106, api 241, **web 262**. Was 726 across 32 — one new suite of 14 cases, and four ID-03 cases moved into it from `screens.test.tsx` |
+| `test:db`                | **523 passed, 21 skipped**, 18 files, **651.97 s**. Was 519 — four new preview cases                                                                                                      |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                                                                                     |
+| `format:check` (closing) | Clean                                                                                                                                                                                     |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                                                                                                 |
+
+`next build` was run separately and succeeded: fifteen routes, unchanged.
+
+The 21 skips are the same least-privilege cases as every previous session, and are recorded
+as skips.
+
+### The first run exited 1 on something that was not a failing test
+
+```
+Tests  262 passed (262)
+Errors  1 error
+```
+
+Every assertion passed and the run was still wrong. See the section below — it is the clearest
+example this project has produced of why "the suite is green" and "the code is correct" are
+different sentences.
+
+---
+
+## ON-04 and ID-03, wired — and two roles that were not roles
+
+`TEN-003` gave the API everything needed to admit a second person, and neither screen called
+it. `ON-04` built a checked list of addresses and dropped it; `ID-03` rendered an invitation
+nobody had issued. This is the half-hour that turns "the API can do it" into "a person can do
+it in a browser".
+
+Not a numbered ticket: it is the unfinished half of `WEB-001`.
+
+### One endpoint TEN-003 did not ship
+
+`22-SCREEN-BY-SCREEN` §3 asks `ID-03` to show the inviter, the organization, the role and the
+expiry **before** the person accepts, and there was no way to ask.
+`POST /v1/invitations/previews`:
+
+- **`@Public()`** as well as `@NoTenant()`. The link arrives by email and §3's
+  "account-switch option" assumes the reader may not have signed in yet. What gates the read is
+  the 256-bit token, which is not enumerable; what it discloses is what the invitation was
+  always going to tell the person it was sent to.
+- **`POST` for a read**, token in the body, for the reason acceptance gives: a token in a query
+  string is in the browser's history, in the next `Referer`, and in every access log between
+  here and the client.
+- **The same 404** for missing, revoked, expired and used, byte-identical apart from the
+  correlation id. A preview that distinguished them would rebuild the oracle the acceptance
+  path refuses to be. Asserted.
+
+It reads through the same `bootstrapRead`, allowlisted to `invitations`, `organizations` and
+`client_organizations`, joined to `users` — which needs no allowlist entry because it is in
+`NON_TENANT_TABLES` and the check is about tenant-owned tables.
+
+**`projectName` is not in the response.** `22`'s ID-03 lists one; an invitation names no
+project, `0005_invitations.sql` has no column for it, and `23-ERD` §9 does not give it one. The
+screen names the organization and the role and invents nothing.
+
+### A defect ON-04 has carried since WEB-001
+
+The screen offered three roles — `admin`, `member`, `viewer` — and **two of them are not roles
+this system has**. `INTERNAL_ROLES` is `owner`, `org_admin`, `workspace_admin`, `manager`,
+`moderator`, `member`, `guest`.
+
+Nothing caught it because nothing was ever sent. The first request TEN-003 would have refused —
+`requireRoleMatchesDestination`, 400 — is the one that made it visible. `lib/roles.ts` is a
+`Record<InternalRole, RoleDescription>`, so a role added to `packages/domain` and not described
+there is a **type error** rather than a screen that silently omits it, and it describes all
+seven rather than the three `ON-04` happens to offer.
+
+### Three decisions in the screens
+
+- **The token is never rendered.** It arrives in `ID-03`'s route — that is where an emailed link
+  puts it — goes straight into a request body, and appears in neither the document nor the URL
+  beyond the path already followed. The same rule `ID-02`'s MFA challenge token follows, and a
+  test asserts `container.innerHTML` and `window.location.href` for both.
+- **`ON-04` posts one request per address**, sequentially, not one request for the list. A
+  duplicate is a 409 and the rest should still go. Failures stay in the list so a retry does not
+  re-send what worked; successes leave it. A batch endpoint would have had to invent a
+  partial-success shape the API does not have.
+- **Nothing emails anything, and the screen says so.** The link comes back once — the row holds
+  only a hash — so it is rendered for each invitation with an instruction to send it by hand.
+  A screen reading "invitations sent" would be describing a delivery that does not happen.
+
+`ID-03` now carries an `<h1>` in **every** state, loading included. A document whose only
+heading appears once a request resolves has no heading for the moment a screen reader lands on
+it, and `22` §1's one-`<h1>` rule is about the document rather than about the happy path.
+
+### A green suite standing beside an unhandled error
+
+The first run of the chain exited 1 with a line worth keeping:
+
+```
+Tests  262 passed (262)
+Errors  1 error
+```
+
+`ID-03`'s mount test in `screens.test.tsx` reused `emptyDirectoryClient`, which answers every
+request with the same object — a 200 carrying the wrong shape for this screen. `Avatar` was
+handed `undefined` and threw **after** the assertions had passed. Every assertion was green and
+the run was a false positive.
+
+The screen was not changed. It trusts a 200 from its own API, which is this codebase's
+convention until `packages/contracts` is generated; a test feeding it a body no endpoint
+returns was testing nothing. It now gets a client that answers the preview with a real one.
+
+### Named gaps
+
+1. **Still no mailer.** `MAIL-001` is a name this file is using for work
+   `28-SPRINT-TICKETS` does not schedule; `35-NOTIFICATION-AND-EMAIL-COPY` has the copy and
+   nothing renders it.
+2. **Two fixtures remain on `ON-04`.** The organization's mail domain and the existing-member
+   list are both invented, so the outside-domain and duplicate checks are advisory. Neither
+   decides anything — the API refuses a duplicate itself, with a 409 the screen displays.
+3. **`FIXTURE_INVITATION` is gone.** Nothing reads it. The fixtures file shrinks again.
+
+---
+
 ## Verification actually run — 2026-08-26, the TEN-003 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -3159,31 +3291,26 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**Wiring `ON-04` and `ID-03` to TEN-003.**
+**CLIENT-002 — the client portal's route and session context.**
 
-Not a numbered ticket — it is the unfinished half of `WEB-001`, and it is now the shortest path
-from "the API can admit a second person" to "a person can actually admit one". The endpoints
-landed this session and both screens still render fixtures: `ON-04` builds a checked list of
-addresses and drops it, `ID-03` shows an invitation nobody issued.
+Both of its dependencies are met as of this session: `CLIENT-001` built the client half of the
+data model and `TEN-003` built the invitation a client member arrives through. It is the ticket
+that finally answers the assertion parked in `http-pipeline.db.test.ts` since the HTTP surface
+landed — a client seeing their own client organization's work and not a sibling client's —
+which needs a **client-readable endpoint**, and there is still none.
 
-It needs one endpoint TEN-003 did not ship. `22-SCREEN-BY-SCREEN` §3 asks `ID-03` to show the
-inviter, the organization, the role and the expiry **before** the person accepts, and there is
-no way to ask. A preview route, public and keyed on the token, with the same 404 for missing,
-revoked, expired and used — a preview that distinguished them would rebuild the oracle the
-acceptance path refuses to be.
-
-It also closes a defect that has been sitting in `ON-04` since `WEB-001`: the screen offers
-`admin`, `member` and `viewer`, and **two of those are not roles this system has**.
-`INTERNAL_ROLES` is `owner`, `org_admin`, `workspace_admin`, `manager`, `moderator`, `member`,
-`guest`. Nothing caught it because nothing was ever sent.
+It also closes two gaps this session recorded rather than fixed: a client admin cannot invite
+into their own client organization (the invitation service requires `org.manage`, which no
+client role holds), and `ON-03`'s client-or-internal choice still cannot be saved.
 
 The other three, unchanged in order:
 
-2. **CLIENT-002 — the client portal's route and session context**, and with it the projection
-   endpoint the parked assertion in `http-pipeline.db.test.ts` has waited for since the HTTP
-   surface landed. Both its dependencies are now met.
-3. **WEB-002's second half.** Saved views, sorting, row selection and bulk actions, including
+2. **WEB-002's second half.** Saved views, sorting, row selection and bulk actions, including
    the bulk audience change the specification singles out for a separate confirmation.
+3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to
+   send it. `35-NOTIFICATION-AND-EMAIL-COPY` has the copy and nothing renders it.
+   `28-SPRINT-TICKETS` does not schedule this, and the name `MAIL-001` used above is this
+   file's, not the plan's.
 4. **PLAT-004's relay** — the outbox dispatcher. Six tickets have now established the
    transaction boundary it will publish from, and `apps/worker` is still an empty directory.
 
@@ -3228,23 +3355,28 @@ as though the plan contained it.
     one new repository, nine audit actions, and the matrix's hardest sentence — a client admin
     manages their own client organization and nobody else's — proved from both sides. 25
     database cases. Three real defects found by its own suite.
-16. ~~TEN-003~~ — **done this session.** Invitations: one table, six routes, a token that is
-    hashed and never recoverable, single-use enforced by a `WHERE` clause, and an acceptance
-    path that runs with no tenant context and still emits no unnamed unscoped statement. 21
-    database cases. Two defects found by its own suite and one by the least-privilege gate.
+16. ~~TEN-003~~ — invitations: one table, six routes, a token that is hashed and never
+    recoverable, single-use enforced by a `WHERE` clause, and an acceptance path that runs with
+    no tenant context and still emits no unnamed unscoped statement. 25 database cases. Two
+    defects found by its own suite and one by the least-privilege gate.
+17. ~~`ON-04` and `ID-03`, wired~~ — **done this session.** The unfinished half of WEB-001, plus
+    the preview endpoint `ID-03` needed and TEN-003 had not shipped. Two of the three roles
+    `ON-04` offered turned out not to exist. 14 web cases, and a green suite standing beside an
+    unhandled error was caught and fixed.
 
 ### Progress
 
-**21 of 74 tickets. 138 of 615 story points, about 22%, across Sprints 0–9.** WEB-002 counts
-as half of its 13 points, rounded down, because half of it is what shipped. Screen tickets:
-**1½ of 11**.
+**21 of 74 tickets. 138 of 615 story points, about 22%, across Sprints 0–9.** Unchanged:
+wiring `ON-04` and `ID-03` finishes part of `WEB-001`, which was already counted. Screen
+tickets: **1½ of 11** — seven of WEB-001's nine screens now do what they say, up from five.
 
-The loop the **API** can do end to end: a person signs in, creates an organization, creates a
-project, puts work in it, moves that work through its lifecycle, sets up a client organization,
-shares the project with it, and invites a colleague who accepts and lands with an active
-membership.
+**The loop is now closed in the browser.** A person signs in, creates an organization, creates
+a project, puts work in it, moves that work through its lifecycle, sets up a client
+organization, shares the project with it, invites a colleague, and the colleague follows the
+link and lands inside with an active membership — every step of that through a screen.
 
-The sentence that is left has moved from the API to the browser. **Nobody can do the last part
-of that through a screen.** `ON-04` still builds a list of addresses and drops it; `ID-03`
-still renders a fixture. The endpoints exist and nothing calls them, which is a smaller gap
-than yesterday's and the next one to close.
+Two things stand between that and something a team could use for a week:
+
+1. **Nothing sends the invitation.** The link is printed on screen and a person has to send it.
+2. **The client sees nothing.** Items are marked `client_visible`, a project is shared, and
+   there is no portal to read any of it in. That is `CLIENT-002`, and it is next.
