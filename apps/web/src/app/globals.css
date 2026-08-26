@@ -733,7 +733,120 @@ body {
  * is exactly the clipping the rule forbids.
  */
 
+/* ── Work list and detail (WEB-002) ───────────────────────────────────
+ *
+ * A real `<table>`, styled rather than replaced. `22-SCREEN-BY-SCREEN` §5 asks for keyboard
+ * row navigation and sorting on the work list, and every one of those affordances is free in a
+ * table element and has to be rebuilt from nothing in a grid of divs.
+ *
+ * The wrapper scrolls, not the page. Seven columns do not fit a phone, and a table that widens
+ * the document makes every other screen scroll sideways with it.
+ */
+
+/*
+ * The canvas header’s two unstyled parts, styled by the first screen to use them.
+ *
+ * `AppShell` has emitted `__titles` and `__actions` since WEB-001, and no screen passed an
+ * action until `TM-03`’s "Update work". Without a rule the action sat beneath the title on a
+ * line of its own; the header is a row that wraps, which is what the export draws.
+ */
+
+.tm-canvas-header__titles {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-canvas-header__actions {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tm-table-scroll {
+  overflow-x: auto;
+  /* A scrollable region needs to be focusable, or a keyboard cannot reach the overflow. */
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+}
+
+.tm-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.tm-table th,
+.tm-table td {
+  padding: var(--s2) var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  text-align: start;
+  vertical-align: baseline;
+}
+
+.tm-table thead th {
+  background: var(--paper-50);
+  font-size: var(--t-ui-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tm-table tbody tr:last-child th,
+.tm-table tbody tr:last-child td {
+  border-block-end: none;
+}
+
+/* The row header. It carries the link, so it is the cell a keyboard lands in. */
+.tm-table__title {
+  font-weight: 600;
+}
+
+/*
+ * Label and value, side by side on a wide screen and stacked on a narrow one.
+ *
+ * A `<dl>` rather than a two-column table: these are pairs, not rows of a dataset, and a
+ * screen reader announces "Owner, Unassigned" from a description list without needing column
+ * headers to make sense of it.
+ */
+
+.tm-detail-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--s2) var(--s4);
+  margin: 0;
+}
+
+.tm-detail-list__pair {
+  display: contents;
+}
+
+.tm-detail-list dt {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-detail-list dd {
+  margin: 0;
+}
+
+/* A row of checkboxes reads as a row, and wraps rather than overflowing. */
+.tm-row--wrap {
+  flex-wrap: wrap;
+}
+
+.tm-choice--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+}
+
 @media (max-width: 60rem) {
+  .tm-detail-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s1) 0;
+  }
+
   .tm-app {
     grid-template-columns: minmax(0, 1fr);
   }

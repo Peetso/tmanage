@@ -65,6 +65,17 @@ export async function createProject(
   return data;
 }
 
+export async function getProject(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<ProjectSummary> {
+  const { data } = await client.request<ProjectSummary>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}`,
+  });
+  return data;
+}
+
 export async function listProjects(
   client: ApiClient,
   organizationSlug: string,

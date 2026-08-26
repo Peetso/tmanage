@@ -21,6 +21,16 @@ export const FIXTURE_SIGNED_IN_AS = 'omar@northstar.studio';
 
 export const FIXTURE_ORGANIZATION_DOMAIN = 'northstar.studio';
 
+/**
+ * The organization's display name, shown in the shell on every internal screen.
+ *
+ * A fixture because nothing returns one organization's profile by slug. `ID-04` fetches the
+ * whole directory the session can act in, and reaching into that list from a work screen would
+ * be a second request for a single string — so the name is invented here, once, and the
+ * ticket that adds `GET /v1/organizations/:slug` removes it.
+ */
+export const FIXTURE_ORGANIZATION_NAME = 'Northstar Studio';
+
 export const FIXTURE_EXISTING_MEMBERS: readonly string[] = [
   'omar@northstar.studio',
   'karim@northstar.studio',
