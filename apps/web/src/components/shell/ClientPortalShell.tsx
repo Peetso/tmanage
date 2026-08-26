@@ -5,6 +5,15 @@ import { Wordmark } from '../brand/Wordmark';
 import { CLIENT_NAVIGATION } from './navigation';
 
 export interface ClientPortalShellProps {
+  /**
+   * The organization whose portal this is, as it appears in a URL.
+   *
+   * Every portal destination lives under it — `CLIENT_NAVIGATION` carries the suffix and this
+   * supplies the prefix — because the portal is tenant-scoped exactly as every other screen
+   * is: the slug in the path is the claim the API's `TenantContextGuard` resolves against a
+   * membership row before any handler runs.
+   */
+  organizationSlug: string;
   /** The client organization whose portal this is. Their name leads, not the vendor's. */
   clientName: string;
   /** The delivery team's name, shown as the smaller "delivered by" line. */
@@ -39,6 +48,7 @@ export interface ClientPortalShellProps {
  * whose space they are in and who is delivering to them.
  */
 export function ClientPortalShell({
+  organizationSlug,
   clientName,
   providerName,
   projectName,
@@ -84,7 +94,7 @@ export function ClientPortalShell({
             return (
               <li key={item.id}>
                 <Link
-                  href={item.href}
+                  href={`/${organizationSlug}${item.href}`}
                   className="tm-portal__nav-item"
                   {...(current ? { 'aria-current': 'page' as const } : {})}
                 >

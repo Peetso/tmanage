@@ -89,6 +89,7 @@ describe('ClientPortalShell', () => {
   function renderShell(preview = false) {
     return render(
       <ClientPortalShell
+        organizationSlug="northstar"
         clientName="Atlas Hospitality"
         providerName="Northstar Studio"
         projectName="Website relaunch"
@@ -124,9 +125,11 @@ describe('ClientPortalShell', () => {
       .getAllByRole('link')
       .map((link) => link.getAttribute('href'));
 
-    expect(hrefs).toEqual(CLIENT_NAVIGATION.map((item) => item.href));
+    // Every destination is the portal's, under this organization's slug. The prefix arrived
+    // with `WEB-004`: the portal is tenant-scoped like every other screen, so its links are.
+    expect(hrefs).toEqual(CLIENT_NAVIGATION.map((item) => `/northstar${item.href}`));
     for (const href of hrefs) {
-      expect(href?.startsWith('/portal')).toBe(true);
+      expect(href?.startsWith('/northstar/portal')).toBe(true);
     }
     for (const internal of INTERNAL_NAVIGATION) {
       expect(hrefs).not.toContain(internal.href);
@@ -139,6 +142,7 @@ describe('ClientPortalShell', () => {
 
     rerender(
       <ClientPortalShell
+        organizationSlug="northstar"
         clientName="Atlas Hospitality"
         providerName="Northstar Studio"
         title="Deliverables"

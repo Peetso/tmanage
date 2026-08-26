@@ -30,6 +30,16 @@ export const FIXTURE_ORGANIZATION_DOMAIN = 'northstar.studio';
  */
 export const FIXTURE_ORGANIZATION_NAME = 'Northstar Studio';
 
+/**
+ * The client organization's own name, shown to its own members in the portal header.
+ *
+ * A fixture for the same reason `FIXTURE_ORGANIZATION_NAME` is: nothing returns a client
+ * organization's profile to the people inside it. `CLIENT-002`'s portal endpoints answer with
+ * projects and work, not with who the reader is — the API knows, from the session, and has no
+ * route that says so. Both names are cosmetic; every piece of data on the portal is real.
+ */
+export const FIXTURE_CLIENT_NAME = 'Atlas Hospitality';
+
 export const FIXTURE_EXISTING_MEMBERS: readonly string[] = [
   'omar@northstar.studio',
   'karim@northstar.studio',
