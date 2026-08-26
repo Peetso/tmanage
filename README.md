@@ -113,7 +113,10 @@ decision.
 the completed design export. Do not edit them. They have been revised mid-implementation
 before; re-check them against the originals before resuming work.
 
-Everything in the design system is deliberate: Satoshi for display and UI, Manrope for
-paragraphs, Alexandria for Arabic, Geist Mono for IDs, hashes, and metadata. Lime means
+Everything in the design system is deliberate. The design export pairs Satoshi for display
+and UI with Manrope for paragraphs, Alexandria for Arabic, and Geist Mono for IDs, hashes and
+metadata — but **the application ships Manrope for both Latin roles**, because the Fontshare
+EULA forbids serving Satoshi from our own origin without written consent. See
+[ADR-0005](docs/adr/ADR-0005-manrope-is-the-latin-typeface.md). Lime means
 _current / next / live_ — never success, never decoration — and text on lime is always ink.
 Cards use borders; shadows are for real overlays only.

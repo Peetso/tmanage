@@ -170,6 +170,234 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-08-26, start of the WEB-001 session
+
+The tenth verification, and the tenth identical result. Both trees were compared by SHA-256,
+file by file, and modification times were compared **pair by pair** rather than
+newest-against-newest.
+
+| Tree                                                       | Result                                             |
+| ---------------------------------------------------------- | -------------------------------------------------- |
+| `outputs/TManage-Planning-Pack/` (root) → `docs/planning/` | **61/61 byte-identical**, 0 differing, 0 missing   |
+| Pack's design handoff subtree → `docs/design/source/`      | **147/147 byte-identical**, 0 differing, 0 missing |
+| Any pack file newer than its repository copy               | **None**, in either tree                           |
+| Repository files with no pack counterpart                  | **None**, in either tree                           |
+
+The only pack files that are deliberately not copied remain the design-handoff `.zip` (it is
+extracted into `docs/design/source/`), the `.docx` of the master plan, and three Claude Code
+tooling files (`CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json`).
+
+The pack's own `tmanage/`, `graphify-out/` and design-handoff subtrees are filtered out of the
+comparison. They are not planning files, and including them produces a false "10 differing"
+result that has been mistaken for real drift before.
+
+---
+
+## Verification actually run — 2026-08-26, the WEB-001 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`350 s` wall (5 m 50 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `format:check` (opening) | Clean. Run **after** `pnpm format` — Prettier reformatted 19 of the new files, and recording a green run before that would have been recording a run that never happened |
+| `typecheck`              | Clean across five projects: `packages/config`, `packages/domain`, `packages/ui`, `apps/api`, **`apps/web`**                                                              |
+| `lint`                   | Clean. 48 files in `apps/web` alone                                                                                                                                      |
+| `test` (unit)            | **531 passed**, 24 files — domain 102, config 25, ui 106, api 111, **web 187**. Was 344 before this session                                                              |
+| `test:db`                | **324 passed, 21 skipped**, 11 files, **276.19 s**. Unchanged: WEB-001 adds no database surface                                                                          |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                                                                    |
+| `format:check` (closing) | Clean                                                                                                                                                                    |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run; nothing was left behind                                                                                       |
+
+The 21 skips are the same least-privilege cases as before. They skip on the default per-file
+path and were run to 0 skips on 2026-08-25 against MySQL 8.0.45 and MariaDB 11.4.5. They are
+skips, and they are recorded as skips.
+
+### One check that is deliberately not in the chain
+
+`next build` is **not** part of `pnpm test` and was not added to it. It was run separately,
+twice, and succeeded both times — Next.js 16.3.3, Turbopack, TypeScript clean, twelve routes
+generated (the eleven screens plus `_not-found`, of which three are server-rendered on demand
+because they read a route param or a query string).
+
+It is left out of the chain because it would add roughly twenty seconds to every run to prove
+something `typecheck` and `lint` already prove for the code, and because a build artifact is
+not evidence about behaviour. When there is a deployment it becomes a deploy-time gate, which
+is where a build belongs.
+
+### What the 187 new cases are worth
+
+| Check                 | What it proves                                                                                                                                     | What it does not                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 18 API-client cases   | Credentials, the CSRF header on unsafe methods only, the correlation id, and every shape of malformed refusal, against a `fetch` the test supplies | That the API agrees — no request in these tests leaves the process                     |
+| 21 slug cases         | The workspace address is derivable, bounded at the column width, and never ends in a hyphen even when truncated                                    | That any particular slug is available                                                  |
+| 25 invitation cases   | Duplicates, existing members and outside domains are all caught, case-insensitively, in list order                                                 | That an invitation would be accepted                                                   |
+| 19 shell cases        | Landmarks, skip link, one `<h1>`, `aria-current`, and that the portal shell can render no internal destination                                     | Anything visual                                                                        |
+| 69 screen cases       | Every screen's specification rules, plus axe over all nine with the `region` rule **enabled**                                                      | Colour contrast — jsdom does not paint, so that rule stays off and is computed instead |
+| 11 session-flow cases | The two screens that talk to the API do so correctly, including the failure paths                                                                  | That the API answers this way — the responses are constructed by the test              |
+| 24 contrast cases     | Every pairing this application introduces, computed with WCAG 2.2 arithmetic, plus two structural rules on the stylesheet                          | What a browser renders                                                                 |
+
+### The lint boundaries were verified to fire, not merely to pass
+
+One deliberate violation was written, run, and deleted — a `.ts` probe in `apps/web` importing
+`@tmanage/api`, importing `mysql2`, and reading `localStorage`. All three rules fired:
+
+- `'@tmanage/api' import is restricted … never on API internals (18-REPOSITORY-STRUCTURE)`
+- `'mysql2' import is restricted … Infrastructure clients never belong in the web app`
+- `Browser storage is never authoritative business state (15-AI-EXECUTION-HANDBOOK §8)`
+
+A boundary that has only ever passed has not been tested.
+
+---
+
+## WEB-001 — the application, its two shells, and nine screens
+
+`apps/web` was an empty directory. It is now a Next.js 16.3.3 App Router application with
+React 19 and TanStack Query, and it holds the nine screens `22-SCREEN-BY-SCREEN-SPEC` §3
+numbers ID-01 to ON-04.
+
+### The rule the whole ticket is built on
+
+**No screen simulates a server it does not have.**
+
+Nine screens were built against an API that can currently do two things for these screens:
+list a person's sessions, and end the current one. Everything else — passwords, passkeys, MFA,
+invitations, organization creation, project creation — is a later ticket.
+
+A screen could hide that with a fake delay and a canned success. None of them do:
+
+- Every control whose endpoint is unwritten is `disabled`.
+- Every screen in that position renders a `BackendPending` notice naming the ticket that
+  closes it — ID-002, TEN-001, TEN-003, PROJ-002.
+- Every invented value lives in `src/lib/fixtures.ts`, one file, so the extent of what is not
+  connected is countable rather than scattered.
+
+| Screen                      | Route                      | What is real                                                                     |
+| --------------------------- | -------------------------- | -------------------------------------------------------------------------------- |
+| ID-01 Sign in               | `/sign-in`                 | The development-only sign-in, fenced in a labelled panel. Nothing else           |
+| ID-02 MFA challenge         | `/sign-in/verify`          | Shape validation of the code, and nothing beyond it                              |
+| ID-03 Invitation acceptance | `/invitations/[token]`     | Nothing. The token is not even echoed into the page — it is a credential         |
+| ID-04 Organization selector | `/organizations`           | The in-browser filter. The list is a fixture                                     |
+| ID-05 Sessions and devices  | `/sessions`                | **All of it.** `GET /v1/sessions/current/devices`, `DELETE /v1/sessions/current` |
+| ID-05 Recovery, four states | `/recover?state=`          | Nothing. The four states are rendered as four states                             |
+| ON-01 Create organization   | `/onboarding/organization` | Slug derivation and validation. Nothing is saved                                 |
+| ON-02 Operating template    | `/onboarding/template`     | The workflow preview, generated from `@tmanage/domain`'s real state machines     |
+| ON-03 First project         | `/onboarding/project`      | Date validation. Nothing is created                                              |
+| ON-04 Invite team           | `/onboarding/team`         | Every duplicate, member and domain check. Nothing is sent                        |
+
+### The two shells are two components, and that is a tenancy decision
+
+`22-SCREEN-BY-SCREEN` §1 defines an internal shell and a client shell. `AppShell` and
+`ClientPortalShell` are separate components rather than one with an `audience` flag.
+
+The reason is not styling. `12-PERMISSION-MATRIX` and `25-AUTHORIZATION-AND-TENANT-ISOLATION`
+mean a client sees a _different_ space, not a reduced one. Built as one component with items
+filtered out, every internal destination added in future would be one forgotten filter away
+from appearing in a client's portal. Built as two, `CLIENT_NAVIGATION` is the only list the
+portal shell is capable of rendering. `tests/shells.test.tsx` asserts that every portal link
+starts with `/portal` and that no internal destination appears among them.
+
+Two more shells exist for the screens that have no tenant yet: `IdentityShell` (ID-01 to
+ID-05, which have no organization because `ID-04` is where one is chosen) and
+`OnboardingShell` (the four-step sequence). Both own the skip link, the `<main>` landmark and
+the single `<h1>`, so `A11Y-01` is satisfied structurally rather than nine times by hand.
+
+### Three findings, each asserted rather than commented
+
+1. **`--ink-500` cannot be used for text on this application's surfaces.** Measured: 4.51:1 on
+   `--paper-0`, 4.20:1 on `--paper-50`, 3.70:1 on `--paper-150`. Only the first clears the AA
+   floor, and it clears it by 0.01. Secondary text throughout `globals.css` is `--ink-650`,
+   which is 6.74:1 at its worst. `tests/contrast.test.ts` asserts all three numbers and also
+   greps the stylesheet to prove `--ink-500` sets no colour, so a later edit reaching for it
+   has to argue with a failing test.
+
+2. **`--line-700` inverts in the dark theme.** It is `#2C2E29` under `:root` and `#F5F6F0`
+   under `[data-theme='dark']` — an _ink_ token that happens to be dark in the light theme.
+   The identity backdrop, the orbital rail and the portal header all need a dark surface in
+   **both** themes, so painting them with `--line-700` would have produced a white slab with
+   white text on it in dark mode. Four semantic properties (`--tm-inverted-*`) resolve to the
+   right token per theme instead, and a test asserts each one is defined under both.
+
+3. **An `input[type="email"]` blocks its own form's submit.** ON-04's inline duplicate,
+   existing-member and outside-domain checks are the entire point of that screen, and they
+   would never have run: the browser's own constraint validation refuses the submit first and
+   shows a native bubble, which cannot be styled, is not associated with the field for a
+   screen reader, and vanishes on the next click. Found by a test that failed. The form is
+   `noValidate` and says why in a comment.
+
+### The typeface question is settled, on licence rather than taste — ADR-0005
+
+The design export disagreed with itself: `tokens.json` and `tokens.css` name **Manrope**,
+while every rendered `.dc.html` artboard sets `font-family: Satoshi, Manrope, system-ui` and
+uses **both** — Satoshi for headings and controls, Manrope for prose. It was a two-typeface
+pairing the token file does not describe, and it was left open at the end of UI-001.
+
+It is not a matter of preference. `uploads/Satoshi_Complete/License/FFL.txt` is the Fontshare
+EULA, and §02 reads:
+
+> "You are not allowed to transmit the Font Software over the Internet in font serving or for
+> font replacement … without the prior written consent of the Licensor."
+
+A `@font-face` served from our own origin is font serving over the Internet. Satoshi could
+never have been self-hosted here, so the question had a legal answer before it had a design
+one. Manrope ships under the SIL OFL 1.1, its licence file travels beside the binary in
+`apps/web/src/fonts/`, and the packaged file is a byte-identical copy of the export's
+(SHA-256 `2b7a1ebc…8c77cd`). This also matches `--font-latin`, which already said Manrope and
+is pinned to the export by `tokens.drift.test.ts`.
+
+**If Peter wants Satoshi, it needs written consent from the Indian Type Foundry**, and it
+would then also require changing a token the drift test holds against immutable source
+material. That is the real cost of a reversal and it is recorded in the ADR.
+
+### Named gaps — WEB-001
+
+These are open, recorded rather than hidden, and none of them should be closed by guessing.
+
+1. **Nine of the ten screen states have no server.** Listed in the table above. This is the
+   ticket's largest gap and it is stated on every affected screen.
+2. **The sessions list cannot mark "this device".** The API's `SessionSummary` has five
+   fields and `current` is not among them. Guessing from the user agent would be wrong the
+   moment two tabs hold two sessions, so the rows are unmarked.
+3. **Revoking one _other_ session has no route.** `SessionService.revoke()` is only ever
+   called with the caller's own session id. The per-row control is present and disabled.
+4. **No analytics.** `34-ANALYTICS` defines `sign_in_started` / `succeeded` / `failed`; there
+   is no telemetry transport, and firing them into a console is not instrumentation. Nothing
+   is emitted.
+5. **No Content-Security-Policy.** The other four security headers are set in
+   `next.config.ts`. A CSP written before the application has its final asset origins is a
+   CSP that gets loosened once and never tightened again.
+6. **No visual-regression harness, still.** Carried from UI-001 and now larger, because there
+   are screens to regress. It needs a real browser or a paid service; neither exists here.
+7. **The contrast checks remain arithmetic.** They cannot prove what a browser renders.
+8. **Arabic is unreachable.** `dir` is `ltr` on `<html>`, and the Arabic face the tokens name
+   (Alexandria) is not in the export at all — the artboards load it from Google Fonts. Every
+   offset in `globals.css` is a logical property and a test enforces that, so the switch is a
+   value change rather than a rewrite, but it has never been rendered.
+9. **Geist Mono is not packaged either**, for the same reason. Monospaced text falls back to
+   the platform's face, which changes the eyebrow metrics but not their meaning.
+10. **The font ships as `.ttf`, not `.woff2`.** Roughly 120 KB of avoidable transfer. No
+    conversion tool is installed here and re-encoding a binary the repository received rather
+    than produced is not something to do casually. A build step, not a decision.
+11. **The API error envelope is duplicated by hand** in `src/lib/api/errors.ts`, because
+    `apps/web` may not import `@tmanage/api` and `packages/contracts` is still an empty
+    directory. The duplication is small and visible; CONTRACT-001 removes it.
+12. **Screen-id divergence between the specification and the export.** The export's
+    onboarding artboards open with a "what do you deliver" step and insert a milestones step,
+    so its `ON-04` is the specification's `ON-03`. The specification's ids are used, because
+    tickets, the traceability matrix and the test catalog all cite them; the export's
+    composition is used, per `40-DESIGN-SYSTEM` §1. Neither document was edited.
+13. **`project_memberships.role` is still unconstrained** at the database. `ON-04` offers
+    three roles from a fixed list, which is now the only thing keeping a typo out of that
+    column from this screen. That is a reason to close the database gap, not a substitute.
+14. **Nothing has been rendered in a real browser.** The screens have been compiled, built,
+    and mounted in jsdom. No one has looked at them.
+
+---
+
 ## Verification actually run — 2026-08-26, the UI-001 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -1613,9 +1841,11 @@ renders `aria-busy` and `disabled` correctly, and the dark toolbar global reache
   That is a property of the export's palette rather than of this package, and
   `[data-contrast="high"]` promotes it to `line.700` (13.73:1). Asserted in the tests so it
   cannot be forgotten; closing it in the default theme would mean changing the design.
-- **Fonts are not packaged.** The binaries are in the export (Manrope under OFL, Satoshi under
-  its own licence), but nothing serves them yet and the licence files have to travel with them.
-  The `--font-*` tokens name the families and fall back to `system-ui`.
+- **Fonts are not packaged _by this package_, and that is now deliberate rather than
+  outstanding.** `apps/web` packages Manrope with its OFL licence beside it (ADR-0005); a
+  design-system package that shipped a `@font-face` would force the URL on every consumer.
+  `--font-arabic` (Alexandria) and `--font-mono` (Geist Mono) are still unpackaged and fall
+  back to `system-ui` and the platform monospace — neither is in the export at all.
 - **`Select`, `Combobox`, `Checkbox`, `Radio`, `Switch`, date/time, `Tooltip` and `Toast` are
   not built.** The design inventory marks them **specified** rather than **built**, and the
   shell, planning, collaboration, delivery and administration families are compositions that
@@ -1636,9 +1866,11 @@ that the design phase may tune with evidence, so where the two disagree the expo
 | Heading weights | 550                          | 600                                                          |
 | Latin typeface  | Manrope                      | Manrope in the tokens, **Satoshi in the rendered artifacts** |
 
-The typeface row is the one that needs a decision later: the `.dc.html` screens set
-`font:500 14px/20px Satoshi`, while both token files name Manrope. Nothing depends on it yet —
-no font is packaged — but WEB-001 cannot ship without an answer.
+The typeface row was open until WEB-001 and is now **closed by ADR-0005**: Manrope ships, and
+the reason is the Fontshare EULA rather than a design judgement — §02 forbids serving Satoshi
+over the Internet without written consent from the Indian Type Foundry, so it could never have
+been self-hosted here. This is the one case where the export's rendered artifacts do **not**
+win over the tokens, and it is settled on a ground §1 does not speak to.
 
 ---
 
@@ -1664,7 +1896,7 @@ no font is packaged — but WEB-001 cannot ship without an answer.
 | TEN-002  | roles/capabilities and policy evaluator        | `tested`      | The evaluator itself was already tested (29 cases, `packages/domain`). This session wired it: `PrincipalRepository` assembles a `Principal` from a resolved membership plus a scoped project-relation read                                                                                                                                                              |
 | TEN-003  | invitation issue/accept/revoke/expiry          | `implemented` | The storage half only: `invite()` writes an `invited` row that authorises nothing, and `transitionStatus()` accepts it. Still no invitation token, no email, no expiry job. ID-001 has landed, so the remaining blockers are the notification surface and a single-use hashed token table of its own                                                                    |
 | AUD-001  | append-only audit service/view model           | `tested`      | 23 database cases + 26 unit cases. Closed action vocabulary, a safe-metadata rule that refuses content at the write boundary, an append that joins the caller's transaction, and the first producer (project-membership grant/role-change/revocation). Five named gaps below, of which the view-model narrowing is the one that matters                                 |
-| WEB-001  | identity/onboarding screens                    | `not_started` | **Unblocked on the UI side** — UI-001 landed. Still needs `apps/web` (an empty directory) and the generated contracts                                                                                                                                                                                                                                                   |
+| WEB-001  | identity/onboarding screens                    | `tested`      | 187 cases in `apps/web`: 18 API client, 21 slug, 25 invitation checks, 19 shell, 69 screen (axe over all nine, `region` rule enabled), 11 session flow, 24 contrast. Nine screens, four shells, `next build` green. **Nine of the ten screen states have no server** and each says so on the screen; fourteen named gaps below                                          |
 | TEST-001 | tenant/role matrix harness and two-tenant seed | `implemented` | The seed world and the adversarial pair are exercised by every database run. The **role** half of the §11 matrix — every role against every grid column — is not yet a generated harness                                                                                                                                                                                |
 
 ### Named gaps in TEN-001/TEN-002, carried deliberately
@@ -1904,43 +2136,47 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
   is not served out of `public_html`, and the plan is unlikely to host three separate
   long-running processes. `apps/worker` is the probable casualty, and §3 already anticipates
   that — "otherwise run controlled worker batches and document the limitation".
-- Nothing is deployable yet. `apps/web` and `apps/worker` are empty directories.
+- `apps/web` now exists and builds (`next build`, twelve routes). `apps/worker` is still
+  an empty directory. There is still nothing to deploy that a person could use, because
+  nothing authenticates anybody — but the shape of the eventual deploy is now two
+  processes rather than three, which is closer to what this plan can host.
 - `compose.yaml` is no more usable there than it is here.
 
-### The next coding task is a choice, and it is a real one
+### The next coding task — and this time the recommendation is not a close call
 
-UI-001 is done, so the list is one shorter and the shape of the remaining choice has changed:
-the design system now exists but has nothing to render, and the API now has a great deal to
-render but no one who can log in to see it.
+WEB-001 is done, and finishing it changed the shape of the remaining list rather than merely
+shortening it. There are now nine screens a person can open, and **not one of them can be
+reached by a person who is not already trusted**, because nothing authenticates anybody. The
+gap that was abstract is now visible: the sign-in screen exists, and it cannot sign anyone in.
 
-1. **ID-002 — passwords, passkeys, MFA.** Nothing authenticates a person.
-   `SessionService.start()` takes an already-proved `userId` from a development-only route.
-   Until this lands, TEN-001's missing organization creation cannot land either, because
-   provisioning needs a verified session and a founding-owner membership in one transaction.
-2. **WEB-001 — the identity and onboarding screens, ID-01 to ON-04.** Now unblocked on the UI
-   side. It needs `apps/web` to exist first: the directory is empty, so this ticket includes
-   standing up the Next.js app, the app shell, and the client-portal shell from the design
-   artifacts. It is the first ticket that would put a real screen in front of a person, and it
-   can be built against the development-only sign-in route — that route is honest precisely
-   because it is labelled rather than pretending to authenticate.
+1. **ID-002 — passwords, passkeys, MFA, SSO.** `SessionService.start()` takes a `userId` that
+   something else has already proved, and that something else does not exist. ID-01 and ID-02
+   are built and waiting for it, and TEN-001's missing organization creation is blocked behind
+   it too, because provisioning needs a verified session and a founding-owner membership in
+   one transaction.
+2. **TEN-001's unbuilt half — organization creation, and listing a person's organizations.**
+   ON-01 collects and validates everything the transaction needs and cannot save it; ID-04
+   renders a fixture because there is no endpoint that says which organizations a person
+   belongs to. Both are small screens over a transaction that has to be got right once.
 3. **WORK-001/002 — the work aggregate and its endpoints.** The next step of the Phase 1
-   vertical loop. The state machine and the table both exist. Needs a decision on
-   `work_items.state DEFAULT 'triage'` first, because fixing it is a migration.
-4. **CLIENT-001 — the client portal endpoints.** The storage half is complete, and one
-   assertion in `http-pipeline.db.test.ts` is explicitly parked until a client endpoint exists
-   to make it against.
+   vertical loop. The state machine and the table both exist. `work_items.state DEFAULT
+'triage'` was left as it is by Peter's decision on 2026-08-25; changing it is a migration
+   and is not part of this.
+4. **CLIENT-001 — the client portal endpoints.** The storage half is complete, the portal
+   shell now exists, and one assertion in `http-pipeline.db.test.ts` is still parked until a
+   client endpoint exists to make it against.
 
-**Recommendation: WEB-001**, and the reason has changed rather than merely persisted. Before
-this session the argument for UI-001 was that nothing was visible; that is still true of the
-product, but the obstacle is no longer the design system. Every layer beneath a screen —
-tenancy, session, policy, project, audit, the HTTP pipeline — is built and tested, and the
-design system on top of it now exists and renders. `apps/web` is the only empty link left in
-that chain, and until it is filled the whole proof stops at a test runner.
+**Recommendation: ID-002.** Every previous session could argue that authentication was
+someone else's turn because nothing was visible anyway. That argument is gone. The
+development-only sign-in route was honest scaffolding while there were no screens; now that
+there are, it is the single thing standing between a tested system and a person using it.
+ID-002 also unblocks TEN-001, which unblocks ON-01 and ID-04, which are two of the nine
+screens that currently render a notice instead of doing their job.
 
-ID-002 is the honest alternative and the argument for it is not weak: a screen built against a
-development-only sign-in is a screen that has never met a real user session, and ID-002 also
-unblocks organization creation. The two do not block each other. Which comes first is a
-scheduling call, not a correctness one.
+TEN-001's unbuilt half is the alternative worth naming, and the case for it is that it turns
+two built screens into working ones for less work than ID-002 takes. It is a smaller step in
+the same direction; it is not a substitute, because a provisioning transaction that runs for
+an unauthenticated caller is not a feature.
 
 ### Done, in the order it happened
 
@@ -1959,13 +2195,22 @@ scheduling call, not a correctness one.
    `DELETE`-with-no-record gap PROJ-001 recorded in code, and implements §12's "denied
    sensitive attempts are security events". Five named gaps, three defects and one denylist
    collision found by building it.
-8. ~~UI-001~~ — **done this session.** The token package, thirteen primitives, the component
-   harness and Storybook. 106 new cases. Three real AA defects found by computing the contrast
-   the design export only claimed, and fixed in the component layer rather than by editing an
-   immutable artifact. Six named gaps, the largest being that no visual-regression harness
-   exists.
+8. ~~UI-001~~ — the token package, thirteen primitives, the component harness and Storybook.
+   106 cases. Three real AA defects found by computing the contrast the design export only
+   claimed, and fixed in the component layer rather than by editing an immutable artifact.
+   Six named gaps, the largest being that no visual-regression harness exists.
+9. ~~WEB-001~~ — **done this session.** The Next.js application, four shells, and the nine
+   identity and onboarding screens. 187 cases. Three findings, each asserted rather than
+   commented, and the typeface question settled by ADR-0005 on licence grounds. Fourteen
+   named gaps, the largest being that nine of the ten screen states have no server behind
+   them and every one of them says so on the screen.
 
 ### Progress
 
-**13 of 74 tickets. 84 of 615 story points, about 14%, across Sprints 0–9.** Screens built:
-still **0 of 11** — UI-001 delivers the parts a screen is made of, not a screen.
+**14 of 74 tickets. 92 of 615 story points, about 15%, across Sprints 0–9.** Screen tickets:
+**1 of 11** — WEB-001 is the identity and onboarding set; WEB-002 to WEB-011 are the rest.
+
+The percentage understates one thing and overstates another, and both are worth saying. It
+understates the work, because the foundation — tenancy, sessions, policy, audit, the HTTP
+pipeline, the design system — is built once and reused by every ticket after it. It overstates
+the product, because a person still cannot log in.
