@@ -13,6 +13,7 @@ import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
+import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 
 /**
@@ -74,6 +75,9 @@ export class AppModule {
           : IdentityModule.register(),
         ProjectsModule.register(),
         WorkModule.register(),
+        // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
+        // rather than 500 when a caller shares a project that is not in this tenant.
+        ClientsModule.register(),
       ],
       providers: [
         { provide: APP_INTERCEPTOR, useClass: CorrelationInterceptor },

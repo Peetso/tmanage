@@ -151,6 +151,57 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 — a soft delete removes the item from every list without being part of the ' +
       'lifecycle anyone can see, so it is the removal that most needs accounting for',
   },
+  /**
+   * CLIENT-001. The access-granting half of the system, and every one of these is §12's
+   * "role changes" or a disclosure decision rather than a field edit.
+   *
+   * A client organization's *name* changing is recorded because the row is the boundary
+   * object — it is what memberships and shares hang off, and "which company was this" is the
+   * first question asked when a grant is investigated. That is a narrower rule than auditing
+   * every edit, and it is the same rule work items follow: record what decides access.
+   */
+  'client_organization.created': {
+    objectType: 'client_organization',
+    clause: '§12 organization settings — a client organization is the boundary access hangs off',
+  },
+  'client_organization.updated': {
+    objectType: 'client_organization',
+    clause: '§12 — the name is what a grant is investigated by, so a rename is part of the trail',
+  },
+  'client_organization.archived': {
+    objectType: 'client_organization',
+    clause:
+      '§12 — archiving ends a relationship without ending access, so the record has to say ' +
+      'when the relationship ended and leave the separate question of the grants visible',
+  },
+  'client_membership.invited': {
+    objectType: 'client_membership',
+    clause: '§12 role changes — this is the row that lets somebody outside the company in',
+  },
+  'client_membership.role_changed': {
+    objectType: 'client_membership',
+    clause: '§12 role changes — a client reviewer can approve work; a client viewer cannot',
+  },
+  'client_membership.expiry_changed': {
+    objectType: 'client_membership',
+    clause:
+      '§12 role changes — removing an expiry converts a bounded grant into an open-ended ' +
+      'one, which is a larger change than most role changes and is invisible in the role',
+  },
+  'client_membership.status_changed': {
+    objectType: 'client_membership',
+    clause: '§12 role changes — activation, suspension and offboarding are all access decisions',
+  },
+  'project.client_linked': {
+    objectType: 'project_client',
+    clause:
+      '§12 publication — this row is the whole of why a client principal can reach a ' +
+      'project, so linking one is the broadest disclosure decision in the system',
+  },
+  'project.client_unlinked': {
+    objectType: 'project_client',
+    clause: '§12 publication — withdrawing access, and the moment it stopped',
+  },
   'project_membership.granted': {
     objectType: 'project_membership',
     clause: '§12 role changes — a project grant is the narrowest role change in the system',

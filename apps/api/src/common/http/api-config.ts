@@ -30,6 +30,14 @@ export interface ApiConfig extends SessionServiceOptions {
   readonly failureWindowSeconds: number;
   /** The issuer an authenticator application shows beside the code. */
   readonly totpIssuer: string;
+  /**
+   * CLIENT-001. How many days a client grant lasts when nobody states an expiry.
+   *
+   * A bounded grant is the default and an open-ended one is a deliberate act, which is the
+   * whole reason `client_memberships.expires_at` exists. The number is `49-PRICING`'s policy,
+   * so it lives in configuration rather than in the service that applies it.
+   */
+  readonly clientMembershipDefaultExpiryDays: number;
 }
 
 export interface ApiConfigSource {
@@ -43,6 +51,7 @@ export interface ApiConfigSource {
   readonly AUTH_MAX_FAILURES_IN_WINDOW: number;
   readonly AUTH_FAILURE_WINDOW_SECONDS: number;
   readonly AUTH_TOTP_ISSUER: string;
+  readonly CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: number;
 }
 
 /**
@@ -71,6 +80,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     maxFailuresInWindow: env.AUTH_MAX_FAILURES_IN_WINDOW,
     failureWindowSeconds: env.AUTH_FAILURE_WINDOW_SECONDS,
     totpIssuer: env.AUTH_TOTP_ISSUER,
+    clientMembershipDefaultExpiryDays: env.CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS,
   };
 }
 

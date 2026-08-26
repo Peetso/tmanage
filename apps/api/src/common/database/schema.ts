@@ -571,6 +571,7 @@ export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;
+export type ProjectClientRow = typeof projectClients.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type UserPasswordRow = typeof userPasswords.$inferSelect;

@@ -51,6 +51,7 @@ const CONFIG: ApiConfig = apiConfigFrom({
   AUTH_MAX_FAILURES_IN_WINDOW: 50,
   AUTH_FAILURE_WINDOW_SECONDS: 900,
   AUTH_TOTP_ISSUER: 'TManage',
+  CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: 180,
 });
 
 interface InjectedResponse {

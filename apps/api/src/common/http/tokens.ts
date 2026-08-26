@@ -26,6 +26,10 @@ export const ORGANIZATION_DIRECTORY_REPOSITORY = Symbol.for(
   'tmanage.OrganizationDirectoryRepository',
 );
 export const PROJECTS_REPOSITORY = Symbol.for('tmanage.ProjectsRepository');
+export const CLIENT_ORGANIZATIONS_REPOSITORY = Symbol.for('tmanage.ClientOrganizationsRepository');
+export const CLIENT_MEMBERSHIPS_REPOSITORY = Symbol.for('tmanage.ClientMembershipsRepository');
+export const PROJECT_CLIENTS_REPOSITORY = Symbol.for('tmanage.ProjectClientsRepository');
+export const CLIENTS_SERVICE = Symbol.for('tmanage.ClientsService');
 export const PROJECTS_SERVICE = Symbol.for('tmanage.ProjectsService');
 export const AUDIT_EVENTS_REPOSITORY = Symbol.for('tmanage.AuditEventsRepository');
 export const AUDIT_SERVICE = Symbol.for('tmanage.AuditService');
