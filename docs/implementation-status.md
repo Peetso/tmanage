@@ -170,6 +170,142 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the CLIENT-002 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`696 s` wall (11 m 36 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                              |
+| `typecheck`              | Clean across five projects                                                                      |
+| `lint`                   | Clean                                                                                           |
+| `test` (unit)            | **736 passed**, 33 files — config 25, domain 102, ui 106, api 241, web 262. Unchanged           |
+| `test:db`                | **542 passed, 21 skipped**, 19 files, **695.80 s**. Was 523 across 18 — one new suite, 19 cases |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                           |
+| `format:check` (closing) | Clean                                                                                           |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                       |
+
+The 21 skips are the same least-privilege cases as every previous session, and are recorded
+as skips.
+
+**No failures on the first run**, which is worth noting because it is the first ticket this
+session where that was true. The reason is legible rather than lucky: `client_projection.read`
+made the classification test in `authorize.test.ts` fail the moment the capability existed, and
+that failure — a test demanding a decision about whether a client may hold it — was resolved
+before anything else was written.
+
+---
+
+## CLIENT-002 — the client portal, and a capability the plan had and the code did not
+
+`CLIENT-001` gave a client an organization to belong to. `TEN-003` gave them a way in. Neither
+gave them anything to look at: every endpoint in this system serves the internal record, and
+`12-PERMISSION-MATRIX` §2 gives every client role "View internal project: **Never**". A client
+could sign in and see nothing at all.
+
+### The capability was missing from the code, not from the plan
+
+`12-PERMISSION-MATRIX` §1 has a **"View client projection"** row with an entry for all eleven
+roles — `Scope`, `Project`, `Explicit`, `Client org`, `Assigned/shared`, `Shared` — and
+`CAPABILITIES` in `packages/domain` had no such member. The one surface every client role
+exists to read could not be authorized at all, which is why the portal had never been built:
+there was nothing to put on the route.
+
+`client_projection.read` now exists, is in every ceiling the matrix names, and is classified in
+`authorize.test.ts`'s coverage case as **client-reachable** — the one read capability a client
+principal holds. `work.read` stays internal-only and always will: the portal serves the
+projection §4 describes, not the record.
+
+### A path of its own, not a filter on the internal one
+
+`22-SCREEN-BY-SCREEN` §6 calls for a dedicated route, and it is a security property rather than
+a routing preference. `/portal` reaches a **different service**, which builds **different
+objects**, from a query that never selects an internal row. An internal endpoint that served a
+client projection when asked nicely is one refactor away from serving the internal record, and
+the two would share every code path that could get it wrong.
+
+Three independent gates, and none of them is the service being careful:
+
+1. `client_projection.read`, refused by `CapabilityGuard` before any handler runs.
+2. `authorize()` per row, which for a client refuses any project outside `principal.projectIds`
+   — a list that comes from `project_clients` and nothing else.
+3. The audience filter, which is a **query predicate**: a client's read of `work_items` never
+   selects an `internal` row, so there is no result set to be careless with.
+
+### The projection, field by field
+
+`25-AUTH-AND-TENANT-ISOLATION` §7: "Never implement client access as
+`serializeInternalObject(); delete fields`." Every field is listed, so a column added to
+`projects` or `work_items` tomorrow is invisible to a client until somebody decides it should
+not be. Two omissions are the ones a filter would have got wrong:
+
+- **No `ownerUserId`.** §4 excludes staff. Which person inside the agency is carrying a piece
+  of work is an internal fact; "approved contacts" is the curated list a client is meant to see
+  instead, and that is `CL-10`, unbuilt.
+- **No internal `state`.** §4 gives "milestone state", not the work lifecycle. A client reading
+  `internal_review` learns that their deliverable is being argued about inside the agency,
+  which `26-THREAT-MODELS` treats as a disclosure. The projection says **done**, **in
+  progress**, or **waiting on you** — and the last of those is the whole content of `CL-02`
+  "My Actions", computed from the `client_action_required` audience rather than from a
+  lifecycle the client cannot see.
+
+The collapse is deliberately lossy: `backlog`, `ready`, `in_progress`, `blocked` and
+`internal_review` all read as "in progress". A client learning that their work is blocked, and
+on what, is a conversation somebody at the agency should be having rather than a status a
+portal leaks.
+
+### The client-admin invitation, without a field to get wrong
+
+§2's "Invite client users: **within own client org/policy**" is now reachable, through
+`POST /portal/client-members`. The body **cannot name a client organization** — it is taken
+from the principal — so there is no field for a client admin to put a sibling client's id in,
+and no code path where a check could be forgotten.
+
+The internal `POST /invitations` keeps `org.manage`, which no client role holds, so a client
+principal never reaches it. `InvitationsService` refuses the same thing independently: a client
+caller must hold `client_member.manage`, the destination must be a client organization, and it
+must be their own. Two places refusing the same thing, which is the intent rather than
+duplication.
+
+### The assertion parked since the HTTP surface landed is un-parked
+
+`http-pipeline.db.test.ts` carried this since 2026-08-24:
+
+> No such endpoint exists yet; it arrives with CLIENT-001, and this case must not be satisfied
+> by granting a client role a capability the matrix withholds.
+
+It arrived with CLIENT-002 rather than CLIENT-001 — recorded when CLIENT-001 landed rather than
+left to look satisfied — and it was satisfied the way the comment insisted: a separate surface
+with its own capability, `work.read` still internal-only, and the 403 in that same test still
+proving it. The case itself lives in `client-002-portal.db.test.ts` under "one client cannot
+see another".
+
+### Named gaps
+
+1. **The portal has no screens.** `CL-01` through `CL-11` are all unbuilt; `ClientPortalShell`
+   exists from `WEB-001` and renders navigation to routes that do not exist. `WEB-004` is the
+   ticket.
+2. **`ON-03`'s client-or-internal choice still cannot be saved.** Creating a project and
+   linking it to a client organization in one act is not a route; `CLIENT-001`'s sharing
+   endpoint is the second step, and `ON-03` does not call it.
+3. **No client requests.** `client_request.submit` is in every client ceiling and there is
+   nothing to submit to — `REQ-001` is the aggregate, unbuilt. The portal reads and does not
+   write.
+4. **Milestones are still the project's `status`.** §4 asks for "milestone state" and there is
+   no milestone table; the projection reports the project's own status and says so here rather
+   than implying more.
+5. **A second `InvitationsService` instance.** `ClientsModule` constructs its own, because
+   `TenancyModule` provides one through `.register()` and importing it would build a second
+   copy of the dynamic module. The service is stateless, so the two behave identically —
+   recorded because it is a wiring choice somebody will otherwise wonder about.
+
+---
+
 ## Verification actually run — 2026-08-26, wiring ON-04 and ID-03
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -3291,27 +3427,31 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**CLIENT-002 — the client portal's route and session context.**
+**WEB-004's first half — `CL-01 Overview` and `CL-02 My Actions`.**
 
-Both of its dependencies are met as of this session: `CLIENT-001` built the client half of the
-data model and `TEN-003` built the invitation a client member arrives through. It is the ticket
-that finally answers the assertion parked in `http-pipeline.db.test.ts` since the HTTP surface
-landed — a client seeing their own client organization's work and not a sibling client's —
-which needs a **client-readable endpoint**, and there is still none.
+`CLIENT-002` built the portal's endpoints and the portal has no screens: `ClientPortalShell`
+has existed since `WEB-001` and renders navigation to routes that do not exist. A client can
+now be invited, accept, sign in, and land on a 404.
 
-It also closes two gaps this session recorded rather than fixed: a client admin cannot invite
-into their own client organization (the invitation service requires `org.manage`, which no
-client role holds), and `ON-03`'s client-or-internal choice still cannot be saved.
+The two screens are the ones the endpoints already answer. `CL-01`'s hardest rule is the one
+`22-SCREEN-BY-SCREEN` §6 puts in bold — **"No internal task percentage"** — and it is the rule
+a well-meaning screen breaks first, because a progress bar is the obvious thing to draw and a
+percentage can only be computed from the internal task list §4 excludes. `CL-02`'s is the
+empty state, which §6 says must "confirm notification behavior": a client with nothing to do
+needs to be told that the emptiness means nothing is waiting **and** that they will be told
+rather than expected to keep checking.
+
+`CL-03` through `CL-11` need approvals, requests, files and deliverables, none of which has
+storage. They are the second half, after those aggregates exist.
 
 The other three, unchanged in order:
 
 2. **WEB-002's second half.** Saved views, sorting, row selection and bulk actions, including
    the bulk audience change the specification singles out for a separate confirmation.
 3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to
-   send it. `35-NOTIFICATION-AND-EMAIL-COPY` has the copy and nothing renders it.
-   `28-SPRINT-TICKETS` does not schedule this, and the name `MAIL-001` used above is this
-   file's, not the plan's.
-4. **PLAT-004's relay** — the outbox dispatcher. Six tickets have now established the
+   send it. `28-SPRINT-TICKETS` does not schedule this, and the name `MAIL-001` used elsewhere
+   in this file is this file's, not the plan's.
+4. **PLAT-004's relay** — the outbox dispatcher. Seven tickets have now established the
    transaction boundary it will publish from, and `apps/worker` is still an empty directory.
 
 A note on a name this file uses: **PEOPLE-001 is not a ticket.** `28-SPRINT-TICKETS` does not
@@ -3359,24 +3499,32 @@ as though the plan contained it.
     recoverable, single-use enforced by a `WHERE` clause, and an acceptance path that runs with
     no tenant context and still emits no unnamed unscoped statement. 25 database cases. Two
     defects found by its own suite and one by the least-privilege gate.
-17. ~~`ON-04` and `ID-03`, wired~~ — **done this session.** The unfinished half of WEB-001, plus
-    the preview endpoint `ID-03` needed and TEN-003 had not shipped. Two of the three roles
-    `ON-04` offered turned out not to exist. 14 web cases, and a green suite standing beside an
-    unhandled error was caught and fixed.
+17. ~~`ON-04` and `ID-03`, wired~~ — the unfinished half of WEB-001, plus the preview endpoint
+    `ID-03` needed and TEN-003 had not shipped. Two of the three roles `ON-04` offered turned
+    out not to exist. 14 web cases, and a green suite standing beside an unhandled error was
+    caught and fixed.
+18. ~~CLIENT-002~~ — **done this session.** The client portal: a capability
+    `12-PERMISSION-MATRIX` §1 named and the code did not have, a read surface on a path of its
+    own, a projection built field by field from §4's allowlist, and a client-admin invitation
+    whose body cannot name a client organization. 19 database cases, and the assertion parked
+    since the HTTP surface landed is un-parked.
 
 ### Progress
 
-**21 of 74 tickets. 138 of 615 story points, about 22%, across Sprints 0–9.** Unchanged:
-wiring `ON-04` and `ID-03` finishes part of `WEB-001`, which was already counted. Screen
-tickets: **1½ of 11** — seven of WEB-001's nine screens now do what they say, up from five.
+**22 of 74 tickets. 146 of 615 story points, about 24%, across Sprints 0–9.** Screen tickets:
+**1½ of 11** — seven of WEB-001's nine screens do what they say.
 
-**The loop is now closed in the browser.** A person signs in, creates an organization, creates
-a project, puts work in it, moves that work through its lifecycle, sets up a client
+**The internal loop is closed in the browser.** A person signs in, creates an organization,
+creates a project, puts work in it, moves that work through its lifecycle, sets up a client
 organization, shares the project with it, invites a colleague, and the colleague follows the
 link and lands inside with an active membership — every step of that through a screen.
 
-Two things stand between that and something a team could use for a week:
+**The client loop is closed in the API and nowhere else.** A client can be given an
+organization, invited into it, admitted, and served a projection of exactly the work published
+to them — and there is no screen to see it in. `ClientPortalShell` has existed since WEB-001
+and links to routes that do not exist.
+
+Two things stand between this and something a team could use for a week:
 
 1. **Nothing sends the invitation.** The link is printed on screen and a person has to send it.
-2. **The client sees nothing.** Items are marked `client_visible`, a project is shared, and
-   there is no portal to read any of it in. That is `CLIENT-002`, and it is next.
+2. **The portal has no screens.** That is WEB-004, and it is next.
