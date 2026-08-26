@@ -170,6 +170,164 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the TEN-003 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`647 s` wall (10 m 47 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                                                                     |
+| `typecheck`              | Clean across five projects                                                                                                                                             |
+| `lint`                   | Clean                                                                                                                                                                  |
+| `test` (unit)            | **726 passed**, 32 files — config 25, domain 102, ui 106, api 241, web 252. Unchanged                                                                                  |
+| `test:db`                | **519 passed, 21 skipped**, 18 files, **646.68 s**. Was 495 across 17 — one new suite, 21 cases; the other three are the schema-drift suite growing with the new table |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                                                                  |
+| `format:check` (closing) | Clean                                                                                                                                                                  |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                                                                              |
+
+The 21 skips are the same least-privilege cases as every previous session, and are recorded
+as skips.
+
+### The first run exited 1, on a gate the feature suite cannot reach
+
+```
+neither granted nor deliberately withheld from tmanage_app: 'invitations'
+```
+
+`users-sql.test.ts` refuses to let a table exist without a decision about the runtime
+credential. All 21 invitation cases were green when it fired, because the database suite runs
+as **admin** — a least-privilege deployment would have been unable to write an invitation at
+all. That is ADR-0001 layer 2 covering exactly the blind spot the feature tests have.
+
+The grant is `INSERT, UPDATE`, no `DELETE`, and the omission is stated rather than inherited.
+
+---
+
+## TEN-003 — how a second person gets in
+
+Until this ticket an organization had exactly one member: whoever created it. `CLIENT-001`
+could create a client organization and could not put anybody in it, because `invite` takes a
+`userId` and the invitee has no account yet. `ON-04` collected addresses and dropped them.
+`ID-03` rendered a fixture. Nothing in the system could admit a person who was not already in
+it.
+
+Migration `0005_invitations.sql`, one table, six routes, four audit actions.
+
+### Accepting has no tenant context, and that is the whole difficulty
+
+Every other write in this system runs under a `TenantContext` that `TenantContextGuard` built
+from a membership row. The person following an invitation link **has no membership** — creating
+one is the point of the request — so the guard has nothing to resolve, and the route carries
+`@NoTenant()`.
+
+The shape of the answer is `ProvisioningService`'s: the row itself says which organization this
+is about, so the service reads it, builds a context around that organization, and runs the
+whole transaction inside it. What differs from provisioning is where the organization id comes
+from — there it was generated, here it is read from a row nobody signed in for. That read is
+the one place this ticket touches the escape hatch, and it is fenced four ways:
+
+- **`bootstrapRead`** — read-only, carrying a mandatory audited reason, allowlisted to
+  `invitations` and nothing else.
+- **A 256-bit token hash on a unique index** as the only lookup key, so the read either finds
+  the one row the caller already proved they hold, or finds nothing.
+- **`status = 'pending'` and `expires_at > now()` in the same `WHERE`**, so a revoked or
+  overdue invitation is never returned to a branch that might mishandle it.
+- **`policyVersion: 'invitation-acceptance'`** — a literal no resolved context can produce, so
+  a cache keyed on it cannot collide with a real one. The same device provisioning uses.
+
+The suite asserts what that buys, and it is the assertion this ticket is proudest of: across a
+whole acceptance, **no guard event lacks an `allowedReason`**. The transaction that creates a
+membership in an organization the caller was not yet in ran fully guarded.
+
+### The token is never stored
+
+`token_hash` holds SHA-256 of 32 CSPRNG bytes, hex-encoded. The plaintext exists in exactly one
+response and thereafter only in the invitee's mailbox. A database dump, a backup, or somebody
+reading the row cannot produce a working link — which is what makes `23-ERD` §9's "never
+recoverable" a property of the system rather than a promise about behaviour, and why re-sending
+issues a **new** token rather than re-showing the old one.
+
+SHA-256 rather than Argon2id, and the contrast with `user_passwords` is the argument: a
+password is chosen by a person, so it is low-entropy and the slow hash is what makes guessing
+expensive. This is 256 bits with no structure. There is nothing to guess, and a slow hash would
+only delay the person accepting.
+
+### Single-use is a `WHERE` clause, not a check
+
+The accepting `UPDATE` carries `status = 'pending'`. Two requests racing with one token both
+find the row on the read; exactly one of them updates it, because the second one's predicate no
+longer matches. The loser gets zero affected rows and raises — rather than both proceeding to
+create a membership and one failing on a unique key afterwards, which would leave the
+invitation accepted twice in the log.
+
+### Every refusal is the same refusal
+
+A token that does not exist, one that was revoked, one that expired and one already used all
+produce **404 with one message**. "This invitation was revoked" would tell whoever holds a
+stolen link that the address is real and that somebody noticed. `ID-002`'s sign-in path made
+the same choice for the same reason; the audit trail keeps the precision the response drops.
+
+### `expired` is a column, not `expires_at < now()`
+
+It could have been derived, and is not. §9 makes expiry a state in the machine, and a derived
+expiry would make a **revoked** invitation whose date has since passed read as "expired" —
+losing the fact that a person withdrew it. Expiry is still _enforced_ by the comparison,
+whether or not anything has swept; the column is bookkeeping. Both halves are asserted, and so
+is the case where they disagree.
+
+### A third defect, caught by a gate rather than by the ticket's own suite
+
+`users-sql.test.ts` refused to let the table exist without a decision:
+
+```
+neither granted nor deliberately withheld from tmanage_app: 'invitations'
+```
+
+That is ADR-0001 layer 2 doing its job on a blind spot the feature suite cannot see. The
+database suite runs as **admin**, so all 21 invitation cases were green while a
+least-privilege deployment would have been unable to write an invitation at all.
+
+The grant is `INSERT, UPDATE` and **no `DELETE`**, stated in the script rather than inherited:
+an invitation is never removed, it moves to `accepted`, `revoked` or `expired`, and a runtime
+credential able to delete the row could erase the grant's own history.
+
+### Two defects the suite found, both mine
+
+- **`metadata: { reason: ... }` was refused outright.** `reason` is in
+  `FORBIDDEN_KEY_SEGMENTS` because it is where prose ends up, so `isSafeAuditMetadata` rejects
+  the whole record. The key is `revocation` now and the value is one of two classifications.
+  This is the **second ticket in a row** caught by that guard — WORK-001's `facts_supplied` was
+  the first — which is the guard doing precisely what it exists for.
+- **The bootstrap read guessed at a result shape.** It used a raw `runner.query` and
+  destructured the result as mysql2's `[rows, fields]`, so every acceptance answered 404. It
+  goes through Drizzle now, the way `MembershipResolver`'s own bootstrap reads do.
+
+### Named gaps
+
+1. **No mail is sent.** The token comes back in the response and `ON-06` is expected to build
+   the link from it. There is no mailer, no template and no delivery — `35-NOTIFICATION-AND-
+EMAIL-COPY` has the copy and nothing renders it.
+2. **`ON-04` and `ID-03` are still not wired.** The endpoints exist; the screens do not call
+   them. That is a web ticket, and it is now unblocked.
+3. **A client admin cannot invite into their own client organization.** This service requires
+   `org.manage`, which no client role holds, so every invitation is an internal
+   administrator's act. `12-PERMISSION-MATRIX` §2 grants client admins "invite client users:
+   within own client org/policy", and that narrower path is `CLIENT-002`.
+4. **Expiry is swept by a route, not a job.** `POST /invitations/expirations` exists because
+   `apps/worker` does not. Access is unaffected either way — the acceptance path compares
+   `expires_at` in the database — but nothing sweeps on its own.
+5. **The invitee's address is not checked against their account.** A person invited at
+   `work@example.com` who accepts while signed in as `personal@example.com` gets the
+   membership, and both facts land on the row. That is deliberate — see
+   `0005_invitations.sql` — and it is a decision somebody may want to revisit with a policy.
+
+---
+
 ## Verification actually run — 2026-08-26, the CLIENT-001 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -3001,31 +3159,32 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**TEN-003 — invitation issue, accept, revoke and expiry.**
+**Wiring `ON-04` and `ID-03` to TEN-003.**
 
-Five story points, both dependencies met (`ID-001`, `TEN-002`), and it is the one thing
-standing between everything built so far and a second person using it. Today an organization
-has exactly one member: the founder. `CLIENT-001` can create a client organization and cannot
-put anybody in it, because `invite` takes a `userId` and the invitee has no account yet.
-`ON-04` collects addresses and drops them. `ID-03` renders a fixture.
+Not a numbered ticket — it is the unfinished half of `WEB-001`, and it is now the shortest path
+from "the API can admit a second person" to "a person can actually admit one". The endpoints
+landed this session and both screens still render fixtures: `ON-04` builds a checked list of
+addresses and drops it, `ID-03` shows an invitation nobody issued.
 
-It also unblocks the queue: `CLIENT-002` — the client portal's session context, and the
-endpoint the parked assertion in `http-pipeline.db.test.ts` has been waiting for since the HTTP
-surface landed — depends on `CLIENT-001` **and** `TEN-003`, and only the second is missing.
+It needs one endpoint TEN-003 did not ship. `22-SCREEN-BY-SCREEN` §3 asks `ID-03` to show the
+inviter, the organization, the role and the expiry **before** the person accepts, and there is
+no way to ask. A preview route, public and keyed on the token, with the same 404 for missing,
+revoked, expired and used — a preview that distinguished them would rebuild the oracle the
+acceptance path refuses to be.
 
-`23-ERD` §9 gives the machine in two sentences: "`pending → accepted | expired | revoked`.
-Tokens are single-use, hashed, and never recoverable. Role/scope change after issuance revokes
-old invitation and issues a new one." The hard part is not the machine — it is that
-**accepting happens before any membership exists**, so `TenantContextGuard` has nothing to
-resolve and the row itself has to say which organization the request is about.
+It also closes a defect that has been sitting in `ON-04` since `WEB-001`: the screen offers
+`admin`, `member` and `viewer`, and **two of those are not roles this system has**.
+`INTERNAL_ROLES` is `owner`, `org_admin`, `workspace_admin`, `manager`, `moderator`, `member`,
+`guest`. Nothing caught it because nothing was ever sent.
 
 The other three, unchanged in order:
 
-2. **WEB-002's second half.** Saved views, sorting, row selection and bulk actions, including
+2. **CLIENT-002 — the client portal's route and session context**, and with it the projection
+   endpoint the parked assertion in `http-pipeline.db.test.ts` has waited for since the HTTP
+   surface landed. Both its dependencies are now met.
+3. **WEB-002's second half.** Saved views, sorting, row selection and bulk actions, including
    the bulk audience change the specification singles out for a separate confirmation.
-3. **CLIENT-002 — the client portal's route and session context**, and with it the projection
-   endpoint that `CLIENT-001` could not deliver. Blocked on TEN-003.
-4. **PLAT-004's relay** — the outbox dispatcher. Five tickets have now established the
+4. **PLAT-004's relay** — the outbox dispatcher. Six tickets have now established the
    transaction boundary it will publish from, and `apps/worker` is still an empty directory.
 
 A note on a name this file uses: **PEOPLE-001 is not a ticket.** `28-SPRINT-TICKETS` does not
@@ -3065,24 +3224,27 @@ as though the plan contained it.
     state machine rather than restating it, a 409 is shown and never retried, and widening the
     audience is confirmed while narrowing is not. 25 web cases. One defect caught mid-chain —
     both screens were showing a page of work as though it were all of it.
-15. ~~CLIENT-001~~ — **done this session.** Client organizations, their people and project
-    access: thirteen routes, one new repository, nine audit actions, and the matrix's hardest
-    sentence — a client admin manages their own client organization and nobody else's —
-    proved from both sides. 25 database cases. Three real defects found by its own suite.
+15. ~~CLIENT-001~~ — client organizations, their people and project access: thirteen routes,
+    one new repository, nine audit actions, and the matrix's hardest sentence — a client admin
+    manages their own client organization and nobody else's — proved from both sides. 25
+    database cases. Three real defects found by its own suite.
+16. ~~TEN-003~~ — **done this session.** Invitations: one table, six routes, a token that is
+    hashed and never recoverable, single-use enforced by a `WHERE` clause, and an acceptance
+    path that runs with no tenant context and still emits no unnamed unscoped statement. 21
+    database cases. Two defects found by its own suite and one by the least-privilege gate.
 
 ### Progress
 
-**20 of 74 tickets. 133 of 615 story points, about 22%, across Sprints 0–9.** WEB-002 counts
+**21 of 74 tickets. 138 of 615 story points, about 22%, across Sprints 0–9.** WEB-002 counts
 as half of its 13 points, rounded down, because half of it is what shipped. Screen tickets:
 **1½ of 11**.
 
-The loop that exists: **a person signs in, creates an organization, creates a project, puts
-work in it, moves that work through its lifecycle, sees all of it, sets up a client
-organization and shares the project with it.**
+The loop the **API** can do end to end: a person signs in, creates an organization, creates a
+project, puts work in it, moves that work through its lifecycle, sets up a client organization,
+shares the project with it, and invites a colleague who accepts and lands with an active
+membership.
 
-The sentence that is left is a short one. **That person is still alone.** An organization has
-exactly one member — whoever created it — and nothing can add a second: `CLIENT-001`'s invite
-takes a `userId`, so the person must already have an account, and there is no way to give one
-to somebody who has not got one. `ON-04` collects addresses and drops them; `ID-03` renders a
-fixture. TEN-003 is next, and it is the whole of what stands between this system and two
-people using it.
+The sentence that is left has moved from the API to the browser. **Nobody can do the last part
+of that through a screen.** `ON-04` still builds a list of addresses and drops it; `ID-03`
+still renders a fixture. The endpoints exist and nothing calls them, which is a smaller gap
+than yesterday's and the next one to close.
