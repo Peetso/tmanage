@@ -257,6 +257,42 @@ export const clientMemberships = mysqlTable(
   ],
 );
 
+export const INVITATION_STATUS = ['pending', 'accepted', 'expired', 'revoked'] as const;
+
+/**
+ * TEN-003. One table for two destinations: `client_organization_id` is the discriminator, and
+ * null means an internal membership invitation.
+ *
+ * `token_hash` is described here because the column exists; nothing projects it. The service's
+ * `InvitationView` has no such field, so there is no code path that could return it.
+ */
+export const invitations = mysqlTable(
+  'invitations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }),
+    email: varchar('email', { length: 320 }).notNull(),
+    role: varchar('role', { length: 64 }).notNull(),
+    /** SHA-256 hex. The token itself is never stored — see `0005_invitations.sql`. */
+    tokenHash: char('token_hash', { length: 64 }).notNull(),
+    status: mysqlEnum('status', INVITATION_STATUS).notNull().default('pending'),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    invitedByUserId: char('invited_by_user_id', { length: 36 }).notNull(),
+    acceptedByUserId: char('accepted_by_user_id', { length: 36 }),
+    acceptedAt: datetime('accepted_at', { mode: 'date', fsp: 3 }),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_invitations_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_invitations_token').on(table.tokenHash),
+    index('ix_invitations_org_email').on(table.organizationId, table.email, table.status),
+    index('ix_invitations_expiry').on(table.status, table.expiresAt),
+  ],
+);
+
 export const projectClients = mysqlTable(
   'project_clients',
   {
@@ -549,6 +585,7 @@ export const TABLES = {
   project_memberships: projectMemberships,
   client_organizations: clientOrganizations,
   client_memberships: clientMemberships,
+  invitations: invitations,
   project_clients: projectClients,
   work_items: workItems,
   outbox_events: outboxEvents,
@@ -572,6 +609,7 @@ export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;
 export type ProjectClientRow = typeof projectClients.$inferSelect;
+export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type UserPasswordRow = typeof userPasswords.$inferSelect;

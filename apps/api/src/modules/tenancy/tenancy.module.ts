@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   AUDIT_SERVICE,
+  INVITATIONS_REPOSITORY,
+  INVITATIONS_SERVICE,
   MEMBERSHIP_RESOLVER,
   ORGANIZATION_DIRECTORY_REPOSITORY,
   PRINCIPAL_REPOSITORY,
@@ -11,6 +13,11 @@ import {
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { ClientMembershipsRepository } from '../clients/client-memberships.repository.js';
+import { InvitationsController, InvitationAcceptanceController } from './invitations.controller.js';
+import { InvitationsRepository } from './invitations.repository.js';
+import { InvitationsService } from './invitations.service.js';
+import { MembershipsRepository } from './memberships.repository.js';
 import { MembershipResolver } from './membership-resolver.repository.js';
 import { OrganizationDirectoryRepository } from './organization-directory.repository.js';
 import { OrganizationsController } from './organizations.controller.js';
@@ -63,11 +70,53 @@ export class TenancyModule {
       useFactory: () => new WorkspacesRepository(),
     };
 
+    const invitationsRepository: Provider = {
+      provide: INVITATIONS_REPOSITORY,
+      useFactory: () => new InvitationsRepository(),
+    };
+
+    const invitationsService: Provider = {
+      provide: INVITATIONS_SERVICE,
+      inject: [TENANT_DATABASE, INVITATIONS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        invitations: InvitationsRepository,
+        audit: AuditService,
+      ) =>
+        new InvitationsService(
+          database,
+          invitations,
+          // Both membership repositories are constructed here rather than injected, for the
+          // reason `ClientsModule` constructs its own `ProjectsRepository`: a repository is a
+          // stateless collection of queries with no injected dependencies, and reaching for
+          // another module’s provider would mean registering that dynamic module twice.
+          new MembershipsRepository(),
+          new ClientMembershipsRepository(),
+          audit,
+        ),
+    };
+
     return {
       module: TenancyModule,
-      providers: [resolver, principals, directory, provisioning, workspaces],
-      exports: [resolver, principals, directory, provisioning, workspaces],
-      controllers: [OrganizationsController, WorkspacesController],
+      providers: [
+        resolver,
+        principals,
+        directory,
+        provisioning,
+        workspaces,
+        invitationsRepository,
+        invitationsService,
+      ],
+      exports: [resolver, principals, directory, provisioning, workspaces, invitationsService],
+      controllers: [
+        OrganizationsController,
+        WorkspacesController,
+        InvitationsController,
+        // The route with no tenant. Its own controller so that `@NoTenant()` sits on a class
+        // whose whole purpose is the pre-membership path, rather than on one method of a
+        // controller where every other route is tenant-scoped.
+        InvitationAcceptanceController,
+      ],
     };
   }
 }

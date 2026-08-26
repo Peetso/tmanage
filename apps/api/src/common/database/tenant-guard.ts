@@ -73,6 +73,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   client_organizations: 'organization_id',
   client_memberships: 'organization_id',
   project_clients: 'organization_id',
+  // TEN-003. Tenant-owned like every other grant: an invitation names one organization, and
+  // the acceptance path reaches it through `bootstrapRead` rather than by being global.
+  invitations: 'organization_id',
   work_items: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',

@@ -269,6 +269,7 @@ export async function truncateAll(admin: Pool): Promise<void> {
       'idempotency_records',
       'outbox_events',
       'work_items',
+      'invitations',
       'project_clients',
       'project_memberships',
       'client_memberships',

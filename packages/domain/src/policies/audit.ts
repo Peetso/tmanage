@@ -202,6 +202,35 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'project_client',
     clause: '§12 publication — withdrawing access, and the moment it stopped',
   },
+  /**
+   * TEN-003. An invitation is how somebody outside an organization gets into it, so every
+   * step of its life is §12's "role changes" — the row is the grant itself before there is a
+   * membership to point at.
+   *
+   * The **address is never in the metadata.** It is personal data about somebody who may not
+   * even have an account yet, and §12's metadata rule is identifiers and classifications; the
+   * row's own `email` column holds it under the tenant's own access controls.
+   */
+  'invitation.issued': {
+    objectType: 'invitation',
+    clause: '§12 role changes — issuing a token that grants membership is the grant itself',
+  },
+  'invitation.accepted': {
+    objectType: 'invitation',
+    clause:
+      '§12 role changes — the moment somebody outside the organization became somebody ' +
+      'inside it, and the only record of which token did it',
+  },
+  'invitation.revoked': {
+    objectType: 'invitation',
+    clause: '§12 role changes — withdrawing a live token, and whether it was withdrawn or replaced',
+  },
+  'invitation.expired': {
+    objectType: 'organization',
+    clause:
+      '§12 — a sweep rather than a decision, recorded because the count is the only evidence ' +
+      'the bookkeeping ran at all',
+  },
   'project_membership.granted': {
     objectType: 'project_membership',
     clause: '§12 role changes — a project grant is the narrowest role change in the system',
