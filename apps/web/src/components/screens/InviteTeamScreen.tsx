@@ -1,63 +1,40 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Avatar, Badge, Button, Field, InlineAlert } from '@tmanage/ui';
+import { Avatar, Badge, Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { BackendPending } from './BackendPending';
+import { browserApiClient } from '../../lib/api/browser-client';
+import { issueInvitation } from '../../lib/api/invitations';
+import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { describeInternalRole, INVITABLE_ROLES } from '../../lib/roles';
 import {
   checkInvites,
   describeInviteProblem,
   isPlausibleEmail,
   type InviteCandidate,
 } from '../../lib/invitations';
-
-/**
- * The internal roles this screen can offer, with what each one will actually be able to do.
- *
- * `22-SCREEN-BY-SCREEN` §3 asks ON-04 to "preview each role", and the preview is the
- * important half: a role name is a label, and the person sending the invitation is
- * responsible for what it grants. The sentences are drawn from `12-PERMISSION-MATRIX`.
- *
- * `project_memberships.role` is `varchar(64)` with no constraint — it accepts any string,
- * which is a known gap recorded in `docs/implementation-status.md`. This list is therefore
- * the *only* thing keeping a typo out of that column from this screen, which is a reason to
- * close the database gap rather than a substitute for closing it.
- */
-const ROLES = [
-  {
-    value: 'admin',
-    label: 'Admin',
-    grants: [
-      'Everything a team member can do',
-      'Invite people and change their roles',
-      'Open the Control Center',
-    ],
-    withholds: 'Cannot delete the organization.',
-  },
-  {
-    value: 'member',
-    label: 'Team member',
-    grants: [
-      'Every internal project they are assigned to',
-      'Chat channels they join, plus project channels',
-      'Work, docs and files in their projects',
-    ],
-    withholds: 'They cannot change roles, publish to clients, or open the Control Center.',
-  },
-  {
-    value: 'viewer',
-    label: 'Viewer',
-    grants: ['Read-only access to projects they are assigned to'],
-    withholds: 'They cannot change anything.',
-  },
-] as const;
+import type { ApiClient } from '../../lib/api/client';
 
 export interface InviteTeamScreenProps {
   signedInAs: string;
+  /** The organization the invitations are into. From the route, which the guard resolves. */
+  organizationSlug: string;
   /** The organization's own mail domain, used to spot client addresses. */
   organizationDomain: string;
   /** Addresses that already hold a membership, so duplicates are caught before sending. */
   existingMembers: readonly string[];
+  client?: ApiClient;
+}
+
+/** One address after the API has answered for it. */
+interface Sent {
+  readonly email: string;
+  readonly role: string;
+  readonly outcome: 'sent' | 'failed';
+  /** The invitation link, for the ones that worked. Shown once and never fetchable again. */
+  readonly link?: string;
+  readonly problem?: string;
 }
 
 /**
@@ -66,23 +43,45 @@ export interface InviteTeamScreenProps {
  * `22-SCREEN-BY-SCREEN` §3: "Email list, role, project access; preview each role; invalid
  * domains and duplicates inline."
  *
- * Every check runs in the browser as the address is added, and every one of them is honest
- * about its limits — `lib/invitations.ts` carries the reasoning. Nothing is sent: invitations
- * are `TEN-003`, and there is neither a table nor an endpoint for them.
+ * Real as of `TEN-003`. Every check still runs in the browser as the address is added —
+ * `lib/invitations.ts` carries the reasoning — and the addresses that survive them are now
+ * actually sent.
  *
- * The role preview is rendered for the role currently selected, not hidden behind a link. A
- * preview nobody opens is a preview that does not exist, and the whole point of `12-
- * PERMISSION-MATRIX` being visible here is that access is granted deliberately.
+ * ## The roles it offers are the roles that exist
+ *
+ * This screen shipped with `admin`, `member` and `viewer`, and **two of those were not roles
+ * this system has**. Nothing caught it because nothing was sent. `INVITABLE_ROLES` in
+ * `lib/roles.ts` is keyed by the domain's own `InternalRole`, so the list cannot drift again
+ * without a type error.
+ *
+ * ## There is no mailer, and the screen says so
+ *
+ * `TEN-003` returns the invitation link once — the row holds only a hash, so nothing can
+ * produce it again — and nothing in this system sends email. The link is therefore rendered
+ * for each successful invitation, with an instruction to send it. A screen that said
+ * "invitations sent" would be describing a delivery that did not happen.
+ *
+ * ## One request per address
+ *
+ * Not one request for the list. Each address succeeds or fails on its own — a duplicate is a
+ * 409 and the rest should still go — and the result list says which did which. A batch endpoint
+ * would have to invent a partial-success shape that the API does not have.
  */
 export function InviteTeamScreen({
   signedInAs,
+  organizationSlug,
   organizationDomain,
   existingMembers,
+  client,
 }: InviteTeamScreenProps) {
+  const api = client ?? browserApiClient();
+
   const [draftEmail, setDraftEmail] = useState('');
-  const [draftRole, setDraftRole] = useState<string>(ROLES[1].value);
+  const [draftRole, setDraftRole] = useState<string>(INVITABLE_ROLES[0] ?? 'member');
   const [candidates, setCandidates] = useState<readonly InviteCandidate[]>([]);
   const [draftError, setDraftError] = useState<string | undefined>(undefined);
+  const [sending, setSending] = useState(false);
+  const [results, setResults] = useState<readonly Sent[]>([]);
 
   const checked = useMemo(
     () => checkInvites({ candidates, organizationDomain, existingMembers }),
@@ -90,7 +89,7 @@ export function InviteTeamScreen({
   );
 
   const sendable = checked.filter((invite) => invite.sendable);
-  const role = ROLES.find((candidate) => candidate.value === draftRole) ?? ROLES[1];
+  const role = describeInternalRole(draftRole);
 
   function add() {
     const email = draftEmail.trim();
@@ -103,6 +102,52 @@ export function InviteTeamScreen({
     setDraftError(undefined);
   }
 
+  async function send() {
+    setSending(true);
+    const outcomes: Sent[] = [];
+
+    // Sequential rather than parallel. These are writes into one organization, the list is
+    // short, and a failure part-way through leaves a result list a person can read rather
+    // than a race whose order they cannot explain.
+    for (const invite of sendable) {
+      try {
+        const issued = await issueInvitation(api, organizationSlug, {
+          email: invite.email,
+          role: invite.role,
+        });
+        outcomes.push({
+          email: invite.email,
+          role: invite.role,
+          outcome: 'sent',
+          link: `${window.location.origin}/invitations/${issued.token}`,
+        });
+      } catch (error) {
+        outcomes.push({
+          email: invite.email,
+          role: invite.role,
+          outcome: 'failed',
+          problem:
+            error instanceof ApiRequestError
+              ? error.message
+              : error instanceof NetworkError
+                ? 'The API did not answer. Is it running?'
+                : 'Something went wrong.',
+        });
+      }
+    }
+
+    // Only the ones that failed stay in the list, so a retry does not re-send the rest.
+    setCandidates((current) =>
+      current.filter((candidate) =>
+        outcomes.some(
+          (outcome) => outcome.email === candidate.email && outcome.outcome === 'failed',
+        ),
+      ),
+    );
+    setResults((current) => [...current, ...outcomes]);
+    setSending(false);
+  }
+
   return (
     <OnboardingShell
       current="ON-04"
@@ -110,9 +155,10 @@ export function InviteTeamScreen({
       title="Invite your team"
       description="Only the people who work on delivery. Clients are invited separately, as a client organization with its own portal."
     >
-      <BackendPending ticket="TEN-003">
-        No invitation is sent or stored. The list below is checked as you build it and then goes
-        nowhere.
+      <BackendPending ticket="MAIL-001">
+        Invitations are created for real. Nothing emails them: the link for each one is shown below,
+        once, and you have to send it yourself. There is no way to see it again — the invitation
+        stores only a hash of its token.
       </BackendPending>
 
       {/*
@@ -156,9 +202,9 @@ export function InviteTeamScreen({
             value={draftRole}
             onChange={(event) => setDraftRole(event.target.value)}
           >
-            {ROLES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {INVITABLE_ROLES.map((option) => (
+              <option key={option} value={option}>
+                {describeInternalRole(option).label}
               </option>
             ))}
           </select>
@@ -201,7 +247,7 @@ export function InviteTeamScreen({
                 <div className="tm-row">
                   <Avatar name={invite.email} decorative />
                   <span className="tm-mono">{invite.email}</span>
-                  <Badge>{ROLES.find((r) => r.value === invite.role)?.label ?? invite.role}</Badge>
+                  <Badge>{describeInternalRole(invite.role).label}</Badge>
                   <span className="tm-push-end">
                     <Button
                       tone="text"
@@ -229,14 +275,47 @@ export function InviteTeamScreen({
         )}
       </section>
 
+      {results.length > 0 ? (
+        <section className="tm-panel tm-stack" aria-labelledby="tm-invite-results">
+          <h2 id="tm-invite-results" className="tm-eyebrow">
+            Links to send
+          </h2>
+          <ul className="tm-stack tm-stack--tight tm-list">
+            {results.map((result, index) => (
+              <li key={`${result.email}-${index}`} className="tm-stack tm-stack--tight">
+                <div className="tm-row">
+                  <StateCapsule state={result.outcome === 'sent' ? 'done' : 'blocked'}>
+                    {result.outcome === 'sent' ? 'Created' : 'Not created'}
+                  </StateCapsule>
+                  <span className="tm-mono">{result.email}</span>
+                </div>
+                {result.link ? (
+                  <p className="tm-prose tm-mono tm-break">{result.link}</p>
+                ) : (
+                  <p className="tm-prose">{result.problem}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="tm-field__hint">
+            Each link works once and expires. Send it to the person it names and to nobody else —
+            anyone holding it can join this organization.
+          </p>
+        </section>
+      ) : null}
+
       <div className="tm-row">
-        <Button tone="ink" size="accessible" disabled>
+        <Button
+          tone="ink"
+          size="accessible"
+          loading={sending}
+          loadingLabel="Creating invitations"
+          disabled={sendable.length === 0}
+          onClick={() => void send()}
+        >
           {sendable.length === 0
-            ? 'Send invitations'
-            : `Send ${sendable.length} ${sendable.length === 1 ? 'invitation' : 'invitations'}`}
-        </Button>
-        <Button tone="text" disabled>
-          Skip for now
+            ? 'Create invitations'
+            : `Create ${sendable.length} ${sendable.length === 1 ? 'invitation' : 'invitations'}`}
         </Button>
       </div>
     </OnboardingShell>

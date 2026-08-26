@@ -733,6 +733,17 @@ body {
  * is exactly the clipping the rule forbids.
  */
 
+/*
+ * A long unbroken string — an invitation link — wraps rather than widening the layout.
+ *
+ * `anywhere` rather than `break-all`: it breaks only where it has to, so a URL that fits stays
+ * on one line and one that does not is still selectable as a whole.
+ */
+
+.tm-break {
+  overflow-wrap: anywhere;
+}
+
 /* ── Work list and detail (WEB-002) ───────────────────────────────────
  *
  * A real `<table>`, styled rather than replaced. `22-SCREEN-BY-SCREEN` §5 asks for keyboard

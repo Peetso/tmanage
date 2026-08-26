@@ -1,7 +1,12 @@
 import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { invitations } from '../../common/database/schema.js';
+import {
+  clientOrganizations,
+  invitations,
+  organizations,
+  users,
+} from '../../common/database/schema.js';
 import type { InvitationRow } from '../../common/database/schema.js';
 import type {
   BootstrapQueryRunner,
@@ -86,6 +91,16 @@ const MAX_PAGE_SIZE = 200;
 
 /** "Still valid right now", evaluated by the database rather than in JavaScript. */
 const NOT_YET_EXPIRED = sql`${invitations.expiresAt} > current_timestamp(3)`;
+
+export interface InvitationPreviewRow {
+  readonly role: string;
+  readonly createdAt: Date;
+  readonly expiresAt: Date;
+  readonly organizationName: string;
+  readonly inviterName: string;
+  readonly inviterEmail: string;
+  readonly clientOrganizationName: string | null;
+}
 
 export class InvitationsRepository {
   async list(
@@ -326,5 +341,49 @@ export class InvitationsRepository {
       .from(invitations)
       .where(and(...predicates))
       .orderBy(desc(invitations.id));
+  }
+
+  /**
+   * The invitation a token names, joined to the names `ID-03` has to show.
+   *
+   * One statement rather than four reads, because every one of them would need the same escape
+   * hatch and a single joined statement is one thing for the guard to see rather than four.
+   *
+   * `users` is joined without appearing in the allowlist, and that is by registry rather than by
+   * exception: it is in `NON_TENANT_TABLES`, so the bootstrap runner's table check — which is
+   * about *tenant-owned* tables — has nothing to say about it.
+   *
+   * The same two conditions as `findPendingByTokenHash`, in the same `WHERE`: a revoked or
+   * overdue invitation is not previewable either, so the preview cannot become an oracle the
+   * acceptance path refuses to be.
+   */
+  async previewByTokenHash(
+    runner: BootstrapQueryRunner,
+    tokenHash: string,
+  ): Promise<InvitationPreviewRow | undefined> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        role: invitations.role,
+        createdAt: invitations.createdAt,
+        expiresAt: invitations.expiresAt,
+        organizationName: organizations.name,
+        inviterName: users.displayName,
+        inviterEmail: users.email,
+        clientOrganizationName: clientOrganizations.name,
+      })
+      .from(invitations)
+      .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
+      .innerJoin(users, eq(users.id, invitations.invitedByUserId))
+      .leftJoin(clientOrganizations, eq(clientOrganizations.id, invitations.clientOrganizationId))
+      .where(
+        and(
+          eq(invitations.tokenHash, tokenHash),
+          eq(invitations.status, 'pending'),
+          NOT_YET_EXPIRED,
+        ),
+      )
+      .limit(1);
+
+    return rows[0];
   }
 }

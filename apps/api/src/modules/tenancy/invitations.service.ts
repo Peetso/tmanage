@@ -104,6 +104,26 @@ export interface IssuedInvitation {
   readonly token: string;
 }
 
+/**
+ * What `ID-03` shows somebody before they accept.
+ *
+ * `22-SCREEN-BY-SCREEN` §3 lists inviter, organization, project, role, access summary, expiry
+ * and an account-switch option. Everything here except the project is available; an invitation
+ * names no project, `0005_invitations.sql` has no column for one and `23-ERD` §9 does not give
+ * it one, so the screen says which organization and which role and does not invent one.
+ */
+export interface InvitationPreview {
+  readonly organizationName: string;
+  readonly inviterName: string;
+  readonly inviterEmail: string;
+  readonly role: string;
+  readonly audience: 'internal' | 'client';
+  /** The client organization's name, when this is portal access rather than team membership. */
+  readonly clientOrganizationName: string | null;
+  readonly invitedAt: string;
+  readonly expiresAt: string;
+}
+
 export interface AcceptedInvitation {
   readonly organizationId: string;
   readonly membershipId: string;
@@ -411,6 +431,51 @@ export class InvitationsService {
         role: active.role,
       };
     });
+  }
+
+  /**
+   * Preview an invitation from its token.
+   *
+   * **Public**, because the link arrives by email and the recipient may not have signed in yet —
+   * §3's "account-switch option" assumes exactly that. What gates this is the 256-bit token,
+   * which is not enumerable; what it discloses is what the invitation was always going to tell
+   * the person it was sent to.
+   *
+   * The refusal is the same 404 the acceptance path gives, for the same reason and with the same
+   * message. A preview that distinguished "revoked" from "never existed" would become the oracle
+   * `accept` deliberately is not.
+   */
+  async preview(token: string, correlationId: string): Promise<InvitationPreview> {
+    if (!looksLikeInvitationToken(token)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_malformed');
+    }
+
+    const row = await this.database.bootstrapRead(
+      {
+        correlationId,
+        reason:
+          'reading the invitation a token names so the person holding it can see who invited ' +
+          'them and to what, before accepting; they have no membership, so no tenant context ' +
+          'can exist to scope this read',
+        tables: ['invitations', 'organizations', 'client_organizations'],
+      },
+      (runner) => this.invitations.previewByTokenHash(runner, hashInvitationToken(token)),
+    );
+
+    if (!row) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_not_pending');
+    }
+
+    return {
+      organizationName: row.organizationName,
+      inviterName: row.inviterName,
+      inviterEmail: row.inviterEmail,
+      role: row.role,
+      audience: row.clientOrganizationName === null ? 'internal' : 'client',
+      clientOrganizationName: row.clientOrganizationName,
+      invitedAt: row.createdAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
+    };
   }
 
   /**

@@ -278,6 +278,98 @@ describe('issuing', () => {
   });
 });
 
+describe('previewing, which happens before signing in', () => {
+  it('tells the holder who invited them and to what, with no session at all', async () => {
+    const inviter = await signIn(owner().id);
+    const { token } = await issue(inviter);
+
+    const response = (await app.inject({
+      method: 'POST',
+      url: '/v1/invitations/previews',
+      headers: { 'content-type': 'application/json' },
+      payload: { token },
+    })) as unknown as InjectedResponse;
+
+    expect(response.statusCode).toBe(200);
+    const preview = response.json<{
+      organizationName: string;
+      inviterName: string;
+      inviterEmail: string;
+      role: string;
+      audience: string;
+      clientOrganizationName: string | null;
+    }>();
+
+    expect(preview.organizationName).toBe('Northstar Studio');
+    expect(preview.inviterEmail).toBe(owner().email);
+    expect(preview.role).toBe('member');
+    expect(preview.audience).toBe('internal');
+    expect(preview.clientOrganizationName).toBeNull();
+  });
+
+  it('names the client organization when the invitation is portal access', async () => {
+    const inviter = await signIn(owner().id);
+    const { token } = await issue(inviter, {
+      email: 'karim.said@atlas.example',
+      role: 'client_viewer',
+      clientOrganizationId: world.atlas.clientOrganizationId,
+    });
+
+    const response = (await app.inject({
+      method: 'POST',
+      url: '/v1/invitations/previews',
+      headers: { 'content-type': 'application/json' },
+      payload: { token },
+    })) as unknown as InjectedResponse;
+
+    expect(response.statusCode).toBe(200);
+    const preview = response.json<{ audience: string; clientOrganizationName: string | null }>();
+    expect(preview.audience).toBe('client');
+    expect(preview.clientOrganizationName).toBe('Atlas Hospitality');
+  });
+
+  it('refuses a revoked token exactly as it refuses one that never existed', async () => {
+    const inviter = await signIn(owner().id);
+    const { invitation, token } = await issue(inviter);
+    await send('DELETE', orgUrl(`/invitations/${invitation.id}`), inviter);
+
+    const preview = async (candidate: string) =>
+      (await app.inject({
+        method: 'POST',
+        url: '/v1/invitations/previews',
+        headers: { 'content-type': 'application/json' },
+        payload: { token: candidate },
+      })) as unknown as InjectedResponse;
+
+    const revoked = await preview(token);
+    const nonexistent = await preview('b'.repeat(43));
+
+    // The preview must not become the oracle the acceptance path refuses to be.
+    expect(revoked.statusCode).toBe(404);
+    expect(nonexistent.statusCode).toBe(404);
+    const strip = (body: string) => body.replace(/"correlationId":"[^"]+"/, '');
+    expect(strip(revoked.body)).toBe(strip(nonexistent.body));
+  });
+
+  it('never returns the token or its hash', async () => {
+    const inviter = await signIn(owner().id);
+    const { token } = await issue(inviter);
+
+    const response = (await app.inject({
+      method: 'POST',
+      url: '/v1/invitations/previews',
+      headers: { 'content-type': 'application/json' },
+      payload: { token },
+    })) as unknown as InjectedResponse;
+
+    const stored = String(
+      (await observe('select token_hash from invitations limit 1'))[0]!['token_hash'],
+    );
+    expect(response.body).not.toContain(token);
+    expect(response.body).not.toContain(stored);
+  });
+});
+
 describe('accepting, which happens with no tenant context', () => {
   it('creates an active membership for a person who had none', async () => {
     const inviter = await signIn(owner().id);

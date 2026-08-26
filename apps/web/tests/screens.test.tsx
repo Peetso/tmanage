@@ -16,7 +16,6 @@ import { RecoveryScreen } from '../src/components/screens/RecoveryScreen';
 import { SignInScreen } from '../src/components/screens/SignInScreen';
 import {
   FIXTURE_EXISTING_MEMBERS,
-  FIXTURE_INVITATION,
   FIXTURE_ORGANIZATION_DOMAIN,
   FIXTURE_SIGNED_IN_AS,
 } from '../src/lib/fixtures';
@@ -77,7 +76,15 @@ const NOW = '2026-08-26T00:00:00.000Z';
 const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
   { name: 'ID-01 Sign in', render: () => <SignInScreen developmentSignInEnabled /> },
   { name: 'ID-02 MFA', render: () => <MfaChallengeScreen /> },
-  { name: 'ID-03 Invitation', render: () => <InvitationScreen invitation={FIXTURE_INVITATION} /> },
+  {
+    name: 'ID-03 Invitation',
+    // Resolves its own invitation as of TEN-003, so it needs a query client and a fetch that
+    // answers. What it does with the answer is covered in `invitation-flow.test.tsx`; here it
+    // only has to mount for the shared landmark and axe assertions, which it does in its
+    // loading state — that state carries the `<h1>` too, deliberately.
+    render: () =>
+      withQuery(<InvitationScreen token={'a'.repeat(43)} client={emptyDirectoryClient()} />),
+  },
   {
     name: 'ID-04 Organization selector',
     // Fetches its own list as of TEN-001, so it needs a query client and a fetch that
@@ -112,6 +119,7 @@ const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
     render: () => (
       <InviteTeamScreen
         signedInAs={SIGNED_IN_AS}
+        organizationSlug="northstar"
         organizationDomain={FIXTURE_ORGANIZATION_DOMAIN}
         existingMembers={FIXTURE_EXISTING_MEMBERS}
       />
@@ -217,32 +225,6 @@ describe('ID-02 MFA', () => {
   it('names the factor from the challenge as device context', () => {
     render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" factorLabel="Omar’s iPhone" />);
     expect(screen.getByText('Omar’s iPhone')).toBeInTheDocument();
-  });
-});
-
-describe('ID-03 Invitation', () => {
-  it('states that a client invitation is portal access, not team membership', () => {
-    render(<InvitationScreen invitation={FIXTURE_INVITATION} />);
-    expect(screen.getByText('This is client portal access')).toBeInTheDocument();
-    expect(screen.getByText(/not membership of the delivery team/i)).toBeInTheDocument();
-  });
-
-  it('lists exactly what the person will see, and what they will not', () => {
-    render(<InvitationScreen invitation={FIXTURE_INVITATION} />);
-    for (const line of FIXTURE_INVITATION.willSee) {
-      expect(screen.getByText(line)).toBeInTheDocument();
-    }
-    expect(screen.getByText(FIXTURE_INVITATION.willNotSee)).toBeInTheDocument();
-  });
-
-  it('states the expiry and refuses to imply it can be extended', () => {
-    render(<InvitationScreen invitation={FIXTURE_INVITATION} />);
-    expect(screen.getByText(/expired links never grant access/i)).toBeInTheDocument();
-  });
-
-  it('does not render the internal alert for an internal invitation', () => {
-    render(<InvitationScreen invitation={{ ...FIXTURE_INVITATION, audience: 'internal' }} />);
-    expect(screen.queryByText('This is client portal access')).toBeNull();
   });
 });
 
@@ -411,8 +393,10 @@ describe('ON-04 Invite team', () => {
     render(
       <InviteTeamScreen
         signedInAs={SIGNED_IN_AS}
+        organizationSlug="northstar"
         organizationDomain={FIXTURE_ORGANIZATION_DOMAIN}
         existingMembers={FIXTURE_EXISTING_MEMBERS}
+        client={emptyDirectoryClient()}
       />,
     );
   }
@@ -421,7 +405,10 @@ describe('ON-04 Invite team', () => {
     const user = userEvent.setup();
     renderScreen();
     await addAddress(user, 'maya@northstar.studio');
-    expect(screen.getByRole('button', { name: 'Send 1 invitation' })).toBeInTheDocument();
+    // "Create", not "Send". Nothing emails an invitation — the screen shows the link and
+    // says to send it by hand — so a button promising delivery would be describing something
+    // that does not happen.
+    expect(screen.getByRole('button', { name: 'Create 1 invitation' })).toBeInTheDocument();
   });
 
   it('redirects an outside address to a client organization', async () => {
@@ -429,7 +416,7 @@ describe('ON-04 Invite team', () => {
     renderScreen();
     await addAddress(user, 'salma@atlashospitality.com');
     expect(screen.getByText(/invited as a client organization/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Send invitations' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create invitations' })).toBeInTheDocument();
   });
 
   it('spots an existing member inline', async () => {
@@ -457,14 +444,19 @@ describe('ON-04 Invite team', () => {
 
   it('previews what the selected role grants and what it withholds', () => {
     renderScreen();
-    expect(screen.getByText(/They cannot change roles, publish to clients/)).toBeInTheDocument();
+    expect(screen.getByText(/Cannot change roles, publish to clients/)).toBeInTheDocument();
   });
 
   it('changes the preview when the role changes', async () => {
     const user = userEvent.setup();
     renderScreen();
-    await user.selectOptions(screen.getByLabelText('Role'), 'admin');
+    // `org_admin`, not `admin`. The screen shipped offering `admin` and `viewer`, and
+    // neither is a role this system has — `INTERNAL_ROLES` decides, and `lib/roles.ts` is
+    // keyed by it so the list cannot drift again without a type error.
+    await user.selectOptions(screen.getByLabelText('Role'), 'org_admin');
     expect(screen.getByText('Invite people and change their roles')).toBeInTheDocument();
-    expect(screen.getByText('Cannot delete the organization.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Cannot delete the organization or change billing.'),
+    ).toBeInTheDocument();
   });
 });

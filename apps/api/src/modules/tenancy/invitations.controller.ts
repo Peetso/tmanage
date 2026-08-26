@@ -16,6 +16,7 @@ import {
   CurrentPrincipal,
   CurrentSession,
   NoTenant,
+  Public,
   RequireCapability,
 } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -24,7 +25,11 @@ import type { AuthenticatedSession } from '../identity/session.service.js';
 import { INVITATIONS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { InvitationStatus } from './invitations.repository.js';
-import type { InvitationView, InvitationsService } from './invitations.service.js';
+import type {
+  InvitationPreview,
+  InvitationView,
+  InvitationsService,
+} from './invitations.service.js';
 
 /**
  * TEN-003's HTTP surface — the tenant-scoped half.
@@ -217,6 +222,31 @@ export class InvitationsController {
 @Controller('v1/invitations')
 export class InvitationAcceptanceController {
   constructor(@Inject(INVITATIONS_SERVICE) private readonly invitations: InvitationsService) {}
+
+  /**
+   * What `ID-03` shows before anybody accepts.
+   *
+   * `@Public()` as well as `@NoTenant()`, because the link arrives by email and the recipient
+   * may not have signed in yet — `22-SCREEN-BY-SCREEN` §3's "account-switch option" assumes
+   * exactly that. What gates the read is the 256-bit token, which is not enumerable; what it
+   * discloses is what the invitation was always going to tell the person it was sent to.
+   *
+   * `POST` for a read, and the token in the body, for the reason acceptance gives.
+   */
+  @Post('previews')
+  @Public()
+  @NoTenant()
+  @HttpCode(200)
+  async preview(@Req() request: RequestLike, @Body() body: AcceptBody): Promise<InvitationPreview> {
+    const token = typeof body?.token === 'string' ? body.token : undefined;
+    if (!token) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'token', message: 'must be a string' },
+      ]);
+    }
+
+    return this.invitations.preview(token, requireRequestState(request).correlationId);
+  }
 
   @Post('acceptances')
   @NoTenant()

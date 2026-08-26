@@ -1,5 +1,3 @@
-import type { InvitationDetails } from '../components/screens/InvitationScreen';
-
 /**
  * Fixtures for the screens whose endpoints are not written.
  *
@@ -14,7 +12,8 @@ import type { InvitationDetails } from '../components/screens/InvitationScreen';
  *
  * This file shrinks as tickets land. `FIXTURE_ORGANIZATIONS` left it when TEN-001's directory
  * endpoint arrived and `ID-04` began fetching its own list; `FIXTURE_OWNERS` left it when
- * PROJ-002 made `ON-03` real and the owner became a statement rather than a picker.
+ * PROJ-002 made `ON-03` real and the owner became a statement rather than a picker;
+ * `FIXTURE_INVITATION` left when TEN-003 gave `ID-03` a token to resolve.
  */
 
 export const FIXTURE_SIGNED_IN_AS = 'omar@northstar.studio';
@@ -35,22 +34,3 @@ export const FIXTURE_EXISTING_MEMBERS: readonly string[] = [
   'omar@northstar.studio',
   'karim@northstar.studio',
 ];
-
-export const FIXTURE_INVITATION: InvitationDetails = {
-  inviterName: 'Omar Adel',
-  inviterEmail: 'omar@northstar.studio',
-  invitedAt: '13 August',
-  organizationName: 'Atlas Hospitality',
-  projectName: 'Website relaunch',
-  roleName: 'Client Reviewer',
-  roleQualifier: 'approval authority',
-  audience: 'client',
-  willSee: [
-    'Progress and milestones for one project',
-    'Deliverables published to you',
-    'Your own actions and requests',
-    'Three named contacts at Northstar Studio',
-  ],
-  willNotSee: 'You will not see internal tasks, costs, internal comments or other clients.',
-  expiresOn: '20 August',
-};
