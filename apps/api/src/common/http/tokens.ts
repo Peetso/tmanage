@@ -31,3 +31,5 @@ export const AUDIT_EVENTS_REPOSITORY = Symbol.for('tmanage.AuditEventsRepository
 export const AUDIT_SERVICE = Symbol.for('tmanage.AuditService');
 export const PROJECT_MEMBERSHIPS_REPOSITORY = Symbol.for('tmanage.ProjectMembershipsRepository');
 export const PROJECT_MEMBERSHIPS_SERVICE = Symbol.for('tmanage.ProjectMembershipsService');
+export const WORK_ITEMS_REPOSITORY = Symbol.for('tmanage.WorkItemsRepository');
+export const WORK_ITEMS_SERVICE = Symbol.for('tmanage.WorkItemsService');

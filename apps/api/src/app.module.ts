@@ -12,6 +12,7 @@ import { CapabilityGuard } from './common/http/guards/capability.guard.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
+import { WorkModule } from './modules/work/work.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 
 /**
@@ -72,6 +73,7 @@ export class AppModule {
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),
         ProjectsModule.register(),
+        WorkModule.register(),
       ],
       providers: [
         { provide: APP_INTERCEPTOR, useClass: CorrelationInterceptor },

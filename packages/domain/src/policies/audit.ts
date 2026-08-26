@@ -118,6 +118,38 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'project',
     clause: '§12 organization settings — a project is the unit every later object belongs to',
   },
+  /**
+   * WORK-001. Three actions, and the shape of the set is the argument.
+   *
+   * Creation, state transitions and deletion are recorded; **field edits are not**. §12 lists
+   * the changes that are security events — roles, permissions, exports, publication,
+   * credentials — and retitling a task is none of them. Auditing every edit would bury the
+   * rows that matter under rows that do not, and the row already carries `updated_at` and a
+   * version.
+   *
+   * An audience change **is** recorded, and separately, because widening a work item to
+   * `client_visible` is a publication decision rather than a field edit.
+   */
+  'work_item.created': {
+    objectType: 'work_item',
+    clause: '§12 — the first record of a unit of work a client may later be shown',
+  },
+  'work_item.transitioned': {
+    objectType: 'work_item',
+    clause:
+      '§5 — a state change is what the work means; "who marked this done, and when" is the ' +
+      'question asked when a deliverable turns out to be wrong',
+  },
+  'work_item.audience_changed': {
+    objectType: 'work_item',
+    clause: '§12 publication — widening an item to client_visible is a disclosure decision',
+  },
+  'work_item.deleted': {
+    objectType: 'work_item',
+    clause:
+      '§12 — a soft delete removes the item from every list without being part of the ' +
+      'lifecycle anyone can see, so it is the removal that most needs accounting for',
+  },
   'project_membership.granted': {
     objectType: 'project_membership',
     clause: '§12 role changes — a project grant is the narrowest role change in the system',
