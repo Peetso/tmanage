@@ -1,5 +1,6 @@
 import {
   CLIENT_ALLOWED_CLIENT_REQUEST_TRANSITIONS,
+  DEFAULT_AUDIENCE,
   MANAGER_ONLY_CLIENT_REQUEST_TRANSITIONS,
   authorize,
   clientRequestStateMachine,
@@ -16,12 +17,13 @@ import {
   ClientRequestsRepository,
 } from './client-requests.repository.js';
 import type {
+  Commitment,
   ListClientRequestsOptions,
   SubmitClientRequestInput,
   TransitionFacts,
 } from './client-requests.repository.js';
 import type { ClientRequestRow } from '../../common/database/schema.js';
-import type { AuditService } from '../audit/audit.service.js';
+import type { AuditEventView, AuditService } from '../audit/audit.service.js';
 
 /**
  * REQ-001's application service — the aggregate, and both of its projections.
@@ -157,6 +159,37 @@ export interface ClientRequestClientView {
   readonly version: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/**
+ * What an acceptance needs — `23-ERD` §6's three requirements, plus how the work is obtained.
+ *
+ * `linkedWorkItemId` and `work` are alternatives: supply the first to point at work that
+ * already exists, omit it to have the acceptance create the work itself. Both go through
+ * {@link ClientRequestsService.accept}, so there is no acceptance path that skips its checks.
+ */
+export interface AcceptClientRequestInput {
+  readonly clientSafeScopeSummary: string;
+  readonly commitment: Commitment;
+  /** Point at existing work instead of creating some. */
+  readonly linkedWorkItemId?: string;
+  /** How to create the work, when none is linked. Every field has a defensible default. */
+  readonly work?: {
+    readonly title?: string;
+    readonly ownerUserId?: string;
+    /**
+     * Widening the new work item to the client is a publication decision and is audited as
+     * one. Absent, it is `internal` — see the note on {@link ClientRequestsService.accept}.
+     */
+    readonly audience?: Audience;
+  };
+}
+
+export interface AcceptedClientRequest {
+  readonly request: ClientRequestView;
+  /** The work the acceptance is carried out through, whether created here or linked. */
+  readonly workItemId: string;
+  readonly workItemCreated: boolean;
 }
 
 function iso(value: Date | null): string | null {
@@ -345,24 +378,7 @@ export class ClientRequestsService {
     to: ClientRequestState,
     facts: TransitionFacts = {},
   ): Promise<ClientRequestRow> {
-    const before = await this.readOr404(context, clientRequestId);
-
-    // Read authority first, so a caller with no relation to the row learns nothing from the
-    // difference between "you may not do that" and "that does not exist".
-    const isClient = principal.kind === 'client';
-    if (isClient ? !this.mayClientRead(principal, before) : !this.mayTriage(principal, before)) {
-      throw new ApiError(404, 'not_found', MESSAGES.notFound);
-    }
-
-    const capability = this.capabilityForMove(to);
-    const verdict = authorize({
-      principal,
-      capability,
-      resource: this.resourceOf(before),
-    });
-    if (!verdict.allowed) {
-      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
-    }
+    const before = await this.readForMove(context, principal, clientRequestId, to);
 
     if (facts.linkedWorkItemId !== undefined) {
       await this.requireWorkItemInTenant(context, facts.linkedWorkItemId);
@@ -416,6 +432,194 @@ export class ClientRequestsService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Accept a request **and commit the work in the same transaction** — REQ-002.
+   *
+   * This is the ticket's whole content, and the reason it is a route of its own rather than a
+   * fact on `POST :id/transitions`. `23-ERD` §6 says acceptance "requires client-safe scope
+   * summary, committed date or explicit unscheduled state, and **linked work**", and US-B02
+   * says the same. REQ-001 could store the link and had no way to make it true: a manager
+   * supplied the id of a work item created separately, so an acceptance and its work were two
+   * writes that could each succeed without the other.
+   *
+   * Here they are one. The work item is inserted, the request is transitioned naming it, and
+   * both audit rows are written inside a single `database.transaction`. If the machine refuses
+   * the move — the request was not in `triage`, or somebody changed it since this caller read
+   * it — the insert rolls back with it, and there is no orphan task in the plan describing work
+   * nobody agreed to. A test asserts exactly that, because it is the one property the
+   * two-write version could not have.
+   *
+   * ## Linking existing work is still allowed, through the same door
+   *
+   * A manager who has already created the task passes `linkedWorkItemId` and nothing is
+   * created. One door rather than two, so there is no acceptance path that skips the checks
+   * this one makes.
+   *
+   * ## The new work item is `internal` unless somebody says otherwise
+   *
+   * `DEFAULT_AUDIENCE`, and nothing cleverer. It is tempting to publish it — the client asked
+   * for this, so surely they may watch it — and that would make widening a side effect of a
+   * different decision, which is precisely what `25-AUTH-AND-TENANT-ISOLATION` §7 forbids.
+   * What the client is owed is the answer to their request, and they get it: the request's own
+   * projection carries the accepted status, the client-safe scope summary and the committed
+   * date. The task underneath is the studio's execution.
+   *
+   * An `audience` on the body widens it deliberately, and is audited as the publication
+   * decision it is.
+   */
+  async accept(
+    context: TenantContext,
+    principal: Principal,
+    clientRequestId: string,
+    expectedVersion: number,
+    input: AcceptClientRequestInput,
+  ): Promise<AcceptedClientRequest> {
+    const before = await this.readForMove(context, principal, clientRequestId, 'accepted');
+
+    // Either link work that exists, or be allowed to create some. Never neither — and the
+    // check happens before the transaction opens, so a refusal costs no write.
+    if (input.linkedWorkItemId !== undefined) {
+      await this.requireWorkItemInTenant(context, input.linkedWorkItemId);
+    } else {
+      const verdict = authorize({
+        principal,
+        capability: 'work.create',
+        resource: {
+          organizationId: before.organizationId,
+          projectId: before.projectId,
+          audience: DEFAULT_AUDIENCE,
+          lifecycle: 'active',
+        },
+      });
+      if (!verdict.allowed) {
+        // 403 rather than 404: this caller has already been allowed to read the request, and
+        // `client_request.triage` without `work.create` is a real and legible combination.
+        throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
+      }
+    }
+
+    const audience = input.work?.audience ?? DEFAULT_AUDIENCE;
+
+    try {
+      const result = await this.writing(() =>
+        this.database.transaction(context, async (tx) => {
+          let workItemId = input.linkedWorkItemId;
+          let created = false;
+
+          if (workItemId === undefined) {
+            const workItem = await this.workItems.create(tx, context, {
+              projectId: before.projectId,
+              // The request's own title unless the manager retitled it. A task called what the
+              // client called it is how the two stay findable from each other while there is no
+              // messaging surface to carry the connection.
+              title: input.work?.title ?? before.title,
+              audience,
+              ...(input.work?.ownerUserId ? { ownerUserId: input.work.ownerUserId } : {}),
+              // A committed date is a date the work is due. An unscheduled acceptance leaves it
+              // null rather than inventing one, which is the whole point of §6 admitting an
+              // "explicit unscheduled state" as an answer.
+              ...(input.commitment.kind === 'committed' ? { dueAt: input.commitment.at } : {}),
+            });
+            workItemId = workItem.id;
+            created = true;
+
+            await this.audit?.record(tx, context, {
+              action: 'work_item.created',
+              objectId: workItem.id,
+              result: 'allowed',
+              metadata: {
+                project_id: workItem.projectId,
+                work_item_type: workItem.type,
+                audience: workItem.audience,
+                state: workItem.state,
+                // The one fact this creation path has that the ordinary one does not.
+                from_client_request: true,
+              },
+            });
+          }
+
+          const moved = await this.requests.transitionState(
+            tx,
+            context,
+            clientRequestId,
+            expectedVersion,
+            'accepted',
+            {
+              clientSafeScopeSummary: input.clientSafeScopeSummary,
+              commitment: input.commitment,
+              linkedWorkItemId: workItemId,
+            },
+          );
+
+          await this.audit?.record(tx, context, {
+            action: 'client_request.transitioned',
+            objectId: moved.id,
+            result: 'allowed',
+            metadata: {
+              project_id: moved.projectId,
+              client_organization_id: moved.clientOrganizationId,
+              state_before: before.state,
+              state_after: moved.state,
+              facts_supplied: ['clientSafeScopeSummary', 'commitment', 'linkedWorkItemId'],
+              commitment: moved.commitment ?? 'none',
+              // Whether this acceptance made the work or merely pointed at it. The pair of rows
+              // already says so by their presence; this lets the single row answer it.
+              work_item_created: created,
+            },
+          });
+
+          return { moved, workItemId, created };
+        }),
+      );
+
+      return {
+        request: toView(result.moved),
+        workItemId: result.workItemId,
+        workItemCreated: result.created,
+      };
+    } catch (error) {
+      if (error instanceof ClientRequestTransitionError) {
+        throw new ApiError(
+          422,
+          'validation_failed',
+          `A client request cannot move from ${error.from} to accepted`,
+          error.missing.map((fact) => ({
+            field: fact,
+            message: 'is required for this transition',
+          })),
+          error.reason,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Everything recorded about this request — US-B02's "actor/time/history immutable".
+   *
+   * A read of `audit_events`, not a table of its own. Those rows already carry the actor, the
+   * time and the correlation id; `0002_platform_primitives.sql` makes the table append-only by
+   * trigger and `users.sql` grants the runtime credential `INSERT` and nothing else, so the
+   * immutability US-B02 asks for is a property of the storage rather than a promise this
+   * service makes. A second history table would be a second, mutable copy of it.
+   *
+   * `AuditService.historyOf` applies its own `audit.read` check and its own scope narrowing —
+   * a principal without organization-wide scope sees their own actions only — so this method
+   * adds no authority beyond proving the request is one this caller may read at all.
+   */
+  async historyOf(
+    context: TenantContext,
+    principal: Principal,
+    clientRequestId: string,
+  ): Promise<readonly AuditEventView[]> {
+    const row = await this.readOr404(context, clientRequestId);
+    if (!this.mayTriage(principal, row)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    if (!this.audit) return [];
+    return this.audit.historyOf(context, principal, 'client_request', row.id);
   }
 
   // ── The client's side ──────────────────────────────────────────────────────
@@ -575,6 +779,41 @@ export class ClientRequestsService {
       !MANAGER_ONLY_CLIENT_REQUEST_TRANSITIONS.includes(to)
       ? 'client_request.submit'
       : 'client_request.triage';
+  }
+
+  /**
+   * The read and the two authority checks that precede every move, in one place.
+   *
+   * Shared by {@link triage} and {@link accept} so the two doors onto this aggregate cannot
+   * drift into checking different things. The order is the one `25-AUTH-AND-TENANT-ISOLATION`
+   * §3 fixes and it is load-bearing: **read authority first**, so a caller with no relation to
+   * the row learns nothing from the difference between "you may not do that" and "that does not
+   * exist"; then the capability for the specific move, which answers 403 because by then the
+   * caller has already been allowed to see the row.
+   */
+  private async readForMove(
+    context: TenantContext,
+    principal: Principal,
+    clientRequestId: string,
+    to: ClientRequestState,
+  ): Promise<ClientRequestRow> {
+    const before = await this.readOr404(context, clientRequestId);
+
+    const isClient = principal.kind === 'client';
+    if (isClient ? !this.mayClientRead(principal, before) : !this.mayTriage(principal, before)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+
+    const verdict = authorize({
+      principal,
+      capability: this.capabilityForMove(to),
+      resource: this.resourceOf(before),
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
+    }
+
+    return before;
   }
 
   private async readOr404(

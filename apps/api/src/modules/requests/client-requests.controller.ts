@@ -1,11 +1,16 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
-import { CLIENT_REQUEST_STATES } from '@tmanage/domain';
-import type { ClientRequestState, Principal } from '@tmanage/domain';
+import { AUDIENCES, CLIENT_REQUEST_STATES } from '@tmanage/domain';
+import type { Audience, ClientRequestState, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { CLIENT_REQUESTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { ClientRequestView, ClientRequestsService } from './client-requests.service.js';
+import type {
+  AcceptedClientRequest,
+  ClientRequestView,
+  ClientRequestsService,
+} from './client-requests.service.js';
+import type { AuditEventView } from '../audit/audit.service.js';
 import type { TransitionFacts } from './client-requests.repository.js';
 import {
   MAX_CLARIFICATION_LENGTH,
@@ -33,6 +38,17 @@ import {
  * field edit. There is no field edit here at all: this aggregate has no `PATCH`, because every
  * column beyond the client's own words is written by the move that required it.
  */
+
+/** `23-ERD` §6's three requirements, plus how the work is obtained. */
+interface AcceptanceBody {
+  readonly version?: unknown;
+  readonly clientSafeScopeSummary?: unknown;
+  /** `"unscheduled"` or an ISO 8601 instant. Required — silence is not an answer to "when". */
+  readonly commitment?: unknown;
+  /** Point at existing work. Mutually exclusive with `work`. */
+  readonly linkedWorkItemId?: unknown;
+  readonly work?: unknown;
+}
 
 interface TransitionBody {
   readonly version?: unknown;
@@ -133,6 +149,16 @@ export class ClientRequestsController {
     if (!to || !isClientRequestState(to)) {
       details.push({ field: 'to', message: 'must be a client request state' });
     }
+    if (to === 'accepted') {
+      // REQ-002 made acceptance a route of its own, because it creates the work in the same
+      // transaction. Leaving it reachable here would leave an acceptance path that links work
+      // created anywhere — which is the two-write version this ticket exists to remove.
+      details.push({
+        field: 'to',
+        message:
+          'use POST :clientRequestId/acceptance, which commits the work in the same transaction',
+      });
+    }
 
     const clarificationQuestion = optionalProse(
       body?.clarificationQuestion,
@@ -175,6 +201,160 @@ export class ClientRequestsController {
 
     return this.requests.triage(context, principal, clientRequestId, version, to, facts);
   }
+
+  /**
+   * Accept, and commit the work — REQ-002.
+   *
+   * A route of its own rather than a state on `POST :id/transitions`, and the difference is a
+   * transaction rather than a URL: this endpoint creates the work item and moves the request in
+   * one unit, so an acceptance that fails leaves no task behind describing work nobody agreed
+   * to. `:id/transitions` refuses `accepted` and says so, which is the only way the guarantee
+   * survives a second author.
+   *
+   * `client_request.triage` on the route. Creating the work needs `work.create` as well, and
+   * that is checked by the service against the *project* rather than here — a capability guard
+   * knows the role and not the relation.
+   */
+  @Post(':clientRequestId/acceptance')
+  @RequireCapability('client_request.triage')
+  @HttpCode(200)
+  async accept(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('clientRequestId') clientRequestId: string,
+    @Body() body: AcceptanceBody,
+  ): Promise<AcceptedClientRequest> {
+    const details: { field: string; message: string }[] = [];
+    const version = requiredVersion(body?.version, details);
+
+    const clientSafeScopeSummary = requiredProse(
+      body?.clientSafeScopeSummary,
+      'clientSafeScopeSummary',
+      MAX_SCOPE_SUMMARY_LENGTH,
+      details,
+    );
+    const commitment = parseCommitment(body?.commitment, details);
+    if (body?.commitment === undefined) {
+      // Required here, unlike on a transition, because there is no acceptance without an answer
+      // to "when". `23-ERD` §6 admits `unscheduled` as that answer; it does not admit silence.
+      details.push({
+        field: 'commitment',
+        message: "must be 'unscheduled' or an ISO 8601 instant",
+      });
+    }
+
+    const linkedWorkItemId =
+      typeof body?.linkedWorkItemId === 'string' && body.linkedWorkItemId !== ''
+        ? body.linkedWorkItemId
+        : undefined;
+    if (body?.linkedWorkItemId !== undefined && linkedWorkItemId === undefined) {
+      details.push({ field: 'linkedWorkItemId', message: 'must be a work item id' });
+    }
+
+    const rawWork =
+      body?.work === undefined || body.work === null
+        ? undefined
+        : typeof body.work === 'object' && !Array.isArray(body.work)
+          ? (body.work as Record<string, unknown>)
+          : undefined;
+    if (body?.work !== undefined && body.work !== null && rawWork === undefined) {
+      details.push({ field: 'work', message: 'must be an object' });
+    }
+    if (rawWork !== undefined && linkedWorkItemId !== undefined) {
+      // Both would mean "create this, and also use that", which names two different pieces of
+      // work for one acceptance. Refused rather than silently preferring one.
+      details.push({
+        field: 'work',
+        message: 'cannot be given together with linkedWorkItemId',
+      });
+    }
+
+    const workTitle = optionalWorkTitle(rawWork?.['title'], details);
+    const workAudience = optionalAudience(rawWork?.['audience'], details);
+    const workOwnerUserId =
+      typeof rawWork?.['ownerUserId'] === 'string' && rawWork['ownerUserId'] !== ''
+        ? (rawWork['ownerUserId'] as string)
+        : undefined;
+
+    if (
+      details.length > 0 ||
+      version === undefined ||
+      clientSafeScopeSummary === undefined ||
+      commitment === undefined
+    ) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+
+    const work = {
+      ...(workTitle === undefined ? {} : { title: workTitle }),
+      ...(workAudience === undefined ? {} : { audience: workAudience }),
+      ...(workOwnerUserId === undefined ? {} : { ownerUserId: workOwnerUserId }),
+    };
+
+    return this.requests.accept(context, principal, clientRequestId, version, {
+      clientSafeScopeSummary,
+      commitment,
+      ...(linkedWorkItemId === undefined ? {} : { linkedWorkItemId }),
+      ...(Object.keys(work).length === 0 ? {} : { work }),
+    });
+  }
+
+  /**
+   * The request's history — US-B02's "actor/time/history immutable".
+   *
+   * `client_request.triage` gates reaching the request at all; `AuditService` then applies its
+   * own `audit.read` check and its own scope narrowing, so a `manager` reading this sees what
+   * `audit.read` entitles them to and not one row more.
+   */
+  @Get(':clientRequestId/history')
+  @RequireCapability('client_request.triage')
+  async history(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('clientRequestId') clientRequestId: string,
+  ): Promise<{ readonly history: readonly AuditEventView[] }> {
+    return { history: await this.requests.historyOf(context, principal, clientRequestId) };
+  }
+}
+
+/**
+ * A sentence the transition could not happen without.
+ *
+ * `optionalProse` treats an absent value as "not changing this". An acceptance has no such
+ * reading: §6 requires the scope summary, so absence is a validation failure with a field name
+ * rather than a state-machine 422 that says only that something was missing.
+ */
+function requiredProse(
+  raw: unknown,
+  field: string,
+  max: number,
+  details: { field: string; message: string }[],
+): string | undefined {
+  if (raw === undefined) {
+    details.push({ field, message: 'is required to accept a request' });
+    return undefined;
+  }
+  return optionalProse(raw, field, max, details);
+}
+
+/** `work_items.title` is `VARCHAR(300)`, the same width as a request's. */
+function optionalWorkTitle(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): string | undefined {
+  return optionalProse(raw, 'work.title', 300, details);
+}
+
+function optionalAudience(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): Audience | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'string' || !(AUDIENCES as readonly string[]).includes(raw)) {
+    details.push({ field: 'work.audience', message: `must be one of ${AUDIENCES.join(', ')}` });
+    return undefined;
+  }
+  return raw as Audience;
 }
 
 function isClientRequestState(value: string): value is ClientRequestState {

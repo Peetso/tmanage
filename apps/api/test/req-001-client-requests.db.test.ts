@@ -20,7 +20,13 @@ import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
 
 /**
- * REQ-001 over real HTTP — the client request aggregate, its API and its projection.
+ * REQ-001 and REQ-002 over real HTTP — the client request aggregate, its API, its projection,
+ * and the transaction that turns an acceptance into committed work.
+ *
+ * One file for two tickets, and the file keeps REQ-001's name. They share the whole fixture —
+ * a client organization, a shared project, a submitted request — and splitting them would mean
+ * two suites building the same world and then disagreeing about it. REQ-002's cases are in
+ * their own `describe` blocks at the end, so what each ticket proves is still legible.
  *
  * CLIENT-002 gave a client a portal to read. `client_request.submit` is in **every** client
  * role's ceiling — the one capability all four of them share — and until this ticket there was
@@ -42,6 +48,14 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *    `04-SECURITY-PRIVACY` §5 is most emphatic about.
  * 6. **§6's division of the machine holds from both sides.** Only an internal manager accepts,
  *    defers or declines; only the client withdraws.
+ *
+ * And what only REQ-002's blocks can prove:
+ *
+ * 7. **An acceptance and its work are one transaction.** A refused acceptance leaves no task in
+ *    the plan describing work nobody agreed to — the property the two-write version could not
+ *    have had, and the whole content of the ticket.
+ * 8. **There is one door onto `accepted`.** The generic transitions route refuses it and says
+ *    where to go, so the guarantee above survives a second author.
  */
 
 let db: TestDatabase;
@@ -149,6 +163,12 @@ interface ClientRequestClient {
   updatedAt: string;
 }
 
+interface AcceptanceResult {
+  request: ClientRequestInternal;
+  workItemId: string;
+  workItemCreated: boolean;
+}
+
 interface ClientRequestInternal extends ClientRequestClient {
   clientOrganizationId: string;
   submittedByUserId: string;
@@ -193,6 +213,32 @@ async function move(
     throw new Error(`transition to ${to} failed: ${response.statusCode} ${response.body}`);
   }
   return response.json<ClientRequestInternal>();
+}
+
+/**
+ * Accept, through REQ-002's route. Returns the whole envelope, not just the request, because
+ * what the acceptance *did to the plan* is the half this ticket added.
+ */
+async function accept(
+  session: Session,
+  request: { id: string; version: number },
+  body: Record<string, unknown> = {},
+): Promise<AcceptanceResult> {
+  const response = await send('POST', `/client-requests/${request.id}/acceptance`, session, {
+    version: request.version,
+    clientSafeScopeSummary: 'A careers page with four roles and an application form.',
+    commitment: 'unscheduled',
+    ...body,
+  });
+  if (response.statusCode !== 200) {
+    throw new Error(`accept failed: ${response.statusCode} ${response.body}`);
+  }
+  return response.json<AcceptanceResult>();
+}
+
+async function countWorkItems(): Promise<number> {
+  const [row] = await observe('select count(*) as c from work_items');
+  return Number(row?.['c']);
 }
 
 beforeAll(async () => {
@@ -322,17 +368,18 @@ describe('the lifecycle is 23-ERD §6’s, and the machine owns it', () => {
     const created = await submit(client);
 
     const studio = await signIn(manager().id);
-    const response = await send('POST', `/client-requests/${created.id}/transitions`, studio, {
+    const before = await countWorkItems();
+    const response = await send('POST', `/client-requests/${created.id}/acceptance`, studio, {
       version: created.version,
-      to: 'accepted',
       clientSafeScopeSummary: 'A careers page with four roles.',
       commitment: 'unscheduled',
-      linkedWorkItemId: world.northstar.workItemId,
     });
 
     // §6 routes every acceptance through `triage`. Submitted straight to accepted is not a
     // narrower version of the same move; it is a move that does not exist.
     expect(response.statusCode).toBe(422);
+    // REQ-002's property: the refusal took the work item with it.
+    expect(await countWorkItems()).toBe(before);
   });
 
   it('names the facts a legal move arrived without', async () => {
@@ -341,20 +388,18 @@ describe('the lifecycle is 23-ERD §6’s, and the machine owns it', () => {
     const studio = await signIn(manager().id);
     const triaged = await move(studio, created, 'triage');
 
-    const response = await send('POST', `/client-requests/${created.id}/transitions`, studio, {
+    const response = await send('POST', `/client-requests/${created.id}/acceptance`, studio, {
       version: triaged.version,
-      to: 'accepted',
     });
 
-    expect(response.statusCode).toBe(422);
+    // 400 rather than the machine's 422, and the difference is REQ-002's: acceptance now names
+    // its own required fields, so a manager is told which one is missing before anything is
+    // attempted. §6: "Acceptance requires client-safe scope summary, committed date or explicit
+    // unscheduled state, and linked work." The third is no longer a field a caller supplies —
+    // the route creates it.
+    expect(response.statusCode).toBe(400);
     const details = response.json<{ error: { details: { field: string }[] } }>().error.details;
-    // §6: "Acceptance requires client-safe scope summary, committed date or explicit
-    // unscheduled state, and linked work."
-    expect(details.map((d) => d.field).sort()).toEqual([
-      'clientSafeScopeSummary',
-      'commitment',
-      'linkedWorkItemId',
-    ]);
+    expect(details.map((d) => d.field).sort()).toEqual(['clientSafeScopeSummary', 'commitment']);
   });
 
   it('requires a client-safe reason to decline', async () => {
@@ -379,15 +424,13 @@ describe('the lifecycle is 23-ERD §6’s, and the machine owns it', () => {
     const studio = await signIn(manager().id);
 
     const triaged = await move(studio, created, 'triage');
-    const accepted = await move(studio, triaged, 'accepted', {
-      clientSafeScopeSummary: 'A careers page with four roles and an application form.',
+    const { request: accepted, workItemId } = await accept(studio, triaged, {
       commitment: '2026-11-14T17:00:00.000Z',
-      linkedWorkItemId: world.northstar.workItemId,
     });
 
     expect(accepted.commitment).toBe('committed');
     expect(accepted.committedAt).toBe('2026-11-14T17:00:00.000Z');
-    expect(accepted.linkedWorkItemId).toBe(world.northstar.workItemId);
+    expect(accepted.linkedWorkItemId).toBe(workItemId);
 
     const seen = (
       await send('GET', `/portal/requests/${created.id}`, client)
@@ -404,14 +447,16 @@ describe('the lifecycle is 23-ERD §6’s, and the machine owns it', () => {
     const studio = await signIn(manager().id);
 
     const triaged = await move(studio, created, 'triage');
-    const accepted = await move(studio, triaged, 'accepted', {
+    const { request: accepted, workItemId } = await accept(studio, triaged, {
       clientSafeScopeSummary: 'A careers page, scope agreed, not yet scheduled.',
-      commitment: 'unscheduled',
-      linkedWorkItemId: world.northstar.workItemId,
     });
 
     expect(accepted.commitment).toBe('unscheduled');
     expect(accepted.committedAt).toBeNull();
+
+    // And the work carries no due date either, rather than one invented from today.
+    const [row] = await observe('select due_at as d from work_items where id = ?', [workItemId]);
+    expect(row?.['d']).toBeNull();
   });
 
   it('refuses a linked work item that is not in this tenant, as a 422 rather than a 500', async () => {
@@ -420,9 +465,8 @@ describe('the lifecycle is 23-ERD §6’s, and the machine owns it', () => {
     const studio = await signIn(manager().id);
     const triaged = await move(studio, created, 'triage');
 
-    const response = await send('POST', `/client-requests/${created.id}/transitions`, studio, {
+    const response = await send('POST', `/client-requests/${created.id}/acceptance`, studio, {
       version: triaged.version,
-      to: 'accepted',
       clientSafeScopeSummary: 'A careers page.',
       commitment: 'unscheduled',
       // Another tenant's work item. `fk_client_requests_work_item_tenant` would refuse the row,
@@ -460,11 +504,7 @@ describe('the client projection is a projection, not the record with fields remo
     const created = await submit(client);
     const studio = await signIn(manager().id);
     const triaged = await move(studio, created, 'triage');
-    await move(studio, triaged, 'accepted', {
-      clientSafeScopeSummary: 'A careers page.',
-      commitment: 'unscheduled',
-      linkedWorkItemId: world.northstar.workItemId,
-    });
+    await accept(studio, triaged);
 
     const seen = (
       await send('GET', `/portal/requests/${created.id}`, client)
@@ -622,12 +662,10 @@ describe('§6 divides the machine between two kinds of person', () => {
     const client = await signIn(world.atlas.reviewer.id);
     const created = await submit(client);
 
-    const response = await send('POST', `/client-requests/${created.id}/transitions`, client, {
+    const response = await send('POST', `/client-requests/${created.id}/acceptance`, client, {
       version: created.version,
-      to: 'accepted',
       clientSafeScopeSummary: 'Accepting my own request.',
       commitment: 'unscheduled',
-      linkedWorkItemId: world.northstar.workItemId,
     });
 
     // `client_request.triage` is in INTERNAL_ONLY_CAPABILITIES, so this is refused at the
@@ -697,11 +735,7 @@ describe('§6 divides the machine between two kinds of person', () => {
     const studio = await signIn(owner().id);
 
     const triaged = await move(studio, created, 'triage');
-    const accepted = await move(studio, triaged, 'accepted', {
-      clientSafeScopeSummary: 'A careers page.',
-      commitment: 'unscheduled',
-      linkedWorkItemId: world.northstar.workItemId,
-    });
+    const { request: accepted } = await accept(studio, triaged);
     const planned = await move(studio, accepted, 'planned');
     const delivered = await move(studio, planned, 'delivered');
 
@@ -903,5 +937,242 @@ describe('the engine holds what the application layer cannot', () => {
         ],
       ),
     ).rejects.toThrow(/state/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REQ-002 — accepting a request and committing the work as one unit
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('REQ-002: an acceptance and its work are one transaction', () => {
+  it('creates the work item, links it, and dates it from the commitment', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+
+    const result = await accept(studio, triaged, { commitment: '2026-11-14T17:00:00.000Z' });
+
+    expect(result.workItemCreated).toBe(true);
+    expect(result.request.linkedWorkItemId).toBe(result.workItemId);
+
+    const [row] = await observe(
+      `select title as t, project_id as p, state as s, audience as a, due_at as d
+         from work_items where id = ?`,
+      [result.workItemId],
+    );
+    // The client's own words, so the two stay findable from each other while there is no
+    // messaging surface to carry the connection.
+    expect(String(row?.['t'])).toBe('Add a careers page');
+    expect(String(row?.['p'])).toBe(world.northstar.projectId);
+    // The lifecycle's initial state, not something the acceptance chose.
+    expect(String(row?.['s'])).toBe('backlog');
+    // A committed date is a date the work is due.
+    expect(new Date(String(row?.['d'])).toISOString()).toBe('2026-11-14T17:00:00.000Z');
+    // `DEFAULT_AUDIENCE`. Accepting a client's request does not publish the studio's task.
+    expect(String(row?.['a'])).toBe('internal');
+  });
+
+  it('leaves no work behind when the move is refused', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+
+    const before = await countWorkItems();
+
+    // A stale token: somebody moved the request between this manager reading it and accepting.
+    const response = await send('POST', `/client-requests/${created.id}/acceptance`, studio, {
+      version: created.version,
+      clientSafeScopeSummary: 'A careers page.',
+      commitment: 'unscheduled',
+    });
+
+    expect(response.statusCode).toBe(409);
+    // The whole of REQ-002. Before this ticket the work item was a separate write that had
+    // already succeeded, and a failed acceptance left a task in the plan describing work
+    // nobody had agreed to.
+    expect(await countWorkItems()).toBe(before);
+    const [row] = await observe('select state as s from client_requests where id = ?', [
+      created.id,
+    ]);
+    expect(String(row?.['s'])).toBe(triaged.state);
+  });
+
+  it('writes both audit rows, or neither', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+    await accept(studio, triaged);
+
+    const rows = await observe(
+      `select action as a, metadata_json as m from audit_events
+        where action in ('work_item.created', 'client_request.transitioned')
+        order by created_at asc, id asc`,
+    );
+    const actions = rows.map((row) => String(row['a']));
+    expect(actions).toEqual([
+      'client_request.transitioned',
+      'work_item.created',
+      'client_request.transitioned',
+    ]);
+
+    const last = JSON.parse(
+      typeof rows[2]?.['m'] === 'string'
+        ? (rows[2]['m'] as string)
+        : JSON.stringify(rows[2]?.['m']),
+    ) as Record<string, unknown>;
+    expect(last['state_after']).toBe('accepted');
+    expect(last['work_item_created']).toBe(true);
+  });
+
+  it('links work that already exists instead of creating more', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+
+    const before = await countWorkItems();
+    const result = await accept(studio, triaged, {
+      linkedWorkItemId: world.northstar.workItemId,
+    });
+
+    expect(result.workItemCreated).toBe(false);
+    expect(result.workItemId).toBe(world.northstar.workItemId);
+    expect(await countWorkItems()).toBe(before);
+  });
+
+  it('refuses a body that both names existing work and describes new work', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+
+    const response = await send('POST', `/client-requests/${created.id}/acceptance`, studio, {
+      version: triaged.version,
+      clientSafeScopeSummary: 'A careers page.',
+      commitment: 'unscheduled',
+      linkedWorkItemId: world.northstar.workItemId,
+      work: { title: 'Something else entirely' },
+    });
+
+    // Two different pieces of work for one acceptance. Refused rather than silently preferring
+    // whichever the implementation happens to read first.
+    expect(response.statusCode).toBe(400);
+    const details = response.json<{ error: { details: { field: string }[] } }>().error.details;
+    expect(details.map((d) => d.field)).toContain('work');
+  });
+
+  it('widens the new work item only when asked, and records that it did', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+
+    const result = await accept(studio, triaged, {
+      work: { audience: 'client_visible', title: 'Build the careers page' },
+    });
+
+    const [row] = await observe('select audience as a, title as t from work_items where id = ?', [
+      result.workItemId,
+    ]);
+    expect(String(row?.['a'])).toBe('client_visible');
+    expect(String(row?.['t'])).toBe('Build the careers page');
+
+    // And the client can now see it in the portal, which is the point of having asked.
+    const seen = (await send('GET', '/portal/work-items', client)).json<{
+      workItems: { title: string }[];
+    }>().workItems;
+    expect(seen.map((item) => item.title)).toContain('Build the careers page');
+  });
+
+  it('closes acceptance off the generic transitions route, and says where to go', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+
+    const response = await send('POST', `/client-requests/${created.id}/transitions`, studio, {
+      version: triaged.version,
+      to: 'accepted',
+      clientSafeScopeSummary: 'A careers page.',
+      commitment: 'unscheduled',
+      linkedWorkItemId: world.northstar.workItemId,
+    });
+
+    // Leaving this open would leave an acceptance path that links work created anywhere, which
+    // is the two-write version REQ-002 exists to remove.
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toContain('acceptance');
+  });
+
+  it('refuses a manager who may triage but may not create work', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+
+    // Omar is a `manager` and holds both capabilities, so the refusal has to be produced by
+    // taking one away. `work.create` is relation-gated on the project: strip his project
+    // membership and he can still triage the request and can no longer file work into it.
+    await db.admin.execute(
+      'delete from project_memberships where organization_id = ? and project_id = ? and user_id = ?',
+      [world.northstar.organizationId, world.northstar.projectId, manager().id],
+    );
+
+    const before = await countWorkItems();
+    const response = await send('POST', `/client-requests/${created.id}/acceptance`, studio, {
+      version: triaged.version,
+      clientSafeScopeSummary: 'A careers page.',
+      commitment: 'unscheduled',
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(await countWorkItems()).toBe(before);
+  });
+});
+
+describe('REQ-002: the history a triage decision is accounted for by', () => {
+  it('returns the request’s own audit trail, newest facts included', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    const studio = await signIn(owner().id);
+    const triaged = await move(studio, created, 'triage');
+    await accept(studio, triaged);
+
+    const response = await send('GET', `/client-requests/${created.id}/history`, studio);
+    expect(response.statusCode).toBe(200);
+
+    const history = response.json<{ history: { action: string; objectId: string }[] }>().history;
+    // Newest first: `AuditEventsRepository.list` orders by `id` descending, and the ids are
+    // UUIDv7, so id order is time order. A history screen reads downwards from what just
+    // happened, which is the way anybody investigating a decision actually reads one.
+    expect(history.map((row) => row.action)).toEqual([
+      'client_request.transitioned',
+      'client_request.transitioned',
+      'client_request.submitted',
+    ]);
+    expect(new Set(history.map((row) => row.objectId))).toEqual(new Set([created.id]));
+  });
+
+  it('is not a second copy of the trail — the rows cannot be amended', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+
+    // US-B02: "actor/time/history immutable". It is immutable because `audit_events` is
+    // append-only at the engine, not because this endpoint declines to offer a writer.
+    await expect(
+      db.admin.execute('update audit_events set action = ? where object_id = ?', [
+        'client_request.transitioned',
+        created.id,
+      ]),
+    ).rejects.toThrow(/append-only|immutable/i);
+  });
+
+  it('answers 404 for a request in another tenant rather than an empty history', async () => {
+    const studio = await signIn(manager().id);
+    const response = await send('GET', `/client-requests/${world.twin.workItemId}/history`, studio);
+    expect(response.statusCode).toBe(404);
   });
 });

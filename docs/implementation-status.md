@@ -189,6 +189,131 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the REQ-002 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`735 s` wall (12 m 15 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                  |
+| `typecheck`              | Clean across five projects                                                                                          |
+| `lint`                   | Clean                                                                                                               |
+| `test` (unit)            | **770 passed**, 34 files — config 25, domain 102, ui 106, api 241, web 296. Unchanged: REQ-002 adds no unit surface |
+| `test:db`                | **592 passed, 22 skipped**, 20 files, **651.96 s**. Was 581/22; **+11**, all in REQ-002's two new blocks            |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                               |
+| `format:check` (closing) | Clean                                                                                                               |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                           |
+
+`next build` was **not** re-run and no claim is made about it. REQ-002 adds no route to
+`apps/web`; the twenty routes recorded in the WEB-004 section are unchanged.
+
+REQ-002 adds twelve cases and the file gained eleven, because one REQ-001 case was **replaced
+rather than kept**: the acceptance-through-`/transitions` path it asserted no longer exists, and
+the case that stands in its place asserts the refusal instead.
+
+---
+
+## REQ-002 — an acceptance and its work, as one thing
+
+`REQ-001` could store the link `23-ERD` §6 requires and had no way to make it true. A manager
+accepted a request by supplying the id of a work item created separately, so an acceptance and
+its work were **two writes that could each succeed without the other** — and a failed
+acceptance left a task in the plan describing work nobody had agreed to.
+
+US-B02: "transition rules enforced; client-safe reason required for decline/defer; acceptance
+records committed scope/date **and linked work**; actor/time/history immutable." The first two
+were REQ-001's. This ticket is the third and the fourth.
+
+### What shipped
+
+| Piece                               | What it is                                                                                      |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `ClientRequestsService.accept`      | The work item, the transition and both audit rows in **one** `database.transaction`             |
+| `POST :clientRequestId/acceptance`  | The only door onto `accepted`                                                                   |
+| `POST :clientRequestId/transitions` | Now **refuses** `to: 'accepted'`, with a message naming the route that does it                  |
+| `ClientRequestsService.historyOf`   | US-B02's "actor/time/history immutable", as a read of `audit_events`                            |
+| `GET :clientRequestId/history`      | The trail a triage decision is accounted for by                                                 |
+| `readForMove`                       | The read and the two authority checks, extracted so the two doors cannot check different things |
+| 12 database cases                   | On top of REQ-001's, in the same file                                                           |
+
+**No migration and no new table.** The link, the scope summary and the commitment are all
+columns `0006_client_requests.sql` already has; what was missing was a transaction around them.
+
+### Three decisions
+
+**1. One door onto `accepted`, and the old one refuses out loud.** `POST :id/transitions` could
+have kept accepting — the machine would still have enforced §6's requirements. It does not,
+because a second acceptance path is a path that can link work created anywhere, which is exactly
+the two-write shape this ticket removes. The refusal is a 400 naming
+`POST :id/acceptance`, so the next person to look for it finds it rather than reinventing it.
+
+**2. Linking existing work goes through the same door.** A manager who already made the task
+passes `linkedWorkItemId` and nothing is created. Supplying both that and a `work` object is
+refused rather than resolved by preference — two different pieces of work for one acceptance is
+a body with two meanings, and picking one silently is how the wrong task gets linked.
+
+**3. The created work item is `internal`.** `DEFAULT_AUDIENCE`, and the temptation was real: the
+client asked for this, so surely they may watch it. That would make widening a **side effect of
+a different decision**, which is precisely what `25-AUTH-AND-TENANT-ISOLATION` §7 forbids. What
+the client is owed is the answer to their request, and they get it — the request's own
+projection carries the accepted status, the client-safe scope summary and the committed date.
+An `audience` on the body widens it deliberately and is audited as the publication decision it
+is; a test proves that path reaches the portal.
+
+### The history is a read, not a table
+
+US-B02 asks for "actor/time/history immutable" and this codebase already has all three.
+`audit_events` carries the actor, the time and the correlation id; `0002_platform_primitives.sql`
+makes it append-only by trigger, and `users.sql` grants the runtime credential `INSERT` and
+nothing else. So the endpoint is a read through `AuditService.historyOf`, which applies its own
+`audit.read` check and its own scope narrowing.
+
+A `client_request_events` table would have been a second copy of that trail, and — unlike the
+first — a mutable one. A test asserts the immutability at the engine rather than at the
+endpoint, because that is where it actually lives.
+
+### Idempotency, considered and not built
+
+`27-TEST-CATALOG` CONC-01 asks about "duplicate client requests with same idempotency key", and
+`idempotency_records` has existed since `0002` with no writer. It is **not** used here, and the
+reason is that this aggregate already has a stronger guard for the case that matters: a retried
+acceptance carries the version it read, and the second attempt gets a 409 rather than a second
+work item. A test proves it. An idempotency key would add a second mechanism answering a
+question the first already answers, and CONC-01's actual subject — duplicate _submissions_ from
+a client — is a different case that `REQ-001` does not deduplicate and this does not claim to.
+
+### Named gaps in REQ-002, carried deliberately
+
+1. **No triage screen.** `WEB-005 manager triage screen and schedule impact`, 8 points,
+   depending on REQ-002 — the plan's own ticket, and this file previously said the screen
+   "belongs with REQ-002", which was wrong and is corrected here. `TM-12` is API-only today,
+   exactly as `CL-06` was before this session.
+2. **No schedule-impact preview.** `22-SCREEN-BY-SCREEN` §5 TM-12 asks for one _before_ accept.
+   Nothing computes capacity or schedule, so there is nothing to preview; it is WEB-005's, and
+   it needs a capacity model that no ticket has built.
+3. **No duplicate suggestion.** TM-12 also lists "duplicate suggestion" and "client history".
+   The history endpoint is here; suggesting duplicates is a similarity judgement nothing
+   computes, and is recorded rather than approximated.
+4. **The linked work item is not visible from the work side.** `work_items` has no column
+   pointing back at the request that caused it — the link is one-directional, on
+   `client_requests.linked_work_item_id`. Reading "which request is this task for" is a scan
+   today. No document asks for the reverse column; it is recorded because the first screen that
+   wants it will notice.
+5. **`planned` and `delivered` are still manual.** §6 continues `accepted → planned →
+delivered`, and nothing moves a request when its linked work item does. That is a rule
+   connecting two lifecycles and it belongs with the outbox relay (`PLAT-004`) rather than
+   inside a request handler.
+6. **The work item's type is always `task`.** Not configurable on the acceptance body. No
+   document enumerates the types either — `work_items.type` is a `VARCHAR(32)` with a `'task'`
+   default — so this is the same open vocabulary the `category` gap records.
+
+---
+
 ## Verification actually run — 2026-08-26, the WEB-004 second-half session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -3741,33 +3866,33 @@ module migration cannot add a tenant table that the guard silently ignores.
 
 ## Component status
 
-| Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                          |
-| ------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/config`                                 | `tested`      | 25 tests. MySQL schemes, `DEPLOYMENT_PROFILE`, `TENANT_GUARD_MODE`; production refuses dev substitutes and placeholder secrets                                                                                                                                                                                 |
-| `packages/domain` — state machines                | `tested`      | 35 tests across all 7 lifecycles in `23-ERD` §5–§11                                                                                                                                                                                                                                                            |
-| `packages/domain` — authorization                 | `tested`      | 29 tests over the §11 grid — application layer                                                                                                                                                                                                                                                                 |
-| `packages/domain` — value objects                 | `tested`      | 11 tests. UUIDv7 (incl. >2³² ms), content hash                                                                                                                                                                                                                                                                 |
-| `apps/api` — migrator                             | `tested`      | 15 database tests, 9 splitter tests                                                                                                                                                                                                                                                                            |
-| `apps/api` — schema (0001, 0002)                  | `tested`      | Applied from empty on every database run; invariants read back from `information_schema`                                                                                                                                                                                                                       |
-| `apps/api` — tenant context + guard               | `tested`      | 45 analyser tests, 44 corpus tests                                                                                                                                                                                                                                                                             |
-| `apps/api` — least-privilege credentials          | `tested`      | 12 static assertions, plus **21 dynamic cases that now actually run** — against a long-lived MySQL 8.0.45 and again against MariaDB 11.4.5, both with the real `tmanage_app` credential. No container was involved. They still skip on the default per-file path, which has no such credential                 |
-| `apps/api` — Drizzle schema + guarded seam        | `tested`      | 44 drift cases against `information_schema`, mutation-tested; the seam is proven to keep the guard on the query path                                                                                                                                                                                           |
-| `apps/api` — repositories                         | `tested`      | Projects (18 cases), organizations/workspaces/memberships (21), and **client organizations, client memberships, project memberships and work items (49)**. All eight follow one shape. **PROJ-002 adds 19 HTTP cases** over project creation and the workspace list                                            |
-| `apps/api` — membership resolver + bootstrap read | `tested`      | 24 database cases. The only waiver of ADR-0001 layer 3, bounded by an audited reason, a read-only rule and a table allowlist — all three mutation-tested                                                                                                                                                       |
-| `apps/api` — principal assembly (TEN-002)         | `tested`      | Project relation loaded on the scoped path; a test asserts no guard event is emitted while a principal is assembled                                                                                                                                                                                            |
-| `apps/api` — sessions (ID-001)                    | `tested`      | 43 database cases + 27 unit cases. Rotation, reuse detection, global cutoff, device list; the append-only ledger is proven immutable under the admin credential                                                                                                                                                |
-| `apps/api` — identity database path               | `tested`      | `identityRead` / `identityTransaction`. Zero tenant tables reachable, enforced in `observe` mode as well as `enforce`; no guard event across a whole session lifecycle                                                                                                                                         |
-| `apps/api` — HTTP                                 | `tested`      | NestJS 11 + Fastify. The four-guard pipeline, the stable error envelope, correlation ids, session routes and the first tenant-scoped endpoints: 36 database cases in `http-pipeline.db.test.ts` plus 16 CSRF unit cases and 2 DI cases. Eight mutations confirm the guards fire                                |
-| `apps/api` — audit (AUD-001)                      | `tested`      | 23 database cases + 26 unit cases. Append-only proved against the **migration** credential, not only the runtime one; the metadata gate refuses content at the write boundary; a rolled-back command leaves no row; a guard denial is recorded end to end through the real application                         |
-| `apps/api` — project-membership commands          | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                                         |
-| `apps/api` — client requests (REQ-001)            | `tested`      | 35 database cases over real HTTP, 1 skipped. One table with no delete and no update path; the facts §6 requires are written only by the transition that required them; the commitment coherence rule is a trigger, so it holds on a direct SQL session too. Two projections built separately, not one filtered |
-| `apps/worker`                                     | `not_started` | Directory exists, empty. `outbox_events` still has no producer and no relay                                                                                                                                                                                                                                    |
-| `apps/web`                                        | `tested`      | 296 unit cases across 14 files; **twenty routes** at `next build`. `CL-09` and `CL-10` ship with WEB-004's second half, and `CL-02` now renders two of §6's five kinds of card                                                                                                                                 |
-| `packages/ui` (UI-001)                            | `tested`      | Token package drift-tested against the design export in both directions; 13 primitives; the contrast arithmetic that jsdom cannot do; Storybook with theme, contrast, density and direction as globals. Three AA defects found and fixed in the component layer                                                |
-| `packages/contracts`, `observability`, `test-kit` | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                                       |
-| CI pipeline                                       | `implemented` | Three jobs written, YAML parses, guards proven to fire under `CI=1`. **Never executed** — no runner here                                                                                                                                                                                                       |
-| Design source audit                               | `tested`      | 172/172, and now Prettier-idempotent so `audit:design` no longer turns `format:check` red                                                                                                                                                                                                                      |
-| Seed world                                        | `tested`      | Exercised by every database run                                                                                                                                                                                                                                                                                |
+| Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/config`                                 | `tested`      | 25 tests. MySQL schemes, `DEPLOYMENT_PROFILE`, `TENANT_GUARD_MODE`; production refuses dev substitutes and placeholder secrets                                                                                                                                                                                                                                                                              |
+| `packages/domain` — state machines                | `tested`      | 35 tests across all 7 lifecycles in `23-ERD` §5–§11                                                                                                                                                                                                                                                                                                                                                         |
+| `packages/domain` — authorization                 | `tested`      | 29 tests over the §11 grid — application layer                                                                                                                                                                                                                                                                                                                                                              |
+| `packages/domain` — value objects                 | `tested`      | 11 tests. UUIDv7 (incl. >2³² ms), content hash                                                                                                                                                                                                                                                                                                                                                              |
+| `apps/api` — migrator                             | `tested`      | 15 database tests, 9 splitter tests                                                                                                                                                                                                                                                                                                                                                                         |
+| `apps/api` — schema (0001, 0002)                  | `tested`      | Applied from empty on every database run; invariants read back from `information_schema`                                                                                                                                                                                                                                                                                                                    |
+| `apps/api` — tenant context + guard               | `tested`      | 45 analyser tests, 44 corpus tests                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/api` — least-privilege credentials          | `tested`      | 12 static assertions, plus **21 dynamic cases that now actually run** — against a long-lived MySQL 8.0.45 and again against MariaDB 11.4.5, both with the real `tmanage_app` credential. No container was involved. They still skip on the default per-file path, which has no such credential                                                                                                              |
+| `apps/api` — Drizzle schema + guarded seam        | `tested`      | 44 drift cases against `information_schema`, mutation-tested; the seam is proven to keep the guard on the query path                                                                                                                                                                                                                                                                                        |
+| `apps/api` — repositories                         | `tested`      | Projects (18 cases), organizations/workspaces/memberships (21), and **client organizations, client memberships, project memberships and work items (49)**. All eight follow one shape. **PROJ-002 adds 19 HTTP cases** over project creation and the workspace list                                                                                                                                         |
+| `apps/api` — membership resolver + bootstrap read | `tested`      | 24 database cases. The only waiver of ADR-0001 layer 3, bounded by an audited reason, a read-only rule and a table allowlist — all three mutation-tested                                                                                                                                                                                                                                                    |
+| `apps/api` — principal assembly (TEN-002)         | `tested`      | Project relation loaded on the scoped path; a test asserts no guard event is emitted while a principal is assembled                                                                                                                                                                                                                                                                                         |
+| `apps/api` — sessions (ID-001)                    | `tested`      | 43 database cases + 27 unit cases. Rotation, reuse detection, global cutoff, device list; the append-only ledger is proven immutable under the admin credential                                                                                                                                                                                                                                             |
+| `apps/api` — identity database path               | `tested`      | `identityRead` / `identityTransaction`. Zero tenant tables reachable, enforced in `observe` mode as well as `enforce`; no guard event across a whole session lifecycle                                                                                                                                                                                                                                      |
+| `apps/api` — HTTP                                 | `tested`      | NestJS 11 + Fastify. The four-guard pipeline, the stable error envelope, correlation ids, session routes and the first tenant-scoped endpoints: 36 database cases in `http-pipeline.db.test.ts` plus 16 CSRF unit cases and 2 DI cases. Eight mutations confirm the guards fire                                                                                                                             |
+| `apps/api` — audit (AUD-001)                      | `tested`      | 23 database cases + 26 unit cases. Append-only proved against the **migration** credential, not only the runtime one; the metadata gate refuses content at the write boundary; a rolled-back command leaves no row; a guard denial is recorded end to end through the real application                                                                                                                      |
+| `apps/api` — project-membership commands          | `tested`      | Grant, role change and revocation, each one transaction containing the write and its audit row. The revocation records the facts the `DELETE` destroys                                                                                                                                                                                                                                                      |
+| `apps/api` — client requests (REQ-001, REQ-002)   | `tested`      | 47 database cases over real HTTP, 1 skipped. One table with no delete and no update path; the facts §6 requires are written only by the transition that required them; the commitment coherence rule is a trigger, so it holds on a direct SQL session too. Two projections built separately, not one filtered. **REQ-002** makes an acceptance and its work one transaction, with one door onto `accepted` |
+| `apps/worker`                                     | `not_started` | Directory exists, empty. `outbox_events` still has no producer and no relay                                                                                                                                                                                                                                                                                                                                 |
+| `apps/web`                                        | `tested`      | 296 unit cases across 14 files; **twenty routes** at `next build`. `CL-09` and `CL-10` ship with WEB-004's second half, and `CL-02` now renders two of §6's five kinds of card                                                                                                                                                                                                                              |
+| `packages/ui` (UI-001)                            | `tested`      | Token package drift-tested against the design export in both directions; 13 primitives; the contrast arithmetic that jsdom cannot do; Storybook with theme, contrast, density and direction as globals. Three AA defects found and fixed in the component layer                                                                                                                                             |
+| `packages/contracts`, `observability`, `test-kit` | `not_started` | Directories exist, empty                                                                                                                                                                                                                                                                                                                                                                                    |
+| CI pipeline                                       | `implemented` | Three jobs written, YAML parses, guards proven to fire under `CI=1`. **Never executed** — no runner here                                                                                                                                                                                                                                                                                                    |
+| Design source audit                               | `tested`      | 172/172, and now Prettier-idempotent so `audit:design` no longer turns `format:check` red                                                                                                                                                                                                                                                                                                                   |
+| Seed world                                        | `tested`      | Exercised by every database run                                                                                                                                                                                                                                                                                                                                                                             |
 
 ---
 
@@ -3889,40 +4014,51 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**`WEB-004` finished on 2026-08-26 and this section is replaced rather than amended.** It named
-`CL-06` as next; `CL-09` and `CL-10` now exist, `CL-02` has its second kind of card, and the
-sections above record what was built and what was left out.
+**`REQ-002` shipped on 2026-08-26 and this section is replaced rather than amended.** It named
+REQ-002 as next and said the triage screen "belongs with REQ-002", which was **wrong**:
+`28-SPRINT-TICKETS` §7 schedules `WEB-005 manager triage screen and schedule impact` as its own
+8-point ticket depending on REQ-002. The correction matters because this file's whole discipline
+is not inventing tickets, and that sentence quietly merged two.
 
-**The next one is `REQ-002` — triage, clarify and accept as one linked-work transaction.**
+**The next one is `WEB-005` — the manager triage screen.**
 
-Eight points, and both dependencies met. It is the first thing a person using this product would
-ask for, because of where REQ-001 stopped: accepting a request requires a `linkedWorkItemId`,
-and today a manager must have created that work item separately and pasted its id. REQ-002 makes
-accepting a request and committing the work **one unit of work** — one transaction, one audit
-trail, and the request and the work item created consistent or not at all.
+It is the same argument that made `CL-06` next after REQ-001, from the other side of the
+relationship. `REQ-001` and `REQ-002` gave the studio everything: a queue, a clarification, a
+decline with a client-safe reason, and an acceptance that commits the work in one transaction.
+**None of it has a screen.** A client can now ask for something in a browser and nobody at the
+agency can answer without an HTTP client, which is a worse position than the client was in this
+morning — they at least had a portal to read.
 
-Two things make it the right next step rather than merely the next number. It closes the only
-gap REQ-001 left in the studio's half, and it is the last piece before the request loop reads
-end to end: a client asks, a manager accepts, work appears in the plan, and the client sees an
-agreed date on the request they sent.
+`22-SCREEN-BY-SCREEN` §5 `TM-12` lists what it needs: "Request content, desired date disclaimer,
+files, discussion, client history, duplicate suggestion. Actions: ask clarification, accept,
+defer, decline. Acceptance requires committed scope/owner/date. Schedule-impact preview before
+accept."
 
-There is also a triage **screen** owed — `22-SCREEN-BY-SCREEN` §5 `TM-12` and
-`10-SCREENS-FLOWS-PROTOTYPE` §2's "client request triage". The studio's side of REQ-001 is
-API-only today, exactly as the client's side was before this session. That belongs with REQ-002
-rather than before it, because the screen's main control is the accept-with-linked-work action
-REQ-002 defines.
+Four of those exist and three do not, and the split is already documented: the content, the
+disclaimer, the history endpoint and all four actions are built; files are `FILE-001`, discussion
+is `CONV-001`, and duplicate suggestion is a similarity judgement nothing computes. The
+**schedule-impact preview** is the one that needs a decision rather than a ticket — nothing in
+this system models capacity, so a preview would either be invented or honestly absent, and the
+screen should say which.
 
 The alternatives, in order after it:
 
-2. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
+2. **`SEC-001` — client projection and query policies, and the cross-tenant isolation corpus.**
+   Eight points, the last of Sprint 4 besides WEB-005, and its dependency (`CLIENT-001`) has
+   been met for two sessions. Much of what it asks for exists as tests already; what it would
+   add is the corpus grown to cover the client-projection surfaces that did not exist when
+   `tenant-isolation.db.test.ts` was written.
+3. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
    the bulk audience change the specification singles out for a separate confirmation.
-3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
+4. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
    it. `28-SPRINT-TICKETS` does not schedule this, and the name `MAIL-001` used elsewhere in
    this file is this file's, not the plan's.
-4. **`PLAT-004`'s relay** — the outbox dispatcher. Ten tickets have now established the
+5. **`PLAT-004`'s relay** — the outbox dispatcher. Eleven tickets have now established the
    transaction boundary it will publish from, `24-EVENT-CATALOG` names two client-request events
-   that nothing emits, and `apps/worker` is still an empty directory.
-5. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
+   that nothing emits, and `apps/worker` is still an empty directory. It is also where the rule
+   connecting two lifecycles belongs: nothing moves a request to `planned` or `delivered` when
+   its linked work item moves.
+6. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
    `projects.committed_at` and `client_requests.desired_at` are all `DATETIME(3)` holding
    midnight UTC, so a reader west of UTC sees every calendar date a day early. Not scheduled by
    `28-SPRINT-TICKETS`; it is a migration, and it is recorded in the WEB-004 gaps above.
@@ -3991,21 +4127,29 @@ though the plan contained it.
     client's action queue by itself, and reading carried by the two capabilities the matrix
     actually has. 35 database cases. §6 turns out to have no `triage -> withdrawn` arrow, which
     a failing test found and the diagram confirmed.
-21. ~~WEB-004's second half~~ — **done this session.** `CL-09` and `CL-10`: the date said as a
+21. ~~WEB-004's second half~~ — `CL-09` and `CL-10`: the date said as a
     wish three times, the two dates never on one line, a Withdraw button that appears only when
     the machine would allow it, and `CL-02`'s second kind of card. 21 web cases. Two defects
     found by re-reading and fixed before the chain was recorded, and two divergences inside the
     planning pack recorded rather than resolved.
+22. ~~REQ-002~~ — **done this session.** An acceptance and its work as one transaction: a refused
+    acceptance now leaves no task in the plan describing work nobody agreed to, `accepted` has
+    exactly one door, and the request's history is a read of the append-only audit trail rather
+    than a second, mutable copy of it. 12 database cases, no migration.
 
 ### Progress
 
-**24½ of 74 tickets. 167 of 615 story points, about 27%, across Sprints 0–9.** WEB-002 counts
-half of its 13 points, rounded down. **WEB-004 is now whole** and counts all 13; REQ-001 counts
-its full 8. Screen tickets: **3½ of 11** — seven of WEB-001's nine screens do what they say,
-three of WEB-002's, and all of WEB-004's.
+**25½ of 74 tickets. 175 of 615 story points, about 28%, across Sprints 0–9.** WEB-002 counts
+half of its 13 points, rounded down. **WEB-004 is whole** and counts all 13; REQ-001 and REQ-002
+count their full 8 each. Screen tickets: **3½ of 11** — seven of WEB-001's nine screens do what
+they say, three of WEB-002's, and all of WEB-004's.
+
+**Sprint 4 is now five of its seven tickets**, and the two outstanding are `SEC-001` and
+`WEB-005`.
 
 The portal is the most finished surface in the product: a client can read what was published to
-them, see what is waiting on them, ask for something new, and follow what happened to it.
+them, see what is waiting on them, ask for something new, and follow what happened to it. The
+studio can answer all of it — over HTTP, with no screen of its own yet.
 
 **Both loops are closed in the browser.** A person signs in, creates an organization, creates a
 project, puts work in it, moves that work through its lifecycle, sets up a client organization,
@@ -4019,11 +4163,11 @@ team could use for a week:
 1. **Nothing sends the invitation.** The link is printed on screen and a person has to send it
    by hand. Nothing else in the loop needs a human to carry it.
 2. **The client can now answer, and the studio's half of it has no screen.** `REQ-001` built
-   the request and `WEB-004`'s second half built the client's side of it: a client asks for
-   something in the browser, is told plainly that their date is a wish, and reads the answer
-   with a client-safe reason attached. **The studio triages over HTTP only** — there is no
-   triage screen, which is the mirror image of where the client was this morning. `REQ-002` and
-   `TM-12` are that.
+   the request, `WEB-004`'s second half built the client's side of it, and `REQ-002` made
+   accepting one and committing the work a single transaction. A client asks for something in
+   the browser, is told plainly that their date is a wish, and reads the answer with a
+   client-safe reason attached. **The studio triages over HTTP only** — there is no triage
+   screen, which is the mirror image of where the client was this morning. That is `WEB-005`.
 3. **Approving, requesting changes and uploading are still in the position requests were in.**
    `approval.decide` and `file.upload` are in client ceilings with nothing behind them.
    `DEL-001`, `APPR-001` and `FILE-001` are those aggregates, and none has started.
