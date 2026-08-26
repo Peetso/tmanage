@@ -266,6 +266,22 @@
   line-height: var(--t-body-md-line);
 }
 
+/*
+ * A control that holds a paragraph rather than a line.
+ *
+ * `min-block-size: var(--control)` above is the 40px control height, which is right for an
+ * input and wrong for a textarea: a person writing why a request matters needs to see what they
+ * have written. `field-sizing: content` grows it as they type where the browser supports it;
+ * `resize: block` lets them take over where it does not, and never lets them drag the control
+ * outside the column.
+ */
+.tm-field__control--multiline {
+  min-block-size: calc(var(--control) * 3);
+  padding-block: var(--s3);
+  resize: block;
+  field-sizing: content;
+}
+
 .tm-field__control::placeholder {
   color: var(--ink-500);
 }

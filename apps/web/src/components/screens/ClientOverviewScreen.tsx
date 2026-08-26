@@ -6,8 +6,13 @@ import { InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { listPortalProjects, listPortalWorkItems } from '../../lib/api/portal';
-import type { PortalProject, PortalWorkItem } from '../../lib/api/portal';
+import { listClientRequests, listPortalProjects, listPortalWorkItems } from '../../lib/api/portal';
+import type { ClientRequest, PortalProject, PortalWorkItem } from '../../lib/api/portal';
+import {
+  isWaitingOnClient,
+  requestStatusCapsule,
+  requestStatusLabel,
+} from '../../lib/client-request-presentation';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -68,6 +73,19 @@ export function ClientOverviewScreen({
   const workItems = useQuery({
     queryKey: ['portal-work-items', organizationSlug],
     queryFn: () => listPortalWorkItems(api, organizationSlug),
+  });
+
+  /**
+   * The client's own requests — `REQ-001`.
+   *
+   * On the overview rather than in the rail, because `22-SCREEN-BY-SCREEN` §1 fixes the client
+   * navigation at seven destinations and "Requests" is not one of them. Asking for something is
+   * reached from the page a client lands on instead; see `ClientRequestsScreen` for the record
+   * of that divergence.
+   */
+  const requests = useQuery({
+    queryKey: ['portal-requests', organizationSlug],
+    queryFn: () => listClientRequests(api, organizationSlug),
   });
 
   const items = workItems.data ?? [];
@@ -160,12 +178,88 @@ export function ClientOverviewScreen({
 
       <ProgressSection items={items} providerName={providerName} />
 
-      <BackendPending ticket="PULSE-001 · MILE-001 · REQ-001">
+      <RequestsSection
+        organizationSlug={organizationSlug}
+        providerName={providerName}
+        requests={requests.data ?? []}
+      />
+
+      <BackendPending ticket="PULSE-001 · MILE-001">
         The latest update from {providerName}, the milestone timeline, and shared risks are not
         built yet. None is drawn as an empty section, because an empty “Updates” heading reads as a
         team that has said nothing rather than a feature that does not exist.
       </BackendPending>
     </ClientPortalShell>
+  );
+}
+
+interface RequestsSectionProps {
+  organizationSlug: string;
+  providerName: string;
+  requests: readonly ClientRequest[];
+}
+
+/**
+ * What this client has asked for, and the way in to asking for something new.
+ *
+ * The entry point lives here because the rail cannot carry it: `22` §1's client navigation has
+ * seven destinations and none of them is Requests. A client who has never asked for anything
+ * still sees the invitation to — an empty section here is the only thing that tells them the
+ * portal is two-way, and until `REQ-001` it genuinely was not.
+ *
+ * At most three are shown. A client with twenty requests needs the list, not the overview.
+ */
+function RequestsSection({ organizationSlug, providerName, requests }: RequestsSectionProps) {
+  const waiting = requests.filter(isWaitingOnClient);
+  // Anything the studio has asked about first, then the newest. Same rule as the full list.
+  const recent = [...waiting, ...requests.filter((request) => !isWaitingOnClient(request))].slice(
+    0,
+    3,
+  );
+
+  return (
+    <section className="tm-panel tm-stack" aria-labelledby="tm-portal-requests">
+      <h2 id="tm-portal-requests" className="tm-eyebrow">
+        What you have asked for
+      </h2>
+
+      {requests.length === 0 ? (
+        <p className="tm-prose">
+          You have not asked {providerName} for anything yet. When you need something, ask here —
+          they read it, ask you anything unclear, and either agree a date or tell you why not.
+        </p>
+      ) : (
+        <ul className="tm-list tm-stack tm-stack--tight">
+          {recent.map((request) => (
+            <li key={request.id}>
+              <Link href={`/${organizationSlug}/portal/requests/${request.id}`}>
+                <strong>{request.title}</strong>
+              </Link>{' '}
+              <StateCapsule state={requestStatusCapsule(request.status)}>
+                {requestStatusLabel(request.status)}
+              </StateCapsule>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="tm-prose">
+        <Link href={`/${organizationSlug}/portal/requests/new`}>Ask for something</Link>
+        {requests.length > recent.length ? (
+          <>
+            {' · '}
+            <Link href={`/${organizationSlug}/portal/requests`}>
+              See all {requests.length} of your requests
+            </Link>
+          </>
+        ) : requests.length > 0 ? (
+          <>
+            {' · '}
+            <Link href={`/${organizationSlug}/portal/requests`}>See all of your requests</Link>
+          </>
+        ) : null}
+      </p>
+    </section>
   );
 }
 

@@ -143,6 +143,7 @@ interface ClientRequestClient {
   clientSafeScopeSummary: string | null;
   commitment: string | null;
   committedAt: string | null;
+  canWithdraw: boolean;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -470,6 +471,7 @@ describe('the client projection is a projection, not the record with fields remo
     ).json<ClientRequestClient>();
 
     expect(Object.keys(seen).sort()).toEqual([
+      'canWithdraw',
       'category',
       'clarificationQuestion',
       'clientSafeScopeSummary',
@@ -487,6 +489,32 @@ describe('the client projection is a projection, not the record with fields remo
       'urgencyReason',
       'version',
     ]);
+  });
+
+  it('says whether withdrawal is still open, which status alone cannot', async () => {
+    const client = await signIn(world.atlas.reviewer.id);
+    const created = await submit(client);
+    // Fresh: `submitted -> withdrawn` is an arrow §6 draws.
+    expect(created.canWithdraw).toBe(true);
+
+    const studio = await signIn(manager().id);
+    const triaged = await move(studio, created, 'triage');
+
+    const underTriage = (
+      await send('GET', `/portal/requests/${created.id}`, client)
+    ).json<ClientRequestClient>();
+    // Same `status` as before — and no longer withdrawable, because §6 has no arrow out of
+    // `triage`. A screen working from `status` alone would offer a button that fails.
+    expect(underTriage.status).toBe('submitted');
+    expect(underTriage.canWithdraw).toBe(false);
+
+    await move(studio, triaged, 'needs_clarification', {
+      clarificationQuestion: 'How many roles should the page list at launch?',
+    });
+    const asked = (
+      await send('GET', `/portal/requests/${created.id}`, client)
+    ).json<ClientRequestClient>();
+    expect(asked.canWithdraw).toBe(true);
   });
 
   it('shows a request under triage as still submitted', async () => {

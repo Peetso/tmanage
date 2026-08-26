@@ -1,12 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { listPortalProjects, listPortalWorkItems } from '../../lib/api/portal';
+import { listClientRequests, listPortalProjects, listPortalWorkItems } from '../../lib/api/portal';
 import type { PortalWorkItem } from '../../lib/api/portal';
+import { isWaitingOnClient } from '../../lib/client-request-presentation';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -28,10 +30,16 @@ export interface ClientActionsScreenProps {
  *
  * ## What is here and what is honestly not
  *
- * The five card *types* do not exist yet. An approval is `APPR-001`, a feedback request is
- * `REQ-002`, an upload is `FILE-001` — none of them has storage, so there is nothing to sort
- * into five kinds. What does exist is `client_action_required`, which is the audience that
- * says "this one is waiting on the client", and every card on this screen is one of those.
+ * **Two of the five card types now exist.** §6 lists "approval, feedback, upload, answer, client
+ * task". `REQ-001` built the fourth: a request the studio has asked a question about is an
+ * *answer* the client owes, and it is the first card here that is not a work item. The other
+ * card is the client task — a work item the studio widened to `client_action_required`, which
+ * has been the only kind since `CLIENT-002`.
+ *
+ * An approval is `APPR-001` and an upload is `FILE-001`; neither has storage, so neither is
+ * drawn. The two kinds that do exist are rendered as two lists rather than one merged one,
+ * because they are answered in different places and merging them would produce a queue whose
+ * items have no common action.
  *
  * "Why", "consequence" and "estimated review time" are three fields the projection does not
  * carry and no table holds. They are named in `BackendPending` rather than filled with
@@ -71,6 +79,21 @@ export function ClientActionsScreen({
     queryFn: () => listPortalWorkItems(api, organizationSlug),
   });
 
+  const requests = useQuery({
+    queryKey: ['portal-requests', organizationSlug],
+    queryFn: () => listClientRequests(api, organizationSlug),
+  });
+
+  /**
+   * The requests the studio is waiting on an answer to.
+   *
+   * `clarifying` is the only status where the request is the client's to move — and it is also
+   * the state that carries the `client_action_required` audience on the row, so this list and
+   * the work-item list above are selected by the same rule expressed in two places rather than
+   * by two different rules.
+   */
+  const awaitingAnswer = (requests.data ?? []).filter(isWaitingOnClient);
+
   const actions = (workItems.data ?? [])
     .filter((item) => item.progress === 'waiting_on_you')
     .slice()
@@ -102,13 +125,42 @@ export function ClientActionsScreen({
         </div>
       ) : null}
 
-      {!workItems.isPending && !workItems.isError && actions.length === 0 ? (
+      {!workItems.isPending &&
+      !workItems.isError &&
+      !requests.isPending &&
+      actions.length === 0 &&
+      awaitingAnswer.length === 0 ? (
         <InlineAlert tone="success" title="Nothing is waiting on you">
           <p className="tm-prose">
             You are up to date. When {providerName} needs something from you it will appear here,
             and you will be told — you do not have to keep checking this page.
           </p>
         </InlineAlert>
+      ) : null}
+
+      {awaitingAnswer.length > 0 ? (
+        <ul className="tm-stack tm-list" aria-label="Questions to answer">
+          {awaitingAnswer.map((request) => (
+            <li key={request.id} className="tm-panel tm-stack tm-stack--tight">
+              <div className="tm-row tm-row--wrap">
+                <StateCapsule state="client">Waiting on you</StateCapsule>
+              </div>
+              <p className="tm-prose">
+                <Link href={`/${organizationSlug}/portal/requests/${request.id}`}>
+                  <strong>{request.title}</strong>
+                </Link>
+              </p>
+              {/*
+                §6 asks each card to say *why*. For a request it can: the studio wrote the
+                question down, and it is the only "why" anything in this system currently holds.
+              */}
+              <p className="tm-prose">
+                {request.clarificationQuestion ??
+                  `${providerName} has asked you something about this request.`}
+              </p>
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       {actions.length > 0 ? (
@@ -130,11 +182,11 @@ export function ClientActionsScreen({
         </ul>
       ) : null}
 
-      <BackendPending ticket="APPR-001 · REQ-002 · FILE-001">
-        Approvals, feedback requests and uploads are not built, so every card here is the one kind
-        that exists: something {providerName} has marked as needing you. Why it needs you, what
-        happens if it waits, and how long a review usually takes are three things nothing records
-        yet — they are missing rather than guessed at.
+      <BackendPending ticket="APPR-001 · FILE-001">
+        Two of the five kinds of card §6 lists are here: a question on one of your requests, and
+        something {providerName} has marked as needing you. Approvals and uploads are not built. For
+        a work item, what happens if it waits and how long a review usually takes are two things
+        nothing records yet — they are missing rather than guessed at.
       </BackendPending>
     </ClientPortalShell>
   );

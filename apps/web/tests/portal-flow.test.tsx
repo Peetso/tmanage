@@ -70,10 +70,17 @@ function item(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * `CL-01` and `CL-02` both read three lists as of `REQ-001`. The requests list answers empty
+ * here on purpose: what the request cards do is proved in `client-requests-flow.test.tsx`, and
+ * this file's subject is the two rules §6 puts on the work-item half.
+ */
 function portal(items: readonly unknown[], projects: readonly unknown[] = [PROJECT]): ApiClient {
-  return clientOver((url) =>
-    url.includes('/portal/work-items') ? json({ workItems: items }) : json({ projects }),
-  );
+  return clientOver((url) => {
+    if (url.includes('/portal/work-items')) return json({ workItems: items });
+    if (url.includes('/portal/requests')) return json({ requests: [] });
+    return json({ projects });
+  });
 }
 
 function renderOverview(items: readonly unknown[], projects: readonly unknown[] = [PROJECT]) {
@@ -239,9 +246,11 @@ describe('CL-02 my actions', () => {
   it('says which fields it does not have rather than inventing them', async () => {
     renderActions([item({ progress: 'waiting_on_you' })]);
 
-    // "Why, due, consequence, estimated review time" — three of the four are not stored, and
-    // a portal that invented a consequence would be worse than one that says it does not know.
-    expect(await screen.findByText(/are three things nothing records yet/)).toBeInTheDocument();
+    // "Why, due, consequence, estimated review time" — for a work item, two of the four are
+    // not stored, and a portal that invented a consequence would be worse than one that says
+    // it does not know. `REQ-001` supplied the third for a request card, which is why this now
+    // reads "two" and is asserted about work items specifically.
+    expect(await screen.findByText(/are two things nothing records yet/)).toBeInTheDocument();
   });
 
   it('has no axe violations', async () => {

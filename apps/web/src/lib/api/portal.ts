@@ -87,3 +87,113 @@ export async function inviteClientMember(
   });
   return data;
 }
+
+/**
+ * `23-ERD` §6's lifecycle as the client is told it — `22-SCREEN-BY-SCREEN` §6 CL-06's
+ * "submitted/clarifying/accepted/deferred/declined/planned/delivered".
+ *
+ * `triage` is absent because the client is never shown it: a studio that has opened a request
+ * and not answered it reads as `submitted`. `withdrawn` is present because the client causes it.
+ */
+export type ClientRequestStatus =
+  | 'submitted'
+  | 'clarifying'
+  | 'accepted'
+  | 'deferred'
+  | 'declined'
+  | 'planned'
+  | 'delivered'
+  | 'withdrawn';
+
+/**
+ * A request, as its author sees it.
+ *
+ * No linked work item, no person, no internal state. `canWithdraw` is the one field that looks
+ * like a permission and is not: it is the state machine's answer to "is withdrawal still legal
+ * from here", and the screen needs it because `status` cannot answer — `submitted` and `triage`
+ * are the same word to a client and only one of them has an arrow to `withdrawn`.
+ */
+export interface ClientRequest {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly category: string;
+  readonly description: string;
+  readonly urgencyReason: string | null;
+  /** What was asked for. Never a commitment — the field is not called `dueAt` on purpose. */
+  readonly desiredAt: string | null;
+  readonly status: ClientRequestStatus;
+  readonly clarificationQuestion: string | null;
+  readonly clientVisibleReason: string | null;
+  readonly clientSafeScopeSummary: string | null;
+  readonly commitment: 'committed' | 'unscheduled' | null;
+  readonly committedAt: string | null;
+  readonly canWithdraw: boolean;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface SubmitClientRequestInput {
+  readonly projectId: string;
+  readonly title: string;
+  readonly description: string;
+  readonly category?: string;
+  readonly urgencyReason?: string;
+  /** An ISO 8601 instant. The API refuses a bare calendar date rather than guessing a time. */
+  readonly desiredAt?: string;
+}
+
+export async function submitClientRequest(
+  client: ApiClient,
+  organizationSlug: string,
+  input: SubmitClientRequestInput,
+): Promise<ClientRequest> {
+  const { data } = await client.request<ClientRequest>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/requests`,
+    body: input,
+  });
+  return data;
+}
+
+export async function listClientRequests(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId?: string,
+): Promise<readonly ClientRequest[]> {
+  const suffix = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+  const { data } = await client.request<{ requests: readonly ClientRequest[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/requests${suffix}`,
+  });
+  return data.requests;
+}
+
+export async function getClientRequest(
+  client: ApiClient,
+  organizationSlug: string,
+  requestId: string,
+): Promise<ClientRequest> {
+  const { data } = await client.request<ClientRequest>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/requests/${encodeURIComponent(requestId)}`,
+  });
+  return data;
+}
+
+/**
+ * Withdraw. The route names its one destination, so there is no state to send and none to get
+ * wrong; the version is the concurrency token the API refuses the write without.
+ */
+export async function withdrawClientRequest(
+  client: ApiClient,
+  organizationSlug: string,
+  requestId: string,
+  version: number,
+): Promise<ClientRequest> {
+  const { data } = await client.request<ClientRequest>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/requests/${encodeURIComponent(requestId)}/withdrawal`,
+    body: { version },
+  });
+  return data;
+}

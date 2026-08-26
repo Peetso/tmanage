@@ -2,6 +2,7 @@ import {
   CLIENT_ALLOWED_CLIENT_REQUEST_TRANSITIONS,
   MANAGER_ONLY_CLIENT_REQUEST_TRANSITIONS,
   authorize,
+  clientRequestStateMachine,
 } from '@tmanage/domain';
 import type { Audience, ClientRequestState, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -138,6 +139,21 @@ export interface ClientRequestClientView {
   readonly clientSafeScopeSummary: string | null;
   readonly commitment: 'committed' | 'unscheduled' | null;
   readonly committedAt: string | null;
+  /**
+   * Whether withdrawal is legal from where this request currently is.
+   *
+   * Asked of `clientRequestStateMachine`, not restated. It is on the projection because the
+   * projection has made it unanswerable any other way: `triage` and `submitted` both read as
+   * `submitted` to the client, and §6 draws `submitted -> withdrawn` and **no arrow out of
+   * `triage`** — so a screen working from `status` alone would offer a Withdraw button that
+   * fails for half the requests it appears on.
+   *
+   * It discloses nothing the client should not have. "May I take this back" is a fact about
+   * the client's own options, not about what the studio is doing with it; a client who sees
+   * the button disappear learns that somebody has picked their request up, which is a thing
+   * they are entitled to know and which the studio's own copy tells them anyway.
+   */
+  readonly canWithdraw: boolean;
   readonly version: number;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -213,6 +229,8 @@ function toClientView(row: ClientRequestRow): ClientRequestClientView {
     clientSafeScopeSummary: row.clientSafeScopeSummary,
     commitment: row.commitment,
     committedAt: iso(row.committedAt),
+    canWithdraw: clientRequestStateMachine.transition(row.state as ClientRequestState, 'withdrawn')
+      .ok,
     version: Number(row.version),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
