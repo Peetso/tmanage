@@ -170,6 +170,109 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-26, the WEB-004 session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`667 s` wall (11 m 7 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                          |
+| `typecheck`              | Clean across five projects                                                                                                  |
+| `lint`                   | Clean                                                                                                                       |
+| `test` (unit)            | **749 passed**, 34 files — config 25, domain 102, ui 106, api 241, **web 275**. Was 736 across 33 — one new suite, 13 cases |
+| `test:db`                | **542 passed, 21 skipped**, 19 files, **667.03 s**. Unchanged: WEB-004 adds no database surface                             |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                       |
+| `format:check` (closing) | Clean                                                                                                                       |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                                   |
+
+`next build` was run separately and succeeded: **seventeen routes**, was fifteen. The two new
+ones are `/[orgSlug]/portal` and `/[orgSlug]/portal/actions`.
+
+The 21 skips are the same least-privilege cases as every previous session, and are recorded
+as skips.
+
+---
+
+## WEB-004's first half — the portal a client can actually open
+
+`CLIENT-002` built the portal's endpoints and the portal had no screens. `ClientPortalShell`
+has existed since `WEB-001` and linked to routes that did not exist, so a client could be
+invited, accept, sign in, and land on a 404.
+
+`CL-01 Overview` and `CL-02 My Actions` are the two screens the endpoints already answer.
+`CL-03` through `CL-11` need approvals, requests, files and deliverables — none of which has
+storage — and are the second half.
+
+### The rule in bold: no internal task percentage
+
+`22-SCREEN-BY-SCREEN` §6 puts it in bold on `CL-01`, and it is the rule a well-meaning screen
+breaks first. A progress bar is the obvious thing to draw on a client overview, and a
+percentage can only be computed from the internal task list `12-PERMISSION-MATRIX` §4 excludes
+from the projection — so a number there would be either a leak or a fabrication.
+
+What the client gets instead: the two dates that mean something to them, the things waiting on
+them, and everything that has been shared, in full. The screen **says out loud** that the
+missing percentage is a decision, because a client who expects a progress bar and does not find
+one should know that somebody chose.
+
+The API could not leak one anyway. `PortalWorkItem` carries no state and no owner, so this
+screen could not compute a task percentage if it wanted to — which is the projection doing its
+job rather than the screen being careful.
+
+### The empty state is the specification's
+
+§6 on `CL-02`: "empty state confirms notification behavior." A client with nothing to do is
+told **both** halves: nothing is waiting on you, and you will be told rather than expected to
+keep checking this page. That sentence is the empty state's entire job, so it says both.
+
+### Three things the screens refuse to invent
+
+- **The five card types.** §6 lists approval, feedback, upload, answer and client task, and
+  none of them has an aggregate. Every card is the one kind that exists —
+  `client_action_required` — and `BackendPending` names the four that do not.
+- **"Why", "consequence", "estimated review time".** Three of the four fields §6 wants on each
+  card. Nothing stores them. They are named as missing rather than filled with plausible
+  sentences: a portal that told a client the consequence of missing a date, and invented it, is
+  worse than one that admits it does not know.
+- **Ordering.** By due date, soonest first, undated last. §6 asks for "ordered cards" without
+  saying by what, and the only ordering this screen can honestly apply is one the client can
+  verify from what is on the card. Urgency or importance would be an internal judgement the
+  projection does not carry.
+
+### The portal's links now have a tenant in them
+
+`ClientPortalShell` takes an `organizationSlug` and prefixes every navigation href with it.
+`CLIENT_NAVIGATION` carries `/portal/actions`; the shell renders `/northstar/portal/actions`.
+
+The portal is tenant-scoped exactly as every other screen is — the slug in the path is the
+claim `TenantContextGuard` resolves against a membership row — and the navigation had been
+pointing at routes with no tenant in them since `WEB-001`. The test that keeps internal
+destinations out of the portal is unchanged in what it protects and now asserts the prefix too.
+
+### Named gaps
+
+1. **Two names are fixtures.** The client organization's own name and the service
+   organization's are both invented, because nothing returns either to the people who need to
+   read them: `CLIENT-002`'s endpoints answer with projects and work, not with who the reader
+   is. Both are cosmetic; every piece of data on the portal is real.
+2. **`CL-01` shows one project.** The portal reads the first project shared with this client,
+   because `22` §1's "project selector if authorized" has no design decision recorded for the
+   multi-project case and inventing one would be guessing. A client with two shared projects
+   sees the first and is not told about the second — recorded here because it is the sharpest
+   of these gaps.
+3. **Milestones, updates, risks and timeline are absent**, named in `BackendPending` rather
+   than drawn as empty sections. §6's first viewport lists all four; none has storage.
+4. **The portal reads and does not write.** `client_request.submit` is in every client ceiling
+   and there is nothing to submit to — `REQ-001` is the aggregate, unbuilt. Approving,
+   requesting changes and uploading are all in the same position.
+
+---
+
 ## Verification actually run — 2026-08-26, the CLIENT-002 session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -3427,22 +3530,18 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
 
 ### The next coding task
 
-**WEB-004's first half — `CL-01 Overview` and `CL-02 My Actions`.**
+**REQ-001 — the client request aggregate, API and projection.**
 
-`CLIENT-002` built the portal's endpoints and the portal has no screens: `ClientPortalShell`
-has existed since `WEB-001` and renders navigation to routes that do not exist. A client can
-now be invited, accept, sign in, and land on a 404.
+Eight points, its one dependency (`CLIENT-001`) long met, and it is the piece that turns the
+portal from something a client reads into something a client uses. `client_request.submit` is
+in **every** client role's ceiling — it is the one thing all four of them can do — and there is
+nothing to submit to.
 
-The two screens are the ones the endpoints already answer. `CL-01`'s hardest rule is the one
-`22-SCREEN-BY-SCREEN` §6 puts in bold — **"No internal task percentage"** — and it is the rule
-a well-meaning screen breaks first, because a progress bar is the obvious thing to draw and a
-percentage can only be computed from the internal task list §4 excludes. `CL-02`'s is the
-empty state, which §6 says must "confirm notification behavior": a client with nothing to do
-needs to be told that the emptiness means nothing is waiting **and** that they will be told
-rather than expected to keep checking.
-
-`CL-03` through `CL-11` need approvals, requests, files and deliverables, none of which has
-storage. They are the second half, after those aggregates exist.
+It is also what `CL-02` is waiting for. That screen renders one kind of card because one kind
+exists; `22-SCREEN-BY-SCREEN` §6 lists five, and an approval, a feedback request and a client
+task all hang off aggregates that do not exist yet. `REQ-001` is the first of them and
+`23-ERD` §6 already gives the state machine — submitted, clarifying, accepted, deferred,
+declined, planned, delivered — so the shape is decided.
 
 The other three, unchanged in order:
 
@@ -3451,7 +3550,7 @@ The other three, unchanged in order:
 3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to
    send it. `28-SPRINT-TICKETS` does not schedule this, and the name `MAIL-001` used elsewhere
    in this file is this file's, not the plan's.
-4. **PLAT-004's relay** — the outbox dispatcher. Seven tickets have now established the
+4. **PLAT-004's relay** — the outbox dispatcher. Eight tickets have now established the
    transaction boundary it will publish from, and `apps/worker` is still an empty directory.
 
 A note on a name this file uses: **PEOPLE-001 is not a ticket.** `28-SPRINT-TICKETS` does not
@@ -3503,28 +3602,34 @@ as though the plan contained it.
     `ID-03` needed and TEN-003 had not shipped. Two of the three roles `ON-04` offered turned
     out not to exist. 14 web cases, and a green suite standing beside an unhandled error was
     caught and fixed.
-18. ~~CLIENT-002~~ — **done this session.** The client portal: a capability
-    `12-PERMISSION-MATRIX` §1 named and the code did not have, a read surface on a path of its
-    own, a projection built field by field from §4's allowlist, and a client-admin invitation
-    whose body cannot name a client organization. 19 database cases, and the assertion parked
-    since the HTTP surface landed is un-parked.
+18. ~~CLIENT-002~~ — the client portal: a capability `12-PERMISSION-MATRIX` §1 named and the
+    code did not have, a read surface on a path of its own, a projection built field by field
+    from §4's allowlist, and a client-admin invitation whose body cannot name a client
+    organization. 19 database cases, and the assertion parked since the HTTP surface landed is
+    un-parked.
+19. ~~WEB-004's first half~~ — **done this session.** `CL-01` and `CL-02`: no internal task
+    percentage and the screen says why, an empty state that confirms the notification
+    behaviour, and three fields §6 asks for that are named as missing rather than invented. 13
+    web cases. The portal's links now carry a tenant, which they had not since WEB-001.
 
 ### Progress
 
-**22 of 74 tickets. 146 of 615 story points, about 24%, across Sprints 0–9.** Screen tickets:
-**1½ of 11** — seven of WEB-001's nine screens do what they say.
+**22½ of 74 tickets. 152 of 615 story points, about 25%, across Sprints 0–9.** WEB-002 and
+WEB-004 each count half of their 13 points, rounded down, because half of each is what shipped.
+Screen tickets: **2½ of 11** — seven of WEB-001's nine screens do what they say, three of
+WEB-002's, and two of WEB-004's.
 
-**The internal loop is closed in the browser.** A person signs in, creates an organization,
-creates a project, puts work in it, moves that work through its lifecycle, sets up a client
-organization, shares the project with it, invites a colleague, and the colleague follows the
-link and lands inside with an active membership — every step of that through a screen.
+**Both loops are closed in the browser.** A person signs in, creates an organization, creates a
+project, puts work in it, moves that work through its lifecycle, sets up a client organization,
+shares the project with it, invites a colleague, and the colleague follows the link and lands
+inside. Publish an item to the client and a client member can open the portal and read exactly
+that item, with none of the internal record around it.
 
-**The client loop is closed in the API and nowhere else.** A client can be given an
-organization, invited into it, admitted, and served a projection of exactly the work published
-to them — and there is no screen to see it in. `ClientPortalShell` has existed since WEB-001
-and links to routes that do not exist.
+That is an end-to-end product for the first time. Two things stand between it and something a
+team could use for a week:
 
-Two things stand between this and something a team could use for a week:
-
-1. **Nothing sends the invitation.** The link is printed on screen and a person has to send it.
-2. **The portal has no screens.** That is WEB-004, and it is next.
+1. **Nothing sends the invitation.** The link is printed on screen and a person has to send it
+   by hand. Nothing else in the loop needs a human to carry it.
+2. **The client can read and cannot answer.** `client_request.submit` is in every client
+   ceiling and there is nothing to submit to; approving, requesting changes and uploading are
+   in the same position. `REQ-001` is the first of those aggregates, and it is next.
