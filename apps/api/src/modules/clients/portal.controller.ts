@@ -1,11 +1,20 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { INVITATIONS_SERVICE, PORTAL_SERVICE } from '../../common/http/tokens.js';
+import {
+  CLIENT_REQUESTS_SERVICE,
+  INVITATIONS_SERVICE,
+  PORTAL_SERVICE,
+} from '../../common/http/tokens.js';
 import type { InvitationView, InvitationsService } from '../tenancy/invitations.service.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { PortalProjectView, PortalService, PortalWorkItemView } from './portal.service.js';
+import type {
+  ClientRequestClientView,
+  ClientRequestsService,
+} from '../requests/client-requests.service.js';
+import { parseSubmitBody, requiredVersion } from '../requests/client-request-input.js';
 
 /**
  * The client portal's read surface — CLIENT-002.
@@ -31,6 +40,7 @@ export class PortalController {
   constructor(
     @Inject(PORTAL_SERVICE) private readonly portal: PortalService,
     @Inject(INVITATIONS_SERVICE) private readonly invitations: InvitationsService,
+    @Inject(CLIENT_REQUESTS_SERVICE) private readonly requests: ClientRequestsService,
   ) {}
 
   /**
@@ -67,6 +77,92 @@ export class PortalController {
         ...(projectId ? { projectId } : {}),
       }),
     };
+  }
+
+  /**
+   * `CL-06 New request` — US-B01, and the first write a client principal has ever been able to
+   * make.
+   *
+   * `client_request.submit` is the one capability every client role holds, which is why this is
+   * the route that turns the portal from something a client reads into something they use.
+   *
+   * **The body cannot name a client organization.** It is taken from the principal, exactly as
+   * on `POST client-members` below and for the same reason: there is no field for a client to
+   * put a sibling client's id in, so there is no code path where the check could be forgotten.
+   *
+   * **The body cannot name files either**, and that absence is a gap rather than a decision.
+   * CL-06 lists files and US-B01 requires them scanned; `FILE-001` has not shipped and nothing
+   * in this system scans anything. A field accepting ids of files nobody had checked would be
+   * worse than the omission — see `client-request-input.ts`.
+   */
+  @Post('requests')
+  @RequireCapability('client_request.submit')
+  @HttpCode(201)
+  async submitRequest(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: Record<string, unknown>,
+  ): Promise<ClientRequestClientView> {
+    return this.requests.submit(context, principal, parseSubmitBody(body ?? {}));
+  }
+
+  /**
+   * `CL-02 My Actions` and `CL-06`'s list — one client organization's own requests.
+   *
+   * The client-organization filter is a **query predicate** built from the principal, so a
+   * sibling client's rows are never selected. There is no `clientOrganizationId` parameter, for
+   * the same reason there is no such field on the body above.
+   */
+  @Get('requests')
+  @RequireCapability('client_request.submit')
+  async listRequests(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Query('projectId') projectId?: string,
+  ): Promise<{ readonly requests: readonly ClientRequestClientView[] }> {
+    return {
+      requests: await this.requests.listForClient(context, principal, {
+        ...(projectId ? { projectId } : {}),
+      }),
+    };
+  }
+
+  /** `CL-06 request detail` — the state, and the client-safe reason that goes with it. */
+  @Get('requests/:clientRequestId')
+  @RequireCapability('client_request.submit')
+  async getRequest(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('clientRequestId') clientRequestId: string,
+  ): Promise<ClientRequestClientView> {
+    return this.requests.getForClient(context, principal, clientRequestId);
+  }
+
+  /**
+   * `23-ERD` §6's "Client may withdraw before delivered" — the only move a client has.
+   *
+   * A route naming its one destination rather than a general transitions endpoint with a `to`
+   * field. A client body that could name a state would be a body that could name `accepted`,
+   * and the refusal would then rest on a check rather than on there being nothing to check.
+   * The state machine still decides whether withdrawal is legal from where the request actually
+   * is — a delivered request cannot be withdrawn, and that comes from §6 rather than from here.
+   */
+  @Post('requests/:clientRequestId/withdrawal')
+  @RequireCapability('client_request.submit')
+  @HttpCode(200)
+  async withdrawRequest(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('clientRequestId') clientRequestId: string,
+    @Body() body: { readonly version?: unknown },
+  ): Promise<ClientRequestClientView> {
+    const details: { field: string; message: string }[] = [];
+    const version = requiredVersion(body?.version, details);
+    if (details.length > 0 || version === undefined) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+
+    return this.requests.withdraw(context, principal, clientRequestId, version);
   }
 
   /**

@@ -9,6 +9,7 @@ import {
   mysqlTable,
   smallint,
   int,
+  text,
   uniqueIndex,
   varchar,
 } from 'drizzle-orm/mysql-core';
@@ -363,6 +364,62 @@ export const workItems = mysqlTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Client requests
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `23-ERD-AND-STATE-MACHINES` §6's "committed date or explicit unscheduled state". */
+export const CLIENT_REQUEST_COMMITMENT = ['committed', 'unscheduled'] as const;
+
+/**
+ * REQ-001. The one thing every client role may do — `client_request.submit` is in all four
+ * ceilings — and the row a triage decision is recorded on.
+ *
+ * `state` carries no `.default()` here because the column has no `DEFAULT` in
+ * `0006_client_requests.sql`; see the note there about `work_items.state`.
+ */
+export const clientRequests = mysqlTable(
+  'client_requests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }).notNull(),
+    submittedByUserId: char('submitted_by_user_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    category: varchar('category', { length: 64 }).notNull().default('general'),
+    description: text('description').notNull(),
+    urgencyReason: varchar('urgency_reason', { length: 500 }),
+    /** What the client asked for. Never what the studio agreed to — that is `committedAt`. */
+    desiredAt: datetime('desired_at', { mode: 'date', fsp: 3 }),
+    state: varchar('state', { length: 32 }).notNull(),
+    clarificationQuestion: text('clarification_question'),
+    clientVisibleReason: varchar('client_visible_reason', { length: 1000 }),
+    clientSafeScopeSummary: text('client_safe_scope_summary'),
+    commitment: mysqlEnum('commitment', CLIENT_REQUEST_COMMITMENT),
+    committedAt: datetime('committed_at', { mode: 'date', fsp: 3 }),
+    linkedWorkItemId: char('linked_work_item_id', { length: 36 }),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_client_requests_org_id').on(table.organizationId, table.id),
+    index('ix_client_requests_org_project_state').on(
+      table.organizationId,
+      table.projectId,
+      table.state,
+      table.createdAt,
+    ),
+    index('ix_client_requests_org_client_state').on(
+      table.organizationId,
+      table.clientOrganizationId,
+      table.state,
+      table.createdAt,
+    ),
+  ],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Platform primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -588,6 +645,7 @@ export const TABLES = {
   invitations: invitations,
   project_clients: projectClients,
   work_items: workItems,
+  client_requests: clientRequests,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -605,6 +663,7 @@ export type ProjectRow = typeof projects.$inferSelect;
 export type NewProjectRow = typeof projects.$inferInsert;
 export type WorkItemRow = typeof workItems.$inferSelect;
 export type NewWorkItemRow = typeof workItems.$inferInsert;
+export type ClientRequestRow = typeof clientRequests.$inferSelect;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;

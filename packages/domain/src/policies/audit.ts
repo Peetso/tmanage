@@ -249,6 +249,37 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'project_membership',
     clause: '§12 role changes — the grant is erased, so the revocation is the only record',
   },
+  /**
+   * REQ-001. Two actions, and the asymmetry between them is the argument.
+   *
+   * A submission is recorded because it is the moment somebody outside the company put an
+   * obligation on it, and because `12-PERMISSION-MATRIX` §2 makes "Submit client request" the
+   * one thing every client role can do — so it is also the only client-initiated write in the
+   * system, and the only place a client's own capability is exercised rather than read.
+   *
+   * A transition is recorded because it is the *answer*, and `23-ERD` §6 makes three of them
+   * decisions only an internal manager may take: accepted, deferred, declined. "Who declined
+   * this, when, and had the client been asked to clarify first" is the question a disputed
+   * scope is settled by, and it is unanswerable from the row alone once a later transition
+   * overwrites the reason.
+   *
+   * Neither carries prose. The title, the description, the urgency reason, the clarification
+   * question and the client-safe reason are all sentences written by a person, and §12's
+   * metadata rule is identifiers and classifications. The row holds them under the tenant's
+   * own access controls; the audit trail holds which decision was taken and against what.
+   */
+  'client_request.submitted': {
+    objectType: 'client_request',
+    clause:
+      '§12 — the only write a client principal can make, and the moment an obligation on ' +
+      'the organization begins',
+  },
+  'client_request.transitioned': {
+    objectType: 'client_request',
+    clause:
+      '§12 — accepting, deferring and declining are decisions only an internal manager may ' +
+      'take (23-ERD §6), and the accounting for them is what a disputed scope is settled by',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the

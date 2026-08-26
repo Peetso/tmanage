@@ -4,6 +4,7 @@ import {
   API_CONFIG,
   AUDIT_SERVICE,
   CLIENTS_SERVICE,
+  CLIENT_REQUESTS_SERVICE,
   CLIENT_MEMBERSHIPS_REPOSITORY,
   CLIENT_ORGANIZATIONS_REPOSITORY,
   INVITATIONS_SERVICE,
@@ -26,6 +27,8 @@ import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { InvitationsRepository } from '../tenancy/invitations.repository.js';
 import { InvitationsService } from '../tenancy/invitations.service.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
+import { ClientRequestsRepository } from '../requests/client-requests.repository.js';
+import { ClientRequestsService } from '../requests/client-requests.service.js';
 
 /**
  * CLIENT-001's wiring.
@@ -128,9 +131,35 @@ export class ClientsModule {
         ),
     };
 
+    /**
+     * The portal's own `ClientRequestsService` — REQ-001's client half.
+     *
+     * Constructed here for the reason `invitations` above is: `RequestsModule` provides and
+     * exports one, and both modules are registered through `.register()`, so importing it would
+     * build a second copy of the dynamic module rather than reuse the first. The service holds
+     * no state between calls.
+     *
+     * The alternative was to put `CL-06`'s routes on `ClientRequestsController` beside the
+     * studio's triage routes, and that would have been worse for the reason this file's portal
+     * provider exists at all: a client surface is a **path of its own** serving a projection,
+     * and a client route living among the internal ones is how that stops being true.
+     */
+    const clientRequests: Provider = {
+      provide: CLIENT_REQUESTS_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new ClientRequestsService(
+          database,
+          new ClientRequestsRepository(),
+          audit,
+          new ProjectsRepository(),
+          new WorkItemsRepository(),
+        ),
+    };
+
     return {
       module: ClientsModule,
-      providers: [organizations, memberships, shares, service, portal, invitations],
+      providers: [organizations, memberships, shares, service, portal, invitations, clientRequests],
       exports: [service, portal],
       controllers: [ClientsController, PortalController],
     };

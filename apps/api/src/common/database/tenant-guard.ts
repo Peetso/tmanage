@@ -77,6 +77,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the acceptance path reaches it through `bootstrapRead` rather than by being global.
   invitations: 'organization_id',
   work_items: 'organization_id',
+  // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
+  // NOT NULL, so every row belongs both to a studio and to one of its clients.
+  client_requests: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',

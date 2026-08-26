@@ -13,6 +13,7 @@ import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
+import { RequestsModule } from './modules/requests/requests.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 
@@ -75,6 +76,9 @@ export class AppModule {
           : IdentityModule.register(),
         ProjectsModule.register(),
         WorkModule.register(),
+        // After `WorkModule`: REQ-001 reads a work item to answer 422 rather than 500 when an
+        // acceptance links to one that is not in this tenant.
+        RequestsModule.register(),
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),

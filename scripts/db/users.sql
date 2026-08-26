@@ -61,6 +61,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`client_organizations` TO 'tmanage_app
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`client_memberships`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_clients`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_items`           TO 'tmanage_app'@'%';
+-- REQ-001 client requests. **No DELETE**, and for a stronger reason than invitations: a
+-- client request is the client's own record of having asked. `23-ERD` §6 gives the client
+-- `withdrawn` and gives the studio no way out at all, so a runtime credential that could
+-- remove the row could make a request the agency did not want to answer disappear with no
+-- trace that it was ever made. UPDATE is needed for the lifecycle and for nothing else; the
+-- immutability trigger in 0006 refuses the four columns that say what the request *is*.
+GRANT INSERT, UPDATE         ON `tmanage`.`client_requests`      TO 'tmanage_app'@'%';
 -- TEN-003 invitations. **No DELETE**, and that is the point of listing it separately: an
 -- invitation is never removed, it moves to `accepted`, `revoked` or `expired`. "Who invited
 -- this person, when, and who withdrew it" is the trail a role change is investigated by, and a

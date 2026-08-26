@@ -1,0 +1,63 @@
+import { Module } from '@nestjs/common';
+import type { DynamicModule, Provider } from '@nestjs/common';
+import {
+  AUDIT_SERVICE,
+  CLIENT_REQUESTS_REPOSITORY,
+  CLIENT_REQUESTS_SERVICE,
+  TENANT_DATABASE,
+} from '../../common/http/tokens.js';
+import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
+import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { ClientRequestsRepository } from './client-requests.repository.js';
+import { ClientRequestsService } from './client-requests.service.js';
+import { ClientRequestsController } from './client-requests.controller.js';
+
+/**
+ * REQ-001's wiring — the studio's half.
+ *
+ * `ProjectsRepository` and `WorkItemsRepository` are constructed here rather than injected from
+ * the modules that provide them, which is the choice `ClientsModule` already documents: both of
+ * those modules are registered through `.register()`, so importing one would build a second
+ * copy of the dynamic module rather than reuse the first. A repository is a stateless collection
+ * of queries with no injected dependencies, so a second instance costs nothing and reads
+ * honestly — this module owns its own read-only handles on `projects` and `work_items`.
+ *
+ * The service is exported because the aggregate has a second door. The client's routes are on
+ * `/portal/requests`, in `ClientsModule`, for the security reason `PortalController` sets out:
+ * a client surface is a path of its own rather than a query parameter on an internal one.
+ */
+@Module({})
+export class RequestsModule {
+  static register(): DynamicModule {
+    const repository: Provider = {
+      provide: CLIENT_REQUESTS_REPOSITORY,
+      useFactory: () => new ClientRequestsRepository(),
+    };
+
+    const service: Provider = {
+      provide: CLIENT_REQUESTS_SERVICE,
+      inject: [TENANT_DATABASE, CLIENT_REQUESTS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        requests: ClientRequestsRepository,
+        audit: AuditService,
+      ) =>
+        new ClientRequestsService(
+          database,
+          requests,
+          audit,
+          new ProjectsRepository(),
+          new WorkItemsRepository(),
+        ),
+    };
+
+    return {
+      module: RequestsModule,
+      providers: [repository, service],
+      exports: [service],
+      controllers: [ClientRequestsController],
+    };
+  }
+}
