@@ -137,8 +137,9 @@ export const AUDIT_ACTION_CATALOG = {
   'work_item.transitioned': {
     objectType: 'work_item',
     clause:
-      '§5 — a state change is what the work means; "who marked this done, and when" is the ' +
-      'question asked when a deliverable turns out to be wrong',
+      '§12 — a state change is what the work means; "who marked this done, and when" is ' +
+      'the question asked when a deliverable turns out to be wrong. The move itself is ' +
+      'permitted by §5 of 23-ERD, but the accounting for it is §12’s',
   },
   'work_item.audience_changed': {
     objectType: 'work_item',
