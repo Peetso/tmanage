@@ -1,5 +1,4 @@
 import type { InvitationDetails } from '../components/screens/InvitationScreen';
-import type { OrganizationChoice } from '../components/screens/OrganizationSelectorScreen';
 
 /**
  * Fixtures for the screens whose endpoints are not written.
@@ -12,6 +11,9 @@ import type { OrganizationChoice } from '../components/screens/OrganizationSelec
  * The names are the design export's — Northstar Studio, Atlas Hospitality, Omar Adel — so
  * that a screen in the browser can be compared against the artboard it was built from
  * without a mental substitution.
+ *
+ * This file shrinks as tickets land. `FIXTURE_ORGANIZATIONS` left it when TEN-001's directory
+ * endpoint arrived and `ID-04` began fetching its own list.
  */
 
 export const FIXTURE_SIGNED_IN_AS = 'omar@northstar.studio';
@@ -28,24 +30,6 @@ export const FIXTURE_OWNERS = [
   { id: 'maya', name: 'Maya Hassan' },
   { id: 'lina', name: 'Lina Saad' },
 ] as const;
-
-export const FIXTURE_ORGANIZATIONS: readonly OrganizationChoice[] = [
-  {
-    slug: 'northstar',
-    name: 'Northstar Studio',
-    audience: 'internal',
-    roleName: 'Project Manager',
-    projectCount: 4,
-    lastUsed: true,
-  },
-  {
-    slug: 'atlas-hospitality',
-    name: 'Atlas Hospitality',
-    audience: 'client',
-    roleName: 'Viewer',
-    projectCount: 1,
-  },
-];
 
 export const FIXTURE_INVITATION: InvitationDetails = {
   inviterName: 'Omar Adel',

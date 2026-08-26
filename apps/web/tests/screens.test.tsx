@@ -1,5 +1,8 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
+import { ApiClient } from '../src/lib/api/client';
 import { DELIVERABLE_STATES, WORK_ITEM_STATES } from '@tmanage/domain';
 import { describe, expect, it } from 'vitest';
 import { CreateOrganizationScreen } from '../src/components/screens/CreateOrganizationScreen';
@@ -14,7 +17,6 @@ import { SignInScreen } from '../src/components/screens/SignInScreen';
 import {
   FIXTURE_EXISTING_MEMBERS,
   FIXTURE_INVITATION,
-  FIXTURE_ORGANIZATIONS,
   FIXTURE_ORGANIZATION_DOMAIN,
   FIXTURE_OWNERS,
   FIXTURE_SIGNED_IN_AS,
@@ -31,13 +33,46 @@ import { expectNoAxeViolations } from './axe';
 
 const SIGNED_IN_AS = FIXTURE_SIGNED_IN_AS;
 
+/**
+ * A query client with retries off.
+ *
+ * The production client retries a 5xx twice; a test asserting an error state would wait for
+ * two backoffs before the state it is waiting for exists.
+ */
+function withQuery(children: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+/** An `ApiClient` whose directory is empty, for the screens that only need to mount. */
+function emptyDirectoryClient(): ApiClient {
+  return new ApiClient({
+    baseUrl: 'https://api.example.test',
+    csrfCookieName: 'tm_session_csrf',
+    fetch: (() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ organizations: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )) as typeof globalThis.fetch,
+    readCsrfToken: () => undefined,
+    newCorrelationId: () => 'correlation-fixed',
+  });
+}
+
 const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
   { name: 'ID-01 Sign in', render: () => <SignInScreen developmentSignInEnabled /> },
   { name: 'ID-02 MFA', render: () => <MfaChallengeScreen /> },
   { name: 'ID-03 Invitation', render: () => <InvitationScreen invitation={FIXTURE_INVITATION} /> },
   {
     name: 'ID-04 Organization selector',
-    render: () => <OrganizationSelectorScreen organizations={FIXTURE_ORGANIZATIONS} />,
+    // Fetches its own list as of TEN-001, so it needs a query client and a fetch that
+    // answers. The list's behaviour is covered in `organization-flow.test.tsx`; here the
+    // screen only has to mount for the shared landmark and axe assertions.
+    render: () => withQuery(<OrganizationSelectorScreen client={emptyDirectoryClient()} />),
   },
   { name: 'ID-05 Recovery', render: () => <RecoveryScreen state="request" /> },
   {
@@ -191,51 +226,6 @@ describe('ID-03 Invitation', () => {
   });
 });
 
-describe('ID-04 Organization selector', () => {
-  it('filters in the browser, without sending the query anywhere', async () => {
-    const user = userEvent.setup();
-    render(<OrganizationSelectorScreen organizations={FIXTURE_ORGANIZATIONS} />);
-
-    expect(screen.getByRole('link', { name: /Northstar Studio/ })).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Search organizations'), 'atlas');
-    expect(screen.queryByRole('link', { name: /Northstar Studio/ })).toBeNull();
-    expect(screen.getByRole('link', { name: /Atlas Hospitality/ })).toBeInTheDocument();
-  });
-
-  it('says so when nothing matches, in a live region', async () => {
-    const user = userEvent.setup();
-    render(<OrganizationSelectorScreen organizations={FIXTURE_ORGANIZATIONS} />);
-    await user.type(screen.getByLabelText('Search organizations'), 'zzz');
-    expect(screen.getByText(/No organization matches/)).toBeInTheDocument();
-  });
-
-  it('marks a client organization as one', () => {
-    render(<OrganizationSelectorScreen organizations={FIXTURE_ORGANIZATIONS} />);
-    expect(screen.getByText('Client organization')).toBeInTheDocument();
-    expect(screen.getByText('Internal member')).toBeInTheDocument();
-  });
-
-  it('links each organization to its own space', () => {
-    render(<OrganizationSelectorScreen organizations={FIXTURE_ORGANIZATIONS} />);
-    expect(screen.getByRole('link', { name: /Northstar Studio/ })).toHaveAttribute(
-      'href',
-      '/northstar/home',
-    );
-  });
-
-  /**
-   * `22` §3: "No cross-organization aggregated content in MVP." Every number on this screen
-   * must belong to exactly one organization's row.
-   */
-  it('shows no total across organizations', () => {
-    render(<OrganizationSelectorScreen organizations={FIXTURE_ORGANIZATIONS} />);
-    const list = screen.getByRole('list');
-    expect(within(list).getByText(/4 projects/)).toBeInTheDocument();
-    expect(within(list).getByText(/1 project/)).toBeInTheDocument();
-    expect(screen.queryByText(/5 projects/)).toBeNull();
-  });
-});
-
 describe('ID-05 Recovery', () => {
   it('never confirms whether an account exists', () => {
     render(<RecoveryScreen state="sent" />);
@@ -285,16 +275,17 @@ describe('ON-01 Create organization', () => {
     expect(screen.getByText(/Use lowercase letters, numbers and hyphens only/)).toBeInTheDocument();
   });
 
-  it('claims no availability, because nothing checked it', () => {
+  it('still claims no availability before it is submitted', () => {
     render(<CreateOrganizationScreen signedInAs={SIGNED_IN_AS} />);
-    expect(screen.getByText(/cannot tell you yet whether it is taken/)).toBeInTheDocument();
-    expect(screen.queryByText(/available/i)).toBeNull();
+    expect(screen.getByText(/decided when you create the organization/)).toBeInTheDocument();
+    // No green tick. The unique key decides, on submit.
+    expect(screen.queryByText(/^available$/i)).toBeNull();
   });
 
-  it('cannot be submitted, and names the ticket that would let it be', () => {
+  it('can be submitted now that TEN-001 has landed', () => {
     render(<CreateOrganizationScreen signedInAs={SIGNED_IN_AS} />);
-    expect(screen.getByRole('button', { name: 'Create organization' })).toBeDisabled();
-    expect(screen.getByText(/Not built yet — TEN-001/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create organization' })).toBeEnabled();
+    expect(screen.queryByText(/Not built yet/)).toBeNull();
   });
 
   it('bounds the name field at the width of the column behind it', () => {

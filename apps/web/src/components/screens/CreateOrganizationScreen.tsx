@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
-import { BackendPending } from './BackendPending';
+import { browserApiClient } from '../../lib/api/browser-client';
+import { createOrganization } from '../../lib/api/organizations';
+import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import type { ApiClient } from '../../lib/api/client';
 import {
   MAX_ORGANIZATION_NAME_LENGTH,
   describeSlugProblems,
@@ -62,6 +65,10 @@ const WORK_TYPES = [
 
 export interface CreateOrganizationScreenProps {
   signedInAs: string;
+  /** Injected in tests. Defaults to the browser client. */
+  client?: ApiClient;
+  /** Called with the new organization's slug once it exists. */
+  onCreated?: (slug: string) => void;
 }
 
 /**
@@ -70,21 +77,30 @@ export interface CreateOrganizationScreenProps {
  * `22-SCREEN-BY-SCREEN` §3: "Fields: organization name, timezone, default locale, work type.
  * Primary: Create organization. Result is transactional owner membership."
  *
- * The last sentence is the part that is not built. `TEN-001` never implemented organization
- * creation, and it cannot be done from the browser in pieces: creating the organization, the
- * workspace, and the founding owner membership has to be one transaction, or a failure
- * halfway leaves an organization nobody can administer. So the submit button is disabled and
- * says which ticket does it, and this screen does the half it can do honestly — collecting
- * and validating the input.
+ * The last sentence is now true. `TEN-001`'s provisioning transaction creates the
+ * organization, its first workspace and the founding owner membership together, or creates
+ * nothing — a failure halfway would leave an organization nobody can administer.
  *
  * The workspace address is derived from the name as it is typed, and stops being derived the
  * moment the person edits it. Continuing to overwrite an edited field is the behaviour that
  * makes slug fields infuriating.
  *
- * Availability is **not** claimed. The export draws a green "available" tick; there is no
- * endpoint that could check it, and a tick that checked nothing is worse than no tick.
+ * Availability is still **not** claimed before submitting. The export draws a green
+ * "available" tick and there is no endpoint that checks one; a tick that checked nothing is
+ * worse than no tick. What there is instead is a real answer on submit — the unique key
+ * decides, and a 409 comes back naming the field. That is the honest version of the same
+ * affordance: it costs one attempt and it cannot be wrong.
+ *
+ * The slug is sent exactly as it appears in the field. The server refuses capitals rather
+ * than folding them, so the address a person is shown here is the address they get.
  */
-export function CreateOrganizationScreen({ signedInAs }: CreateOrganizationScreenProps) {
+export function CreateOrganizationScreen({
+  signedInAs,
+  client,
+  onCreated,
+}: CreateOrganizationScreenProps) {
+  const api = client ?? browserApiClient();
+
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
@@ -92,9 +108,56 @@ export function CreateOrganizationScreen({ signedInAs }: CreateOrganizationScree
   const [locale, setLocale] = useState<string>(LOCALES[0].value);
   const [workType, setWorkType] = useState<string>(WORK_TYPES[0].value);
 
+  const [creating, setCreating] = useState(false);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [serverSlugError, setServerSlugError] = useState<string | undefined>(undefined);
+
   const effectiveSlug = slugEdited ? slug : slugify(name);
-  const slugError =
+  const localSlugError =
     name === '' && !slugEdited ? undefined : describeSlugProblems(slugProblems(effectiveSlug));
+  const slugError = localSlugError ?? serverSlugError;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFailure(undefined);
+    setServerSlugError(undefined);
+
+    if (name.trim() === '') {
+      setFailure('Enter an organization name.');
+      return;
+    }
+    if (localSlugError !== undefined || effectiveSlug === '') {
+      setFailure('Fix the workspace address first.');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const created = await createOrganization(api, {
+        name: name.trim(),
+        slug: effectiveSlug,
+        timezone,
+        defaultLocale: locale,
+      });
+      onCreated?.(created.slug);
+    } catch (error) {
+      // A taken address is a field error, not a banner: the person has to change one input,
+      // and the message belongs beside it. Everything else is a banner, because there is no
+      // one field to attach it to.
+      if (error instanceof ApiRequestError) {
+        const slugMessage = error.fieldErrors().get('slug');
+        if (slugMessage !== undefined) {
+          setServerSlugError(slugMessage);
+        } else {
+          setFailure(error.message);
+        }
+      } else {
+        setFailure(describe(error));
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <OnboardingShell
@@ -103,19 +166,17 @@ export function CreateOrganizationScreen({ signedInAs }: CreateOrganizationScree
       title="Set up your organization"
       description="This is the space your team works in. A client organization is created separately, later in this sequence."
     >
-      <BackendPending ticket="TEN-001">
-        Creating an organization is not implemented. It has to create the organization, its
-        workspace and your owner membership in one transaction, and that transaction is not written
-        yet. Everything below is collected and checked; nothing is saved.
-      </BackendPending>
-
-      <form className="tm-stack tm-stack--loose" onSubmit={(event) => event.preventDefault()}>
+      <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
         <Field
           label="Organization name"
           name="name"
           value={name}
           maxLength={MAX_ORGANIZATION_NAME_LENGTH}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => {
+            setName(event.target.value);
+            // While the address is still derived, editing the name changes it too.
+            if (!slugEdited) setServerSlugError(undefined);
+          }}
           hint="The name your team and your clients will see."
           required
         />
@@ -127,6 +188,10 @@ export function CreateOrganizationScreen({ signedInAs }: CreateOrganizationScree
           onChange={(event) => {
             setSlugEdited(true);
             setSlug(event.target.value);
+            // The server said *this* address was taken. Editing it makes that answer stale,
+            // and leaving it on screen would mark a different address as unavailable on no
+            // evidence.
+            setServerSlugError(undefined);
           }}
           dir="ltr"
           spellCheck={false}
@@ -202,18 +267,43 @@ export function CreateOrganizationScreen({ signedInAs }: CreateOrganizationScree
 
         <InlineAlert tone="neutral">
           Your workspace address will be{' '}
-          <strong>{effectiveSlug === '' ? '—' : effectiveSlug}</strong>. We cannot tell you yet
-          whether it is taken; that check needs the endpoint TEN-001 delivers.
+          <strong>{effectiveSlug === '' ? '—' : effectiveSlug}</strong>. Whether it is free is
+          decided when you create the organization; nothing checks it before then, because a tick
+          that checked nothing would be worse than no tick.
         </InlineAlert>
 
+        {failure ? (
+          <InlineAlert tone="danger" title="Could not create the organization" live>
+            {failure}
+          </InlineAlert>
+        ) : null}
+
         <div className="tm-row">
-          <Button type="submit" tone="ink" size="accessible" disabled>
+          <Button
+            type="submit"
+            tone="ink"
+            size="accessible"
+            loading={creating}
+            loadingLabel="Creating"
+          >
             Create organization
           </Button>
         </div>
       </form>
     </OnboardingShell>
   );
+}
+
+/**
+ * Turn a non-API failure into a sentence.
+ *
+ * An `ApiRequestError` never reaches here: the caller renders its message verbatim, or
+ * attaches its field error to the field, because the API has already decided how specific
+ * it is willing to be.
+ */
+function describe(error: unknown): string {
+  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
+  return 'Something went wrong. Try again.';
 }
 
 /** The browser's timezone where it is known, `UTC` where it is not. */
