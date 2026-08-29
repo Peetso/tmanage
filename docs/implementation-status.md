@@ -273,6 +273,131 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, the PLAT-004 relay session
+
+One uninterrupted background run on the tree commit `44211eb` left (both PLAT-004 commits
+plus their prettier pass). **Green on the first attempt.** The relay suite's own earlier solo
+run was not: its first pass failed three cases on a fixture defect worth keeping (the
+time-zone note in the PLAT-004 section below), fixed before the chain started.
+
+| Gate                        | Result                                                                                                                                   |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                                                                    |
+| `pnpm typecheck`            | **Done** — six projects now: `@tmanage/worker` joins the walk, built before the API's typecheck because the relay suite imports its dist |
+| `pnpm lint`                 | Clean, no output                                                                                                                         |
+| `pnpm test`                 | **858 passed across 42 files.** Up from 848: ten worker unit cases — backoff arithmetic, the state mapping, the handler registry         |
+| `pnpm test:db`              | **25 files, 719 passed, 29 skipped (748)** — up from 705: the 14 relay cases in `plat-004-relay.db.test.ts`                              |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                                                    |
+| `pnpm format:check` (again) | Clean                                                                                                                                    |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                                                                 |
+
+---
+
+## PLAT-004 — the relay runs, and the two lifecycles connect
+
+Two commits, `567d263` (the writer and five producers) and `482f237` (the worker, the
+dispatcher and the one consumer), verified together by the chain above. `apps/worker` is no
+longer an empty directory, and `outbox_events` — which has had its table, its indexes and its
+immutability trigger since `0002` — has producers and a drain for the first time.
+
+### The writer joins the transaction; the vocabulary joins the domain
+
+`OutboxEventsRepository.append` is `AuditEventsRepository.append`'s shape for the same
+reason: it takes the caller's `TenantQueryRunner` and cannot open a transaction of its own,
+so an event can only commit with the state change it describes — §3 step 8, proved by a
+rolled-back transaction that leaves no row. The five event types live in
+`packages/domain/src/events/outbox.ts` as a closed catalog the way the audit actions do:
+the aggregate type is part of each definition (`outboxAggregateTypeFor`, never a caller's
+choice), and each type is bound to its payload shape at the type level, so pairing
+`message.created.v1` with the wrong payload is a compile error. Payloads are
+`24-EVENT-CATALOG` §5's minimums — ids and states, never bodies — and the suite asserts it
+at the byte level against the one event whose source is a sentence a person typed.
+
+Five producers, all inside existing service transactions: submitting a client request
+(`client_request.submitted.v1`), every transition including the acceptance's own door
+(`client_request.transitioned.v1`, field names matching the registered contract schema),
+posting a message (`message.created.v1`, the conversation as aggregate so per-channel
+ordering holds), converting one (`message.converted.v1`), and a work item's state transition
+(`work_item.updated.v1`).
+
+### The dispatcher: one batch is one transaction
+
+`apps/worker` follows `18-REPOSITORY-STRUCTURE`'s layout — `src/outbox`, `src/consumers`,
+and a `src/common/database` that is the one place the lint allowlist lets a worker file hold
+a driver handle or spell SQL. The claim is `FOR UPDATE SKIP LOCKED` over
+`published_at IS NULL AND available_at <= NOW(3) AND attempts < cap`, ordered
+`(available_at, id)`; each handler runs in a savepoint; success stamps `published_at`;
+failure rolls the handler's writes back and records `attempts + 1`, the error, and an
+exponentially backed-off `available_at`. At the attempt cap an event is parked — never
+claimed again, listed in every batch report, replayable only by an operator resetting its
+`attempts`. A type with no registered handler is dispatched to zero consumers and published,
+so the backlog cannot grow unboundedly while `NOTIF-001` and `RT-001` remain unbuilt.
+
+`50-BOOTSTRAP` §3 deploys a third always-on process **only if the plan supports one
+reliably** — so `runOutboxBatch` is the unit (one claim, one transaction, one report) and
+`runOutboxLoop` is that unit repeated with a pause, stoppable by `AbortSignal`.
+`pnpm --filter @tmanage/worker relay:once` is the controlled-batch deploy story on the
+shared plan; the loop is the same code path, not a second implementation.
+
+### The one consumer: the rule REQ-002's link was waiting for
+
+When committed work starts, its linked request moves `accepted → planned`; when the work is
+done, `planned → delivered` — the two arrows `23-ERD` §6 has always had and nothing ran.
+The consumer reads exactly those two states: a declined request stays declined however its
+work item is reused (asserted), and a request already at the target is the at-least-once
+replay case — already-there is success, no second transition, audit row or event (asserted
+by un-publishing the delivered event and delivering it again). Each applied rule writes, in
+the claiming transaction: the state change guarded by the state it was read under, an audit
+row with `actor_user_id` NULL — the system-initiated case the column has been nullable for
+since `0002` — and the relay's own `client_request.transitioned.v1`, both carrying the
+correlation id of the person who moved the work, so the causal chain answers to one id.
+The move's legality is still asked of `clientRequestStateMachine` rather than restated.
+
+`scripts/db/users.sql` grants `tmanage_worker` UPDATE on `client_requests` for this — the
+one grant the relay's credential was missing, UPDATE only, with the reason in the file.
+
+### Where the proof lives
+
+The db-level proof is `apps/api/test/plat-004-relay.db.test.ts` — 14 cases driving the
+dispatcher **imported from `@tmanage/worker`** against the same embedded server as the rest
+of the corpus, so the harness exists once (the scoping decision recorded last session). The
+worker's own suite holds the pure half: backoff arithmetic and the state mapping, 10 cases.
+`packages/config` gained the five `OUTBOX_*` variables (batch size, attempt cap, poll
+interval, backoff base and cap); the worker consumes `@tmanage/config` and reads no
+`process.env` of its own.
+
+One defect found by the relay suite's own first run, worth keeping: the harness's admin
+pool runs in the server's local time zone while every application session runs UTC, so
+admin-written `now(3)` fixtures landed three hours in the relay's future and were never
+due. The fixtures now write `utc_timestamp(3)`; the application paths were never wrong.
+
+### Named gaps — PLAT-004, carried deliberately
+
+1. **`work_item.updated.v1` is emitted for state transitions only.** §4's trigger reads
+   "fields/state changed"; a field edit (title, dates, audience) emits nothing. The
+   narrowing is stated at the producer. Widening it is additive when a consumer wants it.
+2. **The rest of §4 still has no producers** — `work_item.created.v1`,
+   `organization.created.v1`, `membership.invited.v1` and everything below them. Same rule
+   as the audit vocabulary: a type joins the catalog when its producer does.
+3. **Every event today is dispatched to zero consumers except `work_item.updated.v1`.**
+   `NOTIF-001` (notification records) and `RT-001` (realtime) are the consumers §4 names,
+   and both were waiting on this ticket.
+4. **`client_requests.linked_work_item_id` carries no index**, so the consumer's lookup is
+   a scan. Tolerable today (the table is small and the column was never queried before);
+   an index is a migration, recorded here rather than slipped into one.
+5. **The suite runs the relay under the harness credential, not `tmanage_worker`.** The
+   grants are still asserted statically only — the PLAT-003 gap narrows but does not
+   close. Exercising them needs a `TMANAGE_TEST_WORKER_DATABASE_URL` path through the
+   harness, unscheduled.
+6. **Parked events have replay-by-hand only** — an operator resets `attempts`. §2 asks for
+   "replay tooling"; a `relay:replay` script belongs with the first real parked event or
+   with OBS-001's operational surface, whichever arrives first.
+7. **No contract-schema validation at the write.** The payload shapes are compile-time
+   types; the JSON Schemas in `contracts/events/` are not executed against them. §7's
+   "registers examples in contract tests" remains open.
+
+---
+
 ## Verification actually run — 2026-08-30, WEB-002 second half, same session
 
 The third full chain of this session, one uninterrupted background run on the tree commit
@@ -749,8 +874,9 @@ not "fix" it.
 §12 lists the changes that are security events, and somebody speaking in a channel they belong
 to is not one. A row per message would be an audit table growing faster than the table it
 audits. `24-EVENT-CATALOG` does name `message.created.v1` — as a **durable event** for realtime,
-mentions and search, which is a different mechanism, and one nothing publishes yet because
-`PLAT-004`'s relay is unwritten.
+mentions and search, which is a different mechanism. (This line read "one nothing publishes yet
+because `PLAT-004`'s relay is unwritten" until 2026-08-30; the relay now runs and `postMessage`
+publishes it, body-free, in the same transaction.)
 
 Moderation is somebody exercising authority over what another person said, which is exactly
 §12's subject.
@@ -809,7 +935,8 @@ that people stop reading it, and a flag leaves that to whoever writes the screen
    lists "edit history" among the message actions and the history itself has no storage.
 5. **No outbox row.** `24-EVENT-CATALOG` names `message.created.v1` and `message.converted.v1`;
    nothing emits either, because `PLAT-004`'s relay is unwritten and `apps/worker` is still an
-   empty directory. `CHAT-003` is the ticket that needs the second one.
+   empty directory. `CHAT-003` is the ticket that needs the second one. **Closed 2026-08-30:**
+   PLAT-004's producers now emit both, and the relay drains them.
 6. **No mentions, reactions, pinned context, presence or read state.** TM-06 lists all of them.
    `conversation_memberships` has no `last_read_sequence_no`, so there is nothing for an unread
    count to read; that belongs with `INBOX-001`.
@@ -1262,7 +1389,8 @@ a client — is a different case that `REQ-001` does not deduplicate and this do
 5. **`planned` and `delivered` are still manual.** §6 continues `accepted → planned →
 delivered`, and nothing moves a request when its linked work item does. That is a rule
    connecting two lifecycles and it belongs with the outbox relay (`PLAT-004`) rather than
-   inside a request handler.
+   inside a request handler. **Closed 2026-08-30:** the relay's lifecycle consumer runs
+   exactly that rule, as system, idempotently — see the PLAT-004 section.
 6. **The work item's type is always `task`.** Not configurable on the acceptance body. No
    document enumerates the types either — `work_items.type` is a `VARCHAR(32)` with a `'task'`
    default — so this is the same open vocabulary the `category` gap records.
@@ -1577,7 +1705,8 @@ version 1, one of them triaging first), and the discovery is now two tests of it
    **Neither is published.** `outbox_events` has existed since `0002` and has no producer
    anywhere in this codebase; `apps/worker` is still an empty directory. That is `PLAT-004`,
    and REQ-001 does not pre-empt it — a producer with no relay would put rows in a table
-   nothing drains.
+   nothing drains. **Half closed 2026-08-30:** both events are now published and drained;
+   what still notifies nobody is the absence of `NOTIF-001`, their named consumer.
 3. **`REQ-002` is not started.** An acceptance requires `linkedWorkItemId`, and this ticket
    **stores and validates** the link — a scoped read proves the work item is in this tenant, so
    a wrong id is a 422 naming the field rather than a foreign-key violation surfacing as a 500.
@@ -2640,7 +2769,9 @@ challenge token, which is deliberately kept out of URLs.
    screen cannot do it (it sends no owner at all), but the endpoint would accept it. Closing
    it needs a membership read that belongs with `PEOPLE-001`.
 2. **No outbox event.** The transaction is the right one and `PLAT-004`'s relay is still not
-   written, so `project.created` is audited and not published.
+   written, so `project.created` is audited and not published. (2026-08-30: the relay now
+   exists, but `24-EVENT-CATALOG` §4 names no project-created event, so this is now an
+   absence in the catalog rather than in the relay.)
 3. **`committed_at` is never written by anything.** It becomes writable when a milestone plan
    can be confirmed, which is `WORK-002`/`MILE-001`.
 4. **`ON-02`'s operating template still saves nothing.** There is no column for it.
@@ -3936,7 +4067,10 @@ stopped scanning those files entirely.
 4. **The worker credential (`tmanage_worker`) is created but not exercised.** The
    least-privilege suite covers `tmanage_app` only; the worker's grants are asserted
    statically by the unit tests. Closing this needs the relay from PLAT-004, which is not
-   written.
+   written. (2026-08-30: the relay is written and gained `UPDATE` on `client_requests` for
+   the lifecycle rule; the gap **narrows but stays open** — the relay suite still runs
+   under the harness credential, and exercising `tmanage_worker` needs a
+   `TMANAGE_TEST_WORKER_DATABASE_URL` path that is unscheduled.)
 5. **No branch protection is configured.** PLAT-003's evidence column in `28-SPRINT-TICKETS`
    reads "protected workflow"; a workflow that a push can bypass is not one. That is a
    repository setting, not a file, and needs the owner.
@@ -4550,7 +4684,8 @@ the capability that was refused.
    narrowing the table cannot support.
 3. **No outbox event.** §3 step 8 pairs audit with outbox; PLAT-004's relay is still not
    written, so the commands here write the audit half only. The transaction boundary they
-   establish is where the second half goes.
+   establish is where the second half goes. **Closed 2026-08-30:** it went there — five
+   producers now write both halves in one transaction, and the relay drains the second.
 4. **Denials before tenant resolution are only half recorded**, and this line read "not
    recorded" until ID-002. That ticket took the second of the two options this sentence used
    to offer — a separate security-event table — and `authentication_events` now records every
@@ -4703,7 +4838,7 @@ win over the tokens, and it is settled on a ground §1 does not speak to.
 | OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                                                                                                                                |
 | DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                                                                                                                               |
 | AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                                                                                                                        |
-| PLAT-004  | transactional outbox + idempotency                 | `implemented` | Tables, append-only audit, per-tenant idempotency uniqueness and the relay escape hatch are tested. The relay/dispatcher itself is **not written**                                                                                                                                                                                               |
+| PLAT-004  | transactional outbox + idempotency                 | `tested`      | Tables, append-only audit and per-tenant idempotency, and — since 2026-08-30 — the relay itself: five producers, the `apps/worker` dispatcher (claim/backoff/park, loop and controlled-batch modes) and the lifecycle consumer, proved by 14 database cases driving the dispatcher from `@tmanage/worker` plus 10 worker unit cases              |
 | UI-001    | tokens, primitives, Storybook, visual harness      | `tested`      | 106 cases in `packages/ui`: 33 contrast, 14 token drift, 59 component/theme including axe over the whole primitive surface in light, dark, high contrast and Arabic RTL. Storybook builds and was driven through three stories. **The visual-regression harness is not built** — it needs a real browser, and there is no container runtime here |
 
 ## Sprint 1 (`28-SPRINT-TICKETS` §4)
@@ -5069,7 +5204,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 3   | OBS-001    |   5 | 0        | Not started                                                                                                                                                   |
 | 3   | DATA-001   |   5 | whole 5  | Migrator, UUIDv7, the two database roles                                                                                                                      |
 | 3   | AUTHZ-001  |   8 | whole 8  | Tenant context, scoped repository, composite constraints, the corpus                                                                                          |
-| 3   | PLAT-004   |   8 | half 4   | Outbox tables, append-only audit and per-tenant idempotency are tested. **The relay is not written** and `apps/worker` is empty                               |
+| 3   | PLAT-004   |   8 | whole 8  | Tables, audit, idempotency **and the relay**: producers, dispatcher (backoff, parking, both run modes) and the lifecycle consumer, proved against the server  |
 | 3   | UI-001     |   8 | half 4   | Token package, 13 primitives, Storybook, 106 cases. Eight primitives the design inventory names are unbuilt and the visual-regression harness needs a browser |
 | 4   | ID-001     |   8 | whole 8  | Session cookie, rotation, reuse detection, CSRF, driven through real HTTP                                                                                     |
 | 4   | ID-002     |   8 | half 4   | Argon2id, TOTP, recovery codes, 213 cases. **Passkeys are in the row's own scope** and are not built; nor are SSO or password recovery                        |
@@ -5100,17 +5235,18 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 Every other ticket in §§3–12 — three of Sprint 3's seven, and all of Sprints 5 through 9 — is
 zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first entry,
 **CHAT-002 on 2026-08-29** as its second, **CHAT-003 on 2026-08-30** as its third, and
-**WEB-003's first half the same day** as its fourth.
+**WEB-003's first half the same day** as its fourth. **PLAT-004's row moved from half to
+whole on 2026-08-30**, the day the relay landed.
 
-| Sprint                                                                                          | Tickets      | Points           |
-| ----------------------------------------------------------------------------------------------- | ------------ | ---------------- |
-| Sprint 0 (§3)                                                                                   | 5 of 8       | 32.5 of 52       |
-| Sprint 1 (§4)                                                                                   | 7 of 8       | 50 of 58         |
-| Sprint 2 (§5)                                                                                   | 3½ of 6      | 30.5 of 53       |
-| Sprint 3 (§6)                                                                                   | 3½ of 7      | 30.5 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**     |
-| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293         |
-| **§§3–12**                                                                                      | **26 of 70** | **204.5 of 583** |
+| Sprint                                                                                          | Tickets       | Points           |
+| ----------------------------------------------------------------------------------------------- | ------------- | ---------------- |
+| Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52       |
+| Sprint 1 (§4)                                                                                   | 7 of 8        | 50 of 58         |
+| Sprint 2 (§5)                                                                                   | 3½ of 6       | 30.5 of 53       |
+| Sprint 3 (§6)                                                                                   | 3½ of 7       | 30.5 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**     |
+| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293         |
+| **§§3–12**                                                                                      | **26½ of 70** | **208.5 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5118,8 +5254,9 @@ zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first ent
 
 **With CHAT-001, which landed the same day: 23½ of 70 tickets and 182 of 583 — 31.2%**,
 **with CHAT-002 on 2026-08-29: 24½ of 70 and 190 of 583 — 32.6%**, **with CHAT-003 verified
-on 2026-08-30: 25½ of 70 and 198 of 583 — 34.0%**, and **with WEB-003's first half the same
-day: 26 of 70 and 204.5 of 583 — 35.1%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
+on 2026-08-30: 25½ of 70 and 198 of 583 — 34.0%**, **with WEB-003's first half the same
+day: 26 of 70 and 204.5 of 583 — 35.1%**, and **with PLAT-004 made whole later that day:
+26½ of 70 and 208.5 of 583 — 35.8%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
 names — conversations, messages and the thread sequence model — is built and covered by a suite
 that ran.
 
@@ -5132,29 +5269,25 @@ than tickets.
 
 ### The next coding task
 
-**`WEB-002`'s second half shipped on 2026-08-30 — the third ticket-sized piece of that
-session — and this section is replaced rather than amended.** Sprint 4 is still the only
-complete one.
+**`PLAT-004` was made whole on 2026-08-30 — the relay runs — and this section is replaced
+rather than amended.** Sprint 4 is still the only complete one.
 
-**The next one is `PLAT-004`'s relay — the outbox dispatcher.** The ticket is half-counted:
-the tables, the append-only audit and per-tenant idempotency are tested, the dispatcher is
-not written, and `apps/worker` is an empty directory. Fifteen tickets have established the
-transaction boundary it publishes from, and `24-EVENT-CATALOG` names client-request and
-message events that nothing emits. It is also where the rule connecting two lifecycles
-belongs: nothing moves a request to `planned` or `delivered` when its linked work item moves.
-Finishing it makes PLAT-004 whole (+4 points), and it is the dependency `NOTIF-001` and
-`RT-001` both wait on. One shape constraint from `50-BOOTSTRAP`: the deployment target runs
-one proxied Node application, so the dispatcher must be runnable **both** as a standalone
-worker process and as controlled batches — §3's own fallback — rather than assuming a third
-always-on process.
+**The next one is `WEB-003`'s second half.** The named remainder from its own first-half
+record: the rich-text composer — the API accepts `bodyRich` and the screen already renders
+CHAT-002's closed grammar as React elements, so what is missing is a toolbar that _emits_
+that grammar, never HTML — and transcript paging. Reactions, saves, pins, presence and live
+updates stay out unless their APIs appear first; without them the composer and paging are
+the whole of the half, which is why it may land folded into a screen pass rather than as a
+session of its own. Finishing it makes WEB-003 whole (+6.5 points).
 
 The alternatives, in order after it:
 
-2. **`WEB-003`'s second half.** The rich-text composer (the API accepts `bodyRich`; a toolbar
-   that emits the closed grammar is its own piece of work), transcript paging, and — only if
-   APIs appear for them — reactions, saves, pins, presence and live updates. Without those
-   APIs the composer and paging are the whole of it, which may be worth folding into a screen
-   pass rather than a session of its own.
+2. **`NOTIF-001` — notification records.** Unblocked for the first time: it is the primary
+   consumer `24-EVENT-CATALOG` §4 names for `client_request.submitted.v1` and
+   `client_request.transitioned.v1`, both now published and currently dispatched to zero
+   consumers. A notifications table would be new — register it in `TENANT_TABLES` in the
+   same commit — and its consumer registers in `WORKER_OUTBOX_HANDLERS` beside the
+   lifecycle rule.
 3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
    it. `28-SPRINT-TICKETS` does not schedule this at all; `NOTIF-001` is the nearest real ticket
    and it builds notification records rather than delivery.
@@ -5291,16 +5424,28 @@ directory, unscheduled" instead, which is both shorter and true.
     Saved views alone remain, unschedulable without a server home, so WEB-002 stays half by
     the rule. 8 web cases.
 
+30. ~~PLAT-004 second half~~ — **done this session, and the ticket is whole.** The outbox
+    writer joining five producers' transactions, the event vocabulary in the domain with
+    payload shapes bound to their types, and `apps/worker`: a dispatcher that claims with
+    `FOR UPDATE SKIP LOCKED`, backs off exponentially, parks at the cap and reports the
+    parked, runnable as a loop **and** as one controlled batch; plus the lifecycle rule —
+    work starting moves the accepted request to `planned`, work done moves it to `delivered`,
+    as system, idempotent under redelivery, announced with the relay's own event. 14 database
+    cases and 10 worker unit cases; the chain green first try. One fixture defect found and
+    kept: the harness's admin pool writes local-time `now(3)`, three hours in a UTC relay's
+    future.
+
 ### Progress
 
-**26 of 70 tickets. 204.5 of 583 story points — 35.1%, across Sprints 0–9.** Derived ticket by
+**26½ of 70 tickets. 208.5 of 583 story points — 35.8%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
 numerator **and** in the denominator; the percentage reads higher today only because the CHAT
-tickets and WEB-003's first half have since been added to an honest count. Screen tickets:
-**4 of 11** — WEB-001, WEB-004 and WEB-005 whole, WEB-002 and WEB-003 half. **Sprint 3 has
-three whole tickets — CHAT-001, CHAT-002, CHAT-003 — and half of WEB-003.**
+tickets, WEB-003's first half and now the whole of PLAT-004 have since been added to an honest
+count. Screen tickets: **4 of 11** — WEB-001, WEB-004 and WEB-005 whole, WEB-002 and WEB-003
+half. **Sprint 3 has three whole tickets — CHAT-001, CHAT-002, CHAT-003 — and half of
+WEB-003. Sprint 0 stands at 5½ of 8 with PLAT-004 whole.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
