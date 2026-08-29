@@ -11,7 +11,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
-import type { Principal } from '@tmanage/domain';
+import type { Audience, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { CONVERSATIONS_SERVICE } from '../../common/http/tokens.js';
@@ -20,6 +20,7 @@ import type {
   ConversationMemberView,
   ConversationView,
   ConversationsService,
+  ConvertMessageResult,
   MessageContentCommand,
   MessageRevisionView,
   MessageView,
@@ -79,6 +80,15 @@ interface EditMessageBody {
   readonly bodyRich?: unknown;
 }
 
+interface ConvertMessageBody {
+  readonly title?: unknown;
+  readonly type?: unknown;
+  readonly ownerUserId?: unknown;
+  readonly audience?: unknown;
+  readonly startAt?: unknown;
+  readonly dueAt?: unknown;
+}
+
 /**
  * Only `status`, for the reason `SessionController`'s `ReplyLike` gives: taking Fastify's full
  * reply and calling `send()` on it would switch Nest into library-specific mode, where the
@@ -91,6 +101,14 @@ interface ReplyLike {
 
 /** `conversations.name` is `VARCHAR(120)`. */
 const MAX_NAME_LENGTH = 120;
+/** `work_items.title` is `VARCHAR(300)`, and `type` capped at 32 — `WorkItemsController`'s numbers. */
+const MAX_WORK_TITLE_LENGTH = 300;
+const MAX_WORK_TYPE_LENGTH = 32;
+const WORK_AUDIENCES: readonly Audience[] = [
+  'internal',
+  'client_visible',
+  'client_action_required',
+];
 /**
  * `messages.body` is `TEXT`, which holds 65535 **bytes**. The limit here is in characters and
  * is set well under it: a `TEXT` column silently truncating a multi-byte message under
@@ -295,6 +313,58 @@ export class ConversationsController {
   }
 
   /**
+   * Convert a message into a work item — TM-06's "create work", FR-02's confirmed fields.
+   *
+   * 201 when the conversion happened here; **200 when this message was already converted**,
+   * with the existing conversion as the body — INT-07's "one linked work item on retry",
+   * answered the way the deduplicated post below answers.
+   */
+  @Post('conversations/:conversationId/messages/:messageId/work-items')
+  @RequireCapability('work.create')
+  async convertMessage(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('conversationId') conversationId: string,
+    @Param('messageId') messageId: string,
+    @Body() body: ConvertMessageBody,
+    @Res({ passthrough: true }) reply: ReplyLike,
+  ): Promise<ConvertMessageResult> {
+    const details: { field: string; message: string }[] = [];
+
+    const title = optionalTrimmed(body?.title, 'title', MAX_WORK_TITLE_LENGTH, details);
+    const type = optionalTrimmed(body?.type, 'type', MAX_WORK_TYPE_LENGTH, details);
+    const audience = optionalWorkAudience(body?.audience, details);
+    const startAt = optionalInstant(body?.startAt, 'startAt', details);
+    const dueAt = optionalInstant(body?.dueAt, 'dueAt', details);
+    const ownerUserId =
+      typeof body?.ownerUserId === 'string' && body.ownerUserId !== ''
+        ? body.ownerUserId
+        : undefined;
+
+    if (details.length > 0) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+
+    const result = await this.conversations.convertMessageToWork(
+      context,
+      principal,
+      conversationId,
+      messageId,
+      {
+        ...(title === undefined ? {} : { title }),
+        ...(type === undefined ? {} : { type }),
+        ...(ownerUserId === undefined ? {} : { ownerUserId }),
+        ...(audience === undefined ? {} : { audience }),
+        ...(startAt === undefined ? {} : { startAt }),
+        ...(dueAt === undefined ? {} : { dueAt }),
+      },
+    );
+
+    reply.status(result.created ? 201 : 200);
+    return result;
+  }
+
+  /**
    * Post a message. 201 for a new one, **200 for a deduplicated retry** — see the note at the
    * top of this file. The status is set on the reply rather than by a decorator because it
    * depends on what happened.
@@ -485,6 +555,63 @@ function messageContent(
     return undefined;
   }
   return { bodyRich: rich };
+}
+
+/**
+ * `WorkItemsController`'s `optionalShortString` and `optionalAudience`, restated here for the
+ * conversion body. Restated rather than imported: the two controllers do not otherwise know
+ * each other, and a helpers module shared for three small functions would be a boundary
+ * crossed for less than it costs.
+ */
+function optionalTrimmed(
+  raw: unknown,
+  field: string,
+  max: number,
+  details: { field: string; message: string }[],
+): string | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    details.push({ field, message: 'must be a non-empty string' });
+    return undefined;
+  }
+  const value = raw.trim();
+  if (value.length > max) {
+    details.push({ field, message: `must be ${max} characters or fewer` });
+    return undefined;
+  }
+  return value;
+}
+
+function optionalWorkAudience(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): Audience | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== 'string' || !(WORK_AUDIENCES as readonly string[]).includes(raw)) {
+    details.push({ field: 'audience', message: `must be one of ${WORK_AUDIENCES.join(', ')}` });
+    return undefined;
+  }
+  return raw as Audience;
+}
+
+/** An ISO 8601 instant or null-to-clear, exactly as `WorkItemsController` reads one. */
+function optionalInstant(
+  raw: unknown,
+  field: string,
+  details: { field: string; message: string }[],
+): Date | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    details.push({ field, message: 'must be an ISO 8601 instant, such as 2026-09-30T17:00:00Z' });
+    return undefined;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    details.push({ field, message: 'is not a real instant' });
+    return undefined;
+  }
+  return parsed;
 }
 
 /**

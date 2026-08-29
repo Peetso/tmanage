@@ -10,6 +10,7 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
+import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ConversationsRepository } from './conversations.repository.js';
 import { ConversationsService } from './conversations.service.js';
 import { ConversationsController } from './conversations.controller.js';
@@ -52,6 +53,9 @@ export class ConversationsModule {
           audit,
           new ProjectsRepository(),
           new ProjectMembershipsRepository(),
+          // CHAT-003: converting a message files work, and the same reasoning as the two
+          // repositories above applies to this one.
+          new WorkItemsRepository(),
         ),
     };
 

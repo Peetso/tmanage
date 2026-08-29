@@ -575,6 +575,31 @@ export const messageRevisions = mysqlTable(
   (table) => [primaryKey({ columns: [table.organizationId, table.messageId, table.revisionNo] })],
 );
 
+/**
+ * The message-to-work relation — CHAT-003, FR-02's "source link is immutable".
+ *
+ * One conversion per message and one source per work item, both as unique keys — the keys
+ * ARE INT-07's idempotency, so there is no idempotency_records machinery here. Written once
+ * by the application (INSERT is the only write grant in `users.sql`) and refused UPDATE by
+ * trigger for every credential. See `0009_message_work_links.sql`.
+ */
+export const messageWorkLinks = mysqlTable(
+  'message_work_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    messageId: char('message_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_message_work_links_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_message_work_links_message').on(table.organizationId, table.messageId),
+    uniqueIndex('uq_message_work_links_work_item').on(table.organizationId, table.workItemId),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Platform primitives
 // ─────────────────────────────────────────────────────────────────────────────
@@ -806,6 +831,7 @@ export const TABLES = {
   conversation_memberships: conversationMemberships,
   messages,
   message_revisions: messageRevisions,
+  message_work_links: messageWorkLinks,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -828,6 +854,7 @@ export type ConversationRow = typeof conversations.$inferSelect;
 export type ConversationMembershipRow = typeof conversationMemberships.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type MessageRevisionRow = typeof messageRevisions.$inferSelect;
+export type MessageWorkLinkRow = typeof messageWorkLinks.$inferSelect;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;

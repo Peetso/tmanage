@@ -4,11 +4,14 @@ import {
   richTextToPlainText,
   sanitizeRichText,
 } from '@tmanage/domain';
-import type { Capability, Principal, RichTextDocument } from '@tmanage/domain';
+import type { Audience, Capability, Principal, RichTextDocument } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
+import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { toWorkItemView } from '../work/work-items.service.js';
+import type { WorkItemView } from '../work/work-items.service.js';
 import {
   ConversationNameTakenError,
   ConversationNotFoundError,
@@ -16,6 +19,7 @@ import {
   ConversationVersionConflictError,
   DuplicateMessageError,
   InvalidThreadParentError,
+  MessageAlreadyConvertedError,
   MessageNotFoundError,
 } from './conversations.repository.js';
 import type {
@@ -146,6 +150,21 @@ function toMemberView(row: ConversationMembershipRow): ConversationMemberView {
   return { userId: row.userId, joinedAt: row.createdAt.toISOString() };
 }
 
+/** `work_items.title` is VARCHAR(300). */
+const MAX_WORK_TITLE_LENGTH = 300;
+
+/**
+ * The default title for converted work: the message's first line, which is what a person
+ * converting in a hurry would have retyped. The body is never empty (the write boundary
+ * refuses blank messages), so the fallback below is for a first line that is blank — a
+ * message that opens with a hard break.
+ */
+function deriveWorkTitle(body: string): string {
+  const firstLine = (body.split('\n')[0] ?? '').trim();
+  const base = firstLine === '' ? 'Untitled work from a message' : firstLine;
+  return base.length > MAX_WORK_TITLE_LENGTH ? base.slice(0, MAX_WORK_TITLE_LENGTH) : base;
+}
+
 function toRevisionView(row: MessageRevisionRow, moderated: boolean): MessageRevisionView {
   return {
     revisionNo: Number(row.revisionNo),
@@ -219,6 +238,30 @@ export interface MessageRevisionView {
   readonly replacedAt: string;
 }
 
+/**
+ * FR-02's confirmed fields, as overrides. The project is NOT here: it is the conversation's
+ * project, and a conversion that could re-home the work would make the source link a lie at
+ * the moment of writing it. Everything absent falls back the way a plain work-item creation
+ * would — in particular the audience defaults to `internal`, which is FR-02's "external
+ * sharing never inherits internal visibility automatically" said as a default.
+ */
+export interface ConvertMessageCommand {
+  readonly title?: string;
+  readonly type?: string;
+  readonly ownerUserId?: string;
+  readonly audience?: Audience;
+  readonly startAt?: Date | null;
+  readonly dueAt?: Date | null;
+}
+
+export interface ConvertMessageResult {
+  readonly workItem: WorkItemView;
+  readonly messageId: string;
+  readonly convertedAt: string;
+  /** False when this message had already been converted; the existing conversion returns. */
+  readonly created: boolean;
+}
+
 export class ConversationsService {
   constructor(
     private readonly database: TenantDatabase,
@@ -237,6 +280,14 @@ export class ConversationsService {
      * already reach the project it belongs to. See {@link ConversationsService.addMember}.
      */
     private readonly projectMemberships: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
+    /**
+     * CHAT-003. A repository rather than the work module's service, for the reason the
+     * module doc gives for `ProjectsRepository`: repositories are stateless and cheap to own
+     * a second handle on, where importing the module would build a second copy of it. The
+     * policy work `WorkItemsService.create` would have done — the project relation, the
+     * audit row — is done here, because a conversion is this aggregate's own command.
+     */
+    private readonly workItems: WorkItemsRepository = new WorkItemsRepository(),
   ) {}
 
   // ── Conversations ──────────────────────────────────────────────────────────
@@ -595,6 +646,156 @@ export class ConversationsService {
     );
     const moderated = existing.deletedAt !== null;
     return rows.map((row) => toRevisionView(row, moderated));
+  }
+
+  /**
+   * Convert a message into a work item — FR-02, TM-06's "create work", and INT-07's retry
+   * rule, which the storage owns: `uq_message_work_links_message` admits one conversion per
+   * message ever, so a retry — or a race — is handed the conversion that already exists
+   * rather than a second work item.
+   *
+   * Two authorities, checked in their own homes. Reading the message needs the conversation
+   * gate — `authorize('conversation.read')` plus channel membership, exactly as every other
+   * read here. Filing work needs `work.create` with the **conversation's project** as the
+   * relation, checked the way `WorkItemsService.create` checks it; the project cannot be
+   * chosen, because a conversion that could re-home the work would make the source link a
+   * lie at the moment of writing it.
+   *
+   * A moderated message is refused with a 409: its body is withheld, and a work item titled
+   * from withheld content would read it back out.
+   */
+  async convertMessageToWork(
+    context: TenantContext,
+    principal: Principal,
+    conversationId: string,
+    messageId: string,
+    command: ConvertMessageCommand = {},
+  ): Promise<ConvertMessageResult> {
+    const conversation = await this.loadReadable(context, principal, conversationId);
+
+    const message = await this.database.read(context, (runner) =>
+      this.conversations.findMessageById(runner, context, messageId),
+    );
+    if (!message || message.conversationId !== conversationId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    if (message.deletedAt !== null) {
+      throw new ApiError(409, 'conflict', 'This message was taken down and cannot become work');
+    }
+
+    // The work half of the authority. The evaluator's verdict is not softened to a 404 here:
+    // the caller can already read the message, so what is being refused is the *filing*, and
+    // a 403 tells them the truth the way editMessage's does.
+    const verdict = authorize({
+      principal,
+      capability: 'work.create',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: conversation.projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(403, 'forbidden', 'Converting a message into work needs work.create');
+    }
+
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, conversation.projectId),
+    );
+    if (!project || project.archivedAt !== null) {
+      // The channel outlived its project's active life. Nothing new is filed into an
+      // archived project; the same answer WorkItemsService.create gives.
+      throw new ApiError(409, 'conflict', 'This project is archived, so work cannot be filed');
+    }
+
+    const existing = await this.database.read(context, (runner) =>
+      this.conversations.findWorkLinkByMessage(runner, context, messageId),
+    );
+    if (existing) return this.existingConversion(context, existing);
+
+    // FR-02: the title is confirmed at conversion. Confirmed-but-absent falls back to the
+    // message's own first line — the thing a person converting in a hurry would have typed.
+    const title = command.title ?? deriveWorkTitle(message.body);
+
+    try {
+      const { row, link } = await this.database.transaction(context, async (tx) => {
+        const created = await this.workItems.create(tx, context, {
+          projectId: conversation.projectId,
+          title,
+          ...(command.type === undefined ? {} : { type: command.type }),
+          ...(command.ownerUserId === undefined ? {} : { ownerUserId: command.ownerUserId }),
+          ...(command.audience === undefined ? {} : { audience: command.audience }),
+          ...(command.startAt === undefined ? {} : { startAt: command.startAt }),
+          ...(command.dueAt === undefined ? {} : { dueAt: command.dueAt }),
+        });
+
+        const createdLink = await this.conversations.createWorkLink(
+          tx,
+          context,
+          messageId,
+          created.id,
+          context.userId,
+        );
+
+        await this.audit?.record(tx, context, {
+          action: 'work_item.created',
+          objectId: created.id,
+          result: 'allowed',
+          metadata: {
+            project_id: created.projectId,
+            work_item_type: created.type,
+            audience: created.audience,
+            state: created.state,
+            conversation_id: conversationId,
+            // Not `source_message_id`: `message` is a forbidden segment in
+            // `assertSafeAuditMetadata`, the same hazard CHAT-001's moderation flag hit.
+            // An identifier is what §12 admits, and this is one.
+            converted_from_id: messageId,
+          },
+        });
+
+        return { row: created, link: createdLink };
+      });
+
+      return {
+        workItem: toWorkItemView(row),
+        messageId,
+        convertedAt: link.createdAt.toISOString(),
+        created: true,
+      };
+    } catch (error) {
+      if (error instanceof MessageAlreadyConvertedError) {
+        // Lost the race. The transaction — and the second work item it created — rolled
+        // back together; the conversion that won is the answer.
+        const winner = await this.database.read(context, (runner) =>
+          this.conversations.findWorkLinkByMessage(runner, context, messageId),
+        );
+        if (winner) return this.existingConversion(context, winner);
+      }
+      throw error;
+    }
+  }
+
+  /** The conversion that already exists, INT-07's answer to a retry. */
+  private async existingConversion(
+    context: TenantContext,
+    link: { readonly workItemId: string; readonly messageId: string; readonly createdAt: Date },
+  ): Promise<ConvertMessageResult> {
+    const row = await this.database.read(context, (runner) =>
+      this.workItems.findById(runner, context, link.workItemId),
+    );
+    if (!row) {
+      // The link's foreign key makes this unreachable short of manual surgery; refusing
+      // loudly beats inventing a view of a row that is not there.
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    return {
+      workItem: toWorkItemView(row),
+      messageId: link.messageId,
+      convertedAt: link.createdAt.toISOString(),
+      created: false,
+    };
   }
 
   /**

@@ -229,6 +229,21 @@ withCredential('the runtime user (tmanage_app)', () => {
     expect(error.code).toBe(ER_TABLEACCESS_DENIED);
   });
 
+  it('cannot UPDATE a message-to-work link — FR-02 says the source link is immutable', async () => {
+    const error = await refused(
+      app,
+      'update message_work_links set work_item_id = ? where message_id is not null',
+      [uuidv7()],
+    );
+    expect(error.code).toBe(ER_TABLEACCESS_DENIED);
+    expect(error.message).not.toMatch(/immutable/i);
+  });
+
+  it('cannot DELETE a message-to-work link — a conversion cannot be unhappened', async () => {
+    const error = await refused(app, 'delete from message_work_links where message_id is not null');
+    expect(error.code).toBe(ER_TABLEACCESS_DENIED);
+  });
+
   it('editing a message still writes the revision it cannot write itself', async () => {
     // Fixture rows through the admin credential; the act under test through the runtime one.
     const conversationId = uuidv7();

@@ -96,6 +96,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_ap
 -- runtime credential that could INSERT could forge a revision; UPDATE is refused by the
 -- table's own trigger for every credential; DELETE withheld here is what makes the history
 -- as permanent as the moderation ledger above. Reading is the database-wide SELECT.
+-- CHAT-003's source link. INSERT only: FR-02 says the link is immutable, and the trigger in
+-- 0009 refuses UPDATE for every credential — withholding UPDATE and DELETE here is what
+-- makes "immutable" true for the runtime credential specifically, the way it is for the
+-- moderation ledger above.
+GRANT INSERT                 ON `tmanage`.`message_work_links`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 

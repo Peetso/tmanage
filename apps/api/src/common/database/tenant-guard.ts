@@ -91,6 +91,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // The application never writes this table (the 0008 trigger does, with definer
   // privileges); registering it here scopes the READS.
   message_revisions: 'organization_id',
+  // CHAT-003. Tenant-owned: the link names a message and a work item, both tenant rows, and
+  // an unscoped read of it would be a map of which studio converted what.
+  message_work_links: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',

@@ -8,12 +8,14 @@ import {
   conversations,
   messageRevisions,
   messages,
+  messageWorkLinks,
 } from '../../common/database/schema.js';
 import type {
   ConversationMembershipRow,
   ConversationRow,
   MessageRevisionRow,
   MessageRow,
+  MessageWorkLinkRow,
 } from '../../common/database/schema.js';
 import type {
   QueryRows,
@@ -127,6 +129,21 @@ export class DuplicateMessageError extends Error {
   constructor(readonly clientGeneratedId: string) {
     super(`A message with client id ${clientGeneratedId} already exists`);
     this.name = 'DuplicateMessageError';
+  }
+}
+
+/**
+ * A second conversion of the same message, refused by `uq_message_work_links_message`.
+ *
+ * Raised from the engine's duplicate-key answer rather than from a prior read, because the
+ * read-then-insert gap is exactly the race INT-07 is about. The caller's transaction — and
+ * with it the second work item that transaction created — rolls back; the service then
+ * hands back the conversion that already exists.
+ */
+export class MessageAlreadyConvertedError extends Error {
+  constructor(readonly messageId: string) {
+    super(`Message ${messageId} has already been converted to work`);
+    this.name = 'MessageAlreadyConvertedError';
   }
 }
 
@@ -694,6 +711,72 @@ export class ConversationsRepository {
         ),
       )
       .orderBy(asc(messageRevisions.revisionNo));
+  }
+
+  /** The conversion this message already has, or null. The read half of INT-07's retry. */
+  async findWorkLinkByMessage(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    messageId: string,
+  ): Promise<MessageWorkLinkRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(messageWorkLinks)
+      .where(
+        and(
+          eq(messageWorkLinks.organizationId, context.organizationId),
+          eq(messageWorkLinks.messageId, messageId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Record that a message became a work item. **Must run in the same transaction that
+   * creates the work item**: the unique key on the message is what makes the pair atomic —
+   * a lost race rolls both back together, which is INT-07's "one linked work item" holding
+   * under concurrency rather than being asserted about a single caller.
+   */
+  async createWorkLink(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    messageId: string,
+    workItemId: string,
+    createdByUserId: string,
+  ): Promise<MessageWorkLinkRow> {
+    const id = uuidv7();
+    try {
+      await tenantDrizzle(runner)
+        .insert(messageWorkLinks)
+        .values({
+          id,
+          organizationId: context.organizationId,
+          messageId,
+          workItemId,
+          createdByUserId,
+          createdAt: sql`current_timestamp(3)`,
+        });
+    } catch (error) {
+      if (driverErrorCode(error) === ER_DUP_ENTRY) {
+        throw new MessageAlreadyConvertedError(messageId);
+      }
+      throw error;
+    }
+
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(messageWorkLinks)
+      .where(
+        and(
+          eq(messageWorkLinks.organizationId, context.organizationId),
+          eq(messageWorkLinks.id, id),
+        ),
+      )
+      .limit(1);
+    const created = rows[0];
+    if (!created) throw new MessageNotFoundError(messageId);
+    return created;
   }
 
   /**

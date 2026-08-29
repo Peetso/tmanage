@@ -76,8 +76,11 @@ export interface WorkItemView {
  * An explicit projection, not a serialised row — `25-AUTH-AND-TENANT-ISOLATION` §7: "Never
  * implement client access as `serializeInternalObject(); delete fields`." `organization_id` is
  * absent: the caller already knows which organization they asked about.
+ *
+ * Exported for CHAT-003: converting a message creates a work item from inside the
+ * conversations module, and a second projection there would be a copy free to drift.
  */
-function toView(row: WorkItemRow): WorkItemView {
+export function toWorkItemView(row: WorkItemRow): WorkItemView {
   return {
     id: row.id,
     projectId: row.projectId,
@@ -94,6 +97,8 @@ function toView(row: WorkItemRow): WorkItemView {
     deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
   };
 }
+
+const toView = toWorkItemView;
 
 /**
  * The audiences a client principal may read.
