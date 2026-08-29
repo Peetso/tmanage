@@ -157,6 +157,10 @@ GRANT INSERT, UPDATE ON `tmanage`.`outbox_events`       TO 'tmanage_worker'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`idempotency_records` TO 'tmanage_worker'@'%';
 GRANT UPDATE         ON `tmanage`.`work_items`          TO 'tmanage_worker'@'%';
 GRANT INSERT         ON `tmanage`.`audit_events`        TO 'tmanage_worker'@'%';
+-- PLAT-004's lifecycle consumer: when committed work starts, the linked request moves
+-- accepted->planned; when the work is done, planned->delivered (23-ERD §6). UPDATE only —
+-- the relay never creates or destroys a request, it advances one a manager accepted.
+GRANT UPDATE         ON `tmanage`.`client_requests`     TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration user

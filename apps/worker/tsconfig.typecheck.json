@@ -1,0 +1,16 @@
+{
+  // Typecheck covers the unit tests as well as `src/`, which the build config deliberately
+  // does not — same shape as the API's split, and for the same reason: a test referencing
+  // a field a store no longer returns should fail here, not at runtime.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

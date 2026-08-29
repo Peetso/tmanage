@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^11.2.1",
+    "@tmanage/worker": "workspace:*",
     "drizzle-kit": "^0.31.5",
     "mysql-memory-server": "^1.15.0",
     "tsx": "^4.20.3",

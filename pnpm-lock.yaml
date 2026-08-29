@@ -81,6 +81,9 @@ importers:
       '@nestjs/testing':
         specifier: ^11.2.1
         version: 11.2.1(@nestjs/common@11.2.1(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.2.1(@nestjs/common@11.2.1(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
+      '@tmanage/worker':
+        specifier: workspace:*
+        version: link:../worker
       drizzle-kit:
         specifier: ^0.31.5
         version: 0.31.10
@@ -142,6 +145,28 @@ importers:
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(jsdom@30.0.1)(tsx@4.23.12)
+
+  apps/worker:
+    dependencies:
+      '@tmanage/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@tmanage/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      mysql2:
+        specifier: ^3.15.1
+        version: 3.23.3(@types/node@22.20.1)
+    devDependencies:
+      tsx:
+        specifier: ^4.20.3
+        version: 4.23.12
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
