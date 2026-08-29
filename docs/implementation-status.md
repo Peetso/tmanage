@@ -252,6 +252,69 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, WEB-003 first half, same session
+
+The whole chain again, one uninterrupted background run on the tree commit `ddf1345` left —
+the same session as the CHAT-003 verification below, run after the chat screens were written.
+**Green on the first attempt.**
+
+| Gate                        | Result                                                                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                                                   |
+| `pnpm typecheck`            | **Done** — five projects, and the new screens compiled clean on their first pass                                        |
+| `pnpm lint`                 | Clean after one unused import was removed                                                                               |
+| `pnpm test`                 | **840 passed across 40 files.** Up from 831 and 39: the 9 new cases are `chat-flow.test.tsx`, in `apps/web` (319 → 328) |
+| `pnpm test:db`              | **24 files, 705 passed, 29 skipped (734)** — unchanged, as it must be: this ticket added no API and no table            |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                                   |
+| `pnpm format:check` (again) | Clean                                                                                                                   |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                                                |
+
+Three of the nine web cases failed on their first solo run and all three were the _tests_'
+fault, not the screens' — ambiguous queries where two "Project" selects, two "Send" buttons or
+an option and a hint share a name. Each was fixed by scoping the query to the section, form or
+row it meant, the assertions untouched.
+
+---
+
+## WEB-003 first half — the channel a person can read, in a browser
+
+**TM-06, TM-08 and TM-09** against the API CHAT-001 through CHAT-003 delivered. Commit
+`ddf1345`. The plan marks WEB-003 "13→split"; this is the declared first half, and the second
+half is named below rather than implied.
+
+- **The channel list** (`/[orgSlug]/chat`, the rail's Chat orb) — channels grouped under their
+  project, archived ones on request, and a create form that asks for the project first,
+  because every conversation in this system is a project channel.
+- **TM-06, the channel** (`/[orgSlug]/chat/[conversationId]`) — the transcript oldest-first,
+  authors as short ids (there is no people directory to look names up in, and "Someone" on
+  every row would make a transcript unreadable), rich text rendered through CHAT-002's closed
+  grammar as React elements — no HTML is ever parsed, a message that says `<script>` renders
+  as those nine characters — moderated messages as tombstones that keep the removal visible,
+  and "edited" with the full history behind it.
+- **The composer that cannot double-post.** It mints a `clientGeneratedId` when a send starts
+  and keeps it until that send succeeds; a failed send leaves the text in the box and the id
+  in hand, so pressing Send again replays the same id and the API's dedupe answers with the
+  original. The test fails the first send on purpose and proves the second carries the same id.
+- **TM-08, the thread pane** — the shell's detail lens: source pinned, replies read with
+  `parentMessageId` as a query parameter (never filtered out of the channel in the browser),
+  its own composer, keyboard order by DOM order.
+- **TM-09, the convert dialog** — title defaulted from the message's first line, audience
+  defaulted internal with the client warning shown before a widening choice is submitted, the
+  project stated as a fact rather than offered as a choice, no owner and no date invented, and
+  `created: false` rendered as "Already converted" with the existing item linked — INT-07's
+  answer, drawn.
+- **Honest absences**: reactions, saves, quote-to-decision, pins, presence and live updates
+  have no endpoint; the rich-text _composer_ (the API accepts `bodyRich`; a toolbar emitting
+  the grammar is its own piece of work) and transcript paging are second-half work; TM-07
+  direct messages have no API at all — every one named in `BackendPending`, none drawn as a
+  dead button.
+
+9 web cases including an axe pass over the whole channel screen. The ticket counts **half
+(6.5 of 13)** by the progress rule: TM-06, TM-08 and TM-09 are built and tested; the named
+remainder is absent.
+
+---
+
 ## Verification actually run — 2026-08-30, the CHAT-003 verification session
 
 CHAT-003's code and tests landed last session (`e1e4c46`) with its own suite green (14/14,
@@ -4945,6 +5008,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                   |
 | 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                 |
 | 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                 |
+| 6   | WEB-003    |  13 | half 6.5 | `TM-06`, `TM-08`, `TM-09` — the plan's own "13→split". Rich composer, reactions, presence, live updates and paging are the named second half                  |
 | 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                             |
 | 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                       |
 | 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                   |
@@ -4953,69 +5017,60 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                  |
 | 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                 |
 
-Every other ticket in §§3–12 — four of Sprint 3's seven, and all of Sprints 5 through 9 — is
+Every other ticket in §§3–12 — three of Sprint 3's seven, and all of Sprints 5 through 9 — is
 zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first entry,
-**CHAT-002 on 2026-08-29** as its second, and **CHAT-003 on 2026-08-30** as its third.
+**CHAT-002 on 2026-08-29** as its second, **CHAT-003 on 2026-08-30** as its third, and
+**WEB-003's first half the same day** as its fourth.
 
-| Sprint                                                                                          | Tickets       | Points         |
-| ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
-| Sprint 0 (§3)                                                                                   | 5 of 8        | 32.5 of 52     |
-| Sprint 1 (§4)                                                                                   | 7 of 8        | 50 of 58       |
-| Sprint 2 (§5)                                                                                   | 3½ of 6       | 30.5 of 53     |
-| Sprint 3 (§6)                                                                                   | 3 of 7        | 24 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
-| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
-| **§§3–12**                                                                                      | **25½ of 70** | **198 of 583** |
+| Sprint                                                                                          | Tickets      | Points           |
+| ----------------------------------------------------------------------------------------------- | ------------ | ---------------- |
+| Sprint 0 (§3)                                                                                   | 5 of 8       | 32.5 of 52       |
+| Sprint 1 (§4)                                                                                   | 7 of 8       | 50 of 58         |
+| Sprint 2 (§5)                                                                                   | 3½ of 6      | 30.5 of 53       |
+| Sprint 3 (§6)                                                                                   | 3½ of 7      | 30.5 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**     |
+| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293         |
+| **§§3–12**                                                                                      | **26 of 70** | **204.5 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
 | errors partly hid each other.                                                                   |
 
 **With CHAT-001, which landed the same day: 23½ of 70 tickets and 182 of 583 — 31.2%**,
-**with CHAT-002 on 2026-08-29: 24½ of 70 and 190 of 583 — 32.6%**, and **with CHAT-003 verified
-on 2026-08-30: 25½ of 70 and 198 of 583 — 34.0%.** The Progress section below carries the
-latest. CHAT-001 counts whole because everything §6's row
+**with CHAT-002 on 2026-08-29: 24½ of 70 and 190 of 583 — 32.6%**, **with CHAT-003 verified
+on 2026-08-30: 25½ of 70 and 198 of 583 — 34.0%**, and **with WEB-003's first half the same
+day: 26 of 70 and 204.5 of 583 — 35.1%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
 names — conversations, messages and the thread sequence model — is built and covered by a suite
 that ran.
 
-**Screen tickets: 3½ of 11.** WEB-001 whole, WEB-002 half, WEB-004 whole, WEB-005 whole; WEB-003
-and WEB-006 through WEB-011 are untouched. The previous "4½ of 11" counted screens rather than
-tickets.
+**Screen tickets: 4 of 11.** WEB-001 whole, WEB-002 half, WEB-003 half, WEB-004 whole, WEB-005
+whole; WEB-006 through WEB-011 are untouched. The previous "4½ of 11" counted screens rather
+than tickets.
 
 **Sprint 4 is complete, and that survives the re-derivation** — all seven of §7's tickets, 61 of
 61 points. It is still the first sprint in this plan that is.
 
 ### The next coding task
 
-**`CHAT-003` was verified on 2026-08-30 and this section is replaced rather than amended.**
-Sprint 3 has three tickets; Sprint 4 is still the only complete one.
+**`WEB-003`'s first half shipped on 2026-08-30 and this section is replaced rather than
+amended.** Sprint 3 has three whole tickets and two halves across it and Sprint 2; Sprint 4 is
+still the only complete one.
 
-**The next one is `WEB-003` — the channel, thread and convert dialog**, the plan's own
-"13→split". `CHAT-001`, `CHAT-002` and `CHAT-003` have given TM-06, TM-07, TM-08 and TM-09 a
-complete API — messages with sanitised rich text, threads, an edit history, moderation, and a
-conversion — and no browser, which is the same position `REQ-01`–`REQ-03` were in before
-`WEB-005`. Split it as WEB-002 was split, and say which half shipped:
-
-- **First half: what the API already answers.** The channel list, the channel screen (TM-06)
-  reading top-level messages in sequence order with a plain-text composer, the thread pane
-  (TM-08) as the detail lens with the source message pinned, the edit-history view, moderation
-  with its "removed" tombstone, and the convert dialog (TM-09) — title defaulted from the
-  message, audience defaulted internal with the access warning on widening, a duplicate
-  conversion showing the existing link off the API's own 200. TM-07 (direct messages) has **no
-  API** — every conversation is a project channel — so the screen half owes an honest absence,
-  not a mock.
-- **Second half, named rather than implied:** a rich-text composer (the API accepts `bodyRich`;
-  writing a toolbar that emits the closed grammar is its own piece of work), reactions, saves,
-  pins and presence (none has any API), and live updates (the screen will read on a refetch
-  interval at best; nothing pushes).
+**The next one is `WEB-002`'s second half.** Saved views, sorting, row selection and bulk
+actions, including the bulk audience change the specification singles out for a separate
+confirmation — it is the action that can disclose a dozen items to a client in one click. It
+would also give the request inbox and the work list the cursor paging both lack — each
+silently shows the oldest 200, and both now have a sibling in the channel screen that at least
+_says_ so — and it is where `ProjectOverviewScreen`'s unconditional "Internal" badge gets
+fixed. That badge became capable of being wrong the day `CLIENT-001` shipped.
 
 The alternatives, in order after it:
 
-2. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
-   the bulk audience change the specification singles out for a separate confirmation. It would
-   also give the request inbox the cursor paging it lacks — that screen silently shows the
-   oldest 200 — and it is where `ProjectOverviewScreen`'s unconditional "Internal" badge gets
-   fixed. That badge became capable of being wrong the day `CLIENT-001` shipped.
+2. **`WEB-003`'s second half.** The rich-text composer (the API accepts `bodyRich`; a toolbar
+   that emits the closed grammar is its own piece of work), transcript paging, and — only if
+   APIs appear for them — reactions, saves, pins, presence and live updates. Without those
+   APIs the composer and paging are the whole of it, which may be worth folding into a screen
+   pass rather than a session of its own.
 3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
    it. `28-SPRINT-TICKETS` does not schedule this at all; `NOTIF-001` is the nearest real ticket
    and it builds notification records rather than delivery.
@@ -5145,17 +5200,22 @@ directory, unscheduled" instead, which is both shorter and true.
     rolled back, proved by firing the race for real. The link is INSERT-only to the runtime
     credential and un-updatable by trigger. 14 database cases and two least-privilege cases;
     the full chain ran green first try this session, 705 database cases in all.
+28. ~~WEB-003 first half~~ — **done this session.** The channel a person can read: TM-06's
+    transcript with the composer whose retry cannot double-post, TM-08's thread pane reading
+    replies as a query rather than a browser-side filter, and TM-09's convert dialog that
+    defaults safe, warns before widening, and shows the existing conversion instead of
+    pretending a duplicate succeeded. 9 web cases; the second half is named, not implied.
 
 ### Progress
 
-**25½ of 70 tickets. 198 of 583 story points — 34.0%, across Sprints 0–9.** Derived ticket by
+**26 of 70 tickets. 204.5 of 583 story points — 35.1%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
-numerator **and** in the denominator; the percentage reads higher today only because CHAT-001,
-CHAT-002 and CHAT-003 have since been added to an honest count. Screen tickets: **3½ of 11** —
-WEB-001, WEB-004 and WEB-005 whole, WEB-002 half. **Sprint 3 has three tickets: CHAT-001,
-CHAT-002 and CHAT-003.**
+numerator **and** in the denominator; the percentage reads higher today only because the CHAT
+tickets and WEB-003's first half have since been added to an honest count. Screen tickets:
+**4 of 11** — WEB-001, WEB-004 and WEB-005 whole, WEB-002 and WEB-003 half. **Sprint 3 has
+three whole tickets — CHAT-001, CHAT-002, CHAT-003 — and half of WEB-003.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
