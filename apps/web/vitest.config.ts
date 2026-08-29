@@ -34,7 +34,14 @@ export default defineConfig({
      *
      * The alternative would have been to shorten the timezone list, which would silently
      * exclude whoever lives in the part that was cut. A slow test is the cheaper problem.
+     *
+     * Raised again from 30 s on 2026-08-29, and again from measurement rather than
+     * irritation: the ON-01 axe pass takes 9.6 s running ALONE on an idle machine, and a
+     * full `pnpm test` runs sixteen jsdom workers side by side, which multiplied that past
+     * 30 s in four consecutive full-suite runs while passing every time the file ran by
+     * itself. The assertion is untouched — axe still walks every node and every violation
+     * still fails the case — this is the ceiling the walk happens under.
      */
-    testTimeout: 30_000,
+    testTimeout: 90_000,
   },
 });
