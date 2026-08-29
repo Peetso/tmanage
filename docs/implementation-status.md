@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-08-29 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-08-30 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -249,6 +249,75 @@ once already.
 | Residual PostgreSQL references | 5, all deliberate contrast ("MySQL has no PostgreSQL-style RLS"). Zero `jsonb`, `gen_random_uuid`, or `citext`.                                                                                                                                                 |
 
 The MySQL revision is fully landed in `docs/planning/`.
+
+---
+
+## Verification actually run — 2026-08-30, the CHAT-003 verification session
+
+CHAT-003's code and tests landed last session (`e1e4c46`) with its own suite green (14/14,
+first try) — but the full chain was **deliberately stopped before it started** so that session
+could end safely, and no results existed for it. This session's first act after the
+reconciliation was to run it fresh: the whole chain, one uninterrupted background run on the
+tree exactly as `e1e4c46` left it, **green on the first attempt**. 985 seconds end to end.
+
+| Gate                        | Result                                                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean — the only edit between `e1e4c46` and the run was the fourteenth-reconciliation record, formatted before the chain started      |
+| `pnpm typecheck`            | **Done** — five projects                                                                                                              |
+| `pnpm lint`                 | Clean, no output                                                                                                                      |
+| `pnpm test`                 | **831 passed across 39 files** — unchanged from CHAT-002's run, because CHAT-003 added no unit cases; its proofs need a real database |
+| `pnpm test:db`              | **24 files, 705 passed, 29 skipped (734).** Up from 23 files and 688 + 27. The database suite alone took 886 s                        |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                                                 |
+| `pnpm format:check` (again) | Clean                                                                                                                                 |
+| Leaked `mysqld`             | **None**, checked before the run (none to kill) and after the suite exited                                                            |
+
+Engine: the embedded **MySQL 8.0.45**. The database arithmetic:
+`chat-003-message-to-work.db.test.ts` contributes 14 passed, the concurrency race among them;
+`schema.db.test.ts` generated three more (77 → 80) for `message_work_links`' columns,
+nullability and types without a line being written; 688 + 14 + 3 = 705. The two skips added to
+the old 27 are the two new `least-privilege.db.test.ts` cases — the runtime credential's
+INSERT-only grant on the link table — which skip like the rest of that file on the default
+path, with no `tmanage_app` credential to test ADR-0001 layer 2 against. Skips, reported as
+skips.
+
+---
+
+## CHAT-003 — a message becomes work, exactly once
+
+**Message-to-work conversion** — `09-MVP-PRD` FR-02, `27-TEST-CATALOG` INT-07. Committed as
+`e1e4c46` last session; verified by the chain above this session. The row's whole scope is
+built and proved, so the ticket moves to `tested` here rather than when it was written.
+
+- **The idempotency is the relation itself.** `message_work_links` (migration
+  `0009_message_work_links.sql`) is unique on `(organization_id, message_id)` **and** on
+  `(organization_id, work_item_id)`, and that unique key _is_ INT-07's "one linked work item
+  on retry": a retry — or the loser of a genuine race, which the suite fires for real — gets a
+  duplicate-key refusal translated into **200 with the winner's conversion**, and the losing
+  transaction is rolled back whole, its second work item included. No `idempotency_records`
+  machinery; a relation that is naturally one-to-one needs none.
+- **The link is immutable the way FR-02 asks.** The runtime credential holds an INSERT-only
+  grant on the table, and a trigger refuses `UPDATE` for every credential — a conversion can
+  be recorded and never rewritten.
+- **The route** is `POST …/conversations/:conversationId/messages/:messageId/work-items`:
+  `conversation.read` plus channel membership to see the message, `work.create` on the
+  conversation's project to file work. The project is **not choosable** — it is the
+  conversation's, because a conversion that could re-home the work would make the source link
+  a lie at the moment of writing it. 201 when converted here, 200 with the existing conversion
+  when already converted.
+- **Defaults are FR-02's.** The title defaults to the message's first line; the audience
+  defaults to `internal` — external sharing never inherits internal visibility automatically.
+- **A moderated message refuses conversion with a 409** — its body is withheld, and a work
+  item titled from withheld content would leak it.
+- **The audit row reuses `work_item.created`** with metadata key `converted_from_id` — not
+  `source_message_id`, because `assertSafeAuditMetadata` forbids any key whose underscore
+  segments include `message`, the hazard CHAT-001 recorded.
+- `toWorkItemView` is now exported from `work-items.service.ts` so the conversion answers with
+  the same projection a plain creation would. `message_work_links` was registered in
+  `TENANT_TABLES` **in the same commit** — the omission the drift gate caught mid-chain last
+  time was not repeated.
+
+14 database cases over real HTTP, the concurrency race included. Two least-privilege cases
+(skipped without the credential, like that whole file).
 
 ---
 
@@ -4875,6 +4944,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 5   | TEST-002   |   8 | half 4   | Work database and HTTP fixtures exist and run. No performance fixture; `packages/test-kit` is empty                                                           |
 | 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                   |
 | 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                 |
+| 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                 |
 | 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                             |
 | 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                       |
 | 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                   |
@@ -4883,27 +4953,28 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                  |
 | 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                 |
 
-Every other ticket in §§3–12 — five of Sprint 3's seven, and all of Sprints 5 through 9 — is
-zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first entry, and
-**CHAT-002 on 2026-08-29** as its second.
+Every other ticket in §§3–12 — four of Sprint 3's seven, and all of Sprints 5 through 9 — is
+zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first entry,
+**CHAT-002 on 2026-08-29** as its second, and **CHAT-003 on 2026-08-30** as its third.
 
 | Sprint                                                                                          | Tickets       | Points         |
 | ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
 | Sprint 0 (§3)                                                                                   | 5 of 8        | 32.5 of 52     |
 | Sprint 1 (§4)                                                                                   | 7 of 8        | 50 of 58       |
 | Sprint 2 (§5)                                                                                   | 3½ of 6       | 30.5 of 53     |
-| Sprint 3 (§6)                                                                                   | 2 of 7        | 16 of 66       |
+| Sprint 3 (§6)                                                                                   | 3 of 7        | 24 of 66       |
 | Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
 | Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
-| **§§3–12**                                                                                      | **24½ of 70** | **190 of 583** |
+| **§§3–12**                                                                                      | **25½ of 70** | **198 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
 | errors partly hid each other.                                                                   |
 
-**With CHAT-001, which landed the same day: 23½ of 70 tickets and 182 of 583 — 31.2%**, and
-**with CHAT-002 on 2026-08-29: 24½ of 70 and 190 of 583 — 32.6%.** The Progress section below
-carries the latter. CHAT-001 counts whole because everything §6's row
+**With CHAT-001, which landed the same day: 23½ of 70 tickets and 182 of 583 — 31.2%**,
+**with CHAT-002 on 2026-08-29: 24½ of 70 and 190 of 583 — 32.6%**, and **with CHAT-003 verified
+on 2026-08-30: 25½ of 70 and 198 of 583 — 34.0%.** The Progress section below carries the
+latest. CHAT-001 counts whole because everything §6's row
 names — conversations, messages and the thread sequence model — is built and covered by a suite
 that ran.
 
@@ -4916,55 +4987,44 @@ tickets.
 
 ### The next coding task
 
-**`CHAT-002` shipped on 2026-08-29 and this section is replaced rather than amended.** Sprint 3
-has two tickets; Sprint 4 is still the only complete one.
+**`CHAT-003` was verified on 2026-08-30 and this section is replaced rather than amended.**
+Sprint 3 has three tickets; Sprint 4 is still the only complete one.
 
-**The next one is `CHAT-003` — message-to-work idempotent command/relation**, 8 points, both
-dependencies (`CHAT-002`, `WORK-001`) met, and next in §6's own order. `09-MVP-PRD` FR-02: an
-authorized user converts a message into work; the source link is immutable; title, project,
-owner, date and audience are confirmed at conversion; external sharing never inherits internal
-visibility. `27-TEST-CATALOG` INT-07 is the property that matters: **one linked work item on
-retry.**
+**The next one is `WEB-003` — the channel, thread and convert dialog**, the plan's own
+"13→split". `CHAT-001`, `CHAT-002` and `CHAT-003` have given TM-06, TM-07, TM-08 and TM-09 a
+complete API — messages with sanitised rich text, threads, an edit history, moderation, and a
+conversion — and no browser, which is the same position `REQ-01`–`REQ-03` were in before
+`WEB-005`. Split it as WEB-002 was split, and say which half shipped:
 
-Notes for the session that builds it, from this one's read-through:
-
-- The idempotency can be the relation itself: a link table unique on
-  `(organization_id, message_id)` — and on `(organization_id, work_item_id)` — makes the retry
-  translate a duplicate-key refusal into returning the existing conversion, the same shape as
-  `uq_messages_client_generated`. `idempotency_records` exists but is a heavier tool than a
-  relation that is naturally one-to-one.
-- The conversion is a message action (TM-06 "create work"), so it belongs on the messages
-  surface and needs `conversation.read` on the channel **and** `work.create` on the
-  conversation's project. One transaction: work item, link, audit.
-- **The audit-metadata hazard CHAT-001 recorded is live here**: `assertSafeAuditMetadata`
-  refuses any key whose underscore segments include `message`, so the source of a converted
-  work item cannot be spelled `source_message_id` in audit metadata. `conversation_id` is fine
-  (CHAT-001 already writes it); pick something like `converted_from_id` and say so in a
-  comment.
-- Converting a moderated message should be refused — its body is withheld, and a work item
-  titled from withheld content would leak it.
-- `unwrapQueryError` before reading any driver error code inside a repository catch. Two
-  sessions have paid for forgetting.
+- **First half: what the API already answers.** The channel list, the channel screen (TM-06)
+  reading top-level messages in sequence order with a plain-text composer, the thread pane
+  (TM-08) as the detail lens with the source message pinned, the edit-history view, moderation
+  with its "removed" tombstone, and the convert dialog (TM-09) — title defaulted from the
+  message, audience defaulted internal with the access warning on widening, a duplicate
+  conversion showing the existing link off the API's own 200. TM-07 (direct messages) has **no
+  API** — every conversation is a project channel — so the screen half owes an honest absence,
+  not a mock.
+- **Second half, named rather than implied:** a rich-text composer (the API accepts `bodyRich`;
+  writing a toolbar that emits the closed grammar is its own piece of work), reactions, saves,
+  pins and presence (none has any API), and live updates (the screen will read on a refetch
+  interval at best; nothing pushes).
 
 The alternatives, in order after it:
 
-2. **`WEB-003`** — the channel, thread and convert dialog. `CHAT-001` gave TM-06, TM-07, TM-08
-   and TM-09 an API and no browser, which is the same position `REQ-01`–`REQ-03` were in before
-   `WEB-005`. It is a 13-point ticket the plan already marks "13→split".
-3. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
+2. **`WEB-002`'s second half.** Saved views, sorting, row selection and bulk actions, including
    the bulk audience change the specification singles out for a separate confirmation. It would
    also give the request inbox the cursor paging it lacks — that screen silently shows the
    oldest 200 — and it is where `ProjectOverviewScreen`'s unconditional "Internal" badge gets
    fixed. That badge became capable of being wrong the day `CLIENT-001` shipped.
-4. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
+3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
    it. `28-SPRINT-TICKETS` does not schedule this at all; `NOTIF-001` is the nearest real ticket
    and it builds notification records rather than delivery.
-5. **`PLAT-004`'s relay** — the outbox dispatcher. Fourteen tickets have now established the
+4. **`PLAT-004`'s relay** — the outbox dispatcher. Fourteen tickets have now established the
    transaction boundary it will publish from, `24-EVENT-CATALOG` names two client-request events
    and two message events that nothing emits, and `apps/worker` is still an empty directory. It
    is also where the rule connecting two lifecycles belongs: nothing moves a request to
    `planned` or `delivered` when its linked work item moves.
-6. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
+5. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
    `projects.committed_at` and `client_requests.desired_at` are all `DATETIME(3)` holding
    midnight UTC, so a reader west of UTC sees every calendar date a day early. Not scheduled by
    `28-SPRINT-TICKETS`; it is a migration, recorded in the WEB-004 gaps above.
@@ -5079,16 +5139,23 @@ directory, unscheduled" instead, which is both shorter and true.
     four least-privilege cases. Its own chain run caught the one thing it forgot — the tenant
     guard had never heard of `message_revisions` — and the drift gate turned that from a
     shipped hole into a failing test.
+27. ~~CHAT-003~~ — **written last session, verified this one.** A message converts to a work
+    item exactly once, and "exactly once" is the link table's own unique key rather than a
+    promise: the race's loser gets 200 with the winner's conversion and its whole transaction
+    rolled back, proved by firing the race for real. The link is INSERT-only to the runtime
+    credential and un-updatable by trigger. 14 database cases and two least-privilege cases;
+    the full chain ran green first try this session, 705 database cases in all.
 
 ### Progress
 
-**24½ of 70 tickets. 190 of 583 story points — 32.6%, across Sprints 0–9.** Derived ticket by
+**25½ of 70 tickets. 198 of 583 story points — 34.0%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
-numerator **and** in the denominator; the percentage reads similarly today only because CHAT-001
-and CHAT-002 have since been added to an honest count. Screen tickets: **3½ of 11** — WEB-001,
-WEB-004 and WEB-005 whole, WEB-002 half. **Sprint 3 has two tickets: CHAT-001 and CHAT-002.**
+numerator **and** in the denominator; the percentage reads higher today only because CHAT-001,
+CHAT-002 and CHAT-003 have since been added to an honest count. Screen tickets: **3½ of 11** —
+WEB-001, WEB-004 and WEB-005 whole, WEB-002 half. **Sprint 3 has three tickets: CHAT-001,
+CHAT-002 and CHAT-003.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
