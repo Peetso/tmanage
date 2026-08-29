@@ -231,6 +231,146 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-29, the CHAT-002 session
+
+The whole chain, one uninterrupted background run on the tree CHAT-002 left behind. It took
+**four attempts to get a green run**, and the reasons are themselves the record — see the two
+subsections below.
+
+| Gate                              | Result                                                                                                                     |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format` then `format:check` | Clean, before anything below was recorded                                                                                  |
+| `pnpm typecheck`                  | **Done** — five projects                                                                                                   |
+| `pnpm lint`                       | Clean, no output                                                                                                           |
+| `pnpm test`                       | **831 passed across 39 files.** Up from 802 and 38: the 29 new cases are the rich-text sanitiser's, in `packages/domain`   |
+| `pnpm test:db`                    | **23 files, 688 passed, 27 skipped (715).** Up from 22 files and 662 + 23. Duration of the green run's whole chain: 1264 s |
+| `pnpm audit:design`               | **172/172 screen IDs across 29 artifacts, 0 missing**                                                                      |
+| `pnpm format:check` (again)       | Clean                                                                                                                      |
+| Leaked `mysqld`                   | **None**, checked after the suite exited                                                                                   |
+
+Engine: the embedded **MySQL 8.0.45**. The database arithmetic:
+`chat-002-rich-text.db.test.ts` contributes 23 passed; `schema.db.test.ts` generated three more
+(74 → 77) for `message_revisions`' columns, nullability and types without a line being written;
+662 + 23 + 3 = 688. The four skips added to the old 23 are the four new
+`least-privilege.db.test.ts` cases, which skip like the rest of that file on the default path —
+no `tmanage_app` credential to test ADR-0001 layer 2 against. Skips, reported as skips.
+
+### Chain attempts 1–3, and what each one was
+
+1. **Attempt 1 failed in `apps/web`'s unit suite** — `ON-01`'s axe case timed out at 30 s and a
+   `work-flow.test.tsx` lookup missed its 1 s Testing Library window. Every failing file passed
+   alone immediately afterwards (87/87 in 36 s), under ~54% external CPU load from outside the
+   repository.
+2. **Attempt 2, on a quiet machine, failed on `ON-01`'s axe case again** — the fourth
+   consecutive full-suite run to hit it while it passed every time alone. That stopped being a
+   flake and became a measurement: the pass takes **9.6 s running alone on an idle machine**
+   (the 600-option timezone list the config comment already documents), and sixteen jsdom
+   workers side by side multiply it past any 30 s ceiling.
+3. So commit `a499547` raised two ceilings **from measurement, with the assertions untouched**:
+   `testTimeout` 30 s → 90 s in `apps/web/vitest.config.ts` (axe still walks every node; every
+   violation still fails the case), and Testing Library's `asyncUtilTimeout` 1 s → 5 s in
+   `tests/setup.ts` — the exact decision the WORK-001 session recorded and left "for a session
+   that can decide it on purpose". A genuinely missing element now costs 5 s to report instead
+   of 1 s, which is the price, named in the comment.
+4. **Attempt 3 then ran the unit suite fully green — 319/319 in `apps/web` — and failed in
+   `test:db` on two cases of `tenant-isolation.db.test.ts`**: `message_revisions` carries an
+   `organization_id` column and was not registered in `TENANT_TABLES`. That is the drift gate
+   doing precisely what its comment promises ("a new module migration cannot quietly opt out of
+   the guard"), and it caught a genuine omission in CHAT-002. Commit `6076ebe` registered the
+   table as tenant-owned; attempt 4 is the green run above.
+
+---
+
+## CHAT-002 — what a message may say, and what it said before
+
+**Sanitized rich text and the edit history** — the two decisions CHAT-001 deliberately left
+open, decided. Commits `24c962e` (the ticket), `a499547` (the test-harness ceilings) and
+`6076ebe` (the guard registration its own chain run demanded).
+
+### What markup is admissible: a closed JSON grammar, not HTML with tags removed
+
+`packages/domain/src/value-objects/rich-text.ts`. A document is a tree of typed nodes —
+paragraphs, code blocks, quotes, two list kinds, hard breaks; text runs carrying bold, italic,
+strike, code, and links whose scheme must be `http`, `https` or `mailto`. An HTML sanitiser is
+a parser racing an attacker's parser, and every divergence between the two is a bypass; a
+validator over a closed grammar has no second parser to disagree with, and no place where
+markup is text. No HTML is ever parsed or stored. `javascript:` in any spelling — case games,
+whitespace, tab smuggling — dies at the scheme allowlist, because WHATWG URL parsing normalises
+before the comparison. Complexity is bounded before content is judged (`04-SECURITY-PRIVACY`
+§6's "complexity limits"): 1,000 nodes, depth 8, 16,000 characters of text — the same ceiling
+as a plain message, because a rich message is not entitled to say more.
+
+### Where sanitising happens: the write boundary, refusing rather than repairing
+
+The precedent is `assertSafeAuditMetadata`. `ConversationsService.resolveContent` runs
+`sanitizeRichText` before anything is read or written; an inadmissible document is refused
+whole — **422, the path to the first offence**
+(`doc.content[0].content[0].marks[0].href`), nothing stored, no sequence number consumed.
+Nothing is stripped, because a repair the author never saw is how a sanitiser and a renderer
+come to read the same message differently. The plain `body` of a rich message is **derived**
+from the sanitised document (`richTextToPlainText`), never accepted from the caller, so
+`messages.body` and the new `messages.body_rich` cannot disagree about what was said. A caller
+sends exactly one of `body` and `bodyRich`; both is refused as a request whose two versions are
+free to disagree.
+
+### The edit history: engine-authored, so the application cannot not-write it
+
+`message_revisions` (migration `0008_message_rich_text.sql`) holds the body a message had
+before each change, and `trg_messages_record_revision` is what writes it — a trigger, firing
+with its **definer's** privileges, archiving the displaced body and forcing `edited_at`
+forward whenever either body column changes, for any session. `users.sql` grants the runtime
+credential **nothing** on the table (`SELECT` is database-wide), so the application cannot
+forge a revision, cannot suppress one, and cannot delete one; a direct SQL rewrite of a
+message still leaves a trail, and the suite proves exactly that with a raw `UPDATE` through
+the admin connection. A second trigger refuses `UPDATE` on revisions for every credential.
+
+Two absences are deliberate. **No CHAR(36) id**: the rows are engine-authored, the engine has
+no UUIDv7, and MySQL's `UUID()` is a v1 that would silently break the convention it appeared
+to follow — `(organization_id, message_id, revision_no)` is what a revision _is_. **No
+`edited_by_user_id`**: only a message's author may edit it, so the editor is
+`messages.author_user_id`, already recorded, and a column filled in by the very session whose
+honesty is in question would be weaker than the derivation it replaced.
+
+Moderation and history interact the way CHAT-001's model forces: taking a message down
+withholds every superseded body exactly as it withholds the current one — a removal that left
+every earlier version readable would not have removed anything — while the revisions' count
+and times survive, because "edited twice, then removed" is part of the record. The rows still
+hold the bodies; the projection is what withholds them, which is the moderation ledger's
+distinction between hiding and erasing.
+
+### The surface
+
+One new route — `GET …/conversations/:conversationId/messages/:messageId/revisions`, readable
+by anyone who may read the channel, because an edit is visible to the room and what it changed
+from is the room's to see. `bodyRich` on post and edit; a rich retry under the same
+client-generated id dedupes to the original with a 200. An edit that changes nothing writes no
+revision and no `edited_at` — the trigger compares before it records.
+
+29 unit cases on the sanitiser (every `javascript:` spelling, unknown nodes/marks/keys,
+duplicate marks, the three complexity ceilings, the derivation). 23 database cases over real
+HTTP — concurrent edits numbering without loss, the direct-SQL trail, the moderation
+interaction, tenant isolation on the history. Four least-privilege cases (skipped without the
+credential, like that whole file): the runtime user cannot INSERT, UPDATE or DELETE a
+revision, and its ordinary UPDATE on `messages` still produces the revision it could never
+write itself.
+
+### Named gaps in CHAT-002, carried deliberately
+
+- **Mentions, attachments, reactions** — `09-MVP-PRD`'s Collaboration scope lists them beside
+  rich text; none is in CHAT-002's row and none is built. A mention needs a user-id-bearing
+  inline node and a validation read the sanitiser deliberately does not do — it is pure, and
+  keeping it pure is what makes it reviewable.
+- **No renderer.** Nothing draws a rich document yet; that is WEB-003's screen. The renderer
+  owns contextual output encoding — the other half of §6's sentence — and the grammar
+  guarantees it will never receive markup-as-text.
+- **SEC-08 proper is a browser test** — stored XSS through real screens, CSP. Not runnable in
+  jsdom; the storage half is proven, the DOM half waits for the browser harness the UI-001
+  gaps already name.
+- **`body_rich` is NULL for every CHAT-001-era row** and stays NULL. Not a backfill
+  candidate: a plain body does not say which of its characters were meant as emphasis.
+
+---
+
 ## Verification actually run — 2026-08-26, the CHAT-001 session
 
 The whole chain, in order, on the tree CHAT-001 left behind.
@@ -4713,6 +4853,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`. Saved views, sorting, selection and bulk actions are not built                                                                     |
 | 5   | TEST-002   |   8 | half 4   | Work database and HTTP fixtures exist and run. No performance fixture; `packages/test-kit` is empty                                                           |
 | 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                   |
+| 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                 |
 | 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                             |
 | 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                       |
 | 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                   |
@@ -4721,26 +4862,27 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                  |
 | 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                 |
 
-Every other ticket in §§3–12 — six of Sprint 3's seven, and all of Sprints 5 through 9 — is
-zero. **CHAT-001 was added to this table on 2026-08-26**, and it is the first entry Sprint 3 has.
+Every other ticket in §§3–12 — five of Sprint 3's seven, and all of Sprints 5 through 9 — is
+zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first entry, and
+**CHAT-002 on 2026-08-29** as its second.
 
-| Sprint        | Tickets       | Points         |
-| ------------- | ------------- | -------------- |
-| Sprint 0 (§3) | 5 of 8        | 32.5 of 52     |
-| Sprint 1 (§4) | 7 of 8        | 50 of 58       |
-| Sprint 2 (§5) | 3½ of 6       | 30.5 of 53     |
-| Sprint 3 (§6) | 1 of 7        | 8 of 66        |
-| Sprint 4 (§7) | **7 of 7**    | **61 of 61**   |
-| Sprints 5–9   | 0 of 34       | 0 of 293       |
-| **§§3–12**    | **23½ of 70** | **182 of 583** |
+| Sprint                                                                                          | Tickets       | Points         |
+| ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
+| Sprint 0 (§3)                                                                                   | 5 of 8        | 32.5 of 52     |
+| Sprint 1 (§4)                                                                                   | 7 of 8        | 50 of 58       |
+| Sprint 2 (§5)                                                                                   | 3½ of 6       | 30.5 of 53     |
+| Sprint 3 (§6)                                                                                   | 2 of 7        | 16 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
+| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
+| **§§3–12**                                                                                      | **24½ of 70** | **190 of 583** |
+| **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
+| was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
+| the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
+| errors partly hid each other.                                                                   |
 
-**As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That
-was lower than the 31% this file used to quote, against a denominator that is smaller as well:
-the old figure was optimistic in the numerator and inflated in the denominator, and the two
-errors partly hid each other.
-
-**With CHAT-001, which landed the same day: 23½ of 70 tickets and 182 of 583 — 31.2%.** The
-Progress section below carries this figure. CHAT-001 counts whole because everything §6's row
+**With CHAT-001, which landed the same day: 23½ of 70 tickets and 182 of 583 — 31.2%**, and
+**with CHAT-002 on 2026-08-29: 24½ of 70 and 190 of 583 — 32.6%.** The Progress section below
+carries the latter. CHAT-001 counts whole because everything §6's row
 names — conversations, messages and the thread sequence model — is built and covered by a suite
 that ran.
 
@@ -4753,26 +4895,35 @@ tickets.
 
 ### The next coding task
 
-**`CHAT-001` shipped on 2026-08-26 and this section is replaced rather than amended.** Sprint 3
-has its first ticket; Sprint 4 is still the only complete one.
+**`CHAT-002` shipped on 2026-08-29 and this section is replaced rather than amended.** Sprint 3
+has two tickets; Sprint 4 is still the only complete one.
 
-**The next one is `CHAT-002` — create/read messages and sanitized rich-text**, 8 points,
-depending on `CHAT-001`, which is now met. It is next for a reason that is unusual and worth
-stating: **CHAT-001 shipped a message body that is plain text, and that is a decision with a
-shelf life.** Rich text stored before anything can sanitise it is rich text nobody can safely
-render, so the ordering matters more here than the numbering does.
+**The next one is `CHAT-003` — message-to-work idempotent command/relation**, 8 points, both
+dependencies (`CHAT-002`, `WORK-001`) met, and next in §6's own order. `09-MVP-PRD` FR-02: an
+authorized user converts a message into work; the source link is immutable; title, project,
+owner, date and audience are confirmed at conversion; external sharing never inherits internal
+visibility. `27-TEST-CATALOG` INT-07 is the property that matters: **one linked work item on
+retry.**
 
-What `CHAT-002` has to decide, and `CHAT-001` deliberately did not:
+Notes for the session that builds it, from this one's read-through:
 
-- **What markup is admissible.** `09-MVP-PRD`'s Collaboration scope lists mentions, attachments and reactions
-  alongside rich text; `24-EVENT-CATALOG` §1 forbids full message bodies from durable events,
-  which is a constraint on what a sanitiser may leak rather than on what it may accept.
-- **Where sanitising happens.** At the write boundary, at the read boundary, or both. The
-  codebase's habit — `assertSafeAuditMetadata` refusing content at the _write_ boundary — is the
-  precedent, and it is the stricter one.
-- **The edit-history table.** `22` §4 TM-06 lists "edit history" among the message actions.
-  `CHAT-001` has an `edited_at` column and no history, so a message can be shown to have changed
-  and not to what.
+- The idempotency can be the relation itself: a link table unique on
+  `(organization_id, message_id)` — and on `(organization_id, work_item_id)` — makes the retry
+  translate a duplicate-key refusal into returning the existing conversion, the same shape as
+  `uq_messages_client_generated`. `idempotency_records` exists but is a heavier tool than a
+  relation that is naturally one-to-one.
+- The conversion is a message action (TM-06 "create work"), so it belongs on the messages
+  surface and needs `conversation.read` on the channel **and** `work.create` on the
+  conversation's project. One transaction: work item, link, audit.
+- **The audit-metadata hazard CHAT-001 recorded is live here**: `assertSafeAuditMetadata`
+  refuses any key whose underscore segments include `message`, so the source of a converted
+  work item cannot be spelled `source_message_id` in audit metadata. `conversation_id` is fine
+  (CHAT-001 already writes it); pick something like `converted_from_id` and say so in a
+  comment.
+- Converting a moderated message should be refused — its body is withheld, and a work item
+  titled from withheld content would leak it.
+- `unwrapQueryError` before reading any driver error code inside a repository catch. Two
+  sessions have paid for forgetting.
 
 The alternatives, in order after it:
 
@@ -4900,16 +5051,23 @@ directory, unscheduled" instead, which is both shorter and true.
     1 skip. Two defects found by its own suite — every duplicate arrived as a 500 because
     Drizzle wraps driver errors, and every moderation arrived as a 500 because the audit
     metadata gate refuses any key containing the word `message`.
+26. ~~CHAT-002~~ — **done this session.** The rich-text allowlist as a closed grammar,
+    sanitised at the write boundary by refusal; the plain body derived, never accepted; the
+    edit history the
+    engine writes so the application cannot not-write it. 29 unit and 23 database cases, plus
+    four least-privilege cases. Its own chain run caught the one thing it forgot — the tenant
+    guard had never heard of `message_revisions` — and the drift gate turned that from a
+    shipped hole into a failing test.
 
 ### Progress
 
-**23½ of 70 tickets. 182 of 583 story points — 31.2%, across Sprints 0–9.** Derived ticket by
+**24½ of 70 tickets. 190 of 583 story points — 32.6%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
 numerator **and** in the denominator; the percentage reads similarly today only because CHAT-001
-has since been added to an honest count. Screen tickets: **3½ of 11** — WEB-001, WEB-004 and
-WEB-005 whole, WEB-002 half. **Sprint 3 has its first ticket.**
+and CHAT-002 have since been added to an honest count. Screen tickets: **3½ of 11** — WEB-001,
+WEB-004 and WEB-005 whole, WEB-002 half. **Sprint 3 has two tickets: CHAT-001 and CHAT-002.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
