@@ -41,7 +41,12 @@ export class RequestsModule {
 
     const service: Provider = {
       provide: CLIENT_REQUESTS_SERVICE,
-      inject: [TENANT_DATABASE, CLIENT_REQUESTS_REPOSITORY, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY],
+      inject: [
+        TENANT_DATABASE,
+        CLIENT_REQUESTS_REPOSITORY,
+        AUDIT_SERVICE,
+        OUTBOX_EVENTS_REPOSITORY,
+      ],
       useFactory: (
         database: TenantDatabase,
         requests: ClientRequestsRepository,

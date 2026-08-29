@@ -4,7 +4,12 @@ import {
   outboxAggregateTypeFor,
   uuidv7,
 } from '@tmanage/domain';
-import type { AuditAction, AuditMetadata, OutboxEventPayloads, OutboxEventType } from '@tmanage/domain';
+import type {
+  AuditAction,
+  AuditMetadata,
+  OutboxEventPayloads,
+  OutboxEventType,
+} from '@tmanage/domain';
 import type { WorkerTransaction } from './worker-database.js';
 
 /**

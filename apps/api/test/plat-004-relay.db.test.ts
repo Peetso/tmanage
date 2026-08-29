@@ -2,7 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RowDataPacket } from 'mysql2/promise';
 import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
 import type { Principal, Role } from '@tmanage/domain';
-import { WORKER_OUTBOX_HANDLERS, createWorkerDatabase, runOutboxBatch, runOutboxLoop } from '@tmanage/worker';
+import {
+  WORKER_OUTBOX_HANDLERS,
+  createWorkerDatabase,
+  runOutboxBatch,
+  runOutboxLoop,
+} from '@tmanage/worker';
 import type { BatchReport, WorkerDatabase } from '@tmanage/worker';
 import { TenantDatabase, createTenantContext } from '../src/common/database/tenant-context.js';
 import type { TenantContext } from '../src/common/database/tenant-context.js';
@@ -386,9 +391,9 @@ describe('the producers', () => {
     });
 
     await work.update(ownerCtx, owner, acceptedWorkItemId, 2, { title: 'Retail palette pages' });
-    expect(await observeEvents(world.northstar.organizationId, 'work_item.updated.v1')).toHaveLength(
-      1,
-    );
+    expect(
+      await observeEvents(world.northstar.organizationId, 'work_item.updated.v1'),
+    ).toHaveLength(1);
   });
 
   it('a rolled-back transaction leaves no event claiming the change happened', async () => {

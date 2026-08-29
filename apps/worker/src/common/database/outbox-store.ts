@@ -172,10 +172,7 @@ export async function listParkedEvents(
  * a half-applied lifecycle rule is worse than an unapplied one — while the batch's other
  * events and the failure bookkeeping survive.
  */
-export async function withSavepoint<T>(
-  tx: WorkerTransaction,
-  work: () => Promise<T>,
-): Promise<T> {
+export async function withSavepoint<T>(tx: WorkerTransaction, work: () => Promise<T>): Promise<T> {
   // A fixed name is safe: savepoints are per-connection, and one batch processes events
   // sequentially on one connection. Re-declaring the name replaces the previous savepoint.
   await tx.query('SAVEPOINT outbox_event');

@@ -111,12 +111,10 @@ export function createWorkerDatabase(options: WorkerDatabaseOptions): WorkerData
   });
 
   pool.on('connection', (connection) => {
-    applySessionState(promisify(connection), options.statementTimeoutMs).catch(
-      (error: unknown) => {
-        connection.destroy();
-        options.onConnectionError?.(error);
-      },
-    );
+    applySessionState(promisify(connection), options.statementTimeoutMs).catch((error: unknown) => {
+      connection.destroy();
+      options.onConnectionError?.(error);
+    });
   });
 
   return {
