@@ -25,6 +25,7 @@ import type {
 } from './client-requests.repository.js';
 import type { ClientRequestRow } from '../../common/database/schema.js';
 import type { AuditEventView, AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
  * REQ-001's application service — the aggregate, and both of its projections.
@@ -325,6 +326,11 @@ export class ClientRequestsService {
      * `ClientRequestView.clientOrganizationName`.
      */
     private readonly clientOrganizations: ClientOrganizationsRepository = new ClientOrganizationsRepository(),
+    /**
+     * PLAT-004. Optional for the reason `audit` is — a test can construct the service
+     * without one and assert nothing was written. The running application always wires it.
+     */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   // ── The studio's side ──────────────────────────────────────────────────────
@@ -443,6 +449,24 @@ export class ClientRequestsService {
               // metadata contract's `VALUE_PATTERN` forbids the comma a joined list needs.
               facts_supplied: Object.keys(facts).sort(),
               commitment: moved.commitment ?? 'none',
+            },
+          });
+
+          // 24-EVENT-CATALOG §4 `client_request.transitioned.v1`, atomic with the move
+          // (§2). §5's minimums: ids, from/to, version, the optional accepted work id.
+          // The clarification question and the client-safe reason are prose and stay on
+          // the row.
+          await this.outbox?.append(tx, context, {
+            type: 'client_request.transitioned.v1',
+            aggregateId: moved.id,
+            payload: {
+              requestId: moved.id,
+              projectId: moved.projectId,
+              clientOrganizationId: moved.clientOrganizationId,
+              fromStatus: before.state,
+              toStatus: moved.state,
+              requestVersion: Number(moved.version),
+              acceptedWorkItemId: moved.linkedWorkItemId,
             },
           });
 
@@ -602,6 +626,22 @@ export class ClientRequestsService {
             },
           });
 
+          // The same event {@link transition} emits — an acceptance is a transition, and a
+          // consumer must not need to know which door it came through.
+          await this.outbox?.append(tx, context, {
+            type: 'client_request.transitioned.v1',
+            aggregateId: moved.id,
+            payload: {
+              requestId: moved.id,
+              projectId: moved.projectId,
+              clientOrganizationId: moved.clientOrganizationId,
+              fromStatus: before.state,
+              toStatus: moved.state,
+              requestVersion: Number(moved.version),
+              acceptedWorkItemId: moved.linkedWorkItemId,
+            },
+          });
+
           return { moved, workItemId, created };
         }),
       );
@@ -730,6 +770,20 @@ export class ClientRequestsService {
           category: created.category,
           desired_date_stated: created.desiredAt !== null,
           urgency_stated: created.urgencyReason !== null,
+        },
+      });
+
+      // 24-EVENT-CATALOG §4 `client_request.submitted.v1` — "manager inbox, notification,
+      // analytics". Ids and the initial state; the title and description are prose and
+      // stay on the row.
+      await this.outbox?.append(tx, context, {
+        type: 'client_request.submitted.v1',
+        aggregateId: created.id,
+        payload: {
+          requestId: created.id,
+          projectId: created.projectId,
+          clientOrganizationId: created.clientOrganizationId,
+          state: created.state,
         },
       });
 

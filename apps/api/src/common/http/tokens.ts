@@ -44,3 +44,4 @@ export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepo
 export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService');
 export const CONVERSATIONS_REPOSITORY = Symbol.for('tmanage.ConversationsRepository');
 export const CONVERSATIONS_SERVICE = Symbol.for('tmanage.ConversationsService');
+export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');

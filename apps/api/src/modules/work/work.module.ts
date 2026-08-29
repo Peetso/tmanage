@@ -2,12 +2,15 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   AUDIT_SERVICE,
+  OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
   WORK_ITEMS_REPOSITORY,
   WORK_ITEMS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkItemsRepository } from './work-items.repository.js';
 import { WorkItemsService } from './work-items.service.js';
 import { WorkItemsController } from './work-items.controller.js';
@@ -29,9 +32,13 @@ export class WorkModule {
 
     const service: Provider = {
       provide: WORK_ITEMS_SERVICE,
-      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, AUDIT_SERVICE],
-      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository, audit: AuditService) =>
-        new WorkItemsService(database, workItems, audit),
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (
+        database: TenantDatabase,
+        workItems: WorkItemsRepository,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+      ) => new WorkItemsService(database, workItems, audit, new ProjectsRepository(), outbox),
     };
 
     return {

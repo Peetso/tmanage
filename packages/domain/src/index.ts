@@ -156,3 +156,21 @@ export type {
   AuditMetadataValue,
   AuditResult,
 } from './policies/audit.js';
+
+// Outbox events — 24-EVENT-CATALOG.md, PLAT-004
+export {
+  OUTBOX_EVENT_CATALOG,
+  OUTBOX_EVENT_TYPES,
+  isOutboxEventType,
+  outboxAggregateTypeFor,
+} from './events/outbox.js';
+export type {
+  ClientRequestSubmittedV1,
+  ClientRequestTransitionedV1,
+  MessageConvertedV1,
+  MessageCreatedV1,
+  OutboxEventDefinition,
+  OutboxEventPayloads,
+  OutboxEventType,
+  WorkItemUpdatedV1,
+} from './events/outbox.js';

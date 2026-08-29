@@ -4,10 +4,12 @@ import {
   AUDIT_SERVICE,
   CLIENT_REQUESTS_REPOSITORY,
   CLIENT_REQUESTS_SERVICE,
+  OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ClientOrganizationsRepository } from '../clients/client-organizations.repository.js';
@@ -39,11 +41,12 @@ export class RequestsModule {
 
     const service: Provider = {
       provide: CLIENT_REQUESTS_SERVICE,
-      inject: [TENANT_DATABASE, CLIENT_REQUESTS_REPOSITORY, AUDIT_SERVICE],
+      inject: [TENANT_DATABASE, CLIENT_REQUESTS_REPOSITORY, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY],
       useFactory: (
         database: TenantDatabase,
         requests: ClientRequestsRepository,
         audit: AuditService,
+        outbox: OutboxEventsRepository,
       ) =>
         new ClientRequestsService(
           database,
@@ -52,6 +55,7 @@ export class RequestsModule {
           new ProjectsRepository(),
           new WorkItemsRepository(),
           new ClientOrganizationsRepository(),
+          outbox,
         ),
     };
 

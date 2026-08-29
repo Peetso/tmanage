@@ -16,6 +16,7 @@ import type {
 } from './work-items.repository.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
  * WORK-001's application service — spec §3 steps 5 to 7 for the work aggregate.
@@ -126,6 +127,11 @@ export class WorkItemsService {
      * not exist, which is the answer every other "no relation to this" produces.
      */
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    /**
+     * PLAT-004. Optional for the reason `audit` is — a test can construct the service
+     * without one and assert nothing was written. The running application always wires it.
+     */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   /**
@@ -326,6 +332,22 @@ export class WorkItemsService {
               // carrying facts became a 500 at the write boundary, which is the boundary doing
               // its job on its own author.
               facts_supplied: Object.keys(facts).sort(),
+            },
+          });
+
+          // 24-EVENT-CATALOG §4 `work_item.updated.v1`, in the same transaction as the
+          // state change and the audit row — §2's "producer writes state and outbox event
+          // atomically". Ids and states only; the facts stay on the row. Field edits do not
+          // emit this event today — the narrowing is recorded in implementation-status.
+          await this.outbox?.append(tx, context, {
+            type: 'work_item.updated.v1',
+            aggregateId: moved.id,
+            payload: {
+              workItemId: moved.id,
+              projectId: moved.projectId,
+              fromState: before.state,
+              toState: moved.state,
+              workItemVersion: Number(moved.version),
             },
           });
 

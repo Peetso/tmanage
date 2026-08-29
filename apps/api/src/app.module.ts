@@ -18,6 +18,7 @@ import { RequestsModule } from './modules/requests/requests.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
+import { PlatformModule } from './modules/platform/platform.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -72,6 +73,9 @@ export class AppModule {
         // Before the modules whose commands write audit events, and before the global
         // `CapabilityGuard` below resolves `AUDIT_SERVICE` from this injector.
         AuditModule.register(),
+        // PLAT-004: the outbox writer, global for the reason the audit module is — three
+        // feature modules append events from inside their own transactions.
+        PlatformModule.register(),
         TenancyModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()

@@ -35,6 +35,7 @@ import type {
   MessageRow,
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
  * CHAT-001's application service — spec §3 steps 5 to 7 for the conversation aggregate.
@@ -288,6 +289,11 @@ export class ConversationsService {
      * audit row — is done here, because a conversion is this aggregate's own command.
      */
     private readonly workItems: WorkItemsRepository = new WorkItemsRepository(),
+    /**
+     * PLAT-004. Optional for the reason `audit` is — a test can construct the service
+     * without one and assert nothing was written. The running application always wires it.
+     */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   // ── Conversations ──────────────────────────────────────────────────────────
@@ -561,7 +567,24 @@ export class ConversationsService {
 
     const row = await this.database.transaction(context, async (tx) => {
       try {
-        return await this.conversations.appendMessage(tx, context, input);
+        const appended = await this.conversations.appendMessage(tx, context, input);
+
+        // 24-EVENT-CATALOG §4 `message.created.v1` — "realtime, mentions, search". The
+        // aggregate is the conversation, so per-channel ordering holds (§2). No body: a
+        // consumer that may show the text resolves current permissions and reads the row
+        // (§6), which is what makes a moderation between commit and delivery safe.
+        await this.outbox?.append(tx, context, {
+          type: 'message.created.v1',
+          aggregateId: conversationId,
+          payload: {
+            messageId: appended.id,
+            conversationId,
+            projectId: conversation.projectId,
+            parentMessageId: appended.parentMessageId,
+          },
+        });
+
+        return appended;
       } catch (error) {
         if (error instanceof InvalidThreadParentError) {
           // One message for "no such parent" and for "that parent is itself a reply". A caller
@@ -752,6 +775,20 @@ export class ConversationsService {
             // `assertSafeAuditMetadata`, the same hazard CHAT-001's moderation flag hit.
             // An identifier is what §12 admits, and this is one.
             converted_from_id: messageId,
+          },
+        });
+
+        // 24-EVENT-CATALOG §4 `message.converted.v1`, §5's exact minimums: "source message
+        // ID, work item ID, project ID, resulting audience; no message body."
+        await this.outbox?.append(tx, context, {
+          type: 'message.converted.v1',
+          aggregateId: messageId,
+          payload: {
+            messageId,
+            conversationId,
+            projectId: created.projectId,
+            workItemId: created.id,
+            audience: created.audience,
           },
         });
 

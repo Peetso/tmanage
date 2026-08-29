@@ -4,10 +4,12 @@ import {
   AUDIT_SERVICE,
   CONVERSATIONS_REPOSITORY,
   CONVERSATIONS_SERVICE,
+  OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
@@ -41,11 +43,12 @@ export class ConversationsModule {
 
     const service: Provider = {
       provide: CONVERSATIONS_SERVICE,
-      inject: [TENANT_DATABASE, CONVERSATIONS_REPOSITORY, AUDIT_SERVICE],
+      inject: [TENANT_DATABASE, CONVERSATIONS_REPOSITORY, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY],
       useFactory: (
         database: TenantDatabase,
         conversations: ConversationsRepository,
         audit: AuditService,
+        outbox: OutboxEventsRepository,
       ) =>
         new ConversationsService(
           database,
@@ -56,6 +59,7 @@ export class ConversationsModule {
           // CHAT-003: converting a message files work, and the same reasoning as the two
           // repositories above applies to this one.
           new WorkItemsRepository(),
+          outbox,
         ),
     };
 

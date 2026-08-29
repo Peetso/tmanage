@@ -148,6 +148,20 @@ export const envSchema = z
     // Idempotency
     IDEMPOTENCY_RETENTION_HOURS: positiveInt.default(24),
 
+    // The outbox relay — PLAT-004, 24-EVENT-CATALOG §2.
+    //
+    // Batch size is capped low rather than high: 50-BOOTSTRAP §3's fallback runs the
+    // dispatcher as controlled batches on a shared plan, and a batch is one transaction
+    // holding row locks for its whole duration.
+    OUTBOX_BATCH_SIZE: positiveInt.max(500).default(25),
+    // After this many failed attempts an event is parked — reported, never claimed again
+    // until an operator intervenes. §2's poison-event rule, without a second queue to lose.
+    OUTBOX_MAX_ATTEMPTS: positiveInt.max(50).default(8),
+    OUTBOX_POLL_INTERVAL_MS: positiveInt.default(5_000),
+    // Exponential backoff: base * 2^(attempts-1), capped. §2 asks for exponential retry.
+    OUTBOX_BACKOFF_BASE_MS: positiveInt.default(1_000),
+    OUTBOX_BACKOFF_CAP_MS: positiveInt.default(900_000),
+
     // Rate limiting
     RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
     RATE_LIMIT_MAX_REQUESTS: positiveInt.default(300),
