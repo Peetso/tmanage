@@ -1,5 +1,10 @@
-import { authorize } from '@tmanage/domain';
-import type { Capability, Principal } from '@tmanage/domain';
+import {
+  InadmissibleRichTextError,
+  authorize,
+  richTextToPlainText,
+  sanitizeRichText,
+} from '@tmanage/domain';
+import type { Capability, Principal, RichTextDocument } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
@@ -22,6 +27,7 @@ import type {
 import type {
   ConversationMembershipRow,
   ConversationRow,
+  MessageRevisionRow,
   MessageRow,
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -104,6 +110,11 @@ export interface MessageView {
    * whoever wrote the screen.
    */
   readonly body: string | null;
+  /**
+   * The sanitised rich-text document the body was derived from, or null for a plain-text
+   * message — and null once the message has been moderated, for the same reason `body` is.
+   */
+  readonly bodyRich: RichTextDocument | null;
   readonly editedAt: string | null;
   readonly deletedAt: string | null;
   readonly deletedByUserId: string | null;
@@ -135,6 +146,16 @@ function toMemberView(row: ConversationMembershipRow): ConversationMemberView {
   return { userId: row.userId, joinedAt: row.createdAt.toISOString() };
 }
 
+function toRevisionView(row: MessageRevisionRow, moderated: boolean): MessageRevisionView {
+  return {
+    revisionNo: Number(row.revisionNo),
+    body: moderated ? null : row.body,
+    bodyRich: moderated ? null : (row.bodyRich as RichTextDocument | null),
+    writtenAt: row.writtenAt.toISOString(),
+    replacedAt: row.replacedAt.toISOString(),
+  };
+}
+
 function toMessageView(row: MessageRow): MessageView {
   return {
     id: row.id,
@@ -143,6 +164,7 @@ function toMessageView(row: MessageRow): MessageView {
     sequenceNo: Number(row.sequenceNo),
     parentMessageId: row.parentMessageId,
     body: row.deletedAt === null ? row.body : null,
+    bodyRich: row.deletedAt === null ? (row.bodyRich as RichTextDocument | null) : null,
     editedAt: row.editedAt ? row.editedAt.toISOString() : null,
     deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
     deletedByUserId: row.deletedByUserId,
@@ -156,8 +178,21 @@ export interface CreateConversationCommand {
   readonly name: string;
 }
 
-export interface PostMessageCommand {
-  readonly body: string;
+/**
+ * What a message says — exactly one of the two forms.
+ *
+ * `body` is plain text, already shape-checked by the controller. `bodyRich` is the raw,
+ * untrusted document as the caller sent it: the service is the write boundary, so the
+ * sanitiser runs here — the same place `assertSafeAuditMetadata` runs — rather than in the
+ * transport layer, and every future caller of this service passes through it whether or not
+ * it arrived over HTTP.
+ */
+export interface MessageContentCommand {
+  readonly body?: string;
+  readonly bodyRich?: unknown;
+}
+
+export interface PostMessageCommand extends MessageContentCommand {
   readonly parentMessageId?: string | null;
   readonly clientGeneratedId?: string | null;
 }
@@ -166,6 +201,22 @@ export interface PostMessageResult {
   readonly message: MessageView;
   /** False when a client-generated id matched a message this author had already sent. */
   readonly created: boolean;
+}
+
+/**
+ * One superseded body from a message's edit history — TM-06's "edit history" action.
+ *
+ * The bodies are nulled once the message has been moderated, exactly as the current body is:
+ * a take-down that left every earlier version readable would not have taken anything down.
+ * That the revisions *exist* — their count and their times — survives, because "this message
+ * was edited twice before it was removed" is part of the record, not part of the content.
+ */
+export interface MessageRevisionView {
+  readonly revisionNo: number;
+  readonly body: string | null;
+  readonly bodyRich: RichTextDocument | null;
+  readonly writtenAt: string;
+  readonly replacedAt: string;
 }
 
 export class ConversationsService {
@@ -424,6 +475,11 @@ export class ConversationsService {
     conversationId: string,
     command: PostMessageCommand,
   ): Promise<PostMessageResult> {
+    // Sanitised before anything is read or written: an inadmissible document deserves its
+    // 422 without the cost of a conversation load, and nothing below this line ever holds an
+    // unsanitised body.
+    const content = this.resolveContent(command);
+
     const conversation = await this.loadWritable(context, principal, conversationId);
     if (conversation.archivedAt !== null) {
       // `authorize()` already refuses a write against an archived resource; this repeats it
@@ -446,7 +502,8 @@ export class ConversationsService {
     const input: AppendMessageInput = {
       conversationId,
       authorUserId: context.userId,
-      body: command.body,
+      body: content.body,
+      bodyRich: content.bodyRich,
       parentMessageId: command.parentMessageId ?? null,
       clientGeneratedId: command.clientGeneratedId ?? null,
     };
@@ -484,8 +541,10 @@ export class ConversationsService {
     principal: Principal,
     conversationId: string,
     messageId: string,
-    body: string,
+    command: MessageContentCommand,
   ): Promise<MessageView> {
+    const content = this.resolveContent(command);
+
     await this.loadWritable(context, principal, conversationId);
 
     const existing = await this.database.read(context, (runner) =>
@@ -504,9 +563,38 @@ export class ConversationsService {
     }
 
     const row = await this.database.transaction(context, (tx) =>
-      this.conversations.editMessage(tx, context, messageId, body),
+      this.conversations.editMessage(tx, context, messageId, content.body, content.bodyRich),
     );
     return toMessageView(row);
+  }
+
+  /**
+   * A message's edit history — TM-06's "edit history" action, oldest first.
+   *
+   * Readable by anyone who can read the channel: an edit is visible to the room ("edited"
+   * beside the message), so what it changed from is the room's to see as well. The current
+   * body is not repeated here; it is the message itself.
+   */
+  async listRevisions(
+    context: TenantContext,
+    principal: Principal,
+    conversationId: string,
+    messageId: string,
+  ): Promise<readonly MessageRevisionView[]> {
+    await this.loadReadable(context, principal, conversationId);
+
+    const existing = await this.database.read(context, (runner) =>
+      this.conversations.findMessageById(runner, context, messageId),
+    );
+    if (!existing || existing.conversationId !== conversationId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+
+    const rows = await this.database.read(context, (runner) =>
+      this.conversations.listRevisions(runner, context, messageId),
+    );
+    const moderated = existing.deletedAt !== null;
+    return rows.map((row) => toRevisionView(row, moderated));
   }
 
   /**
@@ -583,6 +671,50 @@ export class ConversationsService {
     });
 
     return toMessageView(row);
+  }
+  /**
+   * CHAT-002's write boundary — one sanitised content pair out of whichever form arrived.
+   *
+   * Exactly one of `body` and `bodyRich` must be present. The controller already refuses the
+   * ambiguous shapes with field-level details; this check is the service's own, because the
+   * rule is the aggregate's and the next caller may not be a controller.
+   *
+   * When the message is rich, `body` is **derived** from the sanitised document rather than
+   * accepted from the caller — two fields that both claim to say what the message says would
+   * be free to disagree, and the derived one is the only one a search or an export can trust.
+   * An inadmissible document is refused whole, with the path to the first offence; nothing is
+   * stripped, because a repair the author never saw is how a sanitiser and a renderer come to
+   * read the same message differently.
+   */
+  private resolveContent(command: MessageContentCommand): {
+    body: string;
+    bodyRich: RichTextDocument | null;
+  } {
+    const hasPlain = command.body !== undefined;
+    const hasRich = command.bodyRich !== undefined;
+    if (hasPlain === hasRich) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'body', message: 'exactly one of body and bodyRich must be provided' },
+      ]);
+    }
+
+    if (!hasRich) {
+      return { body: command.body as string, bodyRich: null };
+    }
+
+    let document: RichTextDocument;
+    try {
+      document = sanitizeRichText(command.bodyRich);
+    } catch (error) {
+      if (error instanceof InadmissibleRichTextError) {
+        throw new ApiError(422, 'validation_failed', 'The message markup is not admissible', [
+          { field: 'bodyRich', message: error.message },
+        ]);
+      }
+      throw error;
+    }
+
+    return { body: richTextToPlainText(document), bodyRich: document };
   }
 
   // ── The two gates ──────────────────────────────────────────────────────────

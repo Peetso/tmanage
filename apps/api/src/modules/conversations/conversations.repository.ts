@@ -1,11 +1,18 @@
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import type { RichTextDocument } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
-import { conversationMemberships, conversations, messages } from '../../common/database/schema.js';
+import {
+  conversationMemberships,
+  conversations,
+  messageRevisions,
+  messages,
+} from '../../common/database/schema.js';
 import type {
   ConversationMembershipRow,
   ConversationRow,
+  MessageRevisionRow,
   MessageRow,
 } from '../../common/database/schema.js';
 import type {
@@ -142,6 +149,13 @@ export interface AppendMessageInput {
   readonly conversationId: string;
   readonly authorUserId: string;
   readonly body: string;
+  /**
+   * The sanitised rich-text document, or null for a plain-text message. Sanitised is a
+   * precondition rather than a courtesy this layer performs: the only caller is the service,
+   * which builds this field from `sanitizeRichText`'s return value — CHAT-002's write
+   * boundary — with `body` derived from the same document.
+   */
+  readonly bodyRich?: RichTextDocument | null;
   /** A root message when absent; a reply to that message when present. */
   readonly parentMessageId?: string | null;
   /** `23-ERD` §4's retry dedupe. Optional, and absent means no protection. */
@@ -569,6 +583,7 @@ export class ConversationsRepository {
           depth: parentMessageId === null ? 0 : 1,
           parentDepth: parentMessageId === null ? null : 0,
           body: input.body,
+          bodyRich: input.bodyRich ?? null,
           clientGeneratedId: input.clientGeneratedId ?? null,
           createdAt: sql`current_timestamp(3)`,
           updatedAt: sql`current_timestamp(3)`,
@@ -619,19 +634,28 @@ export class ConversationsRepository {
   /**
    * Edit a message's body.
    *
-   * `edited_at` is set in the same statement, so there is no path that changes what somebody
-   * said without recording that it changed. The trigger in `0007_conversations.sql` refuses
-   * every other column, so an "edit" cannot quietly move the message or reattribute it.
+   * Neither `edited_at` nor the history row is written here, and that is the point:
+   * `trg_messages_record_revision` (`0008_message_rich_text.sql`) forces `edited_at` forward
+   * and archives the displaced body whenever either body column changes, for *any* session —
+   * so there is no path, in this file or outside it, that changes what somebody said without
+   * recording that it changed and what it changed from. The trigger in
+   * `0007_conversations.sql` still refuses every identity column, so an "edit" cannot
+   * quietly move or reattribute a message.
+   *
+   * `bodyRich` is written even when null: a plain-text edit of a rich message replaces the
+   * document, and leaving the old markup beside the new text would be two bodies free to
+   * disagree.
    */
   async editMessage(
     runner: TenantQueryRunner,
     context: TenantContext,
     messageId: string,
     body: string,
+    bodyRich: RichTextDocument | null,
   ): Promise<MessageRow> {
     const result = await tenantDrizzle(runner)
       .update(messages)
-      .set({ body, editedAt: new Date() })
+      .set({ body, bodyRich })
       .where(
         and(
           eq(messages.organizationId, context.organizationId),
@@ -647,6 +671,29 @@ export class ConversationsRepository {
       throw new MessageNotFoundError(messageId);
     }
     return this.requireMessageById(runner, context, messageId);
+  }
+
+  /**
+   * A message's edit history, oldest first — the bodies it had before each change, written
+   * by the engine rather than read back from anything this application promised to do. The
+   * current body is on the message row; the service is what decides whether a moderated
+   * message's history may still be read out.
+   */
+  async listRevisions(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    messageId: string,
+  ): Promise<readonly MessageRevisionRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(messageRevisions)
+      .where(
+        and(
+          eq(messageRevisions.organizationId, context.organizationId),
+          eq(messageRevisions.messageId, messageId),
+        ),
+      )
+      .orderBy(asc(messageRevisions.revisionNo));
   }
 
   /**

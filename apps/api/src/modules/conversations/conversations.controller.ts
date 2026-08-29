@@ -20,6 +20,8 @@ import type {
   ConversationMemberView,
   ConversationView,
   ConversationsService,
+  MessageContentCommand,
+  MessageRevisionView,
   MessageView,
 } from './conversations.service.js';
 
@@ -67,12 +69,14 @@ interface AddMemberBody {
 
 interface PostMessageBody {
   readonly body?: unknown;
+  readonly bodyRich?: unknown;
   readonly parentMessageId?: unknown;
   readonly clientGeneratedId?: unknown;
 }
 
 interface EditMessageBody {
   readonly body?: unknown;
+  readonly bodyRich?: unknown;
 }
 
 /**
@@ -305,7 +309,7 @@ export class ConversationsController {
     @Res({ passthrough: true }) reply: ReplyLike,
   ): Promise<MessageView> {
     const details: { field: string; message: string }[] = [];
-    const text = messageBody(body?.body, details);
+    const content = messageContent(body, details);
 
     const parentMessageId =
       typeof body?.parentMessageId === 'string' && body.parentMessageId !== ''
@@ -316,12 +320,12 @@ export class ConversationsController {
         ? body.clientGeneratedId
         : undefined;
 
-    if (details.length > 0 || text === undefined) {
+    if (details.length > 0 || content === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
 
     const result = await this.conversations.postMessage(context, principal, conversationId, {
-      body: text,
+      ...content,
       ...(parentMessageId === undefined ? {} : { parentMessageId }),
       ...(clientGeneratedId === undefined ? {} : { clientGeneratedId }),
     });
@@ -340,11 +344,35 @@ export class ConversationsController {
     @Body() body: EditMessageBody,
   ): Promise<MessageView> {
     const details: { field: string; message: string }[] = [];
-    const text = messageBody(body?.body, details);
-    if (details.length > 0 || text === undefined) {
+    const content = messageContent(body, details);
+    if (details.length > 0 || content === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
-    return this.conversations.editMessage(context, principal, conversationId, messageId, text);
+    return this.conversations.editMessage(context, principal, conversationId, messageId, content);
+  }
+
+  /**
+   * A message's edit history — TM-06 lists "edit history" among the message actions. Oldest
+   * first; the current body is the message itself. The rows are engine-written
+   * (`0008_message_rich_text.sql`), so this is a read of what happened rather than of what
+   * the application remembered to record.
+   */
+  @Get('conversations/:conversationId/messages/:messageId/revisions')
+  @RequireCapability('conversation.read')
+  async listRevisions(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('conversationId') conversationId: string,
+    @Param('messageId') messageId: string,
+  ): Promise<{ readonly revisions: readonly MessageRevisionView[] }> {
+    return {
+      revisions: await this.conversations.listRevisions(
+        context,
+        principal,
+        conversationId,
+        messageId,
+      ),
+    };
   }
 
   /**
@@ -418,6 +446,45 @@ function messageBody(
     return undefined;
   }
   return trimmed;
+}
+
+/**
+ * What a message says — exactly one of `body` (plain text) and `bodyRich` (a rich-text
+ * document).
+ *
+ * The plain form gets the full shape check here, as CHAT-001 wrote it. The rich form is only
+ * checked to be a JSON object — whether the *document* is admissible is the sanitiser's
+ * decision, made in the service where the write boundary lives, and its refusal carries the
+ * path to the offending node. Sending both is refused rather than ranked: a request that says
+ * the same thing twice is a request whose two versions can disagree.
+ */
+function messageContent(
+  value: { readonly body?: unknown; readonly bodyRich?: unknown } | undefined,
+  details: { field: string; message: string }[],
+): MessageContentCommand | undefined {
+  const hasPlain = value?.body !== undefined;
+  const hasRich = value?.bodyRich !== undefined;
+
+  if (hasPlain && hasRich) {
+    details.push({ field: 'body', message: 'provide either body or bodyRich, not both' });
+    return undefined;
+  }
+  if (!hasPlain && !hasRich) {
+    details.push({ field: 'body', message: 'either body or bodyRich is required' });
+    return undefined;
+  }
+
+  if (hasPlain) {
+    const text = messageBody(value?.body, details);
+    return text === undefined ? undefined : { body: text };
+  }
+
+  const rich = value?.bodyRich;
+  if (typeof rich !== 'object' || rich === null || Array.isArray(rich)) {
+    details.push({ field: 'bodyRich', message: 'must be a rich-text document object' });
+    return undefined;
+  }
+  return { bodyRich: rich };
 }
 
 /**

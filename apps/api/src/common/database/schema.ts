@@ -7,6 +7,7 @@ import {
   json,
   mysqlEnum,
   mysqlTable,
+  primaryKey,
   smallint,
   int,
   text,
@@ -510,6 +511,13 @@ export const messages = mysqlTable(
     depth: tinyint('depth', { unsigned: true }).notNull().default(0),
     parentDepth: tinyint('parent_depth', { unsigned: true }),
     body: text('body').notNull(),
+    /**
+     * The sanitised rich-text document, exactly as `sanitizeRichText` admitted it, or NULL
+     * for a plain-text message (every CHAT-001 row, and every plain post since). `body` is
+     * derived from it by `richTextToPlainText`, so the two cannot disagree about what was
+     * said. See `0008_message_rich_text.sql`.
+     */
+    bodyRich: json('body_rich').$type<unknown>(),
     clientGeneratedId: char('client_generated_id', { length: 36 }),
     editedAt: datetime('edited_at', { mode: 'date', fsp: 3 }),
     deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
@@ -536,6 +544,35 @@ export const messages = mysqlTable(
       table.sequenceNo,
     ),
   ],
+);
+
+/**
+ * Edit history — the bodies a message had before each change (CHAT-002).
+ *
+ * Engine-authored: `trg_messages_record_revision` in `0008_message_rich_text.sql` writes
+ * these rows with the trigger definer's privileges, and `users.sql` grants the runtime
+ * credential nothing here beyond the database-wide SELECT — the application cannot forge,
+ * suppress or delete a revision. That is also why there is no CHAR(36) id: the engine has no
+ * UUIDv7, and `(organization_id, message_id, revision_no)` is what a revision *is*. No
+ * `edited_by_user_id` either — only the author may edit, so the editor is
+ * `messages.author_user_id`, already recorded.
+ */
+export const messageRevisions = mysqlTable(
+  'message_revisions',
+  {
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    messageId: char('message_id', { length: 36 }).notNull(),
+    /** 1 for the body the message was created with, counting up. */
+    revisionNo: bigint('revision_no', { mode: 'number', unsigned: true }).notNull(),
+    /** The body as it stood BEFORE the edit that displaced it. */
+    body: text('body').notNull(),
+    bodyRich: json('body_rich').$type<unknown>(),
+    /** When this body was written: `created_at` for revision 1, the prior edit after that. */
+    writtenAt: datetime('written_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** When this body stopped being current — the edit that displaced it. */
+    replacedAt: datetime('replaced_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.messageId, table.revisionNo] })],
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -768,6 +805,7 @@ export const TABLES = {
   conversations,
   conversation_memberships: conversationMemberships,
   messages,
+  message_revisions: messageRevisions,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -789,6 +827,7 @@ export type ClientRequestRow = typeof clientRequests.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type ConversationMembershipRow = typeof conversationMemberships.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
+export type MessageRevisionRow = typeof messageRevisions.$inferSelect;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;

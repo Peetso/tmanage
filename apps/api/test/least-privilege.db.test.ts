@@ -195,6 +195,69 @@ withCredential('the runtime user (tmanage_app)', () => {
     const error = await refused(app, 'truncate table audit_events');
     expect(error.code).toBe(ER_TABLEACCESS_DENIED);
   });
+  // ── The edit history ─────────────────────────────
+
+  // `message_revisions` is engine-authored: `trg_messages_record_revision` (0008) writes it
+  // with its definer's privileges, and `users.sql` grants the runtime user nothing here.
+  // These cases prove both halves — the runtime user cannot touch the table itself, and its
+  // ordinary UPDATE on `messages` still produces the revision it could never INSERT.
+
+  it('cannot INSERT a message revision — history is not the application’s to write', async () => {
+    const error = await refused(
+      app,
+      `insert into message_revisions
+         (organization_id, message_id, revision_no, body, written_at, replaced_at)
+       values (?, ?, 1, 'forged', now(3), now(3))`,
+      [world.northstar.organizationId, uuidv7()],
+    );
+    expect(error.code).toBe(ER_TABLEACCESS_DENIED);
+    expect(error.message).toMatch(/INSERT command denied/i);
+  });
+
+  it('cannot UPDATE a message revision — refused by privilege, before the trigger', async () => {
+    const error = await refused(
+      app,
+      'update message_revisions set body = ? where message_id is not null',
+      ['falsified'],
+    );
+    expect(error.code).toBe(ER_TABLEACCESS_DENIED);
+    expect(error.message).not.toMatch(/immutable/i);
+  });
+
+  it('cannot DELETE a message revision — the history is as permanent as the audit log', async () => {
+    const error = await refused(app, 'delete from message_revisions where message_id is not null');
+    expect(error.code).toBe(ER_TABLEACCESS_DENIED);
+  });
+
+  it('editing a message still writes the revision it cannot write itself', async () => {
+    // Fixture rows through the admin credential; the act under test through the runtime one.
+    const conversationId = uuidv7();
+    const messageId = uuidv7();
+    await db.admin.query(
+      `insert into conversations (id, organization_id, project_id, name, created_by_user_id)
+       values (?, ?, ?, 'grant-proof', ?)`,
+      [
+        conversationId,
+        world.northstar.organizationId,
+        world.northstar.projectId,
+        world.northstar.owner.id,
+      ],
+    );
+    await db.admin.query(
+      `insert into messages (id, organization_id, conversation_id, author_user_id, sequence_no, body)
+       values (?, ?, ?, ?, 1, 'as first said')`,
+      [messageId, world.northstar.organizationId, conversationId, world.northstar.owner.id],
+    );
+
+    await app.query('update messages set body = ? where id = ?', ['as edited', messageId]);
+
+    const [revisions] = await app.query<RowDataPacket[]>(
+      'select revision_no, body from message_revisions where message_id = ?',
+      [messageId],
+    );
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]?.['body']).toBe('as first said');
+  });
 
   // ── The migration ledger ───────────────────────────────────────────────────
 

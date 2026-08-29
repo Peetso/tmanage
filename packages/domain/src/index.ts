@@ -110,6 +110,33 @@ export {
 } from './value-objects/content-hash.js';
 export type { ContentHash } from './value-objects/content-hash.js';
 
+export {
+  InadmissibleRichTextError,
+  RICH_TEXT_LINK_PROTOCOLS,
+  RICH_TEXT_MAX_DEPTH,
+  RICH_TEXT_MAX_HREF_LENGTH,
+  RICH_TEXT_MAX_NODES,
+  RICH_TEXT_MAX_TEXT_LENGTH,
+  richTextToPlainText,
+  sanitizeRichText,
+} from './value-objects/rich-text.js';
+export type {
+  RichTextBlock,
+  RichTextBlockquote,
+  RichTextCodeBlock,
+  RichTextDocument,
+  RichTextHardBreak,
+  RichTextInline,
+  RichTextLinkMark,
+  RichTextList,
+  RichTextListItem,
+  RichTextMark,
+  RichTextParagraph,
+  RichTextSimpleMark,
+  RichTextSimpleMarkType,
+  RichTextText,
+} from './value-objects/rich-text.js';
+
 // Audit — 25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md §12, 24-EVENT-CATALOG.md §1
 export {
   AUDIT_ACTION_CATALOG,

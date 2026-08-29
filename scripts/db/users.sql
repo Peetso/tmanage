@@ -89,6 +89,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`conversation_memberships` TO 'tmanage
 -- erasure. UPDATE is needed for an edit and for a moderation, and the trigger in 0007 refuses
 -- the six columns that say what the message *is*.
 GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_app'@'%';
+
+-- `message_revisions` gets NO write grant at all, and the absence is the mechanism. The
+-- rows are written by `trg_messages_record_revision` (0008), which fires with its definer's
+-- privileges — so history happens to the application rather than being written by it. A
+-- runtime credential that could INSERT could forge a revision; UPDATE is refused by the
+-- table's own trigger for every credential; DELETE withheld here is what makes the history
+-- as permanent as the moderation ledger above. Reading is the database-wide SELECT.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 

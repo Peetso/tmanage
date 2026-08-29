@@ -121,6 +121,9 @@ describe('the grants and the schema agree', () => {
     // reason — but not neither.
     const withheldOnPurpose: Record<string, string> = {
       audit_events: 'append-only: INSERT granted, UPDATE and DELETE withheld',
+      message_revisions:
+        'engine-authored: the 0008 trigger writes it with definer privileges — ' +
+        'a runtime credential that could INSERT could forge history',
       schema_migrations: 'the migrator alone writes the ledger',
     };
     for (const table of schemaTables) {
