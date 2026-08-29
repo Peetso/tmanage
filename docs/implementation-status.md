@@ -252,6 +252,65 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, WEB-002 second half, same session
+
+The third full chain of this session, one uninterrupted background run on the tree commit
+`d4beb49` left (the WEB-002 second-half commit). **Green on the first attempt**, and so
+were the new tests themselves — 54/54 across the two touched files on their first solo run.
+
+| Gate                        | Result                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                                               |
+| `pnpm typecheck`            | **Done** — five projects, first pass                                                                                |
+| `pnpm lint`                 | Clean, no output                                                                                                    |
+| `pnpm test`                 | **848 passed across 40 files.** Up from 840: seven new cases in `work-flow.test.tsx`, one in `triage-flow.test.tsx` |
+| `pnpm test:db`              | **24 files, 705 passed, 29 skipped (734)** — unchanged, as it must be: no API and no table changed                  |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                               |
+| `pnpm format:check` (again) | Clean                                                                                                               |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                                            |
+
+---
+
+## WEB-002 second half — the list grows honest controls, and the count does not move
+
+Commit after the chain above. Four things, each with its rule stated at the point of use:
+
+- **Cursor paging, both lists.** The work list and the request inbox page on the API's `after`
+  id cursor with a "Load more"; the inbox heading now says "200 requests loaded — there are
+  more" instead of "in total", which is the sentence that screen owed since WEB-005 shipped
+  it showing the oldest 200 silently.
+- **Sorting over the loaded rows**, from real header buttons carrying `aria-sort` — title,
+  state (in lifecycle order, not alphabetical), due with no-date last. The API offers no sort
+  parameter, so while more pages exist the partial-list notice stays up: "sorted" never
+  silently means "sorted some of it". A third click returns to loaded order.
+- **Selection and the one bulk action: audience.** Widening shows §5's "policy preview" as a
+  list of consequences — the titles, verbatim, of exactly the items a client will begin to
+  see — before anything is sent. Narrowing applies without ceremony (nothing new escapes).
+  Each `PATCH` carries the version its row was read with; a `409` is reported **by title**
+  and never retried, because a bulk retry with fresh versions is the lost update multiplied.
+  Updates run sequentially on purpose, so "which ones happened" is a fact rather than a race.
+- **`ProjectOverviewScreen`'s badge tells the truth or nothing.** The unconditional
+  "Internal" — capable of being wrong since CLIENT-001 landed, and recorded as such — is
+  replaced by a query to `GET projects/:id/clients`: "Internal" only after an empty answer,
+  "Shared with a client" after a non-empty one, and **no badge at all** when the endpoint
+  refuses (it sits behind `project.manage`), because a badge the screen cannot verify is the
+  guess this change exists to remove.
+
+**The progress count does not move, and that is the honest reading of the rule.** WEB-002's
+scope names saved views, and saved views are still absent — now for a stated reason rather
+than a backlog position: `28-SPRINT-TICKETS` schedules no server-side home for them, and
+browser storage is barred from holding authoritative state by the workspace lint rule
+(15-AI-EXECUTION-HANDBOOK §8), so a view saved in one browser would lie about existing
+everywhere else. The rule counts whole/half/zero; a named part of the scope is absent, so
+WEB-002 stays **half 6.5** and the totals stay 26 of 70 and 204.5 of 583 — 35.1%. The work is
+real; the numerator is not where it shows.
+
+8 new web cases: the cursor and its warning's retirement, the sort cycle with `aria-sort`,
+the preview-then-send with per-version PATCHes and the unretried 409, the ceremony-free
+narrowing, the three badge states, and the inbox's "loaded" heading.
+
+---
+
 ## Verification actually run — 2026-08-30, WEB-003 first half, same session
 
 The whole chain again, one uninterrupted background run on the tree commit `ddf1345` left —
@@ -5003,7 +5062,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                               |
 | 5   | WORK-002   |   8 | half 4   | List, read, create, update and the version token are built and tested. **There is no cursor**, and the row names one                                          |
 | 5   | WORK-003   |   8 | 0        | The `blocked` state and its facts belong to WORK-001's machine. No dependency relation, no health signal, no table                                            |
-| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`. Saved views, sorting, selection and bulk actions are not built                                                                     |
+| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled |
 | 5   | TEST-002   |   8 | half 4   | Work database and HTTP fixtures exist and run. No performance fixture; `packages/test-kit` is empty                                                           |
 | 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                   |
 | 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                 |
@@ -5052,17 +5111,21 @@ than tickets.
 
 ### The next coding task
 
-**`WEB-003`'s first half shipped on 2026-08-30 and this section is replaced rather than
-amended.** Sprint 3 has three whole tickets and two halves across it and Sprint 2; Sprint 4 is
-still the only complete one.
+**`WEB-002`'s second half shipped on 2026-08-30 — the third ticket-sized piece of that
+session — and this section is replaced rather than amended.** Sprint 4 is still the only
+complete one.
 
-**The next one is `WEB-002`'s second half.** Saved views, sorting, row selection and bulk
-actions, including the bulk audience change the specification singles out for a separate
-confirmation — it is the action that can disclose a dozen items to a client in one click. It
-would also give the request inbox and the work list the cursor paging both lack — each
-silently shows the oldest 200, and both now have a sibling in the channel screen that at least
-_says_ so — and it is where `ProjectOverviewScreen`'s unconditional "Internal" badge gets
-fixed. That badge became capable of being wrong the day `CLIENT-001` shipped.
+**The next one is `PLAT-004`'s relay — the outbox dispatcher.** The ticket is half-counted:
+the tables, the append-only audit and per-tenant idempotency are tested, the dispatcher is
+not written, and `apps/worker` is an empty directory. Fifteen tickets have established the
+transaction boundary it publishes from, and `24-EVENT-CATALOG` names client-request and
+message events that nothing emits. It is also where the rule connecting two lifecycles
+belongs: nothing moves a request to `planned` or `delivered` when its linked work item moves.
+Finishing it makes PLAT-004 whole (+4 points), and it is the dependency `NOTIF-001` and
+`RT-001` both wait on. One shape constraint from `50-BOOTSTRAP`: the deployment target runs
+one proxied Node application, so the dispatcher must be runnable **both** as a standalone
+worker process and as controlled batches — §3's own fallback — rather than assuming a third
+always-on process.
 
 The alternatives, in order after it:
 
@@ -5074,12 +5137,7 @@ The alternatives, in order after it:
 3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
    it. `28-SPRINT-TICKETS` does not schedule this at all; `NOTIF-001` is the nearest real ticket
    and it builds notification records rather than delivery.
-4. **`PLAT-004`'s relay** — the outbox dispatcher. Fourteen tickets have now established the
-   transaction boundary it will publish from, `24-EVENT-CATALOG` names two client-request events
-   and two message events that nothing emits, and `apps/worker` is still an empty directory. It
-   is also where the rule connecting two lifecycles belongs: nothing moves a request to
-   `planned` or `delivered` when its linked work item moves.
-5. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
+4. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
    `projects.committed_at` and `client_requests.desired_at` are all `DATETIME(3)` holding
    midnight UTC, so a reader west of UTC sees every calendar date a day early. Not scheduled by
    `28-SPRINT-TICKETS`; it is a migration, recorded in the WEB-004 gaps above.
@@ -5205,6 +5263,12 @@ directory, unscheduled" instead, which is both shorter and true.
     replies as a query rather than a browser-side filter, and TM-09's convert dialog that
     defaults safe, warns before widening, and shows the existing conversion instead of
     pretending a duplicate succeeded. 9 web cases; the second half is named, not implied.
+29. ~~WEB-002 second half~~ — **done this session, and the count did not move.** Cursor
+    paging on both lists, sorting that never silently means "some of it", selection feeding
+    one bulk action whose widening lists its consequences by title before sending and whose
+    409s are reported and never retried, and a project badge that tells the truth or nothing.
+    Saved views alone remain, unschedulable without a server home, so WEB-002 stays half by
+    the rule. 8 web cases.
 
 ### Progress
 
