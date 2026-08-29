@@ -133,7 +133,14 @@ export async function listMessages(
 }
 
 export interface PostMessageInput {
-  readonly body: string;
+  /** Exactly one of `body` and `bodyRich`, the API's own rule. */
+  readonly body?: string;
+  /**
+   * A document in CHAT-002's closed grammar. The composer builds it from its own notation
+   * — see `lib/rich-composer.ts` — and the API sanitises it again at the write boundary,
+   * so this is a convenience for the author, never a trust decision.
+   */
+  readonly bodyRich?: RichTextDocument;
   readonly parentMessageId?: string;
   /**
    * The retry-dedupe key. The composer generates one per *attempt* and keeps it across

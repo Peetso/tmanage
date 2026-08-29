@@ -10,7 +10,10 @@ import { expectNoAxeViolations } from './axe';
 
 /**
  * `TM-06`, `TM-08` and `TM-09` against the endpoints CHAT-001 through CHAT-003 delivered —
- * WEB-003's first half.
+ * WEB-003, both halves. The second half's describes are at the end: the rich composer
+ * (notation to grammar, previewed through the transcript's own renderer, plain drafts kept
+ * plain) and transcript paging on the sequence-number cursor. The notation-to-grammar
+ * conversion itself is enumerated in `rich-composer.test.ts`.
  *
  * What the API does — the sequence allocator, the sanitiser, the dedupe on a client-generated
  * id, the conversion's unique key, the moderation ledger — is proved in
@@ -452,5 +455,105 @@ describe('TM-09 the convert dialog', () => {
       'href',
       '/northstar/work/wi-original',
     );
+  });
+});
+
+describe('the rich composer — WEB-003 second half', () => {
+  it('converts notation to the grammar, previews it, and sends bodyRich with no notation in it', async () => {
+    const { client, calls } = clientOver(channelHandler());
+    renderChannel(client);
+
+    const box = await screen.findByLabelText('Message the channel');
+    await userEvent.type(box, '**Ship it** on Friday');
+
+    // The preview renders the *converted* document through the transcript's own renderer.
+    const preview = await screen.findByRole('region', { name: 'Preview' });
+    const bold = within(preview).getByText('Ship it');
+    expect(bold.tagName).toBe('STRONG');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      const post = calls.find((call) => call.method === 'POST' && call.url.endsWith('/messages'));
+      expect(post).toBeDefined();
+      const body = post?.body as {
+        body?: string;
+        bodyRich?: { content: readonly unknown[] };
+      };
+      // The grammar travels; the notation does not, and neither does a plain body.
+      expect(body.body).toBeUndefined();
+      expect(body.bodyRich).toMatchObject({ type: 'doc' });
+      expect(JSON.stringify(body.bodyRich)).not.toContain('**');
+      expect(JSON.stringify(body.bodyRich)).toContain('"type":"bold"');
+    });
+  });
+
+  it('sends an unformatted draft as plain body, with no rich document invented', async () => {
+    const { client, calls } = clientOver(channelHandler());
+    renderChannel(client);
+
+    const box = await screen.findByLabelText('Message the channel');
+    await userEvent.type(box, 'Just words, no formatting.');
+    expect(screen.queryByRole('region', { name: 'Preview' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      const post = calls.find((call) => call.method === 'POST' && call.url.endsWith('/messages'));
+      const body = post?.body as { body?: string; bodyRich?: unknown };
+      expect(body.body).toBe('Just words, no formatting.');
+      expect(body.bodyRich).toBeUndefined();
+    });
+  });
+
+  it('the toolbar writes notation around the selection', async () => {
+    const { client } = clientOver(channelHandler());
+    renderChannel(client);
+
+    const box = (await screen.findByLabelText('Message the channel')) as HTMLTextAreaElement;
+    await userEvent.type(box, 'make this bold');
+    box.setSelectionRange(5, 9); // "this"
+    await userEvent.click(screen.getByRole('button', { name: 'Bold' }));
+
+    expect(box).toHaveValue('make **this** bold');
+  });
+});
+
+describe('transcript paging — WEB-003 second half', () => {
+  function pageOf(count: number, firstSequence: number) {
+    return Array.from({ length: count }, (_, position) =>
+      message({
+        id: `msg-page-${firstSequence + position}`,
+        sequenceNo: firstSequence + position,
+        body: `Message number ${firstSequence + position}`,
+      }),
+    );
+  }
+
+  it('offers Load more on a full page, continues from the last sequence number, and stops on a short page', async () => {
+    const { client, calls } = clientOver(
+      channelHandler({
+        messages: (call) =>
+          call.url.includes('afterSequenceNo=200')
+            ? json({ messages: pageOf(3, 201) })
+            : json({ messages: pageOf(200, 1) }),
+      }),
+    );
+    renderChannel(client);
+
+    // A full page: the screen says so rather than presenting it as everything.
+    await screen.findByText('This is not the whole transcript');
+    expect(screen.getByText(/200 messages loaded — there are more/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+
+    // The next page was asked for with the transcript's own cursor, and appended.
+    await screen.findByText('Message number 203');
+    const paged = calls.find((call) => call.url.includes('afterSequenceNo=200'));
+    expect(paged).toBeDefined();
+    expect(screen.getByText('Message number 1')).toBeInTheDocument();
+
+    // A short page means the transcript is now whole: no button, no warning.
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    expect(screen.queryByText('This is not the whole transcript')).toBeNull();
   });
 });

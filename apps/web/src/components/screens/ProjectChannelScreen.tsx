@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
 import { Badge, Button, InlineAlert, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
@@ -19,7 +20,12 @@ import {
   moderateMessage,
   postMessage,
 } from '../../lib/api/conversations';
-import type { ConvertMessageResult, MessageSummary } from '../../lib/api/conversations';
+import type {
+  ConvertMessageResult,
+  MessageSummary,
+  PostMessageInput,
+} from '../../lib/api/conversations';
+import { composeMessage } from '../../lib/rich-composer';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { audienceLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
@@ -35,7 +41,10 @@ type WorkAudience = 'internal' | 'client_visible' | 'client_action_required';
 
 /**
  * **TM-06 Project channel**, with **TM-08's thread pane** as the detail lens and **TM-09's
- * convert dialog** inline under its message. WEB-003's first half.
+ * convert dialog** inline under its message. WEB-003 — both halves: the second added the
+ * rich-text composer (a toolbar over a notation converted to CHAT-002's closed grammar,
+ * never HTML — see `lib/rich-composer.ts`) and transcript paging on the sequence-number
+ * cursor, for the channel and for a thread's replies alike.
  *
  * `22-SCREEN-BY-SCREEN` §4 lists the message actions: "reply, react, save, create work,
  * quote to decision, edit history." Three of those exist as API — reply (a thread), create
@@ -94,9 +103,22 @@ export function ProjectChannelScreen({
     enabled: conversation.data !== undefined,
   });
 
-  const messages = useQuery({
+  /*
+   * WEB-002's paging shape on WEB-003's transcript: the cursor is the last loaded message's
+   * sequence number — the channel's own order — and pages accumulate under one key. The API
+   * reads oldest-first, so "Load more" continues the transcript forward rather than paging
+   * a mirror of it backwards.
+   */
+  const messages = useInfiniteQuery({
     queryKey: ['messages', organizationSlug, conversationId, 'channel'],
-    queryFn: () => listMessages(api, organizationSlug, conversationId, { limit: MAX_MESSAGE_PAGE }),
+    queryFn: ({ pageParam }) =>
+      listMessages(api, organizationSlug, conversationId, {
+        limit: MAX_MESSAGE_PAGE,
+        ...(pageParam === undefined ? {} : { afterSequenceNo: pageParam }),
+      }),
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === MAX_MESSAGE_PAGE ? lastPage[lastPage.length - 1]?.sequenceNo : undefined,
   });
 
   const moderate = useMutation({
@@ -108,7 +130,7 @@ export function ProjectChannelScreen({
     },
   });
 
-  const rows = messages.data ?? [];
+  const rows = useMemo(() => messages.data?.pages.flat() ?? [], [messages.data]);
   const threadRoot = rows.find((message) => message.id === threadRootId);
   const archived = conversation.data?.archivedAt != null;
 
@@ -137,11 +159,9 @@ export function ProjectChannelScreen({
         ) : undefined
       }
     >
-      <BackendPending ticket="WEB-003 second half · unscheduled APIs">
+      <BackendPending ticket="unscheduled APIs">
         Reactions, saved messages, quote-to-decision, pins, presence and live updates are not built
-        — none has an endpoint. New messages appear when the channel is reloaded. The rich-text
-        composer is also second-half work: rich messages sent by the API render here, but this
-        composer sends plain text.
+        — none has an endpoint. New messages appear when the channel is reloaded.
       </BackendPending>
 
       {conversation.isError ? (
@@ -165,10 +185,10 @@ export function ProjectChannelScreen({
         </InlineAlert>
       ) : null}
 
-      {rows.length >= MAX_MESSAGE_PAGE ? (
+      {messages.hasNextPage ? (
         <InlineAlert tone="warning" title="This is not the whole transcript">
-          The API returns at most {MAX_MESSAGE_PAGE} messages in one page and it returned a full
-          one. Paging back through history is the second half of this screen.
+          {rows.length} messages loaded — there are more. &ldquo;Load more&rdquo; below the
+          transcript continues it.
         </InlineAlert>
       ) : null}
 
@@ -290,6 +310,20 @@ export function ProjectChannelScreen({
         </ol>
       ) : null}
 
+      {messages.hasNextPage ? (
+        <div className="tm-row">
+          <Button
+            tone="outline"
+            size="accessible"
+            loading={messages.isFetchingNextPage}
+            loadingLabel="Loading more"
+            onClick={() => void messages.fetchNextPage()}
+          >
+            Load more
+          </Button>
+        </div>
+      ) : null}
+
       <Composer
         api={api}
         organizationSlug={organizationSlug}
@@ -353,9 +387,71 @@ function MessageBody({ message }: { message: MessageSummary }) {
 }
 
 /**
+ * The formatting a toolbar button applies: wrap the selection inline, prefix the selected
+ * lines, or fence them. All three edit the *notation* in the textarea — the person always
+ * sees exactly what will be converted, and the preview shows what it converts to.
+ */
+type ToolbarEdit =
+  | { readonly kind: 'wrap'; readonly before: string; readonly after: string }
+  | { readonly kind: 'prefix'; readonly marker: string }
+  | { readonly kind: 'fence' };
+
+const TOOLBAR: readonly { label: string; edit: ToolbarEdit }[] = [
+  { label: 'Bold', edit: { kind: 'wrap', before: '**', after: '**' } },
+  { label: 'Italic', edit: { kind: 'wrap', before: '_', after: '_' } },
+  { label: 'Strikethrough', edit: { kind: 'wrap', before: '~~', after: '~~' } },
+  { label: 'Code', edit: { kind: 'wrap', before: '`', after: '`' } },
+  { label: 'Link', edit: { kind: 'wrap', before: '[', after: '](https://)' } },
+  { label: 'Quote', edit: { kind: 'prefix', marker: '> ' } },
+  { label: 'Bulleted list', edit: { kind: 'prefix', marker: '- ' } },
+  { label: 'Numbered list', edit: { kind: 'prefix', marker: '1. ' } },
+  { label: 'Code block', edit: { kind: 'fence' } },
+];
+
+/** Apply one toolbar edit to the draft at the current selection. Returns the new draft. */
+function applyToolbarEdit(
+  draft: string,
+  selectionStart: number,
+  selectionEnd: number,
+  edit: ToolbarEdit,
+): string {
+  const before = draft.slice(0, selectionStart);
+  const selected = draft.slice(selectionStart, selectionEnd);
+  const after = draft.slice(selectionEnd);
+
+  if (edit.kind === 'wrap') {
+    return `${before}${edit.before}${selected || 'text'}${edit.after}${after}`;
+  }
+  if (edit.kind === 'prefix') {
+    // Prefix every line the selection touches, from the start of its first line.
+    const lineStart = before.lastIndexOf('\n') + 1;
+    const head = draft.slice(0, lineStart);
+    const target = draft.slice(lineStart, selectionEnd) || 'text';
+    const prefixed = target
+      .split('\n')
+      .map((line) => `${edit.marker}${line}`)
+      .join('\n');
+    return `${head}${prefixed}${after}`;
+  }
+  const block = selected || 'code';
+  const openFence = before === '' || before.endsWith('\n') ? '```\n' : '\n```\n';
+  return `${before}${openFence}${block}\n\`\`\`\n${after}`;
+}
+
+/**
  * The composer, used by the channel and by the thread pane. One component so the dedupe
  * behaviour — mint the id when a send starts, keep it until that send succeeds — cannot
  * drift between the two.
+ *
+ * ## The rich half — WEB-003's second half
+ *
+ * The toolbar writes the composer's notation into the textarea; `composeMessage` converts
+ * it to CHAT-002's closed grammar; the preview renders the converted document through the
+ * same `RichTextBody` the transcript uses, so what is previewed is what a reader will see —
+ * not a second renderer's opinion. A draft that uses no notation is sent as plain `body`,
+ * exactly as before. Before a rich send, `sanitizeRichText` — the domain's own gate, the
+ * same one the API applies — runs here so an inadmissible document is refused with its
+ * path *before* the network, not after. No HTML exists at any point in this path.
  */
 function Composer({
   api,
@@ -375,12 +471,18 @@ function Composer({
   const queries = useQueryClient();
   const [draft, setDraft] = useState('');
   const [attemptId, setAttemptId] = useState<string | undefined>(undefined);
+  const [inadmissible, setInadmissible] = useState<string | undefined>(undefined);
+  const controlRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const composed = useMemo(
+    () => (draft.trim() === '' ? undefined : composeMessage(draft)),
+    [draft],
+  );
 
   const send = useMutation({
-    mutationFn: (input: { body: string; clientGeneratedId: string }) =>
+    mutationFn: (input: PostMessageInput) =>
       postMessage(api, organizationSlug, conversationId, {
-        body: input.body,
-        clientGeneratedId: input.clientGeneratedId,
+        ...input,
         ...(parentMessageId === undefined ? {} : { parentMessageId }),
       }),
     onSuccess: () => {
@@ -392,12 +494,39 @@ function Composer({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const body = draft.trim();
-    if (body === '' || send.isPending) return;
+    if (composed === undefined || send.isPending) return;
+    setInadmissible(undefined);
+
+    let content: Pick<PostMessageInput, 'body' | 'bodyRich'>;
+    if (composed.kind === 'plain') {
+      content = { body: composed.body.trim() };
+    } else {
+      try {
+        // The same refusal the API would give, raised before the network so the path to
+        // the offending node points at something the author can still edit.
+        content = { bodyRich: sanitizeRichText(composed.document) };
+      } catch (error) {
+        setInadmissible(
+          error instanceof InadmissibleRichTextError
+            ? error.message
+            : 'This message cannot be formatted as written.',
+        );
+        return;
+      }
+    }
+
     // Reuse the attempt id when this is a retry of a failed send; mint one otherwise.
     const clientGeneratedId = attemptId ?? newCorrelationId();
     setAttemptId(clientGeneratedId);
-    send.mutate({ body, clientGeneratedId });
+    send.mutate({ ...content, clientGeneratedId });
+  }
+
+  function applyEdit(edit: ToolbarEdit) {
+    const control = controlRef.current;
+    const start = control?.selectionStart ?? draft.length;
+    const end = control?.selectionEnd ?? draft.length;
+    setDraft(applyToolbarEdit(draft, start, end, edit));
+    control?.focus();
   }
 
   const controlId = parentMessageId === undefined ? 'tm-composer' : 'tm-thread-composer';
@@ -412,19 +541,52 @@ function Composer({
 
   return (
     <form className="tm-panel tm-stack" onSubmit={submit}>
+      <div className="tm-row tm-row--wrap" role="group" aria-label="Formatting">
+        {TOOLBAR.map((tool) => (
+          <Button
+            key={tool.label}
+            type="button"
+            tone="outline"
+            size="compact"
+            onClick={() => applyEdit(tool.edit)}
+          >
+            {tool.label}
+          </Button>
+        ))}
+      </div>
+
       <div className="tm-field">
         <label className="tm-field__label" htmlFor={controlId}>
           {label}
         </label>
         <textarea
           id={controlId}
+          ref={controlRef}
           className="tm-field__control"
           rows={3}
           maxLength={16000}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
         />
+        <span className="tm-field__hint">
+          Formatting is written as notation — **bold**, _italic_, `code`, a &ldquo;- &rdquo; list, a
+          &ldquo;&gt; &rdquo; quote — and converted before sending. The notation itself is never
+          sent; the preview shows exactly what is.
+        </span>
       </div>
+
+      {composed?.kind === 'rich' ? (
+        <section className="tm-panel tm-panel--quiet tm-stack tm-stack--tight" aria-label="Preview">
+          <h3 className="tm-eyebrow">Preview — what will be sent</h3>
+          <RichTextBody document={composed.document} />
+        </section>
+      ) : null}
+
+      {inadmissible !== undefined ? (
+        <InlineAlert tone="danger" title="This formatting cannot be sent" live>
+          {inadmissible}
+        </InlineAlert>
+      ) : null}
 
       {send.isError ? (
         <InlineAlert tone="danger" title="Not sent" live>
@@ -442,7 +604,7 @@ function Composer({
           size="accessible"
           loading={send.isPending}
           loadingLabel="Sending"
-          disabled={draft.trim() === ''}
+          disabled={composed === undefined}
         >
           Send
         </Button>
@@ -471,14 +633,21 @@ function ThreadPane({
   archived: boolean;
   onClose: () => void;
 }) {
-  const replies = useQuery({
+  // The transcript's paging, applied to a thread: same cursor, same accumulation.
+  const replies = useInfiniteQuery({
     queryKey: ['messages', organizationSlug, conversationId, 'thread', root.id],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       listMessages(api, organizationSlug, conversationId, {
         parentMessageId: root.id,
         limit: MAX_MESSAGE_PAGE,
+        ...(pageParam === undefined ? {} : { afterSequenceNo: pageParam }),
       }),
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === MAX_MESSAGE_PAGE ? lastPage[lastPage.length - 1]?.sequenceNo : undefined,
   });
+
+  const replyRows = useMemo(() => replies.data?.pages.flat() ?? [], [replies.data]);
 
   return (
     <div className="tm-stack">
@@ -509,19 +678,31 @@ function ThreadPane({
         </InlineAlert>
       ) : null}
 
-      {replies.data && replies.data.length === 0 ? (
-        <p className="tm-prose">No replies yet.</p>
-      ) : null}
+      {replies.data && replyRows.length === 0 ? <p className="tm-prose">No replies yet.</p> : null}
 
-      {replies.data && replies.data.length > 0 ? (
+      {replyRows.length > 0 ? (
         <ol className="tm-list tm-stack" aria-label="Replies, oldest first">
-          {replies.data.map((reply) => (
+          {replyRows.map((reply) => (
             <li key={reply.id} className="tm-panel tm-stack tm-stack--tight">
               <MessageHeader message={reply} />
               <MessageBody message={reply} />
             </li>
           ))}
         </ol>
+      ) : null}
+
+      {replies.hasNextPage ? (
+        <div className="tm-row">
+          <Button
+            tone="outline"
+            size="compact"
+            loading={replies.isFetchingNextPage}
+            loadingLabel="Loading more"
+            onClick={() => void replies.fetchNextPage()}
+          >
+            Load more replies
+          </Button>
+        </div>
       ) : null}
 
       <Composer
