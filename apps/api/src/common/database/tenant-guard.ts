@@ -86,6 +86,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   conversations: 'organization_id',
   conversation_memberships: 'organization_id',
   messages: 'organization_id',
+  // CHAT-002. Tenant-owned for the reason `messages` is — a revision is a message body that
+  // was superseded, which is exactly as much somebody else's transcript as the current one.
+  // The application never writes this table (the 0008 trigger does, with definer
+  // privileges); registering it here scopes the READS.
+  message_revisions: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',
