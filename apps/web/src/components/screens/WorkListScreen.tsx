@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WORK_ITEM_STATES } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
-import { InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
-import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
+import { listWorkItems, MAX_WORK_ITEM_PAGE, updateWorkItem } from '../../lib/api/work-items';
+import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import {
   audienceLabel,
@@ -32,6 +33,12 @@ export interface WorkListScreenProps {
   now?: Date;
 }
 
+type SortKey = 'loaded' | 'title' | 'state' | 'due';
+type SortDirection = 'asc' | 'desc';
+
+/** §5's state order, so sorting by state groups the lifecycle rather than the alphabet. */
+const STATE_ORDER: readonly WorkItemState[] = WORK_ITEM_STATES;
+
 /**
  * **TM-10 Work list.**
  *
@@ -50,19 +57,31 @@ export interface WorkListScreenProps {
  *   field, so there is nothing to put in the cell. The `Blocked` state capsule is shown, which
  *   is the part that is real.
  *
- * Saved views, selection, sorting and bulk actions are the second half of this ticket and are
- * named in `BackendPending` rather than half-built. Bulk audience change in particular is the
- * one the specification singles out for a separate confirmation — it is the action that can
- * disclose a dozen items to a client in one click — and a half-built version of it is worse
- * than none.
+ * ## Paging, sorting, selection — the second half of WEB-002, and where each rule lives
  *
- * ## Why the table is a real `<table>`
+ * - **Paging is the API's `after` cursor.** A full page means there may be more, and "Load
+ *   more" appends the next page. The filters stay on the server; only the *pages* accumulate
+ *   here.
+ * - **Sorting is over the loaded rows, and says so.** The API offers no sort parameter, so a
+ *   header sorts what has been loaded; while more pages exist the partial-list notice stays
+ *   visible above the table, which keeps "sorted" from silently meaning "sorted some of it".
+ *   State sorts in lifecycle order, not alphabetically — `blocked` before `done` is a
+ *   judgement §5's state machine already made.
+ * - **Bulk audience change is the one bulk action, and widening previews before it sends.**
+ *   `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC` makes audience the control that decides what
+ *   a client can ever see; a bulk widening is the click that can disclose a dozen items at
+ *   once, so the confirmation lists, by title, exactly the items whose audience will change —
+ *   §5's "policy preview" as a list of consequences rather than a yes/no. Narrowing applies
+ *   without ceremony, for the reason the detail screen gives: nothing new escapes.
+ *   Each item is updated with the version this screen read; a `409` is reported by title and
+ *   **never retried** — a bulk retry with fresh versions would be the lost update the token
+ *   exists to prevent, multiplied.
  *
- * A grid of `<div>`s can be made to look identical and cannot be navigated. A screen reader
- * announces "row 4, State, Blocked" from a real table and announces nothing from the grid,
- * and browser find-in-page, column headers and row semantics all come free. The title cell is
- * a link, so a row is reachable by Tab and openable in a new tab — `22` §5's "keyboard row
- * navigation" starts by having something focusable in the row.
+ * **Saved views are still absent, and now for a stated reason rather than a deadline**: there
+ * is no server-side home for them (`28-SPRINT-TICKETS` schedules none), and browser storage
+ * is barred from holding authoritative state by the workspace lint rule
+ * (15-AI-EXECUTION-HANDBOOK §8). A saved view that lived in one browser would be a view that
+ * lies about existing when its owner signs in anywhere else.
  */
 export function WorkListScreen({
   organizationSlug,
@@ -72,9 +91,17 @@ export function WorkListScreen({
   now = new Date(),
 }: WorkListScreenProps) {
   const api = client ?? browserApiClient();
+  const queries = useQueryClient();
 
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
   const [states, setStates] = useState<readonly WorkItemState[]>([]);
+  const [sortKey, setSortKey] = useState<SortKey>('loaded');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [pendingBulk, setPendingBulk] = useState<WorkItemAudience | undefined>(undefined);
+  const [bulkReport, setBulkReport] = useState<
+    { updated: number; failed: readonly { title: string; reason: string }[] } | undefined
+  >(undefined);
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
@@ -83,17 +110,53 @@ export function WorkListScreen({
 
   /*
    * The filters are part of the key, so changing one is a new query rather than a mutation of
-   * the old one. That is what makes the previous result stay on screen while the next loads,
-   * instead of the table emptying every time somebody ticks a state.
+   * the old one — the previous result stays on screen while the next loads. Pages accumulate
+   * under the same key; the cursor is the last row's id, which is creation order.
    */
-  const workItems = useQuery({
+  const workItems = useInfiniteQuery({
     queryKey: ['work-items', organizationSlug, projectId, [...states].sort().join(',')],
-    queryFn: () =>
+    queryFn: ({ pageParam }) =>
       listWorkItems(api, organizationSlug, {
         limit: MAX_WORK_ITEM_PAGE,
         ...(projectId === '' ? {} : { projectId }),
         ...(states.length === 0 ? {} : { states }),
+        ...(pageParam === undefined ? {} : { after: pageParam }),
       }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === MAX_WORK_ITEM_PAGE ? lastPage[lastPage.length - 1]?.id : undefined,
+  });
+
+  const bulkChange = useMutation({
+    /*
+     * Sequential on purpose: each item carries its own version, each refusal is its own
+     * fact, and a parallel volley would make "which ones happened" a race to report.
+     */
+    mutationFn: async (input: {
+      audience: WorkItemAudience;
+      targets: readonly WorkItemSummary[];
+    }) => {
+      let updated = 0;
+      const failed: { title: string; reason: string }[] = [];
+      for (const item of input.targets) {
+        try {
+          await updateWorkItem(api, organizationSlug, item.id, {
+            version: item.version,
+            audience: input.audience,
+          });
+          updated += 1;
+        } catch (error) {
+          failed.push({ title: item.title, reason: describeError(error) });
+        }
+      }
+      return { updated, failed };
+    },
+    onSuccess: (result) => {
+      setBulkReport(result);
+      setPendingBulk(undefined);
+      setSelected(new Set());
+      void queries.invalidateQueries({ queryKey: ['work-items', organizationSlug] });
+    },
   });
 
   const projectNames = useMemo(() => {
@@ -102,13 +165,58 @@ export function WorkListScreen({
     return names;
   }, [projects.data]);
 
+  const loadedRows = useMemo(() => workItems.data?.pages.flat() ?? [], [workItems.data]);
+
+  const rows = useMemo(() => {
+    if (sortKey === 'loaded') return loadedRows;
+    const sorted = [...loadedRows].sort((left, right) => compareBy(sortKey, left, right));
+    if (sortDirection === 'desc') sorted.reverse();
+    return sorted;
+  }, [loadedRows, sortKey, sortDirection]);
+
+  const selectedRows = rows.filter((row) => selected.has(row.id));
+  const allVisibleSelected = rows.length > 0 && rows.every((row) => selected.has(row.id));
+
   function toggleState(state: WorkItemState) {
     setStates((current) =>
       current.includes(state) ? current.filter((value) => value !== state) : [...current, state],
     );
+    setSelected(new Set());
   }
 
-  const rows = workItems.data ?? [];
+  function toggleSort(key: Exclude<SortKey, 'loaded'>) {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDirection('asc');
+    } else if (sortDirection === 'asc') {
+      setSortDirection('desc');
+    } else {
+      setSortKey('loaded');
+      setSortDirection('asc');
+    }
+  }
+
+  function toggleRow(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function startBulk(audience: WorkItemAudience) {
+    setBulkReport(undefined);
+    if (audience === 'internal') {
+      // Narrowing is not confirmed — nothing new escapes. See the doc comment.
+      bulkChange.mutate({ audience, targets: selectedRows });
+      return;
+    }
+    setPendingBulk(audience);
+  }
+
+  const widening =
+    pendingBulk === undefined ? [] : selectedRows.filter((row) => row.audience !== pendingBulk);
 
   return (
     <AppShell
@@ -129,11 +237,11 @@ export function WorkListScreen({
         </Link>
       </p>
 
-      <BackendPending ticket="WEB-002 second half · WORK-002">
-        Saved views, sorting, row selection and bulk actions are not built yet. Priority and the
-        blocker reason are not columns because neither is stored: priority is not in the data model,
-        and a blocker reason is recorded as part of the move into <em>Blocked</em> rather than as a
-        field on the item.
+      <BackendPending ticket="WEB-002 · no server home, unscheduled">
+        Saved views are not built: nothing server-side stores one, and browser storage is barred
+        from holding authoritative state, so a view saved here would exist in one browser and lie
+        about existing everywhere else. Priority and the blocker reason are not columns because
+        neither is stored.
       </BackendPending>
 
       <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-work-filters">
@@ -149,7 +257,10 @@ export function WorkListScreen({
             id="tm-work-project"
             className="tm-field__control"
             value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
+            onChange={(event) => {
+              setProjectId(event.target.value);
+              setSelected(new Set());
+            }}
           >
             <option value="">All projects</option>
             {(projects.data ?? []).map((project) => (
@@ -185,11 +296,7 @@ export function WorkListScreen({
 
       {workItems.isError ? (
         <InlineAlert tone="danger" title="Could not load the work list" live>
-          {workItems.error instanceof ApiRequestError
-            ? workItems.error.message
-            : workItems.error instanceof NetworkError
-              ? 'The API did not answer. Is it running?'
-              : 'Something went wrong. Try again.'}
+          {describeError(workItems.error)}
         </InlineAlert>
       ) : null}
 
@@ -210,12 +317,97 @@ export function WorkListScreen({
         </InlineAlert>
       ) : null}
 
-      {rows.length >= MAX_WORK_ITEM_PAGE ? (
+      {workItems.hasNextPage ? (
         <InlineAlert tone="warning" title="This is not all of it">
-          The API returns at most {MAX_WORK_ITEM_PAGE} items in one page and it returned a full one,
-          so there is more work than is listed below. Filter by project or by state to see the rest.
-          Paging through the whole list is the second half of this screen.
+          The list below is the first {rows.length} items; there are more. Sorting orders what is
+          loaded, so load the rest before trusting an order across everything.
         </InlineAlert>
+      ) : null}
+
+      {bulkReport !== undefined ? (
+        <InlineAlert
+          tone={bulkReport.failed.length === 0 ? 'neutral' : 'warning'}
+          title={`Audience changed on ${bulkReport.updated} ${bulkReport.updated === 1 ? 'item' : 'items'}`}
+          live
+        >
+          {bulkReport.failed.length > 0 ? (
+            <>
+              <p className="tm-prose">
+                These were <strong>not</strong> applied, and were not retried — reload the list and
+                decide again with the current state in view:
+              </p>
+              <ul className="tm-list">
+                {bulkReport.failed.map((failure) => (
+                  <li key={failure.title}>
+                    “{failure.title}” — {failure.reason}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </InlineAlert>
+      ) : null}
+
+      {selectedRows.length > 0 ? (
+        <section className="tm-panel tm-stack" aria-labelledby="tm-work-bulk">
+          <h2 id="tm-work-bulk" className="tm-eyebrow">
+            {selectedRows.length} selected — set audience
+          </h2>
+          <div className="tm-row tm-row--wrap">
+            {(['internal', 'client_visible', 'client_action_required'] as const).map((audience) => (
+              <Button
+                key={audience}
+                tone="outline"
+                size="accessible"
+                disabled={bulkChange.isPending}
+                onClick={() => startBulk(audience)}
+              >
+                {audienceLabel(audience)}
+              </Button>
+            ))}
+          </div>
+
+          {pendingBulk !== undefined ? (
+            <InlineAlert tone="client" title="This will show items to the client" live>
+              {widening.length === 0 ? (
+                <p className="tm-prose">
+                  Every selected item is already {audienceLabel(pendingBulk).toLowerCase()} or
+                  wider. There is nothing to change.
+                </p>
+              ) : (
+                <>
+                  <p className="tm-prose">
+                    {widening.length} of the {selectedRows.length} selected{' '}
+                    {selectedRows.length === 1 ? 'item' : 'items'} will become{' '}
+                    {audienceLabel(pendingBulk).toLowerCase()} in the client portal. Their titles
+                    are what the client will read:
+                  </p>
+                  <ul className="tm-list">
+                    {widening.map((row) => (
+                      <li key={row.id}>“{row.title}”</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <div className="tm-row">
+                {widening.length > 0 ? (
+                  <Button
+                    tone="ink"
+                    size="accessible"
+                    loading={bulkChange.isPending}
+                    loadingLabel="Publishing"
+                    onClick={() => bulkChange.mutate({ audience: pendingBulk, targets: widening })}
+                  >
+                    Show {widening.length === 1 ? 'it' : 'them'} to the client
+                  </Button>
+                ) : null}
+                <Button tone="outline" size="accessible" onClick={() => setPendingBulk(undefined)}>
+                  Keep things as they are
+                </Button>
+              </div>
+            </InlineAlert>
+          ) : null}
+        </section>
       ) : null}
 
       {rows.length > 0 ? (
@@ -226,18 +418,55 @@ export function WorkListScreen({
             </caption>
             <thead>
               <tr>
+                <th scope="col">
+                  <input
+                    className="tm-choice__input"
+                    type="checkbox"
+                    aria-label="Select every loaded item"
+                    checked={allVisibleSelected}
+                    onChange={() =>
+                      setSelected(
+                        allVisibleSelected ? new Set() : new Set(rows.map((row) => row.id)),
+                      )
+                    }
+                  />
+                </th>
                 <th scope="col">Type</th>
-                <th scope="col">Title</th>
-                <th scope="col">State</th>
+                <SortableHeader
+                  label="Title"
+                  active={sortKey === 'title'}
+                  direction={sortDirection}
+                  onToggle={() => toggleSort('title')}
+                />
+                <SortableHeader
+                  label="State"
+                  active={sortKey === 'state'}
+                  direction={sortDirection}
+                  onToggle={() => toggleSort('state')}
+                />
                 <th scope="col">Project</th>
                 <th scope="col">Owner</th>
-                <th scope="col">Due</th>
+                <SortableHeader
+                  label="Due"
+                  active={sortKey === 'due'}
+                  direction={sortDirection}
+                  onToggle={() => toggleSort('due')}
+                />
                 <th scope="col">Audience</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((item) => (
                 <tr key={item.id}>
+                  <td>
+                    <input
+                      className="tm-choice__input"
+                      type="checkbox"
+                      aria-label={`Select ${item.title}`}
+                      checked={selected.has(item.id)}
+                      onChange={() => toggleRow(item.id)}
+                    />
+                  </td>
                   <td>{item.type}</td>
                   <th scope="row" className="tm-table__title">
                     <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>
@@ -277,6 +506,69 @@ export function WorkListScreen({
           </table>
         </div>
       ) : null}
+
+      {workItems.hasNextPage ? (
+        <div className="tm-row">
+          <Button
+            tone="outline"
+            size="accessible"
+            loading={workItems.isFetchingNextPage}
+            loadingLabel="Loading more"
+            onClick={() => void workItems.fetchNextPage()}
+          >
+            Load more
+          </Button>
+        </div>
+      ) : null}
     </AppShell>
   );
+}
+
+/**
+ * A sortable column header. The `<th>` carries `aria-sort` — the state the arrow communicates
+ * by shape must also be communicated as a word — and the control inside is a real button, so
+ * it is focusable and announces itself.
+ */
+function SortableHeader({
+  label,
+  active,
+  direction,
+  onToggle,
+}: {
+  label: string;
+  active: boolean;
+  direction: SortDirection;
+  onToggle: () => void;
+}) {
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : undefined}
+    >
+      <button type="button" className="tm-table__sort" onClick={onToggle}>
+        {label}
+        {active ? <span aria-hidden="true">{direction === 'asc' ? ' ↑' : ' ↓'}</span> : null}
+      </button>
+    </th>
+  );
+}
+
+function compareBy(
+  key: Exclude<SortKey, 'loaded'>,
+  left: WorkItemSummary,
+  right: WorkItemSummary,
+): number {
+  if (key === 'title') return left.title.localeCompare(right.title);
+  if (key === 'state') return STATE_ORDER.indexOf(left.state) - STATE_ORDER.indexOf(right.state);
+  // Due: items without a date sort last, which is where "no promise made" belongs.
+  if (left.dueAt === null && right.dueAt === null) return 0;
+  if (left.dueAt === null) return 1;
+  if (right.dueAt === null) return -1;
+  return left.dueAt.localeCompare(right.dueAt);
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.message;
+  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
+  return 'Something went wrong. Try again.';
 }

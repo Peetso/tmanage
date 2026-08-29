@@ -50,10 +50,19 @@ export interface ClientRequestRecord {
   readonly updatedAt: string;
 }
 
+/**
+ * The largest page the API returns. A screen that receives exactly this many knows there may
+ * be more and owes the reader either a "load more" or a plain warning — the inbox used to
+ * show the oldest 200 silently, which read as "this is all of it".
+ */
+export const MAX_CLIENT_REQUEST_PAGE = 200;
+
 export interface ListClientRequestsQuery {
   readonly projectId?: string;
   readonly clientOrganizationId?: string;
   readonly states?: readonly ClientRequestState[];
+  /** The id cursor: rows after this id, in id (creation) order. */
+  readonly after?: string;
   readonly limit?: number;
 }
 
@@ -68,6 +77,7 @@ export async function listClientRequestRecords(
     parameters.set('clientOrganizationId', query.clientOrganizationId);
   }
   if (query.states && query.states.length > 0) parameters.set('state', query.states.join(','));
+  if (query.after) parameters.set('after', query.after);
   if (query.limit !== undefined) parameters.set('limit', String(query.limit));
 
   const suffix = parameters.size === 0 ? '' : `?${parameters.toString()}`;

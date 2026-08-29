@@ -171,6 +171,30 @@ describe('REQ-01 the request inbox', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     await expectNoAxeViolations(view.container);
   });
+
+  it('pages on the cursor instead of silently showing the oldest 200', async () => {
+    const firstPage = Array.from({ length: 200 }, (_, index) =>
+      record({ id: `req-${String(index).padStart(3, '0')}`, title: `Request ${index}` }),
+    );
+    const urls: string[] = [];
+    const api = clientOver((url) => {
+      urls.push(url);
+      if (url.includes('after=')) {
+        return json({ clientRequests: [record({ id: 'req-final', title: 'The 201st request' })] });
+      }
+      return json({ clientRequests: firstPage });
+    });
+    render(withQuery(<RequestInboxScreen {...NAMES} client={api} now={NOW} />));
+
+    // A full page is announced as "loaded", never as the total.
+    expect(await screen.findByText(/200 requests loaded — there are more/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+
+    expect(await screen.findByText(/201 requests in total/)).toBeInTheDocument();
+    expect(urls.some((url) => url.includes('after=req-199'))).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -337,6 +337,154 @@ describe('TM-10 the work list', () => {
   });
 });
 
+describe('TM-10 second half — paging, sorting, selection, bulk audience', () => {
+  function renderList(handler: (call: Call) => Response) {
+    const { client, calls } = clientOver(handler);
+    render(
+      withQuery(
+        <WorkListScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
+    return calls;
+  }
+
+  it('loads the next page with the last row as the cursor, and stops warning when done', async () => {
+    const firstPage = Array.from({ length: 200 }, (_, index) =>
+      workItem({ id: `wi-${String(index).padStart(3, '0')}`, title: `Item ${index}` }),
+    );
+    const calls = renderList((call) => {
+      if (!call.url.includes('/work-items')) return json(PROJECTS);
+      if (call.url.includes('after=')) {
+        return json({ workItems: [workItem({ id: 'wi-final', title: 'The 201st item' })] });
+      }
+      return json({ workItems: firstPage });
+    });
+
+    expect(await screen.findByText(/This is not all of it/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+
+    expect(await screen.findByText('The 201st item')).toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes('after=wi-199'))).toBe(true);
+    // The second page was short, so there is no more to load and no more to warn about.
+    expect(screen.queryByText(/This is not all of it/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+  });
+
+  it('sorts the loaded rows from a header, announces the direction, and can return to loaded order', async () => {
+    renderList((call) =>
+      call.url.includes('/work-items')
+        ? json({
+            workItems: [
+              workItem({ id: 'b', title: 'Beta task' }),
+              workItem({ id: 'a', title: 'Alpha task' }),
+            ],
+          })
+        : json(PROJECTS),
+    );
+
+    await screen.findByRole('table');
+    const titles = () =>
+      screen.getAllByRole('rowheader').map((cell) => cell.textContent?.trim() ?? '');
+
+    expect(titles()).toEqual(['Beta task', 'Alpha task']);
+
+    const header = screen.getByRole('button', { name: /^Title/ });
+    await userEvent.click(header);
+    expect(titles()).toEqual(['Alpha task', 'Beta task']);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+
+    await userEvent.click(header);
+    expect(titles()).toEqual(['Beta task', 'Alpha task']);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'descending');
+
+    // A third click returns to loaded order rather than cycling forever.
+    await userEvent.click(header);
+    expect(header.closest('th')).not.toHaveAttribute('aria-sort');
+  });
+
+  it('previews a bulk widening by title, applies it with each row own version, and reports a 409 without retrying', async () => {
+    const patched: Call[] = [];
+    const calls = renderList((call) => {
+      if (call.method === 'PATCH') {
+        patched.push(call);
+        if (call.url.endsWith('/wi-2')) {
+          return json(
+            {
+              error: {
+                code: 'conflict',
+                message: 'Someone changed this while you were working. Reload and try again.',
+                correlationId: 'corr',
+              },
+            },
+            409,
+          );
+        }
+        return json(workItem({ id: 'wi-1', audience: 'client_visible', version: 4 }));
+      }
+      return call.url.includes('/work-items')
+        ? json({
+            workItems: [
+              workItem({ id: 'wi-1', title: 'First thing', version: 3 }),
+              workItem({ id: 'wi-2', title: 'Second thing', version: 7 }),
+            ],
+          })
+        : json(PROJECTS);
+    });
+
+    await screen.findByRole('table');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select First thing' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Second thing' }));
+
+    // The bulk bar appears with the selection, and widening opens the preview.
+    await userEvent.click(screen.getByRole('button', { name: 'Client can see' }));
+    const preview = await screen.findByText('This will show items to the client');
+    expect(preview).toBeInTheDocument();
+    expect(screen.getByText('“First thing”')).toBeInTheDocument();
+    expect(screen.getByText('“Second thing”')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show them to the client' }));
+
+    await screen.findByText('Audience changed on 1 item');
+    expect(screen.getByText(/“Second thing” — Someone changed this/)).toBeInTheDocument();
+
+    // Each PATCH carried the version its row was read with, and the refusal was not retried.
+    expect(patched).toHaveLength(2);
+    expect(patched[0]?.body).toEqual({ version: 3, audience: 'client_visible' });
+    expect(patched[1]?.body).toEqual({ version: 7, audience: 'client_visible' });
+    expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(2);
+  });
+
+  it('narrows without ceremony — internal is applied with no preview', async () => {
+    const patched: Call[] = [];
+    renderList((call) => {
+      if (call.method === 'PATCH') {
+        patched.push(call);
+        return json(workItem({ id: 'wi-1', audience: 'internal', version: 4 }));
+      }
+      return call.url.includes('/work-items')
+        ? json({
+            workItems: [
+              workItem({ id: 'wi-1', title: 'Shared thing', audience: 'client_visible' }),
+            ],
+          })
+        : json(PROJECTS);
+    });
+
+    await screen.findByRole('table');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Shared thing' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Internal' }));
+
+    await screen.findByText('Audience changed on 1 item');
+    expect(screen.queryByText('This will show items to the client')).not.toBeInTheDocument();
+    expect(patched).toHaveLength(1);
+  });
+});
+
 describe('TM-13 the work item detail', () => {
   function renderDetail(handler: (call: Call) => Response) {
     const { client, calls } = clientOver(handler);
@@ -493,11 +641,13 @@ describe('TM-13 the work item detail', () => {
 });
 
 describe('TM-03 the project overview', () => {
-  function renderOverview(items: readonly unknown[]) {
+  function renderOverview(items: readonly unknown[], shares: readonly unknown[] = []) {
     const { client } = clientOver((call) =>
       call.url.includes('/work-items')
         ? json({ workItems: items })
-        : json(PROJECTS.projects[0] as unknown),
+        : call.url.includes('/clients')
+          ? json({ clients: shares })
+          : json(PROJECTS.projects[0] as unknown),
     );
     render(
       withQuery(
@@ -582,11 +732,73 @@ describe('TM-03 the project overview', () => {
     expect(within(shared).queryByText('Private thing')).not.toBeInTheDocument();
   });
 
+  it('asserts Internal only after the shares endpoint answered empty', async () => {
+    renderOverview([]);
+
+    const header = await screen.findByRole('region', { name: 'This project' });
+    await within(header).findByText('Internal');
+  });
+
+  it('says a shared project is shared, instead of the old unconditional Internal', async () => {
+    renderOverview(
+      [],
+      [
+        {
+          id: 'share-1',
+          projectId: 'proj-1',
+          clientOrganizationId: 'client-1',
+          createdAt: '2026-08-01T00:00:00.000Z',
+        },
+      ],
+    );
+
+    const header = await screen.findByRole('region', { name: 'This project' });
+    await within(header).findByText('Shared with a client');
+    expect(within(header).queryByText('Internal')).not.toBeInTheDocument();
+  });
+
+  it('draws no badge at all when it cannot know — the shares endpoint refused', async () => {
+    const { client } = clientOver((call) =>
+      call.url.includes('/work-items')
+        ? json({ workItems: [] })
+        : call.url.includes('/clients')
+          ? json(
+              {
+                error: {
+                  code: 'forbidden',
+                  message: 'You do not have access to this.',
+                  correlationId: 'corr',
+                },
+              },
+              403,
+            )
+          : json(PROJECTS.projects[0] as unknown),
+    );
+    render(
+      withQuery(
+        <ProjectOverviewScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          projectId="proj-1"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
+
+    const header = await screen.findByRole('region', { name: 'This project' });
+    // A badge the screen cannot verify is a guess; the old screen guessed "Internal".
+    expect(within(header).queryByText('Internal')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Shared with a client')).not.toBeInTheDocument();
+  });
+
   it('has no axe violations', async () => {
     const { client } = clientOver((call) =>
       call.url.includes('/work-items')
         ? json({ workItems: [workItem()] })
-        : json(PROJECTS.projects[0] as unknown),
+        : call.url.includes('/clients')
+          ? json({ clients: [] })
+          : json(PROJECTS.projects[0] as unknown),
     );
 
     const { container } = render(

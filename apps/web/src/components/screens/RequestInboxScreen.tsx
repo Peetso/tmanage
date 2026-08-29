@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { Button, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { listClientRequestRecords } from '../../lib/api/client-requests';
+import { MAX_CLIENT_REQUEST_PAGE, listClientRequestRecords } from '../../lib/api/client-requests';
 import type { ClientRequestRecord } from '../../lib/api/client-requests';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -63,12 +63,24 @@ export function RequestInboxScreen({
   const api = client ?? browserApiClient();
   const [bucket, setBucket] = useState<TriageBucketId | 'all'>('all');
 
-  const requests = useQuery({
+  /*
+   * Paged on the API's `after` id cursor — WEB-002's second half. This screen used to ask
+   * for the first 200 and show them as though they were everything; now a full page keeps a
+   * "Load more" on screen, and the total above the buckets says "loaded" while more exist.
+   */
+  const requests = useInfiniteQuery({
     queryKey: ['client-requests', organizationSlug],
-    queryFn: () => listClientRequestRecords(api, organizationSlug, { limit: 200 }),
+    queryFn: ({ pageParam }) =>
+      listClientRequestRecords(api, organizationSlug, {
+        limit: MAX_CLIENT_REQUEST_PAGE,
+        ...(pageParam === undefined ? {} : { after: pageParam }),
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === MAX_CLIENT_REQUEST_PAGE ? lastPage[lastPage.length - 1]?.id : undefined,
   });
 
-  const all = requests.data ?? [];
+  const all = requests.data?.pages.flat() ?? [];
   const shown = (bucket === 'all' ? all : all.filter((row) => bucketOf(row.state) === bucket))
     .slice()
     .sort(oldestFirst);
@@ -95,8 +107,13 @@ export function RequestInboxScreen({
       ) : null}
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-inbox-counts">
+        {/*
+          "in total" only when it is the total. With a further page unloaded, the honest word
+          is "loaded" — the counts beneath are counts of what is on screen, not of the queue.
+        */}
         <h2 id="tm-inbox-counts" className="tm-eyebrow">
-          {all.length} {all.length === 1 ? 'request' : 'requests'} in total
+          {all.length} {all.length === 1 ? 'request' : 'requests'}{' '}
+          {requests.hasNextPage ? 'loaded — there are more' : 'in total'}
         </h2>
         <div className="tm-row tm-row--wrap" role="group" aria-label="Filter by state">
           <FilterButton
@@ -174,6 +191,20 @@ export function RequestInboxScreen({
 
       {!requests.isPending && all.length > 0 && shown.length === 0 ? (
         <p className="tm-prose">Nothing in that state.</p>
+      ) : null}
+
+      {requests.hasNextPage ? (
+        <div className="tm-row">
+          <Button
+            tone="outline"
+            size="accessible"
+            loading={requests.isFetchingNextPage}
+            loadingLabel="Loading more"
+            onClick={() => void requests.fetchNextPage()}
+          >
+            Load more
+          </Button>
+        </div>
       ) : null}
 
       <BackendPending ticket="PEOPLE · FILE-001">

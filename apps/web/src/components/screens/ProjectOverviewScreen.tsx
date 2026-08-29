@@ -7,6 +7,7 @@ import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
+import { listProjectShares } from '../../lib/api/clients';
 import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
 import type { WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -75,6 +76,17 @@ export function ProjectOverviewScreen({
     queryFn: () => listWorkItems(api, organizationSlug, { projectId, limit: MAX_WORK_ITEM_PAGE }),
   });
 
+  /*
+   * Whether this project is shared with a client — the fact behind §4's "client/internal
+   * badge". The endpoint sits behind `project.manage`, so a reader without that capability
+   * gets a 403 here; for them no badge is drawn at all, because a badge this screen cannot
+   * verify would be the guess the old unconditional "Internal" was.
+   */
+  const shares = useQuery({
+    queryKey: ['project-shares', organizationSlug, projectId],
+    queryFn: () => listProjectShares(api, organizationSlug, projectId),
+  });
+
   const items = workItems.data ?? [];
   const blocked = items.filter((item) => item.state === 'blocked');
   const nextActions = items
@@ -121,16 +133,20 @@ export function ProjectOverviewScreen({
           </h2>
           <div className="tm-row tm-row--wrap">
             {/*
-              Always internal, and it says why.
-              Unconditional, and **known to be wrong once a client is linked**. A project is
-              shared with a client by linking it to a client organization in `project_clients`,
-              and `CLIENT-001` shipped both the table and `GET projects/:id/clients`. This
-              screen does not call it, and `ProjectSummary` carries no client field, so the
-              badge cannot tell the two apart and always says "Internal". Recorded in
-              `docs/implementation-status.md` as WEB-002's second half — it needs an API
-              client, a query and a test, which is more than a comment correction.
+              The badge states what `project_clients` actually holds, or nothing. "Internal"
+              is asserted only after the shares endpoint answered with an empty list;
+              "Shared with a client" only after it answered with a non-empty one. While the
+              query is in flight — or refused, the endpoint sits behind `project.manage` —
+              there is no badge, because the unconditional "Internal" this replaces was
+              wrong for every shared project from the day CLIENT-001 landed.
             */}
-            <Badge>Internal</Badge>
+            {shares.data !== undefined ? (
+              shares.data.length > 0 ? (
+                <Badge tone="client">Shared with a client</Badge>
+              ) : (
+                <Badge>Internal</Badge>
+              )
+            ) : null}
             <StateCapsule state={project.data.status === 'active' ? 'current' : 'archived'}>
               {project.data.status === 'active' ? 'Active' : project.data.status}
             </StateCapsule>
