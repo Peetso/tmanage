@@ -160,4 +160,20 @@ describe('the tinted glyphs and borders, which are non-text and need 3:1', () =>
       AA_NON_TEXT,
     );
   });
+
+  /**
+   * The combobox's active option is a keyboard focus indicator — the *virtual* focus of
+   * `aria-activedescendant` — so WCAG 1.4.11 owes it 3:1. The paper-150 background shift
+   * alone is ~1.2:1 in both themes (found by the review fleet's token-law lens and
+   * asserted here so the ring can never be dropped as decoration): the inset ink ring is
+   * the carrier that passes.
+   */
+  it('the active-option paper shift is invisible; its ink ring is what passes 1.4.11', () => {
+    expect(contrastRatio(colorLight.paper['150'], colorLight.paper['0'])).toBeLessThan(AA_NON_TEXT);
+    expect(contrastRatio(colorDark.canvas, colorDark.surface1)).toBeLessThan(AA_NON_TEXT);
+    expect(contrastRatio(colorLight.ink['950'], colorLight.paper['150'])).toBeGreaterThanOrEqual(
+      AA_NON_TEXT,
+    );
+    expect(contrastRatio(colorDark.ink, colorDark.canvas)).toBeGreaterThanOrEqual(AA_NON_TEXT);
+  });
 });

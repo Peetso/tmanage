@@ -16,6 +16,14 @@ export { Checkbox, type CheckboxProps } from './Checkbox.js';
 export { Radio, RadioGroup, type RadioProps, type RadioGroupProps } from './Radio.js';
 export { Switch, type SwitchProps } from './Switch.js';
 export { Select, type SelectProps } from './Select.js';
+export { Combobox, type ComboboxProps, type ComboboxOption } from './Combobox.js';
+export {
+  DateField,
+  TimeField,
+  type DateFieldProps,
+  type TimeFieldProps,
+  type CalendarDayString,
+} from './DateField.js';
 export { Tooltip, type TooltipProps } from './Tooltip.js';
 export {
   Toast,

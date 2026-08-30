@@ -122,6 +122,26 @@ describe('Tooltip', () => {
     expect(screen.getByRole('button', { name: 'Publish' })).toHaveFocus();
   });
 
+  it('dismisses a hover-only tooltip on Escape, when focus is somewhere else entirely', async () => {
+    render(
+      <>
+        <Tooltip content="Publishes to the client portal.">
+          <Button tone="outline">Publish</Button>
+        </Tooltip>
+        <Button tone="outline">Elsewhere</Button>
+      </>,
+    );
+
+    // Focus one control, hover the other: 1.4.13's mouse-user case.
+    screen.getByRole('button', { name: 'Elsewhere' }).focus();
+    await userEvent.hover(screen.getByRole('button', { name: 'Publish' }));
+    expect(screen.getByRole('tooltip')).toHaveAttribute('data-open');
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('tooltip')).not.toHaveAttribute('data-open');
+    expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
+  });
+
   it('keeps a describedby the trigger already had', () => {
     render(
       <>
@@ -159,6 +179,8 @@ describe('ToastRegion and Toast', () => {
     render(<ToastRegion />);
     const region = screen.getByRole('status', { name: 'Notifications' });
     expect(region).toBeEmptyDOMElement();
+    // role="status" is implicitly atomic; left that way, toast #4 re-announces #1-#3.
+    expect(region).toHaveAttribute('aria-atomic', 'false');
   });
 
   it('renders the sentence with a glyph and, only when dismissable, a labelled button', () => {

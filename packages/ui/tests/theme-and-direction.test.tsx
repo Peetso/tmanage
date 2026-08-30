@@ -6,6 +6,8 @@ import {
   Badge,
   Button,
   Checkbox,
+  Combobox,
+  DateField,
   Field,
   InlineAlert,
   Radio,
@@ -17,6 +19,7 @@ import {
   StatusDot,
   Switch,
   ThemeProvider,
+  TimeField,
   Toast,
   ToastRegion,
   Tooltip,
@@ -55,6 +58,14 @@ function Surface({ title }: { title: string }) {
             {title}
           </Toast>
         </ToastRegion>
+        <Combobox
+          label={`${title}.`}
+          options={[{ value: 'one', label: title }]}
+          value="one"
+          defaultOpen
+        />
+        <DateField label={`${title}..`} defaultValue="2026-09-15" hint={title} />
+        <TimeField label={`${title}...`} defaultValue="14:30" />
       </main>
     </>
   );

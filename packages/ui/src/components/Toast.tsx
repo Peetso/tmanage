@@ -36,6 +36,9 @@ export function ToastRegion({ children, className, ...rest }: ToastRegionProps) 
     <div
       {...rest}
       role="status"
+      // `role="status"` is implicitly `aria-atomic="true"`, which would re-announce every
+      // toast already on screen each time a new one arrives. Only the addition is news.
+      aria-atomic={false}
       aria-label="Notifications"
       className={['tm-toast-region', className].filter(Boolean).join(' ')}
     >

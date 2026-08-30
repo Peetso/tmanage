@@ -1,11 +1,4 @@
-import {
-  cloneElement,
-  isValidElement,
-  useId,
-  useState,
-  type KeyboardEvent,
-  type ReactElement,
-} from 'react';
+import { cloneElement, isValidElement, useEffect, useId, useState, type ReactElement } from 'react';
 
 export interface TooltipProps {
   /** The supplementary sentence. Text only — a tooltip that needs structure is a popover. */
@@ -30,7 +23,9 @@ export interface TooltipProps {
 /**
  * The tooltip, built to WCAG 1.4.13's three demands rather than to a hover effect:
  *
- * - **Dismissable** — Escape hides it without moving focus or activating the trigger.
+ * - **Dismissable** — Escape hides it without moving focus or activating the trigger,
+ *   and it works for a *hover-only* opening too: a mouse user's focus is elsewhere, so
+ *   while the bubble is open the Escape listener sits on the document, not the wrapper.
  * - **Hoverable** — the bubble is inside the wrapper the pointer listeners sit on, so
  *   moving the pointer onto the bubble does not close it.
  * - **Persistent** — it stays until hover/focus ends or Escape; nothing times it out.
@@ -43,6 +38,19 @@ export interface TooltipProps {
 export function Tooltip({ content, children, defaultOpen = false }: TooltipProps) {
   const id = useId();
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   if (!isValidElement(children)) {
     throw new Error('Tooltip needs a single element child to describe.');
@@ -63,21 +71,13 @@ export function Tooltip({ content, children, defaultOpen = false }: TooltipProps
     },
   });
 
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
   return (
-    // Pointer and key listeners on a wrapper: the trigger keeps its own handlers, and the
-    // hover area includes the bubble itself, which is what "hoverable" means.
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+    // Pointer listeners on a wrapper: the trigger keeps its own handlers, and the hover
+    // area includes the bubble itself, which is what "hoverable" means.
     <span
       className="tm-tooltip"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
-      onKeyDown={onKeyDown}
     >
       {trigger}
       <span role="tooltip" id={id} className="tm-tooltip__bubble" data-open={open || undefined}>

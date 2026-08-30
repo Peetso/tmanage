@@ -43,6 +43,19 @@
   --tm-on-tone: var(--ink-800);
 }
 
+/*
+ * A custom property resolves its var() references on the element that DECLARES it, not
+ * the one that uses it. Declared on `:root`, `--tm-on-tone` binds the light `--ink-800`
+ * once, and every "the word stays ink" pairing silently went dark-on-dark inside a
+ * `[data-theme='dark']` subtree — the Field error and the done/blocked/waiting capsule
+ * words were invisible in every dark baseline. Re-declaring on the themed root re-binds
+ * against the dark palette. Found by the visual harness the day the choice errors landed
+ * in a dark shot; the defect predates them.
+ */
+[data-theme='dark'] {
+  --tm-on-tone: var(--ink-800);
+}
+
 /* ── Buttons ──────────────────────────────────────────────────────────────────── */
 
 .tm-button {
@@ -370,6 +383,79 @@
   cursor: not-allowed;
 }
 
+/* ── Combobox ─────────────────────────────────────────────────────────────────── */
+
+.tm-combobox {
+  position: relative;
+  display: flex;
+}
+
+.tm-combobox__control {
+  flex: 1;
+  padding-inline-end: var(--s10);
+}
+
+.tm-combobox__listbox {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s1));
+  inset-inline: 0;
+  z-index: 60;
+  margin: 0;
+  padding: var(--s1);
+  list-style: none;
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  max-block-size: calc(var(--row) * 7);
+  overflow-y: auto;
+  display: none;
+}
+
+.tm-combobox__listbox[data-open] {
+  display: block;
+}
+
+.tm-combobox__option {
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-micro);
+  cursor: pointer;
+}
+
+/*
+ * The active option is the *virtual* focus — DOM focus stays on the input — so this rule
+ * is a keyboard focus indicator and owes WCAG 1.4.11 its 3:1. The paper shift alone was
+ * ~1.2:1 (found by the review fleet's token-law lens): in dark theme nothing visibly
+ * moved under ArrowDown. The inset ink ring is the shape that actually carries it —
+ * ink on paper holds in both themes — and it is deliberately not lime: selection, law 2.
+ */
+.tm-combobox__option[data-active] {
+  background: var(--paper-150);
+  box-shadow: inset 0 0 0 var(--b-expressive) var(--ink-950);
+}
+
+.tm-combobox__option[aria-selected='true'] {
+  font-weight: 600;
+}
+
+.tm-combobox__empty {
+  padding: var(--s2) var(--s3);
+  color: var(--ink-650);
+}
+
+/* ── DateField, TimeField ─────────────────────────────────────────────────────── */
+
+/*
+ * `color-scheme` is what makes the native picker glyph and popup follow the theme —
+ * without it, dark mode gets a black calendar icon on a dark control.
+ */
+.tm-date-field__control {
+  color-scheme: light;
+}
+
+[data-theme='dark'] .tm-date-field__control {
+  color-scheme: dark;
+}
+
 /* ── Tooltip ──────────────────────────────────────────────────────────────────── */
 
 .tm-tooltip {
@@ -420,7 +506,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  max-inline-size: var(--lens);
+  /* Clamped so the 320px reflow viewport (40-DESIGN-SYSTEM §10) never clips a message. */
+  max-inline-size: min(var(--lens), calc(100vw - var(--s6) * 2));
   pointer-events: none;
 }
 
@@ -937,6 +1024,12 @@
   to {
     background-position: -200% 0;
   }
+}
+
+/* The one animation with a physical direction: reverse it so the shimmer reads with the
+   text in Arabic rather than against it. */
+[dir='rtl'] .tm-skeleton {
+  animation-direction: reverse;
 }
 
 /*
