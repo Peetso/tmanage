@@ -361,13 +361,20 @@ export function ProjectChannelScreen({
         </div>
       ) : null}
 
-      <Composer
-        api={api}
-        organizationSlug={organizationSlug}
-        conversationId={conversationId}
-        archived={archived}
-        label="Message the channel"
-      />
+      {/*
+       * Only for a channel that actually loaded. A member outside the room gets the load
+       * error and nothing else — a composer under a denial would be a control that cannot
+       * work, and AUTH-04's e2e journey asserts its absence.
+       */}
+      {conversation.data !== undefined ? (
+        <Composer
+          api={api}
+          organizationSlug={organizationSlug}
+          conversationId={conversationId}
+          archived={archived}
+          label="Message the channel"
+        />
+      ) : null}
     </AppShell>
   );
 }

@@ -31,7 +31,8 @@
     "contracts:validate": "pnpm --filter @tmanage/contracts validate",
     "contracts:generate": "pnpm --filter @tmanage/contracts generate",
     "dev": "pnpm --parallel --filter @tmanage/api --filter @tmanage/web --filter @tmanage/worker dev",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm contracts:validate && pnpm audit:design && pnpm test"
+    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm contracts:validate && pnpm audit:design && pnpm test",
+    "test:e2e": "pnpm --filter @tmanage/e2e test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

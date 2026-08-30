@@ -1,6 +1,7 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  - 'e2e'
 
 # Keep transitive resolution deterministic across the workspace.
 # The committed pnpm-lock.yaml is the authoritative pin; package.json carries
