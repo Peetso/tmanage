@@ -273,6 +273,96 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, NOTIF-001 first half, same session
+
+The third full chain of this session, run twice honestly rather than once approximately.
+**Attempt 1 failed one case**, and the case was a gate doing its job: `schema.db.test.ts`
+compares the Drizzle `TABLES` map against `information_schema`, and `notifications` had been
+added to the schema file without being added to the map — the exact drift the map's own
+comment warns about. One line (`79e4bdd`), then **attempt 2 green end to end** on that tree.
+
+| Gate                        | Result                                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                                                        |
+| `pnpm typecheck`            | **Done** — six projects, first pass                                                                                          |
+| `pnpm lint`                 | Clean, no output                                                                                                             |
+| `pnpm test`                 | **879 passed across 44 files.** Up from 876: three worker cases — the recipient rule against the domain's own ceiling        |
+| `pnpm test:db`              | **26 files, 728 passed, 29 skipped (757).** Up from 719: six NOTIF-001 cases, and three schema cases the new table generates |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                                        |
+| `pnpm format:check` (again) | Clean                                                                                                                        |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                                                     |
+
+---
+
+## NOTIF-001 first half — one person told one thing, current permissions first
+
+Commits `76a1d2e` and `79e4bdd`, verified by the chain above. The ticket counts **half
+(4 of 8)** by the rule: §6's scope row reads "notification record, preferences, bundle
+foundation". The record and the foundation are built and tested; **preferences are absent
+and have no storage to be built on** — `contracts/tmanage-core.dbml` draws no preferences
+table, so building one would outrun the contract rather than implement it.
+
+### The record: a reference envelope with one verb
+
+`0010_notifications.sql` lands the contract's table verbatim: type, object type, object id
+— never a title, excerpt or body, because a notification outlives the access decision that
+allowed it, and any content it carried would be readable after revocation. The reader
+resolves the object through the ordinary authorized read path at display time, where a
+revoked object answers 404. Only `read_at` may ever change, forward only; the trigger
+refuses everything else for every credential, and the suite exercises it from both
+directions. `tmanage_app` holds INSERT and UPDATE (marking read is a person's act,
+confined by the trigger); `tmanage_worker` holds INSERT alone. `notifications` registers
+in `TENANT_TABLES` in the same commit, per the standing rule — and in the schema drift
+map one commit later, per the chain above.
+
+### The consumers: recipients resolved at delivery, not inferred from receipt
+
+Two more `WORKER_OUTBOX_HANDLERS` (the registry moves to `consumers/registry.ts` so
+consumers never import each other):
+
+- **`client_request.submitted.v1`** → every internal member whose role ceiling includes
+  `client_request.triage` and who can reach the project (org-wide scope, or a project
+  membership) — §4's "manager inbox". The capability half is asked of the domain's own
+  ceiling (`hasCapability`), not restated; the suite computes its expectation from
+  `capabilitiesFor`, so it asserts the wiring rather than a copy of the matrix. The
+  member on the project _without_ the capability receives nothing, and that absence is
+  asserted by name.
+- **`client_request.transitioned.v1`** → the person who asked, `submitted_by_user_id` —
+  except `withdrawn`, the submitter's own act and the only client-performed transition §6
+  of `23-ERD` has. The dedupe key carries the request version, so the legal
+  `triage ⇄ needs_clarification` cycle notifies each time while a redelivery of one event
+  never doubles.
+
+Both recipient sets are computed from **current** membership rows inside the delivery
+transaction — `24-EVENT-CATALOG` §6's rule, proved by its exact case: a client membership
+suspended between the event and its delivery is told nothing.
+
+### The dedupe key is the bundle foundation
+
+`uq_notifications_dedupe` is the consumer's idempotency under at-least-once redelivery
+(`ON DUPLICATE KEY UPDATE id = id`, the collision reported as the no-op it is) — and it is
+where bundling starts: a bundler is a policy about keys. Widen the key and five events
+become one row. The column exists now so that policy has somewhere to live.
+
+### Named gaps — NOTIF-001, carried deliberately
+
+1. **Preferences do not exist.** No table in the contract, no quiet hours, no channel
+   choice, no digest. The settings screen in `22-SCREEN-BY-SCREEN` names them; storage is
+   a contract decision first, and the half stays half until it is made.
+2. **No read surface.** Listing one's notifications and marking one read have no route —
+   the position AUD-001 took (service before viewer). The permission matrix names no
+   notification capability, so the guard declaration is a decision the read surface's
+   ticket must make deliberately rather than this one inventing a capability.
+3. **No bundling.** The foundation is the key; the policy over it is unwritten.
+4. **Two producers feed it.** Every other §4 event with "notification" among its
+   consumers — `membership.invited`, `work_item.blocked`, approvals, deliverables — has
+   no producer yet.
+5. **`work_item.updated.v1` notifies nobody**, deliberately: a client is answered through
+   their request's own transitions, which the lifecycle rule already emits, and an
+   internal member watching a board does not need a row per state change.
+
+---
+
 ## Verification actually run — 2026-08-30, WEB-003 second half, same session
 
 The second full chain of this session, one uninterrupted background run on the tree commit
@@ -5314,6 +5404,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                 |
 | 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                 |
 | 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else   |
+| 6   | NOTIF-001  |   8 | half 4   | The record and its consumers, permission-checked at delivery, idempotent by the dedupe key. **Preferences are absent** — the contract draws no table for them |
 | 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                             |
 | 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                       |
 | 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                   |
@@ -5328,15 +5419,15 @@ zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first ent
 **WEB-003's first half the same day** as its fourth. **PLAT-004's row moved from half to
 whole on 2026-08-30**, the day the relay landed.
 
-| Sprint                                                                                          | Tickets      | Points         |
-| ----------------------------------------------------------------------------------------------- | ------------ | -------------- |
-| Sprint 0 (§3)                                                                                   | 5½ of 8      | 36.5 of 52     |
-| Sprint 1 (§4)                                                                                   | 7 of 8       | 50 of 58       |
-| Sprint 2 (§5)                                                                                   | 3½ of 6      | 30.5 of 53     |
-| Sprint 3 (§6)                                                                                   | 4 of 7       | 37 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**   |
-| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293       |
-| **§§3–12**                                                                                      | **27 of 70** | **215 of 583** |
+| Sprint                                                                                          | Tickets       | Points         |
+| ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
+| Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52     |
+| Sprint 1 (§4)                                                                                   | 7 of 8        | 50 of 58       |
+| Sprint 2 (§5)                                                                                   | 3½ of 6       | 30.5 of 53     |
+| Sprint 3 (§6)                                                                                   | 4½ of 7       | 41 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
+| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
+| **§§3–12**                                                                                      | **27½ of 70** | **219 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5346,8 +5437,9 @@ whole on 2026-08-30**, the day the relay landed.
 **with CHAT-002 on 2026-08-29: 24½ of 70 and 190 of 583 — 32.6%**, **with CHAT-003 verified
 on 2026-08-30: 25½ of 70 and 198 of 583 — 34.0%**, **with WEB-003's first half the same
 day: 26 of 70 and 204.5 of 583 — 35.1%**, **with PLAT-004 made whole later that day:
-26½ of 70 and 208.5 of 583 — 35.8%**, and **with WEB-003's second half the same session:
-27 of 70 and 215 of 583 — 36.9%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
+26½ of 70 and 208.5 of 583 — 35.8%**, **with WEB-003's second half the same session:
+27 of 70 and 215 of 583 — 36.9%**, and **with NOTIF-001's first half after it: 27½ of 70
+and 219 of 583 — 37.6%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
 names — conversations, messages and the thread sequence model — is built and covered by a suite
 that ran.
 
@@ -5360,20 +5452,22 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**`WEB-003` was made whole on 2026-08-30 — the second ticket-sized piece of that session,
-after PLAT-004 — and this section is replaced rather than amended.** Sprint 4 is still the
-only complete one.
+**`NOTIF-001`'s first half shipped on 2026-08-30 — the third ticket-sized piece of that
+session — and this section is replaced rather than amended.** Sprint 4 is still the only
+complete one.
 
-**The next one is `NOTIF-001` — notification records.** Unblocked for the first time by
-PLAT-004: it is the primary consumer `24-EVENT-CATALOG` §4 names for
-`client_request.submitted.v1` and `client_request.transitioned.v1`, both of which are now
-published and currently dispatched to zero consumers. §6's row scopes it as "notification
-record, preferences, bundle foundation" (8 points, depending on PLAT-004). A notifications
-table would be new — register it in `TENANT_TABLES` **in the same commit** — and its
-consumer registers in `WORKER_OUTBOX_HANDLERS` beside the lifecycle rule. The event
-catalog's §6 binds any consumer with user-facing side effects: it must resolve current
-permissions before writing a notification a person can read, and a delayed notification
-must not reveal an object after access was revoked.
+**The next one is `WORK-003` — dependencies and the health signal.** §5's row is the last
+zero in Sprints 0–2 that this machine can actually run: OBS-001 wants infrastructure,
+PLAT-002/PLAT-003 want a container runtime and a CI that billing has switched off, UI-001's
+remainder wants a real browser. WORK-003's own note in the re-derived table says what is
+missing: the `blocked` state and its facts already live in WORK-001's machine (blocker
+reason and ask to enter, resolution to leave, all tested), but there is **no dependency
+relation, no health signal, and no table** — `13-ENGINEERING` §5 names
+`work_item_dependencies` in the vertical-slice schema, and `24-EVENT-CATALOG` §4 has
+`work_item.blocked.v1` ("blocker activated → health, inbox, notification") with no
+producer. Check `23-ERD` and `07-DATA-MODEL` for the dependency shape before writing DDL;
+register any new table in `TENANT_TABLES` **and the schema `TABLES` drift map** in the
+same commit — this session paid one chain run for forgetting the second.
 
 The alternatives, in order after it:
 
@@ -5386,7 +5480,7 @@ The alternatives, in order after it:
    `28-SPRINT-TICKETS`; it is a migration, recorded in the WEB-004 gaps above.
 4. **`RT-001` — realtime.** Also unblocked by PLAT-004, and the channel screen's "new
    messages appear when the channel is reloaded" is its absence made visible. 13→split, and
-   the socket infrastructure it needs is a larger bite than NOTIF-001's table.
+   the socket infrastructure it needs is a larger bite than a table-and-consumer ticket.
 
 **A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
 The client request loop still cannot hold a conversation _with a client_. `CHAT-001` built the
@@ -5535,17 +5629,28 @@ directory, unscheduled" instead, which is both shorter and true.
     the channel and a thread's replies alike. 18 web cases, among them the property that
     every document the notation can emit is admissible to `sanitizeRichText`.
 
+32. ~~NOTIF-001 first half~~ — **done this session, counted half by the rule.** The
+    notifications table exactly as the contract drew it — a reference envelope whose one
+    mutable fact is `read_at`, forward only — and two relay consumers: a submission
+    notifies the triage-capable people who can reach the project, a transition notifies
+    the person who asked (never their own withdrawal), both recipient sets resolved from
+    current membership rows at delivery per the catalog's §6, both idempotent by the
+    dedupe key that is also the future bundler's seam. Preferences have no table in the
+    contract, so the half stays half. 6 database cases, 3 worker unit cases; the chain's
+    first attempt failed on the schema drift map missing the new table — the gate working
+    — and the second ran green.
+
 ### Progress
 
-**27 of 70 tickets. 215 of 583 story points — 36.9%, across Sprints 0–9.** Derived ticket by
+**27½ of 70 tickets. 219 of 583 story points — 37.6%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
 numerator **and** in the denominator; the percentage reads higher today only because the CHAT
-tickets, the whole of PLAT-004 and now the whole of WEB-003 have since been added to an honest
-count. Screen tickets: **4½ of 11** — WEB-001, WEB-003, WEB-004 and WEB-005 whole, WEB-002
-half. **Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003. Sprint 0
-stands at 5½ of 8 with PLAT-004 whole.**
+tickets, the wholes of PLAT-004 and WEB-003 and NOTIF-001's first half have since been added to
+an honest count. Screen tickets: **4½ of 11** — WEB-001, WEB-003, WEB-004 and WEB-005 whole,
+WEB-002 half. **Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — and
+half of NOTIF-001. Sprint 0 stands at 5½ of 8 with PLAT-004 whole.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
