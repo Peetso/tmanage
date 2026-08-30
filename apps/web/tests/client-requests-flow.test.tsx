@@ -74,7 +74,7 @@ function request(overrides: Record<string, unknown> = {}) {
     category: 'new-page',
     description: 'Half of our booking calls are Arabic speakers asking the same six questions.',
     urgencyReason: null,
-    desiredAt: '2026-09-03T00:00:00.000Z',
+    desiredAt: '2026-09-03',
     status: 'submitted',
     clarificationQuestion: null,
     clientVisibleReason: null,
@@ -170,7 +170,8 @@ describe('CL-09 the new request form', () => {
     await user.click(screen.getByRole('button', { name: 'Send request' }));
 
     await waitFor(() => expect(sent).toHaveLength(1));
-    expect((sent[0] as { desiredAt: string }).desiredAt).toBe('2026-09-03T00:00:00.000Z');
+    // A bare calendar date since 0012 — no invented midnight for a timezone to move.
+    expect((sent[0] as { desiredAt: string }).desiredAt).toBe('2026-09-03');
   });
 
   it('offers no way to attach a file, and says why rather than leaving a gap', async () => {
@@ -267,7 +268,7 @@ describe('CL-10 the request detail', () => {
     renderDetail({
       status: 'accepted',
       commitment: 'committed',
-      committedAt: '2026-11-14T00:00:00.000Z',
+      committedAt: '2026-11-14',
     });
 
     // The dates are asserted by their *label*, not their formatting: `Intl.DateTimeFormat`

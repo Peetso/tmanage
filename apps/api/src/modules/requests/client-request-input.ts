@@ -64,6 +64,31 @@ export function requiredVersion(raw: unknown, details: ValidationDetail[]): numb
 }
 
 /**
+ * Validate a bare `YYYY-MM-DD` calendar date, or add a field error and return `undefined`.
+ *
+ * Both request dates are calendar dates in `DATE` columns since 0012, carried as strings end
+ * to end. This used to accept ISO instants and store midnight UTC in a `DATETIME(3)`, which
+ * read back a day early for anyone west of UTC — the defect the migration removed.
+ */
+function parseCalendarDay(
+  raw: unknown,
+  field: string,
+  details: ValidationDetail[],
+): string | undefined {
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    details.push({ field, message: 'must be a calendar date in YYYY-MM-DD form' });
+    return undefined;
+  }
+  // `2026-02-31` parses in some engines by rolling into March. Round-tripping catches it.
+  const parsed = new Date(`${raw}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw) {
+    details.push({ field, message: 'is not a real date' });
+    return undefined;
+  }
+  return raw;
+}
+
+/**
  * `23-ERD` §6's "committed date or explicit unscheduled state", parsed from one field.
  *
  * One field rather than two, because it is one choice. Two nullable inputs would admit a third
@@ -74,20 +99,19 @@ export function parseCommitment(raw: unknown, details: ValidationDetail[]): Comm
   if (raw === undefined) return undefined;
   if (raw === 'unscheduled') return { kind: 'unscheduled' };
 
-  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
-    details.push({
-      field: 'commitment',
-      message: "must be 'unscheduled' or an ISO 8601 instant, such as 2026-09-30T17:00:00Z",
-    });
+  const day = parseCalendarDay(raw, 'commitment', details);
+  if (day === undefined) {
+    // Rewrite the generic shape error so the one-field-two-answers contract stays stated.
+    const last = details[details.length - 1];
+    if (last?.field === 'commitment' && last.message.startsWith('must be')) {
+      details[details.length - 1] = {
+        field: 'commitment',
+        message: "must be 'unscheduled' or a calendar date in YYYY-MM-DD form",
+      };
+    }
     return undefined;
   }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    details.push({ field: 'commitment', message: 'is not a real instant' });
-    return undefined;
-  }
-  return { kind: 'committed', at: parsed };
+  return { kind: 'committed', day };
 }
 
 interface SubmitBody {
@@ -160,24 +184,14 @@ export function parseSubmitBody(
     }
   }
 
-  // The date the client wants, and the reason this parser accepts a full instant rather than a
-  // calendar date: a request "by Friday close of business" is a real thing to ask for, and
-  // guessing a time of day for a bare date is how a request becomes a deadline nobody stated.
-  let desiredAt: Date | undefined;
+  // The date the client wants, as a calendar date. An earlier revision accepted a full
+  // instant here, arguing "by Friday close of business" is a real thing to ask for — but the
+  // only writer is a date field, every value ever sent was midnight UTC, and storing that
+  // instant in a DATETIME read back a day early west of UTC. A time of day someone actually
+  // states belongs in the description until a screen exists to ask for one.
+  let desiredAt: string | undefined;
   if (body?.desiredAt !== undefined && body.desiredAt !== null) {
-    if (typeof body.desiredAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(body.desiredAt)) {
-      details.push({
-        field: 'desiredAt',
-        message: 'must be an ISO 8601 instant, such as 2026-09-30T17:00:00Z',
-      });
-    } else {
-      const parsed = new Date(body.desiredAt);
-      if (Number.isNaN(parsed.getTime())) {
-        details.push({ field: 'desiredAt', message: 'is not a real instant' });
-      } else {
-        desiredAt = parsed;
-      }
-    }
+    desiredAt = parseCalendarDay(body.desiredAt, 'desiredAt', details);
   }
 
   if (details.length > 0 || !projectId) {

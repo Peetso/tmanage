@@ -125,7 +125,9 @@ export function describeDateGap(
 ): string | null {
   if (desiredAt === null || committedDay === null) return null;
 
-  const desired = new Date(desiredAt);
+  // Both are 'YYYY-MM-DD' since 0012; pinning both to midnight UTC makes the difference a
+  // whole number of days in every zone.
+  const desired = new Date(desiredAt.length === 10 ? `${desiredAt}T00:00:00.000Z` : desiredAt);
   const committed = new Date(`${committedDay}T00:00:00.000Z`);
   if (Number.isNaN(desired.getTime()) || Number.isNaN(committed.getTime())) return null;
 
@@ -141,5 +143,7 @@ export function describeDateGap(
 export function formatDay(value: string): string {
   const parsed = new Date(value.length === 10 ? `${value}T00:00:00.000Z` : value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed);
+  // UTC, because these are calendar dates pinned to midnight UTC (0012): formatting them in
+  // the reader's own zone is what showed every date a day early west of Greenwich.
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeZone: 'UTC' }).format(parsed);
 }

@@ -236,6 +236,92 @@ describe('partial failure, because MySQL DDL is not transactional', () => {
   });
 });
 
+describe('0012: calendar dates survive the DATETIME -> DATE conversion', () => {
+  beforeAll(freshDatabase);
+
+  it('truncates stored midnight-UTC instants to the calendar date they meant', async () => {
+    // Apply everything up to 0012, then write rows the way production wrote them before the
+    // migration existed: calendar dates stored as midnight UTC in DATETIME(3) columns.
+    const before = realMigrations.filter((name) => name < '0012');
+    expect(before.length).toBeLessThan(realMigrations.length);
+    const files: Record<string, string> = {};
+    for (const name of before) {
+      files[name] = await readFile(join(migrationsDirectory, name), 'utf8');
+    }
+    await migrate(connection, { directory: await migrationDir(files) });
+
+    const org = '00000000-0000-4000-8000-00000000d001';
+    const ws = '00000000-0000-4000-8000-00000000d002';
+    const project = '00000000-0000-4000-8000-00000000d003';
+    const clientOrg = '00000000-0000-4000-8000-00000000d004';
+    const user = '00000000-0000-4000-8000-00000000d005';
+    const request = '00000000-0000-4000-8000-00000000d006';
+    await connection.query(
+      `INSERT INTO organizations (id, slug, name) VALUES (?, 'date-mig', 'Date Migration Co')`,
+      [org],
+    );
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [ws, org],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name, committed_at, forecast_at)
+        VALUES (?, ?, ?, 'P', '2026-09-30 00:00:00.000', '2026-10-15 00:00:00.000')`,
+      [project, org, ws],
+    );
+    await connection.query(
+      `INSERT INTO client_organizations (id, organization_id, name) VALUES (?, ?, 'C')`,
+      [clientOrg, org],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'date-mig@example.test', 'D')`,
+      [user],
+    );
+    await connection.query(
+      `INSERT INTO client_requests
+          (id, organization_id, project_id, client_organization_id, submitted_by_user_id,
+           title, description, state, desired_at, commitment, committed_at)
+        VALUES (?, ?, ?, ?, ?, 'T', 'D', 'accepted',
+           '2026-10-30 00:00:00.000', 'committed', '2026-11-14 00:00:00.000')`,
+      [request, org, project, clientOrg, user],
+    );
+
+    // The same bytes were applied from the copy, so the checksums agree and this run applies
+    // only what is left — 0012 against a table that already holds data.
+    await migrate(connection, { directory: migrationsDirectory });
+
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT table_name AS tbl, column_name AS col, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND ((table_name = 'projects' AND column_name IN ('committed_at', 'forecast_at'))
+            OR (table_name = 'client_requests' AND column_name IN ('desired_at', 'committed_at')))`,
+    );
+    expect(columns).toHaveLength(4);
+    for (const row of columns) {
+      expect(String(row['type'])).toBe('date');
+    }
+
+    // The stored midnight-UTC instants read back as the calendar dates they always meant —
+    // proven with DATE_FORMAT so no driver or session timezone can touch the comparison.
+    const [projectRows] = await connection.query<RowDataPacket[]>(
+      `SELECT DATE_FORMAT(committed_at, '%Y-%m-%d') AS c, DATE_FORMAT(forecast_at, '%Y-%m-%d') AS f
+         FROM projects WHERE id = ?`,
+      [project],
+    );
+    expect(projectRows[0]?.['c']).toBe('2026-09-30');
+    expect(projectRows[0]?.['f']).toBe('2026-10-15');
+
+    const [requestRows] = await connection.query<RowDataPacket[]>(
+      `SELECT DATE_FORMAT(desired_at, '%Y-%m-%d') AS d, DATE_FORMAT(committed_at, '%Y-%m-%d') AS c
+         FROM client_requests WHERE id = ?`,
+      [request],
+    );
+    expect(requestRows[0]?.['d']).toBe('2026-10-30');
+    expect(requestRows[0]?.['c']).toBe('2026-11-14');
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

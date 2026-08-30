@@ -145,7 +145,9 @@ export function RequestTriageScreen({
       const result = await acceptClientRequest(api, organizationSlug, found.id, {
         version: found.version,
         clientSafeScopeSummary: scopeSummary.trim(),
-        commitment: unscheduled ? 'unscheduled' : `${committedDay}T00:00:00.000Z`,
+        // A date input gives 'YYYY-MM-DD' and since 0012 that is what the API stores: a
+        // calendar date, not an invented midnight for a timezone to move.
+        commitment: unscheduled ? 'unscheduled' : committedDay,
       });
       queries.setQueryData(['client-request', organizationSlug, clientRequestId], result.request);
       await queries.invalidateQueries({ queryKey: ['client-requests', organizationSlug] });

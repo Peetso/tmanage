@@ -120,7 +120,7 @@ export interface ClientRequest {
   readonly category: string;
   readonly description: string;
   readonly urgencyReason: string | null;
-  /** What was asked for. Never a commitment — the field is not called `dueAt` on purpose. */
+  /** What was asked for, as `YYYY-MM-DD`. Never a commitment — not called `dueAt` on purpose. */
   readonly desiredAt: string | null;
   readonly status: ClientRequestStatus;
   readonly clarificationQuestion: string | null;
@@ -140,7 +140,7 @@ export interface SubmitClientRequestInput {
   readonly description: string;
   readonly category?: string;
   readonly urgencyReason?: string;
-  /** An ISO 8601 instant. The API refuses a bare calendar date rather than guessing a time. */
+  /** A `YYYY-MM-DD` calendar date. The API refuses an instant — a date with no time has no zone to shift in. */
   readonly desiredAt?: string;
 }
 

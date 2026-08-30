@@ -54,8 +54,8 @@ const PROJECT = {
   id: 'proj-1',
   name: 'Atlas Website Relaunch',
   status: 'active',
-  committedAt: '2026-10-15T00:00:00.000Z',
-  forecastAt: '2026-10-29T00:00:00.000Z',
+  committedAt: '2026-10-15',
+  forecastAt: '2026-10-29',
 };
 
 function item(overrides: Record<string, unknown> = {}) {

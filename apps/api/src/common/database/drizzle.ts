@@ -71,8 +71,10 @@ function isResultSetHeader(result: unknown): result is ResultSetHeader {
  * has nothing to do with Drizzle.
  *
  * The conversion is lossless for this schema: the session time zone is UTC, every temporal
- * column is `DATETIME(3)`, and `toISOString()` preserves exactly three fractional digits —
- * so Drizzle's decoder reconstructs the identical instant.
+ * column that inflates to a `Date` is `DATETIME(3)`, and `toISOString()` preserves exactly
+ * three fractional digits — so Drizzle's decoder reconstructs the identical instant. `DATE`
+ * columns (0012) never reach the `Date` branch: the pool's `dateStrings: ['DATE']` keeps
+ * them the `'YYYY-MM-DD'` strings their string-mode columns pass through verbatim.
  */
 function toDriverText(value: unknown): unknown {
   return value instanceof Date ? value.toISOString().replace('T', ' ').replace('Z', '') : value;

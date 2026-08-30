@@ -207,10 +207,6 @@ export interface AcceptedClientRequest {
   readonly workItemCreated: boolean;
 }
 
-function iso(value: Date | null): string | null {
-  return value ? value.toISOString() : null;
-}
-
 function toView(row: ClientRequestRow, clientOrganizationName: string | null): ClientRequestView {
   return {
     id: row.id,
@@ -222,13 +218,13 @@ function toView(row: ClientRequestRow, clientOrganizationName: string | null): C
     category: row.category,
     description: row.description,
     urgencyReason: row.urgencyReason,
-    desiredAt: iso(row.desiredAt),
+    desiredAt: row.desiredAt,
     state: row.state,
     clarificationQuestion: row.clarificationQuestion,
     clientVisibleReason: row.clientVisibleReason,
     clientSafeScopeSummary: row.clientSafeScopeSummary,
     commitment: row.commitment,
-    committedAt: iso(row.committedAt),
+    committedAt: row.committedAt,
     linkedWorkItemId: row.linkedWorkItemId,
     version: Number(row.version),
     createdAt: row.createdAt.toISOString(),
@@ -271,13 +267,13 @@ function toClientView(row: ClientRequestRow): ClientRequestClientView {
     category: row.category,
     description: row.description,
     urgencyReason: row.urgencyReason,
-    desiredAt: iso(row.desiredAt),
+    desiredAt: row.desiredAt,
     status: clientStatusOf(row.state),
     clarificationQuestion: row.clarificationQuestion,
     clientVisibleReason: row.clientVisibleReason,
     clientSafeScopeSummary: row.clientSafeScopeSummary,
     commitment: row.commitment,
-    committedAt: iso(row.committedAt),
+    committedAt: row.committedAt,
     canWithdraw: clientRequestStateMachine.transition(row.state as ClientRequestState, 'withdrawn')
       .ok,
     version: Number(row.version),
@@ -576,7 +572,12 @@ export class ClientRequestsService {
               // A committed date is a date the work is due. An unscheduled acceptance leaves it
               // null rather than inventing one, which is the whole point of §6 admitting an
               // "explicit unscheduled state" as an answer.
-              ...(input.commitment.kind === 'committed' ? { dueAt: input.commitment.at } : {}),
+              // `work_items.due_at` is still an instant, and the commitment is a calendar
+              // date since 0012 — midnight UTC preserves the due date the pre-0012 code
+              // stored. Converting `due_at` itself is a WORK-scope decision, not this one's.
+              ...(input.commitment.kind === 'committed'
+                ? { dueAt: new Date(`${input.commitment.day}T00:00:00.000Z`) }
+                : {}),
             });
             workItemId = workItem.id;
             created = true;

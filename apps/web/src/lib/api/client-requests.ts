@@ -36,7 +36,7 @@ export interface ClientRequestRecord {
   readonly category: string;
   readonly description: string;
   readonly urgencyReason: string | null;
-  /** What the client asked for. Never a commitment. */
+  /** What the client asked for, as `YYYY-MM-DD`. Never a commitment. */
   readonly desiredAt: string | null;
   readonly state: ClientRequestState;
   readonly clarificationQuestion: string | null;
@@ -131,7 +131,7 @@ export async function transitionClientRequest(
 export interface AcceptClientRequestBody {
   readonly version: number;
   readonly clientSafeScopeSummary: string;
-  /** `"unscheduled"` or an ISO 8601 instant. Required — silence is not an answer to "when". */
+  /** `"unscheduled"` or a `YYYY-MM-DD` date. Required — silence is not an answer to "when". */
   readonly commitment: string;
   /** Point at existing work. Mutually exclusive with `work`. */
   readonly linkedWorkItemId?: string;

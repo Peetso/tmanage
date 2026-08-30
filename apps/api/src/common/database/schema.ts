@@ -2,6 +2,7 @@ import {
   bigint,
   boolean,
   char,
+  date,
   datetime,
   index,
   json,
@@ -185,8 +186,13 @@ export const projects = mysqlTable(
     name: varchar('name', { length: 190 }).notNull(),
     status: varchar('status', { length: 32 }).notNull().default('active'),
     ownerUserId: char('owner_user_id', { length: 36 }),
-    committedAt: datetime('committed_at', { mode: 'date', fsp: 3 }),
-    forecastAt: datetime('forecast_at', { mode: 'date', fsp: 3 }),
+    /**
+     * Calendar dates, carried as `'YYYY-MM-DD'` strings end to end (0012). A `Date` here
+     * would re-import the day-early defect the migration removed: an instant rendered in a
+     * reader's own zone moves the date west of UTC, a string never does.
+     */
+    committedAt: date('committed_at', { mode: 'string' }),
+    forecastAt: date('forecast_at', { mode: 'string' }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
@@ -455,14 +461,17 @@ export const clientRequests = mysqlTable(
     category: varchar('category', { length: 64 }).notNull().default('general'),
     description: text('description').notNull(),
     urgencyReason: varchar('urgency_reason', { length: 500 }),
-    /** What the client asked for. Never what the studio agreed to — that is `committedAt`. */
-    desiredAt: datetime('desired_at', { mode: 'date', fsp: 3 }),
+    /**
+     * What the client asked for. Never what the studio agreed to — that is `committedAt`.
+     * A calendar date carried as a `'YYYY-MM-DD'` string (0012), same as the project dates.
+     */
+    desiredAt: date('desired_at', { mode: 'string' }),
     state: varchar('state', { length: 32 }).notNull(),
     clarificationQuestion: text('clarification_question'),
     clientVisibleReason: varchar('client_visible_reason', { length: 1000 }),
     clientSafeScopeSummary: text('client_safe_scope_summary'),
     commitment: mysqlEnum('commitment', CLIENT_REQUEST_COMMITMENT),
-    committedAt: datetime('committed_at', { mode: 'date', fsp: 3 }),
+    committedAt: date('committed_at', { mode: 'string' }),
     linkedWorkItemId: char('linked_work_item_id', { length: 36 }),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),

@@ -43,7 +43,7 @@ import {
 interface AcceptanceBody {
   readonly version?: unknown;
   readonly clientSafeScopeSummary?: unknown;
-  /** `"unscheduled"` or an ISO 8601 instant. Required — silence is not an answer to "when". */
+  /** `"unscheduled"` or a `YYYY-MM-DD` date. Required — silence is not an answer to "when". */
   readonly commitment?: unknown;
   /** Point at existing work. Mutually exclusive with `work`. */
   readonly linkedWorkItemId?: unknown;
@@ -56,7 +56,7 @@ interface TransitionBody {
   readonly clarificationQuestion?: unknown;
   readonly clientVisibleReason?: unknown;
   readonly clientSafeScopeSummary?: unknown;
-  /** `"unscheduled"` or an ISO 8601 instant — `23-ERD` §6's two alternatives. */
+  /** `"unscheduled"` or a `YYYY-MM-DD` date — `23-ERD` §6's two alternatives. */
   readonly commitment?: unknown;
   readonly linkedWorkItemId?: unknown;
 }
@@ -239,7 +239,7 @@ export class ClientRequestsController {
       // to "when". `23-ERD` §6 admits `unscheduled` as that answer; it does not admit silence.
       details.push({
         field: 'commitment',
-        message: "must be 'unscheduled' or an ISO 8601 instant",
+        message: "must be 'unscheduled' or a calendar date in YYYY-MM-DD form",
       });
     }
 

@@ -72,7 +72,7 @@ function record(overrides: Record<string, unknown> = {}) {
     category: 'new-page',
     description: 'Our Arabic guests ask the same booking questions by phone.',
     urgencyReason: null,
-    desiredAt: '2026-09-03T00:00:00.000Z',
+    desiredAt: '2026-09-03',
     state: 'triage',
     clarificationQuestion: null,
     clientVisibleReason: null,
@@ -383,7 +383,7 @@ describe('REQ-03 the commitment review', () => {
     expect(sent[0]?.body).toEqual({
       version: 2,
       clientSafeScopeSummary: 'FAQ, eight questions, Arabic and English.',
-      commitment: '2026-09-10T00:00:00.000Z',
+      commitment: '2026-09-10',
     });
 
     // REQ-002 made the work and the acceptance one transaction; the screen says which happened.
@@ -435,9 +435,9 @@ describe('the triage vocabulary', () => {
   });
 
   it('says nothing about a gap that does not exist', () => {
-    expect(describeDateGap('2026-09-03T00:00:00.000Z', '2026-09-03')).toBeNull();
+    expect(describeDateGap('2026-09-03', '2026-09-03')).toBeNull();
     expect(describeDateGap(null, '2026-09-03')).toBeNull();
-    expect(describeDateGap('2026-09-03T00:00:00.000Z', null)).toBeNull();
+    expect(describeDateGap('2026-09-03', null)).toBeNull();
   });
 
   it('previews an unscheduled acceptance as an answer rather than an absence', () => {

@@ -80,8 +80,9 @@ function toProjectView(row: ProjectRow): PortalProjectView {
     id: row.id,
     name: row.name,
     status: row.status,
-    committedAt: row.committedAt ? row.committedAt.toISOString() : null,
-    forecastAt: row.forecastAt ? row.forecastAt.toISOString() : null,
+    // 'YYYY-MM-DD' strings from the DATE columns (0012), passed through unserialised.
+    committedAt: row.committedAt,
+    forecastAt: row.forecastAt,
   };
 }
 

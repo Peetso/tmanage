@@ -78,8 +78,11 @@ export interface CreateProjectInput {
    * committed from forecast from desired. A date typed on a setup screen, before anyone has
    * planned the work, is a forecast. Writing it to `committed_at` would make a promise on
    * the team's behalf that nobody made.
+   *
+   * A `'YYYY-MM-DD'` string, because the column is `DATE` (0012): a calendar date, not an
+   * instant, so no reader's timezone can move it.
    */
-  readonly forecastAt?: Date | null;
+  readonly forecastAt?: string | null;
 }
 
 export interface UpdateProjectInput {

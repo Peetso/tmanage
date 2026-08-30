@@ -123,9 +123,9 @@ export function NewClientRequestScreen({
         description: description.trim(),
         ...(category.trim() === '' ? {} : { category: category.trim() }),
         ...(urgencyReason.trim() === '' ? {} : { urgencyReason: urgencyReason.trim() }),
-        // The API takes an instant and refuses a bare calendar date rather than guessing a
-        // time of day. A date picker gives a day, so the guess is made here, visibly.
-        ...(desiredDate === '' ? {} : { desiredAt: startOfDay(desiredDate) }),
+        // A date input gives 'YYYY-MM-DD' and since 0012 that is exactly what the API
+        // stores: a calendar date, no invented time of day, no zone to shift it in.
+        ...(desiredDate === '' ? {} : { desiredAt: desiredDate }),
       });
       setSent(created);
       onSubmitted?.(created.id);
@@ -282,7 +282,7 @@ export function NewClientRequestScreen({
               <div className="tm-row">
                 <StateCapsule state="future">Asked for</StateCapsule>
                 <span className="tm-prose">
-                  {desiredDate === '' ? 'No date' : formatDay(startOfDay(desiredDate))}
+                  {desiredDate === '' ? 'No date' : formatDay(desiredDate)}
                 </span>
               </div>
               <InlineAlert tone="neutral" title="A date you ask for is not a date you are given">
@@ -393,25 +393,6 @@ function SentConfirmation({ request, providerName, organizationSlug }: SentConfi
 function errorFor(errors: ReadonlyMap<string, string>, field: string): { error?: string } {
   const message = errors.get(field);
   return message === undefined ? {} : { error: message };
-}
-
-/**
- * A calendar day as an instant: **midnight UTC**, not midnight where the reader is.
- *
- * The API refuses a bare `2026-09-03` rather than guessing a time of day, which is right — a
- * request "by the third" and one "by the third at nine" are different asks. A date input gives
- * a day, so the guess is made here, visibly, rather than left to the API to make invisibly.
- *
- * UTC because that is what `ProjectsController.parseTargetDate` already does for `targetDate`,
- * and one convention that is occasionally off by a day beats two conventions that disagree.
- * The cost is real and is recorded rather than hidden: a client west of UTC picks 3 September
- * and `Intl.DateTimeFormat` in their own zone reads the stored instant back as 2 September.
- * The proper fix is a `DATE` column for a date that has no time — `client_requests.desired_at`
- * is `DATETIME(3)`, as `projects.forecast_at` is — and that is a migration rather than a
- * screen's decision. Recorded in `docs/implementation-status.md`.
- */
-function startOfDay(day: string): string {
-  return `${day}T00:00:00.000Z`;
 }
 
 function describe(error: unknown): string {

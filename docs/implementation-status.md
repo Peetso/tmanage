@@ -29,6 +29,27 @@ change what a command does rather than merely how it is typed.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-08-30, start of the DATE-migration session
+
+The **sixteenth** consecutive run, and the table below is this run's output rather than a copy
+of the previous one. Every pair was compared by SHA-256 and, separately, by modification time —
+pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                                                             |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                                                              |
+| Modification times                        | **No pack file is newer than its copy** in either scope. Compared pair by pair: 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later, and one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. That is the shape of a copy taken _from_ the pack |
+| Uncopied pack content                     | The same five as every previous run, all deliberate: the design-handoff `.zip` (extracted into `docs/design/source/`), `TManage-Product-System-Master-Plan.docx`, and three Claude Code tooling files belonging to the pack folder — `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json`  |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                                                              |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-08-30, start of the PLAT-004 relay session
 
 The **fifteenth** consecutive run, and the table below is this run's output rather than a copy
@@ -2200,6 +2221,10 @@ every other product they have used, just set a deadline.
    and `committed_at` have carried it since PROJ-002, and `CL-01` renders both. The fix is a
    `DATE` column for a date that has no time, which is a migration; one convention that is
    occasionally off by a day was chosen over two conventions that disagree.
+   **Closed 2026-08-30 by migration 0012**, which converted all four columns — the three this
+   note names and `client_requests.committed_at`, which the triage screen filled the same way —
+   to `DATE`, carried as `'YYYY-MM-DD'` strings end to end and rendered through
+   `Intl.DateTimeFormat` pinned to UTC.
 7. **`activeNavigationId="overview"`** on all three request screens. The rail highlights Overview
    while a person is on a request page, because there is no rail item to highlight — a
    consequence of divergence 2 above rather than an oversight.
@@ -3378,6 +3403,11 @@ Dates are parsed at **midnight UTC**. A calendar date interpreted in the server'
 means different instants on two machines and shifts by a day for anyone west of Greenwich.
 `2026-02-31` is refused by round-tripping the parse, because some engines roll it into March
 rather than failing.
+
+> **Closed 2026-08-30 by migration 0012.** The midnight-UTC instant itself turned out to be
+> the residual defect — a reader west of UTC saw the stored instant a day early — and the
+> columns are now `DATE`, with the value carried as a `'YYYY-MM-DD'` string end to end. The
+> `2026-02-31` round-trip refusal survives unchanged in `parseTargetDate`.
 
 ### The workspace list exists so that a client can file something
 

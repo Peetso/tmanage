@@ -96,8 +96,8 @@ export interface SubmitClientRequestInput {
   readonly description: string;
   readonly category?: string;
   readonly urgencyReason?: string | null;
-  /** Requested, never committed — US-B01. */
-  readonly desiredAt?: Date | null;
+  /** Requested, never committed — US-B01. A `'YYYY-MM-DD'` calendar date (0012). */
+  readonly desiredAt?: string | null;
 }
 
 export interface ListClientRequestsOptions {
@@ -123,7 +123,7 @@ export interface ListClientRequestsOptions {
  * remove, and which the trigger in `0006_client_requests.sql` refuses at the engine.
  */
 export type Commitment =
-  { readonly kind: 'committed'; readonly at: Date } | { readonly kind: 'unscheduled' };
+  { readonly kind: 'committed'; readonly day: string } | { readonly kind: 'unscheduled' };
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
@@ -308,7 +308,7 @@ export class ClientRequestsRepository {
       // Null for `unscheduled`, and the trigger in 0006 refuses the incoherent pairs either
       // way round. §6 asks for a date *or* an explicit absence, never for both and never for
       // neither.
-      changes['committedAt'] = facts.commitment.kind === 'committed' ? facts.commitment.at : null;
+      changes['committedAt'] = facts.commitment.kind === 'committed' ? facts.commitment.day : null;
     }
     if (facts.linkedWorkItemId !== undefined) {
       changes['linkedWorkItemId'] = facts.linkedWorkItemId;

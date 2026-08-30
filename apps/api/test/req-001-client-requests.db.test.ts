@@ -333,9 +333,11 @@ describe('a client can finally answer', () => {
 describe('the desired date is a request, never a commitment', () => {
   it('stores what the client asked for and commits to nothing', async () => {
     const client = await signIn(world.atlas.reviewer.id);
-    const created = await submit(client, { desiredAt: '2026-10-30T17:00:00.000Z' });
+    const created = await submit(client, { desiredAt: '2026-10-30' });
 
-    expect(created.desiredAt).toBe('2026-10-30T17:00:00.000Z');
+    // The calendar date, exactly as asked. Before 0012 this was an instant and read back a
+    // day early for anyone west of UTC; now there is no time for a zone to move.
+    expect(created.desiredAt).toBe('2026-10-30');
     expect(created.committedAt).toBeNull();
     expect(created.commitment).toBeNull();
 
@@ -347,13 +349,15 @@ describe('the desired date is a request, never a commitment', () => {
     expect(row?.['k']).toBeNull();
   });
 
-  it('refuses a bare calendar date rather than guessing a time of day', async () => {
+  it('refuses an instant rather than inventing a calendar date from one', async () => {
+    // The inverse of the pre-0012 rule: the column is DATE, a date is what the screen asks
+    // for, and an instant would have to be collapsed to a date in somebody's timezone.
     const client = await signIn(world.atlas.reviewer.id);
     const response = await send('POST', '/portal/requests', client, {
       projectId: world.northstar.projectId,
       title: 'Add a careers page',
       description: 'We need a careers page.',
-      desiredAt: '2026-10-30',
+      desiredAt: '2026-10-30T17:00:00.000Z',
     });
 
     expect(response.statusCode).toBe(400);
@@ -425,18 +429,18 @@ describe('the lifecycle is 23-ERD §6’s, and the machine owns it', () => {
 
     const triaged = await move(studio, created, 'triage');
     const { request: accepted, workItemId } = await accept(studio, triaged, {
-      commitment: '2026-11-14T17:00:00.000Z',
+      commitment: '2026-11-14',
     });
 
     expect(accepted.commitment).toBe('committed');
-    expect(accepted.committedAt).toBe('2026-11-14T17:00:00.000Z');
+    expect(accepted.committedAt).toBe('2026-11-14');
     expect(accepted.linkedWorkItemId).toBe(workItemId);
 
     const seen = (
       await send('GET', `/portal/requests/${created.id}`, client)
     ).json<ClientRequestClient>();
     expect(seen.status).toBe('accepted');
-    expect(seen.committedAt).toBe('2026-11-14T17:00:00.000Z');
+    expect(seen.committedAt).toBe('2026-11-14');
     // Still what they asked for, unchanged by what was agreed.
     expect(seen.desiredAt).toBeNull();
   });
@@ -951,7 +955,7 @@ describe('REQ-002: an acceptance and its work are one transaction', () => {
     const studio = await signIn(manager().id);
     const triaged = await move(studio, created, 'triage');
 
-    const result = await accept(studio, triaged, { commitment: '2026-11-14T17:00:00.000Z' });
+    const result = await accept(studio, triaged, { commitment: '2026-11-14' });
 
     expect(result.workItemCreated).toBe(true);
     expect(result.request.linkedWorkItemId).toBe(result.workItemId);
@@ -967,8 +971,10 @@ describe('REQ-002: an acceptance and its work are one transaction', () => {
     expect(String(row?.['p'])).toBe(world.northstar.projectId);
     // The lifecycle's initial state, not something the acceptance chose.
     expect(String(row?.['s'])).toBe('backlog');
-    // A committed date is a date the work is due.
-    expect(new Date(String(row?.['d'])).toISOString()).toBe('2026-11-14T17:00:00.000Z');
+    // A committed date is a date the work is due. `work_items.due_at` is still an instant,
+    // so the calendar date is pinned to midnight UTC — the same value the pre-0012 path
+    // stored — until a WORK-scope decision converts that column too.
+    expect(new Date(String(row?.['d'])).toISOString()).toBe('2026-11-14T00:00:00.000Z');
     // `DEFAULT_AUDIENCE`. Accepting a client's request does not publish the studio's task.
     expect(String(row?.['a'])).toBe('internal');
   });

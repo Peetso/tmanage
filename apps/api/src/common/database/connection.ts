@@ -33,7 +33,12 @@ const BASE_OPTIONS = {
   charset: 'utf8mb4_unicode_ci',
   // mysql2 interprets DATETIME columns in this zone. The schema stores UTC.
   timezone: 'Z',
-  dateStrings: false,
+  // DATE columns come back as the `'YYYY-MM-DD'` strings they are (0012). Left to the
+  // default, mysql2 inflates a DATE into a JS `Date` at midnight, and the Drizzle proxy's
+  // text conversion would then hand `date(..., { mode: 'string' })` columns a
+  // `'YYYY-MM-DD 00:00:00.000'` — a time nobody stored. DATETIME/TIMESTAMP keep the
+  // `Date` inflation that `datetime(..., { mode: 'date' })` expects.
+  dateStrings: ['DATE'],
   supportBigNumbers: true,
   bigNumberStrings: false,
   namedPlaceholders: false,

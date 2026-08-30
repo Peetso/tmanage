@@ -68,7 +68,7 @@ const CREATED = {
   status: 'active',
   ownerUserId: 'user-1',
   committedAt: null,
-  forecastAt: '2026-09-30T00:00:00.000Z',
+  forecastAt: '2026-09-30',
   createdAt: '2026-08-26T00:00:00.000Z',
   updatedAt: '2026-08-26T00:00:00.000Z',
   archivedAt: null,

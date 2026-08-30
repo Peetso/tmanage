@@ -35,9 +35,9 @@ export interface ProjectSummary {
   readonly name: string;
   readonly status: string;
   readonly ownerUserId: string | null;
-  /** A promise. Set when a milestone plan is confirmed, which is a later ticket. */
+  /** A promise, as a `YYYY-MM-DD` calendar date. Set when a milestone plan is confirmed. */
   readonly committedAt: string | null;
-  /** An estimate. This is where `ON-03`'s target date lands. */
+  /** An estimate, as a `YYYY-MM-DD` calendar date. This is where `ON-03`'s target date lands. */
   readonly forecastAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;

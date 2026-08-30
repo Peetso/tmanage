@@ -132,13 +132,12 @@ export class ProjectsController {
 }
 
 /**
- * Parse `YYYY-MM-DD` into a `Date`, or add a field error.
+ * Validate `YYYY-MM-DD` and keep it a string, or add a field error.
  *
- * Midnight **UTC**, deliberately. A date with no time is a calendar date, and interpreting it
- * in the server's local zone would make the same string mean different instants on two
- * machines — and shift by a day for anyone west of Greenwich. The organization's own timezone
- * is what a deadline should eventually be rendered through; storing the calendar date at a
- * fixed instant keeps that a display decision rather than a storage one.
+ * This used to parse to a `Date` at midnight UTC and store `DATETIME(3)`, which made every
+ * reader west of Greenwich see the date a day early once it was rendered in their own zone.
+ * Since 0012 the column is `DATE` and the value stays a calendar-date string end to end; no
+ * instant exists for a zone to move.
  *
  * `undefined` for an absent date and for a rejected one alike; the caller reads `details` to
  * tell them apart, which it does by checking `details.length` before using the result.
@@ -146,7 +145,7 @@ export class ProjectsController {
 function parseTargetDate(
   raw: unknown,
   details: { field: string; message: string }[],
-): Date | undefined {
+): string | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined;
 
   if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
@@ -154,17 +153,12 @@ function parseTargetDate(
     return undefined;
   }
 
-  const parsed = new Date(`${raw}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    details.push({ field: 'targetDate', message: 'is not a real date' });
-    return undefined;
-  }
-
   // `2026-02-31` parses in some engines by rolling into March. Round-tripping catches it.
-  if (parsed.toISOString().slice(0, 10) !== raw) {
+  const parsed = new Date(`${raw}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== raw) {
     details.push({ field: 'targetDate', message: 'is not a real date' });
     return undefined;
   }
 
-  return parsed;
+  return raw;
 }

@@ -82,12 +82,23 @@ export function formatInstant(value: string | null): string {
   );
 }
 
-/** The same, without a time of day. Used where only the day matters. */
+/**
+ * The same, without a time of day. Used where only the day matters.
+ *
+ * A bare `'YYYY-MM-DD'` — the shape `DATE` columns return since 0012 — is a calendar date,
+ * pinned to midnight UTC and formatted in UTC so no reader's zone moves it. A full instant
+ * keeps the reader's own zone: an instant genuinely happens on different dates in different
+ * places, and pretending otherwise would be the same lie in the other direction.
+ */
 export function formatDay(value: string | null): string {
   if (value === null) return 'No date';
-  const parsed = new Date(value);
+  const bare = value.length === 10;
+  const parsed = new Date(bare ? `${value}T00:00:00.000Z` : value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(parsed);
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    ...(bare ? { timeZone: 'UTC' } : {}),
+  }).format(parsed);
 }
 
 /**

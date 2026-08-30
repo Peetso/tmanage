@@ -65,8 +65,10 @@ function toView(row: ProjectRow): ProjectView {
     name: row.name,
     status: row.status,
     ownerUserId: row.ownerUserId,
-    committedAt: row.committedAt ? row.committedAt.toISOString() : null,
-    forecastAt: row.forecastAt ? row.forecastAt.toISOString() : null,
+    // Already 'YYYY-MM-DD' strings: DATE columns in string mode (0012). Passed through
+    // rather than serialised, so no instant exists for a reader's timezone to move.
+    committedAt: row.committedAt,
+    forecastAt: row.forecastAt,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
