@@ -6700,10 +6700,12 @@ feature.
 
 **The next one is a choice among three, in the doc's standing order:**
 
-1. **A second mail producer.** Password reset (`ID-002` left "reset link needs email" parked) or
-   an email fan-out consumer on the outbox for `NOTIF-001`'s rows — the templates in
-   `35-NOTIFICATION-AND-EMAIL-COPY` §3 are written and one of eleven now renders. The port
-   exists; a producer is a small slice.
+1. **A second mail producer — scouted on 2026-08-31, and it is not the small slice this
+   section used to call it.** A six-agent read-only fleet mapped it end to end before any code
+   was written; what it found is recorded in "What the mail fan-out scout found" below, because
+   two of the findings change the shape of the ticket rather than merely inform it. The short
+   version: the plumbing is easier than expected and the _policy_ is harder. Sending is a
+   decision about `35-NOTIFICATION` §1 and §7 before it is a decision about code.
 2. **More journeys.** `E2E-03`, `E2E-04` and the remaining `AUTH-*` lines are cheap now that the
    boot cost is paid and the harness has been green across four sessions. On this session's
    evidence a journey is also the most productive defect-finder in the repository: two screens
@@ -6711,6 +6713,71 @@ feature.
 3. **The MariaDB run for 0012.** The engine-skew check has not seen the DATE migration. The
    local `mariadb-11.4.5` zip is GONE from disk; re-downloading (~90 MB from
    archive.mariadb.org) needs Peter's explicit OK first.
+
+### What the mail fan-out scout found
+
+Read-only, six agents, no file edited. Recorded because it cost real effort and because three of
+its answers are load-bearing for whoever writes the slice.
+
+**The plumbing is already there, and in two places it is better than expected.**
+
+- **The worker can read email addresses today, with no grant change.** `scripts/db/users.sql`
+  grants `SELECT ON tmanage.*` to `tmanage_worker`, deliberately and with a reason written in the
+  file's own header, and `users-sql.test.ts` pins that the database-wide grant is `SELECT` and
+  nothing else. `users.email` is `VARCHAR(254) NOT NULL` with a case-insensitive unique key, and
+  `users.locale` and `users.timezone` sit on the same row.
+- **The worker already validates the whole email config.** `apps/worker/src/main.ts` calls
+  `loadEnv()`, which parses the entire monorepo schema — `EMAIL_DRIVER`, `EMAIL_FROM_ADDRESS`,
+  `EMAIL_FROM_NAME` and every `SMTP_*` key, including the `superRefine` rules. A worker-side
+  mailer needs **no new environment variable and no config change**.
+- **The mailer code is nearly free to share.** `mailer.ts` is types with zero imports;
+  `console-mailer.ts` imports only its own port; `smtp-mailer.ts` imports only `nodemailer`.
+  The Nest coupling is confined to `mailer.module.ts`, and the invitation-specific code to
+  `invitation-email.ts` and `invitation-mailer.ts`. Moving the port and the two drivers into a
+  workspace package leaves the API's producer where it is. `apps/worker` depends on
+  `@tmanage/config` and `@tmanage/domain` today and imports nothing from `apps/api`.
+
+**Two things make it a real ticket rather than a small one.**
+
+1. **A handler cannot send mail where handlers currently run.** `OutboxHandler` is
+   `(event, tx) => Promise<void>` and the dispatcher runs it **inside the batch's open
+   transaction**, with a savepoint per event. An SMTP round trip there would hold a database
+   transaction open across a network call to a third party — the exact thing the invitation
+   producer avoids by sending _after_ its transaction commits. So the slice needs a place to
+   send from that is outside the transaction, and `WORKER_OUTBOX_HANDLERS` is a static `const`
+   with no room to inject a mailer. Both are structural changes to the worker, not additions.
+2. **`35-NOTIFICATION` §1 asks for two things this product cannot supply.** The rule is:
+   "Every email includes organization, action, deadline/timezone, why recipient, safe CTA,
+   **preference/support route**", and separately "use project/deliverable title only **when
+   tenant policy permits**". There is no preference centre — `contracts/tmanage-core.dbml` draws
+   no preferences table, which is why `NOTIF-001` stands at half — and there is no tenant policy
+   column to consult about titles. §7 scopes unsubscribe to _non-transactional_ mail, and §2
+   files informational notifications under "bundle/digest by default", which is precisely the
+   category unsubscribe exists for. The invitation dodged this honestly: an invitation is
+   transactional, and its body names the inviter instead of pretending a preference centre
+   exists. A general notification fan-out cannot make the same claim.
+
+**The asymmetry worth stating plainly.** A notification row is safe after revocation _because_ it
+carries no content — `type`, `object_type`, `object_id` and nothing else — and the reader
+re-resolves the object through the authorized read path, where a revoked object answers 404.
+**An email has no display time.** Whatever it says is delivered permanently at send. The planning
+pack states the content-free property for the _row_ only; it does not answer the question for the
+email, so that answer has to be made deliberately rather than assumed.
+
+**The narrowest defensible first cut, if the slice is taken.** Mail only the person who submitted
+a client request, only about their own request, using the three `§3` client-request templates
+(received / clarification required / accepted). That recipient is already resolved by
+`client_request.transitioned.v1`'s existing consumer, already gated by the three-part
+current-permission check, and every fact those templates need is either the client's own words
+(the request title they typed) or something already published _to_ them by contract (the
+clarification question, the client-safe scope summary). It is transactional in the same sense the
+invitation is, so §7's unsubscribe requirement is satisfied the same way. The internal manager
+fan-out is the part that needs preferences, and it should wait for them.
+
+Two placeholders in those templates have no value in the product: `{{questionCount}}` (the schema
+holds one clarification question, not a list) and `{{timezone}}` (committed dates are `DATE`
+columns since 0012 and carry no zone). Whatever the slice does about them belongs in the record,
+the way the invitation's `{{scope}}` and `{{project}}` divergences already are.
 
 **A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
 The client request loop still cannot hold a conversation _with a client_. `CHAT-001` built the
