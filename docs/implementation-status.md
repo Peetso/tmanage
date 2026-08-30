@@ -273,6 +273,104 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, WORK-003, same session
+
+The fourth full chain of this session, one uninterrupted background run on the tree commit
+`dea7913` left. **Green on the first attempt.** The suite's own first solo run was not —
+one design was corrected mid-ticket, and it is worth its paragraph in the WORK-003 section
+below because the corrector was ADR-0001 layer 3 itself.
+
+| Gate                        | Result                                                                                                                           |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                                                            |
+| `pnpm typecheck`            | **Done** — six projects, first pass                                                                                              |
+| `pnpm lint`                 | Clean, no output                                                                                                                 |
+| `pnpm test`                 | **879 passed across 44 files** — unchanged: WORK-003's proof is database-shaped                                                  |
+| `pnpm test:db`              | **27 files, 746 passed, 29 skipped (775).** Up from 728: twelve WORK-003 cases, and six schema cases the two new tables generate |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                                            |
+| `pnpm format:check` (again) | Clean                                                                                                                            |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                                                         |
+
+---
+
+## WORK-003 — the blocker becomes durable, the edges become real, health becomes a read
+
+Commit before the chain above, and the ticket is **whole (8)**: §5's scope row reads
+"blockers/dependencies and health signals", and all three words now have storage, rules
+and tests.
+
+### The blocker ledger: US-B04's facts stop vanishing
+
+Before this ticket, entering `blocked` checked `blockerReason` and `blockerAsk` and threw
+them away — the machine's requirement was real, the record was not. `0011`'s
+`work_blockers` makes the blocker a ledger: raised (reason, ask, optional owner, since)
+and resolved (outcome, when, by whom), never deleted, never rewritten. The one legal
+update is resolving an open entry exactly once; everything else is refused by trigger for
+every credential, exercised from both directions. "One active blocker per item" is the
+**engine's** promise: `active_item` is a stored generated column — the item id while
+unresolved, NULL after — and the unique key over it refuses a second open entry no matter
+who asks. The optional owner is validated as an active member before the transaction
+opens: an ask on somebody who cannot act here is an ask on nobody.
+
+`work_item.blocked.v1` joins the catalog (ids only — the reason and ask are prose and stay
+on the row, asserted at the byte level) and a fourth relay consumer notifies the ask's
+owner, once, against current membership — the same catalog-§6 discipline as the request
+consumers, proved idempotent under forced redelivery.
+
+### The edges: immutable, acyclic, and their removal is audited
+
+`work_item_dependencies` — successor points at predecessor. Self-edges are refused by
+trigger; duplicates by the unique key; a cross-tenant predecessor answers the same 404 as
+one that does not exist; longer cycles by a walk in the repository, including the
+transitive case (`a → b → c`, then `c → a` refused) a single-row check cannot see.
+Removal is a real DELETE and is audited (`work_item.dependency_removed`), for
+`project_membership.revoked`'s reason: the delete destroys the only record, and an edge
+quietly removed is a health claim quietly changed.
+
+### Health: computed, explainable, fresh
+
+`GET work-items/:id/health` computes at read time — a stored status is a cache of an
+opinion, free to go stale the moment a predecessor's due date moves. An active blocker is
+the whole answer (`blocked`, naming the ask and its owner); otherwise a late predecessor
+or a blocked one each cost the on-track claim **by name** (`at_risk`, UNIT-12's
+"explainable signals"); otherwise `on_track`. A landed predecessor costs nothing, proved
+by walking one to `done` and asking again. The answer carries `computedAt`.
+
+### The defect the guard found in its own author, kept
+
+The cycle rule's first draft was one `WITH RECURSIVE` statement — tenant-scoped in both
+members, and rejected anyway by the tenant guard's analyser, which is deliberately
+conservative about statements it cannot fully parse. The fix was not a waiver and not an
+allowlist edit: the walk became level-by-level scoped SELECTs, which the guard reads
+plainly and a reviewer does too. Five of the suite's twelve cases failed on the first solo
+run because of this one statement; this is the recorded precedent for the next recursive
+query someone wants to write.
+
+### A divergence inside the pack, recorded rather than resolved
+
+`contracts/tmanage-core.dbml` draws neither table, while `13-ENGINEERING` §5 names
+`work_item_dependencies` in the vertical-slice schema and `23-ERD` §2 draws both
+relations. The engineering spec and the ERD win — a scheduled ticket cannot be built
+against a contract that omits its subject — and the DDL keeps the house shape so the dbml
+can adopt it verbatim when it catches up.
+
+### Named gaps — WORK-003, carried deliberately
+
+1. **No manager override for a late predecessor.** `09-MVP-PRD` §63 admits an "override
+   rationale" that preserves the on-track claim; it has no storage, so today a late
+   predecessor always costs the claim — the stricter reading.
+2. **"Critical" predecessors are not distinguished.** §63 says "critical predecessor";
+   every edge counts today, stricter again.
+3. **Project-level health (UNIT-12's subject) is not built** — this is per-item health; a
+   project roll-up is a read over it that no scheduled screen consumes yet.
+4. **No web surface.** The board and detail drawing of blockers and health is screen
+   work; the four new endpoints are ready for it.
+5. **Blocker edit is refusal-only.** A typo in a reason is fixed by resolving with a note
+   and raising anew — the ledger stance, stated so nobody adds UPDATE later without
+   noticing what it costs.
+
+---
+
 ## Verification actually run — 2026-08-30, NOTIF-001 first half, same session
 
 The third full chain of this session, run twice honestly rather than once approximately.
@@ -5397,7 +5495,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                  |
 | 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                               |
 | 5   | WORK-002   |   8 | half 4   | List, read, create, update and the version token are built and tested. **There is no cursor**, and the row names one                                          |
-| 5   | WORK-003   |   8 | 0        | The `blocked` state and its facts belong to WORK-001's machine. No dependency relation, no health signal, no table                                            |
+| 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal           |
 | 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled |
 | 5   | TEST-002   |   8 | half 4   | Work database and HTTP fixtures exist and run. No performance fixture; `packages/test-kit` is empty                                                           |
 | 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                   |
@@ -5413,21 +5511,22 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                  |
 | 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                 |
 
-Every other ticket in §§3–12 — three of Sprint 3's seven, and all of Sprints 5 through 9 — is
-zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first entry,
-**CHAT-002 on 2026-08-29** as its second, **CHAT-003 on 2026-08-30** as its third, and
-**WEB-003's first half the same day** as its fourth. **PLAT-004's row moved from half to
-whole on 2026-08-30**, the day the relay landed.
+Every other ticket in §§3–12 — two of Sprint 3's seven (RT-001, TEST-003), and all of
+Sprints 5 through 9 — is zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint
+3's first entry, **CHAT-002 on 2026-08-29** as its second, **CHAT-003 on 2026-08-30** as its
+third, and **WEB-003's first half the same day** as its fourth. **On 2026-08-30 the rows of
+PLAT-004 and WEB-003 moved from half to whole, NOTIF-001 joined at half, and WORK-003 moved
+from zero to whole** — the relay session's four tickets.
 
 | Sprint                                                                                          | Tickets       | Points         |
 | ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
 | Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52     |
 | Sprint 1 (§4)                                                                                   | 7 of 8        | 50 of 58       |
-| Sprint 2 (§5)                                                                                   | 3½ of 6       | 30.5 of 53     |
+| Sprint 2 (§5)                                                                                   | 4½ of 6       | 38.5 of 53     |
 | Sprint 3 (§6)                                                                                   | 4½ of 7       | 41 of 66       |
 | Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
 | Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
-| **§§3–12**                                                                                      | **27½ of 70** | **219 of 583** |
+| **§§3–12**                                                                                      | **28½ of 70** | **227 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5438,8 +5537,9 @@ whole on 2026-08-30**, the day the relay landed.
 on 2026-08-30: 25½ of 70 and 198 of 583 — 34.0%**, **with WEB-003's first half the same
 day: 26 of 70 and 204.5 of 583 — 35.1%**, **with PLAT-004 made whole later that day:
 26½ of 70 and 208.5 of 583 — 35.8%**, **with WEB-003's second half the same session:
-27 of 70 and 215 of 583 — 36.9%**, and **with NOTIF-001's first half after it: 27½ of 70
-and 219 of 583 — 37.6%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
+27 of 70 and 215 of 583 — 36.9%**, **with NOTIF-001's first half after it: 27½ of 70
+and 219 of 583 — 37.6%**, and **with WORK-003 whole to close the session's fourth chain:
+28½ of 70 and 227 of 583 — 38.9%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
 names — conversations, messages and the thread sequence model — is built and covered by a suite
 that ran.
 
@@ -5452,22 +5552,18 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**`NOTIF-001`'s first half shipped on 2026-08-30 — the third ticket-sized piece of that
-session — and this section is replaced rather than amended.** Sprint 4 is still the only
-complete one.
+**`WORK-003` shipped whole on 2026-08-30 — the fourth ticket-sized piece of that session —
+and this section is replaced rather than amended.** Sprint 4 is still the only complete
+one.
 
-**The next one is `WORK-003` — dependencies and the health signal.** §5's row is the last
-zero in Sprints 0–2 that this machine can actually run: OBS-001 wants infrastructure,
-PLAT-002/PLAT-003 want a container runtime and a CI that billing has switched off, UI-001's
-remainder wants a real browser. WORK-003's own note in the re-derived table says what is
-missing: the `blocked` state and its facts already live in WORK-001's machine (blocker
-reason and ask to enter, resolution to leave, all tested), but there is **no dependency
-relation, no health signal, and no table** — `13-ENGINEERING` §5 names
-`work_item_dependencies` in the vertical-slice schema, and `24-EVENT-CATALOG` §4 has
-`work_item.blocked.v1` ("blocker activated → health, inbox, notification") with no
-producer. Check `23-ERD` and `07-DATA-MODEL` for the dependency shape before writing DDL;
-register any new table in `TENANT_TABLES` **and the schema `TABLES` drift map** in the
-same commit — this session paid one chain run for forgetting the second.
+**The next one is small and overdue: re-derive `WORK-002`.** Its row in the table above
+still reads half with the reason "**there is no cursor**, and the row names one" — but the
+cursor exists: `listWorkItems` takes `after` and a limit, and WEB-002's second half pages
+on it in production code. What the re-derivation needs is honesty about _evidence_, not
+new code: find where the API-side cursor behaviour is tested (the WORK-001 db suite, or
+nowhere), write the missing keyset-pagination cases if they do not exist, and move the row
+to whole (+4) only on a green chain. If the cursor turns out untested, that is the work;
+if tested, the change is this file's.
 
 The alternatives, in order after it:
 
@@ -5640,17 +5736,28 @@ directory, unscheduled" instead, which is both shorter and true.
     first attempt failed on the schema drift map missing the new table — the gate working
     — and the second ran green.
 
+33. ~~WORK-003~~ — **done this session, whole.** The blocker ledger: US-B04's facts
+    persisted at last — raised with reason, ask, optional validated owner and since;
+    resolved exactly once with outcome, when and by whom; one active entry per item
+    enforced by the engine through a generated column's unique key. Immutable acyclic
+    dependency edges whose removal is audited, a computed health signal whose every
+    answer names its cause, `work_item.blocked.v1` in the catalog with the ask's owner
+    notified once through the relay. 12 database cases. The tenant guard refused the
+    first draft's recursive CTE — deliberately conservative analysis doing its job on its
+    own author — and the cycle walk became level-by-level scoped SELECTs.
+
 ### Progress
 
-**27½ of 70 tickets. 219 of 583 story points — 37.6%, across Sprints 0–9.** Derived ticket by
+**28½ of 70 tickets. 227 of 583 story points — 38.9%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
 numerator **and** in the denominator; the percentage reads higher today only because the CHAT
-tickets, the wholes of PLAT-004 and WEB-003 and NOTIF-001's first half have since been added to
-an honest count. Screen tickets: **4½ of 11** — WEB-001, WEB-003, WEB-004 and WEB-005 whole,
-WEB-002 half. **Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — and
-half of NOTIF-001. Sprint 0 stands at 5½ of 8 with PLAT-004 whole.**
+tickets, the wholes of PLAT-004, WEB-003 and WORK-003, and NOTIF-001's first half have since
+been added to an honest count. Screen tickets: **4½ of 11** — WEB-001, WEB-003, WEB-004 and
+WEB-005 whole, WEB-002 half. **Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003,
+WEB-003 — and half of NOTIF-001. Sprint 2 stands at 4½ of 6 with WORK-003 whole; Sprint 0 at
+5½ of 8 with PLAT-004 whole.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
