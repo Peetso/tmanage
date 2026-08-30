@@ -273,6 +273,46 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, the WORK-002 re-derivation, same session
+
+The fifth full chain of this session, one uninterrupted background run on the tree commit
+`c6c38d2` left. **Green on the first attempt**, and so was the suite's own solo run.
+
+| Gate                        | Result                                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                                     |
+| `pnpm typecheck`            | **Done** — six projects, first pass                                                                       |
+| `pnpm lint`                 | Clean, no output                                                                                          |
+| `pnpm test`                 | **879 passed across 44 files** — unchanged                                                                |
+| `pnpm test:db`              | **27 files, 749 passed, 29 skipped (778).** Up from 746: the three cursor cases, which are the whole diff |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                     |
+| `pnpm format:check` (again) | Clean                                                                                                     |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                                  |
+
+---
+
+## WORK-002 re-derived — the cursor had shipped; the evidence had not
+
+The smallest honest ticket of the session, and the rule working exactly as written. §5's
+WORK-002 row scopes "list/read/create/update endpoints + cursor/version"; every part had
+been built for weeks — the `after` keyset cursor since WORK-001 landed, driven daily by
+WEB-002's paging — but the count's rule is _built and covered by a check that has actually
+run_, and no database case had ever exercised the cursor. The re-derivation therefore cost
+three cases in `work-001-work-items.db.test.ts`, not a line of production code:
+
+- **The walk**: pages of two over a known set, in id order, no overlap, no omission, a
+  short page ending it — the property a keyset cursor exists for, stated as one equality.
+- **Composition**: the page after a cursor still honours the state filter, so paging can
+  never silently widen a filtered list.
+- **The boundary**: another tenant's work-item id used as a cursor value reaches nothing —
+  the tenant predicate binds every row before the id comparison means anything, and the
+  response carries nothing of the twin's.
+
+With the cursor evidenced and the version token tested since WORK-001, every word of the
+scope row is built and checked: **WORK-002 counts whole (+4)**.
+
+---
+
 ## Verification actually run — 2026-08-30, WORK-003, same session
 
 The fourth full chain of this session, one uninterrupted background run on the tree commit
@@ -5494,7 +5534,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 4   | TEST-001   |   8 | half 4   | The two-tenant seed and the adversarial pair run on every database pass. The **role** half of §11's matrix is not a generated harness                         |
 | 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                  |
 | 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                               |
-| 5   | WORK-002   |   8 | half 4   | List, read, create, update and the version token are built and tested. **There is no cursor**, and the row names one                                          |
+| 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                     |
 | 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal           |
 | 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled |
 | 5   | TEST-002   |   8 | half 4   | Work database and HTTP fixtures exist and run. No performance fixture; `packages/test-kit` is empty                                                           |
@@ -5518,15 +5558,15 @@ third, and **WEB-003's first half the same day** as its fourth. **On 2026-08-30 
 PLAT-004 and WEB-003 moved from half to whole, NOTIF-001 joined at half, and WORK-003 moved
 from zero to whole** — the relay session's four tickets.
 
-| Sprint                                                                                          | Tickets       | Points         |
-| ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
-| Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52     |
-| Sprint 1 (§4)                                                                                   | 7 of 8        | 50 of 58       |
-| Sprint 2 (§5)                                                                                   | 4½ of 6       | 38.5 of 53     |
-| Sprint 3 (§6)                                                                                   | 4½ of 7       | 41 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
-| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
-| **§§3–12**                                                                                      | **28½ of 70** | **227 of 583** |
+| Sprint                                                                                          | Tickets      | Points         |
+| ----------------------------------------------------------------------------------------------- | ------------ | -------------- |
+| Sprint 0 (§3)                                                                                   | 5½ of 8      | 36.5 of 52     |
+| Sprint 1 (§4)                                                                                   | 7 of 8       | 50 of 58       |
+| Sprint 2 (§5)                                                                                   | 5 of 6       | 42.5 of 53     |
+| Sprint 3 (§6)                                                                                   | 4½ of 7      | 41 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**   |
+| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293       |
+| **§§3–12**                                                                                      | **29 of 70** | **231 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5552,18 +5592,20 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**`WORK-003` shipped whole on 2026-08-30 — the fourth ticket-sized piece of that session —
-and this section is replaced rather than amended.** Sprint 4 is still the only complete
-one.
+**`WORK-002` was re-derived whole on 2026-08-30 — the fifth ticket-sized piece of that
+session — and this section is replaced rather than amended.** Sprint 4 is still the only
+complete one, and Sprint 2 now stands one ticket (TEST-002's second half) from joining it.
 
-**The next one is small and overdue: re-derive `WORK-002`.** Its row in the table above
-still reads half with the reason "**there is no cursor**, and the row names one" — but the
-cursor exists: `listWorkItems` takes `after` and a limit, and WEB-002's second half pages
-on it in production code. What the re-derivation needs is honesty about _evidence_, not
-new code: find where the API-side cursor behaviour is tested (the WORK-001 db suite, or
-nowhere), write the missing keyset-pagination cases if they do not exist, and move the row
-to whole (+4) only on a green chain. If the cursor turns out untested, that is the work;
-if tested, the change is this file's.
+**The next one is `TEST-001`'s second half — the role matrix as a generated harness.** Its
+row reads half with the reason "the **role** half of §11's matrix is not a generated
+harness": the two-tenant seed and the adversarial pair run on every database pass, but
+`25-AUTH-AND-TENANT-ISOLATION` §11's role×operation grid exists only as SEC-001's
+operations corpus over _client_ surfaces. The second half generates the internal side: for
+each internal role, for each capability-gated route family, assert the ceiling the matrix
+promises — allowed roles pass the guard, refused roles produce the audited 403 — with the
+expectation derived from `capabilitiesFor` the way SEC-001's grid and NOTIF-001's
+recipient test already derive theirs, so a matrix change moves the harness rather than
+breaking it. No new tables, no new environment; one new database suite.
 
 The alternatives, in order after it:
 
@@ -5746,18 +5788,25 @@ directory, unscheduled" instead, which is both shorter and true.
     first draft's recursive CTE — deliberately conservative analysis doing its job on its
     own author — and the cycle walk became level-by-level scoped SELECTs.
 
+34. ~~WORK-002 re-derived~~ — **done this session, whole, and no production code moved.**
+    The `after` cursor had shipped with WORK-001 and been driven daily by WEB-002's
+    paging; the count's own rule — built **and covered by a check that has run** — is what
+    kept the row at half, because no case had ever exercised it. Three keyset cases at the
+    API close the gap: the walk without overlap or omission, composition with filters,
+    and a cross-tenant cursor value that reaches nothing.
+
 ### Progress
 
-**28½ of 70 tickets. 227 of 583 story points — 38.9%, across Sprints 0–9.** Derived ticket by
+**29 of 70 tickets. 231 of 583 story points — 39.6%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
 numerator **and** in the denominator; the percentage reads higher today only because the CHAT
-tickets, the wholes of PLAT-004, WEB-003 and WORK-003, and NOTIF-001's first half have since
-been added to an honest count. Screen tickets: **4½ of 11** — WEB-001, WEB-003, WEB-004 and
-WEB-005 whole, WEB-002 half. **Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003,
-WEB-003 — and half of NOTIF-001. Sprint 2 stands at 4½ of 6 with WORK-003 whole; Sprint 0 at
-5½ of 8 with PLAT-004 whole.**
+tickets, the wholes of PLAT-004, WEB-003, WORK-003 and WORK-002, and NOTIF-001's first half
+have since been added to an honest count. Screen tickets: **4½ of 11** — WEB-001, WEB-003,
+WEB-004 and WEB-005 whole, WEB-002 half (its saved views remain homeless). **Sprint 3 has four
+whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — and half of NOTIF-001. Sprint 2 stands
+at 5 of 6 with WORK-002 and WORK-003 whole; Sprint 0 at 5½ of 8 with PLAT-004 whole.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
