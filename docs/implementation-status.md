@@ -273,6 +273,96 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, WEB-003 second half, same session
+
+The second full chain of this session, one uninterrupted background run on the tree commit
+`107250c` left (the WEB-003 second-half commit). **Green on the first attempt**, and so were
+the new suites' own solo runs — 14/14 and 13/13 first try.
+
+| Gate                        | Result                                                                                             |
+| --------------------------- | -------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                              |
+| `pnpm typecheck`            | **Done** — six projects, first pass                                                                |
+| `pnpm lint`                 | Clean, no output                                                                                   |
+| `pnpm test`                 | **876 passed across 43 files.** Up from 858: 14 notation-conversion cases and 4 screen cases       |
+| `pnpm test:db`              | **25 files, 719 passed, 29 skipped (748)** — unchanged, as it must be: no API and no table changed |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                              |
+| `pnpm format:check` (again) | Clean                                                                                              |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                           |
+
+---
+
+## WEB-003 second half — the composer grows a grammar, the transcript grows a cursor
+
+Commit before the chain above, and the ticket is **whole**: `28-SPRINT-TICKETS` §6's scope
+row reads "channel/thread/convert dialog", the first half built all three, and the two
+pieces its own record named as the remainder — the rich composer and transcript paging —
+are now built and tested. Reactions, saves, pins, presence and live updates stay out and
+stay named in `BackendPending`: none has an endpoint, and the scope row does not name them.
+
+### The composer: a notation converted, never markup harvested
+
+The API accepts `bodyRich` — CHAT-002's closed grammar — and never HTML, so a
+`contenteditable` surface harvesting markup was never an option. Instead the composer keeps
+the plain textarea and defines a small notation over it (`lib/rich-composer.ts` documents
+it completely: `**bold**`, `_italic_` at word boundaries so snake_case survives,
+`~~strike~~`, backtick code, `[label](https://…)` links on the grammar's own three-scheme
+allowlist, `- ` and `1. ` lists, `> ` quotes, fenced code blocks, blank-line paragraphs,
+single-newline hard breaks). The toolbar writes notation into the textarea; `composeMessage`
+converts it to grammar nodes; the preview renders the converted document through the same
+`RichTextBody` the transcript uses — what is previewed is what a reader will see, not a
+second renderer's opinion. The notation itself never leaves the browser.
+
+Three rules keep it honest:
+
+- **Unmatched notation is literal.** A lone `**`, a `_` inside an identifier, a link whose
+  scheme the grammar refuses — all stay exactly as typed. Refusal-over-repair, one step
+  before the sanitiser.
+- **An unformatted draft stays plain.** `composeMessage` answers `plain` and the send
+  carries `body`, exactly as before this half; a rich document wrapping unformatted text
+  would say something false about what was written.
+- **The domain's own gate runs before the network.** A rich send passes through
+  `sanitizeRichText` — the same function the API applies — in the browser first, so an
+  inadmissible document is refused with the path to the offending node while the author can
+  still see what they typed.
+
+The suite's strongest case is a property, not an example: every document the notation can
+emit is admissible to `sanitizeRichText`, asserted over a corpus of drafts, because a
+composer able to build a document the API refuses would hand the author an error about a
+tree they never saw.
+
+### The paging: WEB-002's shape on the channel's own order
+
+The cursor is `afterSequenceNo` — the sequence number CHAT-001's allocator hands out under
+the channel's own row lock, which is the transcript's order by construction. Pages
+accumulate under one query key for the channel and for a thread's replies alike; the old
+full-page warning ("paging back through history is the second half of this screen") is
+replaced by a count that says "loaded — there are more" and a Load more that means it, and
+a short page retires both. The retry-dedupe composer behaviour and every first-half case
+still pass untouched.
+
+18 new web cases: 14 in `rich-composer.test.ts` enumerating the conversion — inline marks,
+lists, quotes, verbatim fences, the year-with-a-period that must not become a list, the
+`javascript:` link that stays literal text, the admissibility property — and 4 in
+`chat-flow.test.tsx` driving the toolbar, the preview, the plain-draft path and the cursor
+through the screen.
+
+### Named gaps — WEB-003, carried deliberately
+
+1. **Marks do not nest and there is no escape character.** Bold-inside-italic cannot be
+   written, and a literal `**pair**` cannot be written unbolded. Both are limits of a
+   notation this size, stated in the module doc; a full editor is a different piece of work
+   and nothing scheduled asks for one.
+2. **New messages still arrive by reload.** `RT-001` is the live-updates ticket, now
+   unblocked by PLAT-004; until it lands the channel says so in `BackendPending`.
+3. **Reactions, saves, pins, presence, quote-to-decision** — unchanged from the first-half
+   record: no endpoint, no table, no ticket. Named on the screen, not drawn as dead
+   buttons.
+4. **`TM-07` direct messages still have no API** — a conversation requires a project, and
+   the honest absence recorded at the first half stands.
+
+---
+
 ## Verification actually run — 2026-08-30, the PLAT-004 relay session
 
 One uninterrupted background run on the tree commit `44211eb` left (both PLAT-004 commits
@@ -5223,7 +5313,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                   |
 | 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                 |
 | 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                 |
-| 6   | WEB-003    |  13 | half 6.5 | `TM-06`, `TM-08`, `TM-09` — the plan's own "13→split". Rich composer, reactions, presence, live updates and paging are the named second half                  |
+| 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else   |
 | 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                             |
 | 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                       |
 | 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                   |
@@ -5238,15 +5328,15 @@ zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint 3's first ent
 **WEB-003's first half the same day** as its fourth. **PLAT-004's row moved from half to
 whole on 2026-08-30**, the day the relay landed.
 
-| Sprint                                                                                          | Tickets       | Points           |
-| ----------------------------------------------------------------------------------------------- | ------------- | ---------------- |
-| Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52       |
-| Sprint 1 (§4)                                                                                   | 7 of 8        | 50 of 58         |
-| Sprint 2 (§5)                                                                                   | 3½ of 6       | 30.5 of 53       |
-| Sprint 3 (§6)                                                                                   | 3½ of 7       | 30.5 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**     |
-| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293         |
-| **§§3–12**                                                                                      | **26½ of 70** | **208.5 of 583** |
+| Sprint                                                                                          | Tickets      | Points         |
+| ----------------------------------------------------------------------------------------------- | ------------ | -------------- |
+| Sprint 0 (§3)                                                                                   | 5½ of 8      | 36.5 of 52     |
+| Sprint 1 (§4)                                                                                   | 7 of 8       | 50 of 58       |
+| Sprint 2 (§5)                                                                                   | 3½ of 6      | 30.5 of 53     |
+| Sprint 3 (§6)                                                                                   | 4 of 7       | 37 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**   |
+| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293       |
+| **§§3–12**                                                                                      | **27 of 70** | **215 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5255,46 +5345,48 @@ whole on 2026-08-30**, the day the relay landed.
 **With CHAT-001, which landed the same day: 23½ of 70 tickets and 182 of 583 — 31.2%**,
 **with CHAT-002 on 2026-08-29: 24½ of 70 and 190 of 583 — 32.6%**, **with CHAT-003 verified
 on 2026-08-30: 25½ of 70 and 198 of 583 — 34.0%**, **with WEB-003's first half the same
-day: 26 of 70 and 204.5 of 583 — 35.1%**, and **with PLAT-004 made whole later that day:
-26½ of 70 and 208.5 of 583 — 35.8%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
+day: 26 of 70 and 204.5 of 583 — 35.1%**, **with PLAT-004 made whole later that day:
+26½ of 70 and 208.5 of 583 — 35.8%**, and **with WEB-003's second half the same session:
+27 of 70 and 215 of 583 — 36.9%.** The Progress section below carries the latest. CHAT-001 counts whole because everything §6's row
 names — conversations, messages and the thread sequence model — is built and covered by a suite
 that ran.
 
-**Screen tickets: 4 of 11.** WEB-001 whole, WEB-002 half, WEB-003 half, WEB-004 whole, WEB-005
-whole; WEB-006 through WEB-011 are untouched. The previous "4½ of 11" counted screens rather
-than tickets.
+**Screen tickets: 4½ of 11.** WEB-001, WEB-003, WEB-004 and WEB-005 whole, WEB-002 half;
+WEB-006 through WEB-011 are untouched. An earlier "4½ of 11" here counted screens rather than
+tickets; this one is tickets, and matches by coincidence.
 
 **Sprint 4 is complete, and that survives the re-derivation** — all seven of §7's tickets, 61 of
 61 points. It is still the first sprint in this plan that is.
 
 ### The next coding task
 
-**`PLAT-004` was made whole on 2026-08-30 — the relay runs — and this section is replaced
-rather than amended.** Sprint 4 is still the only complete one.
+**`WEB-003` was made whole on 2026-08-30 — the second ticket-sized piece of that session,
+after PLAT-004 — and this section is replaced rather than amended.** Sprint 4 is still the
+only complete one.
 
-**The next one is `WEB-003`'s second half.** The named remainder from its own first-half
-record: the rich-text composer — the API accepts `bodyRich` and the screen already renders
-CHAT-002's closed grammar as React elements, so what is missing is a toolbar that _emits_
-that grammar, never HTML — and transcript paging. Reactions, saves, pins, presence and live
-updates stay out unless their APIs appear first; without them the composer and paging are
-the whole of the half, which is why it may land folded into a screen pass rather than as a
-session of its own. Finishing it makes WEB-003 whole (+6.5 points).
+**The next one is `NOTIF-001` — notification records.** Unblocked for the first time by
+PLAT-004: it is the primary consumer `24-EVENT-CATALOG` §4 names for
+`client_request.submitted.v1` and `client_request.transitioned.v1`, both of which are now
+published and currently dispatched to zero consumers. §6's row scopes it as "notification
+record, preferences, bundle foundation" (8 points, depending on PLAT-004). A notifications
+table would be new — register it in `TENANT_TABLES` **in the same commit** — and its
+consumer registers in `WORKER_OUTBOX_HANDLERS` beside the lifecycle rule. The event
+catalog's §6 binds any consumer with user-facing side effects: it must resolve current
+permissions before writing a notification a person can read, and a delayed notification
+must not reveal an object after access was revoked.
 
 The alternatives, in order after it:
 
-2. **`NOTIF-001` — notification records.** Unblocked for the first time: it is the primary
-   consumer `24-EVENT-CATALOG` §4 names for `client_request.submitted.v1` and
-   `client_request.transitioned.v1`, both now published and currently dispatched to zero
-   consumers. A notifications table would be new — register it in `TENANT_TABLES` in the
-   same commit — and its consumer registers in `WORKER_OUTBOX_HANDLERS` beside the
-   lifecycle rule.
-3. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
+2. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
    it. `28-SPRINT-TICKETS` does not schedule this at all; `NOTIF-001` is the nearest real ticket
    and it builds notification records rather than delivery.
-4. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
+3. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
    `projects.committed_at` and `client_requests.desired_at` are all `DATETIME(3)` holding
    midnight UTC, so a reader west of UTC sees every calendar date a day early. Not scheduled by
    `28-SPRINT-TICKETS`; it is a migration, recorded in the WEB-004 gaps above.
+4. **`RT-001` — realtime.** Also unblocked by PLAT-004, and the channel screen's "new
+   messages appear when the channel is reloaded" is its absence made visible. 13→split, and
+   the socket infrastructure it needs is a larger bite than NOTIF-001's table.
 
 **A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
 The client request loop still cannot hold a conversation _with a client_. `CHAT-001` built the
@@ -5435,17 +5527,25 @@ directory, unscheduled" instead, which is both shorter and true.
     kept: the harness's admin pool writes local-time `now(3)`, three hours in a UTC relay's
     future.
 
+31. ~~WEB-003 second half~~ — **done this session, and the ticket is whole.** The rich
+    composer: a toolbar over a notation converted to CHAT-002's closed grammar before
+    sending, previewed through the transcript's own renderer, checked by the domain's own
+    sanitiser before the network, never HTML anywhere; unmatched notation stays literal and
+    an unformatted draft stays plain. Transcript paging on the sequence-number cursor, for
+    the channel and a thread's replies alike. 18 web cases, among them the property that
+    every document the notation can emit is admissible to `sanitizeRichText`.
+
 ### Progress
 
-**26½ of 70 tickets. 208.5 of 583 story points — 35.8%, across Sprints 0–9.** Derived ticket by
+**27 of 70 tickets. 215 of 583 story points — 36.9%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
 numerator **and** in the denominator; the percentage reads higher today only because the CHAT
-tickets, WEB-003's first half and now the whole of PLAT-004 have since been added to an honest
-count. Screen tickets: **4 of 11** — WEB-001, WEB-004 and WEB-005 whole, WEB-002 and WEB-003
-half. **Sprint 3 has three whole tickets — CHAT-001, CHAT-002, CHAT-003 — and half of
-WEB-003. Sprint 0 stands at 5½ of 8 with PLAT-004 whole.**
+tickets, the whole of PLAT-004 and now the whole of WEB-003 have since been added to an honest
+count. Screen tickets: **4½ of 11** — WEB-001, WEB-003, WEB-004 and WEB-005 whole, WEB-002
+half. **Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003. Sprint 0
+stands at 5½ of 8 with PLAT-004 whole.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
