@@ -1,0 +1,372 @@
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { uuidv7 } from '@tmanage/domain';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import {
+  memberships,
+  workBlockers,
+  workItemDependencies,
+  workItems,
+} from '../../common/database/schema.js';
+import type { WorkBlockerRow, WorkItemDependencyRow } from '../../common/database/schema.js';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { unwrapQueryError } from '../../common/database/query-error.js';
+
+/**
+ * WORK-003's storage: the edges between work items, and the blocker ledger.
+ *
+ * Same shape as every repository here — `TenantContext` scopes, no input carries an
+ * `organizationId` — with two rules of its own:
+ *
+ * ## The cycle rule runs here, against the rows, before the insert
+ *
+ * A self-edge is refused by 0011's trigger; a longer cycle cannot be seen from one row, so
+ * {@link DependencyCycleError} is raised from a walk over the *predecessors of the
+ * proposed predecessor*: if the item being depended-on can already reach the item being
+ * edited, the new edge would close a loop and "on track" would mean nothing for either.
+ * The walk is level-by-level scoped SELECTs rather than one recursive CTE, deliberately —
+ * see the note at the call site.
+ *
+ * ## Blockers are raised and resolved, never edited
+ *
+ * The engine owns the invariants (0011): one active blocker per item via the generated
+ * column's unique key, resolution written exactly once and whole. This class translates
+ * the collision into {@link WorkItemAlreadyBlockedError} and otherwise stays out of the
+ * trigger's way.
+ */
+
+export class DependencyCycleError extends Error {
+  constructor(
+    readonly workItemId: string,
+    readonly dependsOnWorkItemId: string,
+  ) {
+    super(`Depending on ${dependsOnWorkItemId} would create a cycle`);
+    this.name = 'DependencyCycleError';
+  }
+}
+
+export class DuplicateDependencyError extends Error {
+  constructor() {
+    super('That dependency already exists');
+    this.name = 'DuplicateDependencyError';
+  }
+}
+
+export class SelfDependencyError extends Error {
+  constructor() {
+    super('A work item cannot depend on itself');
+    this.name = 'SelfDependencyError';
+  }
+}
+
+export class WorkItemAlreadyBlockedError extends Error {
+  constructor(readonly workItemId: string) {
+    super(`Work item ${workItemId} already has an active blocker`);
+    this.name = 'WorkItemAlreadyBlockedError';
+  }
+}
+
+interface MysqlErrorShape {
+  readonly code?: string;
+}
+
+/** Drizzle wraps driver errors; unwrap before reading the driver's own code or message. */
+function isDuplicateKey(error: unknown): boolean {
+  return (unwrapQueryError(error) as MysqlErrorShape | null)?.code === 'ER_DUP_ENTRY';
+}
+
+function isSignalled(error: unknown, fragment: string): boolean {
+  const cause = unwrapQueryError(error);
+  return cause instanceof Error && cause.message.includes(fragment);
+}
+
+/** A predecessor with the three facts the health signal reads. */
+export interface PredecessorHealthRow {
+  readonly dependencyId: string;
+  readonly workItemId: string;
+  readonly title: string;
+  readonly state: string;
+  readonly dueAt: Date | null;
+  readonly deletedAt: Date | null;
+}
+
+export class WorkGraphRepository {
+  // ── Dependencies ───────────────────────────────────────────────────────────
+
+  /**
+   * Add one edge: `workItemId` depends on `dependsOnWorkItemId`. The caller has already
+   * proved both rows exist in this tenant; this method proves the edge is acyclic and new.
+   */
+  async addDependency(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    dependsOnWorkItemId: string,
+  ): Promise<WorkItemDependencyRow> {
+    if (workItemId === dependsOnWorkItemId) throw new SelfDependencyError();
+
+    // Everything upstream of the proposed predecessor, walked a level at a time. If the
+    // edited item is among it, the new edge closes a loop. A recursive CTE would say this
+    // in one statement, but the tenant guard's analyser is deliberately conservative about
+    // what it cannot fully parse, and a walk of small scoped SELECTs is refused by nothing
+    // and readable by everyone. The visited set makes it terminate even over data that
+    // somehow already cycles.
+    const visited = new Set<string>([dependsOnWorkItemId]);
+    let frontier: string[] = [dependsOnWorkItemId];
+    while (frontier.length > 0) {
+      const rows = await tenantDrizzle(runner)
+        .select({ next: workItemDependencies.dependsOnWorkItemId })
+        .from(workItemDependencies)
+        .where(
+          and(
+            eq(workItemDependencies.organizationId, context.organizationId),
+            inArray(workItemDependencies.workItemId, frontier),
+          ),
+        );
+      frontier = [];
+      for (const row of rows) {
+        if (row.next === workItemId) {
+          throw new DependencyCycleError(workItemId, dependsOnWorkItemId);
+        }
+        if (!visited.has(row.next)) {
+          visited.add(row.next);
+          frontier.push(row.next);
+        }
+      }
+    }
+
+    const id = uuidv7();
+    try {
+      await tenantDrizzle(runner)
+        .insert(workItemDependencies)
+        .values({
+          id,
+          organizationId: context.organizationId,
+          workItemId,
+          dependsOnWorkItemId,
+          createdByUserId: context.userId,
+          createdAt: sql`current_timestamp(3)`,
+        });
+    } catch (error) {
+      if (isDuplicateKey(error)) throw new DuplicateDependencyError();
+      if (isSignalled(error, 'cannot depend on itself')) throw new SelfDependencyError();
+      throw error;
+    }
+
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(workItemDependencies)
+      .where(
+        and(
+          eq(workItemDependencies.organizationId, context.organizationId),
+          eq(workItemDependencies.id, id),
+        ),
+      )
+      .limit(1);
+    return rows[0] as WorkItemDependencyRow;
+  }
+
+  /** Remove one edge. Idempotent: an edge already gone stays gone. Returns what happened. */
+  async removeDependency(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    dependencyId: string,
+  ): Promise<WorkItemDependencyRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(workItemDependencies)
+      .where(
+        and(
+          eq(workItemDependencies.organizationId, context.organizationId),
+          eq(workItemDependencies.id, dependencyId),
+          eq(workItemDependencies.workItemId, workItemId),
+        ),
+      )
+      .limit(1);
+    const existing = rows[0];
+    if (!existing) return null;
+
+    await tenantDrizzle(runner)
+      .delete(workItemDependencies)
+      .where(
+        and(
+          eq(workItemDependencies.organizationId, context.organizationId),
+          eq(workItemDependencies.id, dependencyId),
+        ),
+      );
+    return existing;
+  }
+
+  /** A row's predecessors, joined to the facts the health signal reads. Oldest edge first. */
+  async listPredecessors(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+  ): Promise<readonly PredecessorHealthRow[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        dependencyId: workItemDependencies.id,
+        workItemId: workItems.id,
+        title: workItems.title,
+        state: workItems.state,
+        dueAt: workItems.dueAt,
+        deletedAt: workItems.deletedAt,
+      })
+      .from(workItemDependencies)
+      .innerJoin(
+        workItems,
+        and(
+          eq(workItems.organizationId, workItemDependencies.organizationId),
+          eq(workItems.id, workItemDependencies.dependsOnWorkItemId),
+        ),
+      )
+      .where(
+        and(
+          eq(workItemDependencies.organizationId, context.organizationId),
+          eq(workItemDependencies.workItemId, workItemId),
+        ),
+      )
+      .orderBy(asc(workItemDependencies.id));
+    return rows;
+  }
+
+  // ── Blockers ───────────────────────────────────────────────────────────────
+
+  /** Raise a blocker. The engine refuses a second active one; see the class doc. */
+  async raiseBlocker(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: {
+      readonly workItemId: string;
+      readonly reason: string;
+      readonly ask: string;
+      readonly ownerUserId: string | null;
+    },
+  ): Promise<WorkBlockerRow> {
+    const id = uuidv7();
+    try {
+      await tenantDrizzle(runner)
+        .insert(workBlockers)
+        .values({
+          id,
+          organizationId: context.organizationId,
+          workItemId: input.workItemId,
+          reason: input.reason,
+          ask: input.ask,
+          ownerUserId: input.ownerUserId,
+          createdByUserId: context.userId,
+          createdAt: sql`current_timestamp(3)`,
+        });
+    } catch (error) {
+      if (isDuplicateKey(error)) throw new WorkItemAlreadyBlockedError(input.workItemId);
+      throw error;
+    }
+    return this.requireBlocker(runner, context, id);
+  }
+
+  /** Resolve the active blocker. Returns it, or null when nothing was open. */
+  async resolveActiveBlocker(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    resolution: string,
+  ): Promise<WorkBlockerRow | null> {
+    const open = await this.findActiveBlocker(runner, context, workItemId);
+    if (!open) return null;
+
+    await tenantDrizzle(runner)
+      .update(workBlockers)
+      .set({
+        resolvedAt: sql`current_timestamp(3)`,
+        resolution,
+        resolvedByUserId: context.userId,
+      })
+      .where(
+        and(eq(workBlockers.organizationId, context.organizationId), eq(workBlockers.id, open.id)),
+      );
+    return this.requireBlocker(runner, context, open.id);
+  }
+
+  async findActiveBlocker(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+  ): Promise<WorkBlockerRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(workBlockers)
+      .where(
+        and(
+          eq(workBlockers.organizationId, context.organizationId),
+          eq(workBlockers.workItemId, workItemId),
+          isNull(workBlockers.resolvedAt),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** The whole ledger for one item, oldest first — US-B04's history of raised and resolved. */
+  async listBlockers(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+  ): Promise<readonly WorkBlockerRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(workBlockers)
+      .where(
+        and(
+          eq(workBlockers.organizationId, context.organizationId),
+          eq(workBlockers.workItemId, workItemId),
+        ),
+      )
+      .orderBy(asc(workBlockers.id));
+  }
+
+  private async requireBlocker(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    blockerId: string,
+  ): Promise<WorkBlockerRow> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(workBlockers)
+      .where(
+        and(
+          eq(workBlockers.organizationId, context.organizationId),
+          eq(workBlockers.id, blockerId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) throw new Error(`Blocker ${blockerId} was not found`);
+    return row;
+  }
+
+  // ── The one membership read the blocker owner needs ────────────────────────
+
+  /**
+   * Whether a user holds an **active internal membership** in this tenant — the check a
+   * blocker's `ownerUserId` must pass, because an ask on a person who cannot act in this
+   * organization is an ask on nobody. A read of `memberships`, scoped like every other.
+   */
+  async isActiveInternalMember(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: memberships.id })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.userId, userId),
+          eq(memberships.status, 'active'),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+}

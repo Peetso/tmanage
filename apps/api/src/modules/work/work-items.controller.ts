@@ -16,7 +16,13 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { WORK_ITEMS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { WorkItemView, WorkItemsService } from './work-items.service.js';
+import type {
+  WorkBlockerView,
+  WorkItemDependencyView,
+  WorkItemHealthView,
+  WorkItemView,
+  WorkItemsService,
+} from './work-items.service.js';
 
 /**
  * WORK-001's HTTP surface.
@@ -275,6 +281,72 @@ export class WorkItemsController {
     @Param('workItemId') workItemId: string,
   ): Promise<void> {
     await this.workItems.softDelete(context, principal, workItemId);
+  }
+
+  // ── WORK-003: dependencies, the blocker ledger, and the health signal ───────
+
+  /**
+   * Add an edge: this item depends on another. `work.update` rather than a capability of
+   * its own, for `remove`'s reason — the matrix defines none, and an edge is a fact about
+   * this row's planning.
+   */
+  @Post(':workItemId/dependencies')
+  @RequireCapability('work.update')
+  @HttpCode(201)
+  async addDependency(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Body() body: { readonly dependsOnWorkItemId?: unknown },
+  ): Promise<WorkItemDependencyView> {
+    if (typeof body?.dependsOnWorkItemId !== 'string' || body.dependsOnWorkItemId.trim() === '') {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'dependsOnWorkItemId', message: 'must be a work item id' },
+      ]);
+    }
+    return this.workItems.addDependency(
+      context,
+      principal,
+      workItemId,
+      body.dependsOnWorkItemId.trim(),
+    );
+  }
+
+  @Delete(':workItemId/dependencies/:dependencyId')
+  @RequireCapability('work.update')
+  @HttpCode(204)
+  async removeDependency(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Param('dependencyId') dependencyId: string,
+  ): Promise<void> {
+    await this.workItems.removeDependency(context, principal, workItemId, dependencyId);
+  }
+
+  /** US-B04's history: every blocker this item ever had, raised and resolved, oldest first. */
+  @Get(':workItemId/blockers')
+  @RequireCapability('work.read')
+  async listBlockers(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+  ): Promise<{ readonly blockers: readonly WorkBlockerView[] }> {
+    return { blockers: await this.workItems.listBlockers(context, principal, workItemId) };
+  }
+
+  /**
+   * The health signal, computed at read time. Every signal names its cause; the answer
+   * says when it was computed, because a health claim without freshness is a guess.
+   */
+  @Get(':workItemId/health')
+  @RequireCapability('work.read')
+  async health(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+  ): Promise<WorkItemHealthView> {
+    return this.workItems.healthOf(context, principal, workItemId);
   }
 }
 

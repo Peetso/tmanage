@@ -57,6 +57,22 @@ export async function listActiveInternalMemberships(
   }));
 }
 
+/** Whether one user holds an active internal membership — a blocker owner's gate. */
+export async function isActiveInternalMember(
+  tx: WorkerTransaction,
+  organizationId: string,
+  userId: string,
+): Promise<boolean> {
+  const rows = await tx.query<readonly { present: number }[]>(
+    `SELECT EXISTS (
+              SELECT 1 FROM memberships m
+               WHERE m.organization_id = ? AND m.user_id = ? AND m.status = 'active'
+            ) AS present`,
+    [organizationId, userId],
+  );
+  return Boolean(rows[0]?.present);
+}
+
 /** The person who filed a request — the transitioned notification's one recipient. */
 export async function findRequestSubmitter(
   tx: WorkerTransaction,

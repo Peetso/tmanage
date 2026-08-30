@@ -14,9 +14,16 @@ import type {
   ListWorkItemsOptions,
   UpdateWorkItemInput,
 } from './work-items.repository.js';
-import type { WorkItemRow } from '../../common/database/schema.js';
+import type { WorkBlockerRow, WorkItemRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import {
+  DependencyCycleError,
+  DuplicateDependencyError,
+  SelfDependencyError,
+  WorkGraphRepository,
+  WorkItemAlreadyBlockedError,
+} from './work-graph.repository.js';
 
 /**
  * WORK-001's application service — spec §3 steps 5 to 7 for the work aggregate.
@@ -101,6 +108,68 @@ export function toWorkItemView(row: WorkItemRow): WorkItemView {
 
 const toView = toWorkItemView;
 
+// ── WORK-003's views ──────────────────────────────────────────────────────────
+
+export interface WorkItemDependencyView {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly dependsOnWorkItemId: string;
+  readonly createdByUserId: string;
+  readonly createdAt: string;
+}
+
+/** The ledger entry, whole: raised and — when it is — resolved. */
+export interface WorkBlockerView {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly reason: string;
+  readonly ask: string;
+  readonly ownerUserId: string | null;
+  readonly createdByUserId: string;
+  readonly createdAt: string;
+  readonly resolvedAt: string | null;
+  readonly resolution: string | null;
+  readonly resolvedByUserId: string | null;
+}
+
+function toBlockerView(row: WorkBlockerRow): WorkBlockerView {
+  return {
+    id: row.id,
+    workItemId: row.workItemId,
+    reason: row.reason,
+    ask: row.ask,
+    ownerUserId: row.ownerUserId,
+    createdByUserId: row.createdByUserId,
+    createdAt: row.createdAt.toISOString(),
+    resolvedAt: row.resolvedAt ? row.resolvedAt.toISOString() : null,
+    resolution: row.resolution,
+    resolvedByUserId: row.resolvedByUserId,
+  };
+}
+
+/** Every signal names its cause — UNIT-12's "explainable signals", as a closed union. */
+export type WorkItemHealthSignal =
+  | {
+      readonly kind: 'blocked';
+      readonly blockerId: string;
+      readonly ask: string;
+      readonly ownerUserId: string | null;
+      readonly since: string;
+    }
+  | { readonly kind: 'predecessor_blocked'; readonly workItemId: string; readonly title: string }
+  | {
+      readonly kind: 'predecessor_late';
+      readonly workItemId: string;
+      readonly title: string;
+      readonly dueAt: string;
+    };
+
+export interface WorkItemHealthView {
+  readonly status: 'blocked' | 'at_risk' | 'on_track';
+  readonly signals: readonly WorkItemHealthSignal[];
+  readonly computedAt: string;
+}
+
 /**
  * The audiences a client principal may read.
  *
@@ -132,6 +201,8 @@ export class WorkItemsService {
      * without one and assert nothing was written. The running application always wires it.
      */
     private readonly outbox?: OutboxEventsRepository,
+    /** WORK-003: the edges and the blocker ledger. Stateless, so a default is safe. */
+    private readonly graph: WorkGraphRepository = new WorkGraphRepository(),
   ) {}
 
   /**
@@ -301,6 +372,22 @@ export class WorkItemsService {
   ): Promise<WorkItemView> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.transition');
 
+    // WORK-003: entering `blocked` persists the blocker (US-B04 — reason, ask, optional
+    // owner, since date), so the machine's required facts stop being prose that vanishes
+    // into an audit key list. The optional owner is validated before the transaction
+    // opens: an ask on somebody who cannot act in this organization is an ask on nobody.
+    const blockerFacts = to === 'blocked' ? this.blockerFactsOf(facts) : undefined;
+    if (blockerFacts?.ownerUserId) {
+      const isMember = await this.database.read(context, (runner) =>
+        this.graph.isActiveInternalMember(runner, context, blockerFacts.ownerUserId as string),
+      );
+      if (!isMember) {
+        throw new ApiError(422, 'validation_failed', 'The blocker owner is not a member', [
+          { field: 'blockerOwnerUserId', message: 'must be an active member of this organization' },
+        ]);
+      }
+    }
+
     try {
       const row = await this.writing(() =>
         this.database.transaction(context, async (tx) => {
@@ -351,6 +438,39 @@ export class WorkItemsService {
             },
           });
 
+          // WORK-003, both directions of the `blocked` boundary, in the same transaction
+          // as the transition that crosses it.
+          if (blockerFacts) {
+            const blocker = await this.graph.raiseBlocker(tx, context, {
+              workItemId: moved.id,
+              reason: blockerFacts.reason,
+              ask: blockerFacts.ask,
+              ownerUserId: blockerFacts.ownerUserId,
+            });
+            // §4 "blocker activated — health, inbox, notification". Ids only.
+            await this.outbox?.append(tx, context, {
+              type: 'work_item.blocked.v1',
+              aggregateId: moved.id,
+              payload: {
+                workItemId: moved.id,
+                projectId: moved.projectId,
+                blockerId: blocker.id,
+                ownerUserId: blocker.ownerUserId,
+              },
+            });
+          }
+          if (before.state === 'blocked' && to !== 'blocked') {
+            // The machine required `blockerResolution` to leave; record it on the ledger.
+            // A null answer means the blocker predates 0011 — nothing to resolve is not
+            // an error, and inventing a row to resolve would falsify the history.
+            await this.graph.resolveActiveBlocker(
+              tx,
+              context,
+              moved.id,
+              this.boundedFact(facts, 'blockerResolution'),
+            );
+          }
+
           return moved;
         }),
       );
@@ -369,8 +489,193 @@ export class WorkItemsService {
           error.reason,
         );
       }
+      if (error instanceof WorkItemAlreadyBlockedError) {
+        // Reachable only when the row's state and its ledger disagree — refusing loudly
+        // beats writing a second "active" truth.
+        throw new ApiError(409, 'conflict', 'This work item already has an active blocker');
+      }
       throw error;
     }
+  }
+
+  // ── WORK-003: dependencies, the blocker ledger, and the health signal ───────
+
+  /**
+   * Add an edge: this item depends on another. Both ends must be readable by this
+   * principal — a dependency on a row someone may not see would leak its existence through
+   * every health answer — and the edge must be acyclic, which the repository proves
+   * against the rows before inserting.
+   */
+  async addDependency(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    dependsOnWorkItemId: string,
+  ): Promise<WorkItemDependencyView> {
+    await this.readForWrite(context, principal, workItemId, 'work.update');
+    // The predecessor needs only readability: depending on work is not editing it.
+    const predecessor = await this.database.read(context, (runner) =>
+      this.workItems.findById(runner, context, dependsOnWorkItemId),
+    );
+    if (!predecessor || predecessor.deletedAt !== null || !this.mayRead(principal, predecessor)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+
+    try {
+      const row = await this.database.transaction(context, (tx) =>
+        this.graph.addDependency(tx, context, workItemId, dependsOnWorkItemId),
+      );
+      return {
+        id: row.id,
+        workItemId: row.workItemId,
+        dependsOnWorkItemId: row.dependsOnWorkItemId,
+        createdByUserId: row.createdByUserId,
+        createdAt: row.createdAt.toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof SelfDependencyError) {
+        throw new ApiError(422, 'validation_failed', error.message, [
+          { field: 'dependsOnWorkItemId', message: 'must be a different work item' },
+        ]);
+      }
+      if (error instanceof DependencyCycleError) {
+        throw new ApiError(422, 'validation_failed', 'That dependency would create a cycle', [
+          { field: 'dependsOnWorkItemId', message: 'already depends on this work item' },
+        ]);
+      }
+      if (error instanceof DuplicateDependencyError) {
+        throw new ApiError(409, 'conflict', error.message);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Remove an edge. Audited — the delete destroys the only record of the edge, and an
+   * edge quietly removed is a health claim quietly changed.
+   */
+  async removeDependency(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+    dependencyId: string,
+  ): Promise<void> {
+    await this.readForWrite(context, principal, workItemId, 'work.update');
+
+    await this.database.transaction(context, async (tx) => {
+      const removed = await this.graph.removeDependency(tx, context, workItemId, dependencyId);
+      if (!removed) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+      await this.audit?.record(tx, context, {
+        action: 'work_item.dependency_removed',
+        objectId: workItemId,
+        result: 'allowed',
+        metadata: {
+          depended_on_id: removed.dependsOnWorkItemId,
+          dependency_id: removed.id,
+        },
+      });
+    });
+  }
+
+  /** The item's blocker ledger, oldest first — US-B04's history, raised and resolved. */
+  async listBlockers(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+  ): Promise<readonly WorkBlockerView[]> {
+    await this.get(context, principal, workItemId); // The same 404 rules as any read.
+    const rows = await this.database.read(context, (runner) =>
+      this.graph.listBlockers(runner, context, workItemId),
+    );
+    return rows.map(toBlockerView);
+  }
+
+  /**
+   * The health signal — WORK-003's third word, `09-MVP-PRD` §63's rule made a read.
+   *
+   * Computed, never stored: a stored status is a cache of an opinion, free to go stale the
+   * moment a predecessor's due date moves. Every signal names its cause — UNIT-12's
+   * "explainable signals" — and the answer carries `computedAt` so a consumer knows how
+   * fresh the claim is. §63's manager override ("record override rationale") has no
+   * storage and is a named gap, so today a late predecessor always costs the claim.
+   */
+  async healthOf(
+    context: TenantContext,
+    principal: Principal,
+    workItemId: string,
+  ): Promise<WorkItemHealthView> {
+    await this.get(context, principal, workItemId); // 404 before anything is revealed.
+
+    const { blocker, predecessors } = await this.database.read(context, async (runner) => ({
+      blocker: await this.graph.findActiveBlocker(runner, context, workItemId),
+      predecessors: await this.graph.listPredecessors(runner, context, workItemId),
+    }));
+
+    const now = new Date();
+    const signals: WorkItemHealthSignal[] = [];
+
+    if (blocker) {
+      signals.push({
+        kind: 'blocked',
+        blockerId: blocker.id,
+        ask: blocker.ask,
+        ownerUserId: blocker.ownerUserId,
+        since: blocker.createdAt.toISOString(),
+      });
+    }
+
+    for (const predecessor of predecessors) {
+      if (predecessor.deletedAt !== null) continue;
+      const landed = predecessor.state === 'done' || predecessor.state === 'archived';
+      if (landed) continue;
+      if (predecessor.state === 'blocked') {
+        signals.push({
+          kind: 'predecessor_blocked',
+          workItemId: predecessor.workItemId,
+          title: predecessor.title,
+        });
+      } else if (predecessor.dueAt !== null && predecessor.dueAt < now) {
+        signals.push({
+          kind: 'predecessor_late',
+          workItemId: predecessor.workItemId,
+          title: predecessor.title,
+          dueAt: predecessor.dueAt.toISOString(),
+        });
+      }
+    }
+
+    const status = blocker ? 'blocked' : signals.length > 0 ? 'at_risk' : 'on_track';
+    return { status, signals, computedAt: now.toISOString() };
+  }
+
+  /** US-B04's facts, shaped and bounded before anything is written. */
+  private blockerFactsOf(facts: Readonly<Record<string, unknown>>): {
+    readonly reason: string;
+    readonly ask: string;
+    readonly ownerUserId: string | null;
+  } {
+    const reason = this.boundedFact(facts, 'blockerReason');
+    const ask = this.boundedFact(facts, 'blockerAsk');
+    const owner = facts['blockerOwnerUserId'];
+    if (owner !== undefined && owner !== null && typeof owner !== 'string') {
+      throw new ApiError(422, 'validation_failed', 'The blocker owner is not an id', [
+        { field: 'blockerOwnerUserId', message: 'must be a user id' },
+      ]);
+    }
+    return { reason, ask, ownerUserId: typeof owner === 'string' ? owner : null };
+  }
+
+  /** A fact column is VARCHAR(1000); refuse an essay before the driver truncates one. */
+  private boundedFact(facts: Readonly<Record<string, unknown>>, key: string): string {
+    const value = String(facts[key] ?? '').trim();
+    if (value.length > 1000) {
+      throw new ApiError(422, 'validation_failed', 'That is longer than a blocker fact can be', [
+        { field: key, message: 'must be at most 1000 characters' },
+      ]);
+    }
+    return value;
   }
 
   /**

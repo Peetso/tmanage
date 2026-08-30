@@ -271,6 +271,9 @@ export async function truncateAll(admin: Pool): Promise<void> {
       'notifications',
       // REQ-001. Before `work_items`: a linked request references one.
       'client_requests',
+      // WORK-003. Before `work_items` for the same reason: both reference it.
+      'work_item_dependencies',
+      'work_blockers',
       'work_items',
       'invitations',
       'project_clients',

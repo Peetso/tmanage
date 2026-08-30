@@ -365,6 +365,70 @@ export const workItems = mysqlTable(
   ],
 );
 
+/**
+ * WORK-003. The successor points at its predecessor — `work_item_id` depends on
+ * `depends_on_work_item_id`. Edges are immutable at the engine (0011's trigger);
+ * correcting one is delete-and-add, and the delete is audited because it destroys the
+ * only record of the edge. Cycles beyond self-reference are refused by the service's
+ * recursive walk before the insert.
+ */
+export const workItemDependencies = mysqlTable(
+  'work_item_dependencies',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    dependsOnWorkItemId: char('depends_on_work_item_id', { length: 36 }).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_dependencies_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_dependencies_edge').on(
+      table.organizationId,
+      table.workItemId,
+      table.dependsOnWorkItemId,
+    ),
+    index('ix_work_item_dependencies_predecessor').on(
+      table.organizationId,
+      table.dependsOnWorkItemId,
+    ),
+  ],
+);
+
+/**
+ * WORK-003. US-B04's blocker as a ledger: raised (reason, ask, optional owner, since) and
+ * resolved (outcome, when, by whom), never deleted, never rewritten — the one legal update
+ * is resolving an open entry, exactly once (0011's trigger). `active_item` is a stored
+ * generated column — the work item id while unresolved, NULL after — so
+ * `uq_work_blockers_one_active` is the engine enforcing "one active blocker per item",
+ * which the state machine's own note assumes when leaving `blocked` resolves *the* active
+ * blocker, singular.
+ */
+export const workBlockers = mysqlTable(
+  'work_blockers',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    reason: varchar('reason', { length: 1000 }).notNull(),
+    ask: varchar('ask', { length: 1000 }).notNull(),
+    ownerUserId: char('owner_user_id', { length: 36 }),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
+    resolution: varchar('resolution', { length: 1000 }),
+    resolvedByUserId: char('resolved_by_user_id', { length: 36 }),
+    /** Engine-computed; never written by the application. See the migration. */
+    activeItem: char('active_item', { length: 36 }),
+  },
+  (table) => [
+    uniqueIndex('uq_work_blockers_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_blockers_one_active').on(table.organizationId, table.activeItem),
+    index('ix_work_blockers_item').on(table.organizationId, table.workItemId, table.createdAt),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -862,6 +926,8 @@ export const TABLES = {
   invitations: invitations,
   project_clients: projectClients,
   work_items: workItems,
+  work_item_dependencies: workItemDependencies,
+  work_blockers: workBlockers,
   client_requests: clientRequests,
   conversations,
   conversation_memberships: conversationMemberships,
@@ -900,6 +966,8 @@ export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
+export type WorkItemDependencyRow = typeof workItemDependencies.$inferSelect;
+export type WorkBlockerRow = typeof workBlockers.$inferSelect;
 export type UserPasswordRow = typeof userPasswords.$inferSelect;
 export type UserMfaFactorRow = typeof userMfaFactors.$inferSelect;
 export type UserRecoveryCodeRow = typeof userRecoveryCodes.$inferSelect;

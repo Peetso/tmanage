@@ -172,5 +172,6 @@ export type {
   OutboxEventDefinition,
   OutboxEventPayloads,
   OutboxEventType,
+  WorkItemBlockedV1,
   WorkItemUpdatedV1,
 } from './events/outbox.js';

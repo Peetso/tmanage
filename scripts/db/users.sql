@@ -106,6 +106,12 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app
 -- NOTIF-001. UPDATE is for marking read — the trigger in 0010 confines it to `read_at`,
 -- forward only. DELETE withheld: "was this person told" must stay answerable.
 GRANT INSERT, UPDATE         ON `tmanage`.`notifications`        TO 'tmanage_app'@'%';
+-- WORK-003. A dependency is a removable planning edge — the second DELETE this file
+-- grants, and like the first (idempotency housekeeping) it destroys no history the audit
+-- trail does not keep: the removal is audited. A blocker is a ledger: INSERT to raise,
+-- UPDATE (confined by 0011's trigger to the one-time resolution) to resolve, DELETE never.
+GRANT INSERT, DELETE         ON `tmanage`.`work_item_dependencies` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE         ON `tmanage`.`work_blockers`          TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

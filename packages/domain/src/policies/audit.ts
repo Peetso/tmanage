@@ -152,6 +152,18 @@ export const AUDIT_ACTION_CATALOG = {
       'lifecycle anyone can see, so it is the removal that most needs accounting for',
   },
   /**
+   * WORK-003. Adding an edge is not here — the row itself records who and when, the same
+   * judgement as work-item field edits. Removing one IS here, for
+   * `project_membership.revoked`'s reason: the DELETE destroys the only record of the
+   * edge, and an edge quietly removed is a health claim quietly changed.
+   */
+  'work_item.dependency_removed': {
+    objectType: 'work_item',
+    clause:
+      '§12 — the hard delete erases the edge, so the removal row is the only remaining ' +
+      'evidence a health signal once had a reason',
+  },
+  /**
    * CLIENT-001. The access-granting half of the system, and every one of these is §12's
    * "role changes" or a disclosure decision rather than a field edit.
    *

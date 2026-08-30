@@ -3,6 +3,7 @@ import {
   clientRequestSubmittedConsumer,
   clientRequestTransitionedConsumer,
 } from './client-request-notifications.js';
+import { workItemBlockedConsumer } from './work-blocked-notification.js';
 
 /**
  * The registry `main.ts` runs, keyed by the type each consumer answers to. A file of its
@@ -14,4 +15,6 @@ export const WORKER_OUTBOX_HANDLERS = {
   // NOTIF-001 — see `client-request-notifications.ts` for who is told what, and why.
   'client_request.submitted.v1': clientRequestSubmittedConsumer,
   'client_request.transitioned.v1': clientRequestTransitionedConsumer,
+  // WORK-003 — the blocker's ask owner, and nobody else.
+  'work_item.blocked.v1': workItemBlockedConsumer,
 } as const;

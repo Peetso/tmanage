@@ -47,4 +47,5 @@ export {
   clientRequestTransitionedConsumer,
   mayTriageClientRequests,
 } from './consumers/client-request-notifications.js';
+export { workItemBlockedConsumer } from './consumers/work-blocked-notification.js';
 export type { InternalRecipientCandidate } from './common/database/notifications-store.js';

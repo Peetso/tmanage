@@ -64,6 +64,11 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'work_item',
     catalog: '§4 work_item.updated.v1 — search, realtime, health',
   },
+  /** §4: "blocker activated" — WORK-003, raised alongside the transition into `blocked`. */
+  'work_item.blocked.v1': {
+    aggregateType: 'work_item',
+    catalog: '§4 work_item.blocked.v1 — health, inbox, notification',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -137,6 +142,18 @@ export interface WorkItemUpdatedV1 {
   readonly workItemVersion: number;
 }
 
+/**
+ * Ids only — the blocker's reason and ask are prose a person wrote and stay on the row.
+ * `ownerUserId` is who the ask is on, when it names anybody in this system: it is the
+ * identifier the notification consumer needs, and nothing about *why* travels with it.
+ */
+export interface WorkItemBlockedV1 {
+  readonly workItemId: string;
+  readonly projectId: string;
+  readonly blockerId: string;
+  readonly ownerUserId: string | null;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -144,4 +161,5 @@ export interface OutboxEventPayloads {
   readonly 'message.created.v1': MessageCreatedV1;
   readonly 'message.converted.v1': MessageConvertedV1;
   readonly 'work_item.updated.v1': WorkItemUpdatedV1;
+  readonly 'work_item.blocked.v1': WorkItemBlockedV1;
 }
