@@ -273,6 +273,73 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, TEST-003 first half, same session
+
+The eleventh chain run of this session, one uninterrupted background run on the tree
+commit `61f99a8` left. **Green on the first attempt** — as it had to be, since the e2e
+harness sits deliberately outside every one of these gates.
+
+| Gate                        | Result                                                              |
+| --------------------------- | ------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                               |
+| `pnpm typecheck`            | **Done** — eight projects now: `@tmanage/e2e` joins the walk        |
+| `pnpm lint`                 | Clean, no output                                                    |
+| `pnpm test`                 | **890 passed across 47 files** — unchanged: e2e runs its own runner |
+| `pnpm test:db`              | **30 files, 769 passed, 29 skipped (798)** — unchanged              |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**               |
+| `pnpm format:check` (again) | Clean                                                               |
+| Leaked `mysqld`             | **None**, checked after the suite exited                            |
+
+And separately, the thing the chain does not gate: `pnpm test:e2e` — **2 passed in 36
+seconds**, through a real Chromium against the real stack.
+
+---
+
+## TEST-003 first half — two journeys through a real browser, outside the chain
+
+Commit before the chain above, and the ticket moves **zero → half (4)**: §6's scope row
+reads "E2E-02, AUTH-04, REL-01/02", the first two now run, and REL-01/02 — API instance
+loss behind a load balancer — need infrastructure this plan does not have, which caps the
+ticket at half on this machine and says so here.
+
+`e2e/` is its own workspace holding a deployment in miniature: an embedded MySQL, the real
+migrations through `db:migrate`, the exact two-tenant seed every database suite uses
+(reached through a ten-line seed CLI in the API's own test directory rather than importing
+TypeScript across a workspace boundary), the API under `tsx`, the web app under `next
+dev`, booted once by Playwright's global setup and torn down whole. **Deliberately outside
+the verification chain**: the chain's gates are deterministic and ~25 minutes; a
+full-stack boot with a browser is a different animal, and welding it in on the day it is
+born would put every future ticket behind its worst day. It runs as `pnpm test:e2e` and
+earns anything more by track record.
+
+The two journeys, both §-named in `27-TEST-CATALOG`:
+
+- **E2E-02, "Message → task; no duplicate on retry."** Create a channel, say a thing,
+  convert it, follow the link — then convert it again and be handed the _same_ item.
+  INT-07's guarantee, watched from outside the codebase for the first time.
+- **AUTH-04, "deny, no source leak."** A member of the organization who is not in the
+  channel opens its URL and learns nothing: the load error, no message text, no composer.
+
+### The harness paid for itself before its first green
+
+Three findings from its own five bring-up runs, each kept:
+
+1. **A stale `.next` cache serves another environment's API.** `NEXT_PUBLIC_*` values are
+   inlined at compile time, and a cache warmed under a developer's environment kept
+   dialing the developer's port. The harness clears `apps/web/.next` per run, with the
+   reason at the call site.
+2. **The Next dev server 403s its own chunks under a host it does not expect** —
+   `localhost` versus `127.0.0.1`. The constants now say why they are `localhost`.
+3. **A real screen defect: the denial page offered a composer.** A member outside the
+   room saw "Could not load this channel" — above a "Message the channel" box that could
+   never work. The composer now renders only for a loaded channel, and AUTH-04 asserts
+   the absence.
+
+`apps/web/AGENTS.md` and `CLAUDE.md` are `next dev`'s own generated agent files,
+committed because the generator re-creates them on every run.
+
+---
+
 ## The TEST-003 probe — the browser launches, and the zero loses its excuse
 
 Run 2026-08-30, at the end of the relay session, exactly as the previous "next coding
@@ -5809,6 +5876,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else    |
 | 6   | NOTIF-001  |   8 | half 4   | The record and its consumers, permission-checked at delivery, idempotent by the dedupe key. **Preferences are absent** — the contract draws no table for them  |
 | 6   | RT-001     |  13 | whole 13 | Tickets, current-row subscriptions, cursor served and gaps healed by refetch — both ends of the wire. Presence is not in the row and stays named on the screen |
+| 6   | TEST-003   |   8 | half 4   | E2E-02 and AUTH-04 run through a real Chromium against the real stack, outside the chain. REL-01/02 need a load balancer this plan does not have               |
 | 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                              |
 | 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                        |
 | 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                    |
@@ -5824,15 +5892,15 @@ third, and **WEB-003's first half the same day** as its fourth. **On 2026-08-30 
 PLAT-004 and WEB-003 moved from half to whole, NOTIF-001 joined at half, and WORK-003 moved
 from zero to whole** — the relay session's four tickets.
 
-| Sprint                                                                                          | Tickets      | Points         |
-| ----------------------------------------------------------------------------------------------- | ------------ | -------------- |
-| Sprint 0 (§3)                                                                                   | 5½ of 8      | 36.5 of 52     |
-| Sprint 1 (§4)                                                                                   | 7½ of 8      | 54 of 58       |
-| Sprint 2 (§5)                                                                                   | 5½ of 6      | 46.5 of 53     |
-| Sprint 3 (§6)                                                                                   | 5½ of 7      | 54 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**   |
-| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293       |
-| **§§3–12**                                                                                      | **31 of 70** | **252 of 583** |
+| Sprint                                                                                          | Tickets       | Points         |
+| ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
+| Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52     |
+| Sprint 1 (§4)                                                                                   | 7½ of 8       | 54 of 58       |
+| Sprint 2 (§5)                                                                                   | 5½ of 6       | 46.5 of 53     |
+| Sprint 3 (§6)                                                                                   | 6 of 7        | 58 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
+| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
+| **§§3–12**                                                                                      | **31½ of 70** | **256 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5858,47 +5926,37 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**`RT-001` was made whole on 2026-08-30 — the ninth ticket-sized piece of a session that
-ran ten green chains — and this section is replaced rather than amended.** Sprint 4 is
-still the only complete one; Sprint 2 stands one half (WEB-002's homeless saved views)
-from joining it, Sprint 1 one half (ID-002's passkeys).
+**`TEST-003`'s first half shipped on 2026-08-30 — the tenth ticket-sized piece of a
+session that ran eleven green chains — and this section is replaced rather than
+amended.** Sprint 4 is still the only complete one; Sprint 3 stands at 6 of 7, Sprint 2
+one half from complete.
 
-**The next one is `TEST-003`'s first half — the E2E harness the probe just unlocked.**
-The probe ran at the end of this session (its own section near the top): headless
-Chromium 140 launches on this host, so the row's zero is now "not built", not "cannot
-build". The work: add Playwright as the weighed-in-the-open dev dependency, an `e2e/`
-home per `18-REPOSITORY-STRUCTURE`, a fixture that boots the API (embedded MySQL, seeded
-world, dev sign-in enabled) and the web app and tears both down, and the first two
-journeys — AUTH-04 (sign-in, wrong password, lockout window) and E2E-02's
-request-to-delivery walk as far as the product actually reaches today. REL-01/02 stay out
-of reach honestly — instance loss behind a load balancer is not this machine — so the
-ticket's ceiling here is **half**, and its row should say exactly that when the count
-moves. Two cautions: the Next app needs a production build or a warmed dev server before
-the first navigation, and E2E timing must follow the standing rule — waits on conditions,
-never sleeps tuned until green.
-
-The alternatives, in order after it:
-
-2. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to
-   send it. `28-SPRINT-TICKETS` does not schedule this at all.
-3. **A `DATE` column for dates that have no time.** The unscheduled migration recorded in
-   the WEB-004 gaps; small, and a real correctness itch west of UTC.
-4. **`TEST-003` — E2E.** Playwright needs no container, only downloaded browsers; whether
-   this machine tolerates that is untested. If it does, E2E-02/AUTH-04/REL-01/02 become
-   runnable; if not, the row stays zero with a better-informed reason.
+**The next one is the `DATE` migration — small, unscheduled, and a real correctness
+defect.** `projects.forecast_at`, `projects.committed_at` and `client_requests.desired_at`
+are `DATETIME(3)` columns holding midnight UTC for values that are calendar dates, so any
+reader west of UTC sees every target and desired date **a day early** — recorded in the
+WEB-004 gaps since that ticket landed. The work: a migration converting the three columns
+to `DATE`, the schema descriptions, the repositories' write paths (the controllers already
+parse bare dates at midnight UTC — the parse survives, the storage stops lying), the
+projections that serialise them, and the screens' formatting, with the WEB-004/PROJ-002
+gap notes closed by reference. Mind the standing rules: the `TABLES` drift map's column
+cases will notice the type change (good — update them with the migration, same commit),
+and both engines must accept the `ALTER` (MySQL 8 and MariaDB 11.4 both alter
+DATETIME→DATE with value truncation — verify what truncation does to the stored midnight
+values before trusting it; the suite should prove a stored 2026-09-30T00:00:00Z reads
+back as 2026-09-30 for every reader).
 
 The alternatives, in order after it:
 
-2. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to send
-   it. `28-SPRINT-TICKETS` does not schedule this at all; `NOTIF-001` is the nearest real ticket
-   and it builds notification records rather than delivery.
-3. **A `DATE` column for dates that have no time.** `projects.forecast_at`,
-   `projects.committed_at` and `client_requests.desired_at` are all `DATETIME(3)` holding
-   midnight UTC, so a reader west of UTC sees every calendar date a day early. Not scheduled by
-   `28-SPRINT-TICKETS`; it is a migration, recorded in the WEB-004 gaps above.
-4. **`RT-001` — realtime.** Also unblocked by PLAT-004, and the channel screen's "new
-   messages appear when the channel is reloaded" is its absence made visible. 13→split, and
-   the socket infrastructure it needs is a larger bite than a table-and-consumer ticket.
+2. **UI-001's remainder — the visual-regression harness.** The browser excuse fell to the
+   probe; Playwright screenshots over the existing Storybook stories are now buildable.
+   The baseline-artifact decision (what gets committed, how diffs are reviewed) is the
+   real work; weigh it in the open.
+3. **A mailer.** Nothing sends an invitation; `ON-04` still prints the link.
+   `28-SPRINT-TICKETS` does not schedule this at all.
+4. **E2E growth.** The harness is young: E2E-01/03/04 and more of AUTH-\* become cheap
+   marginal journeys once the boot cost is paid — but let the harness prove it is not
+   flaky across a few sessions before adding weight to it.
 
 **A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
 The client request loop still cannot hold a conversation _with a client_. `CHAT-001` built the
@@ -6109,18 +6167,27 @@ directory, unscheduled" instead, which is both shorter and true.
     Live. 3 screen cases over an injectable socket seam. The scope row's three words —
     tickets, authorized subscriptions, cursor/gap — all hold on both ends of the wire.
 
+39. ~~TEST-003 first half~~ — **done this session, half by an honest ceiling.** The probe
+    (headless Chromium launches here) and then the harness it unlocked: `e2e/` boots the
+    whole stack — embedded MySQL, real migrations, the shared seed, API, web — under
+    Playwright's global setup, outside the chain by design. E2E-02 and AUTH-04 run green
+    through a real browser in 36 seconds; REL-01/02 need a load balancer and cap the
+    ticket at half. The harness found three real things during bring-up, including a
+    denial screen offering a composer that could never work — fixed, and asserted absent
+    by the journey itself.
+
 ### Progress
 
-**31 of 70 tickets. 252 of 583 story points — 43.2%, across Sprints 0–9.** Derived ticket by
+**31½ of 70 tickets. 256 of 583 story points — 43.9%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
 numerator **and** in the denominator; the percentage reads higher today only because eight
 tickets moved in one session — PLAT-004, WEB-003, WORK-003, WORK-002, TEST-001 and TEST-002 to
-whole, RT-001 to whole across two chains, NOTIF-001 to half — each behind green chains. Screen tickets: **4½ of 11** —
+whole, RT-001 to whole across two chains, NOTIF-001 and TEST-003 to half — each behind green chains. Screen tickets: **4½ of 11** —
 WEB-001, WEB-003, WEB-004 and WEB-005 whole, WEB-002 half (its saved views remain homeless).
-**Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — plus RT-001 whole and half of
-NOTIF-001, standing at 5½ of 7. Sprint 2 stands at 5½ of 6, one homeless-saved-views
+**Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — plus RT-001 whole and the halves of
+NOTIF-001 and TEST-003, standing at 6 of 7. Sprint 2 stands at 5½ of 6, one homeless-saved-views
 half from complete; Sprint 1 at 7½ of 8; Sprint 0 at 5½ of 8.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
