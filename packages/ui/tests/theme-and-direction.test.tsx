@@ -5,12 +5,16 @@ import {
   Avatar,
   Badge,
   Button,
+  Checkbox,
   Field,
   InlineAlert,
+  Radio,
+  RadioGroup,
   SearchField,
   SkipLink,
   StateCapsule,
   StatusDot,
+  Switch,
   ThemeProvider,
 } from '../src/components/index.js';
 import { expectNoAxeViolations } from './axe.js';
@@ -30,6 +34,11 @@ function Surface({ title }: { title: string }) {
         <StatusDot tone="live">{title}</StatusDot>
         <Badge mono>v4</Badge>
         <InlineAlert tone="client">{title}</InlineAlert>
+        <Checkbox label={title} indeterminate />
+        <RadioGroup legend={title} hint={title}>
+          <Radio label={title} value="one" defaultChecked />
+        </RadioGroup>
+        <Switch label={title} defaultChecked />
       </main>
     </>
   );

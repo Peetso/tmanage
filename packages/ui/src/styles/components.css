@@ -342,6 +342,212 @@
   color: var(--ink-500);
 }
 
+/* ── Checkbox, Radio, Switch ──────────────────────────────────────────────────── */
+
+/*
+ * All three are native inputs under `appearance: none`, repainted with tokens — never
+ * repainted `<div>`s. Checked is ink-and-paper, the `InkButton` pairing already proven AA
+ * in both themes: law 2 reserves lime for current / next / live, and a selection is none
+ * of those.
+ */
+
+.tm-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-choice__row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-choice__label {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-800);
+  cursor: pointer;
+}
+
+.tm-choice__hint {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+/* An option's own hint sits under its label, not under the control column. */
+.tm-choice__hint--option {
+  margin-inline-start: var(--s8);
+}
+
+.tm-choice__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--tm-on-tone);
+}
+
+.tm-choice__error .tm-inline-alert__glyph {
+  color: var(--danger-600);
+}
+
+.tm-checkbox,
+.tm-radio {
+  appearance: none;
+  margin: 0;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  inline-size: var(--s5);
+  block-size: var(--s5);
+  border: var(--b-structural) solid var(--line-300);
+  background: var(--paper-0);
+  cursor: pointer;
+  transition:
+    background-color var(--t-micro) var(--ease),
+    border-color var(--t-micro) var(--ease);
+}
+
+/* Half the micro radius: the full 10px on a 20px box would read as a second radio. */
+.tm-checkbox {
+  border-radius: calc(var(--r-micro) / 2);
+}
+
+.tm-radio {
+  border-radius: var(--r-capsule);
+}
+
+.tm-checkbox::before {
+  content: '';
+  inline-size: calc(var(--s5) / 2);
+  block-size: calc(var(--s5) / 2);
+  background: var(--paper-0);
+  clip-path: polygon(14% 44%, 0 65%, 40% 100%, 100% 16%, 84% 0, 38% 66%);
+  transform: scale(0);
+  transition: transform var(--t-micro) var(--ease);
+}
+
+.tm-checkbox:checked,
+.tm-checkbox:indeterminate {
+  background: var(--ink-950);
+  border-color: var(--ink-950);
+}
+
+.tm-checkbox:checked::before {
+  transform: scale(1);
+}
+
+/* The mixed state is a paper bar, not a check: "some of them", said with a shape. */
+.tm-checkbox:indeterminate::before {
+  clip-path: none;
+  block-size: var(--b-expressive);
+  border-radius: var(--r-capsule);
+  transform: scale(1);
+}
+
+.tm-radio::before {
+  content: '';
+  inline-size: calc(var(--s5) / 2);
+  block-size: calc(var(--s5) / 2);
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+  transform: scale(0);
+  transition: transform var(--t-micro) var(--ease);
+}
+
+.tm-radio:checked {
+  border-color: var(--ink-950);
+}
+
+.tm-radio:checked::before {
+  transform: scale(1);
+}
+
+.tm-checkbox[aria-invalid='true'] {
+  border-color: var(--danger-600);
+}
+
+.tm-checkbox:disabled,
+.tm-radio:disabled,
+.tm-switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tm-checkbox:disabled ~ .tm-choice__label,
+.tm-radio:disabled ~ .tm-choice__label,
+.tm-switch:disabled ~ .tm-choice__label,
+.tm-radio-group:disabled .tm-choice__label {
+  color: var(--ink-500);
+  cursor: not-allowed;
+}
+
+.tm-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.tm-radio-group__legend {
+  padding: 0;
+  margin-block-end: var(--s1);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-switch {
+  appearance: none;
+  margin: 0;
+  flex: none;
+  position: relative;
+  inline-size: var(--orb-comfortable);
+  block-size: var(--s6);
+  border-radius: var(--r-capsule);
+  border: var(--b-structural) solid var(--line-300);
+  background: var(--paper-250);
+  cursor: pointer;
+  transition:
+    background-color var(--t-micro) var(--ease),
+    border-color var(--t-micro) var(--ease);
+}
+
+.tm-switch::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  inset-inline-start: var(--s1);
+  inline-size: var(--s4);
+  block-size: var(--s4);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  transition: inset-inline-start var(--t-micro) var(--ease);
+}
+
+.tm-switch:checked {
+  background: var(--ink-950);
+  border-color: var(--ink-950);
+}
+
+/*
+ * The thumb travels in logical coordinates — `inset-inline-start` on both ends — so the
+ * "on" side is the reading-direction end in Arabic without a single RTL override.
+ */
+.tm-switch:checked::before {
+  inset-inline-start: calc(100% - var(--s4) - var(--s1));
+  border-color: transparent;
+}
+
 /* ── Avatar ───────────────────────────────────────────────────────────────────── */
 
 .tm-avatar {
@@ -598,7 +804,13 @@
 
   .tm-button,
   .tm-orb-button,
-  .tm-skip-link {
+  .tm-skip-link,
+  .tm-checkbox,
+  .tm-checkbox::before,
+  .tm-radio,
+  .tm-radio::before,
+  .tm-switch,
+  .tm-switch::before {
     transition: none;
   }
 }

@@ -12,6 +12,9 @@ export {
 export { OrbButton, type OrbButtonProps, type OrbSize, type OrbTone } from './OrbButton.js';
 export { SplitCapsuleButton, type SplitCapsuleButtonProps } from './SplitCapsuleButton.js';
 export { Field, type FieldProps } from './Field.js';
+export { Checkbox, type CheckboxProps } from './Checkbox.js';
+export { Radio, RadioGroup, type RadioProps, type RadioGroupProps } from './Radio.js';
+export { Switch, type SwitchProps } from './Switch.js';
 export { SearchField, type SearchFieldProps } from './SearchField.js';
 export {
   Avatar,

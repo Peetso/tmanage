@@ -29,6 +29,27 @@ change what a command does rather than merely how it is typed.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-08-30, start of the primitives session
+
+The **seventeenth** consecutive run, and the table below is this run's output rather than a copy
+of the previous one. Every pair was compared by SHA-256 and, separately, by modification time —
+pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                                                                                                              |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                                                                                                               |
+| Modification times                        | **No pack file is newer than its copy** in either scope. Compared pair by pair: 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later, and one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. That is the shape of a copy taken _from_ the pack                                                  |
+| Uncopied pack content                     | The same five deliberate files as every previous run — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — **plus one new harness artifact**, `.claude/scheduled_tasks.lock`, a Claude Code lock file belonging to the pack folder's tooling, not planning content |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                                                                                                               |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-08-30, start of the DATE-migration session
 
 The **sixteenth** consecutive run, and the table below is this run's output rather than a copy
@@ -291,6 +312,84 @@ once already.
 | Residual PostgreSQL references | 5, all deliberate contrast ("MySQL has no PostgreSQL-style RLS"). Zero `jsonb`, `gen_random_uuid`, or `citext`.                                                                                                                                                 |
 
 The MySQL revision is fully landed in `docs/planning/`.
+
+---
+
+## Verification actually run — 2026-08-30, Checkbox, Radio and Switch, the primitives session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`~1470 s` wall (about 24 m 30 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                  |
+| `typecheck`              | Clean across all workspace projects, `packages/ui/vr/` included                                     |
+| `lint`                   | Clean                                                                                               |
+| `test` (unit)            | **911 passed**, 48 files — up 21 from 890: the new `selection.test.tsx`                             |
+| `test:db`                | **770 passed, 29 skipped**, 30 files, **1158.17 s** — unchanged; three primitives touch no database |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                               |
+| `format:check` (closing) | Clean                                                                                               |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                           |
+
+Outside the chain, `pnpm test:vr`: **94 passed** (93 screenshots — 31 stories × 3 variants —
+plus the empty-index guard) in ~44 s. The nine new baselines were produced by
+`pnpm test:vr:update` and then verified by a plain `pnpm test:vr` run before being trusted;
+no pre-existing baseline changed by a pixel, which is itself evidence the new CSS leaked
+into nothing it does not own.
+
+---
+
+## Checkbox, Radio and Switch — three of the eight, and the selection-is-never-lime decision
+
+The first slice of UI-001's remainder. All three are **native inputs under
+`appearance: none`** — never repainted `<div>`s — so the keyboard, the form, autofill,
+the disabled cascade and the accessibility tree come from the platform, and the component
+layer only paints. 21 unit cases in `tests/selection.test.tsx`, all three added to the
+whole-surface axe matrix (light, dark, high contrast, RTL, long labels), three stories,
+nine committed VR baselines.
+
+**The one decision worth writing down: nothing here is lime.** Law 2 of the token export
+reserves lime for _current / next / live_ and names _selection-of-many_ as a forbidden
+meaning — and a checked checkbox is exactly selection-of-many. So the checked box, the
+chosen radio dot and the "on" switch track are all **ink**, with paper marks: the
+`InkButton` pairing the contrast suite already proves AA in both themes. The switch's "on"
+was the debatable one — an enabled setting sits near "live" — but a setting that happens to
+be on is a chosen value, the same meaning the checkbox carries, and when the doubt is
+between two readings of a law the safe side is the one that cannot be wrong. Written here
+so a future session does not "fix" the switch to lime without meeting the argument.
+
+The details that carry the accessibility:
+
+- **`Checkbox`** follows `Field`'s contract exactly: label required and real, hint and
+  error joined by `aria-describedby`, `aria-invalid` derived from the error's presence and
+  never passed in. The mixed state (`indeterminate` — the work list's bulk-select header
+  standing over a partly-selected list) is applied as the DOM **property**, so the browser
+  itself reports `aria-checked="mixed"`; the paper bar instead of a check says "some of
+  them" with a shape, per law 3. The jsdom pin is honest about jsdom: testing-library
+  cannot compute the mixed state from the property without paint, so the test asserts the
+  property and that checked stays false, rather than pretending to read the tree.
+- **`RadioGroup`** is a `<fieldset>` with an explicit `role="radiogroup"` — the fieldset
+  contributes the legend and the disabled cascade, and the role is what makes
+  `aria-invalid` legal on the group (ARIA permits it on `radiogroup`, not on `group`),
+  which is where a "pick one" error belongs: on the choice, never on an arbitrary option.
+  The shared `name` is generated when omitted, so two groups on one screen can never
+  silently merge by both leaving it off — pinned by a test that renders two anonymous
+  groups and checks one radio in each. `Radio` **throws** outside a `RadioGroup`, because
+  a radio alone is not a smaller version of the component; it is meaningless.
+- **`Switch`** is `<input type="checkbox" role="switch">` — the platform maps checked to
+  `aria-checked` itself. It deliberately has **no `error` prop**: a switch is an instant
+  action, not a form answer, so "could not apply" is a failed action and belongs to
+  `InlineAlert` on the submit path. The thumb travels entirely in logical coordinates
+  (`inset-inline-start` at both ends), so the RTL baseline shows the mirrored control
+  without a single `[dir]` override in the stylesheet.
+
+Five of the eight remain: `Select`, `Combobox`, the date and time fields, `Tooltip`,
+`Toast`. UI-001's row stays at **half**; totals hold at **31.5 of 70 tickets, 256 of 583
+points (43.9 %)**.
 
 ---
 
@@ -6126,21 +6225,21 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**The visual-regression harness shipped on 2026-08-30, the second piece of this session
-after the DATE migration — UI-001 stays at half because the eight primitives are the
-larger remainder — and this section is replaced rather than amended.**
+**Checkbox, Radio and Switch shipped on 2026-08-30 as the primitives session's first
+slice — this section is replaced rather than amended.**
 
-**The next one is UI-001's true remainder — the eight specified primitives:** `Select`,
-`Combobox`, `Checkbox`, `Radio`, `Switch`, date and time fields, `Tooltip`, `Toast`. The
-design inventory specifies them; `packages/ui` does not export them. The pattern is
-established thirteen times over — tokens only, axe over every theme, contrast computed not
-claimed — and each new primitive now also lands in the visual harness the day its story
-exists (write the story, run `pnpm test:vr:update`, commit the PNGs with the component).
-Mind two things: `Combobox` and the date field are the two where accessibility is hardest
-(combobox ARIA pattern; the date field should take its shape from the DATE-migration
-convention — a calendar date is a string, never an instant), and `Toast` needs a decision
-about where live-region announcements live before code. Finishing all eight plus their
-stories and baselines closes UI-001 whole: +4 points.
+**The next one is the rest of UI-001 — the five remaining primitives:** `Select`,
+`Tooltip`, `Toast`, then `Combobox` and the date and time fields. The pattern is now
+established sixteen times over — native elements under tokens, axe over every theme,
+contrast computed not claimed, and every story lands nine VR baselines the day it exists.
+The order above is deliberate: `Select` (native `<select>`, the work-list header's
+filter), `Tooltip` (hover/focus text on a describedby seam) and `Toast` are one slice;
+`Combobox` (the full ARIA combobox pattern, the hardest of the eight) and the date and
+time fields (a calendar date is a `'YYYY-MM-DD'` string, never an instant — the
+DATE-migration convention, already enforced serverside by `parseTargetDate`) are the
+last slice. `Toast` needs its live-region decision made before code: the region must
+exist, empty, before the first toast is injected, or the first announcement is lost.
+Finishing all five plus stories and baselines closes UI-001 whole: +4 points.
 
 The alternatives, in order after it:
 
@@ -6379,6 +6478,12 @@ directory, unscheduled" instead, which is both shorter and true.
     every story in light, dark and RTL — the first time RTL was ever rendered here —
     stable across three runs and proven able to go red by a broken lime token that
     reddened exactly the shots that paint lime.
+
+42. ~~Checkbox, Radio and Switch~~ — **done this session, the first three of UI-001's
+    eight remaining primitives.** Native inputs under `appearance: none`, checked states
+    in ink because law 2 forbids lime to mean selection, the radio group a
+    `role="radiogroup"` fieldset that owns the error, the switch's thumb travelling in
+    logical coordinates. 21 unit cases, nine VR baselines committed with the components.
 
 ### Progress
 
