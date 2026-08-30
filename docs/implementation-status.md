@@ -294,6 +294,85 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, the visual-regression harness, same session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`~1115 s` wall (18 m 35 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                              |
+| `typecheck`              | Clean — now **including `packages/ui/vr/`**, which is how the `reducedMotion` misplacement below was caught     |
+| `lint`                   | Clean — `vr/serve.mjs` joined the node-script glob rather than having its `no-undef` findings suppressed inline |
+| `test` (unit)            | **890 passed**, 47 files — unchanged; the harness adds no jsdom surface                                         |
+| `test:db`                | **770 passed, 29 skipped**, 30 files, **1029.75 s** — unchanged; the harness touches no database                |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                           |
+| `format:check` (closing) | Clean                                                                                                           |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                       |
+
+Outside the chain, where every browser suite lives, `pnpm test:vr` itself: **85 passed**
+(84 screenshots + the empty-index guard) in ~35 s, three consecutive verify runs with zero
+pixel drift, and one deliberately broken run — see the negative proof below — before the
+baselines were trusted. `pnpm test:e2e` was also run after the DATE migration earlier this
+session: **2/2** (E2E-02, AUTH-04).
+
+---
+
+## UI-001's visual-regression harness — the paint gets a witness
+
+`packages/ui/vr/`: Playwright over the built Storybook. Every story in
+`storybook-static/index.json` — 28 today, and a new story enrols itself on its next run —
+is screenshotted in three variants (**light**, **dark**, **RTL over light**),
+element-scoped to `#storybook-root`, and compared against a committed PNG baseline.
+
+**The baseline-artifact decision, weighed in the open as the next-task note asked:**
+
+- **Committed PNGs, beside the spec.** ~1.6 MB for the current 84. The alternatives lost on
+  their own terms: a digest-only baseline cannot show a human what changed, and an
+  uncommitted baseline is whatever the last run happened to produce — not a baseline.
+  Repository growth is real and bounded by intent: element shots, DPR 1, one platform.
+- **The baselines are this machine's.** Font rasterisation and antialiasing differ across
+  OS and GPU; a PNG from another machine would diff everywhere while nothing changed. There
+  is no CI (Actions is dead and stays dead), so "the machine the suite runs on" is the
+  honest scope, and Playwright's platform suffix (`-win32`) stays in the filenames to
+  say so.
+- **A legitimate visual change is one script** — `pnpm test:vr:update` — and the changed
+  PNGs are reviewed in the diff like any other file. An unexpected diff leaves its
+  actual/expected/diff triple under `test-results/` (gitignored) for a person to look at.
+- **High contrast is deliberately absent.** The 33 arithmetic contrast cases compute what a
+  screenshot could only eyeball; adding 28 more PNGs to re-prove it would be weight, not
+  evidence. RTL, by contrast, had **never been rendered** on this machine — the jsdom suite
+  asserts logical properties, and now 28 stories paint right-to-left on every run.
+
+**Determinism, each lever doing one job:** fixed viewport and DPR, one worker,
+`animations: 'disabled'`, `caret: 'hide'`, reduced motion at the context, and a wait on
+`document.fonts.ready` so the packaged face has painted — the fallback face has different
+metrics and would diff every text node.
+
+**Proven in both directions before the baselines were trusted.** Three consecutive verify
+runs, zero drift. Then `--lime-500` was deliberately broken (`#b7ff57 → #ff5757`): the
+lime-painted shots went red in **light and rtl**, and **dark stayed green** — correctly,
+because dark defines its own `--lime-500`. A harness that cannot go red proves nothing;
+this one went red exactly where the paint was.
+
+Two small pieces around it: `vr/serve.mjs`, a zero-dependency static server for
+`storybook-static` (`file://` breaks the iframe's relative asset fetches, and a dependency
+would do less work than its forty lines), and the harness's inclusion in the ui package's
+typecheck — which promptly caught `reducedMotion` placed as a test option when it is a
+context option.
+
+**Ticket arithmetic, said carefully.** UI-001's row stays at **half, 4 of 8** — the
+remainder was two things, and this was the smaller: the eight specified-but-unbuilt
+primitives (`Select`, `Combobox`, `Checkbox`, `Radio`, `Switch`, date and time fields,
+`Tooltip`, `Toast`) are still missing, and each lands in this harness the day its story
+file exists. Totals hold at **31.5 of 70 tickets, 256 of 583 points (43.9 %)**.
+
+---
+
 ## Verification actually run — 2026-08-30, the DATE migration, same session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -4085,6 +4164,9 @@ These are open, recorded rather than hidden, and none of them should be closed b
    CSP that gets loosened once and never tightened again.
 6. **No visual-regression harness, still.** Carried from UI-001 and now larger, because there
    are screens to regress. It needs a real browser or a paid service; neither exists here.
+   **Closed for the primitive layer on 2026-08-30** — `pnpm test:vr` screenshots every
+   Storybook story against committed baselines. The screens themselves are still
+   unregressed: apps/web has no stories, and that remains open.
 7. **The contrast checks remain arithmetic.** They cannot prove what a browser renders.
 8. **Arabic is unreachable.** `dir` is `ltr` on `<html>`, and the Arabic face the tokens name
    (Alexandria) is not in the export at all — the artboards load it from Google Fonts. Every
@@ -5555,6 +5637,8 @@ renders `aria-busy` and `disabled` correctly, and the dark toolbar global reache
 - **No visual-regression harness.** `48-CLAUDE-CODE-IMPLEMENTATION-START-PROMPT` Phase B lists
   one. It needs a real browser or a hosted service; there is no container runtime here and no
   budget for a paid one. Not built, and not faked.
+  **Closed 2026-08-30**: headless Chromium turned out to run here, and `packages/ui/vr/` now
+  screenshots all 28 stories in light, dark and RTL against committed baselines.
 - **No colour-contrast check on rendered output.** The arithmetic proves the palette; it cannot
   prove that a gradient, an overlay or an inherited colour has not ruined a pairing at runtime.
 - **The quiet line is 1.71:1 on paper**, below the 3:1 WCAG 1.4.11 asks of a control boundary.
@@ -5596,16 +5680,16 @@ win over the tokens, and it is settled on a ground §1 does not speak to.
 
 ## Sprint 0 (`28-SPRINT-TICKETS` §3)
 
-| Ticket    | Scope                                              | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| --------- | -------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PLAT-001  | pnpm monorepo, shared config, ownership boundaries | `implemented` | Workspace builds; boundary rules encoded as lint errors in `eslint.config.js`, and the `db` boundary is proven to fire                                                                                                                                                                                                                                                                                                                              |
-| PLAT-002  | one-command local stack                            | `implemented` | `compose.yaml` (MariaDB 11.4 · Valkey 8.1 · MinIO). One defect fixed this session (the `users.sql` init-mount could never have succeeded). **Still never started** — no container runtime here; the CI `database` job is what will verify it                                                                                                                                                                                                        |
-| PLAT-003  | CI gates, secret/dependency scans                  | `implemented` | `.github/workflows/ci.yml` + `.gitleaks.toml` + `db:grants` + the least-privilege suite. **Not `tested`: the workflow has never run.** Artifact signing deferred (nothing to sign yet); branch protection is an owner action                                                                                                                                                                                                                        |
-| OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                                                                                                                                                                                                                                  |
-| AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                                                                                                                                                                                                                           |
-| PLAT-004  | transactional outbox + idempotency                 | `tested`      | Tables, append-only audit and per-tenant idempotency, and — since 2026-08-30 — the relay itself: five producers, the `apps/worker` dispatcher (claim/backoff/park, loop and controlled-batch modes) and the lifecycle consumer, proved by 14 database cases driving the dispatcher from `@tmanage/worker` plus 10 worker unit cases                                                                                                                 |
-| UI-001    | tokens, primitives, Storybook, visual harness      | `tested`      | 106 cases in `packages/ui`: 33 contrast, 14 token drift, 59 component/theme including axe over the whole primitive surface in light, dark, high contrast and Arabic RTL. Storybook builds and was driven through three stories. **The visual-regression harness is not built** — deferred; the "no real browser here" half of the old reason fell to the 2026-08-30 Playwright probe, and what remains is the deliberate baseline-artifact decision |
+| Ticket    | Scope                                              | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------- | -------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PLAT-001  | pnpm monorepo, shared config, ownership boundaries | `implemented` | Workspace builds; boundary rules encoded as lint errors in `eslint.config.js`, and the `db` boundary is proven to fire                                                                                                                                                                                                                                                                                                                                                        |
+| PLAT-002  | one-command local stack                            | `implemented` | `compose.yaml` (MariaDB 11.4 · Valkey 8.1 · MinIO). One defect fixed this session (the `users.sql` init-mount could never have succeeded). **Still never started** — no container runtime here; the CI `database` job is what will verify it                                                                                                                                                                                                                                  |
+| PLAT-003  | CI gates, secret/dependency scans                  | `implemented` | `.github/workflows/ci.yml` + `.gitleaks.toml` + `db:grants` + the least-privilege suite. **Not `tested`: the workflow has never run.** Artifact signing deferred (nothing to sign yet); branch protection is an owner action                                                                                                                                                                                                                                                  |
+| OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                                                                                                                                                                                                                                                            |
+| AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                                                                                                                                                                                                                                                     |
+| PLAT-004  | transactional outbox + idempotency                 | `tested`      | Tables, append-only audit and per-tenant idempotency, and — since 2026-08-30 — the relay itself: five producers, the `apps/worker` dispatcher (claim/backoff/park, loop and controlled-batch modes) and the lifecycle consumer, proved by 14 database cases driving the dispatcher from `@tmanage/worker` plus 10 worker unit cases                                                                                                                                           |
+| UI-001    | tokens, primitives, Storybook, visual harness      | `tested`      | 106 cases in `packages/ui`: 33 contrast, 14 token drift, 59 component/theme including axe over the whole primitive surface in light, dark, high contrast and Arabic RTL. Storybook builds and was driven through three stories. **The visual-regression harness is built (2026-08-30)**: 84 committed baselines over every story in light, dark and RTL, verified stable and proven able to go red; the eight specified-but-unbuilt primitives are what keeps the row at half |
 
 ## Sprint 1 (`28-SPRINT-TICKETS` §4)
 
@@ -5962,44 +6046,44 @@ when everything its own §-row's Scope column names is built and covered by a ch
 actually run; **half** when a named part of that scope is built and tested and another named part
 is absent; **zero** otherwise. Halves are recorded against the reason, never rounded away.
 
-| §   | Ticket     |  SP | Counted  | Why                                                                                                                                                            |
-| --- | ---------- | --: | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | PLAT-001   |   5 | whole 5  | Workspace, shared config and the ownership boundaries, the last enforced as lint errors and proven to fire                                                     |
-| 3   | PLAT-002   |   5 | half 2.5 | Environment validation is tested (25 cases). The compose stack has **never been started** — no runtime here                                                    |
-| 3   | PLAT-003   |   8 | half 4   | Workflow, gitleaks and the scans are written. The workflow has never run and will not; artifact signing is deferred                                            |
-| 3   | OBS-001    |   5 | 0        | Not started                                                                                                                                                    |
-| 3   | DATA-001   |   5 | whole 5  | Migrator, UUIDv7, the two database roles                                                                                                                       |
-| 3   | AUTHZ-001  |   8 | whole 8  | Tenant context, scoped repository, composite constraints, the corpus                                                                                           |
-| 3   | PLAT-004   |   8 | whole 8  | Tables, audit, idempotency **and the relay**: producers, dispatcher (backoff, parking, both run modes) and the lifecycle consumer, proved against the server   |
-| 3   | UI-001     |   8 | half 4   | Token package, 13 primitives, Storybook, 106 cases. Eight primitives the design inventory names are unbuilt and the visual-regression harness needs a browser  |
-| 4   | ID-001     |   8 | whole 8  | Session cookie, rotation, reuse detection, CSRF, driven through real HTTP                                                                                      |
-| 4   | ID-002     |   8 | half 4   | Argon2id, TOTP, recovery codes, 213 cases. **Passkeys are in the row's own scope** and are not built; nor are SSO or password recovery                         |
-| 4   | TEN-001    |   8 | whole 8  | Organization, workspace, membership, provisioning, the directory                                                                                               |
-| 4   | TEN-002    |   8 | whole 8  | Roles, capabilities, the evaluator, and the principal assembly that wires it                                                                                   |
-| 4   | TEN-003    |   5 | whole 5  | Issue, accept, revoke, expiry; a hashed single-use token                                                                                                       |
-| 4   | AUD-001    |   5 | whole 5  | The service, the view model, the first producer                                                                                                                |
-| 4   | WEB-001    |   8 | whole 8  | Nine screens, four shells, all wired. The `BackendPending` notices on five of them point at **other tickets'** servers, not at unwritten WEB-001 work          |
-| 4   | TEST-001   |   8 | whole 8  | The seed, the tenant corpus, and — since 2026-08-30 — the generated role grid: every cell derived from the ceiling, every refusal a counted security event     |
-| 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                   |
-| 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                                |
-| 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                      |
-| 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal            |
-| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled  |
-| 5   | TEST-002   |   8 | whole 8  | Unit, integration, auth — and the deterministic performance fixture over a real `packages/test-kit`, plans and volume, never a stopwatch                       |
-| 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                    |
-| 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                  |
-| 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                  |
-| 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else    |
-| 6   | NOTIF-001  |   8 | half 4   | The record and its consumers, permission-checked at delivery, idempotent by the dedupe key. **Preferences are absent** — the contract draws no table for them  |
-| 6   | RT-001     |  13 | whole 13 | Tickets, current-row subscriptions, cursor served and gaps healed by refetch — both ends of the wire. Presence is not in the row and stays named on the screen |
-| 6   | TEST-003   |   8 | half 4   | E2E-02 and AUTH-04 run through a real Chromium against the real stack, outside the chain. REL-01/02 need a load balancer this plan does not have               |
-| 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                              |
-| 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                        |
-| 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                    |
-| 7   | REQ-002    |   8 | whole 8  | Triage, clarify, and an acceptance that is one transaction with its work                                                                                       |
-| 7   | WEB-004    |  13 | whole 13 | `CL-01`, `CL-02`, `CL-09`, `CL-10`                                                                                                                             |
-| 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                   |
-| 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                  |
+| §   | Ticket     |  SP | Counted  | Why                                                                                                                                                                          |
+| --- | ---------- | --: | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | PLAT-001   |   5 | whole 5  | Workspace, shared config and the ownership boundaries, the last enforced as lint errors and proven to fire                                                                   |
+| 3   | PLAT-002   |   5 | half 2.5 | Environment validation is tested (25 cases). The compose stack has **never been started** — no runtime here                                                                  |
+| 3   | PLAT-003   |   8 | half 4   | Workflow, gitleaks and the scans are written. The workflow has never run and will not; artifact signing is deferred                                                          |
+| 3   | OBS-001    |   5 | 0        | Not started                                                                                                                                                                  |
+| 3   | DATA-001   |   5 | whole 5  | Migrator, UUIDv7, the two database roles                                                                                                                                     |
+| 3   | AUTHZ-001  |   8 | whole 8  | Tenant context, scoped repository, composite constraints, the corpus                                                                                                         |
+| 3   | PLAT-004   |   8 | whole 8  | Tables, audit, idempotency **and the relay**: producers, dispatcher (backoff, parking, both run modes) and the lifecycle consumer, proved against the server                 |
+| 3   | UI-001     |   8 | half 4   | Token package, 13 primitives, Storybook, 106 cases, **and the visual-regression harness: 84 committed baselines, light/dark/RTL**. Eight specified primitives remain unbuilt |
+| 4   | ID-001     |   8 | whole 8  | Session cookie, rotation, reuse detection, CSRF, driven through real HTTP                                                                                                    |
+| 4   | ID-002     |   8 | half 4   | Argon2id, TOTP, recovery codes, 213 cases. **Passkeys are in the row's own scope** and are not built; nor are SSO or password recovery                                       |
+| 4   | TEN-001    |   8 | whole 8  | Organization, workspace, membership, provisioning, the directory                                                                                                             |
+| 4   | TEN-002    |   8 | whole 8  | Roles, capabilities, the evaluator, and the principal assembly that wires it                                                                                                 |
+| 4   | TEN-003    |   5 | whole 5  | Issue, accept, revoke, expiry; a hashed single-use token                                                                                                                     |
+| 4   | AUD-001    |   5 | whole 5  | The service, the view model, the first producer                                                                                                                              |
+| 4   | WEB-001    |   8 | whole 8  | Nine screens, four shells, all wired. The `BackendPending` notices on five of them point at **other tickets'** servers, not at unwritten WEB-001 work                        |
+| 4   | TEST-001   |   8 | whole 8  | The seed, the tenant corpus, and — since 2026-08-30 — the generated role grid: every cell derived from the ceiling, every refusal a counted security event                   |
+| 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                                 |
+| 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                                              |
+| 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                                    |
+| 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal                          |
+| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled                |
+| 5   | TEST-002   |   8 | whole 8  | Unit, integration, auth — and the deterministic performance fixture over a real `packages/test-kit`, plans and volume, never a stopwatch                                     |
+| 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                                  |
+| 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                                |
+| 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                                |
+| 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else                  |
+| 6   | NOTIF-001  |   8 | half 4   | The record and its consumers, permission-checked at delivery, idempotent by the dedupe key. **Preferences are absent** — the contract draws no table for them                |
+| 6   | RT-001     |  13 | whole 13 | Tickets, current-row subscriptions, cursor served and gaps healed by refetch — both ends of the wire. Presence is not in the row and stays named on the screen               |
+| 6   | TEST-003   |   8 | half 4   | E2E-02 and AUTH-04 run through a real Chromium against the real stack, outside the chain. REL-01/02 need a load balancer this plan does not have                             |
+| 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                                            |
+| 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                                      |
+| 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                                  |
+| 7   | REQ-002    |   8 | whole 8  | Triage, clarify, and an acceptance that is one transaction with its work                                                                                                     |
+| 7   | WEB-004    |  13 | whole 13 | `CL-01`, `CL-02`, `CL-09`, `CL-10`                                                                                                                                           |
+| 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                                 |
+| 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                                |
 
 Every other ticket in §§3–12 — two of Sprint 3's seven (RT-001, TEST-003), and all of
 Sprints 5 through 9 — is zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint
@@ -6042,28 +6126,31 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**The DATE migration shipped on 2026-08-30 — an unscheduled defect fix, so the ticket
-totals hold at 31.5 of 70 and 43.9 % — and this section is replaced rather than amended.**
+**The visual-regression harness shipped on 2026-08-30, the second piece of this session
+after the DATE migration — UI-001 stays at half because the eight primitives are the
+larger remainder — and this section is replaced rather than amended.**
 
-**The next one is UI-001's remainder — the visual-regression harness.** The browser excuse
-fell to the TEST-003 probe: headless Chromium runs on this machine and Playwright is
-already a dependency of `e2e/`. The mechanical part is small — Playwright screenshots over
-the existing Storybook stories. The real work is the **baseline-artifact decision**, and it
-should be weighed in the open before any code: what gets committed (PNGs in the repo grow
-it forever; a digest-only baseline cannot show a human the diff), how a legitimate visual
-change updates the baseline without ceremony, and how a diff is reviewed on a machine with
-no CI. Decide, record the decision and its rejected alternatives in this file, then build.
+**The next one is UI-001's true remainder — the eight specified primitives:** `Select`,
+`Combobox`, `Checkbox`, `Radio`, `Switch`, date and time fields, `Tooltip`, `Toast`. The
+design inventory specifies them; `packages/ui` does not export them. The pattern is
+established thirteen times over — tokens only, axe over every theme, contrast computed not
+claimed — and each new primitive now also lands in the visual harness the day its story
+exists (write the story, run `pnpm test:vr:update`, commit the PNGs with the component).
+Mind two things: `Combobox` and the date field are the two where accessibility is hardest
+(combobox ARIA pattern; the date field should take its shape from the DATE-migration
+convention — a calendar date is a string, never an instant), and `Toast` needs a decision
+about where live-region announcements live before code. Finishing all eight plus their
+stories and baselines closes UI-001 whole: +4 points.
 
 The alternatives, in order after it:
 
 2. **A mailer.** Nothing sends an invitation; `ON-04` still prints the link.
    `28-SPRINT-TICKETS` does not schedule this at all.
 3. **E2E growth.** E2E-01/03/04 and more of AUTH-\* become cheap marginal journeys once the
-   boot cost is paid — but let the harness prove it is not flaky across a few sessions
-   before adding weight to it.
-4. **The MariaDB run for 0012.** The engine-skew check documented in the machine table has
-   not seen migration 0012; the local `mariadb-11.4.5` zip procedure closes it in one
-   sitting and would let the 0012 section above stop carrying an open claim.
+   boot cost is paid — the harness has now been green across two sessions; one or two more
+   and it has earned weight.
+4. **The MariaDB run for 0012.** The engine-skew check has not seen migration 0012; the
+   local `mariadb-11.4.5` zip procedure closes it in one sitting.
 
 **A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
 The client request loop still cannot hold a conversation _with a client_. `CHAT-001` built the
@@ -6287,6 +6374,11 @@ directory, unscheduled" instead, which is both shorter and true.
     reader west of UTC stops seeing every date a day early. One driver defect found
     beneath the migration (`dateStrings: ['DATE']`), truncation proven on the live
     engine, WEB-004 gap 6 and the PROJ-002 date note closed by reference.
+41. ~~UI-001's visual-regression harness~~ — **done this session; the ticket stays half
+    because the eight primitives are the larger remainder.** 84 committed baselines over
+    every story in light, dark and RTL — the first time RTL was ever rendered here —
+    stable across three runs and proven able to go red by a broken lime token that
+    reddened exactly the shots that paint lime.
 
 ### Progress
 
