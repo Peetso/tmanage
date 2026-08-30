@@ -630,6 +630,83 @@ describe('the list', () => {
   });
 });
 
+/**
+ * WORK-002's cursor, proved at the API. Added 2026-08-30: the `after` keyset cursor had
+ * been implemented since WORK-001 landed and driven by WEB-002's screens, and no database
+ * case had ever exercised it — the gap the WORK-002 re-derivation found. Ids are UUIDv7,
+ * so id order is creation order and the cursor is the last row's id.
+ */
+describe('the cursor', () => {
+  it('pages in id order without overlap or omission, and a short page ends the walk', async () => {
+    const session = await signIn(owner().id);
+    const created: string[] = [];
+    for (const title of ['One', 'Two', 'Three', 'Four', 'Five']) {
+      created.push((await createItem(session, { title: `Cursor ${title}` })).id);
+    }
+    // The seed world adds one existing item to this project; the full set is created + it.
+    const all = await send('GET', '/work-items?limit=200', session);
+    const everything = all.json<{ workItems: WorkItem[] }>().workItems.map((w) => w.id);
+
+    const walked: string[] = [];
+    let after: string | undefined;
+    for (;;) {
+      const page = await send(
+        'GET',
+        `/work-items?limit=2${after === undefined ? '' : `&after=${after}`}`,
+        session,
+      );
+      const rows = page.json<{ workItems: WorkItem[] }>().workItems;
+      walked.push(...rows.map((w) => w.id));
+      if (rows.length < 2) break;
+      after = rows[rows.length - 1]!.id;
+    }
+
+    // Same rows, same order, each exactly once — the property a keyset cursor exists for.
+    expect(walked).toEqual(everything);
+    expect(new Set(walked).size).toBe(walked.length);
+    expect([...walked].sort()).toEqual([...walked]);
+    for (const id of created) expect(walked).toContain(id);
+  });
+
+  it('composes with filters: the page after a cursor still honours the state filter', async () => {
+    const session = await signIn(owner().id);
+    const readyIds: string[] = [];
+    for (const title of ['A', 'B', 'C']) {
+      const item = await createItem(session, { title: `Ready ${title}` });
+      readyIds.push((await moveTo(session, item, 'ready')).id);
+    }
+    await createItem(session, { title: 'Still backlog' });
+
+    const first = await send('GET', '/work-items?state=ready&limit=2', session);
+    const firstRows = first.json<{ workItems: WorkItem[] }>().workItems;
+    expect(firstRows).toHaveLength(2);
+    const second = await send(
+      'GET',
+      `/work-items?state=ready&limit=2&after=${firstRows[1]!.id}`,
+      session,
+    );
+    const secondRows = second.json<{ workItems: WorkItem[] }>().workItems;
+    expect(secondRows.map((w) => w.id)).toEqual([readyIds[2]]);
+    for (const row of [...firstRows, ...secondRows]) expect(row.state).toBe('ready');
+  });
+
+  it('a cursor cannot reach across the tenant boundary', async () => {
+    const session = await signIn(owner().id);
+    await createItem(session);
+    // The twin's work item id as a cursor is just a value to compare ids against: the
+    // tenant predicate still binds every row, so nothing of the twin's is reachable and
+    // nothing of ours is hidden beyond ordinary id comparison.
+    const page = await send('GET', `/work-items?after=${world.twin.workItemId}`, session);
+    expect(page.statusCode).toBe(200);
+    const rows = page.json<{ workItems: WorkItem[] }>().workItems;
+    for (const row of rows) {
+      expect(row.id > world.twin.workItemId).toBe(true);
+      expect(row.id).not.toBe(world.twin.workItemId);
+    }
+    expect(page.body).not.toContain(world.twin.organizationId);
+  });
+});
+
 describe('the guards still apply', () => {
   it('refuses an unauthenticated caller', async () => {
     const response = (await app.inject({
