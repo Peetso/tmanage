@@ -45,6 +45,21 @@ Three laws from the export are enforced rather than documented:
   cannot be rendered without its word. A missing name is a type error rather than a defect
   found in an audit.
 
+## The visual-regression harness
+
+`pnpm test:vr` builds Storybook and screenshots every story in three variants — light,
+dark, and RTL over light — comparing each against a committed PNG baseline in
+`vr/stories.spec.ts-snapshots/`. The story list comes from the built `index.json`, so a
+new story is in the harness on its next run without registration. High contrast is
+deliberately absent: the 33 contrast cases compute what a screenshot could only eyeball.
+
+The baselines are rendered on the machine the suite runs on — font rasterisation differs
+across platforms, and the filenames keep Playwright's platform suffix to say so. After a
+deliberate visual change, regenerate with `pnpm test:vr:update` and review the changed
+PNGs in the diff like any other file; an unexpected diff leaves its actual/expected/diff
+triple under `test-results/` for a human to look at. Like `test:e2e`, this suite needs a
+real browser and stays **outside** the verification chain.
+
 ## What is not built yet
 
 `Select`, `Combobox`, `Checkbox`, `Radio`, `Switch`, date and time fields, `Tooltip` and

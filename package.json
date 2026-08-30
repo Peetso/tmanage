@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "TManage — multi-tenant Work Operating System for service teams and their clients",
+  "description": "TManage \u2014 multi-tenant Work Operating System for service teams and their clients",
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.15.0",
   "engines": {
@@ -32,7 +32,9 @@
     "contracts:generate": "pnpm --filter @tmanage/contracts generate",
     "dev": "pnpm --parallel --filter @tmanage/api --filter @tmanage/web --filter @tmanage/worker dev",
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm contracts:validate && pnpm audit:design && pnpm test",
-    "test:e2e": "pnpm --filter @tmanage/e2e test:e2e"
+    "test:e2e": "pnpm --filter @tmanage/e2e test:e2e",
+    "test:vr": "pnpm --filter @tmanage/ui test:vr",
+    "test:vr:update": "pnpm --filter @tmanage/ui test:vr:update"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

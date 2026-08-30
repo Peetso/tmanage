@@ -20,6 +20,7 @@
     "tests/**/*.tsx",
     "stories/**/*.ts",
     "stories/**/*.tsx",
+    "vr/**/*.ts",
     "vitest.config.ts",
     ".storybook/**/*.ts",
     ".storybook/**/*.tsx"

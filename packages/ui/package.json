@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Limeframe design system — tokens, accessible primitives, and the component test harness (UI-001).",
+  "description": "Limeframe design system \u2014 tokens, accessible primitives, and the component test harness (UI-001).",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -24,13 +24,16 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "storybook": "storybook dev -p 6006 --no-open",
-    "build:storybook": "storybook build -o storybook-static"
+    "build:storybook": "storybook build -o storybook-static",
+    "test:vr": "pnpm build:storybook && playwright test -c vr/playwright.config.ts",
+    "test:vr:update": "pnpm build:storybook && playwright test -c vr/playwright.config.ts --update-snapshots"
   },
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@storybook/react-vite": "^10.5.10",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",

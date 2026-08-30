@@ -246,7 +246,8 @@ export default tseslint.config(
 
   // Node-runtime scripts: real CLI tools, so `process` and `console` are legitimate.
   {
-    files: ['scripts/**/*.mjs', '**/*.config.{js,ts,mjs}'],
+    // `packages/ui/vr/serve.mjs` is the visual-regression harness's static server -- same category.
+    files: ['scripts/**/*.mjs', 'packages/ui/vr/serve.mjs', '**/*.config.{js,ts,mjs}'],
     languageOptions: {
       globals: {
         process: 'readonly',
