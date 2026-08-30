@@ -273,6 +273,56 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, TEST-002 second half, same session
+
+The seventh full chain of this session, one uninterrupted background run on the tree
+commit `0d96816` left. **Green on the first attempt** (the test-kit unit suite's own first
+solo run caught one fixture defect — the due-date spread put every date in the past below
+day 180 — fixed before anything else saw it).
+
+| Gate                        | Result                                                                                                   |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                                    |
+| `pnpm typecheck`            | **Done** — seven projects now: `@tmanage/test-kit` joins the walk                                        |
+| `pnpm lint`                 | Clean, no output                                                                                         |
+| `pnpm test`                 | **881 passed across 45 files.** Up from 879: the two test-kit cases                                      |
+| `pnpm test:db`              | **29 files, 763 passed, 29 skipped (792).** Up from 758: the five volume cases, which are the whole diff |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                    |
+| `pnpm format:check` (again) | Clean                                                                                                    |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                                 |
+
+---
+
+## TEST-002 second half — the performance fixture that cannot flake
+
+Commit before the chain above, and the ticket is **whole (8)**: §5's scope row reads "work
+unit/integration/auth/performance fixtures". Unit, integration and auth fixtures have run
+since WORK-001 and ID-002 landed; the two named absences were the performance fixture and
+an empty `packages/test-kit`. Both closed together, with a judgement recorded rather than
+implied:
+
+**"Performance" here is asserted deterministically, on purpose.** A wall-clock budget on a
+shared laptop is how flaky suites are born, and the standing rule is that timing raises
+come from measurement or not at all. So the fixture asserts the two things about
+performance that cannot flake: **the plan** — at two thousand rows the hot work-item reads
+are index walks, `EXPLAIN`'s `type` never `ALL` and `07-DATA-MODEL` §9's index among the
+candidates (which index an engine picks may differ between MySQL and MariaDB; whether it
+_scans_ does not, and the scan is the regression this exists to catch) — and **correctness
+at volume**: the 200-row cap exact however much is behind it, a cursor walk over the whole
+set complete and duplicate-free, and the adversarial twin's five hundred rows exactly as
+invisible as its three always were. If a milliseconds budget is ever wanted, it enters
+through a recorded measurement, not through this suite growing a stopwatch.
+
+`packages/test-kit` now exists and holds exactly what `18-REPOSITORY-STRUCTURE` permits
+it: **synthetic data only** — no driver, no SQL, no network. `syntheticWorkItemRows`
+shapes load rather than copying a row: states cycle in fixed proportions so filters have
+something to filter, audiences vary, due dates interleave to both sides of an injected
+anchor (its own unit case caught the first draft putting every date in the past), a sixth
+carry no date at all, and titles name their ordinal so a paging failure is identifiable by
+eye. The suite that wants rows inserted inserts them itself, with its own credential.
+
+---
+
 ## Verification actually run — 2026-08-30, TEST-001 second half, same session
 
 The sixth full chain of this session, one uninterrupted background run on the tree commit
@@ -5589,7 +5639,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                     |
 | 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal           |
 | 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled |
-| 5   | TEST-002   |   8 | half 4   | Work database and HTTP fixtures exist and run. No performance fixture; `packages/test-kit` is empty                                                           |
+| 5   | TEST-002   |   8 | whole 8  | Unit, integration, auth — and the deterministic performance fixture over a real `packages/test-kit`, plans and volume, never a stopwatch                      |
 | 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                   |
 | 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                 |
 | 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                 |
@@ -5610,15 +5660,15 @@ third, and **WEB-003's first half the same day** as its fourth. **On 2026-08-30 
 PLAT-004 and WEB-003 moved from half to whole, NOTIF-001 joined at half, and WORK-003 moved
 from zero to whole** — the relay session's four tickets.
 
-| Sprint                                                                                          | Tickets       | Points         |
-| ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
-| Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52     |
-| Sprint 1 (§4)                                                                                   | 7½ of 8       | 54 of 58       |
-| Sprint 2 (§5)                                                                                   | 5 of 6        | 42.5 of 53     |
-| Sprint 3 (§6)                                                                                   | 4½ of 7       | 41 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
-| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
-| **§§3–12**                                                                                      | **29½ of 70** | **235 of 583** |
+| Sprint                                                                                          | Tickets      | Points         |
+| ----------------------------------------------------------------------------------------------- | ------------ | -------------- |
+| Sprint 0 (§3)                                                                                   | 5½ of 8      | 36.5 of 52     |
+| Sprint 1 (§4)                                                                                   | 7½ of 8      | 54 of 58       |
+| Sprint 2 (§5)                                                                                   | 5½ of 6      | 46.5 of 53     |
+| Sprint 3 (§6)                                                                                   | 4½ of 7      | 41 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**   |
+| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293       |
+| **§§3–12**                                                                                      | **30 of 70** | **239 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5644,21 +5694,35 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**`TEST-001` was made whole on 2026-08-30 — the sixth and last ticket-sized piece of that
-session — and this section is replaced rather than amended.** Sprint 4 is still the only
-complete one; Sprints 1 and 2 each stand one ticket from joining it.
+**`TEST-002` was made whole on 2026-08-30 — the seventh ticket-sized piece of that
+session, behind its seventh green chain — and this section is replaced rather than
+amended.** Sprint 4 is still the only complete one; Sprint 2 stands one half (WEB-002's
+homeless saved views) from joining it, Sprint 1 one half (ID-002's passkeys).
 
-**The next one is `TEST-002`'s second half — the performance fixture, and a real
-`packages/test-kit`.** Its row reads half with "no performance fixture; `packages/test-kit`
-is empty". Two cautions from this session's standing rules before starting: wall-clock
-assertions are how flaky suites are born, so a performance fixture here should assert what
-is _deterministic_ about performance — volume seeding helpers in `packages/test-kit`, and
-`EXPLAIN`-shaped assertions that the hot lists (work by project/state, messages by
-sequence, the request inbox) actually use the indexes `07-DATA-MODEL` §9 planned for them
-— rather than milliseconds on a shared laptop. If a timing budget is ever asserted, the
-constraint file's rule applies: raises come from measurement, and the measurement gets
-recorded. Whether that satisfies the row's word "performance" honestly is itself a
-judgement to record; if it does not, the ticket stays half and says why.
+**The next one is `RT-001`'s first half — the realtime socket and its authorized
+subscriptions.** 13→split, depending on ID-001 and PLAT-004, both long since real.
+`13-ENGINEERING` §6 is the contract: the socket authenticates with a short-lived ticket
+(minted by the API over the session the guards already prove), a subscription request
+names an authorized resource and is checked against **current** permissions, the server
+answers with the current cursor, broadcasts carry event type / object id / sequence /
+minimal safe patch, a client that detects a gap refetches, and reconnect backs off with
+jitter. The relay is the feed: a consumer registered beside the lifecycle rule fans
+published events out to subscribed sockets — which is what finally replaces the channel
+screen's "new messages appear when the channel is reloaded". First half honestly scoped:
+the ticket mint, the socket server with authorized per-conversation subscriptions, the
+message fan-out, and gap-detectable sequencing; presence/typing (ephemeral TTL, excluded
+from audit) and every other resource family are the named second half. Mind `24-EVENT-
+CATALOG` §2: realtime messages are safe projections of durable events, not the bus itself.
+
+The alternatives, in order after it:
+
+2. **A mailer.** Nothing sends an invitation; `ON-04` prints the link and asks a person to
+   send it. `28-SPRINT-TICKETS` does not schedule this at all.
+3. **A `DATE` column for dates that have no time.** The unscheduled migration recorded in
+   the WEB-004 gaps; small, and a real correctness itch west of UTC.
+4. **`TEST-003` — E2E.** Playwright needs no container, only downloaded browsers; whether
+   this machine tolerates that is untested. If it does, E2E-02/AUTH-04/REL-01/02 become
+   runnable; if not, the row stays zero with a better-informed reason.
 
 The alternatives, in order after it:
 
@@ -5856,18 +5920,27 @@ directory, unscheduled" instead, which is both shorter and true.
     cases. The first run's own finding — a portal row whose "allowed" half is answered by
     the object layer, not the guard — stands as a comment where the row would be.
 
+36. ~~TEST-002 second half~~ — **done this session, whole.** `packages/test-kit` exists,
+    holding what the structure doc permits it — synthetic data only — and the performance
+    fixture asserts what cannot flake: index-walk plans at two thousand rows (never a
+    table scan; which index is the engine's, whether it scans is not) and correctness at
+    volume — the exact 200 cap, a complete duplicate-free cursor walk, the twin's five
+    hundred rows as invisible as its three. No stopwatch anywhere, by the standing rule.
+    5 database cases, 2 test-kit unit cases.
+
 ### Progress
 
-**29½ of 70 tickets. 235 of 583 story points — 40.3%, across Sprints 0–9.** Derived ticket by
+**30 of 70 tickets. 239 of 583 story points — 41.0%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
-numerator **and** in the denominator; the percentage reads higher today only because six
-tickets moved in one session — PLAT-004, WEB-003, WORK-003, WORK-002 and TEST-001 to whole,
-NOTIF-001 to half — each behind its own green chain. Screen tickets: **4½ of 11** — WEB-001,
-WEB-003, WEB-004 and WEB-005 whole, WEB-002 half (its saved views remain homeless). **Sprint 3
-has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — and half of NOTIF-001. Sprint
-2 stands at 5 of 6; Sprint 1 at 7½ of 8 with TEST-001 whole; Sprint 0 at 5½ of 8.**
+numerator **and** in the denominator; the percentage reads higher today only because seven
+tickets moved in one session — PLAT-004, WEB-003, WORK-003, WORK-002, TEST-001 and TEST-002 to
+whole, NOTIF-001 to half — each behind its own green chain. Screen tickets: **4½ of 11** —
+WEB-001, WEB-003, WEB-004 and WEB-005 whole, WEB-002 half (its saved views remain homeless).
+**Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — and half of
+NOTIF-001. Sprint 2 stands at 5½ of 6, one homeless-saved-views half from complete; Sprint 1
+at 7½ of 8; Sprint 0 at 5½ of 8.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
