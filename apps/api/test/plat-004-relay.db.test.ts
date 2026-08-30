@@ -351,8 +351,12 @@ describe('the producers', () => {
       'messageId',
       'parentMessageId',
       'projectId',
+      // RT-001's additive field (§3-compatible): the channel's own order, for gap
+      // detection. A number, never anything an author typed.
+      'sequenceNo',
     ]);
     expect(event.payload['messageId']).toBe(messageId);
+    expect(typeof event.payload['sequenceNo']).toBe('number');
   });
 
   it('converting a message writes message.converted.v1', async () => {
