@@ -273,6 +273,35 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## The TEST-003 probe — the browser launches, and the zero loses its excuse
+
+Run 2026-08-30, at the end of the relay session, exactly as the previous "next coding
+task" prescribed: a probe, not a suite. `playwright-core` 1.55.0 installed into a
+scratch directory (nothing entered the repository), `chromium` downloaded through
+Playwright's own installer, and a five-line script launched it headless, rendered a page,
+and read text back:
+
+    { "launched": true, "text": "probe", "version": "140.0.7339.16" }
+
+**Headless Chromium runs on this host.** Two consequences, recorded rather than acted on:
+
+1. **TEST-003's zero is no longer "no browser here" — it is "not built yet."** E2E-02 and
+   AUTH-04 are buildable: Playwright drives a real Chromium against the API and web app
+   this repository already runs locally. REL-01/02 remain out of reach honestly — API
+   instance loss behind a load balancer is infrastructure this plan does not have — so the
+   ticket's ceiling on this machine is a half, and its row's reason should say so when the
+   work starts.
+2. **UI-001's remainder loses the same excuse.** Its visual-regression harness was
+   deferred on "needs a real browser, and there is no container runtime here"; the first
+   clause is now satisfied without the second. Still deferred — a screenshot baseline is a
+   deliberate artifact decision — but the recorded reason needed this correction.
+
+The heavyweight dependency itself (Playwright plus a browser download) is **not** added by
+this probe; that is the first commit of the E2E session's own work, weighed in the open as
+the standing rule asks.
+
+---
+
 ## Verification actually run — 2026-08-30, RT-001 second half, same session
 
 The tenth chain run of this session (ninth and tenth both belong to RT-001), one
@@ -5384,16 +5413,16 @@ win over the tokens, and it is settled on a ground §1 does not speak to.
 
 ## Sprint 0 (`28-SPRINT-TICKETS` §3)
 
-| Ticket    | Scope                                              | Status        | Evidence                                                                                                                                                                                                                                                                                                                                         |
-| --------- | -------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| PLAT-001  | pnpm monorepo, shared config, ownership boundaries | `implemented` | Workspace builds; boundary rules encoded as lint errors in `eslint.config.js`, and the `db` boundary is proven to fire                                                                                                                                                                                                                           |
-| PLAT-002  | one-command local stack                            | `implemented` | `compose.yaml` (MariaDB 11.4 · Valkey 8.1 · MinIO). One defect fixed this session (the `users.sql` init-mount could never have succeeded). **Still never started** — no container runtime here; the CI `database` job is what will verify it                                                                                                     |
-| PLAT-003  | CI gates, secret/dependency scans                  | `implemented` | `.github/workflows/ci.yml` + `.gitleaks.toml` + `db:grants` + the least-privilege suite. **Not `tested`: the workflow has never run.** Artifact signing deferred (nothing to sign yet); branch protection is an owner action                                                                                                                     |
-| OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                                                                                                                                |
-| DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                                                                                                                               |
-| AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                                                                                                                        |
-| PLAT-004  | transactional outbox + idempotency                 | `tested`      | Tables, append-only audit and per-tenant idempotency, and — since 2026-08-30 — the relay itself: five producers, the `apps/worker` dispatcher (claim/backoff/park, loop and controlled-batch modes) and the lifecycle consumer, proved by 14 database cases driving the dispatcher from `@tmanage/worker` plus 10 worker unit cases              |
-| UI-001    | tokens, primitives, Storybook, visual harness      | `tested`      | 106 cases in `packages/ui`: 33 contrast, 14 token drift, 59 component/theme including axe over the whole primitive surface in light, dark, high contrast and Arabic RTL. Storybook builds and was driven through three stories. **The visual-regression harness is not built** — it needs a real browser, and there is no container runtime here |
+| Ticket    | Scope                                              | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------- | -------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PLAT-001  | pnpm monorepo, shared config, ownership boundaries | `implemented` | Workspace builds; boundary rules encoded as lint errors in `eslint.config.js`, and the `db` boundary is proven to fire                                                                                                                                                                                                                                                                                                                              |
+| PLAT-002  | one-command local stack                            | `implemented` | `compose.yaml` (MariaDB 11.4 · Valkey 8.1 · MinIO). One defect fixed this session (the `users.sql` init-mount could never have succeeded). **Still never started** — no container runtime here; the CI `database` job is what will verify it                                                                                                                                                                                                        |
+| PLAT-003  | CI gates, secret/dependency scans                  | `implemented` | `.github/workflows/ci.yml` + `.gitleaks.toml` + `db:grants` + the least-privilege suite. **Not `tested`: the workflow has never run.** Artifact signing deferred (nothing to sign yet); branch protection is an owner action                                                                                                                                                                                                                        |
+| OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                                                                                                                                                                                                                                  |
+| AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                                                                                                                                                                                                                           |
+| PLAT-004  | transactional outbox + idempotency                 | `tested`      | Tables, append-only audit and per-tenant idempotency, and — since 2026-08-30 — the relay itself: five producers, the `apps/worker` dispatcher (claim/backoff/park, loop and controlled-batch modes) and the lifecycle consumer, proved by 14 database cases driving the dispatcher from `@tmanage/worker` plus 10 worker unit cases                                                                                                                 |
+| UI-001    | tokens, primitives, Storybook, visual harness      | `tested`      | 106 cases in `packages/ui`: 33 contrast, 14 token drift, 59 component/theme including axe over the whole primitive surface in light, dark, high contrast and Arabic RTL. Storybook builds and was driven through three stories. **The visual-regression harness is not built** — deferred; the "no real browser here" half of the old reason fell to the 2026-08-30 Playwright probe, and what remains is the deliberate baseline-artifact decision |
 
 ## Sprint 1 (`28-SPRINT-TICKETS` §4)
 
@@ -5834,17 +5863,19 @@ ran ten green chains — and this section is replaced rather than amended.** Spr
 still the only complete one; Sprint 2 stands one half (WEB-002's homeless saved views)
 from joining it, Sprint 1 one half (ID-002's passkeys).
 
-**The next one is `TEST-003` — E2E, starting with a probe.** Its row (E2E-02, AUTH-04,
-REL-01/02, 8 points) has sat at zero on the belief that end-to-end needs infrastructure
-this machine lacks; that belief is untested. Playwright needs no container — it downloads
-browsers — and the repo already runs the API and the web app locally. The honest first
-step is a probe, not a suite: install Playwright, confirm a headless Chromium actually
-launches on this Windows host, and drive one journey (sign-in against the dev route) end
-to end. If the probe stands, E2E-02's request-to-approval journey has a floor to build on
-and the ticket starts moving; if the host refuses, the row's zero finally has an
-evidence-backed reason instead of an assumption. Either outcome is a recordable result.
-Mind the runtime: Playwright and its browser download are a heavyweight dependency —
-weigh it in the open in the commit that adds it.
+**The next one is `TEST-003`'s first half — the E2E harness the probe just unlocked.**
+The probe ran at the end of this session (its own section near the top): headless
+Chromium 140 launches on this host, so the row's zero is now "not built", not "cannot
+build". The work: add Playwright as the weighed-in-the-open dev dependency, an `e2e/`
+home per `18-REPOSITORY-STRUCTURE`, a fixture that boots the API (embedded MySQL, seeded
+world, dev sign-in enabled) and the web app and tears both down, and the first two
+journeys — AUTH-04 (sign-in, wrong password, lockout window) and E2E-02's
+request-to-delivery walk as far as the product actually reaches today. REL-01/02 stay out
+of reach honestly — instance loss behind a load balancer is not this machine — so the
+ticket's ceiling here is **half**, and its row should say exactly that when the count
+moves. Two cautions: the Next app needs a production build or a warmed dev server before
+the first navigation, and E2E timing must follow the standing rule — waits on conditions,
+never sleeps tuned until green.
 
 The alternatives, in order after it:
 
