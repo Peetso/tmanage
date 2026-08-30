@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { ChatScreen } from '../src/components/screens/ChatScreen';
 import { ProjectChannelScreen } from '../src/components/screens/ProjectChannelScreen';
 import { ApiClient } from '../src/lib/api/client';
+import type { LiveSocket } from '../src/lib/use-channel-live-feed';
 import { expectNoAxeViolations } from './axe';
 
 /**
@@ -173,6 +174,13 @@ function channelHandler(overrides: Partial<Record<string, (call: Call) => Respon
       return (
         overrides['messages'] ??
         (() => json({ messages: [message(), RICH_MESSAGE, MODERATED_MESSAGE] }))
+      )(call);
+    }
+    if (call.url.includes('/realtime/tickets')) {
+      return (
+        overrides['ticket'] ??
+        (() =>
+          json({ ticket: 'tkt-1', expiresAt: '2026-08-30T00:01:00.000Z', socketUrl: null }, 201))
       )(call);
     }
     if (call.url.includes('/conversations/conv-1')) return json(CONVERSATION);
@@ -555,5 +563,168 @@ describe('transcript paging — WEB-003 second half', () => {
     // A short page means the transcript is now whole: no button, no warning.
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
     expect(screen.queryByText('This is not the whole transcript')).toBeNull();
+  });
+});
+
+describe('the live feed — RT-001 second half', () => {
+  class FakeSocket implements LiveSocket {
+    readonly sent: string[] = [];
+    onopen: (() => void) | null = null;
+    onmessage: ((event: { readonly data: unknown }) => void) | null = null;
+    onclose: (() => void) | null = null;
+    send(text: string): void {
+      this.sent.push(text);
+    }
+    close(): void {
+      // The screen unmounting closes the socket; the hook must not treat that as a drop.
+    }
+    emitOpen(): void {
+      act(() => this.onopen?.());
+    }
+    emit(frame: Record<string, unknown>): void {
+      act(() => this.onmessage?.({ data: JSON.stringify(frame) }));
+    }
+    drop(): void {
+      act(() => this.onclose?.());
+    }
+  }
+
+  it('mints, subscribes, shows Live, and refetches on every frame — never patching from it', async () => {
+    let extra = false;
+    const sockets: FakeSocket[] = [];
+    const { client, calls } = clientOver(
+      channelHandler({
+        ticket: () =>
+          json(
+            { ticket: 'tkt-1', expiresAt: '2026-08-30T00:01:00.000Z', socketUrl: 'ws://sock.test' },
+            201,
+          ),
+        messages: () =>
+          json({
+            messages: extra
+              ? [
+                  message(),
+                  RICH_MESSAGE,
+                  MODERATED_MESSAGE,
+                  message({ id: 'msg-live', sequenceNo: 4, body: 'Arrived live.' }),
+                ]
+              : [message(), RICH_MESSAGE, MODERATED_MESSAGE],
+          }),
+      }),
+    );
+
+    render(
+      withQuery(
+        <ProjectChannelScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          conversationId="conv-1"
+          client={client}
+          socketFactory={(url) => {
+            expect(url).toContain('ws://sock.test');
+            expect(url).toContain('ticket=tkt-1');
+            const socket = new FakeSocket();
+            sockets.push(socket);
+            return socket;
+          }}
+          reconnectBaseMs={1}
+        />,
+      ),
+    );
+
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    const socket = sockets[0] as FakeSocket;
+    socket.emitOpen();
+    expect(socket.sent).toEqual([JSON.stringify({ type: 'subscribe', conversationId: 'conv-1' })]);
+
+    socket.emit({ type: 'subscribed', conversationId: 'conv-1', cursor: 3 });
+    await screen.findByLabelText('Live updates connected');
+
+    // A frame carries ids only; the screen refetches and the new message arrives through
+    // the ordinary read path — the frame's own content is never rendered.
+    extra = true;
+    socket.emit({
+      type: 'event',
+      eventType: 'message.created.v1',
+      conversationId: 'conv-1',
+      objectId: 'msg-live',
+      sequence: 4,
+      patch: { parentMessageId: null },
+    });
+    await screen.findByText('Arrived live.');
+
+    const reads = calls.filter(
+      (call) =>
+        (call.method === undefined || call.method === 'GET') && call.url.includes('/messages'),
+    );
+    expect(reads.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('settles quietly when the deployment runs no socket', async () => {
+    const factoryCalls: string[] = [];
+    const { client, calls } = clientOver(channelHandler());
+    render(
+      withQuery(
+        <ProjectChannelScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          conversationId="conv-1"
+          client={client}
+          socketFactory={(url) => {
+            factoryCalls.push(url);
+            return new FakeSocket();
+          }}
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('/realtime/tickets'))).toBe(true);
+    });
+    // socketUrl: null — no dial, no chip, the reload behaviour stands.
+    expect(factoryCalls).toHaveLength(0);
+    expect(screen.queryByLabelText('Live updates connected')).toBeNull();
+    expect(screen.queryByLabelText('Reconnecting to live updates')).toBeNull();
+  });
+
+  it('a dropped socket reconnects with a fresh ticket', async () => {
+    const sockets: FakeSocket[] = [];
+    const { client, calls } = clientOver(
+      channelHandler({
+        ticket: () =>
+          json(
+            { ticket: 'tkt-1', expiresAt: '2026-08-30T00:01:00.000Z', socketUrl: 'ws://sock.test' },
+            201,
+          ),
+      }),
+    );
+
+    render(
+      withQuery(
+        <ProjectChannelScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          conversationId="conv-1"
+          client={client}
+          socketFactory={() => {
+            const socket = new FakeSocket();
+            sockets.push(socket);
+            return socket;
+          }}
+          reconnectBaseMs={1}
+        />,
+      ),
+    );
+
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    (sockets[0] as FakeSocket).drop();
+    await screen.findByLabelText('Reconnecting to live updates');
+
+    // A fresh mint and a fresh socket — the sixty-second ticket is never reused.
+    await waitFor(() => {
+      const mints = calls.filter((call) => call.url.includes('/realtime/tickets'));
+      expect(mints.length).toBeGreaterThanOrEqual(2);
+      expect(sockets.length).toBeGreaterThanOrEqual(2);
+    });
   });
 });

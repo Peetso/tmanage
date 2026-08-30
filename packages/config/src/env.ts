@@ -171,6 +171,17 @@ export const envSchema = z
     // Sixty seconds is the intended order: the ticket authorizes the handshake only, and
     // every subscription is re-checked against current rows.
     REALTIME_TICKET_TTL_SECONDS: positiveInt.max(300).default(60),
+    // Where a browser reaches the socket — a deployment fact the API serves beside the
+    // ticket, never something the client guesses. Absent means "no live socket here",
+    // which is the truth wherever the worker runs as controlled batches.
+    REALTIME_PUBLIC_URL: z
+      .string()
+      .trim()
+      .refine(
+        (v) => v.startsWith('ws://') || v.startsWith('wss://'),
+        'must be a ws:// or wss:// URL',
+      )
+      .optional(),
 
     // Rate limiting
     RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),

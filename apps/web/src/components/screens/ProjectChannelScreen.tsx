@@ -26,6 +26,8 @@ import type {
   PostMessageInput,
 } from '../../lib/api/conversations';
 import { composeMessage } from '../../lib/rich-composer';
+import { useChannelLiveFeed } from '../../lib/use-channel-live-feed';
+import type { LiveSocketFactory } from '../../lib/use-channel-live-feed';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { audienceLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
@@ -35,6 +37,9 @@ export interface ProjectChannelScreenProps {
   organizationName: string;
   conversationId: string;
   client?: ApiClient;
+  /** RT-001's test seam: jsdom has no WebSocket, so a suite injects a fake. */
+  socketFactory?: LiveSocketFactory;
+  reconnectBaseMs?: number;
 }
 
 type WorkAudience = 'internal' | 'client_visible' | 'client_action_required';
@@ -83,6 +88,8 @@ export function ProjectChannelScreen({
   organizationName,
   conversationId,
   client,
+  socketFactory,
+  reconnectBaseMs,
 }: ProjectChannelScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -134,6 +141,23 @@ export function ProjectChannelScreen({
   const threadRoot = rows.find((message) => message.id === threadRootId);
   const archived = conversation.data?.archivedAt != null;
 
+  /*
+   * RT-001's browser half. Every frame — and the subscription itself — answers with a
+   * refetch through the ordinary read path; frame content is never applied. Where the
+   * deployment runs no socket the hook settles at 'off' and the reload behaviour stands.
+   */
+  const liveStatus = useChannelLiveFeed({
+    api,
+    organizationSlug,
+    conversationId,
+    enabled: conversation.data !== undefined && !archived,
+    onCatchUp: () => {
+      void queries.invalidateQueries({ queryKey: ['messages', organizationSlug, conversationId] });
+    },
+    ...(socketFactory === undefined ? {} : { socketFactory }),
+    ...(reconnectBaseMs === undefined ? {} : { reconnectBaseMs }),
+  });
+
   return (
     <AppShell
       organizationName={organizationName}
@@ -144,6 +168,18 @@ export function ProjectChannelScreen({
           <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
           {project.data ? <> · {project.data.name}</> : null}
           {archived ? <> · Archived</> : null}
+          {liveStatus === 'live' ? (
+            <>
+              {' '}
+              · <span aria-label="Live updates connected">Live</span>
+            </>
+          ) : null}
+          {liveStatus === 'retrying' ? (
+            <>
+              {' '}
+              · <span aria-label="Reconnecting to live updates">Reconnecting…</span>
+            </>
+          ) : null}
         </>
       }
       lens={
@@ -160,8 +196,9 @@ export function ProjectChannelScreen({
       }
     >
       <BackendPending ticket="unscheduled APIs">
-        Reactions, saved messages, quote-to-decision, pins, presence and live updates are not built
-        — none has an endpoint. New messages appear when the channel is reloaded.
+        Reactions, saved messages, quote-to-decision, pins and presence are not built — none has an
+        endpoint. Live updates arrive over the socket where this deployment runs one; otherwise new
+        messages appear when the channel is reloaded.
       </BackendPending>
 
       {conversation.isError ? (

@@ -44,6 +44,12 @@ export interface ApiConfig extends SessionServiceOptions {
    * right order of magnitude and 300 is `packages/config`'s ceiling.
    */
   readonly realtimeTicketTtlSeconds: number;
+  /**
+   * RT-001. Where a browser reaches the socket, served beside the ticket. `null` means no
+   * live socket exists in this deployment — the batch-mode truth — and screens then keep
+   * their reload behaviour rather than dialing a port nothing answers.
+   */
+  readonly realtimeSocketUrl: string | null;
 }
 
 export interface ApiConfigSource {
@@ -60,6 +66,8 @@ export interface ApiConfigSource {
   readonly CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: number;
   /** Optional so the suites' hand-built bags keep compiling; the default matches the env's. */
   readonly REALTIME_TICKET_TTL_SECONDS?: number;
+  /** `| undefined` explicitly: `loadEnv`'s optional field arrives that way under EOPT. */
+  readonly REALTIME_PUBLIC_URL?: string | undefined;
 }
 
 /**
@@ -90,6 +98,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     totpIssuer: env.AUTH_TOTP_ISSUER,
     clientMembershipDefaultExpiryDays: env.CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS,
     realtimeTicketTtlSeconds: env.REALTIME_TICKET_TTL_SECONDS ?? 60,
+    realtimeSocketUrl: env.REALTIME_PUBLIC_URL ?? null,
   };
 }
 

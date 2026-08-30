@@ -27,7 +27,12 @@ export class RealtimeController {
   @Post('tickets')
   @RequireCapability('conversation.read')
   @HttpCode(201)
-  mint(@Ctx() context: TenantContext): { readonly ticket: string; readonly expiresAt: string } {
+  mint(@Ctx() context: TenantContext): {
+    readonly ticket: string;
+    readonly expiresAt: string;
+    /** Where the socket lives, or `null` where no live socket exists — the client's cue. */
+    readonly socketUrl: string | null;
+  } {
     const expiresAt = Date.now() + this.config.realtimeTicketTtlSeconds * 1000;
     return {
       ticket: signRealtimeTicket(
@@ -39,6 +44,7 @@ export class RealtimeController {
         this.config.sessionSecret,
       ),
       expiresAt: new Date(expiresAt).toISOString(),
+      socketUrl: this.config.realtimeSocketUrl,
     };
   }
 }
