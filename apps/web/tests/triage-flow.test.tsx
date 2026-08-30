@@ -283,6 +283,29 @@ describe('REQ-02 the triage screen', () => {
     expect(sent[0]?.body).toEqual({ version: 2, to: 'triage' });
   });
 
+  it('offers only "the client has answered" while a clarification is outstanding', async () => {
+    const user = userEvent.setup();
+    const { sent } = renderTriage({
+      state: 'needs_clarification',
+      clarificationQuestion: 'Which markets does the autumn campaign cover?',
+    });
+
+    // The defect this pins: the screen used to treat `needs_clarification` as open and render
+    // all four outcomes, but `23-ERD` §6 draws no edge from here to accepted, deferred or
+    // declined — the API answered 422 for every one of them. A manager who asked a question
+    // could never answer the request. §6's route back is through `triage`, and that is the
+    // only control this state gets.
+    const answered = await screen.findByRole('button', { name: 'The client has answered' });
+    expect(screen.getByText('Waiting on the client')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Commit with a date' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Defer with a reason' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Decline with a reason' })).not.toBeInTheDocument();
+
+    await user.click(answered);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]?.body).toEqual({ version: 2, to: 'triage' });
+  });
+
   it('says an answered request is answered rather than offering dead controls', async () => {
     renderTriage({ state: 'declined', clientVisibleReason: 'Outside the statement of work.' });
     expect(await screen.findByText('This request has been answered')).toBeInTheDocument();

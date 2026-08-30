@@ -265,8 +265,18 @@ export function ClientRequestDetailScreen({
                 </>
               ) : (
                 <>
+                  {/*
+                    Two sentences, because `23-ERD` §6 draws two arrows into `withdrawn` and they
+                    describe different situations. From `submitted` nobody has looked at the
+                    request yet. From `needs_clarification` somebody has — they are the reason
+                    this page is showing a question — and telling that reader the studio "has not
+                    started on it" contradicts the alert directly above. The first end-to-end run
+                    of this journey is what surfaced the second case.
+                  */}
                   <p className="tm-prose">
-                    You can still take this back — {providerName} has not started on it.
+                    {found.status === 'clarifying'
+                      ? 'You can still take this back, even with their question open. Withdrawing it is an answer too.'
+                      : `You can still take this back — ${providerName} has not started on it.`}
                   </p>
                   <div className="tm-row">
                     <Button type="button" tone="outline" onClick={() => setConfirming(true)}>

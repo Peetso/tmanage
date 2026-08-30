@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-08-30 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-08-31 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,27 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-08-31, start of the e2e-growth session
+
+The **nineteenth** consecutive run, and the table below is this run's output rather than a copy
+of the previous one. Every pair was compared by SHA-256 and, separately, by modification time —
+pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                                                             |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                                                              |
+| Modification times                        | **No pack file is newer than its copy** in either scope. Compared pair by pair: 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later, and one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. That is the shape of a copy taken _from_ the pack |
+| Uncopied pack content                     | The same six as the eighteenth run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock`                                      |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                                                              |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
 
 ---
 
@@ -336,6 +357,37 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-31, the e2e-growth session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`~22 m` wall, **exit 0**, on the first start. The order mattered and is part of the record:
+`pnpm test:e2e` ran **three times before** the chain — once to see the two new specs fail, once
+after the fixes, once after a reword — and every repository edit was made between those runs
+rather than under a running gate. A six-agent read-only fleet audited the specs' selectors
+against the real screens while the first e2e run was still going, and it is what found the
+deadlock below before the run could reach it.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                                                                  |
+| `typecheck`              | Clean                                                                                                                                                               |
+| `lint`                   | Clean                                                                                                                                                               |
+| `test` (unit)            | **973 passed**, 54 files — up 2 from 971: the triage screen's `needs_clarification` panel and the portal's clarifying withdraw sentence, each pinned where it lives |
+| `test:db`                | **777 passed, 29 skipped**, 31 files, **1070.95 s** — unchanged from 777/29; this slice adds no database behaviour                                                  |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                                                               |
+| `format:check` (closing) | Clean                                                                                                                                                               |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after every e2e run and after the chain                                                                                 |
+
+Outside the chain, `pnpm test:e2e`: **7 passed** in ~1.2 m against the full booted stack — up
+from 2. `pnpm test:vr` was **not run and is not owed**: `packages/ui` source, styles and stories
+are untouched, and neither screen this slice edits has a VR story.
+
+---
+
 ## Verification actually run — 2026-08-30, the mailer session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath
@@ -363,6 +415,102 @@ pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db &&
 Outside the chain, `pnpm test:e2e`: **2 passed** (E2E-02, AUTH-04) in ~1.1 m against the full booted stack. `pnpm test:vr` was **not run and
 is not owed**: `packages/ui` source, styles and stories are untouched — the one screen
 this slice edits (`InviteTeamScreen`, in `apps/web`) has no VR story.
+
+---
+
+## Five more journeys — and the deadlock the first one walked into
+
+`TEST-003` had two journeys. It now has seven, and the three added to the client-request loop
+did what an end-to-end test is actually for: they found something no unit suite could have,
+because no unit suite drives two screens in sequence.
+
+### E2E-01 — the loop was deadlocked after a clarification
+
+The catalog's sentence is "client request → clarification → accepted work". Walking it found
+that the second arrow does not exist in the running product.
+
+`23-ERD` §6 draws `submitted → triage → needs_clarification → triage → accepted`. The domain
+machine implements exactly that: from `needs_clarification` there are two edges, back to
+`triage` and out to `withdrawn`. `RequestTriageScreen` disagreed — it treated
+`needs_clarification` as an open request and rendered all four outcomes, so a manager who asked
+a client a question was offered **Commit with a date**, **Defer with a reason** and **Decline
+with a reason**, and the API answered `422` to all three. The only control that moved a request
+back to `triage` was **Start triaging**, and that renders solely in the `submitted` branch.
+
+So the studio could ask a question and then never answer the request. There was no route
+forward from the screen at all. The fix is the state's own panel:
+
+- `needs_clarification` is no longer "open". It gets **Waiting on the client**, whose one
+  control is **The client has answered**, which performs `needs_clarification → triage` — §6's
+  route, and the only one it draws.
+- The three outcomes are hidden rather than offered and refused. A button the machine rejects
+  is worse than no button, which is the same reasoning the `submitted` branch was already
+  written from.
+- Pinned in `apps/web/tests/triage-flow.test.tsx`: the panel renders, the three outcomes do
+  not, and the click posts `{ version, to: 'triage' }`.
+
+This is a **UI defect, not a contract change.** Nothing in `packages/domain` moved and no
+planning file was touched; the screen was corrected to match §6, which it had been contradicting
+since `WEB-005` landed.
+
+### The portal was telling a client the opposite of what the page above said
+
+The second defect the same journey found. `ClientRequestDetailScreen` renders "You can still
+take this back — {studio} has not started on it" whenever the API reports `canWithdraw`. From
+`submitted` that is true. From `needs_clarification` it is false and visibly so — the studio's
+question is in an alert directly above it. §6 draws both arrows into `withdrawn`, so the button
+is correct in both states; only the sentence was wrong. It is now state-aware, and the
+clarifying one reads "You can still take this back, even with their question open. Withdrawing
+it is an answer too."
+
+The first attempt at that sentence repeated the alert's own phrase and produced a Playwright
+strict-mode violation on the next run — two elements for one locator. That is a fair
+description of the real problem: the same words twice on one page, once as a heading and once
+in a paragraph. The reword fixed both.
+
+### What the journeys assert
+
+| Journey   | Catalog line                                 | What it walks                                                                                                                                                                                                                                     |
+| --------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E2E-01a` | client request → clarification               | client sends a request; studio triages and asks; the studio's screen says whose move it is; the client reads the question word for word and can still withdraw                                                                                    |
+| `E2E-01b` | → accepted work, no internal notes           | studio records the answer, commits a date, sees the gap stated and the client's sentence previewed; the client's page shows scope, both dates, and **no** `/work/` link, no internal state word                                                   |
+| `AUTH-06` | Atlas client queries another client request  | a _sibling client of the same studio_ gets the same not-found a non-existent request would give, carrying no title, scope or date, and their own list stays empty                                                                                 |
+| `E2E-09`  | first organization/project/client onboarding | an organization is founded, its slug derived and confirmed in the URL, a project filed, a teammate invited, the link copied off ON-04 the way a person would, accepted in a second browser context, and the org appears as an internal membership |
+| `AUTH-01` | org ID swapped in path                       | a stranger org's slug and the adversarial near-twin `northstar-studios` both get the byte-identical refusal                                                                                                                                       |
+
+### Three narrownesses, said plainly
+
+1. **The client cannot answer the clarification in the portal.** `CHAT-001` built no client-side
+   conversation, and `CL-10`'s own copy tells the client to reply however they normally reach the
+   studio. The journey models the answer arriving out-of-band, which is what the product does.
+   "The client has answered" is the studio recording that, not the client doing it.
+2. **`ON-02` stores nothing.** Its forward button is disabled, so `E2E-09` navigates past the
+   template step rather than choosing one. The client-organization half of onboarding
+   (`ON-05`/`ON-06`) has no screen at all, so `E2E-09` covers the internal half only.
+3. **`AUTH-01`'s "no name leaked" assertion passes for a weaker reason than it reads.**
+   `/[orgSlug]/work` renders `FIXTURE_ORGANIZATION_NAME` in the header badge regardless of the
+   slug, so on `/brightops-consulting/work` the badge says "Northstar Studio". The refusal
+   genuinely carries no BrightOps data — the API answers 404 and nothing renders — but the
+   header is a fixture rather than a suppression, and this assertion will need re-reading the
+   day `GET /v1/organizations/:slug` lands. Recorded rather than deleted.
+
+### One harness change
+
+`e2e/playwright.config.ts` now pins `locale: 'en-US'` and `timezoneId: 'UTC'`. `formatDay` passes
+`undefined` to `Intl.DateTimeFormat` **on purpose** — a client reads dates in their own locale —
+so "Agreed for September 10, 2026" is an assertion about the browser, not about the product.
+Under `en-GB` the same correct page reads "10 September 2026" and the failure would look like a
+product defect on somebody else's machine. The browser is pinned; the app is not.
+
+### A Playwright fact worth writing down
+
+`getByText(x, { exact: true })` compares the element's **whole** text, and `StateCapsule` puts an
+`aria-hidden` glyph in front of its word. The capsule's text is `"✓Created"`, not `"Created"`, so
+an exact-text assertion on a capsule matches nothing. Both new specs had one; the first run
+caught the invitation one and the audit fleet caught the identical bug waiting in `E2E-01b`.
+They now assert through the surrounding region — `getByRole('region', { name: ... })` plus
+`toContainText` — which also lets `E2E-09` assert the negative, since a substring match on
+"Created" is case-insensitive and would otherwise be satisfied by "Not created".
 
 ---
 
@@ -6545,22 +6693,23 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**The mailer landed on 2026-08-30 — unscheduled, chosen by this section's own standing
-order — and this section is replaced rather than amended.**
+**E2E growth landed on 2026-08-31 — the first of the three choices the previous revision of this
+section listed — and this section is replaced rather than amended.** It cost two UI fixes it did
+not plan for, which is the argument for the next one being another journey rather than another
+feature.
 
 **The next one is a choice among three, in the doc's standing order:**
 
-1. **E2E growth.** The harness has been green across three sessions now; E2E-01/03/04 and
-   more of AUTH-\* are cheap marginal journeys once the boot cost is paid. An invitation
-   journey is newly attractive: with `EMAIL_DRIVER=console` the stack prints the mail to
-   the API log, and a journey could walk the whole loop — issue, read the link off the
-   response, accept in a second browser context.
-2. **A second mail producer.** Password reset (`ID-002` left "reset link needs email"
-   parked) or an email fan-out consumer on the outbox for NOTIF-001's rows — the
-   templates in `35-NOTIFICATION-AND-EMAIL-COPY` §3 are written and one of eleven now
-   renders. The port exists; a producer is now a small slice.
-3. **The MariaDB run for 0012.** The engine-skew check has not seen the DATE migration.
-   The local `mariadb-11.4.5` zip is GONE from disk; re-downloading (~90 MB from
+1. **A second mail producer.** Password reset (`ID-002` left "reset link needs email" parked) or
+   an email fan-out consumer on the outbox for `NOTIF-001`'s rows — the templates in
+   `35-NOTIFICATION-AND-EMAIL-COPY` §3 are written and one of eleven now renders. The port
+   exists; a producer is a small slice.
+2. **More journeys.** `E2E-03`, `E2E-04` and the remaining `AUTH-*` lines are cheap now that the
+   boot cost is paid and the harness has been green across four sessions. On this session's
+   evidence a journey is also the most productive defect-finder in the repository: two screens
+   in sequence is a thing no unit suite tests.
+3. **The MariaDB run for 0012.** The engine-skew check has not seen the DATE migration. The
+   local `mariadb-11.4.5` zip is GONE from disk; re-downloading (~90 MB from
    archive.mariadb.org) needs Peter's explicit OK first.
 
 **A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
@@ -6818,6 +6967,15 @@ directory, unscheduled" instead, which is both shorter and true.
     the unmailed portal path, a post-commit 500, the console driver's false error rows,
     and three coverage holes — all fixed and pinned, AUTH proven on a real socket.
 
+46. ~~Five more browser journeys, and the deadlock they found~~ — **done this session.**
+    `E2E-01a`, `E2E-01b`, `AUTH-06`, `E2E-09` and `AUTH-01`, taking `pnpm test:e2e` from 2
+    journeys to 7. Two real defects fell out of walking them: the triage screen offered three
+    outcomes the state machine refuses from `needs_clarification`, so a manager who asked a
+    client a question could never answer the request; and the portal told a client the studio
+    "has not started on it" directly under the studio's own question. Both fixed and pinned.
+    The browser's locale is now pinned in the harness, because the product's is deliberately
+    not.
+
 ### Progress
 
 **32 of 70 tickets. 260 of 583 story points — 44.6%, across Sprints 0–9.** UI-001 closed whole on 2026-08-30, the only row that moved since the re-derivation below was written. Derived ticket by
@@ -6853,8 +7011,10 @@ that item, with none of the internal record around it.
 That is an end-to-end product for the first time. Three things stand between it and something a
 team could use for a week:
 
-1. **Nothing sends the invitation.** The link is printed on screen and a person has to send it
-   by hand. Nothing else in the loop needs a human to carry it.
+1. **Whether the invitation is emailed depends on the deployment.** The mailer landed on
+   2026-08-30, so an SMTP-configured deployment sends it. Under the `bootstrap` profile's
+   `EMAIL_DRIVER=console` nothing does, the link is printed on screen for a person to send by
+   hand, and `ON-04` says so in as many words — which `E2E-09` now asserts end to end.
 2. **The client request loop is closed at both ends** — the first loop in this product that is.
    A client asks for something in a browser and is told plainly that their date is a wish. A
    manager sees it in an inbox, asks a question, defers or declines with a reason the client

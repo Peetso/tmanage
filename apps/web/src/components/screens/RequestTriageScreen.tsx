@@ -388,8 +388,12 @@ interface TriageActionsProps {
 /**
  * The four outcomes, each naming what it needs.
  *
- * A request nobody has opened yet gets a fifth control — "Start triaging" — because §6 routes
- * every answer through `triage` and a manager should not have to discover that by being refused.
+ * Two states get a panel of their own instead, and both exist for the same reason: `23-ERD` §6
+ * routes every answer through `triage`, and a manager should not have to discover that by being
+ * refused. A request nobody has opened yet gets "Start triaging". A request waiting on a
+ * clarification gets "The client has answered", which is the only edge §6 draws out of
+ * `needs_clarification` besides the client's own withdrawal — the outcomes are hidden there
+ * rather than offered and then rejected.
  */
 function TriageActions({
   request,
@@ -415,7 +419,7 @@ function TriageActions({
   onDecline,
   onReview,
 }: TriageActionsProps) {
-  const open = request.state === 'triage' || request.state === 'needs_clarification';
+  const open = request.state === 'triage';
 
   if (request.state === 'submitted') {
     return (
@@ -437,6 +441,44 @@ function TriageActions({
             onClick={onOpenTriage}
           >
             Start triaging
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  if (request.state === 'needs_clarification') {
+    return (
+      <section className="tm-panel tm-stack" aria-labelledby="tm-triage-waiting">
+        <h2 id="tm-triage-waiting" className="tm-eyebrow">
+          Waiting on the client
+        </h2>
+        <p className="tm-prose">
+          They have been asked something, and the request sits with them until they answer. There is
+          nowhere for them to answer it in the portal yet, so the reply reaches you however you
+          normally hear from them. This is where you record that it arrived.
+        </p>
+        {/*
+          The three outcomes are deliberately absent here. `23-ERD` §6 routes every answer back
+          through triage — `needs_clarification` to `triage`, and only then to accepted, deferred
+          or declined — so offering them in this state would render three buttons the state
+          machine refuses with a 422, which is how the first end-to-end run of this journey
+          found the gap: the screen let a manager ask a question and then never let them answer.
+        */}
+        <p className="tm-field__hint">
+          Committing, deferring and declining come back once the request is in triage. §6 draws no
+          route from here to any of them.
+        </p>
+        <div className="tm-row">
+          <Button
+            type="button"
+            tone="ink"
+            size="accessible"
+            loading={working}
+            loadingLabel="Reopening"
+            onClick={onOpenTriage}
+          >
+            The client has answered
           </Button>
         </div>
       </section>

@@ -339,6 +339,22 @@ describe('CL-10 the request detail', () => {
     expect(screen.getByText(/no longer yours to take back/i)).toBeInTheDocument();
   });
 
+  it('does not tell a client the studio has not started while it is asking them something', async () => {
+    // `23-ERD` §6 draws two arrows into `withdrawn`, and they describe different situations.
+    // From `needs_clarification` the studio plainly *has* started — the question is on the same
+    // page — so the submitted-state sentence contradicted the alert above it. Found by the
+    // first end-to-end run of the client-request journey.
+    renderDetail({
+      status: 'clarifying',
+      canWithdraw: true,
+      clarificationQuestion: 'Which markets does the autumn campaign cover?',
+    });
+
+    expect(await screen.findByRole('button', { name: 'Withdraw request' })).toBeInTheDocument();
+    expect(screen.getByText(/Withdrawing it is an answer too/)).toBeInTheDocument();
+    expect(screen.queryByText(/has not started on it/)).not.toBeInTheDocument();
+  });
+
   it('explains a 409 rather than inviting a retry', async () => {
     const user = userEvent.setup();
     const api = clientOver((url) => {

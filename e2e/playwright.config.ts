@@ -27,5 +27,13 @@ export default defineConfig({
   use: {
     baseURL: WEB_URL,
     trace: 'retain-on-failure',
+    // The app formats calendar dates in the *reader's* locale on purpose — `formatDay` passes
+    // `undefined` to `Intl.DateTimeFormat` — so a journey that asserts "September 10, 2026"
+    // is really asserting something about the browser. Pin the browser rather than pin the app:
+    // under `en-GB` the same correct page reads "10 September 2026", and the failure would look
+    // like a product defect on somebody else's machine. The timezone is pinned for the same
+    // reason, though `formatDay` already forces UTC for `DATE` columns.
+    locale: 'en-US',
+    timezoneId: 'UTC',
   },
 });
