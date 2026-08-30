@@ -2,7 +2,7 @@ import { loadEnv } from '@tmanage/config';
 import { createWorkerDatabase } from './common/database/worker-database.js';
 import { runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
 import type { BatchReport } from './outbox/dispatcher.js';
-import { WORKER_OUTBOX_HANDLERS } from './consumers/work-item-lifecycle.js';
+import { WORKER_OUTBOX_HANDLERS } from './consumers/registry.js';
 
 /**
  * The worker process entry point.

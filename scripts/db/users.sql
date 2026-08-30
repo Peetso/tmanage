@@ -103,6 +103,9 @@ GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_ap
 GRANT INSERT                 ON `tmanage`.`message_work_links`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
+-- NOTIF-001. UPDATE is for marking read — the trigger in 0010 confines it to `read_at`,
+-- forward only. DELETE withheld: "was this person told" must stay answerable.
+GRANT INSERT, UPDATE         ON `tmanage`.`notifications`        TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
@@ -161,6 +164,9 @@ GRANT INSERT         ON `tmanage`.`audit_events`        TO 'tmanage_worker'@'%';
 -- accepted->planned; when the work is done, planned->delivered (23-ERD §6). UPDATE only —
 -- the relay never creates or destroys a request, it advances one a manager accepted.
 GRANT UPDATE         ON `tmanage`.`client_requests`     TO 'tmanage_worker'@'%';
+-- NOTIF-001's consumer writes the records. INSERT only: marking read is a person's act
+-- through the API, never the relay's, and DELETE is withheld everywhere above.
+GRANT INSERT         ON `tmanage`.`notifications`       TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration user

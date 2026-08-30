@@ -633,6 +633,42 @@ export const outboxEvents = mysqlTable(
   ],
 );
 
+/**
+ * NOTIF-001. One person told one thing — a reference envelope like the outbox row it came
+ * from, never content: a notification outlives the access decision that allowed it, so the
+ * read path resolves the object through ordinary authorized reads at display time
+ * (`24-EVENT-CATALOG` §6). `uq_notifications_dedupe` is the consumer's idempotency under
+ * at-least-once redelivery, and the seam a future bundler widens. Only `read_at` may ever
+ * change, forward only — the trigger in `0010_notifications.sql` refuses the rest.
+ */
+export const notifications = mysqlTable(
+  'notifications',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    recipientUserId: char('recipient_user_id', { length: 36 }).notNull(),
+    type: varchar('type', { length: 190 }).notNull(),
+    objectType: varchar('object_type', { length: 64 }).notNull(),
+    objectId: char('object_id', { length: 36 }).notNull(),
+    dedupeKey: varchar('dedupe_key', { length: 190 }).notNull(),
+    readAt: datetime('read_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_notifications_org_id').on(table.organizationId, table.id),
+    index('ix_notifications_recipient_time').on(
+      table.organizationId,
+      table.recipientUserId,
+      table.createdAt,
+    ),
+    uniqueIndex('uq_notifications_dedupe').on(
+      table.organizationId,
+      table.recipientUserId,
+      table.dedupeKey,
+    ),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -862,6 +898,7 @@ export type ProjectClientRow = typeof projectClients.$inferSelect;
 export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
+export type NotificationRow = typeof notifications.$inferSelect;
 export type UserPasswordRow = typeof userPasswords.$inferSelect;
 export type UserMfaFactorRow = typeof userMfaFactors.$inferSelect;
 export type UserRecoveryCodeRow = typeof userRecoveryCodes.$inferSelect;

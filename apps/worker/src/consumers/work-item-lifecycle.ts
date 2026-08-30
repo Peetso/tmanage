@@ -138,8 +138,3 @@ export const workItemLifecycleConsumer: OutboxHandler = async (
     },
   });
 };
-
-/** The registry `main.ts` runs — one consumer today, keyed by the type it answers to. */
-export const WORKER_OUTBOX_HANDLERS = {
-  'work_item.updated.v1': workItemLifecycleConsumer,
-} as const;

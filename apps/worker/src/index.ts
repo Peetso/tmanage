@@ -37,8 +37,14 @@ export type {
   OutboxHandlers,
 } from './outbox/dispatcher.js';
 
+export { WORKER_OUTBOX_HANDLERS } from './consumers/registry.js';
 export {
-  WORKER_OUTBOX_HANDLERS,
   requestTransitionFor,
   workItemLifecycleConsumer,
 } from './consumers/work-item-lifecycle.js';
+export {
+  clientRequestSubmittedConsumer,
+  clientRequestTransitionedConsumer,
+  mayTriageClientRequests,
+} from './consumers/client-request-notifications.js';
+export type { InternalRecipientCandidate } from './common/database/notifications-store.js';

@@ -97,6 +97,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',
+  // NOTIF-001. Tenant-owned: a notification names a tenant object, and an unscoped read of
+  // it would be a feed of what is happening inside every studio on the server.
+  notifications: 'organization_id',
 });
 
 /**

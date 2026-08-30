@@ -477,10 +477,12 @@ describe('the relay', () => {
     });
     expect(planned[0]!.correlationId).toBe(ownerCtx.correlationId);
 
-    // The announcement itself has no consumer; the next batch publishes it to zero.
+    // The announcement is itself consumed — since NOTIF-001, a transitioned event has a
+    // notification consumer — and the next batch delivers it without failures.
     const followUp = await runOutboxBatch(workerDb, WORKER_OUTBOX_HANDLERS, OPTIONS);
     expect(followUp.claimed).toBe(1);
-    expect(followUp.unhandled).toBe(1);
+    expect(followUp.published).toBe(1);
+    expect(followUp.failed).toBe(0);
   });
 
   it('treats redelivery as success: one transition however many deliveries', async () => {
