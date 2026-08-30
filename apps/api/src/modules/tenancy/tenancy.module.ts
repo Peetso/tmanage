@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   AUDIT_SERVICE,
+  INVITATION_MAILER,
   INVITATIONS_REPOSITORY,
   INVITATIONS_SERVICE,
   MEMBERSHIP_RESOLVER,
@@ -12,6 +13,7 @@ import {
   WORKSPACES_REPOSITORY,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { InvitationMailer } from '../../common/email/invitation-mailer.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ClientMembershipsRepository } from '../clients/client-memberships.repository.js';
 import { InvitationsController, InvitationAcceptanceController } from './invitations.controller.js';
@@ -77,11 +79,12 @@ export class TenancyModule {
 
     const invitationsService: Provider = {
       provide: INVITATIONS_SERVICE,
-      inject: [TENANT_DATABASE, INVITATIONS_REPOSITORY, AUDIT_SERVICE],
+      inject: [TENANT_DATABASE, INVITATIONS_REPOSITORY, AUDIT_SERVICE, INVITATION_MAILER],
       useFactory: (
         database: TenantDatabase,
         invitations: InvitationsRepository,
         audit: AuditService,
+        invitationMail: InvitationMailer,
       ) =>
         new InvitationsService(
           database,
@@ -93,6 +96,7 @@ export class TenancyModule {
           new MembershipsRepository(),
           new ClientMembershipsRepository(),
           audit,
+          invitationMail,
         ),
     };
 

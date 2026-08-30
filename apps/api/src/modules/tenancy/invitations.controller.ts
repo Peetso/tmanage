@@ -29,6 +29,7 @@ import type {
   InvitationPreview,
   InvitationView,
   InvitationsService,
+  IssuedInvitation,
 } from './invitations.service.js';
 
 /**
@@ -118,7 +119,7 @@ export class InvitationsController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Body() body: IssueBody,
-  ): Promise<{ readonly invitation: InvitationView; readonly token: string }> {
+  ): Promise<IssuedInvitation> {
     const details: { field: string; message: string }[] = [];
     const email = requiredEmail(body?.email, details);
 
@@ -158,7 +159,7 @@ export class InvitationsController {
     @CurrentPrincipal() principal: Principal,
     @Param('invitationId') invitationId: string,
     @Body() body: ReissueBody,
-  ): Promise<{ readonly invitation: InvitationView; readonly token: string }> {
+  ): Promise<IssuedInvitation> {
     const role = typeof body?.role === 'string' && body.role !== '' ? body.role : undefined;
     if (body?.role !== undefined && role === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [

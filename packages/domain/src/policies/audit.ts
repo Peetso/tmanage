@@ -227,6 +227,12 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'invitation',
     clause: '§12 role changes — issuing a token that grants membership is the grant itself',
   },
+  'invitation.emailed': {
+    objectType: 'invitation',
+    clause:
+      '§12 role changes — the delivery attempt for a token that grants membership: result ' +
+      'says whether a mail server accepted it, metadata says which kind, never the address',
+  },
   'invitation.accepted': {
     objectType: 'invitation',
     clause:

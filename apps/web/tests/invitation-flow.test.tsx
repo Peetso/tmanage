@@ -222,7 +222,7 @@ describe('ON-04, creating invitations', () => {
     return calls;
   }
 
-  function issued(email: string, token: string) {
+  function issued(email: string, token: string, delivery: 'sent' | 'none' | 'failed' = 'none') {
     return json(
       {
         invitation: {
@@ -238,6 +238,7 @@ describe('ON-04, creating invitations', () => {
           createdAt: '2026-08-26T09:00:00.000Z',
         },
         token,
+        delivery,
       },
       201,
     );
@@ -276,8 +277,8 @@ describe('ON-04, creating invitations', () => {
     });
   });
 
-  it('shows the link once, and says nothing emailed it', async () => {
-    renderScreen(() => issued('maya@northstar.studio', 'THE-TOKEN-VALUE'));
+  it('shows the link once, and says nothing emailed it when delivery is none', async () => {
+    renderScreen(() => issued('maya@northstar.studio', 'THE-TOKEN-VALUE', 'none'));
 
     await add('maya@northstar.studio');
     await userEvent.click(screen.getByRole('button', { name: 'Create 1 invitation' }));
@@ -285,6 +286,27 @@ describe('ON-04, creating invitations', () => {
     expect(await screen.findByText(/THE-TOKEN-VALUE/)).toBeInTheDocument();
     expect(screen.getByText(/you have to send it yourself/i)).toBeInTheDocument();
     expect(screen.getByText(/no way to see it again/i)).toBeInTheDocument();
+  });
+
+  it('says the email went out when the server says it did — and still shows the link', async () => {
+    renderScreen(() => issued('maya@northstar.studio', 'THE-TOKEN-VALUE', 'sent'));
+
+    await add('maya@northstar.studio');
+    await userEvent.click(screen.getByRole('button', { name: 'Create 1 invitation' }));
+
+    expect(await screen.findByText(/THE-TOKEN-VALUE/)).toBeInTheDocument();
+    expect(screen.getByText('Also emailed to maya@northstar.studio.')).toBeInTheDocument();
+    expect(screen.queryByText(/you have to send it yourself/i)).toBeNull();
+  });
+
+  it('keeps the link the whole answer when the server tried to email and failed', async () => {
+    renderScreen(() => issued('maya@northstar.studio', 'THE-TOKEN-VALUE', 'failed'));
+
+    await add('maya@northstar.studio');
+    await userEvent.click(screen.getByRole('button', { name: 'Create 1 invitation' }));
+
+    expect(await screen.findByText(/THE-TOKEN-VALUE/)).toBeInTheDocument();
+    expect(screen.getByText(/The email could not be sent/)).toBeInTheDocument();
   });
 
   it('keeps a failure in the list and clears the ones that worked', async () => {

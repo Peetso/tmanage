@@ -18,6 +18,7 @@ import { RequestsModule } from './modules/requests/requests.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
+import { MailerModule } from './common/email/mailer.module.js';
 import { PlatformModule } from './modules/platform/platform.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 
@@ -61,6 +62,13 @@ export interface AppModuleOptions {
    */
   readonly database: DynamicModule;
   readonly config: ApiConfig;
+  /**
+   * The mail wiring, already built — `MailerModule.forConfig()` in production,
+   * `MailerModule.forMailer()` in a suite that wants to hold the messages. Absent means
+   * `MailerModule.none()`: every delivery answers `'none'` and the invitation screen keeps
+   * telling the issuer to send the printed link, which is the bootstrap fallback.
+   */
+  readonly mailer?: DynamicModule;
 }
 
 @Module({})
@@ -77,6 +85,9 @@ export class AppModule {
         // PLAT-004: the outbox writer, global for the reason the audit module is — three
         // feature modules append events from inside their own transactions.
         PlatformModule.register(),
+        // Before `TenancyModule`, whose invitations service is the mail port's first
+        // producer and resolves `INVITATION_MAILER` from this injector.
+        options.mailer ?? MailerModule.none(),
         TenancyModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()

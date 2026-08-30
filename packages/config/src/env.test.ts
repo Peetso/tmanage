@@ -32,6 +32,9 @@ const prodEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
   CACHE_DRIVER: 'redis',
   MALWARE_SCAN_DRIVER: 'clamav',
   EMAIL_DRIVER: 'smtp',
+  SMTP_HOST: 'smtp.tmanage.example',
+  SMTP_USERNAME: 'no-reply@tmanage.example',
+  SMTP_PASSWORD: 'mail-credential-example',
   ...overrides,
 });
 
@@ -139,6 +142,36 @@ describe('loadEnv', () => {
       expect(
         issuePaths(() => loadEnv({ ...devEnv(), STORAGE_DOWNLOAD_URL_TTL_SECONDS: '3600' })),
       ).toContain('STORAGE_DOWNLOAD_URL_TTL_SECONDS');
+    });
+  });
+
+  describe('email', () => {
+    it('requires a host for the smtp driver', () => {
+      expect(issuePaths(() => loadEnv({ ...devEnv(), EMAIL_DRIVER: 'smtp' }))).toContain(
+        'SMTP_HOST',
+      );
+    });
+
+    it('requires nothing beyond the from-address for the console substitute', () => {
+      expect(() => loadEnv({ ...devEnv(), EMAIL_DRIVER: 'console' })).not.toThrow();
+    });
+
+    it('refuses half a credential pair', () => {
+      expect(
+        issuePaths(() => loadEnv({ ...devEnv(), SMTP_USERNAME: 'no-reply@tmanage.example' })),
+      ).toContain('SMTP_PASSWORD');
+      expect(issuePaths(() => loadEnv({ ...devEnv(), SMTP_PASSWORD: 'pw' }))).toContain(
+        'SMTP_USERNAME',
+      );
+    });
+
+    it('reads SMTP_SECURE=false as false — the z.coerce.boolean trap this schema avoids', () => {
+      expect(loadEnv({ ...devEnv(), SMTP_SECURE: 'false' }).SMTP_SECURE).toBe(false);
+      expect(loadEnv({ ...devEnv(), SMTP_SECURE: 'true' }).SMTP_SECURE).toBe(true);
+      // Anything that is not exactly true/false is a validation error, never a guess.
+      expect(issuePaths(() => loadEnv({ ...devEnv(), SMTP_SECURE: 'yes' }))).toContain(
+        'SMTP_SECURE',
+      );
     });
   });
 

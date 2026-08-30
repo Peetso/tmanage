@@ -144,6 +144,7 @@ interface Invitation {
 interface Issued {
   invitation: Invitation;
   token: string;
+  delivery: 'sent' | 'none' | 'failed';
 }
 
 const owner = () => world.northstar.owner;
@@ -217,6 +218,24 @@ describe('issuing', () => {
     const listed = await send('GET', orgUrl('/invitations'), session);
     expect(listed.body).not.toContain(token);
     expect(listed.body).not.toContain(stored);
+  });
+
+  it('answers delivery=none and audits no email when no mail wiring exists', async () => {
+    // This application was built with no `mailer` option, which is the bootstrap fallback
+    // the mailer slice keeps: the printed link is the whole delivery story. Pinned here —
+    // not merely "the suite stays green" — because a regression that answered 'failed'
+    // would tell every no-SMTP issuer their email broke, and one that wrote an
+    // `invitation.emailed` row would record attempts nothing made.
+    const session = await signIn(owner().id);
+    const issued = await issue(session);
+
+    expect(issued.delivery).toBe('none');
+
+    const emailed = await observe(
+      `select id from audit_events where action = 'invitation.emailed' and object_id = ?`,
+      [issued.invitation.id],
+    );
+    expect(emailed).toHaveLength(0);
   });
 
   it('records the issue, with the kind of invitation and never the address', async () => {

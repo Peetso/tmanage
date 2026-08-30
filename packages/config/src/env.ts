@@ -197,6 +197,26 @@ export const envSchema = z
     EMAIL_DRIVER: z.enum(['console', 'smtp']).default('console'),
     EMAIL_FROM_ADDRESS: z.string().email(),
     EMAIL_FROM_NAME: nonEmpty('EMAIL_FROM_NAME').default('TManage'),
+    // The SMTP submission endpoint the `smtp` driver dials. Optional here and required by
+    // the `superRefine` below exactly when EMAIL_DRIVER=smtp — the s3 credentials pattern.
+    // 587 is RFC 6409 submission; Hostinger's mail service (the 50-BOOTSTRAP host) uses it
+    // with STARTTLS, and 465 with SMTP_SECURE=true is the implicit-TLS alternative.
+    SMTP_HOST: nonEmpty('SMTP_HOST').optional(),
+    SMTP_PORT: port.default(587),
+    SMTP_USERNAME: z.string().optional(),
+    SMTP_PASSWORD: z.string().optional(),
+    /**
+     * Implicit TLS from the first byte (port 465). `false` means the connection starts in
+     * plain text and upgrades via STARTTLS when the server offers it.
+     *
+     * Not `z.coerce.boolean()`, deliberately: that is `Boolean(value)`, so the string
+     * `"false"` would coerce to `true` — a mail credential sent down a connection the
+     * operator explicitly marked insecure-first. The enum makes `SMTP_SECURE=false` mean no.
+     */
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
 
     // Files
     MALWARE_SCAN_DRIVER: z.enum(['stub', 'clamav']).default('stub'),
@@ -213,6 +233,19 @@ export const envSchema = z
         fail('STORAGE_ACCESS_KEY_ID', 'required when STORAGE_DRIVER=s3');
       if (!env.STORAGE_SECRET_ACCESS_KEY)
         fail('STORAGE_SECRET_ACCESS_KEY', 'required when STORAGE_DRIVER=s3');
+    }
+
+    // The smtp driver needs a host; the console substitute needs nothing. Credentials are a
+    // pair or absent — a username with no password is a misconfiguration that would
+    // otherwise surface as an authentication refusal at the first send rather than at boot.
+    if (env.EMAIL_DRIVER === 'smtp' && !env.SMTP_HOST) {
+      fail('SMTP_HOST', 'required when EMAIL_DRIVER=smtp');
+    }
+    if (env.SMTP_USERNAME !== undefined && env.SMTP_PASSWORD === undefined) {
+      fail('SMTP_PASSWORD', 'required when SMTP_USERNAME is set');
+    }
+    if (env.SMTP_PASSWORD !== undefined && env.SMTP_USERNAME === undefined) {
+      fail('SMTP_USERNAME', 'required when SMTP_PASSWORD is set');
     }
 
     // The runtime and migration users must be distinct. MySQL has no row-level security,

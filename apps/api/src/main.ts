@@ -4,6 +4,7 @@ import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { loadEnv } from '@tmanage/config';
 import { DatabaseModule } from './common/database/database.module.js';
+import { MailerModule } from './common/email/mailer.module.js';
 import { AppModule } from './app.module.js';
 import { apiConfigFrom } from './common/http/api-config.js';
 
@@ -46,6 +47,19 @@ async function bootstrap(): Promise<void> {
           // value; OBS-001 will route this to the metric and the alert.
           console.warn('[tenant-guard]', JSON.stringify(event));
         },
+      }),
+      mailer: MailerModule.forConfig({
+        driver: env.EMAIL_DRIVER,
+        fromAddress: env.EMAIL_FROM_ADDRESS,
+        fromName: env.EMAIL_FROM_NAME,
+        // Built from configuration, never from a request header — the link this produces
+        // carries a credential and a `Host` header is attacker-writable.
+        webPublicUrl: env.WEB_PUBLIC_URL,
+        smtpHost: env.SMTP_HOST,
+        smtpPort: env.SMTP_PORT,
+        smtpSecure: env.SMTP_SECURE,
+        smtpUsername: env.SMTP_USERNAME,
+        smtpPassword: env.SMTP_PASSWORD,
       }),
     }),
     new FastifyAdapter({ trustProxy: true }),

@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import { Avatar, Badge, Button, Field, InlineAlert, StateCapsule } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { issueInvitation } from '../../lib/api/invitations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -34,6 +33,8 @@ interface Sent {
   readonly outcome: 'sent' | 'failed';
   /** The invitation link, for the ones that worked. Shown once and never fetchable again. */
   readonly link?: string;
+  /** What the server did about email — `IssuedInvitation.delivery`, absent on a failure. */
+  readonly delivery?: 'sent' | 'none' | 'failed';
   readonly problem?: string;
 }
 
@@ -54,12 +55,15 @@ interface Sent {
  * `lib/roles.ts` is keyed by the domain's own `InternalRole`, so the list cannot drift again
  * without a type error.
  *
- * ## There is no mailer, and the screen says so
+ * ## Whether the invitation was emailed is the server's answer, not this screen's guess
  *
- * `TEN-003` returns the invitation link once — the row holds only a hash, so nothing can
- * produce it again — and nothing in this system sends email. The link is therefore rendered
- * for each successful invitation, with an instruction to send it. A screen that said
- * "invitations sent" would be describing a delivery that did not happen.
+ * Since the mailer slice, `issueInvitation` returns `delivery` beside the token: `'sent'`
+ * when an SMTP server accepted a message carrying the same link, `'none'` when no transport
+ * is configured (the bootstrap default, `EMAIL_DRIVER=console`), `'failed'` when one exists
+ * and refused. The link is rendered once for every successful invitation regardless — the
+ * row holds only a hash, so nothing can produce it again — and each result says whether the
+ * email happened, because "invitations sent" on a `'none'` answer would be describing a
+ * delivery that did not.
  *
  * ## One request per address
  *
@@ -120,6 +124,7 @@ export function InviteTeamScreen({
           role: invite.role,
           outcome: 'sent',
           link: `${window.location.origin}/invitations/${issued.token}`,
+          delivery: issued.delivery,
         });
       } catch (error) {
         outcomes.push({
@@ -155,12 +160,12 @@ export function InviteTeamScreen({
       title="Invite your team"
       description="Only the people who work on delivery. Clients are invited separately, as a client organization with its own portal."
     >
-      <BackendPending ticket="a mailer — unscheduled">
-        Invitations are created for real. Nothing emails them: the link for each one is shown below,
-        once, and you have to send it yourself. There is no way to see it again — the invitation
-        stores only a hash of its token. No ticket in 28-SPRINT-TICKETS schedules a mailer;
-        NOTIF-001 is the nearest, and it builds notification records rather than delivery.
-      </BackendPending>
+      <p className="tm-prose">
+        Invitations are created for real. Whether each one is also emailed depends on this
+        deployment’s mail settings — the result below says what happened. Either way the link is
+        shown below, once. There is no way to see it again — the invitation stores only a hash of
+        its token.
+      </p>
 
       {/*
         `noValidate` because this form does its own checking and says so in the design
@@ -291,7 +296,16 @@ export function InviteTeamScreen({
                   <span className="tm-mono">{result.email}</span>
                 </div>
                 {result.link ? (
-                  <p className="tm-prose tm-mono tm-break">{result.link}</p>
+                  <>
+                    <p className="tm-prose tm-mono tm-break">{result.link}</p>
+                    <p className="tm-prose">
+                      {result.delivery === 'sent'
+                        ? `Also emailed to ${result.email}.`
+                        : result.delivery === 'failed'
+                          ? 'The email could not be sent — you have to send it yourself.'
+                          : 'Nothing emailed this link — you have to send it yourself.'}
+                    </p>
+                  </>
                 ) : (
                   <p className="tm-prose">{result.problem}</p>
                 )}

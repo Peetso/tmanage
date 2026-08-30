@@ -38,6 +38,13 @@ export interface IssuedInvitation {
    * that reason.
    */
   readonly token: string;
+  /**
+   * What happened to the invitation email. `'none'` means no mail transport is configured
+   * on the server — the bootstrap default — and the link has to be sent by hand; `'sent'`
+   * means an SMTP server accepted a message carrying this same link; `'failed'` means a
+   * transport exists and refused, so the link is, again, the issuer's job.
+   */
+  readonly delivery: 'sent' | 'none' | 'failed';
 }
 
 export interface IssueInvitationInput {

@@ -7,6 +7,7 @@ import {
   CLIENT_REQUESTS_SERVICE,
   CLIENT_MEMBERSHIPS_REPOSITORY,
   CLIENT_ORGANIZATIONS_REPOSITORY,
+  INVITATION_MAILER,
   INVITATIONS_SERVICE,
   PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
@@ -15,6 +16,7 @@ import {
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { InvitationMailer } from '../../common/email/invitation-mailer.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ClientMembershipsRepository } from './client-memberships.repository.js';
 import { ClientOrganizationsRepository } from './client-organizations.repository.js';
@@ -120,14 +122,23 @@ export class ClientsModule {
      */
     const invitations: Provider = {
       provide: INVITATIONS_SERVICE,
-      inject: [TENANT_DATABASE, AUDIT_SERVICE],
-      useFactory: (database: TenantDatabase, audit: AuditService) =>
+      // `INVITATION_MAILER` too: this second instance serves the portal's CL-11 route, and
+      // a client admin's invitation deserves the same email an internal one gets. The first
+      // review of the mailer slice found this copy still built with five arguments — with
+      // SMTP fully configured, portal invitations silently answered `delivery: 'none'`.
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, INVITATION_MAILER],
+      useFactory: (
+        database: TenantDatabase,
+        audit: AuditService,
+        invitationMail: InvitationMailer,
+      ) =>
         new InvitationsService(
           database,
           new InvitationsRepository(),
           new MembershipsRepository(),
           new ClientMembershipsRepository(),
           audit,
+          invitationMail,
         ),
     };
 

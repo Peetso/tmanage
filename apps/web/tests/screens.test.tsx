@@ -438,9 +438,9 @@ describe('ON-04 Invite team', () => {
     const user = userEvent.setup();
     renderScreen();
     await addAddress(user, 'maya@northstar.studio');
-    // "Create", not "Send". Nothing emails an invitation — the screen shows the link and
-    // says to send it by hand — so a button promising delivery would be describing something
-    // that does not happen.
+    // "Create", not "Send". Whether an invitation is emailed is the server's answer,
+    // known only after the request — under the bootstrap default nothing emails it — so a
+    // button promising delivery would be describing something that may not happen.
     expect(screen.getByRole('button', { name: 'Create 1 invitation' })).toBeInTheDocument();
   });
 

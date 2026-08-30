@@ -11,6 +11,8 @@ import {
   InvitationNotPendingError,
   InvitationsRepository,
 } from './invitations.repository.js';
+import type { InvitationMailFactsRow } from './invitations.repository.js';
+import type { InvitationDelivery, InvitationMailer } from '../../common/email/invitation-mailer.js';
 import {
   hashInvitationToken,
   issueInvitationToken,
@@ -100,8 +102,18 @@ export interface IssuedInvitation {
    *
    * Returned from this call and never again: the row holds only a hash, so there is nothing
    * for a later "resend the same link" endpoint to read even if somebody wrote one.
+   *
+   * Returned **whatever `delivery` says**: the printed link is the bootstrap fallback, and
+   * an email that was sent does not make the issuer's own copy of the link less theirs.
    */
   readonly token: string;
+  /**
+   * What happened to the invitation email. `'none'` — no transport is configured, send the
+   * link yourself — is this deployment's normal answer under `EMAIL_DRIVER=console`.
+   * `'failed'` means a transport exists and refused; the invitation itself stands either
+   * way, which is why this is a field and not an error.
+   */
+  readonly delivery: InvitationDelivery;
 }
 
 /**
@@ -143,6 +155,8 @@ export class InvitationsService {
     private readonly clientMemberships: ClientMembershipsRepository = new ClientMembershipsRepository(),
     /** Optional for the reason `ProjectsService`'s is: a test can assert what was written. */
     private readonly audit?: AuditService,
+    /** Optional the same way: absent means every delivery answers `'none'`. */
+    private readonly invitationMail?: InvitationMailer,
     private readonly options: InvitationsServiceOptions = {},
   ) {}
 
@@ -188,7 +202,7 @@ export class InvitationsService {
     const { token, tokenHash } = issueInvitationToken();
     const expiresAt = this.expiryFrom(now);
 
-    const row = await this.database.transaction(context, async (tx) => {
+    const { row, mailFacts } = await this.database.transaction(context, async (tx) => {
       const existing = await this.invitations.findPendingForEmail(
         tx,
         context,
@@ -225,10 +239,11 @@ export class InvitationsService {
         },
       });
 
-      return issued;
+      return { row: issued, mailFacts: await this.mailFactsFor(tx, context, issued.id) };
     });
 
-    return { invitation: toView(row), token };
+    const delivery = await this.deliverInvitationEmail(context, row, mailFacts, token);
+    return { invitation: toView(row), token, delivery };
   }
 
   /**
@@ -249,7 +264,7 @@ export class InvitationsService {
     const { token, tokenHash } = issueInvitationToken();
     const expiresAt = this.expiryFrom(now);
 
-    const row = await this.writing(() =>
+    const { row, mailFacts } = await this.writing(() =>
       this.database.transaction(context, async (tx) => {
         const previous = await this.invitations.requireById(tx, context, invitationId);
         const role = input.role ?? previous.role;
@@ -286,11 +301,12 @@ export class InvitationsService {
           },
         });
 
-        return issued;
+        return { row: issued, mailFacts: await this.mailFactsFor(tx, context, issued.id) };
       }),
     );
 
-    return { invitation: toView(row), token };
+    const delivery = await this.deliverInvitationEmail(context, row, mailFacts, token);
+    return { invitation: toView(row), token, delivery };
   }
 
   async revoke(
@@ -504,6 +520,89 @@ export class InvitationsService {
   }
 
   // ── The parts every method above leans on ─────────────────────────────────
+
+  /**
+   * The names the invitation email interpolates, read inside the issuing transaction —
+   * and only when a transport exists to use them. `null` when nothing is wired at all
+   * (the database suites' default), so that deployment pays no join for a mail nobody
+   * composes. The console driver *is* a transport for this purpose: printing the composed
+   * mail is its whole job, so it pays the join to have names to print.
+   */
+  private async mailFactsFor(
+    tx: Parameters<InvitationsRepository['mailFactsById']>[0],
+    context: TenantContext,
+    invitationId: string,
+  ): Promise<InvitationMailFactsRow | null> {
+    if (!this.invitationMail?.enabled) return null;
+    return (await this.invitations.mailFactsById(tx, context, invitationId)) ?? null;
+  }
+
+  /**
+   * Send the invitation email and record what happened, after the row is committed.
+   *
+   * After, deliberately: a mail host being down must not roll back an invitation, and a
+   * mail sent from inside the transaction would announce a row a later rollback could
+   * erase. The audit row goes in its own transaction for the same reason — it records the
+   * delivery attempt, which is a fact even when the invitation's transaction is long over.
+   */
+  private async deliverInvitationEmail(
+    context: TenantContext,
+    row: InvitationRow,
+    facts: InvitationMailFactsRow | null,
+    token: string,
+  ): Promise<InvitationDelivery> {
+    const mail = this.invitationMail;
+    if (!mail?.enabled) return 'none';
+
+    let delivery: InvitationDelivery;
+    if (facts === null) {
+      // Unreachable while `mailFactsFor` reads the row this transaction created; kept so a
+      // broken join ever after is a failed mail in the trail rather than a 500.
+      console.error('[mailer] invitation email skipped: no names to compose with');
+      delivery = 'failed';
+    } else {
+      delivery = await mail.deliver({
+        to: row.email,
+        clientOrganizationName: facts.clientOrganizationName,
+        organizationName: facts.organizationName,
+        inviterName: facts.inviterName,
+        inviterEmail: facts.inviterEmail,
+        role: row.role,
+        expiresAt: row.expiresAt,
+        token,
+      });
+    }
+
+    // `'none'` writes no audit row: nothing was attempted, so there is nothing to record —
+    // and under the console driver, where `'none'` is every invitation's answer, a row per
+    // healthy invitation reading `result: 'error'` would be the trail crying wolf.
+    const audit = this.audit;
+    if (audit && delivery !== 'none') {
+      try {
+        await this.database.transaction(context, (tx) =>
+          audit.record(tx, context, {
+            action: 'invitation.emailed',
+            objectId: row.id,
+            result: delivery === 'sent' ? 'allowed' : 'error',
+            metadata: {
+              delivery,
+              // The kind, never the address — `invitation.issued`'s rule.
+              destination:
+                row.clientOrganizationId === null ? 'organization' : 'client_organization',
+            },
+          }),
+        );
+      } catch (error) {
+        // Swallowed loudly, the `recordDenial` precedent: the invitation is committed and
+        // the mail may already be in somebody's inbox. A 500 here would lose the response's
+        // one-time token — the issuer's only copy of a link that is now live — to punish
+        // them for a bookkeeping failure that was not theirs.
+        console.error('[mailer] failed to record invitation.emailed', error);
+      }
+    }
+
+    return delivery;
+  }
 
   private expiryFrom(now: Date): Date {
     const expiry = new Date(now.getTime());

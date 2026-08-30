@@ -29,6 +29,27 @@ change what a command does rather than merely how it is typed.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-08-30, start of the mailer session
+
+The **eighteenth** consecutive run, and the table below is this run's output rather than a copy
+of the previous one. Every pair was compared by SHA-256 and, separately, by modification time —
+pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                                                             |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                                                              |
+| Modification times                        | **No pack file is newer than its copy** in either scope. Compared pair by pair: 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later, and one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. That is the shape of a copy taken _from_ the pack |
+| Uncopied pack content                     | The same six as the seventeenth run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` first noted last run                |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                                                              |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-08-30, start of the primitives session
 
 The **seventeenth** consecutive run, and the table below is this run's output rather than a copy
@@ -312,6 +333,126 @@ once already.
 | Residual PostgreSQL references | 5, all deliberate contrast ("MySQL has no PostgreSQL-style RLS"). Zero `jsonb`, `gen_random_uuid`, or `citext`.                                                                                                                                                 |
 
 The MySQL revision is fully landed in `docs/planning/`.
+
+---
+
+## Verification actually run — 2026-08-30, the mailer session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath
+it. `~23 m` wall, **exit 0**, on the first start. The order mattered and is part
+of the record: the review workflow ran **before** the chain — its seven confirmed
+findings (below) were fixed and re-verified by the affected suites first, so no running
+chain had to be killed for them. `Get-Process mysqld` found no stray server after the
+development runs or after the chain.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                                                                                                             |
+| `typecheck`              | Clean                                                                                                                                                                                                          |
+| `lint`                   | Clean                                                                                                                                                                                                          |
+| `test` (unit)            | **971 passed**, 54 files — up 19 from 952: four new email unit files (composer, console driver, invitation mailer, the scripted-SMTP wire suite), the config SMTP cases, and ON-04's three delivery renderings |
+| `test:db`                | **777 passed, 29 skipped**, 31 files, **1128.88 s** — up 7 from 770/30: the six-case invitation-mail suite and the pinned no-mailer contract in the old TEN-003 suite                                          |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                                                                                                          |
+| `format:check` (closing) | Clean                                                                                                                                                                                                          |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the database suite and after the chain                                                                                                                       |
+
+Outside the chain, `pnpm test:e2e`: **2 passed** (E2E-02, AUTH-04) in ~1.1 m against the full booted stack. `pnpm test:vr` was **not run and
+is not owed**: `packages/ui` source, styles and stories are untouched — the one screen
+this slice edits (`InviteTeamScreen`, in `apps/web`) has no VR story.
+
+---
+
+## The mailer — an SMTP transport behind a port, the invitation as its first producer
+
+Unscheduled by `28-SPRINT-TICKETS`, chosen by this file's own standing order. Before this
+slice nothing in the system sent email: `EMAIL_DRIVER` existed in `packages/config` with
+no consumer, and ON-04 printed each invitation link for the issuer to send by hand. That
+printed link is deliberately still the floor — what changed is that a deployment with a
+mail host now also delivers.
+
+**The shape.** A one-method `Mailer` port (`apps/api/src/common/email/`), two drivers
+behind it — `ConsoleMailer` (prints, answers `'none'`, refused in production by the
+existing guardrail) and `SmtpMailer` (nodemailer 9.0.6, the slice's one new dependency:
+SMTP is dot-stuffing, CRLF framing, AUTH encodings and STARTTLS negotiation, each a place
+a hand-rolled client corrupts or leaks; the `@node-rs/argon2` decision again). Above the
+port, `InvitationMailer` owns the two things the port must not: the accept link —
+`WEB_PUBLIC_URL` + `/invitations/<token>`, from configuration and never from a
+`Host` header — and the rule that a mail failure never fails the invitation: `deliver`
+answers `'sent'`, `'none'` or `'failed'` and does not throw. `MailerModule` mirrors
+`DatabaseModule`'s dual shape (`forConfig` in `main.ts`, `forMailer` for a suite that
+holds the transport, `none()` as `AppModule`'s default), and the issue/reissue responses
+gain a `delivery` field the screen now reads out loud. Config grows `SMTP_HOST` /
+`SMTP_PORT` / `SMTP_SECURE` / `SMTP_USERNAME` / `SMTP_PASSWORD` on the s3-credentials
+pattern — optional until `EMAIL_DRIVER=smtp` names the host, credentials pair-or-absent,
+and `SMTP_SECURE` an explicit true/false enum because `z.coerce.boolean()` reads the
+string `"false"` as true. The audit catalog gains `invitation.emailed` — the kind and
+the result, never the address.
+
+**A ten-agent review workflow ran before the chain** (four finder lenses — security,
+correctness, tests, contracts — each finding handed to an adversarial verifier told to
+refute; Peter's standing ten-agent cap). Seven findings were **confirmed** and all seven
+are fixed and pinned; four contract-lens verifiers died on a usage limit mid-run, three of
+whose claims duplicated findings other lenses had already confirmed, and the fourth —
+"the copy divergences are claimed recorded and are not" — is satisfied by this entry.
+
+1. **STARTTLS was opportunistic** (high, security). nodemailer on port 587 upgrades only
+   when the server offers it and authenticates either way, so an on-path attacker
+   stripping `STARTTLS` from the EHLO reply — or a relay that never offers it — got
+   the password and the token-bearing link in cleartext, silently, while the audit row
+   said `allowed`. `SmtpMailer` now sets `requireTLS` whenever credentials are
+   configured: a session that cannot upgrade fails loudly. Pinned on the wire — the
+   scripted server that refuses `STARTTLS` gets no `AUTH` line and no message.
+2. **Portal invitations were never emailed** (high, correctness). `ClientsModule` builds
+   its own `InvitationsService` for the portal's CL-11 route, and that copy was still
+   constructed without the mailer — with SMTP fully configured, a client admin's
+   invitation silently answered `delivery: 'none'`. The provider now injects
+   `INVITATION_MAILER` like `TenancyModule`'s.
+3. **A post-commit audit failure 500ed a committed invitation** (high, correctness). The
+   `invitation.emailed` row is written after the invitation's transaction commits and the
+   mail is handed over; a transient failure there rejected the whole call — losing the
+   response's once-only token for a bookkeeping error that was not the issuer's. The
+   write is now caught and logged, the `recordDenial` precedent.
+4. **The console driver's every invitation audited as `result: 'error'`** (correctness +
+   tests, found by two lenses). `'none'` — the dev default's normal answer — fell
+   into the `!== 'sent'` arm. The rule is now: `'none'` writes no audit row, because
+   nothing was attempted; only `'sent'` and `'failed'` are recorded.
+5. **The no-mailer contract was asserted nowhere** (tests). The old TEN-003 suite —
+   the app booted with no mail wiring — now pins `delivery: 'none'` and zero
+   `invitation.emailed` rows, so a regression cannot tell every bootstrap issuer their
+   email broke while the suite stays green.
+6. **The console driver — the shipped default — was untested** (tests). It now has
+   a unit file (prints the whole message, answers `'none'`), and the database suite
+   drives a `'none'`-answering transport through real HTTP.
+7. **SMTP AUTH was never exercised** (tests). The scripted server now advertises and
+   honours a real `STARTTLS` upgrade with a self-signed fixture certificate, and the
+   suite asserts the exact `AUTH PLAIN` base64 — the credential path runs on a real
+   socket before it runs in production.
+
+**Two divergences from `35-NOTIFICATION-AND-EMAIL-COPY` §3, recorded rather than
+resolved.** The internal template's `{{scope}}` and the client template's
+`{{project}}` name things an invitation row does not hold — `0005_invitations.sql`
+has no project column and no scope narrower than the organization — so the internal
+body says the organization where §3 says scope, and the client subject says "their
+client portal" without naming a project. The preview screen recorded the same absence
+when ID-03 landed. §1's checklist is otherwise met line by line: organization, action,
+expiry with timezone, why-this-recipient, one CTA, and the inviter as the route for the
+unexpected case — there is no preference centre to link, and the body does not pretend
+one.
+
+**Known limits, named.** TLS on the wire is proven for STARTTLS with verification off
+(the fixture certificate is self-signed); certificate verification itself — on by
+default in production — rests on Node and nodemailer. Nothing sends besides the
+invitation: password reset and every `35-NOTIFICATION` template stay unrendered, and
+NOTIF-001's in-app rows have no email fan-out — the outbox consumer that would carry
+those is the natural next producer. Delivery is synchronous in the request; on a slow
+relay the issue request waits for it.
+
+**Ticket arithmetic.** No scheduled ticket names a mailer, so the count does not move:
+**32 of 70 tickets, 260 of 583 points (44.6%).**
 
 ---
 
@@ -6404,31 +6545,23 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**UI-001 closed on 2026-08-30 — all eight primitives shipped across three slices, and
-this section is replaced rather than amended.**
+**The mailer landed on 2026-08-30 — unscheduled, chosen by this section's own standing
+order — and this section is replaced rather than amended.**
 
 **The next one is a choice among three, in the doc's standing order:**
 
-1. **A mailer.** Nothing sends an invitation; `ON-04` still prints the link.
-   `28-SPRINT-TICKETS` does not schedule this at all. Smallest honest slice: an SMTP
-   transport behind an interface, the invitation mail as its first producer, and the
-   printed link kept as the fallback the bootstrap profile needs.
-2. **E2E growth.** The harness has been green across two sessions; E2E-01/03/04 and more
-   of AUTH-\* are cheap marginal journeys once the boot cost is paid. One or two more
-   sessions of growth and it has earned weight.
+1. **E2E growth.** The harness has been green across three sessions now; E2E-01/03/04 and
+   more of AUTH-\* are cheap marginal journeys once the boot cost is paid. An invitation
+   journey is newly attractive: with `EMAIL_DRIVER=console` the stack prints the mail to
+   the API log, and a journey could walk the whole loop — issue, read the link off the
+   response, accept in a second browser context.
+2. **A second mail producer.** Password reset (`ID-002` left "reset link needs email"
+   parked) or an email fan-out consumer on the outbox for NOTIF-001's rows — the
+   templates in `35-NOTIFICATION-AND-EMAIL-COPY` §3 are written and one of eleven now
+   renders. The port exists; a producer is now a small slice.
 3. **The MariaDB run for 0012.** The engine-skew check has not seen the DATE migration.
    The local `mariadb-11.4.5` zip is GONE from disk; re-downloading (~90 MB from
    archive.mariadb.org) needs Peter's explicit OK first.
-
-The alternatives, in order after it:
-
-2. **A mailer.** Nothing sends an invitation; `ON-04` still prints the link.
-   `28-SPRINT-TICKETS` does not schedule this at all.
-3. **E2E growth.** E2E-01/03/04 and more of AUTH-\* become cheap marginal journeys once the
-   boot cost is paid — the harness has now been green across two sessions; one or two more
-   and it has earned weight.
-4. **The MariaDB run for 0012.** The engine-skew check has not seen migration 0012; the
-   local `mariadb-11.4.5` zip procedure closes it in one sitting.
 
 **A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
 The client request loop still cannot hold a conversation _with a client_. `CHAT-001` built the
@@ -6678,6 +6811,12 @@ directory, unscheduled" instead, which is both shorter and true.
     `:root`), and a four-lens adversarial review fleet confirmed four real defects —
     value-prop desync, blur desync, hover-only Escape, Enter submitting mid-filter —
     all fixed and pinned, plus five credible reports fixed in the same slice.
+
+45. ~~The mailer~~ — **done this session, unscheduled.** An SMTP transport behind a
+    `Mailer` port, the invitation as its first producer, the printed link kept as the
+    floor. A pre-chain review workflow confirmed seven findings — STARTTLS downgrade,
+    the unmailed portal path, a post-commit 500, the console driver's false error rows,
+    and three coverage holes — all fixed and pinned, AUTH proven on a real socket.
 
 ### Progress
 

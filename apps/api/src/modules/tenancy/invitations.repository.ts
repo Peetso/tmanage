@@ -102,6 +102,14 @@ export interface InvitationPreviewRow {
   readonly clientOrganizationName: string | null;
 }
 
+/** The names the invitation email interpolates — `previewByTokenHash`'s joins, tenant-scoped. */
+export interface InvitationMailFactsRow {
+  readonly organizationName: string;
+  readonly inviterName: string;
+  readonly inviterEmail: string;
+  readonly clientOrganizationName: string | null;
+}
+
 export class InvitationsRepository {
   async list(
     runner: TenantQueryRunner,
@@ -154,6 +162,51 @@ export class InvitationsRepository {
     const row = await this.findById(runner, context, invitationId);
     if (!row) throw new InvitationNotFoundError(invitationId);
     return row;
+  }
+
+  /**
+   * The names the invitation email shows for one invitation this tenant issued.
+   *
+   * `previewByTokenHash`'s joins with an ordinary tenant scope instead of the token: the
+   * caller here is the issuing transaction, which holds a real `TenantContext` and the row's
+   * id, so nothing about the bootstrap path's difficulty applies. `users` is joined without
+   * a scope predicate for the reason that method gives — it is in `NON_TENANT_TABLES`.
+   */
+  async mailFactsById(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    invitationId: string,
+  ): Promise<InvitationMailFactsRow | undefined> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        organizationName: organizations.name,
+        inviterName: users.displayName,
+        inviterEmail: users.email,
+        clientOrganizationName: clientOrganizations.name,
+      })
+      .from(invitations)
+      // Each join carries the tenant key bound to the context explicitly, rather than
+      // leaning on the guard's equality-chain analysis: `client_organizations` is scoped by
+      // `organization_id`, which its join column (`id`) is not, so without the second
+      // predicate the guard would rightly refuse the statement.
+      .innerJoin(organizations, eq(organizations.id, context.organizationId))
+      .innerJoin(users, eq(users.id, invitations.invitedByUserId))
+      .leftJoin(
+        clientOrganizations,
+        and(
+          eq(clientOrganizations.id, invitations.clientOrganizationId),
+          eq(clientOrganizations.organizationId, context.organizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(invitations.organizationId, context.organizationId),
+          eq(invitations.id, invitationId),
+        ),
+      )
+      .limit(1);
+
+    return rows[0];
   }
 
   /**
