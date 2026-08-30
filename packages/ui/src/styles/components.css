@@ -342,6 +342,152 @@
   color: var(--ink-500);
 }
 
+/* ── Select ───────────────────────────────────────────────────────────────────── */
+
+.tm-select {
+  position: relative;
+  display: flex;
+}
+
+/* The native chevron goes with `appearance`; the drawn one leaves room for itself. */
+.tm-select__control {
+  appearance: none;
+  flex: 1;
+  padding-inline-end: var(--s10);
+  cursor: pointer;
+}
+
+.tm-select__glyph {
+  position: absolute;
+  inset-inline-end: var(--s4);
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--ink-500);
+}
+
+.tm-select__control:disabled {
+  cursor: not-allowed;
+}
+
+/* ── Tooltip ──────────────────────────────────────────────────────────────────── */
+
+.tm-tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+/*
+ * Hidden, not unmounted: the trigger's `aria-describedby` points here permanently, so
+ * the element must exist whether or not it is drawn.
+ */
+.tm-tooltip__bubble {
+  position: absolute;
+  inset-block-end: calc(100% + var(--s2));
+  inset-inline-start: 0;
+  z-index: 50;
+  max-inline-size: var(--lens);
+  width: max-content;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-micro);
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity var(--t-micro) var(--ease),
+    visibility var(--t-micro) var(--ease);
+}
+
+.tm-tooltip__bubble[data-open] {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ── Toast ────────────────────────────────────────────────────────────────────── */
+
+/*
+ * The region is mounted empty at the shell and floats above the canvas; it must not eat
+ * pointer events when empty, and each toast restores them for itself.
+ */
+.tm-toast-region {
+  position: fixed;
+  inset-block-end: var(--s6);
+  inset-inline-end: var(--s6);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  max-inline-size: var(--lens);
+  pointer-events: none;
+}
+
+.tm-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-compact);
+  border: var(--b-structural) solid var(--line-300);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-toast--success {
+  border-color: var(--success-600);
+}
+
+.tm-toast--success .tm-inline-alert__glyph {
+  color: var(--success-600);
+}
+
+.tm-toast--warning {
+  border-color: var(--warning-600);
+}
+
+.tm-toast--warning .tm-inline-alert__glyph {
+  color: var(--warning-600);
+}
+
+.tm-toast--danger {
+  border-color: var(--danger-600);
+}
+
+.tm-toast--danger .tm-inline-alert__glyph {
+  color: var(--danger-600);
+}
+
+.tm-toast__body {
+  flex: 1;
+}
+
+.tm-toast__dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--s6);
+  block-size: var(--s6);
+  margin-block: calc(-1 * var(--s1));
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  cursor: pointer;
+}
+
+.tm-toast__dismiss:hover {
+  color: var(--ink-950);
+  background: var(--paper-150);
+}
+
 /* ── Checkbox, Radio, Switch ──────────────────────────────────────────────────── */
 
 /*

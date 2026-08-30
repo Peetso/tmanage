@@ -315,6 +315,78 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, Select, Tooltip and Toast, same session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`~1360 s` wall (about 22 m 40 s), **exit 0** — on the second attempt: the first chain died in
+`lint` on an unused `ReactNode` import in `Tooltip.tsx`, the import was removed, and the chain
+was started over from the top rather than resumed.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                  |
+| `typecheck`              | Clean across all workspace projects                                                                 |
+| `lint`                   | Clean on the rerun; the first run's one finding is described above                                  |
+| `test` (unit)            | **927 passed**, 49 files — up 16 from 911: the new `overlay.test.tsx`                               |
+| `test:db`                | **770 passed, 29 skipped**, 30 files, **1053.66 s** — unchanged; three primitives touch no database |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                               |
+| `format:check` (closing) | Clean                                                                                               |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                           |
+
+Outside the chain, `pnpm test:vr`: **103 passed** (102 screenshots — 34 stories × 3 variants —
+plus the empty-index guard) in ~47 s. Nine new baselines from `pnpm test:vr:update`, then a
+plain verify run before trusting them; no pre-existing baseline moved.
+
+---
+
+## Select, Tooltip and Toast — three more, and the live-region decision
+
+The second slice. Six of the eight primitives now exist; `Combobox` and the date and time
+fields remain. 16 unit cases in `tests/overlay.test.tsx`, all three added to the
+whole-surface axe matrix, three stories, nine committed VR baselines.
+
+- **`Select`** is a native `<select>` under `Field`'s exact contract — label required,
+  hint and error on `aria-describedby`, `aria-invalid` derived from the error's presence.
+  The inventory places it in the work-list header, where a filter must work from a
+  keyboard, a touch screen and a screen reader on day one; the native element does all
+  three, and the platform's own picker on a phone is a feature, not a styling defect. The
+  drawn chevron (`appearance: none` removes the native one) is `aria-hidden`: "this is a
+  dropdown" is already what the role says.
+- **`Tooltip`** is built to WCAG 1.4.13's three demands rather than to a hover effect:
+  **dismissable** (Escape hides it without moving focus — pinned by a test that checks
+  focus stays put), **hoverable** (the bubble sits inside the wrapper the pointer
+  listeners are on, so crossing onto it does not close it), **persistent** (nothing times
+  it out). The bubble stays in the DOM whether drawn or not, and the trigger's
+  `aria-describedby` points at it permanently — a screen reader gets the description from
+  the description mechanism, not from watching visibility change. Keyboard focus opens it,
+  because hover-only affordances exclude keyboards. A described-by the trigger already had
+  is kept, not clobbered. `defaultOpen` exists for the visual harness, which cannot hover,
+  and for nothing else.
+- **`Toast` — the live-region decision the next-task note demanded, made and pinned:**
+  announcements live on the **region**, not on each toast. `ToastRegion` is
+  `role="status"` (implicitly polite), named "Notifications", and the contract is that the
+  shell mounts it **empty, before the first toast exists** — a live region created in the
+  same tick as its first content is a coin toss on whether anything is announced, and
+  that ordering cannot be enforced from inside a component, so it is stated as the
+  contract and pinned by a test that renders the region empty and finds it present and
+  named. Polite, not assertive: a toast is by definition peripheral — feedback about a
+  thing that already happened elsewhere on the screen; anything that must interrupt
+  belongs inline next to what it interrupts, which is `InlineAlert`'s job. The primitive
+  owns **no timer** — auto-dismiss is application policy (and WCAG 2.2.1 requires it be
+  extendable), so the primitive renders for as long as it is rendered. Dismissal, when
+  offered, is a real labelled button; omitting the handler omits the button rather than
+  drawing one that does nothing. Tones reuse `InlineAlert`'s vocabulary and glyphs; the
+  colour stays on the border and the glyph, the word stays ink, per the AA arithmetic.
+
+UI-001's row stays at **half**; totals hold at **31.5 of 70 tickets, 256 of 583 points
+(43.9 %)**.
+
+---
+
 ## Verification actually run — 2026-08-30, Checkbox, Radio and Switch, the primitives session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -6225,21 +6297,18 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**Checkbox, Radio and Switch shipped on 2026-08-30 as the primitives session's first
+**Select, Tooltip and Toast shipped on 2026-08-30 as the primitives session's second
 slice — this section is replaced rather than amended.**
 
-**The next one is the rest of UI-001 — the five remaining primitives:** `Select`,
-`Tooltip`, `Toast`, then `Combobox` and the date and time fields. The pattern is now
-established sixteen times over — native elements under tokens, axe over every theme,
-contrast computed not claimed, and every story lands nine VR baselines the day it exists.
-The order above is deliberate: `Select` (native `<select>`, the work-list header's
-filter), `Tooltip` (hover/focus text on a describedby seam) and `Toast` are one slice;
-`Combobox` (the full ARIA combobox pattern, the hardest of the eight) and the date and
-time fields (a calendar date is a `'YYYY-MM-DD'` string, never an instant — the
-DATE-migration convention, already enforced serverside by `parseTargetDate`) are the
-last slice. `Toast` needs its live-region decision made before code: the region must
-exist, empty, before the first toast is injected, or the first announcement is lost.
-Finishing all five plus stories and baselines closes UI-001 whole: +4 points.
+**The next one is UI-001's last slice — `Combobox` and the date and time fields.**
+`Combobox` is the hardest of the eight: the WAI-ARIA editable combobox pattern — DOM focus
+never leaves the input, the highlighted option is a virtual focus on
+`aria-activedescendant`, `aria-expanded` tells the truth, Escape closes without selecting,
+and options are chosen on pointerdown because the input's blur fires before click. The
+date field takes its shape from the DATE-migration convention: its value IS the
+`'YYYY-MM-DD'` string the native control already speaks — no `Date` object in the API in
+either direction — and the time field is its wall-clock twin (`'HH:MM'`, no zone).
+Finishing these three plus stories and baselines closes UI-001 whole: +4 points.
 
 The alternatives, in order after it:
 
@@ -6484,6 +6553,13 @@ directory, unscheduled" instead, which is both shorter and true.
     in ink because law 2 forbids lime to mean selection, the radio group a
     `role="radiogroup"` fieldset that owns the error, the switch's thumb travelling in
     logical coordinates. 21 unit cases, nine VR baselines committed with the components.
+
+43. ~~Select, Tooltip and Toast~~ — **done this session, the second slice; six of the
+    eight primitives now exist.** A native select under Field's contract, a tooltip built
+    to WCAG 1.4.13's three demands with its describedby permanent, and the toast
+    live-region decision made: announcements belong to a `role="status"` region the shell
+    mounts empty before the first toast, polite because a toast is peripheral by
+    definition, with no timer in the primitive. 16 unit cases, nine VR baselines.
 
 ### Progress
 

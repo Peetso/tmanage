@@ -15,6 +15,15 @@ export { Field, type FieldProps } from './Field.js';
 export { Checkbox, type CheckboxProps } from './Checkbox.js';
 export { Radio, RadioGroup, type RadioProps, type RadioGroupProps } from './Radio.js';
 export { Switch, type SwitchProps } from './Switch.js';
+export { Select, type SelectProps } from './Select.js';
+export { Tooltip, type TooltipProps } from './Tooltip.js';
+export {
+  Toast,
+  ToastRegion,
+  type ToastProps,
+  type ToastRegionProps,
+  type ToastTone,
+} from './Toast.js';
 export { SearchField, type SearchFieldProps } from './SearchField.js';
 export {
   Avatar,

@@ -11,11 +11,15 @@ import {
   Radio,
   RadioGroup,
   SearchField,
+  Select,
   SkipLink,
   StateCapsule,
   StatusDot,
   Switch,
   ThemeProvider,
+  Toast,
+  ToastRegion,
+  Tooltip,
 } from '../src/components/index.js';
 import { expectNoAxeViolations } from './axe.js';
 
@@ -39,6 +43,18 @@ function Surface({ title }: { title: string }) {
           <Radio label={title} value="one" defaultChecked />
         </RadioGroup>
         <Switch label={title} defaultChecked />
+        <Select label={title} hint={title}>
+          <option value="">{title}</option>
+        </Select>
+        {/* A constant trigger label: the surface assertion queries one button by title. */}
+        <Tooltip content={title} defaultOpen>
+          <Button tone="outline">More</Button>
+        </Tooltip>
+        <ToastRegion>
+          <Toast tone="success" onDismiss={() => {}}>
+            {title}
+          </Toast>
+        </ToastRegion>
       </main>
     </>
   );
