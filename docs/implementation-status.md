@@ -294,6 +294,92 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, the DATE migration, same session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`~1218 s` wall (20 m 18 s), **exit 0**.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                                                                    |
+| `typecheck`              | Clean across all workspace projects                                                                                                                   |
+| `lint`                   | Clean                                                                                                                                                 |
+| `test` (unit)            | **890 passed**, 47 files — config 25, domain 134, ui 106, test-kit 2, worker 16, api 250, web 357. Web fixtures moved to bare dates; counts unchanged |
+| `test:db`                | **770 passed, 29 skipped**, 30 files, **1090.50 s**. Was 769 + 29: the +1 is the 0012 truncation proof in `migrator.db.test.ts`                       |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                                                 |
+| `format:check` (closing) | Clean                                                                                                                                                 |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after the run                                                                                             |
+
+Before the chain, the four web test files the change touches were run alone (69 passed) and
+the four database suites nearest the blast radius — migrator, req-001, schema drift,
+proj-001 — were run alone; that early run is what caught the driver defect below **before**
+the full chain was spent on it.
+
+---
+
+## The DATE migration — the day stops arriving early
+
+Migration `0012_calendar_dates.sql`, closing WEB-004 gap 6 and the PROJ-002 date note by
+reference (both notes now carry their closure line). Four `DATETIME(3)` columns held
+midnight UTC for values that are calendar dates, so `Intl.DateTimeFormat` in any zone west
+of UTC rendered every target, desired and committed date **a day early**.
+
+1. **The columns.** `projects.committed_at`, `projects.forecast_at`,
+   `client_requests.desired_at` and `client_requests.committed_at` are now `DATE`. The
+   previous session's scoping note named three; `client_requests.committed_at` is the
+   fourth, converted with them because the triage screen filled it the same midnight-UTC
+   way, and leaving it `DATETIME` would have kept exactly the "two conventions that
+   disagree" gap 6 warned against.
+2. **The carrier type is a string.** `'YYYY-MM-DD'` end to end: drizzle
+   `date(..., { mode: 'string' })` in `schema.ts`, string input types in both repositories,
+   `parseTargetDate` returning the validated string, a shared `parseCalendarDay` for the two
+   request dates, and `Commitment` carrying `day: string` rather than `at: Date`.
+3. **A deliberate contract change, said plainly.** `desiredAt` and `commitment` used to
+   _require_ ISO instants and refuse bare dates; they now require bare dates and refuse
+   instants. The req-001 pins assert the new shape — the refusal case flipped direction
+   rather than disappearing. The old parser's "by Friday close of business" argument was
+   honest but idle: the only writer is a date input, so every value ever sent was midnight.
+4. **The projections** pass the strings through; the `toISOString()` calls on these four
+   fields are gone from both request views, the project view and the portal projection.
+5. **The screens** send what the date inputs give them — `NewClientRequestScreen` dropped
+   its `startOfDay`, the triage screen dropped its `T00:00:00.000Z` suffix — and all three
+   `formatDay` helpers render bare dates through `Intl.DateTimeFormat` pinned to **UTC**.
+   `work-item-presentation`'s keeps the reader's own zone for full instants, deliberately:
+   an instant genuinely happens on different dates in different places, and pinning those
+   would be the same lie in the other direction.
+6. **`work_items.due_at` stays an instant.** The acceptance path pins the committed day to
+   midnight UTC there — the exact value the pre-0012 path stored. Converting that column is
+   a WORK-scope decision this migration does not smuggle in.
+
+**The defect under the defect.** With the columns converted and the suite re-run, req-001
+read back `'2026-11-14 00:00:00.000'` — a time nobody stored, from a `DATE` column the
+drift suite had just certified. The tenant drizzle proxy stringifies JS `Date`s into
+DATETIME text for drizzle's positional decoder, and mysql2 inflates `DATE` columns into JS
+`Date`s by default — so the string-mode columns received a datetime string. The pool now
+sets `dateStrings: ['DATE']`: a `DATE` stays the string it already is, and
+`DATETIME`/`TIMESTAMP` keep the `Date` inflation their `mode: 'date'` columns expect. The
+types could not catch this and the drift suite could not either — only a read through the
+real driver, which is the standing argument for this suite existing.
+
+**Truncation proven, not assumed.** `migrator.db.test.ts` gained a case that applies every
+migration below 0012, inserts rows the way production wrote them — calendar dates at
+midnight UTC in `DATETIME(3)` — then applies the remainder and reads the four columns back
+via `DATE_FORMAT`, so no driver or session timezone touches the comparison:
+`2026-09-30 00:00:00.000` comes back `2026-09-30` on the running MySQL 8 engine, and
+`information_schema` reports all four columns as `date`. **MariaDB 11.4 was not run this
+session**; the both-engines claim for 0012 rests on the documented local-MariaDB procedure
+and stays open until someone runs it — recorded as not-run, not as passed.
+
+Ticket arithmetic: none. This was the unscheduled defect fix the previous session's
+next-task note scoped; no `28-SPRINT-TICKETS` row moves, and the totals stay
+**31.5 of 70 tickets, 256 of 583 points (43.9 %)**.
+
+---
+
 ## Verification actually run — 2026-08-30, TEST-003 first half, same session
 
 The eleventh chain run of this session, one uninterrupted background run on the tree
@@ -5956,37 +6042,28 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**`TEST-003`'s first half shipped on 2026-08-30 — the tenth ticket-sized piece of a
-session that ran eleven green chains — and this section is replaced rather than
-amended.** Sprint 4 is still the only complete one; Sprint 3 stands at 6 of 7, Sprint 2
-one half from complete.
+**The DATE migration shipped on 2026-08-30 — an unscheduled defect fix, so the ticket
+totals hold at 31.5 of 70 and 43.9 % — and this section is replaced rather than amended.**
 
-**The next one is the `DATE` migration — small, unscheduled, and a real correctness
-defect.** `projects.forecast_at`, `projects.committed_at` and `client_requests.desired_at`
-are `DATETIME(3)` columns holding midnight UTC for values that are calendar dates, so any
-reader west of UTC sees every target and desired date **a day early** — recorded in the
-WEB-004 gaps since that ticket landed. The work: a migration converting the three columns
-to `DATE`, the schema descriptions, the repositories' write paths (the controllers already
-parse bare dates at midnight UTC — the parse survives, the storage stops lying), the
-projections that serialise them, and the screens' formatting, with the WEB-004/PROJ-002
-gap notes closed by reference. Mind the standing rules: the `TABLES` drift map's column
-cases will notice the type change (good — update them with the migration, same commit),
-and both engines must accept the `ALTER` (MySQL 8 and MariaDB 11.4 both alter
-DATETIME→DATE with value truncation — verify what truncation does to the stored midnight
-values before trusting it; the suite should prove a stored 2026-09-30T00:00:00Z reads
-back as 2026-09-30 for every reader).
+**The next one is UI-001's remainder — the visual-regression harness.** The browser excuse
+fell to the TEST-003 probe: headless Chromium runs on this machine and Playwright is
+already a dependency of `e2e/`. The mechanical part is small — Playwright screenshots over
+the existing Storybook stories. The real work is the **baseline-artifact decision**, and it
+should be weighed in the open before any code: what gets committed (PNGs in the repo grow
+it forever; a digest-only baseline cannot show a human the diff), how a legitimate visual
+change updates the baseline without ceremony, and how a diff is reviewed on a machine with
+no CI. Decide, record the decision and its rejected alternatives in this file, then build.
 
 The alternatives, in order after it:
 
-2. **UI-001's remainder — the visual-regression harness.** The browser excuse fell to the
-   probe; Playwright screenshots over the existing Storybook stories are now buildable.
-   The baseline-artifact decision (what gets committed, how diffs are reviewed) is the
-   real work; weigh it in the open.
-3. **A mailer.** Nothing sends an invitation; `ON-04` still prints the link.
+2. **A mailer.** Nothing sends an invitation; `ON-04` still prints the link.
    `28-SPRINT-TICKETS` does not schedule this at all.
-4. **E2E growth.** The harness is young: E2E-01/03/04 and more of AUTH-\* become cheap
-   marginal journeys once the boot cost is paid — but let the harness prove it is not
-   flaky across a few sessions before adding weight to it.
+3. **E2E growth.** E2E-01/03/04 and more of AUTH-\* become cheap marginal journeys once the
+   boot cost is paid — but let the harness prove it is not flaky across a few sessions
+   before adding weight to it.
+4. **The MariaDB run for 0012.** The engine-skew check documented in the machine table has
+   not seen migration 0012; the local `mariadb-11.4.5` zip procedure closes it in one
+   sitting and would let the 0012 section above stop carrying an open claim.
 
 **A gap `CHAT-001` did not close, said plainly because its own motivation implies otherwise.**
 The client request loop still cannot hold a conversation _with a client_. `CHAT-001` built the
@@ -6205,6 +6282,11 @@ directory, unscheduled" instead, which is both shorter and true.
     ticket at half. The harness found three real things during bring-up, including a
     denial screen offering a composer that could never work — fixed, and asserted absent
     by the journey itself.
+40. ~~The DATE migration~~ — **done this session, unscheduled.** Four calendar-date
+    columns become `DATE`, the value becomes a `'YYYY-MM-DD'` string end to end, and a
+    reader west of UTC stops seeing every date a day early. One driver defect found
+    beneath the migration (`dateStrings: ['DATE']`), truncation proven on the live
+    engine, WEB-004 gap 6 and the PROJ-002 date note closed by reference.
 
 ### Progress
 
