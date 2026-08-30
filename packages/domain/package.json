@@ -8,6 +8,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./realtime-ticket": {
+      "types": "./dist/realtime/ticket.d.ts",
+      "default": "./dist/realtime/ticket.js"
     }
   },
   "main": "./dist/index.js",

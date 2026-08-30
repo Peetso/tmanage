@@ -581,6 +581,8 @@ export class ConversationsService {
             conversationId,
             projectId: conversation.projectId,
             parentMessageId: appended.parentMessageId,
+            // RT-001: the channel's own order, so a subscriber can detect a gap.
+            sequenceNo: Number(appended.sequenceNo),
           },
         });
 

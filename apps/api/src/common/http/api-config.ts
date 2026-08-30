@@ -38,6 +38,12 @@ export interface ApiConfig extends SessionServiceOptions {
    * so it lives in configuration rather than in the service that applies it.
    */
   readonly clientMembershipDefaultExpiryDays: number;
+  /**
+   * RT-001. How long a realtime ticket verifies. The ticket authorizes only the socket
+   * handshake — every subscription is re-checked against current rows — so seconds is the
+   * right order of magnitude and 300 is `packages/config`'s ceiling.
+   */
+  readonly realtimeTicketTtlSeconds: number;
 }
 
 export interface ApiConfigSource {
@@ -52,6 +58,8 @@ export interface ApiConfigSource {
   readonly AUTH_FAILURE_WINDOW_SECONDS: number;
   readonly AUTH_TOTP_ISSUER: string;
   readonly CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: number;
+  /** Optional so the suites' hand-built bags keep compiling; the default matches the env's. */
+  readonly REALTIME_TICKET_TTL_SECONDS?: number;
 }
 
 /**
@@ -81,6 +89,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     failureWindowSeconds: env.AUTH_FAILURE_WINDOW_SECONDS,
     totpIssuer: env.AUTH_TOTP_ISSUER,
     clientMembershipDefaultExpiryDays: env.CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS,
+    realtimeTicketTtlSeconds: env.REALTIME_TICKET_TTL_SECONDS ?? 60,
   };
 }
 

@@ -19,6 +19,7 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { PlatformModule } from './modules/platform/platform.module.js';
+import { RealtimeModule } from './modules/realtime/realtime.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -92,6 +93,8 @@ export class AppModule {
         // a caller who names one that is not theirs should get 404 rather than a foreign-key
         // violation surfacing as 500.
         ConversationsModule.register(),
+        // RT-001: the ticket mint. The socket itself lives in the worker.
+        RealtimeModule.register(),
       ],
       providers: [
         { provide: APP_INTERCEPTOR, useClass: CorrelationInterceptor },

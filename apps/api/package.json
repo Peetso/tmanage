@@ -34,6 +34,8 @@
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",
-    "@tmanage/test-kit": "workspace:*"
+    "@tmanage/test-kit": "workspace:*",
+    "ws": "^8.18.0",
+    "@types/ws": "^8.5.12"
   }
 }

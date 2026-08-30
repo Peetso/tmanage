@@ -113,12 +113,19 @@ export interface ClientRequestTransitionedV1 {
   readonly acceptedWorkItemId: string | null;
 }
 
-/** No body, no author-typed text of any kind — §1's forbidden list, made structural. */
+/**
+ * No body, no author-typed text of any kind — §1's forbidden list, made structural.
+ *
+ * `sequenceNo` joined on 2026-08-30 as an additive optional field (§3's compatible kind):
+ * RT-001's broadcasts carry "object ID, sequence, minimal safe patch", and the sequence is
+ * the channel's own — CHAT-001's allocator — so a client can detect a gap and refetch.
+ */
 export interface MessageCreatedV1 {
   readonly messageId: string;
   readonly conversationId: string;
   readonly projectId: string;
   readonly parentMessageId: string | null;
+  readonly sequenceNo?: number;
 }
 
 /**

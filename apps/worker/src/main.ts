@@ -3,6 +3,8 @@ import { createWorkerDatabase } from './common/database/worker-database.js';
 import { runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
 import type { BatchReport } from './outbox/dispatcher.js';
 import { WORKER_OUTBOX_HANDLERS } from './consumers/registry.js';
+import { createRealtimeServer } from './realtime/server.js';
+import { createMessageFanOut } from './realtime/fan-out.js';
 
 /**
  * The worker process entry point.
@@ -73,8 +75,26 @@ async function main(): Promise<void> {
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
 
+  // RT-001. Sockets exist only in loop mode — a controlled batch has no process to keep a
+  // socket open — and only when a port is configured; 0 is the honest default on a host
+  // that cannot keep this process alive. The fan-out handler joins the registry only when
+  // a hub actually exists, so batch deployments never claim events for nobody.
+  const realtime =
+    env.REALTIME_PORT > 0
+      ? await createRealtimeServer({
+          database,
+          sessionSecret: env.SESSION_SECRET,
+          port: env.REALTIME_PORT,
+        })
+      : undefined;
+  if (realtime) console.warn(`[worker] realtime socket listening on :${realtime.port}`);
+
+  const handlers = realtime
+    ? { ...WORKER_OUTBOX_HANDLERS, 'message.created.v1': createMessageFanOut(realtime.hub) }
+    : WORKER_OUTBOX_HANDLERS;
+
   try {
-    await runOutboxLoop(database, WORKER_OUTBOX_HANDLERS, {
+    await runOutboxLoop(database, handlers, {
       ...options,
       pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
       signal: controller.signal,
@@ -88,6 +108,7 @@ async function main(): Promise<void> {
       },
     });
   } finally {
+    await realtime?.close();
     await database.end();
   }
 }

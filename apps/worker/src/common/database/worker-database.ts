@@ -97,6 +97,11 @@ export interface WorkerDatabase {
    * what lets two relay processes run at once without double-delivering.
    */
   transaction<T>(work: (tx: WorkerTransaction) => Promise<T>): Promise<T>;
+  /**
+   * A read that needs no transaction — RT-001's subscription checks. One connection for
+   * the duration, so a multi-statement read cannot interleave with another borrower's.
+   */
+  read<T>(work: (tx: WorkerTransaction) => Promise<T>): Promise<T>;
   end(): Promise<void>;
 }
 
@@ -136,6 +141,20 @@ export function createWorkerDatabase(options: WorkerDatabaseOptions): WorkerData
           await connection.rollback();
           throw error;
         }
+      } finally {
+        connection.release();
+      }
+    },
+    async read<T>(work: (tx: WorkerTransaction) => Promise<T>): Promise<T> {
+      const connection = await pool.getConnection();
+      try {
+        const tx: WorkerTransaction = {
+          query: async <T2>(sql: string, params: readonly unknown[] = []) => {
+            const [result] = await connection.query(sql, params as unknown[]);
+            return result as T2;
+          },
+        };
+        return await work(tx);
       } finally {
         connection.release();
       }

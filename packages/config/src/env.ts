@@ -162,6 +162,16 @@ export const envSchema = z
     OUTBOX_BACKOFF_BASE_MS: positiveInt.default(1_000),
     OUTBOX_BACKOFF_CAP_MS: positiveInt.default(900_000),
 
+    // Realtime — RT-001, 13-ENGINEERING §6.
+    //
+    // 0 means the socket server does not start, which is the correct default on a host
+    // that only runs the worker as controlled batches: a socket needs the persistent
+    // process, and pretending otherwise would be a port nothing answers.
+    REALTIME_PORT: z.coerce.number().int().min(0).max(65_535).default(0),
+    // Sixty seconds is the intended order: the ticket authorizes the handshake only, and
+    // every subscription is re-checked against current rows.
+    REALTIME_TICKET_TTL_SECONDS: positiveInt.max(300).default(60),
+
     // Rate limiting
     RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
     RATE_LIMIT_MAX_REQUESTS: positiveInt.default(300),

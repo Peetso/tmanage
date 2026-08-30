@@ -48,4 +48,13 @@ export {
   mayTriageClientRequests,
 } from './consumers/client-request-notifications.js';
 export { workItemBlockedConsumer } from './consumers/work-blocked-notification.js';
+
+// RT-001 — the hub, the socket server, and the relay-to-socket seam.
+export { RealtimeHub } from './realtime/hub.js';
+export type { RealtimeEventFrame } from './realtime/hub.js';
+export { createRealtimeServer } from './realtime/server.js';
+export type { RealtimeServer, RealtimeServerOptions } from './realtime/server.js';
+export { createMessageFanOut } from './realtime/fan-out.js';
+export { checkConversationSubscription } from './common/database/realtime-store.js';
+export type { SubscriptionVerdict } from './common/database/realtime-store.js';
 export type { InternalRecipientCandidate } from './common/database/notifications-store.js';
