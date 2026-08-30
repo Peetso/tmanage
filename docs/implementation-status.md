@@ -273,6 +273,63 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, RT-001 second half, same session
+
+The tenth chain run of this session (ninth and tenth both belong to RT-001), one
+uninterrupted background run on the tree commit `1f617c3` left. **Green on the first
+attempt.**
+
+| Gate                        | Result                                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                             |
+| `pnpm typecheck`            | **Done** — seven projects, first pass                                                             |
+| `pnpm lint`                 | Clean, no output                                                                                  |
+| `pnpm test`                 | **890 passed across 47 files.** Up from 887: the three live-feed screen cases                     |
+| `pnpm test:db`              | **30 files, 769 passed, 29 skipped (798)** — unchanged, as it must be: the client is browser work |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                             |
+| `pnpm format:check` (again) | Clean                                                                                             |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                          |
+
+---
+
+## RT-001 second half — the channel goes live, and never trusts a frame
+
+Commit before the chain above, and the ticket is **whole (13)**: §6's scope row reads
+"socket tickets, authorized subscriptions, cursor/gap", and all three now exist on both
+ends of the wire. Presence and typing are not in the row and stay unbuilt, named on the
+screen as before.
+
+The mint serves `socketUrl` beside the ticket — a deployment fact the API knows and the
+browser must not guess. `null` means this deployment runs no socket (the controlled-batch
+truth), and the hook settles at `off` without dialing; the reload behaviour stands
+underneath, exactly as the screen's notice now words it.
+
+`useChannelLiveFeed` owns the lifecycle so the screen owns none of it: mint, connect,
+subscribe to the open channel, and on **every** frame — and once on `subscribed`, covering
+the window between page load and subscription — a refetch through the ordinary authorized
+read path. Frame content is never rendered; the durable truth is the API's
+(`24-EVENT-CATALOG` §2), and under refetch-on-frame a sequence gap needs no special case —
+any later frame, and every reconnect's catch-up, heals it. Reconnects back off
+exponentially with full jitter (§6's own words), each attempt minting a fresh ticket,
+because the old one died of its sixty-second TTL long before most retries fire. The header
+says Live or Reconnecting…; jsdom has no WebSocket, so the socket arrives through an
+injectable factory — the `ApiClient` seam's shape — and the suite drives a fake through
+subscribe, live delivery via the read path, the null-`socketUrl` quiet settling, and a
+drop that reconnects on a fresh mint.
+
+### Named gaps — RT-001 closed, with edges stated
+
+1. **Presence and typing** — not in the scope row, not built, still named on the screen.
+2. **Conversations are the only subscription family.** Work, requests and notifications
+   would each need their own authorized-subscribe rule.
+3. **Single-process fan-out** — the first half's scaling boundary stands: one persistent
+   worker, in-process hub, no shared bus on the target.
+4. **Live updates depend on deployment.** `REALTIME_PORT` on the worker and
+   `REALTIME_PUBLIC_URL` on the API must both be set; either absent degrades honestly to
+   reload.
+
+---
+
 ## Verification actually run — 2026-08-30, RT-001 first half, same session
 
 The eighth full chain of this session, run twice honestly. **Attempt 1 failed one case,
@@ -5693,43 +5750,43 @@ when everything its own §-row's Scope column names is built and covered by a ch
 actually run; **half** when a named part of that scope is built and tested and another named part
 is absent; **zero** otherwise. Halves are recorded against the reason, never rounded away.
 
-| §   | Ticket     |  SP | Counted  | Why                                                                                                                                                                                     |
-| --- | ---------- | --: | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | PLAT-001   |   5 | whole 5  | Workspace, shared config and the ownership boundaries, the last enforced as lint errors and proven to fire                                                                              |
-| 3   | PLAT-002   |   5 | half 2.5 | Environment validation is tested (25 cases). The compose stack has **never been started** — no runtime here                                                                             |
-| 3   | PLAT-003   |   8 | half 4   | Workflow, gitleaks and the scans are written. The workflow has never run and will not; artifact signing is deferred                                                                     |
-| 3   | OBS-001    |   5 | 0        | Not started                                                                                                                                                                             |
-| 3   | DATA-001   |   5 | whole 5  | Migrator, UUIDv7, the two database roles                                                                                                                                                |
-| 3   | AUTHZ-001  |   8 | whole 8  | Tenant context, scoped repository, composite constraints, the corpus                                                                                                                    |
-| 3   | PLAT-004   |   8 | whole 8  | Tables, audit, idempotency **and the relay**: producers, dispatcher (backoff, parking, both run modes) and the lifecycle consumer, proved against the server                            |
-| 3   | UI-001     |   8 | half 4   | Token package, 13 primitives, Storybook, 106 cases. Eight primitives the design inventory names are unbuilt and the visual-regression harness needs a browser                           |
-| 4   | ID-001     |   8 | whole 8  | Session cookie, rotation, reuse detection, CSRF, driven through real HTTP                                                                                                               |
-| 4   | ID-002     |   8 | half 4   | Argon2id, TOTP, recovery codes, 213 cases. **Passkeys are in the row's own scope** and are not built; nor are SSO or password recovery                                                  |
-| 4   | TEN-001    |   8 | whole 8  | Organization, workspace, membership, provisioning, the directory                                                                                                                        |
-| 4   | TEN-002    |   8 | whole 8  | Roles, capabilities, the evaluator, and the principal assembly that wires it                                                                                                            |
-| 4   | TEN-003    |   5 | whole 5  | Issue, accept, revoke, expiry; a hashed single-use token                                                                                                                                |
-| 4   | AUD-001    |   5 | whole 5  | The service, the view model, the first producer                                                                                                                                         |
-| 4   | WEB-001    |   8 | whole 8  | Nine screens, four shells, all wired. The `BackendPending` notices on five of them point at **other tickets'** servers, not at unwritten WEB-001 work                                   |
-| 4   | TEST-001   |   8 | whole 8  | The seed, the tenant corpus, and — since 2026-08-30 — the generated role grid: every cell derived from the ceiling, every refusal a counted security event                              |
-| 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                                            |
-| 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                                                         |
-| 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                                               |
-| 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal                                     |
-| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled                           |
-| 5   | TEST-002   |   8 | whole 8  | Unit, integration, auth — and the deterministic performance fixture over a real `packages/test-kit`, plans and volume, never a stopwatch                                                |
-| 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                                             |
-| 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                                           |
-| 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                                           |
-| 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else                             |
-| 6   | NOTIF-001  |   8 | half 4   | The record and its consumers, permission-checked at delivery, idempotent by the dedupe key. **Preferences are absent** — the contract draws no table for them                           |
-| 6   | RT-001     |  13 | half 6.5 | The ticket mint, the worker socket with current-row subscriptions and cursors, the wordless fan-out. The browser client, presence and other resource families are the named second half |
-| 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                                                       |
-| 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                                                 |
-| 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                                             |
-| 7   | REQ-002    |   8 | whole 8  | Triage, clarify, and an acceptance that is one transaction with its work                                                                                                                |
-| 7   | WEB-004    |  13 | whole 13 | `CL-01`, `CL-02`, `CL-09`, `CL-10`                                                                                                                                                      |
-| 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                                            |
-| 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                                           |
+| §   | Ticket     |  SP | Counted  | Why                                                                                                                                                            |
+| --- | ---------- | --: | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | PLAT-001   |   5 | whole 5  | Workspace, shared config and the ownership boundaries, the last enforced as lint errors and proven to fire                                                     |
+| 3   | PLAT-002   |   5 | half 2.5 | Environment validation is tested (25 cases). The compose stack has **never been started** — no runtime here                                                    |
+| 3   | PLAT-003   |   8 | half 4   | Workflow, gitleaks and the scans are written. The workflow has never run and will not; artifact signing is deferred                                            |
+| 3   | OBS-001    |   5 | 0        | Not started                                                                                                                                                    |
+| 3   | DATA-001   |   5 | whole 5  | Migrator, UUIDv7, the two database roles                                                                                                                       |
+| 3   | AUTHZ-001  |   8 | whole 8  | Tenant context, scoped repository, composite constraints, the corpus                                                                                           |
+| 3   | PLAT-004   |   8 | whole 8  | Tables, audit, idempotency **and the relay**: producers, dispatcher (backoff, parking, both run modes) and the lifecycle consumer, proved against the server   |
+| 3   | UI-001     |   8 | half 4   | Token package, 13 primitives, Storybook, 106 cases. Eight primitives the design inventory names are unbuilt and the visual-regression harness needs a browser  |
+| 4   | ID-001     |   8 | whole 8  | Session cookie, rotation, reuse detection, CSRF, driven through real HTTP                                                                                      |
+| 4   | ID-002     |   8 | half 4   | Argon2id, TOTP, recovery codes, 213 cases. **Passkeys are in the row's own scope** and are not built; nor are SSO or password recovery                         |
+| 4   | TEN-001    |   8 | whole 8  | Organization, workspace, membership, provisioning, the directory                                                                                               |
+| 4   | TEN-002    |   8 | whole 8  | Roles, capabilities, the evaluator, and the principal assembly that wires it                                                                                   |
+| 4   | TEN-003    |   5 | whole 5  | Issue, accept, revoke, expiry; a hashed single-use token                                                                                                       |
+| 4   | AUD-001    |   5 | whole 5  | The service, the view model, the first producer                                                                                                                |
+| 4   | WEB-001    |   8 | whole 8  | Nine screens, four shells, all wired. The `BackendPending` notices on five of them point at **other tickets'** servers, not at unwritten WEB-001 work          |
+| 4   | TEST-001   |   8 | whole 8  | The seed, the tenant corpus, and — since 2026-08-30 — the generated role grid: every cell derived from the ceiling, every refusal a counted security event     |
+| 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                   |
+| 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                                |
+| 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                      |
+| 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal            |
+| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled  |
+| 5   | TEST-002   |   8 | whole 8  | Unit, integration, auth — and the deterministic performance fixture over a real `packages/test-kit`, plans and volume, never a stopwatch                       |
+| 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                    |
+| 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                  |
+| 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                  |
+| 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else    |
+| 6   | NOTIF-001  |   8 | half 4   | The record and its consumers, permission-checked at delivery, idempotent by the dedupe key. **Preferences are absent** — the contract draws no table for them  |
+| 6   | RT-001     |  13 | whole 13 | Tickets, current-row subscriptions, cursor served and gaps healed by refetch — both ends of the wire. Presence is not in the row and stays named on the screen |
+| 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                              |
+| 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                        |
+| 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                    |
+| 7   | REQ-002    |   8 | whole 8  | Triage, clarify, and an acceptance that is one transaction with its work                                                                                       |
+| 7   | WEB-004    |  13 | whole 13 | `CL-01`, `CL-02`, `CL-09`, `CL-10`                                                                                                                             |
+| 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                   |
+| 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                  |
 
 Every other ticket in §§3–12 — two of Sprint 3's seven (RT-001, TEST-003), and all of
 Sprints 5 through 9 — is zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint
@@ -5738,15 +5795,15 @@ third, and **WEB-003's first half the same day** as its fourth. **On 2026-08-30 
 PLAT-004 and WEB-003 moved from half to whole, NOTIF-001 joined at half, and WORK-003 moved
 from zero to whole** — the relay session's four tickets.
 
-| Sprint                                                                                          | Tickets       | Points           |
-| ----------------------------------------------------------------------------------------------- | ------------- | ---------------- |
-| Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52       |
-| Sprint 1 (§4)                                                                                   | 7½ of 8       | 54 of 58         |
-| Sprint 2 (§5)                                                                                   | 5½ of 6       | 46.5 of 53       |
-| Sprint 3 (§6)                                                                                   | 5 of 7        | 47.5 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**     |
-| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293         |
-| **§§3–12**                                                                                      | **30½ of 70** | **245.5 of 583** |
+| Sprint                                                                                          | Tickets      | Points         |
+| ----------------------------------------------------------------------------------------------- | ------------ | -------------- |
+| Sprint 0 (§3)                                                                                   | 5½ of 8      | 36.5 of 52     |
+| Sprint 1 (§4)                                                                                   | 7½ of 8      | 54 of 58       |
+| Sprint 2 (§5)                                                                                   | 5½ of 6      | 46.5 of 53     |
+| Sprint 3 (§6)                                                                                   | 5½ of 7      | 54 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**   |
+| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293       |
+| **§§3–12**                                                                                      | **31 of 70** | **252 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5772,23 +5829,22 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**`RT-001`'s first half shipped on 2026-08-30 — the eighth ticket-sized piece of that
-session, behind its ninth chain run — and this section is replaced rather than amended.**
-Sprint 4 is still the only complete one; Sprint 2 stands one half (WEB-002's homeless
-saved views) from joining it, Sprint 1 one half (ID-002's passkeys).
+**`RT-001` was made whole on 2026-08-30 — the ninth ticket-sized piece of a session that
+ran ten green chains — and this section is replaced rather than amended.** Sprint 4 is
+still the only complete one; Sprint 2 stands one half (WEB-002's homeless saved views)
+from joining it, Sprint 1 one half (ID-002's passkeys).
 
-**The next one is `RT-001`'s second half — the browser client.** The server exists and is
-proved; the channel screen still says "new messages appear when the channel is reloaded",
-and that sentence is now false one wiring away rather than one subsystem away. The client
-side per `13-ENGINEERING` §6: mint a ticket (`POST …/realtime/tickets` is live), open the
-socket, subscribe to the open channel, append frames whose sequence continues the loaded
-transcript, refetch on a gap (the cursor and `sequenceNo` are both in place for exactly
-this), and reconnect with exponential backoff and jitter. Two cautions: jsdom has no
-WebSocket, so the screen's socket must arrive through an injectable seam the tests can
-drive (the `ApiClient` pattern); and the socket's host/port is a deployment fact the API
-should serve alongside the ticket rather than the browser guessing — the mint's response
-is where a `socketUrl` belongs when one is configured. Presence and typing stay out
-unless their ephemeral contract gets storage-free semantics worth testing.
+**The next one is `TEST-003` — E2E, starting with a probe.** Its row (E2E-02, AUTH-04,
+REL-01/02, 8 points) has sat at zero on the belief that end-to-end needs infrastructure
+this machine lacks; that belief is untested. Playwright needs no container — it downloads
+browsers — and the repo already runs the API and the web app locally. The honest first
+step is a probe, not a suite: install Playwright, confirm a headless Chromium actually
+launches on this Windows host, and drive one journey (sign-in against the dev route) end
+to end. If the probe stands, E2E-02's request-to-approval journey has a floor to build on
+and the ticket starts moving; if the host refuses, the row's zero finally has an
+evidence-backed reason instead of an assumption. Either outcome is a recordable result.
+Mind the runtime: Playwright and its browser download are a heavyweight dependency —
+weigh it in the open in the commit that adds it.
 
 The alternatives, in order after it:
 
@@ -6014,18 +6070,26 @@ directory, unscheduled" instead, which is both shorter and true.
     suite's payload pin caught the additive `sequenceNo` — one chain rerun, the pin now
     asserts the new shape.
 
+38. ~~RT-001 second half~~ — **done this session, and the ticket is whole.** The browser
+    client: the mint serves the socket URL (null degrades honestly to reload),
+    `useChannelLiveFeed` owns mint-connect-subscribe-reconnect with exponential backoff
+    and full jitter, every frame and every subscription answers with a refetch through
+    the ordinary read path, and frame content is never rendered. The channel header says
+    Live. 3 screen cases over an injectable socket seam. The scope row's three words —
+    tickets, authorized subscriptions, cursor/gap — all hold on both ends of the wire.
+
 ### Progress
 
-**30½ of 70 tickets. 245.5 of 583 story points — 42.1%, across Sprints 0–9.** Derived ticket by
+**31 of 70 tickets. 252 of 583 story points — 43.2%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
 numerator **and** in the denominator; the percentage reads higher today only because eight
 tickets moved in one session — PLAT-004, WEB-003, WORK-003, WORK-002, TEST-001 and TEST-002 to
-whole, NOTIF-001 and RT-001 to half — each behind its own green chain. Screen tickets: **4½ of 11** —
+whole, RT-001 to whole across two chains, NOTIF-001 to half — each behind green chains. Screen tickets: **4½ of 11** —
 WEB-001, WEB-003, WEB-004 and WEB-005 whole, WEB-002 half (its saved views remain homeless).
-**Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — and the halves of
-NOTIF-001 and RT-001, standing at 5 of 7. Sprint 2 stands at 5½ of 6, one homeless-saved-views
+**Sprint 3 has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — plus RT-001 whole and half of
+NOTIF-001, standing at 5½ of 7. Sprint 2 stands at 5½ of 6, one homeless-saved-views
 half from complete; Sprint 1 at 7½ of 8; Sprint 0 at 5½ of 8.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
