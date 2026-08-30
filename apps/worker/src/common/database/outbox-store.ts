@@ -168,9 +168,53 @@ export async function listParkedEvents(
 }
 
 /**
+ * Thrown when the enclosing **transaction** is gone, not merely the handler's own writes.
+ *
+ * The distinction is the whole reason this class exists. `withSavepoint` is built on the
+ * assumption that a handler's failure is statement-local and the batch continues; InnoDB
+ * breaks that assumption in one specific way. A deadlock victim (`ER_LOCK_DEADLOCK`, 1213)
+ * has its **entire transaction** rolled back by the server, and every savepoint in it
+ * destroyed. Every write the batch made before that point — including the `published_at`
+ * stamps of events already handled — is gone, and the connection is sitting outside any
+ * transaction.
+ *
+ * Caught as an ordinary handler error, that looks like "one event failed, carry on": the
+ * dispatcher would record a failure, commit nothing of substance, report success for the
+ * earlier events, and — since after-commit effects are promoted per event — **send the mail
+ * for events whose publication was destroyed**, which the next batch would then re-claim and
+ * mail again. A duplicate email cannot be un-sent, so the dispatcher must be able to tell the
+ * two cases apart. It does so by this type.
+ */
+export class OutboxTransactionLostError extends Error {
+  /** The driver error that revealed it, kept for the operator's log and nothing else. */
+  readonly driverError: unknown;
+
+  constructor(driverError: unknown) {
+    super('the batch transaction was rolled back by the server');
+    this.name = 'OutboxTransactionLostError';
+    this.driverError = driverError;
+  }
+}
+
+/** InnoDB's deadlock victim. Always rolls the whole transaction back — never one statement. */
+const ER_LOCK_DEADLOCK = 1213;
+
+function isDeadlock(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const code = (error as { errno?: unknown }).errno;
+  return code === ER_LOCK_DEADLOCK;
+}
+
+/**
  * Run one consumer inside a savepoint, so a failing handler rolls back *its own* writes —
  * a half-applied lifecycle rule is worse than an unapplied one — while the batch's other
  * events and the failure bookkeeping survive.
+ *
+ * Two escapes from that rule, both raising {@link OutboxTransactionLostError}: the handler
+ * error is a deadlock, or the `ROLLBACK TO SAVEPOINT` itself fails — which can only mean the
+ * savepoint no longer exists, which can only mean the transaction no longer exists. The
+ * second is the catch-all: whatever destroys a transaction, it takes the savepoints with it,
+ * and this statement is where that becomes observable.
  */
 export async function withSavepoint<T>(tx: WorkerTransaction, work: () => Promise<T>): Promise<T> {
   // A fixed name is safe: savepoints are per-connection, and one batch processes events
@@ -181,7 +225,12 @@ export async function withSavepoint<T>(tx: WorkerTransaction, work: () => Promis
     await tx.query('RELEASE SAVEPOINT outbox_event');
     return result;
   } catch (error) {
-    await tx.query('ROLLBACK TO SAVEPOINT outbox_event');
+    if (isDeadlock(error)) throw new OutboxTransactionLostError(error);
+    try {
+      await tx.query('ROLLBACK TO SAVEPOINT outbox_event');
+    } catch (rollbackError) {
+      throw new OutboxTransactionLostError(rollbackError);
+    }
     throw error;
   }
 }

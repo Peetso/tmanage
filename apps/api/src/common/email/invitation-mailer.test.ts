@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InvitationMailer } from './invitation-mailer.js';
 import type { InvitationDeliveryFacts } from './invitation-mailer.js';
-import type { MailDelivery, Mailer, MailMessage } from './mailer.js';
+import type { MailDelivery, Mailer, MailMessage } from '@tmanage/mail';
 
 /**
  * The producer-side contract: `deliver` answers `'sent'`, `'none'` or `'failed'` and never

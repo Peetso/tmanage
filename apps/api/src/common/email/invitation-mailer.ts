@@ -1,6 +1,6 @@
 import { composeInvitationEmail } from './invitation-email.js';
 import type { InvitationEmailFacts } from './invitation-email.js';
-import type { Mailer } from './mailer.js';
+import type { Mailer } from '@tmanage/mail';
 
 /**
  * The mail port's first producer — TEN-003's invitation, delivered.

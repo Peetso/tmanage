@@ -65,15 +65,15 @@ importers:
       '@tmanage/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@tmanage/mail':
+        specifier: workspace:*
+        version: link:../../packages/mail
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(mysql2@3.23.3(@types/node@22.20.1))
       mysql2:
         specifier: ^3.15.1
         version: 3.23.3(@types/node@22.20.1)
-      nodemailer:
-        specifier: ^9.0.6
-        version: 9.0.6
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -90,9 +90,6 @@ importers:
       '@tmanage/worker':
         specifier: workspace:*
         version: link:../worker
-      '@types/nodemailer':
-        specifier: ^8.0.1
-        version: 8.0.1
       '@types/ws':
         specifier: ^8.5.12
         version: 8.18.1
@@ -175,6 +172,9 @@ importers:
       '@tmanage/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@tmanage/mail':
+        specifier: workspace:*
+        version: link:../../packages/mail
       mysql2:
         specifier: ^3.15.1
         version: 3.23.3(@types/node@22.20.1)
@@ -222,6 +222,22 @@ importers:
 
   packages/domain:
     devDependencies:
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(jsdom@30.0.1)(tsx@4.23.12)
+
+  packages/mail:
+    dependencies:
+      nodemailer:
+        specifier: ^9.0.6
+        version: 9.0.6
+    devDependencies:
+      '@types/nodemailer':
+        specifier: ^8.0.1
+        version: 8.0.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3

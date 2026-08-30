@@ -43,6 +43,18 @@ export class SmtpMailer implements Mailer {
       port: options.port,
       secure: options.secure,
       /**
+       * Explicit, because nodemailer's defaults are too generous for the caller. The relay
+       * runs its sends serially after a batch commits and consults no `AbortSignal` while it
+       * does (see the dispatcher's module doc), so a host that accepts packets and answers
+       * nothing would otherwise hold the whole relay — and swallow its SIGTERM — for
+       * `batchSize` times nodemailer's two-minute connection timeout. Ten seconds is far
+       * above any healthy submission endpoint's latency and bounds the stall at
+       * `batchSize` × 10s.
+       */
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 10_000,
+      /**
        * With credentials, TLS is mandatory, not opportunistic. nodemailer's default on a
        * `secure: false` connection is to use STARTTLS only when the server offers it and to
        * authenticate either way — so an on-path attacker who strips the STARTTLS capability

@@ -40,7 +40,15 @@ const BASE_OPTIONS = {
   multipleStatements: false,
   charset: 'utf8mb4_unicode_ci',
   timezone: 'Z',
-  dateStrings: false,
+  // DATE columns come back as the `'YYYY-MM-DD'` strings they are, matching the API pool
+  // (`connection.ts`) since migration 0012. Left at `false`, mysql2 inflates a DATE into a JS
+  // `Date` — at UTC midnight, given the `timezone: 'Z'` above — and a consumer that renders
+  // one gets a full timestamp instead of a calendar day, printing the *previous* day for any
+  // reader west of UTC. The client-request mailer renders exactly these two columns. That is
+  // the defect 0012 exists to remove, and this is the same removal on the relay's pool.
+  // DATETIME/TIMESTAMP keep their `Date` inflation: the relay compares `occurred_at` and
+  // `available_at` as instants, and the worker has no Drizzle proxy to satisfy.
+  dateStrings: ['DATE'],
   supportBigNumbers: true,
   bigNumberStrings: false,
   namedPlaceholders: false,

@@ -7,7 +7,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { MailerModule } from '../src/common/email/mailer.module.js';
-import type { MailDelivery, Mailer, MailMessage } from '../src/common/email/mailer.js';
+import type { MailDelivery, Mailer, MailMessage } from '@tmanage/mail';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
 import type { ApiConfig } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';

@@ -14,6 +14,7 @@ export type {
 } from './common/database/worker-database.js';
 
 export {
+  OutboxTransactionLostError,
   claimDueEvents,
   listParkedEvents,
   markPublished,
@@ -31,13 +32,17 @@ export { runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
 export type {
   BatchReport,
   DispatcherOptions,
+  EffectFailure,
   EventFailure,
   LoopOptions,
+  OutboxEffect,
+  OutboxEffects,
   OutboxHandler,
   OutboxHandlers,
 } from './outbox/dispatcher.js';
 
-export { WORKER_OUTBOX_HANDLERS } from './consumers/registry.js';
+export { WORKER_OUTBOX_HANDLERS, both, createWorkerOutboxHandlers } from './consumers/registry.js';
+export type { WorkerConsumerDependencies } from './consumers/registry.js';
 export {
   requestTransitionFor,
   workItemLifecycleConsumer,
@@ -48,6 +53,25 @@ export {
   mayTriageClientRequests,
 } from './consumers/client-request-notifications.js';
 export { workItemBlockedConsumer } from './consumers/work-blocked-notification.js';
+
+// The relay's mail producer — the second producer on the `@tmanage/mail` port.
+export {
+  createClientRequestSubmittedMail,
+  createClientRequestTransitionedMail,
+} from './consumers/client-request-mail.js';
+export { ClientRequestMailer, mailKindForStatus } from './notifications/client-request-mailer.js';
+export type {
+  ClientRequestMailDelivery,
+  ClientRequestMailKind,
+} from './notifications/client-request-mailer.js';
+export {
+  composeClarificationRequiredEmail,
+  composeClientRequestReceivedEmail,
+  composeRequestAcceptedEmail,
+} from './notifications/client-request-email.js';
+export type { ClientRequestEmailFacts } from './notifications/client-request-email.js';
+export { findClientRequestMailFacts } from './common/database/mail-store.js';
+export type { ClientRequestMailFacts } from './common/database/mail-store.js';
 
 // RT-001 — the hub, the socket server, and the relay-to-socket seam.
 export { RealtimeHub } from './realtime/hub.js';

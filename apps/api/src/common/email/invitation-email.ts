@@ -1,4 +1,4 @@
-import type { MailMessage } from './mailer.js';
+import type { MailMessage } from '@tmanage/mail';
 
 /**
  * The invitation templates from `35-NOTIFICATION-AND-EMAIL-COPY` §3, rendered.

@@ -1,5 +1,6 @@
 import type { WorkerDatabase, WorkerTransaction } from '../common/database/worker-database.js';
 import {
+  OutboxTransactionLostError,
   claimDueEvents,
   listParkedEvents,
   markPublished,
@@ -44,9 +45,58 @@ import { backoffDelayMs } from './backoff.js';
  * A handler that fails `maxAttempts` times has its event parked: still in the table, never
  * claimed again (`attempts < maxAttempts` is in the claim predicate), and surfaced in
  * every report so the failure is an operator's page rather than a permanent retry hum.
+ *
+ * ## After-commit effects, and why they exist
+ *
+ * A handler runs *inside* the batch transaction, which is right for everything that writes
+ * rows and wrong for everything that talks to a third party. Sending an email from a
+ * handler would hold an open database transaction — and the claim's row locks — across an
+ * SMTP round trip to a host this process does not control. The API already refuses to do
+ * that: `InvitationsService` sends **after** its transaction commits.
+ *
+ * So a handler is handed {@link OutboxEffects} and may register work to run once the batch
+ * has committed. The rules are exactly the ones that make the guarantee statable:
+ *
+ * - **An effect registered by a handler whose savepoint rolled back never runs.** Staging
+ *   is per event; a failed event's staged effects are discarded with its writes.
+ * - **An effect registered by a batch that never committed never runs.** A transaction that
+ *   throws whole takes that attempt's effects with it. This is why an
+ *   {@link OutboxTransactionLostError} — the server rolling the whole transaction back under
+ *   the batch, which destroys every savepoint *and* every `published_at` already stamped —
+ *   aborts the batch instead of being recorded as one event's failure. Treated as a handler
+ *   error it would publish nothing and still send the mail for the events it had promoted,
+ *   which the next batch would re-claim and mail a second time.
+ * - **Effects are not interruptible.** Once the loop below starts, it runs to the end; an
+ *   `AbortSignal` is not consulted between effects. The bound on how long that can take is
+ *   therefore the transport's own timeouts, which is why `SmtpMailer` sets explicit ones
+ *   rather than leaving a black-holed host to nodemailer's defaults.
+ * - **An effect that throws cannot be retried.** By the time it runs, `published_at` is
+ *   committed and the event will never be claimed again. That is deliberate: retrying would
+ *   mean re-running the handler, and a handler that has already written its rows must not
+ *   write them twice. So an effect failure is **reported and logged, and the side effect is
+ *   lost** — at-most-once, on the far side of a guarantee that is at-least-once up to the
+ *   commit. For mail that is the right trade: a client who does not receive an email still
+ *   has the in-app notification, which `35-NOTIFICATION-AND-EMAIL-COPY` §1 calls canonical,
+ *   and a duplicate email cannot be un-sent.
  */
 
-export type OutboxHandler = (event: ClaimedOutboxEvent, tx: WorkerTransaction) => Promise<void>;
+/**
+ * Work a handler defers until the batch has committed — see the module doc. It takes no
+ * transaction on purpose: there is none open when it runs, and a closure that captured `tx`
+ * would be writing through a released connection.
+ */
+export type OutboxEffect = () => Promise<void>;
+
+/** What a handler is given to register {@link OutboxEffect}s with. */
+export interface OutboxEffects {
+  afterCommit(effect: OutboxEffect): void;
+}
+
+export type OutboxHandler = (
+  event: ClaimedOutboxEvent,
+  tx: WorkerTransaction,
+  effects: OutboxEffects,
+) => Promise<void>;
 
 export type OutboxHandlers = Readonly<Record<string, OutboxHandler>>;
 
@@ -55,6 +105,14 @@ export interface DispatcherOptions {
   readonly maxAttempts: number;
   readonly backoffBaseMs: number;
   readonly backoffCapMs: number;
+}
+
+/** An after-commit effect that threw. Its event is already published — see the module doc. */
+export interface EffectFailure {
+  readonly eventId: string;
+  readonly type: string;
+  /** `error.message` — the driver's words, which may name a recipient. Operator log only. */
+  readonly error: string;
 }
 
 export interface EventFailure {
@@ -76,6 +134,10 @@ export interface BatchReport {
   readonly failures: readonly EventFailure[];
   /** Every parked event visible at the end of the batch, this batch's casualties included. */
   readonly parked: readonly ParkedOutboxEvent[];
+  /** After-commit effects attempted once the batch committed — not necessarily successful. */
+  readonly effects: number;
+  /** Of those, the ones that threw. Unretryable by construction — see the module doc. */
+  readonly effectFailures: readonly EffectFailure[];
 }
 
 function messageOf(error: unknown): string {
@@ -88,7 +150,17 @@ export async function runOutboxBatch(
   handlers: OutboxHandlers,
   options: DispatcherOptions,
 ): Promise<BatchReport> {
-  return database.transaction(async (tx) => {
+  interface StagedEffect {
+    readonly eventId: string;
+    readonly type: string;
+    readonly run: OutboxEffect;
+  }
+  let committedEffects: StagedEffect[] = [];
+
+  const report = await database.transaction(async (tx) => {
+    // Reset per attempt: should `transaction` ever re-run its callback, effects staged by an
+    // attempt that did not commit must not survive into the one that did.
+    committedEffects = [];
     const events = await claimDueEvents(tx, {
       limit: options.batchSize,
       maxAttempts: options.maxAttempts,
@@ -108,11 +180,28 @@ export async function runOutboxBatch(
         continue;
       }
 
+      // Staged per event and promoted only once the savepoint has held: an effect belonging
+      // to a handler whose writes were rolled back must not run.
+      const staged: OutboxEffect[] = [];
+      const effects: OutboxEffects = {
+        afterCommit: (effect) => {
+          staged.push(effect);
+        },
+      };
+
       try {
-        await withSavepoint(tx, () => handler(event, tx));
+        await withSavepoint(tx, () => handler(event, tx, effects));
         await markPublished(tx, event.id);
         published += 1;
+        for (const run of staged) {
+          committedEffects.push({ eventId: event.id, type: event.type, run });
+        }
       } catch (error) {
+        // Not this event's failure — the whole transaction is gone, so `recordFailure` would
+        // write into a fresh implicit one and the earlier events' `published_at` stamps are
+        // already destroyed. Rethrowing discards every staged effect with them, and the
+        // batch is retried from the claim.
+        if (error instanceof OutboxTransactionLostError) throw error;
         const attempts = event.attempts + 1;
         const delay = backoffDelayMs(attempts, options.backoffBaseMs, options.backoffCapMs);
         await recordFailure(tx, event.id, messageOf(error), new Date(Date.now() + delay));
@@ -133,6 +222,20 @@ export async function runOutboxBatch(
       parked,
     };
   });
+
+  // Past this line the batch has committed and every `published_at` is durable. Nothing here
+  // can un-publish an event, so nothing here throws: an effect's failure becomes data in the
+  // report, which is what `main.ts` logs and what a suite asserts on.
+  const effectFailures: EffectFailure[] = [];
+  for (const effect of committedEffects) {
+    try {
+      await effect.run();
+    } catch (error) {
+      effectFailures.push({ eventId: effect.eventId, type: effect.type, error: messageOf(error) });
+    }
+  }
+
+  return { ...report, effects: committedEffects.length, effectFailures };
 }
 
 export interface LoopOptions extends DispatcherOptions {

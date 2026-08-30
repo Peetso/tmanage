@@ -1,10 +1,9 @@
 import { Global, Module } from '@nestjs/common';
+import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
+import type { Mailer } from '@tmanage/mail';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { INVITATION_MAILER, MAILER } from '../http/tokens.js';
-import { ConsoleMailer } from './console-mailer.js';
 import { InvitationMailer } from './invitation-mailer.js';
-import type { Mailer } from './mailer.js';
-import { SmtpMailer } from './smtp-mailer.js';
 
 /**
  * The mail wiring — `DatabaseModule`'s dual shape, applied to the other network resource.

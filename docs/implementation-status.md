@@ -29,6 +29,27 @@ change what a command does rather than merely how it is typed.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-08-31, start of the client-request-mail session
+
+The **twentieth** consecutive run, and the table below is this run's output rather than a copy
+of the previous one. Every pair was compared by SHA-256 and, separately, by modification time —
+pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                               |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                        |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                         |
+| Modification times                        | **No pack file is newer than its copy** in either scope. 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later; one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. Unchanged from the nineteenth run       |
+| Uncopied pack content                     | The same six as the nineteenth run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                         |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-08-31, start of the e2e-growth session
 
 The **nineteenth** consecutive run, and the table below is this run's output rather than a copy
@@ -522,7 +543,7 @@ no consumer, and ON-04 printed each invitation link for the issuer to send by ha
 printed link is deliberately still the floor — what changed is that a deployment with a
 mail host now also delivers.
 
-**The shape.** A one-method `Mailer` port (`apps/api/src/common/email/`), two drivers
+**The shape.** A one-method `Mailer` port (`packages/mail/`, moved there 2026-08-31), two drivers
 behind it — `ConsoleMailer` (prints, answers `'none'`, refused in production by the
 existing guardrail) and `SmtpMailer` (nodemailer 9.0.6, the slice's one new dependency:
 SMTP is dot-stuffing, CRLF framing, AUTH encodings and STARTTLS negotiation, each a place
@@ -6795,6 +6816,125 @@ actor ids, no acceptance can name an owner, and every work item's owner reads "A
 2026-08-26 the invented id is gone from the source and each of those screens says "a people
 directory, unscheduled" instead, which is both shorter and true.
 
+### The narrow client-request mail cut — what was built, and what it deliberately is not
+
+The scout's first option, taken. The relay is now the **second producer** on the mail port, and
+the person it writes to is the one person in this product who can be written to safely today:
+the client who submitted a request, about the request they submitted.
+
+**The structural change, which is the ticket.** `OutboxHandler` gained a third parameter — an
+`OutboxEffects` with one method, `afterCommit` — and `runOutboxBatch` runs staged effects
+**after** the batch transaction commits. The scout named the reason and it held: a handler runs
+inside the batch's open transaction, holding the claim's `FOR UPDATE SKIP LOCKED` row locks, and
+an SMTP round trip there would hold a database transaction across a call to a host this process
+does not control. The API already refuses to do that — `InvitationsService` sends after its own
+commit — and this is the same rule on the relay's side. Three rules make the guarantee statable,
+and each has a test: an effect staged by a handler whose savepoint rolled back never runs; an
+effect staged by a batch that never committed never runs; and an effect that throws is **not
+retried**, because by the time it runs `published_at` is durable and the event will never be
+claimed again. Mail is therefore **at-most-once on the far side of an at-least-once delivery**.
+That is the honest trade rather than a gap: the in-app notification is written transactionally
+and is canonical per `35-NOTIFICATION` §1, and a duplicate email cannot be un-sent.
+
+**The registry became a factory.** `WORKER_OUTBOX_HANDLERS` was a `const`, which was right while
+every consumer needed nothing but a transaction. `createWorkerOutboxHandlers({ clientRequestMailer })`
+builds the set from its dependencies; the old name survives as the dependency-free set every
+database suite drives. One event type still takes one handler, so `both()` runs the notification
+consumer and the mail consumer in sequence inside the event's single savepoint — notification
+first, deliberately, so a mail-side failure rolls the event back to be redelivered, where
+`uq_notifications_dedupe` absorbs the repeat.
+
+**`packages/mail` is a new workspace package, and that diverges from `18-REPOSITORY-STRUCTURE`.**
+That document's `packages/` list names `ui`, `contracts`, `domain`, `config`, `observability` and
+`test-kit`, and no `mail`. The tree was written before a mail transport existed anywhere in this
+repository — the mailer is not in `28-SPRINT-TICKETS` either — and the alternatives are worse:
+one app importing another's `src/` is forbidden by the same document, a second copy of an SMTP
+driver is how two subtly different SMTP drivers happen, and `packages/domain` is pure by rule and
+cannot hold a network client. So the port (`mailer.ts`) and the two drivers (`console-mailer.ts`,
+`smtp-mailer.ts`) moved out of `apps/api/src/common/email/` with their suites; the templates did
+not, because a message's words belong to the producer that knows what happened. The divergence is
+deliberate and recorded here, which is what `packages/mail/src/index.ts` points at.
+
+**What the client is told, and what §3 asked for that this product cannot say.** Three of §3's
+twelve templates: _Client request received_, _Clarification required_, _Request accepted_. Five
+substitutions have no value here and are named in `client-request-email.ts` rather than invented:
+`{{manager}}` (nothing owns a request at submission, and there is still no people directory);
+`{{questionCount}}` (one column, one question); `{{timezone}}` (committed dates are `DATE` columns
+since 0012 and carry no zone — the point of that migration); `{{committedDate}}` when the
+acceptance is `unscheduled`; and `{{scopeSummary}}` when the nullable column is null. Two CTAs
+also diverge, both because the destination cannot do what §3's words promise: "Answer questions"
+becomes "View request" (no client role holds a conversation capability — the gap `CHAT-001` did
+not close — so the body carries the same sentence the portal screen does), and "View plan"
+becomes "View request" (there is no client-facing plan view). An email button promising something
+its destination does not offer is the phishing shape in reverse.
+
+**§6 of the event catalog is obeyed here more carefully than for a notification row, on purpose.**
+A notification carries a reference and is re-checked when the reader opens it; an email carries
+its content permanently and **has no display time**. So the mail consumers re-resolve the client's
+three-part permission — active unexpired client membership, correct client organization, project
+still shared — inside the delivery transaction before reading any fact, and the database suite
+proves both revocations produce silence. Everything the message carries is the client's own words
+(their title, their requested date) or something published to them by contract (the client-safe
+scope summary, the fact that a question is waiting — never its prose).
+
+**What the slice does not do.** No internal manager fan-out: §1 requires a preference/support
+route and title-use "only when tenant policy permits", and neither a preferences table nor a
+tenant policy column exists — which is why `NOTIF-001` still stands at half. No audit row: the
+worker writes none today, and `assertSafeAuditMetadata` would refuse a key naming a subject or an
+address anyway; the delivery answer goes to the operator's log and the batch report, which counts
+effects and never describes them. No Arabic rendering (§6 of the copy spec), as with the
+invitation. No new table, so `TENANT_TABLES`, the schema drift map, `truncateAll` and
+`scripts/db/users.sql` are all untouched — `tmanage_worker` already holds `SELECT ON tmanage.*`,
+which is every table the new statement reads.
+
+### Two defects found before the chain, and eight more found by a fleet
+
+**Found while writing the tests.**
+
+1. `mailKindForStatus` looked its argument up on a plain object literal, so a `toStatus` of
+   `constructor` answered with `Object` rather than `null` — a payload-driven prototype lookup.
+   `Object.hasOwn` now gates it, and the test asserts both keys.
+2. **The relay's pool read `DATE` columns as `Date` objects.** `worker-database.ts` had
+   `dateStrings: false`; the API pool has taken `['DATE']` since 0012. Left alone, the accepted
+   email would have printed a full timestamp instead of a calendar day, and a reader west of UTC
+   the _previous_ day — exactly the defect 0012 exists to remove, reintroduced through a second
+   pool. The pool now matches, and `mail-store.ts` normalises either driver shape itself, because
+   the promise to return `'YYYY-MM-DD'` belongs to the module that makes it.
+
+**Found by a five-lens read-only review fleet, verified by one skeptic** (26 claims, 8 confirmed,
+18 refuted with reasons). The one that mattered:
+
+3. **A deadlock would have sent duplicate mail.** InnoDB's deadlock victim (`ER_LOCK_DEADLOCK`, 1213) has its **entire transaction** rolled back and every savepoint destroyed. The
+   dispatcher's per-event `catch` treated that like an ordinary handler failure: it would record a
+   failure into a fresh implicit transaction, commit, report the earlier events as published —
+   and run the effects staged for them, **even though their `published_at` stamps had been
+   destroyed**, so the next batch would re-claim those events and mail the same clients again.
+   `withSavepoint` now raises `OutboxTransactionLostError` for a deadlock, and for the catch-all
+   case where the `ROLLBACK TO SAVEPOINT` itself fails — which can only mean the savepoint, and so
+   the transaction, is gone. The dispatcher rethrows it, aborting the batch: nothing is published,
+   nothing is recorded as failed, and every staged effect is discarded. Three unit cases pin the
+   fork, including that an ordinary handler failure still behaves exactly as before. This was a
+   pre-existing weakness in PLAT-004's dispatcher; the mail slice is what made its consequence
+   unrecoverable, and what found it.
+
+The other seven: `SmtpMailer` set no timeouts, so a packet-dropping host could stall the serial
+effect loop for `batchSize` × nodemailer's two-minute default while the relay ignored SIGTERM —
+now 10s on connection, greeting and socket, and the dispatcher doc states plainly that effects are
+not interruptible and that the transport's timeouts are the bound. A test titled "mails nobody in
+the adversarial twin tenant" asserted only that the twin had no outbox rows, which is true of the
+seed and would stay true with the whole mail path deleted — it now asserts against every message
+actually sent, that the address is this tenant's client and that the twin's name and slug appear
+nowhere. Four were documentation defects in a file whose ledger _is_ the audit trail (a
+miscounted §3, a mislabelled bullet, an undeclared CTA divergence, an undeclared null-summary
+substitution), and one was a comment in `worker-database.ts` describing a mechanism that cannot
+occur under its own `timezone: 'Z'`. All eight are fixed.
+
+Eighteen claims were refuted, and two of the refusals are worth keeping because they name design
+decisions rather than oversights: that `deliver` absorbing a transport error makes `effectFailures`
+unreachable for this producer (it does — the driver's message may name a recipient's address, and
+the batch report is printed by `main.ts`), and that the §6 re-check happens at staging rather than
+at send (it does — any check-then-send has that gap, and moving the check only shortens it).
+
 ### Done, in the order it happened
 
 1. ~~The membership resolver~~ — 24 database cases; the escape hatch is audited, read-only and
@@ -7034,7 +7174,18 @@ directory, unscheduled" instead, which is both shorter and true.
     the unmailed portal path, a post-commit 500, the console driver's false error rows,
     and three coverage holes — all fixed and pinned, AUTH proven on a real socket.
 
-46. ~~Five more browser journeys, and the deadlock they found~~ — **done this session.**
+46. ~~The narrow client-request mail cut~~ — **done this session, unscheduled.** The relay
+    became the second producer on the mail port: an after-commit seam in the dispatcher so a
+    handler can send without holding the batch's transaction, a registry that is built from its
+    dependencies rather than declared, `packages/mail` so two apps share one transport, and
+    §3's three client-request templates sent only to the client who asked, only about their own
+    request, with their access re-resolved inside the delivery transaction because an email has
+    no display time. 28 worker unit cases and 9 database cases. Two defects found while writing
+    the tests — a prototype-chain status lookup, and the relay's pool reading `DATE` as a local
+    `Date` — and eight more by a five-lens review fleet, the sharpest being that a deadlock
+    would have published nothing and mailed everyone twice.
+
+47. ~~Five more browser journeys, and the deadlock they found~~ — **done this session.**
     `E2E-01a`, `E2E-01b`, `AUTH-06`, `E2E-09` and `AUTH-01`, taking `pnpm test:e2e` from 2
     journeys to 7. Two real defects fell out of walking them: the triage screen offered three
     outcomes the state machine refuses from `needs_clarification`, so a manager who asked a
