@@ -273,6 +273,58 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-30, TEST-001 second half, same session
+
+The sixth full chain of this session, one uninterrupted background run on the tree commit
+`0db71bf` left. **Green on the first attempt.** The suite's own first solo run failed two
+cells honestly — the finding is in the section below, and it is about layers, not a bug.
+
+| Gate                        | Result                                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`         | Clean                                                                                                       |
+| `pnpm typecheck`            | **Done** — six projects, first pass                                                                         |
+| `pnpm lint`                 | Clean, no output                                                                                            |
+| `pnpm test`                 | **879 passed across 44 files** — unchanged                                                                  |
+| `pnpm test:db`              | **28 files, 758 passed, 29 skipped (787).** Up from 749: the nine role-grid cases, which are the whole diff |
+| `pnpm audit:design`         | **172/172 screen IDs across 29 artifacts, 0 missing**                                                       |
+| `pnpm format:check` (again) | Clean                                                                                                       |
+| Leaked `mysqld`             | **None**, checked after the suite exited                                                                    |
+
+---
+
+## TEST-001 second half — §11's role grid, generated from the ceiling it checks
+
+Commit before the chain above, and the ticket is **whole (8)**: §4's scope row reads
+"tenant/role matrix harness and two-tenant seed". The seed and the tenant harness (the
+isolation corpus and its adversarial pair) have run on every database pass since they
+landed; what was missing was the **role** half as a _generated_ harness rather than
+sampled examples, and it now exists as `test-001-role-matrix.db.test.ts`.
+
+Seven internal roles are seeded as real memberships and driven over real HTTP against four
+capability-gated route families. The verdict for every cell is derived from
+`hasCapability` — the domain's own ceiling table — so a deliberate matrix change moves the
+harness with it and an accidental one fails it, the same stance SEC-001's operations grid
+and NOTIF-001's recipient test already take. Two properties beyond the cells themselves:
+
+- **Every refusal is a counted security event.** The suite requires exactly one
+  `security.capability_denied` row per refused cell — a missing row is a silent refusal,
+  a surplus row a phantom attempt.
+- **The client seam is pinned.** One case proves a client principal refused an internal
+  route takes the same audited path; the client side's full grid remains SEC-001's.
+
+### The finding the first run made, kept in the suite
+
+The draft grid included `/portal/requests` (`client_request.submit`), meant as a
+refused-everywhere row — and the owner and org_admin cells failed, because their ceilings
+**do** include the capability and the guard passes them; the portal _service_ then refuses
+any internal principal at the object level, since a request with no client organization is
+a row the table cannot hold. That is not a defect — it is `25-AUTH` §3's own architecture
+("route guards are UX only") observed from the outside — but a guard grid must not carry a
+cell whose allowed half is answered by a deeper layer, so the row is out and the reasoning
+stands as a comment where the row would be.
+
+---
+
 ## Verification actually run — 2026-08-30, the WORK-002 re-derivation, same session
 
 The fifth full chain of this session, one uninterrupted background run on the tree commit
@@ -5531,7 +5583,7 @@ is absent; **zero** otherwise. Halves are recorded against the reason, never rou
 | 4   | TEN-003    |   5 | whole 5  | Issue, accept, revoke, expiry; a hashed single-use token                                                                                                      |
 | 4   | AUD-001    |   5 | whole 5  | The service, the view model, the first producer                                                                                                               |
 | 4   | WEB-001    |   8 | whole 8  | Nine screens, four shells, all wired. The `BackendPending` notices on five of them point at **other tickets'** servers, not at unwritten WEB-001 work         |
-| 4   | TEST-001   |   8 | half 4   | The two-tenant seed and the adversarial pair run on every database pass. The **role** half of §11's matrix is not a generated harness                         |
+| 4   | TEST-001   |   8 | whole 8  | The seed, the tenant corpus, and — since 2026-08-30 — the generated role grid: every cell derived from the ceiling, every refusal a counted security event    |
 | 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                  |
 | 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                               |
 | 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                     |
@@ -5558,15 +5610,15 @@ third, and **WEB-003's first half the same day** as its fourth. **On 2026-08-30 
 PLAT-004 and WEB-003 moved from half to whole, NOTIF-001 joined at half, and WORK-003 moved
 from zero to whole** — the relay session's four tickets.
 
-| Sprint                                                                                          | Tickets      | Points         |
-| ----------------------------------------------------------------------------------------------- | ------------ | -------------- |
-| Sprint 0 (§3)                                                                                   | 5½ of 8      | 36.5 of 52     |
-| Sprint 1 (§4)                                                                                   | 7 of 8       | 50 of 58       |
-| Sprint 2 (§5)                                                                                   | 5 of 6       | 42.5 of 53     |
-| Sprint 3 (§6)                                                                                   | 4½ of 7      | 41 of 66       |
-| Sprint 4 (§7)                                                                                   | **7 of 7**   | **61 of 61**   |
-| Sprints 5–9                                                                                     | 0 of 34      | 0 of 293       |
-| **§§3–12**                                                                                      | **29 of 70** | **231 of 583** |
+| Sprint                                                                                          | Tickets       | Points         |
+| ----------------------------------------------------------------------------------------------- | ------------- | -------------- |
+| Sprint 0 (§3)                                                                                   | 5½ of 8       | 36.5 of 52     |
+| Sprint 1 (§4)                                                                                   | 7½ of 8       | 54 of 58       |
+| Sprint 2 (§5)                                                                                   | 5 of 6        | 42.5 of 53     |
+| Sprint 3 (§6)                                                                                   | 4½ of 7       | 41 of 66       |
+| Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
+| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
+| **§§3–12**                                                                                      | **29½ of 70** | **235 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -5592,20 +5644,21 @@ tickets; this one is tickets, and matches by coincidence.
 
 ### The next coding task
 
-**`WORK-002` was re-derived whole on 2026-08-30 — the fifth ticket-sized piece of that
+**`TEST-001` was made whole on 2026-08-30 — the sixth and last ticket-sized piece of that
 session — and this section is replaced rather than amended.** Sprint 4 is still the only
-complete one, and Sprint 2 now stands one ticket (TEST-002's second half) from joining it.
+complete one; Sprints 1 and 2 each stand one ticket from joining it.
 
-**The next one is `TEST-001`'s second half — the role matrix as a generated harness.** Its
-row reads half with the reason "the **role** half of §11's matrix is not a generated
-harness": the two-tenant seed and the adversarial pair run on every database pass, but
-`25-AUTH-AND-TENANT-ISOLATION` §11's role×operation grid exists only as SEC-001's
-operations corpus over _client_ surfaces. The second half generates the internal side: for
-each internal role, for each capability-gated route family, assert the ceiling the matrix
-promises — allowed roles pass the guard, refused roles produce the audited 403 — with the
-expectation derived from `capabilitiesFor` the way SEC-001's grid and NOTIF-001's
-recipient test already derive theirs, so a matrix change moves the harness rather than
-breaking it. No new tables, no new environment; one new database suite.
+**The next one is `TEST-002`'s second half — the performance fixture, and a real
+`packages/test-kit`.** Its row reads half with "no performance fixture; `packages/test-kit`
+is empty". Two cautions from this session's standing rules before starting: wall-clock
+assertions are how flaky suites are born, so a performance fixture here should assert what
+is _deterministic_ about performance — volume seeding helpers in `packages/test-kit`, and
+`EXPLAIN`-shaped assertions that the hot lists (work by project/state, messages by
+sequence, the request inbox) actually use the indexes `07-DATA-MODEL` §9 planned for them
+— rather than milliseconds on a shared laptop. If a timing budget is ever asserted, the
+constraint file's rule applies: raises come from measurement, and the measurement gets
+recorded. Whether that satisfies the row's word "performance" honestly is itself a
+judgement to record; if it does not, the ticket stays half and says why.
 
 The alternatives, in order after it:
 
@@ -5795,18 +5848,26 @@ directory, unscheduled" instead, which is both shorter and true.
     API close the gap: the walk without overlap or omission, composition with filters,
     and a cross-tenant cursor value that reaches nothing.
 
+35. ~~TEST-001 second half~~ — **done this session, whole.** §11's role grid as a
+    generated harness: seven internal roles seeded as real memberships, four
+    capability-gated route families over real HTTP, every cell's verdict derived from
+    `hasCapability`, every refusal required to leave exactly one counted
+    `security.capability_denied` row, and the client seam pinned by one case. 9 database
+    cases. The first run's own finding — a portal row whose "allowed" half is answered by
+    the object layer, not the guard — stands as a comment where the row would be.
+
 ### Progress
 
-**29 of 70 tickets. 231 of 583 story points — 39.6%, across Sprints 0–9.** Derived ticket by
+**29½ of 70 tickets. 235 of 583 story points — 40.3%, across Sprints 0–9.** Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
-numerator **and** in the denominator; the percentage reads higher today only because the CHAT
-tickets, the wholes of PLAT-004, WEB-003, WORK-003 and WORK-002, and NOTIF-001's first half
-have since been added to an honest count. Screen tickets: **4½ of 11** — WEB-001, WEB-003,
-WEB-004 and WEB-005 whole, WEB-002 half (its saved views remain homeless). **Sprint 3 has four
-whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — and half of NOTIF-001. Sprint 2 stands
-at 5 of 6 with WORK-002 and WORK-003 whole; Sprint 0 at 5½ of 8 with PLAT-004 whole.**
+numerator **and** in the denominator; the percentage reads higher today only because six
+tickets moved in one session — PLAT-004, WEB-003, WORK-003, WORK-002 and TEST-001 to whole,
+NOTIF-001 to half — each behind its own green chain. Screen tickets: **4½ of 11** — WEB-001,
+WEB-003, WEB-004 and WEB-005 whole, WEB-002 half (its saved views remain homeless). **Sprint 3
+has four whole tickets — CHAT-001, CHAT-002, CHAT-003, WEB-003 — and half of NOTIF-001. Sprint
+2 stands at 5 of 6; Sprint 1 at 7½ of 8 with TEST-001 whole; Sprint 0 at 5½ of 8.**
 
 **Sprint 4 is complete**, all seven tickets, 61 of 61 points — and that survives the
 re-derivation. It is the first sprint in this plan that is.
