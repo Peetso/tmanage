@@ -871,6 +871,7 @@ export const TABLES = {
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
+  notifications,
   user_passwords: userPasswords,
   user_mfa_factors: userMfaFactors,
   user_recovery_codes: userRecoveryCodes,
