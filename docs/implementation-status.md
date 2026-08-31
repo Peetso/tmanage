@@ -399,6 +399,151 @@ The MySQL revision is fully landed in `docs/planning/`.
 
 ---
 
+## Verification actually run — 2026-08-31, the browser-journeys session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`~28 m` wall, **exit 0**, on the first start. The order is part of the record: `pnpm test:e2e`
+ran **three times before** the chain — once to see the new spec fail, once after the selector
+fix, once after the review fleet's findings were folded in — and every repository edit was made
+between those runs rather than under a running gate.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`                                                                               |
+| `typecheck`              | Clean                                                                                                            |
+| `lint`                   | Clean                                                                                                            |
+| `test` (unit)            | **1006 passed**, 57 files — up 2 from 1004: the two cache-collision cases in `apps/web/tests/work-flow.test.tsx` |
+| `test:db`                | **786 passed, 29 skipped**, 32 files, **1647.49 s** — unchanged; this slice adds no database behaviour           |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                            |
+| `format:check` (closing) | Clean                                                                                                            |
+| Leaked `mysqld`          | **None.** Checked with `Get-Process mysqld` after every e2e run and after the chain                              |
+
+Outside the chain, `pnpm test:e2e`: **10 passed** in ~1.8 m against the full booted stack — up
+from 7. `pnpm test:vr` was **not run and is not owed**: `packages/ui` source, styles and stories
+are untouched.
+
+---
+
+## Two more journeys, and the cache key that crashed two screens
+
+`E2E-03` and `AUTH-02` join the browser suite, taking it from 7 journeys to 10. The order of
+events is worth keeping, because the most valuable thing this session produced was not written
+by the journey — it was found by the review fleet that read the journey.
+
+### The crash the journey would have walked past
+
+`ProjectOverviewScreen` and `WorkListScreen` both read work items, and they are **one click
+apart**: the overview's "Update work" action links to `/{slug}/work?project={id}`, which is a
+client-side navigation, so `QueryProvider`'s single `QueryClient` survives the hop. They cache
+**different shapes** — the list pages through `useInfiniteQuery` and holds
+`{ pages, pageParams }`; the overview holds one `WorkItemSummary[]` — and they named the **same
+key**:
+
+| Screen   | Key                                                             | With no state filter |
+| -------- | --------------------------------------------------------------- | -------------------- |
+| Overview | `['work-items', slug, projectId, '']`                           | identical            |
+| List     | `['work-items', slug, projectId, [...states].sort().join(',')]` | identical            |
+
+`[].join(',')` is `''`. `staleTime` is 30 seconds, so whichever screen arrived second read the
+other's entry as **fresh** and used it without refetching: the list called `.pages.flat()` on an
+array, the overview called `.filter` on an object. Both throw, in both directions, and the
+second screen renders as a blank crash rather than as an error a person could act on.
+
+The fix is `apps/web/src/lib/query-keys.ts`. `workItemKeys.list` and `workItemKeys.project` put
+a **shape word** into the key before any caller-chosen argument, so the collision cannot be
+rebuilt however the arguments line up; `workItemKeys.all` stays the prefix every write
+invalidates against, which is the one thing the screens genuinely share. Five call sites now go
+through it, including `RequestTriageScreen`, whose three-segment key was distinct only by
+accident of length.
+
+Two unit cases in `work-flow.test.tsx` walk the hop in both directions against **one**
+`QueryClient` at the `staleTime` `QueryProvider` actually uses — a zero stale time refetches and
+hides the bug rather than reproduces it. Reverting either key makes them fail with
+`items.filter is not a function` and `Cannot read properties of undefined (reading 'length')`,
+which is how the test was confirmed to be about the defect rather than about itself.
+
+`E2E-03a` now reaches the work list by **clicking "Update work"** rather than by a fresh
+navigation, so the browser suite covers the hop the crash lived on. A `page.goto` would never
+have seen it — and the first draft of the journey used one.
+
+### What the journeys assert
+
+| Journey   | Catalog line                                      | What it walks                                                                                                                                                                                                                                                         |
+| --------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E2E-03a` | work → blocker                                    | a member moves the seeded item `in_progress → blocked`, giving the two facts §5 requires and being asked for no others; a **second person** then finds the blockage reported on the project panel, the item named in Blockers, and the row in the state-filtered list |
+| `E2E-03b` | → resolution → internal review                    | leaving `blocked` costs `blockerResolution`; `internal_review` costs nothing and the screen says so; the Blockers panel empties, the Blocked filter no longer holds the item, and the Internal review filter does                                                     |
+| `AUTH-02` | direct object id from BrightOps used by Northstar | an unrelated tenant's work-item id **and** the adversarial twin's, both under Northstar's own valid slug, on a read and on a CSRF-carrying **write**; then BrightOps' owner opens the record and finds it at `v1`                                                     |
+
+### Three narrowings, said plainly
+
+1. **"Health" here is arithmetic over `work_items.state`, not WORK-003's health signal.**
+   `GET :id/blockers` and `GET :id/health` exist and have no web surface. The project screen's
+   "How it is going" panel counts states client-side, so the journey proves the screens agree
+   with each other and with the state machine; `findActiveBlocker` and `resolveActiveBlocker`
+   could regress and it would stay green. When WORK-003 gains a screen, this journey should
+   assert against it.
+2. **"Inbox" here is the work list filtered by state.** `navigation.ts` reserves an `inbox`
+   destination and no route implements it.
+3. **`E2E-04` is deliberately not written.** "Upload → internal review → real-policy preview →
+   publish" needs FILE-001, which has no screens and no endpoints. The only half that exists is
+   the audience widening already covered by unit tests. Putting the catalog id next to half a
+   journey would be worse than the gap.
+
+`AUTH-02` sits **outside** the serial describe: a tenant-isolation check that reports "did not
+run" because a UI step above it flaked is a security check nobody read.
+
+### What the fleet found and what was refuted
+
+Five read-only lenses plus a skeptic, six agents, no file edited by an agent. 26 claims went in;
+the skeptic confirmed 19 and refuted or downgraded the rest against the source. Beyond the cache
+key, the confirmed findings that changed this slice:
+
+- `getByRole`'s `name` option is a **case-insensitive substring** match, not equality
+  (`playwright-core` sets `nameOp = "*="` unless `nameExact`). `{ name: 'This item' }` therefore
+  also matched the sibling panel `Move this item`, which is exactly how the journey's first run
+  failed. Every region locator in the file is now `exact`, and the link locators are scoped to
+  the table.
+- `toContainText('v1')` is satisfied by `v12`. The one assertion whose whole job is "the version
+  did not move" now pins the badge's whole text.
+- The health sentence is count-sensitive: `One item is blocked` for one, `2 items are blocked`
+  for two. The assertion is a regex over both, and the count-free claim is carried by the
+  Blockers panel naming the item.
+- `AUTH-02` proved denial on **reads** only. It now also sends the write — session cookie, CSRF
+  header, real origin — and asserts both the `404` and the `not_found` code, so a CSRF refusal
+  cannot pass for a tenant refusal.
+
+Refuted, and recorded so it is not re-found: the claim that the post-filter assertions can be
+satisfied by the pre-filter render is **false today** — the state set is part of the query key,
+there is no `placeholderData`, and the table unmounts while the new key loads. It becomes true
+the day somebody adds `keepPreviousData`, which `WorkListScreen`'s own doc comment already
+wrongly claims is the behaviour.
+
+### Found, real, and deliberately not fixed here
+
+Each is out of this slice's path and none is a regression:
+
+- **`internal_review → done` requires two facts the schema then discards.** The machine requires
+  `ownerId` and `completedAt`; `transitionState` writes only `state`, `version` and `updatedAt`,
+  and `work_items` has no `completed_at` column at all. A person is asked for a completion time
+  that is thrown away.
+- **The work-item list applies SQL `limit` before the `mayRead` filter**, so a full page can come
+  back short and both the list's "there is more" notice and the overview's "these counts are a
+  page" warning are computed from the trimmed number. Unreachable below ~200 rows.
+- **Two different `409`s render as one.** The version-token conflict and
+  `WorkItemAlreadyBlockedError` both reach the screen as bare status 409, and the screen shows
+  "reload and try again", which cannot help the second one.
+- **A blocker's structured owner never travels from the browser.** The service parses and
+  validates `blockerOwnerUserId`, but §5's `requires` for `in_progress → blocked` lists only
+  `blockerReason` and `blockerAsk`, and the form renders exactly what the machine requires — so
+  `work_item.blocked.v1` always carries `ownerUserId: null` from a screen. US-B04 wants the
+  owner; the machine does not ask for it yet.
+
+---
+
 ## Verification actually run — 2026-08-31, the e2e-growth session
 
 The full chain, in one uninterrupted background run so that nothing was edited underneath it.
@@ -6748,10 +6893,15 @@ feature.
    two of the findings change the shape of the ticket rather than merely inform it. The short
    version: the plumbing is easier than expected and the _policy_ is harder. Sending is a
    decision about `35-NOTIFICATION` §1 and §7 before it is a decision about code.
-2. **More journeys.** `E2E-03`, `E2E-04` and the remaining `AUTH-*` lines are cheap now that the
-   boot cost is paid and the harness has been green across four sessions. On this session's
-   evidence a journey is also the most productive defect-finder in the repository: two screens
-   in sequence is a thing no unit suite tests.
+2. ~~More journeys.~~ **`E2E-03` and `AUTH-02` landed on 2026-08-31**, taking the suite to 10,
+   and they paid for themselves again — see "Two more journeys, and the cache key that crashed
+   two screens" above. What is left of this line is smaller and each piece is blocked on
+   something named: `E2E-04`, `E2E-05`, `E2E-07`, `E2E-11` and `E2E-12` all need FILE-001,
+   deliverables, notifications or audit export, none of which has a screen; `AUTH-03`,
+   `AUTH-07`–`AUTH-15` need search, files, approvals, role downgrade or suspension for the same
+   reason. `AUTH-05` is the one remaining line a browser could reach today, and only weakly: the
+   `member` role holds `work.update`, so "without capability" has to be read as a project-scope
+   denial, and the seed has no work item in a project its member is not on.
 3. **The MariaDB run for 0012.** The engine-skew check has not seen the DATE migration. The
    local `mariadb-11.4.5` zip is GONE from disk; re-downloading (~90 MB from
    archive.mariadb.org) needs Peter's explicit OK first.
@@ -7214,6 +7364,15 @@ at send (it does — any check-then-send has that gap, and moving the check only
     "has not started on it" directly under the studio's own question. Both fixed and pinned.
     The browser's locale is now pinned in the harness, because the product's is deliberately
     not.
+
+48. **Two more browser journeys, and the cache key that crashed two screens** — done this
+    session. `E2E-03` (work → blocker → resolution → internal review, checked from a second
+    person's project panel and state-filtered list) and `AUTH-02` (a foreign object id under a
+    valid slug, on a read and on a CSRF-carrying write), taking `pnpm test:e2e` from 7 journeys
+    to 10. A six-agent read-only fleet reading the new spec found the real defect: the work list
+    and the project overview cached two different shapes under one key and crashed each other on
+    the click between them. Fixed by `workItemKeys`, pinned by two unit cases, and the journey
+    now reaches the list by clicking "Update work" so the browser suite covers the hop.
 
 ### Progress
 
