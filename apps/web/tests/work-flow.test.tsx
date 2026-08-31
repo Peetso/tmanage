@@ -817,3 +817,107 @@ describe('TM-03 the project overview', () => {
     await expectNoAxeViolations(container);
   });
 });
+
+/**
+ * The two screens share one `QueryClient` and are one click apart.
+ *
+ * `ProjectOverviewScreen`'s "Update work" action links to `/{slug}/work?project={id}`, which
+ * is a client-side navigation: the provider does not remount, so whatever the first screen
+ * cached is still there when the second one asks. They cache *different shapes* — the list
+ * pages through `useInfiniteQuery` and holds `{ pages, pageParams }`, the overview holds a
+ * plain array — and they used to name the same key, because the overview's fourth segment was
+ * `''` and the list's was `[].sort().join(',')`, which is also `''`. Whichever arrived second
+ * read the other's entry as fresh, called `.pages.flat()` on an array or `.filter` on an
+ * object, and threw: a blank crash rather than an error anyone could act on.
+ *
+ * `workItemKeys` puts the shape word in the key, so the collision cannot be reconstructed by
+ * argument. These two tests walk it in both directions with one client, and `staleTime` is set
+ * to the value `QueryProvider` actually uses, because a zero stale time would refetch and hide
+ * the bug rather than reproduce it.
+ */
+describe('the work surfaces share a cache, and must not share a cache entry', () => {
+  function sharedQueryClient(): QueryClient {
+    return new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: 30_000 },
+        mutations: { retry: false },
+      },
+    });
+  }
+
+  function workAndProjectRoutes(call: Call): Response {
+    if (call.url.includes('/work-items')) return json({ workItems: [workItem()] });
+    if (call.url.includes('/clients')) return json({ clients: [] });
+    if (call.url.includes('/projects/proj-1')) return json(PROJECTS.projects[0] as unknown);
+    return json(PROJECTS);
+  }
+
+  it('the work list still renders when the project overview filled the cache first', async () => {
+    const { client } = clientOver(workAndProjectRoutes);
+    const queries = sharedQueryClient();
+
+    const overview = render(
+      <QueryClientProvider client={queries}>
+        <ProjectOverviewScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          projectId="proj-1"
+          client={client}
+          now={NOW}
+        />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('region', { name: 'Blockers' });
+    overview.unmount();
+
+    render(
+      <QueryClientProvider client={queries}>
+        <WorkListScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          initialProjectId="proj-1"
+          client={client}
+          now={NOW}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('row', { name: /Draft the homepage copy/ })).toBeInTheDocument();
+  });
+
+  it('the project overview still renders when the work list filled the cache first', async () => {
+    const { client } = clientOver(workAndProjectRoutes);
+    const queries = sharedQueryClient();
+
+    const list = render(
+      <QueryClientProvider client={queries}>
+        <WorkListScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          initialProjectId="proj-1"
+          client={client}
+          now={NOW}
+        />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('row', { name: /Draft the homepage copy/ });
+    list.unmount();
+
+    render(
+      <QueryClientProvider client={queries}>
+        <ProjectOverviewScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          projectId="proj-1"
+          client={client}
+          now={NOW}
+        />
+      </QueryClientProvider>,
+    );
+
+    const health = await screen.findByRole('region', { name: 'How it is going' });
+    expect(
+      await within(health).findByText('Nothing is blocked and nothing is past its due date.'),
+    ).toBeInTheDocument();
+  });
+});

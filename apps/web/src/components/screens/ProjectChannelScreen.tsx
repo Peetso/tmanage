@@ -31,6 +31,7 @@ import type { LiveSocketFactory } from '../../lib/use-channel-live-feed';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { audienceLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { workItemKeys } from '../../lib/query-keys';
 
 export interface ProjectChannelScreenProps {
   organizationSlug: string;
@@ -336,7 +337,7 @@ export function ProjectChannelScreen({
                   projectName={project.data?.name}
                   onDone={() => {
                     void queries.invalidateQueries({
-                      queryKey: ['work-items', organizationSlug],
+                      queryKey: workItemKeys.all(organizationSlug),
                     });
                   }}
                   onClose={() => setConvertTargetId(undefined)}

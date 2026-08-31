@@ -13,6 +13,7 @@ import { listProjects } from '../../lib/api/projects';
 import { listWorkItems, MAX_WORK_ITEM_PAGE, updateWorkItem } from '../../lib/api/work-items';
 import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { workItemKeys } from '../../lib/query-keys';
 import {
   audienceLabel,
   formatInstant,
@@ -114,7 +115,7 @@ export function WorkListScreen({
    * under the same key; the cursor is the last row's id, which is creation order.
    */
   const workItems = useInfiniteQuery({
-    queryKey: ['work-items', organizationSlug, projectId, [...states].sort().join(',')],
+    queryKey: workItemKeys.list(organizationSlug, projectId, states),
     queryFn: ({ pageParam }) =>
       listWorkItems(api, organizationSlug, {
         limit: MAX_WORK_ITEM_PAGE,
@@ -155,7 +156,7 @@ export function WorkListScreen({
       setBulkReport(result);
       setPendingBulk(undefined);
       setSelected(new Set());
-      void queries.invalidateQueries({ queryKey: ['work-items', organizationSlug] });
+      void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
     },
   });
 

@@ -17,6 +17,7 @@ import { listWorkItems } from '../../lib/api/work-items';
 import type { WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { workItemKeys } from '../../lib/query-keys';
 import {
   describeDateGap,
   formatDay,
@@ -106,7 +107,7 @@ export function RequestTriageScreen({
   // The project's other dated work, for the impact count. Fetched only once there is a project
   // to ask about, and used for nothing else.
   const projectWork = useQuery({
-    queryKey: ['work-items', organizationSlug, found?.projectId ?? ''],
+    queryKey: workItemKeys.project(organizationSlug, found?.projectId ?? ''),
     queryFn: () => listWorkItems(api, organizationSlug, { projectId: found?.projectId ?? '' }),
     enabled: found !== undefined,
   });
@@ -151,7 +152,7 @@ export function RequestTriageScreen({
       });
       queries.setQueryData(['client-request', organizationSlug, clientRequestId], result.request);
       await queries.invalidateQueries({ queryKey: ['client-requests', organizationSlug] });
-      await queries.invalidateQueries({ queryKey: ['work-items', organizationSlug] });
+      await queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
       setAccepted({ workItemId: result.workItemId, created: result.workItemCreated });
       reset();
     } catch (error) {

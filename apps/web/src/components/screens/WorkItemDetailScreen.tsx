@@ -12,6 +12,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { getWorkItem, transitionWorkItem, updateWorkItem } from '../../lib/api/work-items';
 import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { workItemKeys } from '../../lib/query-keys';
 import {
   audienceLabel,
   formatInstant,
@@ -133,7 +134,7 @@ export function WorkItemDetailScreen({
           organizationSlug={organizationSlug}
           onChanged={(next) => {
             queries.setQueryData(['work-item', organizationSlug, workItemId], next);
-            void queries.invalidateQueries({ queryKey: ['work-items', organizationSlug] });
+            void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
           }}
           onConflict={() => {
             void item.refetch();

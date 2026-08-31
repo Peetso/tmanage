@@ -11,6 +11,7 @@ import { listProjectShares } from '../../lib/api/clients';
 import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
 import type { WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { workItemKeys } from '../../lib/query-keys';
 import {
   audienceLabel,
   formatDay,
@@ -72,7 +73,7 @@ export function ProjectOverviewScreen({
   });
 
   const workItems = useQuery({
-    queryKey: ['work-items', organizationSlug, projectId, ''],
+    queryKey: workItemKeys.project(organizationSlug, projectId),
     queryFn: () => listWorkItems(api, organizationSlug, { projectId, limit: MAX_WORK_ITEM_PAGE }),
   });
 
