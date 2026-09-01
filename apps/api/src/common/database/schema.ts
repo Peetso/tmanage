@@ -342,6 +342,11 @@ export const workItems = mysqlTable(
     startAt: datetime('start_at', { mode: 'date', fsp: 3 }),
     dueAt: datetime('due_at', { mode: 'date', fsp: 3 }),
     /**
+     * When the person who moved this item to `done` said it was completed (0013). `NULL`
+     * until then, and `NULL` again if it is reopened — see the migration's note.
+     */
+    completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }),
+    /**
      * Optimistic concurrency (spec §3 step 7), incremented by the repository.
      *
      * `mode: 'number'` rather than `'bigint'`: the column is `BIGINT UNSIGNED`, but a row

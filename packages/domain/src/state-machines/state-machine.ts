@@ -32,6 +32,14 @@ export interface TransitionDefinition<TState extends string> {
    * and rendered into documentation.
    */
   readonly requires?: readonly string[];
+  /**
+   * Names of facts the transition *accepts* but does not demand — the structured owner of a
+   * blocker's ask, for instance, which US-B04 wants and §5 does not require. Listed here so a
+   * form that renders "what this move takes" can offer them, rather than the machine knowing
+   * about a fact only when it is time to refuse for its absence. A fact in `accepts` is
+   * never in `requires`; the constructor refuses a definition that says both.
+   */
+  readonly accepts?: readonly string[];
   /** Why this transition exists, quoting the governing spec. Surfaces in generated docs. */
   readonly note?: string;
 }
@@ -63,6 +71,14 @@ export class StateMachine<TState extends string> {
           `${definition.name}: duplicate transition ${transition.from} -> ${transition.to}`,
         );
       }
+      const overlap = (transition.accepts ?? []).filter((fact) =>
+        (transition.requires ?? []).includes(fact),
+      );
+      if (overlap.length > 0) {
+        throw new Error(
+          `${definition.name}: ${transition.from} -> ${transition.to} lists ${overlap.join(', ')} as both required and optional`,
+        );
+      }
       const byTarget = index.get(transition.from) ?? new Map();
       byTarget.set(transition.to, transition);
       index.set(transition.from, byTarget);
@@ -82,6 +98,11 @@ export class StateMachine<TState extends string> {
   /** The named facts a transition needs, for building a "what else do you need" prompt. */
   requirementsFor(from: TState, to: TState): readonly string[] {
     return this.#index.get(from)?.get(to)?.requires ?? [];
+  }
+
+  /** The named facts a transition will take but does not need — offered, never demanded. */
+  optionalFor(from: TState, to: TState): readonly string[] {
+    return this.#index.get(from)?.get(to)?.accepts ?? [];
   }
 
   /**

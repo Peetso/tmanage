@@ -33,6 +33,7 @@ export interface WorkItemDetailScreenProps {
 const FACT_LABEL: Record<string, string> = {
   blockerReason: 'What is blocking this',
   blockerAsk: 'What you need, and from whom',
+  blockerOwnerUserId: 'Who the ask is on',
   blockerResolution: 'How it was resolved',
   ownerId: 'Who owned this to completion',
   completedAt: 'When it was completed',
@@ -42,11 +43,45 @@ const FACT_LABEL: Record<string, string> = {
 const FACT_HINT: Record<string, string> = {
   blockerReason: 'Plain words. This is read by whoever picks the item up next.',
   blockerAsk: 'The specific thing that would unblock it, and who can give it.',
+  blockerOwnerUserId:
+    'Optional. The user id of the member who can act on the ask, so the blocker shows up in their list rather than only in prose.',
   blockerResolution: 'What actually changed. "Resolved" on its own tells nobody anything.',
-  ownerId: 'The person accountable for it, not whoever moved the card.',
-  completedAt: 'An ISO 8601 instant, such as 2026-09-30T17:00:00Z.',
+  ownerId:
+    'The user id of the person accountable for it, not whoever moved the card. Filled in with the current owner when there is one.',
+  completedAt: 'When the work was actually finished, which need not be right now.',
   reopenReason: 'What was wrong with it. This is the record when a deliverable comes back.',
 };
+
+/**
+ * `completedAt` is asked for with a date-and-time control rather than as an ISO string a
+ * person would have to type. The control speaks the browser's local time without a zone;
+ * `toIsoInstant` turns what it holds back into the UTC instant the API stores, and
+ * `toLocalControlValue` does the reverse for the default the field opens with.
+ */
+function toLocalControlValue(instant: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())}T${pad(instant.getHours())}:${pad(instant.getMinutes())}`;
+}
+
+function toIsoInstant(controlValue: string): string {
+  const parsed = new Date(controlValue);
+  return Number.isNaN(parsed.getTime()) ? controlValue : parsed.toISOString();
+}
+
+/** Facts whose wire form differs from what the control holds. Everything else travels as typed. */
+function factsForWire(
+  facts: Readonly<Record<string, string>>,
+  optional: readonly string[],
+): Record<string, string> {
+  const wire: Record<string, string> = {};
+  for (const [key, value] of Object.entries(facts)) {
+    // An optional fact left blank is not sent at all. The API would otherwise read an empty
+    // owner as "the member whose id is the empty string", and refuse.
+    if (optional.includes(key) && value.trim() === '') continue;
+    wire[key] = key === 'completedAt' ? toIsoInstant(value) : value;
+  }
+  return wire;
+}
 
 /**
  * **TM-13 Work item detail.**
@@ -71,11 +106,21 @@ const FACT_HINT: Record<string, string> = {
  *
  * ## The version, and what happens when somebody else wins
  *
- * Every write carries the version this screen read. When the API answers `409` the screen
- * says so in the words of what actually happened — someone else changed it, your change was
- * not applied, here is the current state — and refetches. It does not retry. A retry with a
- * fresh version is precisely the lost update the token exists to prevent, and doing it
- * automatically would make the protection ornamental.
+ * Every write carries the version this screen read. When the API answers `409` *for the
+ * version* — the envelope names the `version` field — the screen says so in the words of
+ * what actually happened — someone else changed it, your change was not applied, here is the
+ * current state — and refetches. It does not retry. A retry with a fresh version is precisely
+ * the lost update the token exists to prevent, and doing it automatically would make the
+ * protection ornamental. A `409` that names no field is a different refusal (today: the item
+ * already has an active blocker) and is shown in the API's words, because "reload and try
+ * again" is advice that cannot help it.
+ *
+ * ## What `done` costs, and where it goes
+ *
+ * §5 makes `done` cost an owner and a completion time, and since 0013 both are stored: the
+ * owner on the row's `ownerUserId`, the time on `completedAt`, which this screen then shows
+ * as "Completed". The owner field opens filled with the item's current owner and the time
+ * with now; both can be changed before the move is made.
  *
  * ## What is not here
  *
@@ -163,6 +208,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
 
   const reachable = workItemStateMachine.allowedFrom(item.state);
   const required = target === '' ? [] : workItemStateMachine.requirementsFor(item.state, target);
+  const optional = target === '' ? [] : workItemStateMachine.optionalFor(item.state, target);
 
   function describe(error: unknown): string {
     if (error instanceof ApiRequestError) return error.message;
@@ -170,12 +216,32 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
     return 'Something went wrong. Try again.';
   }
 
-  /** A `409` is its own outcome, not a failure message. It is the only status handled by name. */
+  /**
+   * A `409` is its own outcome, not a failure message — when it is the version token's. The
+   * API answers 409 for two different things: the item changed since this screen read it,
+   * which the envelope says by naming the `version` field, and "this item already has an
+   * active blocker", which names no field because no field of the request was wrong. Only
+   * the first is "somebody else changed this first"; telling a person to reload for the
+   * second would send them round a loop that ends where it started. Any other 409 is shown
+   * in the API's own words.
+   */
   function handleWriteError(error: unknown) {
     if (error instanceof ApiRequestError && error.status === 409) {
-      setConflict(true);
-      setFailure(undefined);
-      onConflict();
+      if (error.fieldErrors().has('version')) {
+        setConflict(true);
+        setFailure(undefined);
+        // The move and its facts were composed against the row that has just been
+        // superseded — an owner seeded from a stale item would otherwise ride the next
+        // attempt over a colleague's change with a fresh version, which is the lost update
+        // the banner tells the reader to avoid. Re-pick against the reloaded row.
+        setTarget('');
+        setFacts({});
+        setMissing([]);
+        onConflict();
+        return;
+      }
+      setConflict(false);
+      setFailure(error.message);
       return;
     }
     if (error instanceof ApiRequestError && error.status === 422) {
@@ -195,7 +261,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
       transitionWorkItem(api, organizationSlug, item.id, {
         version: item.version,
         to,
-        facts,
+        facts: factsForWire(facts, optional),
       }),
     onSuccess: (next) => {
       onChanged(next);
@@ -257,6 +323,12 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
             <dt>Due</dt>
             <dd>{formatInstant(item.dueAt)}</dd>
           </div>
+          {item.completedAt !== null ? (
+            <div className="tm-detail-list__pair">
+              <dt>Completed</dt>
+              <dd>{formatInstant(item.completedAt)}</dd>
+            </div>
+          ) : null}
           <div className="tm-detail-list__pair">
             <dt>Last changed</dt>
             <dd>{formatInstant(item.updatedAt)}</dd>
@@ -308,8 +380,22 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
                 className="tm-field__control"
                 value={target}
                 onChange={(event) => {
-                  setTarget(event.target.value as WorkItemState | '');
-                  setFacts({});
+                  const next = event.target.value as WorkItemState | '';
+                  setTarget(next);
+                  // Two of `done`'s facts have sensible starting values: the owner the item
+                  // already has, and "now" for the completion time. Both are offered, not
+                  // imposed — the fields stay editable — so a person is not made to retype an
+                  // id that is already on the row.
+                  const needs =
+                    next === '' ? [] : workItemStateMachine.requirementsFor(item.state, next);
+                  const seeded: Record<string, string> = {};
+                  if (needs.includes('ownerId') && item.ownerUserId !== null) {
+                    seeded['ownerId'] = item.ownerUserId;
+                  }
+                  if (needs.includes('completedAt')) {
+                    seeded['completedAt'] = toLocalControlValue(new Date());
+                  }
+                  setFacts(seeded);
                   setMissing([]);
                 }}
               >
@@ -330,6 +416,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
                 key={fact}
                 label={FACT_LABEL[fact] ?? fact}
                 name={fact}
+                type={fact === 'completedAt' ? 'datetime-local' : 'text'}
                 value={facts[fact] ?? ''}
                 onChange={(event) => setFacts({ ...facts, [fact]: event.target.value })}
                 {...(FACT_HINT[fact] === undefined ? {} : { hint: FACT_HINT[fact] })}
@@ -337,7 +424,22 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
               />
             ))}
 
-            {target !== '' && required.length === 0 ? (
+            {/*
+              What the move will take but does not need. Rendered after the requirements and
+              never marked required, so the asterisks say exactly what the machine says.
+            */}
+            {optional.map((fact) => (
+              <Field
+                key={fact}
+                label={FACT_LABEL[fact] ?? fact}
+                name={fact}
+                value={facts[fact] ?? ''}
+                onChange={(event) => setFacts({ ...facts, [fact]: event.target.value })}
+                {...(FACT_HINT[fact] === undefined ? {} : { hint: FACT_HINT[fact] })}
+              />
+            ))}
+
+            {target !== '' && required.length === 0 && optional.length === 0 ? (
               <p className="tm-prose">This move needs nothing else from you.</p>
             ) : null}
 

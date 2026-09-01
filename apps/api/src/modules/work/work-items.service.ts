@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
+  effectivePageSize,
   WorkItemNotFoundError,
   WorkItemsRepository,
   WorkItemTransitionError,
@@ -13,6 +14,7 @@ import type {
   CreateWorkItemInput,
   ListWorkItemsOptions,
   UpdateWorkItemInput,
+  WorkItemCompletion,
 } from './work-items.repository.js';
 import type { WorkBlockerRow, WorkItemRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -73,6 +75,8 @@ export interface WorkItemView {
   readonly audience: Audience;
   readonly startAt: string | null;
   readonly dueAt: string | null;
+  /** When it was said to be completed on reaching `done`; `null` before that and after a reopen. */
+  readonly completedAt: string | null;
   /** The concurrency token. A caller must present it to update or transition. */
   readonly version: number;
   readonly createdAt: string;
@@ -99,6 +103,7 @@ export function toWorkItemView(row: WorkItemRow): WorkItemView {
     audience: row.audience,
     startAt: row.startAt ? row.startAt.toISOString() : null,
     dueAt: row.dueAt ? row.dueAt.toISOString() : null,
+    completedAt: row.completedAt ? row.completedAt.toISOString() : null,
     version: Number(row.version),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -179,6 +184,20 @@ export interface WorkItemHealthView {
  */
 const CLIENT_AUDIENCES: readonly Audience[] = ['client_visible', 'client_action_required'];
 
+/**
+ * How far ahead of the server's clock a `completedAt` may sit and still be "now". Five
+ * minutes covers a browser whose clock runs a little fast; it does not cover a completion
+ * dated tomorrow.
+ */
+const COMPLETION_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/**
+ * How many SQL pages one `list` call may walk while filling a page of readable rows. At the
+ * largest page size that is 5,000 rows examined per request — far past any tenant this
+ * deployment profile serves, and a hard stop on a principal who can read almost nothing.
+ */
+const LIST_PAGE_BUDGET = 25;
+
 export class WorkItemsService {
   constructor(
     private readonly database: TenantDatabase,
@@ -211,6 +230,18 @@ export class WorkItemsService {
    * The audience allowlist is applied **before** the query for a client principal, so an
    * internal item never leaves the database. The relation check then runs per row, because
    * `authorize()` is the one place that rule is written.
+   *
+   * ## A page is `limit` *readable* rows, not `limit` rows minus the unreadable ones
+   *
+   * The relation check cannot be pushed into SQL — it is `authorize()`'s rule, not a column —
+   * so it runs after the query, and a page of `limit` rows can come back with fewer than
+   * `limit` readable ones. Until 2026-09-01 that trimmed page was returned as the page: a
+   * member on one project in a tenant with many would see a list that ended early, and both
+   * web screens read "fewer than `limit`" as "that is all there is". Now the query is asked
+   * for the next page, from the last row seen, until either `limit` readable rows are in hand
+   * or the database returns a short page. The cursor the caller gets back — the last returned
+   * row's id — stays valid: every row skipped sorts before it and every row not yet fetched
+   * sorts after.
    */
   async list(
     context: TenantContext,
@@ -219,12 +250,34 @@ export class WorkItemsService {
   ): Promise<readonly WorkItemView[]> {
     const scoped: ListWorkItemsOptions =
       principal.kind === 'client' ? { ...options, audiences: CLIENT_AUDIENCES } : options;
+    const limit = effectivePageSize(options.limit);
 
-    const rows = await this.database.read(context, (runner) =>
-      this.workItems.list(runner, context, scoped),
-    );
+    const readable = await this.database.read(context, async (runner) => {
+      const collected: WorkItemRow[] = [];
+      let after = scoped.after;
+      // The walk is bounded, because it holds one pooled connection for its whole length and
+      // a principal who may read almost nothing in a very large tenant would otherwise turn
+      // one request into a scan of the table. Past the budget the page is returned short;
+      // the cursor is still valid, so a caller that pages on simply asks again. The web
+      // screens read a short page as "that is all", which past this many consecutive
+      // unreadable rows is wrong — recorded in implementation-status as the narrowing.
+      for (let pages = 0; pages < LIST_PAGE_BUDGET; pages += 1) {
+        const page = await this.workItems.list(runner, context, {
+          ...scoped,
+          ...(after === undefined ? {} : { after }),
+          limit,
+        });
+        for (const row of page) {
+          if (this.mayRead(principal, row)) collected.push(row);
+        }
+        const last = page[page.length - 1];
+        if (page.length < limit || collected.length >= limit || last === undefined) break;
+        after = last.id;
+      }
+      return collected.slice(0, limit);
+    });
 
-    return rows.filter((row) => this.mayRead(principal, row)).map(toView);
+    return readable.map(toView);
   }
 
   /** Read one work item. Absent, deleted, or unrelated all produce the same 404. */
@@ -388,6 +441,19 @@ export class WorkItemsService {
       }
     }
 
+    // 0013: reaching `done` writes the two facts §5 requires for it. They are parsed and the
+    // owner's membership is checked before the transaction opens, for the reason the blocker
+    // owner's is — and only when both facts are present, so that a request missing one is
+    // still refused by the machine, naming what was missing, rather than by a parser naming
+    // the shape of a fact it never got. And only when the move is one the machine has at
+    // all: `backlog -> done` must be refused as illegal, not as "the owner is not a member",
+    // and the membership read must not run for a move that was never going to happen.
+    const completion =
+      to === 'done' &&
+      workItemStateMachine.allowedFrom(before.state as WorkItemState).includes('done')
+        ? await this.completionFactsOf(context, facts)
+        : undefined;
+
     try {
       const row = await this.writing(() =>
         this.database.transaction(context, async (tx) => {
@@ -398,6 +464,7 @@ export class WorkItemsService {
             expectedVersion,
             to,
             facts,
+            completion,
           );
 
           await this.audit?.record(tx, context, {
@@ -664,7 +731,62 @@ export class WorkItemsService {
         { field: 'blockerOwnerUserId', message: 'must be a user id' },
       ]);
     }
-    return { reason, ask, ownerUserId: typeof owner === 'string' ? owner : null };
+    // A blank owner is no owner. Left untrimmed, `''` slipped past the membership check
+    // (falsy) and reached the `users` foreign key as a 500 — found by the 2026-09-01 fleet.
+    const ownerUserId = typeof owner === 'string' && owner.trim() !== '' ? owner.trim() : null;
+    return { reason, ask, ownerUserId };
+  }
+
+  /**
+   * §5's two facts for `done`, as the columns they become (0013).
+   *
+   * Returns `undefined` when either fact is absent or blank, leaving the refusal to the
+   * machine so that the 422 names the *missing* fact rather than a malformed one. When both
+   * are present they are judged: the owner must be an active internal member of this
+   * organization — an item completed by nobody who can act here is not completed — and the
+   * completion time must be an instant that has happened. A small allowance for clock skew is
+   * made; a completion dated next week is refused, because the row would then claim a thing
+   * that is not yet true.
+   */
+  private async completionFactsOf(
+    context: TenantContext,
+    facts: Readonly<Record<string, unknown>>,
+  ): Promise<WorkItemCompletion | undefined> {
+    const owner = facts['ownerId'];
+    const completed = facts['completedAt'];
+    const ownerBlank =
+      owner === undefined || owner === null || (typeof owner === 'string' && owner.trim() === '');
+    const completedBlank =
+      completed === undefined ||
+      completed === null ||
+      (typeof completed === 'string' && completed.trim() === '');
+    if (ownerBlank || completedBlank) return undefined;
+
+    const details: { field: string; message: string }[] = [];
+    if (typeof owner !== 'string') {
+      details.push({ field: 'ownerId', message: 'must be a user id' });
+    }
+    const completedAt = typeof completed === 'string' ? new Date(completed) : new Date(NaN);
+    if (typeof completed !== 'string' || Number.isNaN(completedAt.getTime())) {
+      details.push({ field: 'completedAt', message: 'must be an ISO 8601 instant' });
+    } else if (completedAt.getTime() > Date.now() + COMPLETION_CLOCK_SKEW_MS) {
+      details.push({ field: 'completedAt', message: 'must not be in the future' });
+    }
+    if (details.length > 0) {
+      throw new ApiError(422, 'validation_failed', 'The completion facts are not usable', details);
+    }
+
+    const ownerUserId = (owner as string).trim();
+    const isMember = await this.database.read(context, (runner) =>
+      this.graph.isActiveInternalMember(runner, context, ownerUserId),
+    );
+    if (!isMember) {
+      throw new ApiError(422, 'validation_failed', 'The owner is not a member', [
+        { field: 'ownerId', message: 'must be an active member of this organization' },
+      ]);
+    }
+
+    return { ownerUserId, completedAt };
   }
 
   /** A fact column is VARCHAR(1000); refuse an essay before the driver truncates one. */

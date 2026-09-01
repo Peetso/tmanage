@@ -1,0 +1,39 @@
+-- 0013_work_item_completion — the completion timestamp `done` has always required and the
+-- table never held.
+--
+-- Governing sources: 23-ERD-AND-STATE-MACHINES.md §5 ("`done` requires owner and completion
+-- timestamp"), 07-DATA-MODEL.md (the `work_items` column list names `completed_at`
+-- between `due_at` and `estimate`), 28-SPRINT-TICKETS §5 WORK-001.
+--
+-- ## The defect this closes
+--
+-- Since WORK-001 landed, `internal_review -> done` has been refused by the state machine
+-- unless the caller supplied `ownerId` and `completedAt`, and the repository then wrote
+-- neither: `transitionState` set `state`, `version` and `updated_at` and nothing else.
+-- A person was asked for a completion time that was thrown away, and "when was this
+-- finished" had no answer anywhere in the database. Recorded in
+-- docs/implementation-status.md on 2026-08-31 as found and not fixed; fixed here.
+--
+-- ## A divergence inside the pack, recorded rather than resolved
+--
+-- `contracts/tmanage-core.dbml` draws `work_items` without `completed_at`; 07-DATA-MODEL
+-- lists it and §5 requires the fact it stores. The data model and the state machine win
+-- here for 0011's reason — a required fact cannot be kept in a column the contract omits —
+-- and the column keeps the house shape (`DATETIME(3)`, nullable, next to the other instants)
+-- so the dbml can adopt it verbatim when it catches up.
+--
+-- ## What the column means
+--
+-- `NULL` until the item reaches `done`; the instant the person who moved it there said it
+-- was completed, which need not be the instant of the move. Reopening (`done -> in_progress`,
+-- §5's alternate transition with a reason) clears it: an item back in progress is not
+-- completed, and a stale timestamp would say it was. `done -> archived` keeps it. The
+-- owner half of the requirement is written to the existing `owner_user_id`, so no second
+-- owner column is added.
+--
+-- No backfill: no row has ever reached `done` with a completion time the database kept, so
+-- there is nothing true to write into existing rows, and inventing `updated_at` as a
+-- completion time would be a guess dressed as a fact.
+
+ALTER TABLE work_items
+  ADD COLUMN completed_at DATETIME(3) NULL AFTER due_at;

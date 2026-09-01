@@ -44,8 +44,8 @@ import { API_URL, WEB_URL } from '../setup/stack.js';
  *
  * ## What this file leaves behind
  *
- * E2E-03 moves the seeded Northstar work item from `in_progress` to `internal_review` and does
- * not put it back — reversing a journey is not a journey. The suite therefore needs a fresh
+ * E2E-03 moves the seeded Northstar work item from `in_progress` through `internal_review` to
+ * `done` and does not put it back — reversing a journey is not a journey. The suite therefore needs a fresh
  * stack per run, which is what `globalSetup` already gives it, and `retries` must stay at 0: a
  * serial retry would replay E2E-03a against an item that is no longer `in_progress`.
  */
@@ -209,6 +209,65 @@ test.describe.serial('the work-delivery journeys', () => {
 
     await filters.getByLabel('Blocked').uncheck();
     await filters.getByLabel('Internal review').check();
+    await expect(
+      manager.page.getByRole('table').getByRole('link', {
+        name: world().northstar.workItemTitle,
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await maker.context.close();
+    await manager.context.close();
+  });
+
+  test('E2E-03c: review ends in done, and the completion time is kept rather than thrown away', async ({
+    browser,
+  }) => {
+    // Added 2026-09-01 with 0013. Until then `done` asked for an owner and a completion
+    // time and the database kept neither; this leg proves the screen asks, the API stores,
+    // and the item's own page and the manager's list both read the stored fact back.
+    const maker = await openAs(browser, world().northstar.designer.id);
+    await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
+    const header = maker.page.getByRole('region', { name: 'This item', exact: true });
+    await expect(header).toContainText('Internal review');
+    await expect(header).not.toContainText('Completed');
+
+    await maker.page.getByLabel('Move to').selectOption({ label: 'Done' });
+    // The owner opens filled with the item's current owner — the seed gives it to the
+    // designer — and the time with now. Neither has to be typed; the time is corrected here to
+    // when the work was actually finished, which is the point of asking.
+    const ownerField = maker.page.getByLabel('Who owned this to completion');
+    await expect(ownerField).toHaveValue(world().northstar.designer.id);
+    const completedField = maker.page.getByLabel('When it was completed');
+    await expect(completedField).not.toHaveValue('');
+    // An hour before the run, to the minute — taken from the run's own clock, because the
+    // API refuses a completion time in the future and a literal date would be one someday.
+    const finishedAt = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 60 * 60_000);
+    await completedField.fill(finishedAt.toISOString().slice(0, 16));
+    await maker.page.getByRole('button', { name: 'Move to Done', exact: true }).click();
+    await expect(header).toContainText('Done');
+    await expect(header).toContainText('Completed');
+
+    // The stored fact, read from the API rather than inferred from the screen. The browser is
+    // pinned to UTC by playwright.config.ts, so the local time typed above *is* the instant.
+    const stored = await maker.context.request.get(
+      `${API_URL}/v1/organizations/northstar-studio/work-items/${world().northstar.workItemId}`,
+    );
+    expect(stored.ok()).toBe(true);
+    const body = (await stored.json()) as {
+      state: string;
+      ownerUserId: string | null;
+      completedAt: string | null;
+    };
+    expect(body.state).toBe('done');
+    expect(body.ownerUserId).toBe(world().northstar.designer.id);
+    expect(body.completedAt).toBe(finishedAt.toISOString());
+
+    // The manager's list agrees, under the Done filter.
+    const manager = await openAs(browser, world().northstar.manager.id);
+    await manager.page.goto('/northstar-studio/work');
+    const filters = manager.page.getByRole('region', { name: 'Filters', exact: true });
+    await filters.getByLabel('Done').check();
     await expect(
       manager.page.getByRole('table').getByRole('link', {
         name: world().northstar.workItemTitle,

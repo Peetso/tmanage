@@ -28,7 +28,8 @@ const definition: StateMachineDefinition<WorkItemState> = {
       from: 'in_progress',
       to: 'blocked',
       requires: ['blockerReason', 'blockerAsk'],
-      note: '§5: blocked requires a reason and an ask. US-B04 adds the owner of the ask.',
+      accepts: ['blockerOwnerUserId'],
+      note: '§5: blocked requires a reason and an ask. US-B04 adds the owner of the ask, optional.',
     },
     {
       from: 'blocked',

@@ -28,6 +28,8 @@ export interface WorkItemSummary {
   readonly audience: WorkItemAudience;
   readonly startAt: string | null;
   readonly dueAt: string | null;
+  /** Set when the item reached `done`, from the completion time the mover gave; cleared by a reopen. */
+  readonly completedAt: string | null;
   /** The concurrency token. Present it to update or to transition. */
   readonly version: number;
   readonly createdAt: string;

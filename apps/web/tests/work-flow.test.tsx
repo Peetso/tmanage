@@ -79,12 +79,33 @@ function workItem(overrides: Record<string, unknown> = {}) {
     audience: 'internal',
     startAt: null,
     dueAt: '2026-09-10T17:00:00.000Z',
+    completedAt: null,
     version: 3,
     createdAt: '2026-08-26T00:00:00.000Z',
     updatedAt: '2026-08-28T00:00:00.000Z',
     deletedAt: null,
     ...overrides,
   };
+}
+
+/** The API's envelope, exactly — `toApiRequestError` reads `body.error`, not `body`. */
+function refusal(
+  status: number,
+  code: string,
+  message: string,
+  details: readonly { field: string; message: string }[] = [],
+): Response {
+  return json(
+    {
+      error: {
+        code,
+        message,
+        correlationId: 'correlation-fixed',
+        ...(details.length > 0 ? { details } : {}),
+      },
+    },
+    status,
+  );
 }
 
 const PROJECTS = {
@@ -558,12 +579,19 @@ describe('TM-13 the work item detail', () => {
     });
   });
 
-  it('shows a 409 as somebody else changing it, and does not retry', async () => {
+  it('shows a version 409 as somebody else changing it, and does not retry', async () => {
     let posts = 0;
     const calls = renderDetail((call) => {
       if (call.method === 'POST') {
         posts += 1;
-        return json({ code: 'conflict', message: 'The item changed since you read it' }, 409);
+        // The envelope `WorkItemsService.writing` actually sends: `conflict`, and the field
+        // that was wrong is the version token.
+        return refusal(
+          409,
+          'conflict',
+          'The resource was modified concurrently. Reload and try again',
+          [{ field: 'version', message: 'the item changed since you read it' }],
+        );
       }
       return json(workItem());
     });
@@ -575,6 +603,130 @@ describe('TM-13 the work item detail', () => {
     expect(await screen.findByText(/Somebody else changed this first/)).toBeInTheDocument();
     expect(posts).toBe(1);
     expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  });
+
+  it('shows the other 409 — an active blocker already exists — in the API words, not as a reload', async () => {
+    // Recorded 2026-08-31 as "two different 409s render as one". The already-blocked refusal
+    // names no field, because no field of the request was wrong; "reload and try again"
+    // cannot help it, and the screen must not say it.
+    renderDetail((call) =>
+      call.method === 'POST'
+        ? refusal(409, 'conflict', 'This work item already has an active blocker')
+        : json(workItem()),
+    );
+
+    await screen.findByLabelText('Move to');
+    await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
+    await userEvent.type(screen.getByLabelText(/What is blocking this/), 'Waiting on brand assets');
+    await userEvent.type(screen.getByLabelText(/What you need, and from whom/), 'Logos from Priya');
+    await userEvent.click(screen.getByRole('button', { name: /Move to Blocked/ }));
+
+    expect(
+      await screen.findByText('This work item already has an active blocker'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Somebody else changed this first/)).not.toBeInTheDocument();
+  });
+
+  it('offers the blocker owner as optional, and leaves it out of the request when blank', async () => {
+    const calls = renderDetail((call) =>
+      call.method === 'POST' ? json(workItem({ state: 'blocked', version: 4 })) : json(workItem()),
+    );
+
+    await screen.findByLabelText('Move to');
+    await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
+
+    // Offered, and not marked required — the asterisk is the machine's word, not the form's.
+    const owner = screen.getByLabelText(/Who the ask is on/);
+    expect(owner).toBeInTheDocument();
+    expect(owner).not.toBeRequired();
+    expect(screen.getByLabelText(/What is blocking this/)).toBeRequired();
+
+    await userEvent.type(screen.getByLabelText(/What is blocking this/), 'No sandbox key');
+    await userEvent.type(
+      screen.getByLabelText(/What you need, and from whom/),
+      'The key, from Atlas',
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Move to Blocked/ }));
+
+    await waitFor(() => {
+      const posted = calls.find((call) => call.method === 'POST');
+      expect(posted?.body).toEqual({
+        version: 3,
+        to: 'blocked',
+        facts: { blockerReason: 'No sandbox key', blockerAsk: 'The key, from Atlas' },
+      });
+    });
+  });
+
+  it('sends the blocker owner when one is named', async () => {
+    const calls = renderDetail((call) =>
+      call.method === 'POST' ? json(workItem({ state: 'blocked', version: 4 })) : json(workItem()),
+    );
+
+    await screen.findByLabelText('Move to');
+    await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
+    await userEvent.type(screen.getByLabelText(/What is blocking this/), 'No sandbox key');
+    await userEvent.type(
+      screen.getByLabelText(/What you need, and from whom/),
+      'The key, from Atlas',
+    );
+    await userEvent.type(screen.getByLabelText(/Who the ask is on/), 'user-omar');
+    await userEvent.click(screen.getByRole('button', { name: /Move to Blocked/ }));
+
+    await waitFor(() => {
+      const posted = calls.find((call) => call.method === 'POST');
+      expect((posted?.body as { facts: Record<string, string> }).facts).toEqual({
+        blockerReason: 'No sandbox key',
+        blockerAsk: 'The key, from Atlas',
+        blockerOwnerUserId: 'user-omar',
+      });
+    });
+  });
+
+  it('opens the done move with the current owner and now filled in, and sends an instant', async () => {
+    const calls = renderDetail((call) =>
+      call.method === 'POST'
+        ? json(
+            workItem({
+              state: 'done',
+              version: 4,
+              completedAt: '2026-09-01T11:30:00.000Z',
+            }),
+          )
+        : json(workItem({ state: 'internal_review' })),
+    );
+
+    await screen.findByLabelText('Move to');
+    await userEvent.selectOptions(screen.getByLabelText('Move to'), 'done');
+
+    const owner = screen.getByLabelText(/Who owned this to completion/);
+    expect(owner).toHaveValue('user-1');
+    const completed = screen.getByLabelText(/When it was completed/);
+    expect(completed).toHaveAttribute('type', 'datetime-local');
+    expect((completed as HTMLInputElement).value).not.toBe('');
+
+    // A person corrects the time to when the work was actually finished.
+    await userEvent.clear(completed);
+    await userEvent.type(completed, '2026-09-01T11:30');
+    await userEvent.click(screen.getByRole('button', { name: /Move to Done/ }));
+
+    await waitFor(() => {
+      const posted = calls.find((call) => call.method === 'POST');
+      const body = posted?.body as { to: string; facts: Record<string, string> };
+      expect(body.to).toBe('done');
+      expect(body.facts['ownerId']).toBe('user-1');
+      // What was typed is local time; what travels is the UTC instant it names.
+      expect(body.facts['completedAt']).toBe(new Date('2026-09-01T11:30').toISOString());
+    });
+
+    // And the answer's completion time is shown as a fact of the item.
+    expect(await screen.findByText('Completed')).toBeInTheDocument();
+  });
+
+  it('shows no Completed row for an item that has not been completed', async () => {
+    renderDetail(() => json(workItem()));
+    await screen.findByLabelText('Move to');
+    expect(screen.queryByText('Completed')).not.toBeInTheDocument();
   });
 
   it('confirms before widening the audience to the client', async () => {

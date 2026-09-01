@@ -164,8 +164,10 @@ async function moveTo(session: Session, item: WorkItem, to: string): Promise<Wor
       { next: 'in_progress' },
       { next: 'internal_review' },
       {
+        // A real member since 0013: the owner is written to `owner_user_id` and checked
+        // against the memberships table first. 'someone' would now earn a 422.
         next: 'done',
-        facts: { ownerId: 'someone', completedAt: '2026-08-26T12:00:00.000Z' },
+        facts: { ownerId: owner().id, completedAt: '2026-08-26T12:00:00.000Z' },
       },
     ],
   };
@@ -627,6 +629,202 @@ describe('the list', () => {
     await createItem(session);
     const listed = await send('GET', '/work-items', session);
     expect(listed.body).not.toContain(world.northstar.organizationId);
+  });
+});
+
+/**
+ * 0013: the two facts `done` requires are stored, not discarded. Recorded 2026-08-31 as
+ * "internal_review -> done requires two facts the schema then discards"; closed 2026-09-01.
+ */
+describe('completion (0013)', () => {
+  async function inReview(session: Session): Promise<WorkItem> {
+    return moveTo(
+      session,
+      await createItem(session, { title: 'Finish the style guide' }),
+      'internal_review',
+    );
+  }
+
+  it('writes the owner and the completion time to the row, and the view carries them', async () => {
+    const session = await signIn(owner().id);
+    const item = await inReview(session);
+
+    const response = await send('POST', `/work-items/${item.id}/transitions`, session, {
+      version: item.version,
+      to: 'done',
+      facts: { ownerId: designer().id, completedAt: '2026-08-30T15:45:00.000Z' },
+    });
+    expect(response.statusCode).toBe(200);
+    const done = response.json<WorkItem & { completedAt: string | null }>();
+    expect(done.state).toBe('done');
+    expect(done.ownerUserId).toBe(designer().id);
+    expect(done.completedAt).toBe('2026-08-30T15:45:00.000Z');
+
+    const rows = await observe(
+      'select owner_user_id as ownerUserId, completed_at as completedAt from work_items where id = ?',
+      [item.id],
+    );
+    expect(rows[0]?.['ownerUserId']).toBe(designer().id);
+    expect(new Date(rows[0]?.['completedAt'] as Date).toISOString()).toBe(
+      '2026-08-30T15:45:00.000Z',
+    );
+  });
+
+  it('refuses an owner who is not an active member of this organization, naming the field', async () => {
+    const session = await signIn(owner().id);
+    const item = await inReview(session);
+
+    const response = await send('POST', `/work-items/${item.id}/transitions`, session, {
+      version: item.version,
+      to: 'done',
+      facts: { ownerId: world.brightops.owner.id, completedAt: '2026-08-30T15:45:00.000Z' },
+    });
+    expect(response.statusCode).toBe(422);
+    const details = response.json<{ error: { details: { field: string }[] } }>().error.details;
+    expect(details.map((d) => d.field)).toEqual(['ownerId']);
+    // Nothing moved.
+    expect(
+      (await observe('select state from work_items where id = ?', [item.id]))[0]?.['state'],
+    ).toBe('internal_review');
+  });
+
+  it('refuses a completion time that is not an instant, or is in the future', async () => {
+    const session = await signIn(owner().id);
+    const item = await inReview(session);
+
+    const garbled = await send('POST', `/work-items/${item.id}/transitions`, session, {
+      version: item.version,
+      to: 'done',
+      facts: { ownerId: owner().id, completedAt: 'yesterday-ish' },
+    });
+    expect(garbled.statusCode).toBe(422);
+    expect(
+      garbled.json<{ error: { details: { field: string; message: string }[] } }>().error.details,
+    ).toEqual([{ field: 'completedAt', message: 'must be an ISO 8601 instant' }]);
+
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const future = await send('POST', `/work-items/${item.id}/transitions`, session, {
+      version: item.version,
+      to: 'done',
+      facts: { ownerId: owner().id, completedAt: tomorrow },
+    });
+    expect(future.statusCode).toBe(422);
+    expect(
+      future.json<{ error: { details: { field: string; message: string }[] } }>().error.details,
+    ).toEqual([{ field: 'completedAt', message: 'must not be in the future' }]);
+  });
+
+  it('still lets the machine name a missing fact rather than the parser naming its shape', async () => {
+    const session = await signIn(owner().id);
+    const item = await inReview(session);
+
+    const response = await send('POST', `/work-items/${item.id}/transitions`, session, {
+      version: item.version,
+      to: 'done',
+      facts: { ownerId: owner().id },
+    });
+    expect(response.statusCode).toBe(422);
+    const details = response.json<{ error: { details: { field: string; message: string }[] } }>()
+      .error.details;
+    expect(details).toEqual([{ field: 'completedAt', message: 'is required for this transition' }]);
+  });
+
+  it('clears the completion time when the item is reopened, and keeps it when archived', async () => {
+    const session = await signIn(owner().id);
+    const done = await moveTo(session, await createItem(session), 'done');
+    expect((done as WorkItem & { completedAt: string | null }).completedAt).not.toBeNull();
+
+    const reopened = await send('POST', `/work-items/${done.id}/transitions`, session, {
+      version: done.version,
+      to: 'in_progress',
+      facts: { reopenReason: 'The client found a broken link' },
+    });
+    expect(reopened.statusCode).toBe(200);
+    expect(reopened.json<{ completedAt: string | null }>().completedAt).toBeNull();
+
+    const again = await moveTo(session, await createItem(session), 'done');
+    const archived = await send('POST', `/work-items/${again.id}/transitions`, session, {
+      version: again.version,
+      to: 'archived',
+    });
+    expect(archived.statusCode).toBe(200);
+    expect(archived.json<{ completedAt: string | null }>().completedAt).toBe(
+      '2026-08-26T12:00:00.000Z',
+    );
+  });
+});
+
+/** Two refusals the 2026-09-01 fleet found in the code around the completion change. */
+describe('what the fleet found beside the completion change', () => {
+  it('refuses backlog -> done as illegal, never as "the owner is not a member"', async () => {
+    // The completion facts are parsed only for a move the machine has. Otherwise a caller
+    // could learn whether any user id is an active member by attempting an illegal move.
+    const session = await signIn(owner().id);
+    const item = await createItem(session);
+
+    const response = await send('POST', `/work-items/${item.id}/transitions`, session, {
+      version: item.version,
+      to: 'done',
+      facts: { ownerId: world.brightops.owner.id, completedAt: '2026-08-30T15:45:00.000Z' },
+    });
+    expect(response.statusCode).toBe(422);
+    const error = response.json<{ error: { message: string; details?: unknown[] } }>().error;
+    expect(error.message).toBe('A work item cannot move from backlog to done');
+    expect(error.details).toBeUndefined();
+  });
+
+  it('treats a blank blocker owner as no owner rather than as a user whose id is empty', async () => {
+    const session = await signIn(owner().id);
+    const item = await moveTo(session, await createItem(session), 'in_progress');
+
+    const response = await send('POST', `/work-items/${item.id}/transitions`, session, {
+      version: item.version,
+      to: 'blocked',
+      facts: { blockerReason: 'No key', blockerAsk: 'The key', blockerOwnerUserId: '   ' },
+    });
+    expect(response.statusCode).toBe(200);
+    const rows = await observe(
+      'select owner_user_id as ownerUserId from work_blockers where work_item_id = ?',
+      [item.id],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.['ownerUserId']).toBeNull();
+  });
+});
+
+/**
+ * The list applies `mayRead` after SQL's `limit`. Recorded 2026-08-31 as "a full page can come
+ * back short"; closed 2026-09-01 by paging on until `limit` readable rows are in hand.
+ */
+describe('a page is limit readable rows', () => {
+  it('does not end the list early when the first SQL page is all rows this member may not read', async () => {
+    const boss = await signIn(owner().id);
+    // A marker in the designer's project, then two rows in the project the designer is NOT on,
+    // then one more in theirs. Ids are UUIDv7, so this is also their sort order.
+    const marker = await createItem(boss, { title: 'Marker' });
+    const hiddenOne = await createItem(boss, {
+      projectId: world.northstar.otherProjectId,
+      title: 'Hidden one',
+    });
+    const hiddenTwo = await createItem(boss, {
+      projectId: world.northstar.otherProjectId,
+      title: 'Hidden two',
+    });
+    const visible = await createItem(boss, { title: 'Visible after the hidden ones' });
+
+    // The pin depends on that order. UUIDv7 orders by millisecond and is random within one,
+    // and four HTTP round trips never land in the same millisecond — but if they ever did,
+    // this fails loudly here rather than letting the case pass against the old code.
+    const minted = [marker.id, hiddenOne.id, hiddenTwo.id, visible.id];
+    expect(minted).toEqual([...minted].sort());
+
+    // Before the fix, SQL's page of 2 after the marker was exactly the two hidden rows, the
+    // filter emptied it, and the designer was told the list ended here.
+    const designer = await signIn(world.northstar.designer.id);
+    const page = await send('GET', `/work-items?after=${marker.id}&limit=2`, designer);
+    expect(page.statusCode).toBe(200);
+    const ids = page.json<{ workItems: WorkItem[] }>().workItems.map((w) => w.id);
+    expect(ids).toEqual([visible.id]);
   });
 });
 

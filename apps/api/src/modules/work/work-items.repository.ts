@@ -136,16 +136,37 @@ export interface ListWorkItemsOptions {
   readonly includeDeleted?: boolean;
 }
 
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 200;
+export const DEFAULT_PAGE_SIZE = 50;
+export const MAX_PAGE_SIZE = 200;
+
+/** The page size a caller's request actually resolves to, clamped the way {@link list} clamps it. */
+export function effectivePageSize(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+}
+
+/**
+ * What `internal_review -> done` writes besides the state. Parsed and validated by the
+ * service from the machine's `ownerId` and `completedAt` facts; the repository writes the
+ * columns and does not judge them.
+ */
+export interface WorkItemCompletion {
+  readonly ownerUserId: string;
+  readonly completedAt: Date;
+}
 
 export class WorkItemsRepository {
+  /**
+   * One page of rows, in id order, **before** any per-row authorization. The service applies
+   * `mayRead` and — because that filter can shorten a page — keeps asking for the next page
+   * until it has a full one or the table runs out. A caller that treats one call here as one
+   * page of *readable* rows has the defect the service closes.
+   */
   async list(
     runner: TenantQueryRunner,
     context: TenantContext,
     options: ListWorkItemsOptions = {},
   ): Promise<readonly WorkItemRow[]> {
-    const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+    const limit = effectivePageSize(options.limit);
 
     const predicates = [eq(workItems.organizationId, context.organizationId)];
     if (options.projectId) predicates.push(eq(workItems.projectId, options.projectId));
@@ -299,6 +320,13 @@ export class WorkItemsRepository {
    * and `blockerAsk` entering `blocked`, `blockerResolution` leaving it, `ownerId` and
    * `completedAt` for `done`, `reopenReason` to reopen. The machine decides what is required;
    * this method only supplies what it was given and surfaces what was missing.
+   *
+   * Two of those facts are columns, and this is where they are written (0013). Reaching
+   * `done` sets `owner_user_id` and `completed_at` from `completion`, which the service has
+   * already parsed and validated from the facts; the machine's own check runs first, so a
+   * move the machine refuses never reaches the write. Leaving `done` for `in_progress` —
+   * §5's reopen — clears `completed_at`: an item back in progress is not completed. Every
+   * other move leaves both columns alone.
    */
   async transitionState(
     runner: TenantQueryRunner,
@@ -307,6 +335,7 @@ export class WorkItemsRepository {
     expectedVersion: number,
     to: WorkItemState,
     facts: Readonly<Record<string, unknown>> = {},
+    completion?: WorkItemCompletion,
   ): Promise<WorkItemRow> {
     const current = await this.requireById(runner, context, workItemId);
     // The column is `VARCHAR(32)`, so the row's state is a string as far as the type system is
@@ -320,12 +349,24 @@ export class WorkItemsRepository {
       throw new WorkItemTransitionError(from, to, verdict.reason, verdict.missing, verdict.detail);
     }
 
+    if (to === 'done' && !completion) {
+      // The machine has just accepted `ownerId` and `completedAt`, so the service had both
+      // facts and did not parse them. That is a programming error in the caller, not a
+      // request to refuse politely — and writing `done` without the columns is the exact
+      // defect 0013 exists to close.
+      throw new Error(`Work item ${workItemId}: reaching done without a parsed completion`);
+    }
+
     const result = await tenantDrizzle(runner)
       .update(workItems)
       .set({
         state: to,
         version: sql`version + 1`,
         updatedAt: sql`current_timestamp(3)`,
+        ...(to === 'done' && completion
+          ? { ownerUserId: completion.ownerUserId, completedAt: completion.completedAt }
+          : {}),
+        ...(from === 'done' && to === 'in_progress' ? { completedAt: null } : {}),
       })
       .where(
         and(

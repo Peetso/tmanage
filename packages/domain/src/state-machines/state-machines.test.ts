@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { StateMachine } from './state-machine.js';
 import { workItemStateMachine, WORK_ITEM_STATES } from './work-item.js';
 import { clientRequestStateMachine } from './client-request.js';
 import { deliverableStateMachine } from './deliverable.js';
@@ -59,6 +60,32 @@ describe('work item lifecycle (23-ERD §5)', () => {
         completedAt: '2026-08-16T10:00:00Z',
       }).ok,
     ).toBe(true);
+  });
+
+  it('offers the blocker owner as an optional fact, and demands it nowhere', () => {
+    // US-B04 wants the owner of the ask; §5 does not require one. The machine says so as
+    // data, so a form can offer the field without the rule living in the form.
+    expect(workItemStateMachine.optionalFor('in_progress', 'blocked')).toEqual([
+      'blockerOwnerUserId',
+    ]);
+    expect(workItemStateMachine.requirementsFor('in_progress', 'blocked')).not.toContain(
+      'blockerOwnerUserId',
+    );
+    expect(workItemStateMachine.optionalFor('internal_review', 'done')).toEqual([]);
+    expect(workItemStateMachine.optionalFor('done', 'backlog')).toEqual([]);
+  });
+
+  it('refuses a definition that lists one fact as both required and optional', () => {
+    expect(
+      () =>
+        new StateMachine({
+          name: 'contradiction',
+          initial: 'a',
+          states: ['a', 'b'],
+          terminal: ['b'],
+          transitions: [{ from: 'a', to: 'b', requires: ['why'], accepts: ['why'] }],
+        }),
+    ).toThrow(/both required and optional/);
   });
 
   it('requires a reason and an ask to enter blocked, and a resolution to leave it', () => {

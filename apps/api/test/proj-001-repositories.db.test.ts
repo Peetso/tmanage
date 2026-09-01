@@ -969,11 +969,19 @@ describe('work items', () => {
     const inReview = await tenant.transaction(northstar, (tx) =>
       work.transitionState(tx, northstar, started.id, started.version, 'internal_review'),
     );
+    // Since 0013 the repository also takes the parsed completion — the columns `done` writes.
+    // The service derives it from the facts; a direct caller supplies both.
+    const whenDone = new Date();
     const done = await tenant.transaction(northstar, (tx) =>
-      work.transitionState(tx, northstar, inReview.id, inReview.version, 'done', {
-        ownerId: world.northstar.designer.id,
-        completedAt: new Date(),
-      }),
+      work.transitionState(
+        tx,
+        northstar,
+        inReview.id,
+        inReview.version,
+        'done',
+        { ownerId: world.northstar.designer.id, completedAt: whenDone },
+        { ownerUserId: world.northstar.designer.id, completedAt: whenDone },
+      ),
     );
 
     expect([ready.state, started.state, inReview.state, done.state]).toEqual([
