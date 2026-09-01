@@ -449,6 +449,167 @@ are untouched.
 
 ---
 
+## Four defects, closed together — and what the fleet found reading the fix
+
+The 2026-08-31 session recorded four defects under "Found, real, and deliberately not fixed
+here". This session took them as one slice, because for once every line had a `file:line`, a
+verified cause and no policy question in front of it. All four are closed. No ticket moves:
+this is defect work, and the totals below are unchanged on purpose.
+
+### 1. `done` keeps its completion — migration 0013
+
+`internal_review → done` has required `ownerId` and `completedAt` since WORK-001 landed, and
+the repository wrote neither: `work_items` had no `completed_at` column at all. A person was
+asked for a completion time that was thrown away, and "when was this finished" had no answer
+anywhere in the database.
+
+`0013_work_item_completion.sql` adds `completed_at DATETIME(3) NULL` after `due_at`. The
+service parses the two facts before the transaction opens — the owner must be an **active
+member of this organization** (the same check the blocker owner already gets, through
+`isActiveInternalMember`), the time must be an ISO 8601 instant that has **happened** (five
+minutes of clock skew allowed; a completion dated tomorrow is refused) — and the repository
+writes `owner_user_id` and `completed_at` on reaching `done`. Reopening (`done → in_progress`)
+clears `completed_at`: an item back in progress is not completed. `done → archived` keeps it.
+No backfill: no row has ever reached `done` with a time the database kept, and inventing
+`updated_at` as one would be a guess dressed as a fact.
+
+Two contract changes, said plainly:
+
+- A **direct** caller of `WorkItemsRepository.transitionState` now passes the parsed
+  completion as a seventh argument. The only such caller is `proj-001-repositories.db.test.ts`,
+  which the fleet found before the chain did (below). The repository throws if it is asked to
+  write `done` without one — writing `done` without the columns is the exact defect.
+- The API refuses an `ownerId` that is not a member, with a 422 naming `ownerId`. The old
+  work-001 suite walked to `done` with `ownerId: 'someone'`; it now uses a seeded member.
+
+`WorkItemView` and the web's `WorkItemSummary` carry `completedAt`; the detail screen shows a
+**Completed** row when there is one and asks for the time with a `datetime-local` control that
+opens on now, converting what the control holds to the UTC instant the API stores. The owner
+field opens with the item's current owner. There is no member picker — no members endpoint
+exists on the API — so the owner is still a user id, prefilled where it can be; recorded as
+the narrowing it is.
+
+**Divergence inside the pack, recorded rather than resolved:** `contracts/tmanage-core.dbml`
+draws `work_items` without `completed_at`; `07-DATA-MODEL.md` lists it and `23-ERD` §5
+requires the fact it stores. The data model and the state machine win, for 0011's reason —
+a required fact cannot be kept in a column the contract omits — and the column keeps the
+house shape so the dbml can adopt it verbatim. Same precedent, same note in the migration.
+
+### 2. Two 409s are two
+
+The version-token conflict and `WorkItemAlreadyBlockedError` both reached the detail screen
+as status 409, and the screen said "somebody else changed this first, reload" for both. The
+envelope already told them apart: the version conflict names the `version` field in
+`details`; the already-blocked refusal names no field, because no field of the request was
+wrong. The screen now treats a 409 as the conflict **only when `version` is named**; any
+other 409 is shown in the API's own words. On a real conflict the chosen move and its facts
+are cleared as well — the fleet showed an `ownerId` seeded from the superseded row would
+otherwise ride the next attempt over a colleague's reassignment with a fresh version, the
+lost update the banner exists to prevent.
+
+The old unit test's 409 mock did not match the real envelope (`{ code, message }` with no
+`error` wrapper), so it had only ever exercised the status fallback. It now sends what
+`WorkItemsService.writing` sends. A bodyless 409 — a proxy that strips JSON — now shows the
+fallback "reload and try again" as a plain failure without a refetch; there is no such
+intermediary in this deployment, and inventing a `version` detail for it would be a lie.
+
+### 3. A page is `limit` readable rows
+
+`WorkItemsService.list` applied SQL `limit` before the per-row `mayRead` filter. A member on
+one project in a tenant with many would get a page trimmed to what they may read, and both
+web screens read "fewer than `limit`" as "that is all there is". The service now asks for the
+next page, from the last row seen, until it holds `limit` readable rows or the database
+returns a short page. The keyset cursor stays valid — every skipped row sorts before it.
+
+**Bounded, and the bound is a narrowing.** The walk holds one pooled connection for its whole
+length, so it stops after 25 pages (5,000 rows at the largest page size) and returns what it
+has. Past 5,000 consecutive unreadable rows a short page is returned that is _not_ the end,
+and the web screens would read it as the end. No tenant this profile serves is near that;
+recorded so it is not re-found.
+
+### 4. The blocker owner leaves the browser
+
+`§5`'s `requires` for `in_progress → blocked` lists reason and ask, the form rendered exactly
+the requirements, so `work_item.blocked.v1` always carried `ownerUserId: null` from a screen.
+`StateMachine` transitions now declare `accepts` — facts a move will take but does not demand
+— with `optionalFor(from, to)` beside `requirementsFor`; the constructor refuses a definition
+that lists one fact as both. `in_progress → blocked` accepts `blockerOwnerUserId`, and the
+screen renders optional facts after the required ones, unmarked, omitting blank ones from
+the request. The rule stays in the one place it was written.
+
+### What the fleet found, and what it refuted
+
+Five read-only lenses plus a skeptic, six agents, no file edited by an agent, pointed at the
+diff **and** at the code it touches. 21 claims went in; the skeptic merged the duplicates and
+confirmed six, downgraded four, and dismissed one. Fixed before the chain:
+
+- **High:** `proj-001-repositories.db.test.ts` calls the repository directly and walked to
+  `done` with six arguments; the new guard would have thrown. Four of five readers found it.
+- **Medium:** the list walk had no budget (now 25 pages). Two API source files carried CRLF
+  endings and would have failed the opening `format:check`; `pnpm format` does not rewrite
+  line endings, so they were normalised by hand.
+- **Low, fixed anyway:** the completion facts were parsed — and the owner's membership read
+  — before the machine judged whether `→ done` was legal from this state, so `backlog → done`
+  with a foreign `ownerId` answered "not a member" rather than "illegal", a small membership
+  oracle. The parse is now gated on `allowedFrom(before.state)`. A blank
+  `blockerOwnerUserId` (`'   '`) slipped past the falsy membership check to the `users`
+  foreign key as a 500 — pre-existing code the screen's blank-stripping would never hit, but a
+  hand-rolled request would; trimmed, and pinned. The E2E-03c leg hard-coded a completion
+  instant on a date; it now takes an hour before the run's own clock. The list regression
+  test now asserts the UUIDv7 order it depends on before the request, so a same-millisecond
+  mint fails loudly instead of passing against the old code.
+
+Refuted or left: the claim that this ledger "now contradicts the code" — the 2026-08-31 list
+is dated history, and this section is the record; the bodyless-409 refetch, above; and a
+domain-test nit with no gate behind it.
+
+### Proved by reverting
+
+Every fix was reverted and the new tests watched fail before the fix was kept: the old 409
+rule fails the already-blocked case with the conflict banner on screen; the old repository
+and the single-page list fail exactly three database cases — the columns not written, the
+reopen not clearing, the designer's page ending early — and pass 41 of 41 restored.
+
+### What is next
+
+The standing list is unchanged in shape and shorter by one line. More journeys stay blocked
+on FILE-001, deliverables, notifications and audit export; the internal manager mail fan-out
+stays blocked on policy (no preferences table, no tenant policy column — not without Peter);
+the MariaDB run for 0012 and now 0013 stays blocked on re-downloading the zip (Peter's call).
+Two small things this slice surfaced and did not take: a members endpoint, so the owner and
+blocker-owner fields can be a picker rather than a pasted id; and the `notifications` fan-out
+for `work_item.blocked.v1` now that the owner actually travels.
+
+---
+
+## Verification actually run — 2026-09-01, the four-defects session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`~25 m` wall, **exit 0**. Order, as it happened: the fleet ran on the uncommitted diff first
+and its findings were fixed; the revert proofs ran on the single suites they concern;
+`pnpm test:e2e` ran **before** the chain, with the fixes committed; then the chain.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format` and after the two CRLF files were normalised by hand                                                                                             |
+| `typecheck`              | Clean                                                                                                                                                                               |
+| `lint`                   | Clean                                                                                                                                                                               |
+| `test` (unit)            | **1013 passed**, 57 files — up from 1006: two domain cases for `accepts`, five detail-screen cases (the second 409, the optional owner both ways, the done move, the Completed row) |
+| `test:db`                | **794 passed, 29 skipped**, 32 files, **1212.06 s** — up from 786: five completion cases, the two fleet cases, the readable-page case                                               |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing                                                                                                                               |
+| `format:check` (closing) | Clean                                                                                                                                                                               |
+| Leaked `mysqld`          | **None.** Checked after the revert proofs, after e2e, and after the chain                                                                                                           |
+
+Outside the chain, `pnpm test:e2e`: **11 passed** in ~1.7 m — up from 10 with E2E-03c, which
+reads the stored `completedAt` back through the API rather than trusting the screen.
+`pnpm test:vr` was **not run and is not owed**: `packages/ui` is untouched.
+
+---
+
 ## Two more journeys, and the cache key that crashed two screens
 
 `E2E-03` and `AUTH-02` join the browser suite, taking it from 7 journeys to 10. The order of
