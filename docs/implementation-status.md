@@ -470,6 +470,192 @@ are untouched.
 
 ---
 
+## The inbox — INBOX-001's first half and the TM-04 screen
+
+The session of 2026-09-02 opened on a stash: "WIP INBOX-001 read surface scaffold, untested".
+It was popped (by hand — `git stash pop` refused because `pnpm format` had just rewritten
+three CRLF files to LF underneath it; the tracked hunks were applied with `git apply` from
+`git stash show -p` and the stash dropped), typechecked clean on the first run, and then
+finished: the screen, the route, a web suite and a database suite. One thing in it was wrong
+and the database suite found it before any browser did — see "The wiring the stash got wrong".
+
+### What a notification becomes on screen
+
+`22-SCREEN-BY-SCREEN` TM-04: "Tabs: Important, All, Waiting on me, Client actions. Bundles
+show count, latest time, required action. Inline actions reauthorize at execution."
+`35-NOTIFICATION-AND-EMAIL-COPY` §1: "Access is checked when notification is generated and
+again when link/action opens." Four decisions, each a method rather than a sentence:
+
+1. **A row is a reference; the object is resolved at read time, through its own authorized
+   read.** `InboxService.bundle` calls `WorkItemsService.get` / `ClientRequestsService.get`
+   for every bundle and a 404 from either **drops the bundle silently** — no title, no "you
+   cannot see this", no count. That is §1's second check and `24-EVENT-CATALOG` §6's "must not
+   reveal an object after access was revoked". The database suite proves it three ways: a
+   `member` told about work on a project they are not on; a soft-deleted work item; and a
+   `member` told about a client request, which they can never read because
+   `ClientRequestsService.get` demands `client_request.triage` — the third case was written
+   as a _failing_ assertion first (the suite's modes block used the designer and expected the
+   request to appear), and the assertion was the thing that was wrong.
+2. **A bundle is one object.** Five rows about one work item are one line with a count, the
+   unread count, the event types (newest first, each once) and the newest time. The bundle id
+   is `objectType:objectId`, and "mark read" takes exactly that — scoped to organization,
+   recipient and object, so a person who knows another's object id changes nothing of theirs.
+3. **The modes are the planning's words, read literally.** `all`; `waiting_on_me` is what is
+   unread (pushed into the query as `read_at IS NULL`); `client_actions` is a bundle carrying
+   `client_request.submitted.v1`; `important` is `35` §2's "blocker affecting recipient" — a
+   bundle carrying `work_item.blocked.v1`. No ranking and no scoring: `35` §4's "Due today",
+   "Blocks 2 people" need facts no row carries and no endpoint computes.
+4. **The capability is `work.read`, decided rather than invented.** `12-PERMISSION-MATRIX`
+   names no notification capability and NOTIF-001 said the read surface must decide. `work.read`
+   is the one capability every internal role holds and no client role does, which is TM-04's
+   audience exactly. The role-matrix grid carries the row; a client principal gets the same
+   audited 403 as on `/work-items`.
+
+The screen (`InboxScreen.tsx`, route `/{slug}/inbox`) is modelled on `REQ-01`: `aria-pressed`
+mode buttons, a table, "Load more" on the cursor. Two deliberate differences. The buttons carry
+**no counts**, because a mode here is a different query and a count for a mode not on screen
+would be a number the API never gave. And "Mark read" **asks the list again** rather than
+editing the row it holds: the API reauthorizes before it writes, and the screen has no way to
+know what it decided except by reading.
+
+### The cursor runs backwards
+
+Every other list here pages forward on `after`. An inbox is read newest first, ids are UUIDv7,
+so the keyset is `id < before` and a page ends at its oldest row. The contract's `getInbox`
+names the parameter `cursor`; the implementation names it `before`, in the same spirit as the
+other lists' `after`, and this line records the divergence. Three more, same line: the
+contract declares no `limit` and this takes one; it types `bundleId` as a uuid and it is
+`objectType:objectId` here, because a bundle is an object and the object type is what tells
+the screen where to link; and `POST …/inbox/{bundleId}/read` is not in the contract at all —
+TM-04's inline action has an endpoint the contract never drew. A cursor that is not a UUID is
+refused with a 400 naming the field, which the two older `after` cursors do not do; recorded
+rather than retrofitted.
+
+### The wiring the stash got wrong
+
+The stash's `InboxModule` injected `WORK_ITEMS_SERVICE` and `CLIENT_REQUESTS_SERVICE` from
+their modules. Nest refused at boot — the first run of the database suite skipped all fifteen
+cases with "Nest can't resolve dependencies of Symbol(tmanage.InboxService)". Those modules are
+registered through `.register()` and importing one builds a second copy, controllers and all,
+which `ClientsModule` and `ConversationsModule` already document. The fix is theirs: the module
+now constructs its own `WorkItemsService` and `ClientRequestsService` from the global handles
+(`TENANT_DATABASE`, `AUDIT_SERVICE`, `OUTBOX_EVENTS_REPOSITORY`). Both are stateless over the
+same handles, and the inbox only ever calls `get` on them. `typecheck` had passed on the stash;
+this is the kind of thing only a booted application finds, which is why the suite boots one.
+
+### Recorded narrowings
+
+- **Bundles split at page boundaries, and the screen folds them.** A page is `limit` rows,
+  bundled; an object whose rows straddle two pages appears on both, once per page. The API
+  keeps that shape — paging by object is a different query — and the screen merges the two
+  appearances by bundle id (a fleet finding; see below). A reader sees one row.
+- **A page can still be short, never wrong about the end.** Every mode is a predicate in the
+  query (a fleet finding — the first cut filtered two of them after the read), so the only
+  thing a page loses after the read is a bundle whose object this person may no longer see.
+  Such a page says "nothing you can still see on this page" with the cursor beneath it; the
+  absolute "nothing" is said only once the cursor is gone.
+- **One authorized read per bundle.** Each bundle's object is resolved by its own `get`, in
+  sequence, on its own pooled connection (two reads for a client request). A page of a hundred
+  distinct objects is a hundred-odd round trips. Recorded, not batched: a batched authorized
+  multi-get per object type applying the same `mayRead`/`mayTriage` is the right shape and a
+  change to two other services.
+- **Client recipients have no reader yet.** `client_request.transitioned.v1` rows are written
+  to the client who submitted, and no client role holds `work.read`. Those rows accumulate
+  unread until a portal projection exists — INBOX-001's second half, on a portal path of its
+  own like every other client surface. Fail-closed; nothing leaks.
+- **No browser journey.** `e2e/setup/stack.ts` boots the API and the web app and **not the
+  worker**, so no notification row ever exists in the browser stack; an E2E for the inbox needs
+  a drain step there first (the E2E-07 line in the standing list).
+- **No design artifact.** `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §4 has `IN-01` through
+  `IN-05` and no TM-04 row; `docs/design/source` has no inbox artifact, so `audit:design` has
+  nothing to check the screen against.
+- **The rail's href is still org-less.** `navigation.ts` has carried `/inbox` since WEB-001;
+  the route is `/{slug}/inbox`. Fixing it is every rail item at once and is pre-existing.
+- **Quiet hours, digests, channel preferences** need a preferences table the contract does
+  not draw — NOTIF-001's first named gap, unchanged. **TM-05 bundle detail** is not built; a
+  row links straight to its object. **Bulk mark read with an undo interval** is not built; the
+  trigger makes a read row permanent.
+
+### What the fleet found reading the commit, and what it refuted
+
+The five-lens-plus-skeptic shape (six read-only agents, one workflow, twelve minutes) ran on
+the committed slice before the chain, as it has for five sessions now. **18 claims: 13
+confirmed, 5 downgraded, 0 dismissed.** Several reviewers found the same two defects from
+different directions, which is the shape working as intended: a claim that three lenses reach
+independently is not a matter of taste. Deduplicated, and in the order they were fixed:
+
+| Found                                                                                                                                                                                                                                                                                                                    | Verdict                                                                                    | Done                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `important` and `client_actions` filtered bundles **after** the page was read while `nextCursor` came from the raw row count, so a page could be `items: []` with a live cursor — and the screen said "Nothing important is waiting. There is none right now." above a Load more button (four reviewers, one root cause) | confirmed, medium (one reviewer's "high" downgraded)                                       | The type filter is a predicate in the query (`inArray` on `type`), the way `waiting_on_me` already was. Proved by a case that fails on the old shape: `important` with `limit: 1` when the newest row is a submitted request                                                                                           |
+| A bundle straddling a page boundary arrives once per page with one `bundleId`, and the screen keyed `<tr>` on it: two rows, one key, split counts, two Mark read buttons (three reviewers)                                                                                                                               | confirmed, medium (one "high" downgraded: React warns, it does not drop a child)           | The screen folds pages by bundle id — counts add, unread counts add, types union, the newest time wins. Proved by a case that fails on `flatMap`                                                                                                                                                                       |
+| The keyset orders by `id` and cursors on `id < before`, but 0010's only recipient index is on `created_at`, so every page filesorts or walks the primary key discarding other recipients' rows (two reviewers)                                                                                                           | confirmed, medium                                                                          | Migration **0014** adds `ix_notifications_recipient_id (organization_id, recipient_user_id, id)`; the contract's index stays, the dbml divergence is recorded in the migration. No behaviour test — an index is not a behaviour — and the plan was not measured; the fleet's framing was the pessimistic plan, said so |
+| `before` was passed to the query on a truthiness check; `?before=abc` compares greater than every UUID and silently returns the newest page. The two older `after` cursors do the same, so this is house practice, not new                                                                                               | confirmed, low                                                                             | A cursor that is not a UUID is a 400 naming the field. The older cursors are left as they are and this line records the asymmetry                                                                                                                                                                                      |
+| "Mark read"'s `aria-label` (`Mark {title} read`) did not contain its visible text (`Mark read`) — WCAG 2.5.3 Label in Name — and axe's default rule set does not check it                                                                                                                                                | confirmed, low                                                                             | `Mark read: {title}`; the four accessible-name assertions moved with it                                                                                                                                                                                                                                                |
+| A failed mark read's alert stayed on screen across a mode switch, naming no row                                                                                                                                                                                                                                          | confirmed, low                                                                             | `markRead.reset()` on mode change. Proved by a case that fails without it                                                                                                                                                                                                                                              |
+| `list` defaulted to the ceiling (200) rather than `DEFAULT_NOTIFICATION_PAGE`, the screen always asked for 200, and each bundle costs one sequential authorized `get` (two for a client request), each on its own pooled connection (four reviewers)                                                                     | confirmed, low–medium; "against a 5-connection pool" downgraded: sequential reads hold one | Default and screen page are 100. The per-bundle read **stays** and is recorded below: a batched authorized multi-get per object type is the right shape and a different change                                                                                                                                         |
+| The `work.read` guard means `client_request.transitioned.v1` rows — written to the **client** who submitted — have no reader; the controller's comment cited `CL-08 Updates` as one, and `22` §CL-08 is a feed of published status updates, not an inbox                                                                 | downgraded to low: fail-closed, nothing leaks, nothing breaks                              | The comment now says the rows have no reader until a portal projection exists (INBOX-001's second half), and the gap is in the narrowings above                                                                                                                                                                        |
+| `getInbox` diverges from `contracts/openapi.yaml` on the cursor name, an undeclared `limit`, `bundleId` typed as uuid, and an undeclared `POST …/read`                                                                                                                                                                   | downgraded to low: no generated client exists to break                                     | Recorded in "The cursor runs backwards" above, now including the undeclared endpoint and `limit`                                                                                                                                                                                                                       |
+
+Everything the fleet checked and found sound is in its notes: the recipient is pinned in
+both queries, the 404 drop covers absent, soft-deleted, `!mayRead` and `!mayTriage` alike, no
+suite enumerates routes so the new module changes no count, every internal role holds
+`work.read` so the grid gains zero refusals, `current_timestamp(3)` is the codebase's
+convention under a per-connection `+00:00` session zone, `affectedRows` is the shape the other
+repositories read, and the field names match wire to screen.
+
+**Two proofs by reverting**, as always. With the three screen fixes undone, exactly the three
+new web cases failed and the six older ones passed. With the query predicate and the cursor
+check undone, the predicate case and the 400 case failed — and so did the three mode cases
+that need any filter at all, which is the filter being load-bearing rather than the test
+being loose.
+
+### Ticket accounting
+
+**INBOX-001 moves from zero to half** (+4 points): modes, bundles and the inline action are
+built and proved; quiet hours are not, and cannot be without preferences. **WEB-010 stays at
+zero**: the ticket is "Home/Inbox/Search/Admin screens, 13→split", one of four screens is
+built, and a quarter of a split ticket is not a half. **32½ of 70 tickets, 264 of 583 points
+(45.3%).**
+
+### What is next
+
+The standing list, unchanged: more journeys blocked on FILE-001, deliverables and audit
+export; the internal manager mail fan-out blocked on policy (no preferences table — not
+without Peter); the MariaDB run for 0012 and 0013 blocked on re-downloading the zip (Peter's
+call); a members endpoint so the owner fields can be a picker. New from this slice: the
+e2e stack needs the worker (or a drain step) before an inbox journey can exist; and paging
+by object rather than by row, if the straddling bundle ever matters in practice.
+
+---
+
+## Verification actually run — 2026-09-02, the inbox session
+
+The full chain, in one uninterrupted background run so that nothing was edited underneath it.
+`~24 m` wall, **exit 0**. Order, as it happened: the slice was committed; the fleet ran on
+that commit and its findings were fixed and committed; the revert proofs ran on the two single
+suites they concern; `pnpm test:e2e` ran **before** the chain; then the chain.
+
+```bash
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db && pnpm audit:design && pnpm format:check
+```
+
+| Gate                     | Result                                                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check` (opening) | Clean. Run **after** `pnpm format`; every changed file counted zero CR bytes before the chain                                                                              |
+| `typecheck`              | Clean — including the stash's scaffold on its very first run, which is worth saying because the module wiring it got wrong is not a type error                             |
+| `lint`                   | Clean                                                                                                                                                                      |
+| `test` (unit)            | **1022 passed**, 58 files — up from 1013: the nine inbox screen cases (six with the slice, three from the fleet)                                                           |
+| `test:db`                | **811 passed, 29 skipped**, 33 files, **1138.40 s** — up from 794: the seventeen inbox cases, including the two the fleet added; migration 0014 applied under the migrator |
+| `audit:design`           | **172/172** screen IDs across 29 artifacts, 0 missing — TM-04 cites no design artifact because none exists, so the audit has nothing to hold it to                         |
+| `format:check` (closing) | Clean                                                                                                                                                                      |
+| Leaked `mysqld`          | **None.** Checked after each single-suite run, after the two revert proofs, after e2e, and after the chain                                                                 |
+
+Outside the chain, `pnpm test:e2e`: **11 passed** in ~1.6 m, unchanged — no inbox journey, for
+the reason the narrowings give. `pnpm test:vr` was **not run and is not owed**: `packages/ui`
+is untouched.
+
+---
+
 ## Four defects, closed together — and what the fleet found reading the fix
 
 The 2026-08-31 session recorded four defects under "Found, real, and deliberately not fixed
@@ -990,7 +1176,7 @@ those is the natural next producer. Delivery is synchronous in the request; on a
 relay the issue request waits for it.
 
 **Ticket arithmetic.** No scheduled ticket names a mailer, so the count does not move:
-**32 of 70 tickets, 260 of 583 points (44.6%).**
+**32½ of 70 tickets, 264 of 583 points (45.3%).**
 
 ---
 
@@ -7003,47 +7189,48 @@ when everything its own §-row's Scope column names is built and covered by a ch
 actually run; **half** when a named part of that scope is built and tested and another named part
 is absent; **zero** otherwise. Halves are recorded against the reason, never rounded away.
 
-| §   | Ticket     |  SP | Counted  | Why                                                                                                                                                                              |
-| --- | ---------- | --: | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3   | PLAT-001   |   5 | whole 5  | Workspace, shared config and the ownership boundaries, the last enforced as lint errors and proven to fire                                                                       |
-| 3   | PLAT-002   |   5 | half 2.5 | Environment validation is tested (25 cases). The compose stack has **never been started** — no runtime here                                                                      |
-| 3   | PLAT-003   |   8 | half 4   | Workflow, gitleaks and the scans are written. The workflow has never run and will not; artifact signing is deferred                                                              |
-| 3   | OBS-001    |   5 | 0        | Not started                                                                                                                                                                      |
-| 3   | DATA-001   |   5 | whole 5  | Migrator, UUIDv7, the two database roles                                                                                                                                         |
-| 3   | AUTHZ-001  |   8 | whole 8  | Tenant context, scoped repository, composite constraints, the corpus                                                                                                             |
-| 3   | PLAT-004   |   8 | whole 8  | Tables, audit, idempotency **and the relay**: producers, dispatcher (backoff, parking, both run modes) and the lifecycle consumer, proved against the server                     |
-| 3   | UI-001     |   8 | whole    | Token package, **21 primitives — the eight specified ones landed 2026-08-30**, Storybook, the visual-regression harness at 108 baselines, and an adversarially-reviewed combobox |
-| 4   | ID-001     |   8 | whole 8  | Session cookie, rotation, reuse detection, CSRF, driven through real HTTP                                                                                                        |
-| 4   | ID-002     |   8 | half 4   | Argon2id, TOTP, recovery codes, 213 cases. **Passkeys are in the row's own scope** and are not built; nor are SSO or password recovery                                           |
-| 4   | TEN-001    |   8 | whole 8  | Organization, workspace, membership, provisioning, the directory                                                                                                                 |
-| 4   | TEN-002    |   8 | whole 8  | Roles, capabilities, the evaluator, and the principal assembly that wires it                                                                                                     |
-| 4   | TEN-003    |   5 | whole 5  | Issue, accept, revoke, expiry; a hashed single-use token                                                                                                                         |
-| 4   | AUD-001    |   5 | whole 5  | The service, the view model, the first producer                                                                                                                                  |
-| 4   | WEB-001    |   8 | whole 8  | Nine screens, four shells, all wired. The `BackendPending` notices on five of them point at **other tickets'** servers, not at unwritten WEB-001 work                            |
-| 4   | TEST-001   |   8 | whole 8  | The seed, the tenant corpus, and — since 2026-08-30 — the generated role grid: every cell derived from the ceiling, every refusal a counted security event                       |
-| 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                                     |
-| 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                                                  |
-| 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                                        |
-| 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal                              |
-| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled                    |
-| 5   | TEST-002   |   8 | whole 8  | Unit, integration, auth — and the deterministic performance fixture over a real `packages/test-kit`, plans and volume, never a stopwatch                                         |
-| 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                                      |
-| 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                                    |
-| 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                                    |
-| 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else                      |
-| 6   | NOTIF-001  |   8 | half 4   | The record and its consumers, permission-checked at delivery, idempotent by the dedupe key. **Preferences are absent** — the contract draws no table for them                    |
-| 6   | RT-001     |  13 | whole 13 | Tickets, current-row subscriptions, cursor served and gaps healed by refetch — both ends of the wire. Presence is not in the row and stays named on the screen                   |
-| 6   | TEST-003   |   8 | half 4   | E2E-02 and AUTH-04 run through a real Chromium against the real stack, outside the chain. REL-01/02 need a load balancer this plan does not have                                 |
-| 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                                                |
-| 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                                          |
-| 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                                      |
-| 7   | REQ-002    |   8 | whole 8  | Triage, clarify, and an acceptance that is one transaction with its work                                                                                                         |
-| 7   | WEB-004    |  13 | whole 13 | `CL-01`, `CL-02`, `CL-09`, `CL-10`                                                                                                                                               |
-| 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                                     |
-| 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                                    |
+| §   | Ticket     |  SP | Counted  | Why                                                                                                                                                                                                                     |
+| --- | ---------- | --: | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3   | PLAT-001   |   5 | whole 5  | Workspace, shared config and the ownership boundaries, the last enforced as lint errors and proven to fire                                                                                                              |
+| 3   | PLAT-002   |   5 | half 2.5 | Environment validation is tested (25 cases). The compose stack has **never been started** — no runtime here                                                                                                             |
+| 3   | PLAT-003   |   8 | half 4   | Workflow, gitleaks and the scans are written. The workflow has never run and will not; artifact signing is deferred                                                                                                     |
+| 3   | OBS-001    |   5 | 0        | Not started                                                                                                                                                                                                             |
+| 3   | DATA-001   |   5 | whole 5  | Migrator, UUIDv7, the two database roles                                                                                                                                                                                |
+| 3   | AUTHZ-001  |   8 | whole 8  | Tenant context, scoped repository, composite constraints, the corpus                                                                                                                                                    |
+| 3   | PLAT-004   |   8 | whole 8  | Tables, audit, idempotency **and the relay**: producers, dispatcher (backoff, parking, both run modes) and the lifecycle consumer, proved against the server                                                            |
+| 3   | UI-001     |   8 | whole    | Token package, **21 primitives — the eight specified ones landed 2026-08-30**, Storybook, the visual-regression harness at 108 baselines, and an adversarially-reviewed combobox                                        |
+| 4   | ID-001     |   8 | whole 8  | Session cookie, rotation, reuse detection, CSRF, driven through real HTTP                                                                                                                                               |
+| 4   | ID-002     |   8 | half 4   | Argon2id, TOTP, recovery codes, 213 cases. **Passkeys are in the row's own scope** and are not built; nor are SSO or password recovery                                                                                  |
+| 4   | TEN-001    |   8 | whole 8  | Organization, workspace, membership, provisioning, the directory                                                                                                                                                        |
+| 4   | TEN-002    |   8 | whole 8  | Roles, capabilities, the evaluator, and the principal assembly that wires it                                                                                                                                            |
+| 4   | TEN-003    |   5 | whole 5  | Issue, accept, revoke, expiry; a hashed single-use token                                                                                                                                                                |
+| 4   | AUD-001    |   5 | whole 5  | The service, the view model, the first producer                                                                                                                                                                         |
+| 4   | WEB-001    |   8 | whole 8  | Nine screens, four shells, all wired. The `BackendPending` notices on five of them point at **other tickets'** servers, not at unwritten WEB-001 work                                                                   |
+| 4   | TEST-001   |   8 | whole 8  | The seed, the tenant corpus, and — since 2026-08-30 — the generated role grid: every cell derived from the ceiling, every refusal a counted security event                                                              |
+| 5   | PROJ-001   |   8 | whole 8  | Schema, service, repositories, creation, the workspace list, the client link                                                                                                                                            |
+| 5   | WORK-001   |   8 | whole 8  | The aggregate and the state machine, asked rather than restated                                                                                                                                                         |
+| 5   | WORK-002   |   8 | whole 8  | List, read, create, update, version token — and the cursor, evidenced by three keyset cases on 2026-08-30                                                                                                               |
+| 5   | WORK-003   |   8 | whole 8  | The blocker ledger (one active per item, engine-enforced), immutable acyclic edges with audited removal, and the explainable computed health signal                                                                     |
+| 5   | WEB-002    |  13 | half 6.5 | `TM-03`, `TM-10`, `TM-13`, plus paging, sorting, selection and the previewed bulk audience change. Saved views alone are absent — no server home is scheduled                                                           |
+| 5   | TEST-002   |   8 | whole 8  | Unit, integration, auth — and the deterministic performance fixture over a real `packages/test-kit`, plans and volume, never a stopwatch                                                                                |
+| 6   | CHAT-001   |   8 | whole 8  | Conversations, memberships, messages, the thread model and the sequence allocator, proved under concurrency                                                                                                             |
+| 6   | CHAT-002   |   8 | whole 8  | The allowlist as a closed grammar, the write-boundary sanitiser, the derived plain body, and the engine-authored edit history                                                                                           |
+| 6   | CHAT-003   |   8 | whole 8  | The conversion whose idempotency is the link table's own unique key, proved under a real race                                                                                                                           |
+| 6   | WEB-003    |  13 | whole 13 | `TM-06`, `TM-08`, `TM-09`, plus the rich composer (notation to CHAT-002's grammar, never HTML) and sequence-cursor paging. The scope row names nothing else                                                             |
+| 6   | NOTIF-001  |   8 | half 4   | The record and its consumers, permission-checked at delivery, idempotent by the dedupe key. **Preferences are absent** — the contract draws no table for them                                                           |
+| 6   | RT-001     |  13 | whole 13 | Tickets, current-row subscriptions, cursor served and gaps healed by refetch — both ends of the wire. Presence is not in the row and stays named on the screen                                                          |
+| 6   | TEST-003   |   8 | half 4   | E2E-02 and AUTH-04 run through a real Chromium against the real stack, outside the chain. REL-01/02 need a load balancer this plan does not have                                                                        |
+| 7   | CLIENT-001 |   8 | whole 8  | Thirteen routes, the client-admin boundary proved from both sides                                                                                                                                                       |
+| 7   | CLIENT-002 |   8 | whole 8  | The portal, its own path, the field-by-field projection                                                                                                                                                                 |
+| 7   | REQ-001    |   8 | whole 8  | The aggregate, the API, the two projections                                                                                                                                                                             |
+| 7   | REQ-002    |   8 | whole 8  | Triage, clarify, and an acceptance that is one transaction with its work                                                                                                                                                |
+| 7   | WEB-004    |  13 | whole 13 | `CL-01`, `CL-02`, `CL-09`, `CL-10`                                                                                                                                                                                      |
+| 7   | WEB-005    |   8 | whole 8  | `REQ-01`, `REQ-02`, `REQ-03`                                                                                                                                                                                            |
+| 7   | SEC-001    |   8 | whole 8  | The interceptor with a caller, and §11's grid over operations                                                                                                                                                           |
+| 8   | INBOX-001  |   8 | half 4   | Modes, bundles resolved through the object's own authorized read, the inline mark-read reauthorized before it writes. **Quiet hours are absent** — they need the preferences table NOTIF-001 already records as missing |
 
 Every other ticket in §§3–12 — two of Sprint 3's seven (RT-001, TEST-003), and all of
-Sprints 5 through 9 — is zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint
+Sprints 5 through 9 but INBOX-001 (half, 2026-09-02) — is zero. **CHAT-001 was added to this table on 2026-08-26** as Sprint
 3's first entry, **CHAT-002 on 2026-08-29** as its second, **CHAT-003 on 2026-08-30** as its
 third, and **WEB-003's first half the same day** as its fourth. **On 2026-08-30 the rows of
 PLAT-004 and WEB-003 moved from half to whole, NOTIF-001 joined at half, and WORK-003 moved
@@ -7056,8 +7243,8 @@ from zero to whole** — the relay session's four tickets.
 | Sprint 2 (§5)                                                                                   | 5½ of 6       | 46.5 of 53     |
 | Sprint 3 (§6)                                                                                   | 6 of 7        | 58 of 66       |
 | Sprint 4 (§7)                                                                                   | **7 of 7**    | **61 of 61**   |
-| Sprints 5–9                                                                                     | 0 of 34       | 0 of 293       |
-| **§§3–12**                                                                                      | **31½ of 70** | **256 of 583** |
+| Sprints 5–9                                                                                     | ½ of 34       | 4 of 293       |
+| **§§3–12**                                                                                      | **32½ of 70** | **264 of 583** |
 | **As re-derived, before CHAT-001: 22½ of 70 tickets and 174 of 583 story points — 29.8%.** That |
 | was lower than the 31% this file used to quote, against a denominator that is smaller as well:  |
 | the old figure was optimistic in the numerator and inflated in the denominator, and the two     |
@@ -7579,7 +7766,7 @@ at send (it does — any check-then-send has that gap, and moving the check only
 
 ### Progress
 
-**32 of 70 tickets. 260 of 583 story points — 44.6%, across Sprints 0–9.** UI-001 closed whole on 2026-08-30, the only row that moved since the re-derivation below was written. Derived ticket by
+**32½ of 70 tickets. 264 of 583 story points — 45.3%, across Sprints 0–9.** INBOX-001 moved to half on 2026-09-02 and UI-001 closed whole on 2026-08-30, the only rows that moved since the re-derivation below was written. Derived ticket by
 ticket against `28-SPRINT-TICKETS` §§3–12, with the rule and the per-ticket reasons written out
 in "The progress count, re-derived rather than re-quoted" above. That re-derivation replaced the
 "27½ of 74 tickets, 191 of 615, about 31%" this section used to carry, which was wrong in the
