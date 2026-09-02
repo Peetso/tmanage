@@ -15,6 +15,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
+import { InboxModule } from './modules/inbox/inbox.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
@@ -97,6 +98,11 @@ export class AppModule {
         // After `WorkModule`: REQ-001 reads a work item to answer 422 rather than 500 when an
         // acceptance links to one that is not in this tenant.
         RequestsModule.register(),
+        // INBOX-001. Every notification's object is resolved through `WorkItemsService.get`
+        // and `ClientRequestsService.get` — the same authorized reads those modules serve —
+        // never through a read path of the inbox's own. The module constructs its own
+        // instances of both (see its doc), so its position here is by subject, not by need.
+        InboxModule.register(),
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),

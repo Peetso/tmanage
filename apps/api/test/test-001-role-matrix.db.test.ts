@@ -117,6 +117,8 @@ const GRID: readonly { readonly path: string; readonly capability: Capability }[
   { path: '/client-requests', capability: 'client_request.triage' },
   { path: '/conversations', capability: 'conversation.read' },
   { path: '/invitations', capability: 'org.manage' },
+  // INBOX-001: the inbox is guarded by `work.read` on purpose — see `InboxController`.
+  { path: '/inbox', capability: 'work.read' },
 ];
 
 /*

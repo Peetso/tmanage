@@ -1,0 +1,256 @@
+import type { Principal } from '@tmanage/domain';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { NotificationRow } from '../../common/database/schema.js';
+import { MAX_NOTIFICATION_PAGE, NotificationsRepository } from './notifications.repository.js';
+import type { ClientRequestsService } from '../requests/client-requests.service.js';
+import type { WorkItemsService } from '../work/work-items.service.js';
+
+/**
+ * INBOX-001, first half — the read surface over NOTIF-001's rows, as **bundles**.
+ *
+ * `22-SCREEN-BY-SCREEN` TM-04: "Bundles show count, latest time, required action. Inline
+ * actions reauthorize at execution." `35-NOTIFICATION-AND-EMAIL-COPY` §1: "Access is checked
+ * when notification is generated and again when link/action opens." Three decisions follow,
+ * and each is the shape of a method here rather than a sentence in a comment:
+ *
+ * 1. **A notification carries no content, so the inbox resolves the object at read time.**
+ *    The row is a reference envelope — type, object type, object id — by NOTIF-001's design,
+ *    because a notification outlives the access decision that allowed it. This service turns
+ *    the reference back into a title by calling the ordinary authorized read for the object
+ *    (`WorkItemsService.get`, `ClientRequestsService.get`), and a **404 from that read drops
+ *    the bundle silently**. That is §1's second check: a person whose access was revoked
+ *    between the event and their next visit sees nothing, not a title they may no longer
+ *    read, and not a "you cannot see this" that confirms the object exists.
+ * 2. **A bundle is one object.** Five rows about the same work item are one line with a
+ *    count, `35` §4's "`{project} · {count} updates`" without the project, which no row
+ *    carries. The bundle id is `objectType:objectId`, which is also what "mark read" takes —
+ *    the inline action is scoped to the recipient's own rows about that object and nothing
+ *    else.
+ * 3. **The modes are the ones the planning names, read literally.** `all` is everything;
+ *    `waiting_on_me` is what is unread; `client_actions` is what a client did (a submitted
+ *    request); `important` is `35` §2's "Important update: blocker affecting recipient" — a
+ *    bundle carrying `work_item.blocked.v1`. No ranking, no scoring: "why important" on this
+ *    surface is the type of the event, said in words by the screen.
+ *
+ * ## What is deliberately not here
+ *
+ * Quiet hours, digests and channel choice need preferences, which the contract draws no
+ * table for — NOTIF-001's first named gap, unchanged. Bundles split at page boundaries: a
+ * page is `limit` rows, bundled, and an object whose rows straddle two pages appears on both.
+ * Read state syncs across devices by being a column, which TM-04 asks for; "bulk mark read
+ * reversible for a short interval" is not built — the trigger makes a read row permanent.
+ */
+
+export type InboxMode = 'important' | 'all' | 'waiting_on_me' | 'client_actions';
+
+export const INBOX_MODES: readonly InboxMode[] = [
+  'important',
+  'all',
+  'waiting_on_me',
+  'client_actions',
+];
+
+export function isInboxMode(value: string): value is InboxMode {
+  return (INBOX_MODES as readonly string[]).includes(value);
+}
+
+/** One object, however many notifications about it. */
+export interface InboxBundleView {
+  /** `objectType:objectId`. What "mark read" takes. */
+  readonly bundleId: string;
+  readonly objectType: 'work_item' | 'client_request';
+  readonly objectId: string;
+  /** The object's title, read through the authorized path at the time of this request. */
+  readonly title: string;
+  /** The object's current state, from the same read. */
+  readonly state: string;
+  readonly projectId: string;
+  readonly count: number;
+  readonly unreadCount: number;
+  /** The event types in this bundle, newest first, each once. */
+  readonly types: readonly string[];
+  readonly latestAt: string;
+  /** `openapi.yaml`'s `action` — what the screen offers. Reauthorized when it is taken. */
+  readonly action: { readonly kind: 'open' };
+}
+
+export interface InboxPageView {
+  readonly items: readonly InboxBundleView[];
+  /** The id of the oldest notification row this page bundled, or `null` at the end. */
+  readonly nextCursor: string | null;
+}
+
+export interface ListInboxOptions {
+  readonly mode?: InboxMode;
+  readonly before?: string;
+  readonly limit?: number;
+}
+
+const BLOCKED_TYPE = 'work_item.blocked.v1';
+const CLIENT_ACTION_TYPES: readonly string[] = ['client_request.submitted.v1'];
+
+export class InboxService {
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly workItems: WorkItemsService,
+    private readonly requests: ClientRequestsService,
+    private readonly notifications: NotificationsRepository = new NotificationsRepository(),
+  ) {}
+
+  /**
+   * The recipient's inbox, one page of rows bundled by object.
+   *
+   * The recipient is `principal.userId` and nothing a request can name. `waiting_on_me` is
+   * pushed into the query as `unreadOnly`; the other modes filter the bundles after the
+   * object read, because they are about event types and a row's type is already in hand.
+   */
+  async list(
+    context: TenantContext,
+    principal: Principal,
+    options: ListInboxOptions = {},
+  ): Promise<InboxPageView> {
+    const mode = options.mode ?? 'all';
+    const limit = Math.min(
+      Math.max(options.limit ?? MAX_NOTIFICATION_PAGE, 1),
+      MAX_NOTIFICATION_PAGE,
+    );
+
+    const rows = await this.database.read(context, (runner) =>
+      this.notifications.listForRecipient(runner, context, principal.userId, {
+        limit,
+        ...(options.before === undefined ? {} : { before: options.before }),
+        ...(mode === 'waiting_on_me' ? { unreadOnly: true } : {}),
+      }),
+    );
+
+    const bundles = await this.bundle(context, principal, rows);
+    const items = bundles.filter((bundle) => {
+      if (mode === 'important') return bundle.types.includes(BLOCKED_TYPE);
+      if (mode === 'client_actions') {
+        return bundle.types.some((type) => CLIENT_ACTION_TYPES.includes(type));
+      }
+      return true;
+    });
+
+    const oldest = rows[rows.length - 1];
+    return {
+      items,
+      nextCursor: rows.length === limit && oldest ? oldest.id : null,
+    };
+  }
+
+  /**
+   * The inline action: mark every row of one bundle read, for this recipient only.
+   *
+   * Reauthorized at execution, as TM-04 asks: the object is read through the same authorized
+   * path the list uses **before** anything is written, so a person whose access to the object
+   * has gone cannot even mark its notifications read — the bundle is not theirs to see, and
+   * the answer is the same 404 the list would have hidden it behind.
+   */
+  async markBundleRead(
+    context: TenantContext,
+    principal: Principal,
+    bundleId: string,
+  ): Promise<{ readonly bundleId: string; readonly marked: number }> {
+    const parsed = parseBundleId(bundleId);
+    if (!parsed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+
+    const resolved = await this.resolve(context, principal, parsed.objectType, parsed.objectId);
+    if (!resolved) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+
+    const marked = await this.database.transaction(context, (tx) =>
+      this.notifications.markRead(tx, context, principal.userId, parsed),
+    );
+    return { bundleId, marked };
+  }
+
+  private async bundle(
+    context: TenantContext,
+    principal: Principal,
+    rows: readonly NotificationRow[],
+  ): Promise<readonly InboxBundleView[]> {
+    // Newest first is the row order; a Map keeps insertion order, so the first row seen for
+    // an object is its latest and the bundle order is "most recently touched first".
+    const byObject = new Map<string, NotificationRow[]>();
+    for (const row of rows) {
+      const key = `${row.objectType}:${row.objectId}`;
+      const group = byObject.get(key);
+      if (group) group.push(row);
+      else byObject.set(key, [row]);
+    }
+
+    const bundles: InboxBundleView[] = [];
+    for (const [bundleId, group] of byObject) {
+      const first = group[0];
+      if (!first) continue;
+      const objectType = first.objectType;
+      if (objectType !== 'work_item' && objectType !== 'client_request') {
+        // A type this surface cannot resolve — a producer this half does not know. Skipped
+        // rather than rendered as an id, and not an error: the row is real and someone else's
+        // reader may know it.
+        continue;
+      }
+      const resolved = await this.resolve(context, principal, objectType, first.objectId);
+      if (!resolved) continue; // §1's second check: revoked means silent.
+
+      const types: string[] = [];
+      for (const row of group) if (!types.includes(row.type)) types.push(row.type);
+
+      bundles.push({
+        bundleId,
+        objectType,
+        objectId: first.objectId,
+        title: resolved.title,
+        state: resolved.state,
+        projectId: resolved.projectId,
+        count: group.length,
+        unreadCount: group.filter((row) => row.readAt === null).length,
+        types,
+        latestAt: first.createdAt.toISOString(),
+        action: { kind: 'open' },
+      });
+    }
+    return bundles;
+  }
+
+  /**
+   * The object behind a notification, through its own authorized read. `null` for a 404 —
+   * absent, deleted, or no longer this person's to see — and every other failure propagates,
+   * because a database fault must not read as "nothing for you".
+   */
+  private async resolve(
+    context: TenantContext,
+    principal: Principal,
+    objectType: 'work_item' | 'client_request',
+    objectId: string,
+  ): Promise<{
+    readonly title: string;
+    readonly state: string;
+    readonly projectId: string;
+  } | null> {
+    try {
+      if (objectType === 'work_item') {
+        const view = await this.workItems.get(context, principal, objectId);
+        return { title: view.title, state: view.state, projectId: view.projectId };
+      }
+      const view = await this.requests.get(context, principal, objectId);
+      return { title: view.title, state: view.state, projectId: view.projectId };
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  }
+}
+
+function parseBundleId(
+  bundleId: string,
+): { readonly objectType: 'work_item' | 'client_request'; readonly objectId: string } | null {
+  const separator = bundleId.indexOf(':');
+  if (separator <= 0) return null;
+  const objectType = bundleId.slice(0, separator);
+  const objectId = bundleId.slice(separator + 1);
+  if (objectType !== 'work_item' && objectType !== 'client_request') return null;
+  if (objectId === '') return null;
+  return { objectType, objectId };
+}
