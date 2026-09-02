@@ -197,3 +197,71 @@ export async function withdrawClientRequest(
   });
   return data;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The client inbox — INBOX-001's second half.
+
+export type PortalInboxMode = 'all' | 'unread';
+
+/**
+ * One request and every notification the client has about it.
+ *
+ * `status` is the client-safe word `CL-06` uses, never an internal state; `requestId` is the
+ * link target. There is no `objectType` because the portal has one bundle kind, and no
+ * person because the projection has none.
+ */
+export interface PortalInboxBundle {
+  readonly bundleId: string;
+  readonly requestId: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly status: ClientRequestStatus;
+  readonly count: number;
+  readonly unreadCount: number;
+  readonly types: readonly string[];
+  readonly latestAt: string;
+  readonly action: { readonly kind: 'open' };
+}
+
+export interface PortalInboxPage {
+  readonly items: readonly PortalInboxBundle[];
+  readonly nextCursor: string | null;
+}
+
+/** The page the screen asks for — the API's default, for the internal inbox's reason. */
+export const DEFAULT_PORTAL_INBOX_PAGE = 100;
+
+export interface ListPortalInboxQuery {
+  readonly mode?: PortalInboxMode;
+  readonly before?: string;
+  readonly limit?: number;
+}
+
+export async function listPortalInbox(
+  client: ApiClient,
+  organizationSlug: string,
+  query: ListPortalInboxQuery = {},
+): Promise<PortalInboxPage> {
+  const parameters = new URLSearchParams();
+  if (query.mode) parameters.set('mode', query.mode);
+  if (query.before) parameters.set('before', query.before);
+  if (query.limit !== undefined) parameters.set('limit', String(query.limit));
+  const suffix = parameters.size === 0 ? '' : `?${parameters.toString()}`;
+
+  const { data } = await client.request<PortalInboxPage>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/inbox${suffix}`,
+  });
+  return data;
+}
+
+export async function markPortalBundleRead(
+  client: ApiClient,
+  organizationSlug: string,
+  bundleId: string,
+): Promise<{ readonly bundleId: string; readonly marked: number }> {
+  const { data } = await client.request<{ readonly bundleId: string; readonly marked: number }>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/inbox/${encodeURIComponent(bundleId)}/read`,
+  });
+  return data;
+}

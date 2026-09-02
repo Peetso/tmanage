@@ -47,5 +47,6 @@ export const CONVERSATIONS_SERVICE = Symbol.for('tmanage.ConversationsService');
 export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');
 export const NOTIFICATIONS_REPOSITORY = Symbol.for('tmanage.NotificationsRepository');
 export const INBOX_SERVICE = Symbol.for('tmanage.InboxService');
+export const PORTAL_INBOX_SERVICE = Symbol.for('tmanage.PortalInboxService');
 export const MAILER = Symbol.for('tmanage.Mailer');
 export const INVITATION_MAILER = Symbol.for('tmanage.InvitationMailer');

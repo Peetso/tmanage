@@ -5,6 +5,7 @@ import {
   INBOX_SERVICE,
   NOTIFICATIONS_REPOSITORY,
   OUTBOX_EVENTS_REPOSITORY,
+  PORTAL_INBOX_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -19,6 +20,8 @@ import { WorkItemsService } from '../work/work-items.service.js';
 import { InboxController } from './inbox.controller.js';
 import { InboxService } from './inbox.service.js';
 import { NotificationsRepository } from './notifications.repository.js';
+import { PortalInboxController } from './portal-inbox.controller.js';
+import { PortalInboxService } from './portal-inbox.service.js';
 
 /**
  * INBOX-001's wiring.
@@ -33,6 +36,12 @@ import { NotificationsRepository } from './notifications.repository.js';
  * `AUDIT_SERVICE`, `OUTBOX_EVENTS_REPOSITORY`), so a second instance answers `get` exactly as
  * the first does, and the reads this module performs never write: the audit and outbox
  * handles are wired because the constructors take them, not because the inbox uses them.
+ *
+ * The second half — the client's inbox on the portal path — is wired here too, with its own
+ * `ClientRequestsService` instance, because it resolves every row through `getForClient` and
+ * nothing else. It shares the repository that names a recipient and no other code path with
+ * the internal inbox; that separation is the point of a portal route, and keeping both in
+ * one module is a wiring convenience that does not blur it.
  */
 @Module({})
 export class InboxModule {
@@ -73,11 +82,35 @@ export class InboxModule {
         ),
     };
 
+    const portal: Provider = {
+      provide: PORTAL_INBOX_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY, NOTIFICATIONS_REPOSITORY],
+      useFactory: (
+        database: TenantDatabase,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+        notifications: NotificationsRepository,
+      ) =>
+        new PortalInboxService(
+          database,
+          new ClientRequestsService(
+            database,
+            new ClientRequestsRepository(),
+            audit,
+            new ProjectsRepository(),
+            new WorkItemsRepository(),
+            new ClientOrganizationsRepository(),
+            outbox,
+          ),
+          notifications,
+        ),
+    };
+
     return {
       module: InboxModule,
-      providers: [repository, service],
-      exports: [service],
-      controllers: [InboxController],
+      providers: [repository, service, portal],
+      exports: [service, portal],
+      controllers: [InboxController, PortalInboxController],
     };
   }
 }

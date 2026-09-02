@@ -122,14 +122,17 @@ const GRID: readonly { readonly path: string; readonly capability: Capability }[
 ];
 
 /*
- * A row this grid deliberately does NOT have, recorded because its absence was a finding:
- * `/portal/requests` (capability `client_request.submit`). The owner and org_admin
- * ceilings include the capability, so the guard passes them — and the portal service then
- * refuses any internal principal with its own 403, because a request with no client
- * organization is a row the table cannot hold. That refusal is object-level, already
- * proved in the REQ-001 suite, and exactly the layer §3 says the guard must not be
- * mistaken for ("route guards are UX only"). This harness is about the guard; a cell
- * whose allowed half is answered by a deeper layer does not belong in it.
+ * Two rows this grid deliberately does NOT have, recorded because each absence was a
+ * finding: `/portal/requests` and, since INBOX-001's second half, `/portal/inbox` (both
+ * capability `client_request.submit`). The owner and org_admin ceilings include the
+ * capability, so the guard passes them — and the portal services then refuse any internal
+ * principal with their own 403, because a request with no client organization is a row the
+ * table cannot hold. That refusal is object-level, already proved in the REQ-001 suite and
+ * in `inbox-001-portal-inbox.db.test.ts`, and exactly the layer §3 says the guard must not
+ * be mistaken for ("route guards are UX only"). This harness is about the guard; a cell
+ * whose allowed half is answered by a deeper layer does not belong in it. The `/portal/inbox`
+ * row was written into this grid first and failed for owner and org_admin, which is the
+ * finding restated by a test rather than a comment.
  */
 
 /** One person per internal role, seeded directly — the matrix needs every column. */

@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-01 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-02 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,27 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-02, start of the client-inbox session
+
+The **twenty-fourth** consecutive run, and the table below is this run's output rather than a copy
+of the previous one. Every pair was compared by SHA-256 and, separately, by modification time —
+pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                          |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                           |
+| Modification times                        | **No pack file is newer than its copy** in either scope. 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later; one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. Unchanged from the twenty-third run       |
+| Uncopied pack content                     | The same six as the twenty-third run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                           |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
 
 ---
 

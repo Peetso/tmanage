@@ -247,6 +247,8 @@ function RequestsSection({ organizationSlug, providerName, requests }: RequestsS
 
       <p className="tm-prose">
         <Link href={`/${organizationSlug}/portal/requests/new`}>Ask for something</Link>
+        {' · '}
+        <Link href={`/${organizationSlug}/portal/inbox`}>What has changed</Link>
         {requests.length > recent.length ? (
           <>
             {' · '}
