@@ -41,6 +41,13 @@ export interface ListNotificationsOptions {
   readonly unreadOnly?: boolean;
   /** Only rows of these event types. Omitted or empty, every type. */
   readonly types?: readonly string[];
+  /**
+   * Only rows about these object types. Omitted or empty, every object type. The portal inbox
+   * passes `['client_request']`: a client has no authorized read of anything else, and a
+   * predicate keeps a page of `limit` rows a page of resolvable rows, where a skip after the
+   * read would let a page be empty beneath a live cursor.
+   */
+  readonly objectTypes?: readonly string[];
 }
 
 export const DEFAULT_NOTIFICATION_PAGE = 100;
@@ -65,6 +72,9 @@ export class NotificationsRepository {
     if (options.unreadOnly) predicates.push(isNull(notifications.readAt));
     if (options.types && options.types.length > 0) {
       predicates.push(inArray(notifications.type, [...options.types]));
+    }
+    if (options.objectTypes && options.objectTypes.length > 0) {
+      predicates.push(inArray(notifications.objectType, [...options.objectTypes]));
     }
 
     return tenantDrizzle(runner)

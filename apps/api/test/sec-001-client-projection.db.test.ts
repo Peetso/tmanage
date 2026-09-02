@@ -203,6 +203,8 @@ const CLIENT_OPERATIONS = [
   { name: 'read the projects shared with them', method: 'GET', path: '/portal/projects' },
   { name: 'read the work published to them', method: 'GET', path: '/portal/work-items' },
   { name: 'read their own requests', method: 'GET', path: '/portal/requests' },
+  // INBOX-001's second half. Added the day the review fleet noticed the list had not grown.
+  { name: 'read their own notifications', method: 'GET', path: '/portal/inbox' },
 ] as const;
 
 describe('§11: a client reaching across a boundary', () => {

@@ -9,6 +9,7 @@ import {
   CLIENT_ORGANIZATIONS_REPOSITORY,
   INVITATION_MAILER,
   INVITATIONS_SERVICE,
+  OUTBOX_EVENTS_REPOSITORY,
   PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
   TENANT_DATABASE,
@@ -17,6 +18,7 @@ import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { InvitationMailer } from '../../common/email/invitation-mailer.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ClientMembershipsRepository } from './client-memberships.repository.js';
 import { ClientOrganizationsRepository } from './client-organizations.repository.js';
@@ -154,11 +156,18 @@ export class ClientsModule {
      * studio's triage routes, and that would have been worse for the reason this file's portal
      * provider exists at all: a client surface is a **path of its own** serving a projection,
      * and a client route living among the internal ones is how that stops being true.
+     *
+     * **With the outbox.** Until 2026-09-02 this copy was built without it, and the service's
+     * `append` is optional-chained — so a request submitted or withdrawn *through the portal*
+     * wrote no `client_request.submitted.v1`, no manager was notified and no mail composed,
+     * while the same request submitted by the database suites (which construct the service
+     * with the outbox) did. E2E-07's first run found it: the studio's inbox stayed empty after
+     * the relay ran. The database case that pins it is in `inbox-001-portal-inbox.db.test.ts`.
      */
     const clientRequests: Provider = {
       provide: CLIENT_REQUESTS_SERVICE,
-      inject: [TENANT_DATABASE, AUDIT_SERVICE],
-      useFactory: (database: TenantDatabase, audit: AuditService) =>
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (database: TenantDatabase, audit: AuditService, outbox: OutboxEventsRepository) =>
         new ClientRequestsService(
           database,
           new ClientRequestsRepository(),
@@ -166,6 +175,7 @@ export class ClientsModule {
           new ProjectsRepository(),
           new WorkItemsRepository(),
           new ClientOrganizationsRepository(),
+          outbox,
         ),
     };
 

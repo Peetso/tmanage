@@ -15,11 +15,8 @@ import {
 import type { PortalInboxBundle, PortalInboxMode } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
-import {
-  formatDay,
-  requestStatusCapsule,
-  requestStatusLabel,
-} from '../../lib/client-request-presentation';
+import { requestStatusCapsule, requestStatusLabel } from '../../lib/client-request-presentation';
+import { formatInstant } from '../../lib/work-item-presentation';
 
 export interface ClientInboxScreenProps {
   organizationSlug: string;
@@ -154,7 +151,7 @@ export function ClientInboxScreen({
       {/* "Nothing" only once the API has said it: a page can be short while a cursor remains. */}
       {!inbox.isPending && !inbox.isError && bundles.length === 0 && !inbox.hasNextPage ? (
         <InlineAlert tone="neutral" title={EMPTY_TITLES[mode]}>
-          <p className="tm-prose">{EMPTY_BODIES[mode].replace('{provider}', providerName)}</p>
+          <p className="tm-prose">{EMPTY_BODIES[mode](providerName)}</p>
         </InlineAlert>
       ) : null}
 
@@ -170,15 +167,7 @@ export function ClientInboxScreen({
                 <StateCapsule state={requestStatusCapsule(bundle.status)}>
                   {requestStatusLabel(bundle.status)}
                 </StateCapsule>
-                {bundle.unreadCount > 0 ? (
-                  <span className="tm-field__hint">
-                    {bundle.unreadCount} unread of {bundle.count}
-                  </span>
-                ) : (
-                  <span className="tm-field__hint">
-                    {bundle.count} {bundle.count === 1 ? 'update' : 'updates'}
-                  </span>
-                )}
+                <span className="tm-field__hint">{describeCounts(bundle, mode)}</span>
               </div>
               <p className="tm-prose">
                 <Link href={`/${organizationSlug}/portal/requests/${bundle.requestId}`}>
@@ -186,7 +175,7 @@ export function ClientInboxScreen({
                 </Link>
               </p>
               <p className="tm-field__hint">
-                {describeWhy(bundle, providerName)} · Latest {formatDay(bundle.latestAt)}
+                {describeWhy(bundle, providerName)} · Latest {formatInstant(bundle.latestAt)}
               </p>
               {bundle.unreadCount > 0 ? (
                 <div className="tm-row">
@@ -234,20 +223,40 @@ const EMPTY_TITLES: Record<PortalInboxMode, string> = {
   unread: 'Nothing is unread',
 };
 
-const EMPTY_BODIES: Record<PortalInboxMode, string> = {
-  all: 'When {provider} answers one of your requests — a question back, a date, a decision — it shows up here.',
-  unread: 'You have seen everything that reached you.',
+// Functions rather than templates: `String.replace` reads `$&` and friends in the replacement,
+// so an organization named "Ford $& Sons" would render its own placeholder.
+const EMPTY_BODIES: Record<PortalInboxMode, (provider: string) => string> = {
+  all: (provider) =>
+    `When ${provider} answers one of your requests — a question back, a date, a decision — it shows up here.`,
+  unread: () => 'You have seen everything that reached you.',
 };
 
-/** The one event type the portal is told about, said in words. Unknown types are shown as is. */
-const WHY: Record<string, string> = {
-  'client_request.transitioned.v1': '{provider} answered',
+/**
+ * The event types the portal is told about, said in words. The API allowlists `types`, so an
+ * unknown identifier never arrives; if the list is empty the row still says something, and
+ * what it says is a sentence rather than a wire identifier.
+ */
+const WHY: Record<string, (provider: string) => string> = {
+  'client_request.transitioned.v1': (provider) => `${provider} answered`,
 };
 
 function describeWhy(bundle: PortalInboxBundle, providerName: string): string {
-  return bundle.types
-    .map((type) => (WHY[type] ?? type).replace('{provider}', providerName))
-    .join(', ');
+  const words = bundle.types.flatMap((type) => {
+    const say = WHY[type];
+    return say ? [say(providerName)] : [];
+  });
+  return words.length > 0 ? words.join(', ') : `${providerName} updated this`;
+}
+
+/**
+ * `count` is the number of rows the API's query returned about the request, and the query is
+ * the mode: in `unread` every row is unread, so "2 unread of 2" would be a ratio over a total
+ * the page never held. Each mode says only what its query can vouch for.
+ */
+function describeCounts(bundle: PortalInboxBundle, mode: PortalInboxMode): string {
+  if (mode === 'unread') return `${bundle.unreadCount} unread`;
+  const updates = `${bundle.count} ${bundle.count === 1 ? 'update' : 'updates'}`;
+  return bundle.unreadCount > 0 ? `${updates}, ${bundle.unreadCount} unread` : updates;
 }
 
 /**

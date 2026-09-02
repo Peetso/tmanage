@@ -122,6 +122,17 @@ describe('CL-01 the client overview', () => {
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
+  it('is the one door to the client inbox, since the rail was left alone', async () => {
+    renderOverview([item()]);
+    // The rail is `22` §1's list and has no inbox; this link is how a client reaches theirs.
+    // Deleting it would strand the screen with every other suite green — the review fleet's
+    // finding of 2026-09-03.
+    expect(await screen.findByRole('link', { name: 'What has changed' })).toHaveAttribute(
+      'href',
+      '/northstar/portal/inbox',
+    );
+  });
+
   it('leads with what is waiting on the client', async () => {
     renderOverview([
       item({ id: 'wi-a', title: 'Approve the copy', progress: 'waiting_on_you' }),

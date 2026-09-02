@@ -127,6 +127,27 @@ async function waitForHttp(url: string, timeoutMs: number): Promise<void> {
   }
 }
 
+/**
+ * Run the worker's outbox relay once, to completion — E2E-07's drain step.
+ *
+ * The stack boots the API and the web app and **not the worker**: a relay loop is a
+ * process with no natural end, and a journey that waited on it would be waiting on a
+ * timer. Instead a journey that needs the consumers to have run — a notification row
+ * written, a mail composed — calls this between the act and the assertion. It is the
+ * worker's own `--once` mode (`relay:once`, the shape the bootstrap profile deploys) with
+ * the same environment the API got, so what the journey sees is what a deployment's cron
+ * tick would have produced. Idempotent by the outbox's own claim: a second drain with
+ * nothing pending is a report of zero.
+ */
+export async function drainOutbox(databaseUrl: string): Promise<string> {
+  const { stdout } = await run(
+    'pnpm',
+    ['--filter', '@tmanage/worker', 'exec', 'tsx', 'src/main.ts', '--once'],
+    { cwd: REPO_ROOT, env: apiEnv(databaseUrl) },
+  );
+  return stdout;
+}
+
 export async function bootStack(): Promise<StackState & { stop: () => Promise<void> }> {
   // 1. A real MySQL, private to this run.
   const server = await createDB({

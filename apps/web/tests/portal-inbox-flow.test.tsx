@@ -140,7 +140,9 @@ describe('the client inbox', () => {
     ).toHaveAttribute('href', '/northstar/portal/requests/req-1');
     // The status is the client's word, not the internal state.
     expect(first.getByText('Waiting for your answer')).toBeInTheDocument();
-    expect(first.getByText('1 unread of 2')).toBeInTheDocument();
+    expect(first.getByText('2 updates, 1 unread')).toBeInTheDocument();
+    // The latest time is an instant, not a calendar date: the hour survives.
+    expect(first.getByText(/Latest .*\d{1,2}:\d{2}/)).toBeInTheDocument();
     expect(
       first.getByRole('button', { name: 'Mark read: Arabic booking FAQ on the rooms page' }),
     ).toBeInTheDocument();
@@ -186,6 +188,9 @@ describe('the client inbox', () => {
       expect(screen.queryByRole('link', { name: 'Read already' })).not.toBeInTheDocument(),
     );
     expect(unread).toHaveAttribute('aria-pressed', 'true');
+    // In `unread` every row the API returned is unread, so the copy claims no total.
+    expect(screen.getByText('1 unread')).toBeInTheDocument();
+    expect(screen.queryByText(/of \d/)).not.toBeInTheDocument();
     expect(calls.filter(isInbox).map((call) => modeOf(call.url))).toEqual(['all', 'unread']);
   });
 
@@ -223,7 +228,16 @@ describe('the client inbox', () => {
     const { client, calls } = clientOver((call) => {
       if (beforeOf(call.url) === 'cursor-1') {
         return respond(call, {
-          items: [bundle({ count: 1, unreadCount: 0, latestAt: '2026-09-01T08:00:00.000Z' })],
+          items: [
+            bundle({
+              count: 1,
+              unreadCount: 0,
+              // An older page, with a type the newer page did not carry: the fold must union
+              // the types and keep the newer time.
+              types: ['client_request.transitioned.v1', 'client_request.mystery.v9'],
+              latestAt: '2026-09-01T08:00:00.000Z',
+            }),
+          ],
           nextCursor: null,
         });
       }
@@ -233,12 +247,17 @@ describe('the client inbox', () => {
 
     render(withQuery(<ClientInboxScreen {...NAMES} client={client} />));
     await screen.findByRole('link', { name: 'Arabic booking FAQ on the rooms page' });
-    expect(screen.getByText('1 unread of 2')).toBeInTheDocument();
+    expect(screen.getByText('2 updates, 1 unread')).toBeInTheDocument();
+    const before = screen.getByText(/Latest /).textContent;
 
     await user.click(screen.getByRole('button', { name: 'Load more' }));
 
-    // Folded: one row, counts added, the newest time kept.
-    await waitFor(() => expect(screen.getByText('1 unread of 3')).toBeInTheDocument());
+    // Folded: one row, counts added, the newest time kept, the types united — and an
+    // unknown type says nothing, because the screen never prints an identifier.
+    await waitFor(() => expect(screen.getByText('3 updates, 1 unread')).toBeInTheDocument());
+    expect(screen.getByText(/Latest /).textContent).toBe(before);
+    expect(screen.getByText(/Northstar Studio answered/)).toBeInTheDocument();
+    expect(screen.queryByText(/mystery/)).not.toBeInTheDocument();
     expect(
       screen.getAllByRole('link', { name: 'Arabic booking FAQ on the rooms page' }),
     ).toHaveLength(1);

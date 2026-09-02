@@ -8,5 +8,7 @@ import { bootStack } from './stack.js';
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const stack = await bootStack();
   process.env['TMANAGE_E2E_WORLD'] = JSON.stringify(stack.world);
+  // For `drainOutbox`: a journey that needs the worker to have run names the same database.
+  process.env['TMANAGE_E2E_DATABASE_URL'] = stack.databaseUrl;
   return stack.stop;
 }

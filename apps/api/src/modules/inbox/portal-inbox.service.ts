@@ -39,11 +39,17 @@ import type {
  *   answers with `ClientRequestClientView`, whose `status` collapses `triage` into
  *   `submitted`; this view copies that word and never sees the row. A client reading their
  *   inbox learns what they would learn on `CL-06`, and nothing more.
- * - **Only `client_request` rows resolve.** A client has no authorized read of a work item by
+ * - **Only `client_request` rows are read.** A client has no authorized read of a work item by
  *   id — `PortalService` lists client-facing work and does not fetch one — so a `work_item`
- *   row addressed to a client (no consumer writes one today) is skipped rather than resolved
- *   through the internal `WorkItemsService.get`, which would be the one thing this file must
- *   never call. Skipped, not errored: the row is real, and a later portal read may know it.
+ *   row addressed to a client (no consumer writes one today) is never selected: the object
+ *   type is a predicate in the query, not a skip after the read, so a page of `limit` rows is
+ *   a page of rows this surface can resolve. The bundler still refuses anything else, so the
+ *   internal `WorkItemsService.get` — the one thing this file must never call — has no path.
+ * - **The event types are allowlisted.** `types` is the only field a row contributes to the
+ *   projection directly, and it is an identifier from the internal event catalogue. Only the
+ *   types a client is written to about pass through; an unknown one — a producer this half
+ *   does not know — is dropped from the list, and the bundle stays. The screen says the type
+ *   in words and never prints an identifier.
  * - **Two modes, not four.** `all` and `unread`. `important` and `client_actions` are internal
  *   readings of internal events; a client's inbox has one producer and the only distinction
  *   a client can act on is "have I seen this".
@@ -90,6 +96,12 @@ export interface ListPortalInboxOptions {
   readonly limit?: number;
 }
 
+/** The one object type a client can read through the portal. A query predicate, not a skip. */
+const PORTAL_OBJECT_TYPES: readonly string[] = ['client_request'];
+
+/** The event types a client is written to about. Anything else is dropped from `types`. */
+export const PORTAL_NOTIFICATION_TYPES: readonly string[] = ['client_request.transitioned.v1'];
+
 export class PortalInboxService {
   constructor(
     private readonly database: TenantDatabase,
@@ -100,10 +112,15 @@ export class PortalInboxService {
   /**
    * The client's inbox, one page of rows bundled by request.
    *
-   * The recipient is `principal.userId`. `unread` is a predicate in the query (`read_at IS
-   * NULL`), so a page of `limit` rows is a page of matching rows and `nextCursor` means what
-   * it says; the only thing a page loses after the read is a bundle whose request this client
-   * may no longer see, and that makes the page short, never wrong about the end.
+   * The recipient is `principal.userId`. `unread` and the object type are predicates in the
+   * query (`read_at IS NULL`, `object_type = 'client_request'`), so a page of `limit` rows is
+   * a page of matching rows and `nextCursor` means what it says; the only thing a page loses
+   * after the read is a bundle whose request this client may no longer see, and that makes
+   * the page short, never wrong about the end.
+   *
+   * In `unread` mode every row is unread, so `count` equals `unreadCount` and is the number
+   * of unread notifications about the request, not the number of notifications ever. The
+   * screen words the two modes differently for that reason.
    */
   async list(
     context: TenantContext,
@@ -121,6 +138,7 @@ export class PortalInboxService {
     const rows = await this.database.read(context, (runner) =>
       this.notifications.listForRecipient(runner, context, principal.userId, {
         limit,
+        objectTypes: PORTAL_OBJECT_TYPES,
         ...(options.before === undefined ? {} : { before: options.before }),
         ...(mode === 'unread' ? { unreadOnly: true } : {}),
       }),
@@ -173,8 +191,8 @@ export class PortalInboxService {
     // request is its latest and the bundle order is "most recently touched first".
     const byRequest = new Map<string, NotificationRow[]>();
     for (const row of rows) {
-      // Only a client request has a client-side authorized read. Anything else addressed to
-      // a client is skipped, never resolved through an internal service.
+      // The query already restricted the object type; this is the bundler refusing to resolve
+      // anything else through an internal service, should the query ever stop doing so.
       if (row.objectType !== 'client_request') continue;
       const group = byRequest.get(row.objectId);
       if (group) group.push(row);
@@ -189,7 +207,11 @@ export class PortalInboxService {
       if (!resolved) continue; // §1's second check: revoked means silent.
 
       const types: string[] = [];
-      for (const row of group) if (!types.includes(row.type)) types.push(row.type);
+      for (const row of group) {
+        if (PORTAL_NOTIFICATION_TYPES.includes(row.type) && !types.includes(row.type)) {
+          types.push(row.type);
+        }
+      }
 
       bundles.push({
         bundleId: `client_request:${requestId}`,

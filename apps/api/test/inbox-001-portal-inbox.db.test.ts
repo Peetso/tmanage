@@ -54,6 +54,10 @@ import type { SeedWorld, SeededUser } from './seed-two-tenants.js';
  * 6. **A row about anything but a client request is skipped**, never resolved through an
  *    internal read: a client has no authorized read of a work item by id.
  * 7. **The two modes, the backwards cursor, and the 400** behave as the internal inbox's do.
+ * 8. **A request submitted through the portal route leaves its event in the outbox.** E2E-07's
+ *    first run found that it did not: `ClientsModule` built its `ClientRequestsService` without
+ *    the outbox, and `append` is optional-chained. Without this case the whole notification
+ *    loop is proved only for requests the suites submit directly.
  */
 
 let db: TestDatabase;
@@ -71,6 +75,8 @@ let atlasReviewerCtx: TenantContext;
 let atlasReviewer: Principal;
 let meridianCtx: TenantContext;
 let meridianReviewer: Principal;
+/** The seed has no org_admin; this suite needs one, because org_admin is half of the argument. */
+let orgAdminUserId: string;
 /** Written to by the paging case alone, so its page arithmetic owes nothing to the other cases. */
 let atlasViewerCtx: TenantContext;
 let atlasViewer: Principal;
@@ -141,11 +147,20 @@ async function get(path: string, session: Session): Promise<InjectedResponse> {
   })) as unknown as InjectedResponse;
 }
 
-async function post(path: string, session: Session): Promise<InjectedResponse> {
+async function post(
+  path: string,
+  session: Session,
+  payload?: Record<string, unknown>,
+): Promise<InjectedResponse> {
   return (await app.inject({
     method: 'POST',
     url: `/v1/organizations/northstar-studio${path}`,
-    headers: { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    headers: {
+      cookie: session.cookie,
+      [CSRF_HEADER]: session.csrfToken,
+      ...(payload ? { 'content-type': 'application/json' } : {}),
+    },
+    ...(payload ? { payload } : {}),
   })) as unknown as InjectedResponse;
 }
 
@@ -219,6 +234,16 @@ async function observe(sql: string, params: readonly unknown[] = []): Promise<Ro
   return rows;
 }
 
+/** The guard's refusal leaves a `security.capability_denied` row; the service's leaves none. */
+async function capabilityDenials(): Promise<number> {
+  const rows = await observe(
+    `select count(*) as n from audit_events
+      where organization_id = ? and action = 'security.capability_denied'`,
+    [world.northstar.organizationId],
+  );
+  return Number(rows[0]?.['n']);
+}
+
 async function unreadCountFor(userId: string, objectId: string): Promise<number> {
   const rows = await observe(
     `select count(*) as n from notifications
@@ -277,6 +302,17 @@ beforeAll(async () => {
   atlasViewer = clientPrincipal(atlasViewerCtx, 'client_viewer', world.atlas.clientOrganizationId, [
     world.northstar.projectId,
   ]);
+  orgAdminUserId = uuidv7();
+  await db.admin.execute(
+    `insert into users (id, email, display_name, email_verified_at)
+     values (?, ?, ?, utc_timestamp(3))`,
+    [orgAdminUserId, 'org-admin@portal-inbox.northstar.example', 'Portal inbox org_admin'],
+  );
+  await db.admin.execute(
+    `insert into memberships (id, organization_id, user_id, role, has_org_wide_scope)
+     values (?, ?, ?, 'org_admin', true)`,
+    [uuidv7(), org, orgAdminUserId],
+  );
   meridianCtx = contextFor(org, world.meridian.reviewer, 'client', 'client_reviewer');
   meridianReviewer = clientPrincipal(
     meridianCtx,
@@ -374,6 +410,20 @@ describe('recipient only, from the client side', () => {
     expect(sibling.items.map((bundle) => bundle.requestId)).toEqual([meridianRequestId]);
   });
 
+  it('an event type the portal does not know is dropped from the bundle, and the bundle stays', async () => {
+    await notify({
+      recipient: world.atlas.admin,
+      type: 'client_request.mystery.v9',
+      objectId: adminRequestId,
+      createdAt: '2026-09-02 09:07:00.000',
+    });
+    const page = await inbox.list(atlasAdminCtx, atlasAdmin);
+    const bundle = page.items.find((candidate) => candidate.requestId === adminRequestId);
+    expect(bundle?.count).toBe(3);
+    expect(bundle?.types).toEqual([TRANSITIONED]);
+    expect(bundle?.latestAt).toBe('2026-09-02T09:07:00.000Z');
+  });
+
   it('the bundle is a projection: the client-safe status, never the internal state', async () => {
     // Move the request to `triage` behind the client's back. `CL-06` says `submitted`.
     await db.admin.execute('update client_requests set state = ? where id = ?', [
@@ -400,7 +450,7 @@ describe('recipient only, from the client side', () => {
     ]);
   });
 
-  it('a row about anything but a client request is skipped, not resolved', async () => {
+  it('a row about anything but a client request is never selected, let alone resolved', async () => {
     await notify({
       recipient: world.atlas.admin,
       type: BLOCKED,
@@ -408,6 +458,12 @@ describe('recipient only, from the client side', () => {
       objectId: world.northstar.workItemId,
       createdAt: '2026-09-02 09:30:00.000',
     });
+
+    // The object type is a predicate, not a skip after the read: with `limit: 1` the newest
+    // row is the work item's, and a skip would answer `[]` beneath a live cursor. The fleet
+    // found the skip shape on 2026-09-02; this is the case that failed on it.
+    const narrow = await inbox.list(atlasAdminCtx, atlasAdmin, { limit: 1 });
+    expect(narrow.items.map((bundle) => bundle.requestId)).toEqual([adminRequestId]);
 
     // Absence alone would not prove the skip: a work-item id put through `getForClient` is a
     // 404 and would be dropped anyway. So the read is watched, and the assertion is that it was
@@ -435,7 +491,7 @@ describe('§6: revoked means silent', () => {
       world.northstar.projectId,
       'Dropped once the share is gone',
     );
-    await notify({
+    const rowId = await notify({
       recipient: world.atlas.admin,
       objectId: requestId,
       createdAt: '2026-09-02 10:00:00.000',
@@ -444,17 +500,44 @@ describe('§6: revoked means silent', () => {
     const before = await inbox.list(atlasAdminCtx, atlasAdmin);
     expect(before.items.some((bundle) => bundle.requestId === requestId)).toBe(true);
 
-    // The principal's project scope is built from `project_clients`; a lost share is an
-    // empty list, and `getForClient` answers 404 through `authorize()` rule 10.
-    const unshared: Principal = { ...atlasAdmin, projectIds: [] };
-    const after = await inbox.list(atlasAdminCtx, unshared);
-    expect(after.items.some((bundle) => bundle.requestId === requestId)).toBe(false);
-    expect(after.nextCursor).toBeNull();
+    // The revocation is in the data — the `project_clients` row goes — and the read is over
+    // HTTP, so the principal's project scope is rebuilt by `PrincipalRepository` from what
+    // is left, and `getForClient` answers 404 through `authorize()` rule 10. Editing the
+    // principal by hand would have proved only that the service honours a list it was given.
+    const session = await signIn(world.atlas.admin.id);
+    await db.admin.query(
+      'delete from project_clients where organization_id = ? and project_id = ? and client_organization_id = ?',
+      [world.northstar.organizationId, world.northstar.projectId, world.atlas.clientOrganizationId],
+    );
+    try {
+      // `limit: 1` with the dropped row the newest: the page is empty *and* the cursor is
+      // live, which is the honest shape — "nothing you can still see on this page", not
+      // "nothing". A `nextCursor` of null here would have been the default page size
+      // never filling, not the drop.
+      const after = await get('/portal/inbox?limit=1', session);
+      expect(after.statusCode, after.body).toBe(200);
+      const page = after.json<{ items: { requestId: string }[]; nextCursor: string | null }>();
+      expect(page.items).toEqual([]);
+      expect(page.nextCursor).toBe(rowId);
 
-    // Nor can it be marked read: the same 404, and the row untouched.
-    await expect(
-      inbox.markBundleRead(atlasAdminCtx, unshared, `client_request:${requestId}`),
-    ).rejects.toMatchObject({ status: 404 });
+      // Nor can it be marked read: the same 404, and the row untouched.
+      const marked = await post(
+        `/portal/inbox/${encodeURIComponent(`client_request:${requestId}`)}/read`,
+        session,
+      );
+      expect(marked.statusCode).toBe(404);
+    } finally {
+      await db.admin.execute(
+        `insert into project_clients (id, organization_id, project_id, client_organization_id)
+         values (?, ?, ?, ?)`,
+        [
+          uuidv7(),
+          world.northstar.organizationId,
+          world.northstar.projectId,
+          world.atlas.clientOrganizationId,
+        ],
+      );
+    }
     expect(await unreadCountFor(world.atlas.admin.id, requestId)).toBe(1);
   });
 
@@ -480,16 +563,24 @@ describe('§6: revoked means silent', () => {
 });
 
 describe('an internal principal is refused on the portal route', () => {
-  it('403 over HTTP for every internal role: the guard for most, the service for the owner', async () => {
-    // The owner's ceiling is every capability, `client_request.submit` included, so the guard
-    // passes the owner and the 403 is the service's (`not_a_client_principal`, an audit code
-    // the body deliberately does not carry). The manager and the member never reach the
-    // service. The wire cannot tell the two apart, which is the point of a uniform 403; the
-    // service half is proved on its own in the next case.
-    for (const user of [world.northstar.owner, world.northstar.manager, world.northstar.designer]) {
-      const session = await signIn(user.id);
+  it('403 over HTTP for every internal role: the guard for most, the service for owner and org_admin', async () => {
+    // The owner's and the org_admin's ceilings are every capability, `client_request.submit`
+    // included, so the guard passes them and the 403 is the service's. The manager and the
+    // member never reach the service. The wire cannot tell the two apart — a uniform 403 is
+    // the point — but the audit trail can: the guard's refusal writes a
+    // `security.capability_denied` row and the service's writes nothing.
+    const cases: readonly { readonly userId: string; readonly guard: boolean }[] = [
+      { userId: world.northstar.owner.id, guard: false },
+      { userId: orgAdminUserId, guard: false },
+      { userId: world.northstar.manager.id, guard: true },
+      { userId: world.northstar.designer.id, guard: true },
+    ];
+    for (const { userId, guard } of cases) {
+      const session = await signIn(userId);
+      const denialsBefore = await capabilityDenials();
       const response = await get('/portal/inbox', session);
-      expect(response.statusCode, user.id).toBe(403);
+      expect(response.statusCode, userId).toBe(403);
+      expect((await capabilityDenials()) - denialsBefore, userId).toBe(guard ? 1 : 0);
     }
   });
 
@@ -591,6 +682,36 @@ describe('mark read: this client’s rows about one request, forward only', () =
   });
 });
 
+describe('the loop starts at the portal: a submission through the route leaves its event', () => {
+  it('POST /portal/requests writes client_request.submitted.v1 to the outbox, and a withdrawal its transition', async () => {
+    const session = await signIn(world.atlas.admin.id);
+    const submitted = await post('/portal/requests', session, {
+      projectId: world.northstar.projectId,
+      title: 'Submitted through the portal route',
+      description: 'The event this leaves is what the worker relays.',
+    });
+    expect(submitted.statusCode, submitted.body).toBe(201);
+    const { id, version } = submitted.json<{ id: string; version: number }>();
+
+    const events = await observe(
+      'select type from outbox_events where organization_id = ? and aggregate_id = ? order by id',
+      [world.northstar.organizationId, id],
+    );
+    expect(events.map((row) => row['type'])).toEqual(['client_request.submitted.v1']);
+
+    const withdrawn = await post(`/portal/requests/${id}/withdrawal`, session, { version });
+    expect(withdrawn.statusCode, withdrawn.body).toBe(200);
+    const after = await observe(
+      'select type from outbox_events where organization_id = ? and aggregate_id = ? order by id',
+      [world.northstar.organizationId, id],
+    );
+    expect(after.map((row) => row['type'])).toEqual([
+      'client_request.submitted.v1',
+      'client_request.transitioned.v1',
+    ]);
+  });
+});
+
 describe('the modes, the cursor, and the query over HTTP', () => {
   it('a page ends at its oldest row and the next page starts below it; `unread` is a predicate', async () => {
     const requestId = await submitAs(
@@ -619,12 +740,15 @@ describe('the modes, the cursor, and the query over HTTP', () => {
     expect(secondPage.items[0]?.count).toBe(1);
     expect(secondPage.nextCursor).toBeNull();
 
-    // `unread` with `limit: 1`: the newest row is read, so a post-filter would answer `[]`
-    // with a live cursor. A predicate answers the newest *unread* row.
+    // `unread` with `limit: 2`: the middle of the three rows is read. A predicate returns the
+    // two unread rows (12:02 and 12:00, `count: 2`); a post-filter over the newest two rows
+    // would return only 12:02 (`count: 1`). The count is what tells the two shapes apart.
     const unread = await inbox.list(atlasViewerCtx, atlasViewer, { mode: 'unread', limit: 2 });
     const bundle = unread.items.find((candidate) => candidate.requestId === requestId);
     expect(bundle?.count).toBe(2);
     expect(bundle?.unreadCount).toBe(2);
+    expect(bundle?.latestAt).toBe('2026-09-02T12:02:00.000Z');
+    expect(unread.nextCursor).toBe(ids[0]);
   });
 
   it('a client reads their inbox over HTTP, marks a bundle read, and a bad query is a 400 naming the field', async () => {
