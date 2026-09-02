@@ -1,4 +1,5 @@
 import { Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import { isUuid } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -17,8 +18,12 @@ import type { InboxPageView, InboxService } from './inbox.service.js';
  * guard declaration is a decision the read surface's ticket must make deliberately rather
  * than this one inventing a capability". The decision: **`work.read`**. It is the one
  * capability every internal role holds — owner through guest — and no client role does, which
- * is exactly TM-04's audience ("Roles: all internal"; the client portal has its own Updates
- * surface). Adding a `notification.read` to the domain would put a word in the ceiling table
+ * is exactly TM-04's audience ("Roles: all internal"). The consequence is recorded rather than
+ * hidden: `client_request.transitioned.v1` rows are written *to clients* (the submitter), and
+ * a client cannot call this route, so those rows have no reader yet. The portal's `CL-08
+ * Updates` is a feed of published status updates, not a notification inbox; a client inbox
+ * is a projection on a portal path of its own, the way every other client surface is, and it
+ * is INBOX-001's second half. Adding a `notification.read` to the domain would put a word in the ceiling table
  * that the matrix does not have, and `CapabilityGuard`'s own doc is explicit that the guard is
  * the coarse half only: the control that matters here is the service's — a recipient reads
  * their own rows, and every object is re-read through its authorized path.
@@ -44,6 +49,12 @@ export class InboxController {
     const parsedLimit = limit === undefined ? undefined : Number(limit);
     if (parsedLimit !== undefined && (!Number.isSafeInteger(parsedLimit) || parsedLimit < 1)) {
       details.push({ field: 'limit', message: 'must be a positive integer' });
+    }
+    // A cursor is an id this API handed out. Anything else compares against every id as
+    // text and silently returns some page; the two older `after` cursors accept that, this
+    // one does not.
+    if (before !== undefined && !isUuid(before)) {
+      details.push({ field: 'before', message: 'must be a cursor this API returned' });
     }
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The query is invalid', details);

@@ -33,6 +33,13 @@ export interface InboxPage {
 /** The largest page the API bundles — `MAX_NOTIFICATION_PAGE` in `NotificationsRepository`. */
 export const MAX_INBOX_PAGE = 200;
 
+/**
+ * The page the screen asks for — `DEFAULT_NOTIFICATION_PAGE`. Every bundle on a page costs
+ * the API one authorized read of its object, so the page is the API's default rather than
+ * its ceiling; "Load more" is one click away.
+ */
+export const DEFAULT_INBOX_PAGE = 100;
+
 export interface ListInboxQuery {
   readonly mode?: InboxMode;
   readonly before?: string;

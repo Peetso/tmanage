@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { notifications } from '../../common/database/schema.js';
 import type { NotificationRow } from '../../common/database/schema.js';
@@ -23,7 +23,15 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  *
  * An inbox is read newest first. Ids are UUIDv7, so id order is creation order, and the
  * keyset cursor here is `id < before` rather than `id > after`: a page ends at its oldest
- * row and the next page starts below it.
+ * row and the next page starts below it. `ix_notifications_recipient_id` (0014) is the
+ * index that makes this read cheap; 0010's `created_at` index is the contract's and stays.
+ *
+ * ## The filters are in the query
+ *
+ * `unreadOnly` and `types` are predicates, not post-filters: a page of `limit` rows is a
+ * page of `limit` *matching* rows, so a filtered mode never answers "nothing" with a live
+ * cursor beneath it. The review fleet found the post-filter shape on 2026-09-02, before it
+ * had shipped to anyone.
  */
 
 export interface ListNotificationsOptions {
@@ -31,6 +39,8 @@ export interface ListNotificationsOptions {
   readonly before?: string;
   readonly limit?: number;
   readonly unreadOnly?: boolean;
+  /** Only rows of these event types. Omitted or empty, every type. */
+  readonly types?: readonly string[];
 }
 
 export const DEFAULT_NOTIFICATION_PAGE = 100;
@@ -53,6 +63,9 @@ export class NotificationsRepository {
     ];
     if (options.before) predicates.push(lt(notifications.id, options.before));
     if (options.unreadOnly) predicates.push(isNull(notifications.readAt));
+    if (options.types && options.types.length > 0) {
+      predicates.push(inArray(notifications.type, [...options.types]));
+    }
 
     return tenantDrizzle(runner)
       .select()

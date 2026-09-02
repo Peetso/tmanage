@@ -739,6 +739,13 @@ export const notifications = mysqlTable(
       table.recipientUserId,
       table.createdAt,
     ),
+    // 0014, INBOX-001: the inbox pages on `id` (UUIDv7, so creation order) and this is the
+    // index that read uses; the contract's `created_at` index above is kept.
+    index('ix_notifications_recipient_id').on(
+      table.organizationId,
+      table.recipientUserId,
+      table.id,
+    ),
     uniqueIndex('uq_notifications_dedupe').on(
       table.organizationId,
       table.recipientUserId,

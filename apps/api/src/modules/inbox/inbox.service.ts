@@ -2,7 +2,11 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { NotificationRow } from '../../common/database/schema.js';
-import { MAX_NOTIFICATION_PAGE, NotificationsRepository } from './notifications.repository.js';
+import {
+  DEFAULT_NOTIFICATION_PAGE,
+  MAX_NOTIFICATION_PAGE,
+  NotificationsRepository,
+} from './notifications.repository.js';
 import type { ClientRequestsService } from '../requests/client-requests.service.js';
 import type { WorkItemsService } from '../work/work-items.service.js';
 
@@ -37,9 +41,12 @@ import type { WorkItemsService } from '../work/work-items.service.js';
  *
  * Quiet hours, digests and channel choice need preferences, which the contract draws no
  * table for — NOTIF-001's first named gap, unchanged. Bundles split at page boundaries: a
- * page is `limit` rows, bundled, and an object whose rows straddle two pages appears on both.
- * Read state syncs across devices by being a column, which TM-04 asks for; "bulk mark read
- * reversible for a short interval" is not built — the trigger makes a read row permanent.
+ * page is `limit` rows, bundled, and an object whose rows straddle two pages appears on both
+ * — the screen merges the two appearances by bundle id, so a reader sees one row. Each
+ * bundle's object is resolved by its own `get`, one read per bundle in sequence; a batched
+ * authorized read per object type would be cheaper and is recorded, not built. Read state
+ * syncs across devices by being a column, which TM-04 asks for; "bulk mark read reversible
+ * for a short interval" is not built — the trigger makes a read row permanent.
  */
 
 export type InboxMode = 'important' | 'all' | 'waiting_on_me' | 'client_actions';
@@ -102,8 +109,9 @@ export class InboxService {
    * The recipient's inbox, one page of rows bundled by object.
    *
    * The recipient is `principal.userId` and nothing a request can name. `waiting_on_me` is
-   * pushed into the query as `unreadOnly`; the other modes filter the bundles after the
-   * object read, because they are about event types and a row's type is already in hand.
+   * pushed into the query as `unreadOnly`, `important` and `client_actions` as `types`. The
+   * first cut filtered the last two after the read, which let a page be "nothing" with a
+   * cursor beneath it; the review fleet caught that on 2026-09-02.
    */
   async list(
     context: TenantContext,
@@ -112,26 +120,25 @@ export class InboxService {
   ): Promise<InboxPageView> {
     const mode = options.mode ?? 'all';
     const limit = Math.min(
-      Math.max(options.limit ?? MAX_NOTIFICATION_PAGE, 1),
+      Math.max(options.limit ?? DEFAULT_NOTIFICATION_PAGE, 1),
       MAX_NOTIFICATION_PAGE,
     );
 
+    // Every mode is a predicate in the query, so a page of `limit` rows is a page of
+    // matching rows and `nextCursor` means what it says. The one thing a page can still lose
+    // after the read is a bundle whose object this person may no longer see — §1's second
+    // check — and that makes a page short, never a page that lies about the end.
     const rows = await this.database.read(context, (runner) =>
       this.notifications.listForRecipient(runner, context, principal.userId, {
         limit,
         ...(options.before === undefined ? {} : { before: options.before }),
         ...(mode === 'waiting_on_me' ? { unreadOnly: true } : {}),
+        ...(mode === 'important' ? { types: [BLOCKED_TYPE] } : {}),
+        ...(mode === 'client_actions' ? { types: CLIENT_ACTION_TYPES } : {}),
       }),
     );
 
-    const bundles = await this.bundle(context, principal, rows);
-    const items = bundles.filter((bundle) => {
-      if (mode === 'important') return bundle.types.includes(BLOCKED_TYPE);
-      if (mode === 'client_actions') {
-        return bundle.types.some((type) => CLIENT_ACTION_TYPES.includes(type));
-      }
-      return true;
-    });
+    const items = await this.bundle(context, principal, rows);
 
     const oldest = rows[rows.length - 1];
     return {

@@ -10,7 +10,7 @@ import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { MAX_INBOX_PAGE, listInbox, markBundleRead } from '../../lib/api/inbox';
+import { DEFAULT_INBOX_PAGE, listInbox, markBundleRead } from '../../lib/api/inbox';
 import type { InboxBundle, InboxMode } from '../../lib/api/inbox';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -62,7 +62,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
     queryFn: ({ pageParam }) =>
       listInbox(api, organizationSlug, {
         mode,
-        limit: MAX_INBOX_PAGE,
+        limit: DEFAULT_INBOX_PAGE,
         ...(pageParam === undefined ? {} : { before: pageParam }),
       }),
     initialPageParam: undefined as string | undefined,
@@ -74,7 +74,14 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inbox', organizationSlug] }),
   });
 
-  const bundles = inbox.data?.pages.flatMap((page) => page.items) ?? [];
+  const bundles = mergePages(inbox.data?.pages.map((page) => page.items) ?? []);
+
+  // A mode is a different list. A "could not mark that read" about a row of the old list
+  // would otherwise stay on screen above rows it does not name.
+  const selectMode = (next: InboxMode) => {
+    markRead.reset();
+    setMode(next);
+  };
 
   return (
     <AppShell
@@ -106,7 +113,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
               id={candidate.id}
               label={candidate.label}
               active={mode === candidate.id}
-              onSelect={setMode}
+              onSelect={selectMode}
             />
           ))}
         </div>
@@ -120,10 +127,19 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
         </div>
       ) : null}
 
-      {!inbox.isPending && !inbox.isError && bundles.length === 0 ? (
+      {/*
+        "Nothing" is only said when the API has said it: a page can come back short — every
+        bundle on it dropped because its object is no longer this person's to see — while a
+        cursor beneath it says there is more. That is "nothing on this page", not "nothing".
+      */}
+      {!inbox.isPending && !inbox.isError && bundles.length === 0 && !inbox.hasNextPage ? (
         <InlineAlert tone="neutral" title={EMPTY_TITLES[mode]}>
           <p className="tm-prose">{EMPTY_BODIES[mode]}</p>
         </InlineAlert>
+      ) : null}
+
+      {!inbox.isPending && !inbox.isError && bundles.length === 0 && inbox.hasNextPage ? (
+        <p className="tm-prose">Nothing you can still see on this page. There are older pages.</p>
       ) : null}
 
       {bundles.length > 0 ? (
@@ -168,7 +184,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                         size="accessible"
                         loading={markRead.isPending && markRead.variables === bundle.bundleId}
                         loadingLabel="Marking read"
-                        aria-label={`Mark ${bundle.title} read`}
+                        aria-label={`Mark read: ${bundle.title}`}
                         onClick={() => markRead.mutate(bundle.bundleId)}
                       >
                         Mark read
@@ -237,6 +253,36 @@ function describeWhy(bundle: InboxBundle): string {
   const words = bundle.types.map((type) => WHY[type] ?? type);
   const kind = bundle.objectType === 'work_item' ? 'Work item' : 'Client request';
   return `${kind} · ${words.join(', ')}`;
+}
+
+/**
+ * The API bundles one page at a time, so an object whose rows straddle a page boundary
+ * arrives twice — once per page, each with its own count. Two rows with one bundle id is two
+ * React keys that collide and a title a reader sees twice, so the pages are folded into one
+ * list here: counts add, unread counts add, types union, the newest time wins, and the row
+ * keeps the place of its first (newest) appearance.
+ */
+function mergePages(pages: readonly (readonly InboxBundle[])[]): readonly InboxBundle[] {
+  const byId = new Map<string, InboxBundle>();
+  for (const page of pages) {
+    for (const bundle of page) {
+      const seen = byId.get(bundle.bundleId);
+      if (!seen) {
+        byId.set(bundle.bundleId, bundle);
+        continue;
+      }
+      const types = [...seen.types];
+      for (const type of bundle.types) if (!types.includes(type)) types.push(type);
+      byId.set(bundle.bundleId, {
+        ...seen,
+        count: seen.count + bundle.count,
+        unreadCount: seen.unreadCount + bundle.unreadCount,
+        types,
+        latestAt: seen.latestAt >= bundle.latestAt ? seen.latestAt : bundle.latestAt,
+      });
+    }
+  }
+  return [...byId.values()];
 }
 
 function hrefOf(organizationSlug: string, bundle: InboxBundle): string {

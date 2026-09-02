@@ -24,6 +24,9 @@ import { expectNoAxeViolations } from './axe';
  *    row it holds: the API reauthorizes before it writes, and the screen has no way to know
  *    what it decided except by reading.
  * 4. **A further page is asked for by the cursor the API gave**, and only while it gives one.
+ * 5. **Pages are folded by bundle id** — the API bundles per page, the screen across them —
+ *    and **"nothing" is only said once the cursor is gone.** Both are review-fleet findings
+ *    of 2026-09-02, each written as a failing case before the screen changed.
  */
 
 interface Call {
@@ -124,10 +127,10 @@ describe('TM-04 the inbox', () => {
 
     // Only an unread bundle offers "Mark read": a read one has nothing left to mark.
     expect(
-      screen.getByRole('button', { name: 'Mark Prepare mobile booking flow concepts read' }),
+      screen.getByRole('button', { name: 'Mark read: Prepare mobile booking flow concepts' }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: 'Mark Add Arabic booking FAQ before launch read' }),
+      screen.queryByRole('button', { name: 'Mark read: Add Arabic booking FAQ before launch' }),
     ).not.toBeInTheDocument();
 
     // No "Load more" without a cursor.
@@ -174,12 +177,14 @@ describe('TM-04 the inbox', () => {
     render(withQuery(<InboxScreen {...NAMES} client={client} />));
 
     await user.click(
-      await screen.findByRole('button', { name: 'Mark Prepare mobile booking flow concepts read' }),
+      await screen.findByRole('button', {
+        name: 'Mark read: Prepare mobile booking flow concepts',
+      }),
     );
 
     await waitFor(() => {
       expect(
-        screen.queryByRole('button', { name: 'Mark Prepare mobile booking flow concepts read' }),
+        screen.queryByRole('button', { name: 'Mark read: Prepare mobile booking flow concepts' }),
       ).not.toBeInTheDocument();
     });
 
@@ -212,6 +217,97 @@ describe('TM-04 the inbox', () => {
     expect(new URL(calls[1]?.url ?? '').searchParams.get('before')).toBe('notif-oldest-on-page-1');
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('folds a bundle that straddles two pages into one row with the summed counts', async () => {
+    const user = userEvent.setup();
+    const { client } = clientOver((call) => {
+      const before = new URL(call.url).searchParams.get('before');
+      if (before === null) {
+        return json({
+          items: [bundle({ count: 2, unreadCount: 1, types: ['work_item.blocked.v1'] })],
+          nextCursor: 'cursor-1',
+        });
+      }
+      return json({
+        items: [
+          bundle({
+            count: 1,
+            unreadCount: 1,
+            types: ['client_request.transitioned.v1'],
+            latestAt: '2026-09-01T08:00:00.000Z',
+          }),
+        ],
+        nextCursor: null,
+      });
+    });
+    render(withQuery(<InboxScreen {...NAMES} client={client} />));
+
+    await user.click(await screen.findByRole('button', { name: 'Load more' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+    });
+    // One row, not two: the API bundled per page, the screen bundles across them.
+    const rows = screen.getAllByRole('link', { name: 'Prepare mobile booking flow concepts' });
+    expect(rows).toHaveLength(1);
+    const row = rows[0]?.closest('tr') as HTMLTableRowElement;
+    expect(within(row).getByText(/3 updates/)).toBeInTheDocument();
+    expect(within(row).getByText('2 unread')).toBeInTheDocument();
+    expect(within(row).getByText('Work item · Blocked, Request answered')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Mark read:/ })).toHaveLength(1);
+  });
+
+  it('does not say "nothing" while the API still has pages', async () => {
+    // A page can come back with no bundles the reader may see and a cursor beneath it.
+    const { client } = clientOver((call) => {
+      const before = new URL(call.url).searchParams.get('before');
+      if (before === null) return json({ items: [], nextCursor: 'cursor-1' });
+      return json({ items: [], nextCursor: null });
+    });
+    const user = userEvent.setup();
+    render(withQuery(<InboxScreen {...NAMES} client={client} />));
+
+    const more = await screen.findByRole('button', { name: 'Load more' });
+    expect(screen.queryByText('Nothing has happened yet')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Nothing you can still see on this page. There are older pages.'),
+    ).toBeInTheDocument();
+
+    await user.click(more);
+
+    // Only once the cursor is gone is the absolute statement made.
+    expect(await screen.findByText('Nothing has happened yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+  });
+
+  it('a failed mark read is forgotten when the mode changes', async () => {
+    const user = userEvent.setup();
+    const { client } = clientOver((call) => {
+      if (call.method === 'POST') {
+        return json(
+          {
+            error: { code: 'not_found', message: 'Not found', correlationId: 'c', details: [] },
+          },
+          404,
+        );
+      }
+      return json({ items: [bundle()], nextCursor: null });
+    });
+    render(withQuery(<InboxScreen {...NAMES} client={client} />));
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Mark read: Prepare mobile booking flow concepts',
+      }),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not mark that read');
+
+    await user.click(screen.getByRole('button', { name: 'Waiting on me' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
   });
 

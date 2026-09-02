@@ -54,7 +54,10 @@ import type { SeedWorld, SeededUser } from './seed-two-tenants.js';
  * 6. **The guard is `work.read`**, so a client principal is refused at the door, and a bad
  *    mode is a 400 that names the field.
  * 7. **The cursor runs backwards**: a page ends at its oldest row and the next page starts
- *    below it.
+ *    below it — and a cursor that is not an id is refused, not compared as text.
+ * 8. **A mode is a predicate, not a post-filter** — the review fleet's finding of 2026-09-02,
+ *    written as a case that failed on the shipped shape (`[]` with a live cursor) before the
+ *    filter moved into the query.
  */
 
 let db: TestDatabase;
@@ -566,6 +569,17 @@ describe('the four modes', () => {
     expect(ids).not.toContain(quietItemId);
     expect(ids).not.toContain(requestId);
   });
+
+  it('a mode is a predicate in the query, so a page of `limit` rows is a page of matches', async () => {
+    // The newest row for the manager is the submitted request (11:03), which `important`
+    // does not want. A post-filter over a one-row page would answer `[]` with a cursor
+    // beneath it — "nothing important" with more to load. The predicate answers the blocker.
+    const page = await inbox.list(managerCtx, manager, { mode: 'important', limit: 1 });
+    expect(page.items.map((bundle) => bundle.objectId)).toEqual([blockedItemId]);
+
+    const clients = await inbox.list(managerCtx, manager, { mode: 'client_actions', limit: 1 });
+    expect(clients.items.map((bundle) => bundle.objectId)).toEqual([requestId]);
+  });
 });
 
 describe('mark read: this recipient’s rows about one object, forward only', () => {
@@ -697,11 +711,15 @@ describe('over HTTP: the guard, and the query', () => {
 
   it('a mode the planning does not name is a 400 that says which field', async () => {
     const internal = await signIn(world.northstar.owner.id);
-    const response = await get('/inbox?mode=urgent&limit=0', internal);
+    const response = await get('/inbox?mode=urgent&limit=0&before=abc', internal);
     expect(response.statusCode).toBe(400);
     const body = response.json<{ error: { code: string; details: { field: string }[] } }>();
     expect(body.error.code).toBe('validation_failed');
-    expect(body.error.details.map((detail) => detail.field).sort()).toEqual(['limit', 'mode']);
+    expect(body.error.details.map((detail) => detail.field).sort()).toEqual([
+      'before',
+      'limit',
+      'mode',
+    ]);
   });
 
   it('marking read over HTTP is the same action, reauthorized', async () => {
