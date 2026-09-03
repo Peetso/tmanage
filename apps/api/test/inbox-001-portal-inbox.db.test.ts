@@ -823,7 +823,7 @@ describe('one authorized read for the page, not one per bundle', () => {
     // Five rows for the Atlas admin: three of their own requests, one of Meridian's — a
     // sibling client's, which the batch must leave out as `getForClient` does — and one that
     // never existed. Three bundles, one query.
-    const own = [];
+    const own: string[] = [];
     for (const title of ['Batched one', 'Batched two', 'Batched three']) {
       own.push(await submitAs(atlasAdminCtx, atlasAdmin, world.northstar.projectId, title));
     }

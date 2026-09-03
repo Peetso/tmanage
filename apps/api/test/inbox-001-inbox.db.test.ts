@@ -792,7 +792,7 @@ describe('one authorized read per object type, not one per bundle', () => {
     // project they are not on, one deleted after the fact, one that never existed. The batch
     // must answer with the three and only the three — what `get` would have answered, one by
     // one — and must ask the database once for all of them.
-    const visible = [];
+    const visible: string[] = [];
     for (const title of ['Batched one', 'Batched two', 'Batched three']) {
       visible.push(await createWorkItem(world.northstar.projectId, title));
     }
