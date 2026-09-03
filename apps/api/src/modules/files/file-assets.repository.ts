@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { uploadStateMachine, uuidv7 } from '@tmanage/domain';
 import type { Audience, UploadState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -162,6 +162,26 @@ export class FileAssetsRepository {
           eq(fileVersions.id, fileVersionId),
         ),
       )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** The asset's newest version, or null before its first completion. */
+  async findLatestVersion(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileAssetId: string,
+  ): Promise<FileVersionRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(fileVersions)
+      .where(
+        and(
+          eq(fileVersions.organizationId, context.organizationId),
+          eq(fileVersions.fileAssetId, fileAssetId),
+        ),
+      )
+      .orderBy(desc(fileVersions.versionNo))
       .limit(1);
     return rows[0] ?? null;
   }

@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
@@ -58,6 +58,17 @@ export interface CreateUploadSessionInput {
   readonly expiresAt: Date;
 }
 
+export interface ListUploadSessionsOptions {
+  readonly projectId?: string;
+  /** Omitting this returns every client's sessions; a client's own read always passes theirs. */
+  readonly clientOrganizationId?: string;
+  readonly actorUserId?: string;
+  readonly limit?: number;
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+
 function isDuplicateKey(error: unknown): boolean {
   const unwrapped = unwrapQueryError(error);
   if (typeof unwrapped !== 'object' || unwrapped === null) return false;
@@ -66,6 +77,27 @@ function isDuplicateKey(error: unknown): boolean {
 }
 
 export class UploadSessionsRepository {
+  /** Newest first. The per-row rule is the service's; this is the tenant predicate and the filters. */
+  async list(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: ListUploadSessionsOptions = {},
+  ): Promise<readonly UploadSessionRow[]> {
+    const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+    const predicates = [eq(uploadSessions.organizationId, context.organizationId)];
+    if (options.projectId) predicates.push(eq(uploadSessions.projectId, options.projectId));
+    if (options.clientOrganizationId) {
+      predicates.push(eq(uploadSessions.clientOrganizationId, options.clientOrganizationId));
+    }
+    if (options.actorUserId) predicates.push(eq(uploadSessions.actorUserId, options.actorUserId));
+    return tenantDrizzle(runner)
+      .select()
+      .from(uploadSessions)
+      .where(and(...predicates))
+      .orderBy(desc(uploadSessions.id))
+      .limit(limit);
+  }
+
   async findById(
     runner: TenantQueryRunner,
     context: TenantContext,

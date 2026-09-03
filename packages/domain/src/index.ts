@@ -172,6 +172,10 @@ export type {
   OutboxEventDefinition,
   OutboxEventPayloads,
   OutboxEventType,
+  UploadCompletedV1,
+  UsageStorageCommittedV1,
+  UsageStorageReleasedV1,
+  UsageStorageReservedV1,
   WorkItemBlockedV1,
   WorkItemUpdatedV1,
 } from './events/outbox.js';

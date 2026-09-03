@@ -10,6 +10,8 @@ import { DatabaseModule } from '../src/common/database/database.module.js';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
 import type { ApiConfig } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
+import { FakeObjectStore } from '@tmanage/storage';
+import { StorageModule } from '../src/common/storage/storage.module.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { seedTwoTenants } from './seed-two-tenants.js';
@@ -119,6 +121,7 @@ async function sendTo(
   path: string,
   session: Session,
   payload?: unknown,
+  headers: Record<string, string> = {},
 ): Promise<InjectedResponse> {
   return (await app.inject({
     method,
@@ -127,6 +130,7 @@ async function sendTo(
       ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
       cookie: session.cookie,
       ...(method === 'GET' ? {} : { [CSRF_HEADER]: session.csrfToken }),
+      ...headers,
     },
     ...(payload === undefined ? {} : { payload: payload as Record<string, unknown> }),
   })) as unknown as InjectedResponse;
@@ -137,7 +141,8 @@ const send = (
   path: string,
   session: Session,
   payload?: unknown,
-) => sendTo(NORTHSTAR, method, path, session, payload);
+  headers: Record<string, string> = {},
+) => sendTo(NORTHSTAR, method, path, session, payload, headers);
 
 /** Publish a work item to the client, through the internal API, as the studio would. */
 async function publish(
@@ -188,12 +193,39 @@ async function notifyClientAbout(requestId: string): Promise<void> {
   );
 }
 
+/**
+ * One upload session on the reviewer's own request, so `/portal/upload-sessions` answers a
+ * row for the sweep to read rather than `{"uploadSessions":[]}`. Through the API, with the
+ * fake object store the suite wires in — no bytes move.
+ */
+async function uploadForClient(session: Session, requestId: string): Promise<void> {
+  const response = await send(
+    'POST',
+    '/portal/upload-sessions',
+    session,
+    {
+      projectId: world.northstar.projectId,
+      fileName: 'logo.png',
+      mimeType: 'image/png',
+      sizeBytes: 1_000,
+      purpose: 'request_attachment',
+      objectId: requestId,
+    },
+    { 'idempotency-key': `sec-001-upload-${requestId}` },
+  );
+  if (response.statusCode !== 201) {
+    throw new Error(`upload session failed: ${response.statusCode} ${response.body}`);
+  }
+}
+
 beforeAll(async () => {
   db = await startTestDatabase();
   app = await NestFactory.create<NestFastifyApplication>(
     AppModule.register({
       config: CONFIG,
       database: DatabaseModule.forPool({ pool: db.runtime, guardMode: 'enforce' }),
+      // FILE-001: the client door opens a provider upload; the fake moves no bytes.
+      storage: StorageModule.forObjectStore(new FakeObjectStore(() => 1_000)),
     }),
     new FastifyAdapter(),
     { logger: false, abortOnError: false },
@@ -229,6 +261,8 @@ const CLIENT_OPERATIONS = [
   { name: 'read their own requests', method: 'GET', path: '/portal/requests' },
   // INBOX-001's second half. Added the day the review fleet noticed the list had not grown.
   { name: 'read their own notifications', method: 'GET', path: '/portal/inbox' },
+  // FILE-001. The client's uploads in flight; seeded by `uploadForClient` before the sweep.
+  { name: 'read their own uploads', method: 'GET', path: '/portal/upload-sessions' },
 ] as const;
 
 describe('§11: a client reaching across a boundary', () => {
@@ -420,6 +454,7 @@ describe('§7: forbidden fields never reach the client response path', () => {
     const atlas = await signIn(world.atlas.reviewer.id);
     const request = await submitRequest(atlas);
     await notifyClientAbout(request.id);
+    await uploadForClient(atlas, request.id);
 
     for (const operation of CLIENT_OPERATIONS) {
       const body = (await send(operation.method, operation.path, atlas)).body;

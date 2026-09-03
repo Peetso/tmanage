@@ -336,6 +336,27 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 — moderation is authority exercised over what somebody else said, and "who took ' +
       'this down, and when" is the question a disputed removal turns on',
   },
+  /**
+   * FILE-001. Two actions, and the shape of the set is again the argument.
+   *
+   * **Creating an upload session is not here.** §12 does not list an ordinary upload, and
+   * a row per session would be `message.created`'s problem over again. **A refusal on quota
+   * is here**, because `49-PRICING` §7 makes the 100% block an event the owner is told
+   * about, and "when did we start refusing uploads" is what a billing dispute turns on.
+   * **A completed upload is here** because `24-EVENT-CATALOG` §4 grades
+   * `upload.completed.v1` as a security log: an object now exists under the tenant's
+   * prefix, uploaded by a named person, and the scan that decides whether it is safe has
+   * not run yet.
+   */
+  'upload_session.refused': {
+    objectType: 'upload_session',
+    // Recorded as `denied` with no object id: the session that was refused never became a row.
+    clause: '§12 denied sensitive attempts; 49-PRICING §7 — the 100% block is a recorded refusal',
+  },
+  'file_asset.uploaded': {
+    objectType: 'file_asset',
+    clause: '24-EVENT-CATALOG §4 — upload.completed.v1 is a security log',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the

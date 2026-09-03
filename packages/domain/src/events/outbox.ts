@@ -69,6 +69,28 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'work_item',
     catalog: '§4 work_item.blocked.v1 — health, inbox, notification',
   },
+  /**
+   * FILE-001. §4 names the aggregate `upload` and the DBML names `storage_reservation`;
+   * the row that exists is `upload_sessions`, and `ix_outbox_events_org_aggregate`
+   * indexes real row kinds, so all four events describe that aggregate. Recorded as a
+   * divergence in docs/implementation-status.md.
+   */
+  'upload.completed.v1': {
+    aggregateType: 'upload_session',
+    catalog: '§4 upload.completed.v1 — verification/scan worker; security log',
+  },
+  'usage.storage_reserved.v1': {
+    aggregateType: 'upload_session',
+    catalog: '§4 usage.storage_reserved.v1 — usage UI, cost telemetry',
+  },
+  'usage.storage_committed.v1': {
+    aggregateType: 'upload_session',
+    catalog: '§4 usage.storage_committed.v1 — usage UI, reconciliation, threshold evaluator',
+  },
+  'usage.storage_released.v1': {
+    aggregateType: 'upload_session',
+    catalog: '§4 usage.storage_released.v1 — usage UI, reconciliation',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -161,6 +183,42 @@ export interface WorkItemBlockedV1 {
   readonly ownerUserId: string | null;
 }
 
+/**
+ * §5 for storage usage: "reservation/file version ID, byte delta, metric key, reason ...;
+ * never filename or content." There is no field a name or a MIME type could be put in.
+ */
+export interface UploadCompletedV1 {
+  readonly uploadSessionId: string;
+  readonly fileAssetId: string;
+  readonly fileVersionId: string;
+  readonly projectId: string;
+  readonly purpose: string;
+  readonly sizeBytes: number;
+}
+
+export interface UsageStorageReservedV1 {
+  readonly uploadSessionId: string;
+  readonly metricKey: string;
+  readonly deltaBytes: number;
+}
+
+export interface UsageStorageCommittedV1 {
+  readonly uploadSessionId: string;
+  readonly fileVersionId: string;
+  readonly metricKey: string;
+  /** The provider's count — what `used_value` grew by. */
+  readonly deltaBytes: number;
+  /** What the reservation held, which the commit released. */
+  readonly reservedBytes: number;
+}
+
+export interface UsageStorageReleasedV1 {
+  readonly uploadSessionId: string;
+  readonly metricKey: string;
+  readonly deltaBytes: number;
+  readonly cause: 'cancelled' | 'expired' | 'failed';
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -169,4 +227,8 @@ export interface OutboxEventPayloads {
   readonly 'message.converted.v1': MessageConvertedV1;
   readonly 'work_item.updated.v1': WorkItemUpdatedV1;
   readonly 'work_item.blocked.v1': WorkItemBlockedV1;
+  readonly 'upload.completed.v1': UploadCompletedV1;
+  readonly 'usage.storage_reserved.v1': UsageStorageReservedV1;
+  readonly 'usage.storage_committed.v1': UsageStorageCommittedV1;
+  readonly 'usage.storage_released.v1': UsageStorageReleasedV1;
 }

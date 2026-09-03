@@ -23,6 +23,7 @@ import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
 import { PlatformModule } from './modules/platform/platform.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
+import { FilesModule } from './modules/files/files.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -122,6 +123,10 @@ export class AppModule {
         ConversationsModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
+        // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the
+        // requests module: a session names a project and, for a client, a request, and a
+        // caller who names one that is not theirs gets 404 rather than a foreign-key 500.
+        FilesModule.register(),
       ],
       providers: [
         { provide: APP_INTERCEPTOR, useClass: CorrelationInterceptor },
