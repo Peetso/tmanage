@@ -10,5 +10,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   process.env['TMANAGE_E2E_WORLD'] = JSON.stringify(stack.world);
   // For `drainOutbox`: a journey that needs the worker to have run names the same database.
   process.env['TMANAGE_E2E_DATABASE_URL'] = stack.databaseUrl;
+  // FILE-001b: the upload journey checks that the bytes landed, on disk, once.
+  process.env['TMANAGE_E2E_STORAGE_ROOT'] = stack.storageRoot;
   return stack.stop;
 }

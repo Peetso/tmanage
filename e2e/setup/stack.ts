@@ -28,6 +28,8 @@ const REPO_ROOT = resolve(import.meta.dirname, '../..');
 
 export interface StackState {
   readonly databaseUrl: string;
+  /** FILE-001b. Where the API's filesystem driver keeps the bytes for this run. */
+  readonly storageRoot: string;
   readonly world: Record<string, unknown>;
   readonly pids: readonly number[];
 }
@@ -45,8 +47,13 @@ export function statePath(): string {
  * because the embedded server has one root credential and `packages/config` refuses the
  * two URLs being *equal* — the credential split it protects is a production property the
  * test harness cannot have.
+ *
+ * `STORAGE_FILESYSTEM_ROOT` is absolute and private to the run (FILE-001b): the default
+ * `.local/storage` resolves against the API child's working directory, which a spec that
+ * wants to see the object land could not find. The signing secret is the driver's own,
+ * distinct from the two above as `packages/config` requires in production.
  */
-function apiEnv(databaseUrl: string): NodeJS.ProcessEnv {
+function apiEnv(databaseUrl: string, storageRoot?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     NODE_ENV: 'development',
@@ -61,6 +68,8 @@ function apiEnv(databaseUrl: string): NodeJS.ProcessEnv {
     SESSION_COOKIE_NAME: 'tmanage_session',
     STORAGE_DRIVER: 'filesystem',
     STORAGE_BUCKET: 'e2e-local',
+    STORAGE_LOCAL_SIGNING_SECRET: 'local_dev_only_storage_signing_secret_for_the_e2e_xxx',
+    ...(storageRoot ? { STORAGE_FILESYSTEM_ROOT: storageRoot } : {}),
     QUEUE_DRIVER: 'memory',
     CACHE_DRIVER: 'memory',
     EMAIL_DRIVER: 'console',
@@ -186,7 +195,8 @@ export async function bootStack(): Promise<StackState & { stop: () => Promise<vo
     downloadBinaryOnce: true,
   });
   const databaseUrl = `mysql://${server.username}@127.0.0.1:${server.port}/${server.dbName}`;
-  const env = apiEnv(databaseUrl);
+  const storageRoot = mkdtempSync(join(tmpdir(), 'tmanage-e2e-storage-'));
+  const env = apiEnv(databaseUrl, storageRoot);
 
   // 2. The real migrations, through the repository's own command.
   await run('pnpm', ['--filter', '@tmanage/api', 'db:migrate'], { cwd: REPO_ROOT, env });
@@ -249,7 +259,8 @@ export async function bootStack(): Promise<StackState & { stop: () => Promise<vo
       }
     }
     await server.stop();
+    rmSync(storageRoot, { recursive: true, force: true, maxRetries: 3 });
   };
 
-  return { databaseUrl, world, pids, stop };
+  return { databaseUrl, storageRoot, world, pids, stop };
 }
