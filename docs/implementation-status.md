@@ -584,6 +584,27 @@ pins.
 - `findManyByIds` has no upper bound of its own; the inbox hands it at most a page
   (`MAX_NOTIFICATION_PAGE`, 200) of ids.
 
+### The second fleet, on the batched read itself
+
+The same shape on `767fdda..acecd91`, the fleet fixes and the batched read: fifteen claims,
+nine after the skeptic folded them, six confirmed, two downgraded, one dismissed, one that all
+five missed. What was done about each:
+
+| Claim                                                                                                                                                                                                                      | Verdict                                        | Done                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The studio counting case listed in `important` mode, whose only type is a work-item event, so `ClientRequestsService.getMany` was called by no test and `clientRequests.one === 0` held because nobody asked               | confirmed, medium                              | The case seeds two requests for the manager and one for the designer, who cannot triage; lists in `all` and `client_actions`; asserts one batched request read, zero single reads, the refusal, and equality with `get`. **Reverted** to one `get` per bundle: "expected +0 to be 1"                            |
+| `ClientRequestsService.getMany` read client names from a page of 200 active organizations and answered `null` for an archived client's request where `get` answers the name (six claims from four lenses)                  | downgraded to low: the inbox discards the name | `ClientOrganizationsRepository.findManyByIds`, by the ids on the rows, no archive predicate, no cap. A case archives Atlas and compares the two reads. **Reverted**: "expected null to be 'Atlas Hospitality'". The same truncation stands in `list`, which renders the name, and predates the slice — recorded |
+| The second `settled()` site had no positive guard, so the absence it waits for could be satisfied before the click's render committed                                                                                      | confirmed, low                                 | The `aria-pressed` wait the first site has                                                                                                                                                                                                                                                                      |
+| `drainOutbox` failed on the worker's table-wide parked count, before the `claimed 0` terminator, so one parked event would fail every later drain                                                                          | downgraded to low: needs eight prior failures  | Parked is read as a count and fails only when it grows during this drain                                                                                                                                                                                                                                        |
+| `drainOutbox` caps at 20 batches and spawns a process per batch                                                                                                                                                            | dismissed: recorded design                     | Nothing                                                                                                                                                                                                                                                                                                         |
+| `markBundleRead`'s doc said "the same authorized path the list uses"; the portal class doc named `getForClient` as the page's read; decision 1 in this file still said one `get` per bundle                                | confirmed, low (three)                         | Each reworded to what the code does                                                                                                                                                                                                                                                                             |
+| The 2026-09-03 verification table carried the previous session's single-suite rows and no post-change run                                                                                                                  | downgraded to low: the rows are labelled       | A verification section of this session's own, below                                                                                                                                                                                                                                                             |
+| **Missed by all five:** `drainOutbox` read `failed N` and `parked` and never the report's third channel, `of which N failed` — an after-commit effect (a mail) that threw, which the dispatcher turns into data on purpose | the skeptic's own; low                         | Read now, and a failure of the drain                                                                                                                                                                                                                                                                            |
+
+Two more standing lines from it: `ClientRequestsService.list` still names clients from a
+capped, active-only page (pre-existing; the same `findManyByIds` fixes it); and the three
+inbox screens' `is-active` class, as above.
+
 No ticket moved: **32½ of 70, 264 of 583 points (45.3%)**. INBOX-001 stays half (quiet hours
 need a preferences table), TEST-003 stays half (REL-01/02 need a load balancer).
 
@@ -747,6 +768,29 @@ browser can take it.
 
 ---
 
+## Verification actually run — 2026-09-03, the chain-first session
+
+Four chains were started this session. The first, on the committed tree before any code, is
+recorded under the client-inbox session's heading below as the chain that stop owed. The
+second failed in `typecheck` on two untyped array literals in the new counting cases — the api
+typecheck project includes `test/`, and the single-suite runs do not typecheck — fixed in
+`4292aee`. The third, on that commit, is the green one in this table. The fourth ran on the
+closing commit; its row is the last.
+
+| Gate                                | Result                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The chain** on `4292aee`          | `format:check && typecheck && lint && test && test:db && audit:design && format:check` — **exit 0** in 20 m 57 s; unit **1030 passed** across 59 files, `test:db` **826 passed, 29 skipped** across 34 files, `audit:design` **172 of 172**. Two unit cases and two database cases up on the first chain, which is the two web error cases and the two counting cases |
+| `inbox-001-inbox.db.test`           | **19 passed** — up from 17: the counting case, both halves, and the archived-name case; both proved by reverting from a saved copy                                                                                                                                                                                                                                    |
+| `inbox-001-portal-inbox.db.test`    | **14 passed** — up from 13: the counting case, proved by reverting; the predicate case repointed to `getManyForClient`                                                                                                                                                                                                                                                |
+| `sec-001-client-projection`         | **16 passed**, with a notification row and the non-empty assertion; reverted: "answered nothing, so a sweep over it is vacuous"                                                                                                                                                                                                                                       |
+| `portal-inbox-flow` (web)           | **7 passed** — up from 5: the two error branches                                                                                                                                                                                                                                                                                                                      |
+| `pnpm test:e2e`                     | **14 passed**, three times: after the fleet fixes (the first run of the day failed E2E-01b on the bare date, 13 of 14 with 01c skipped in the serial group), after the batched read, and after the second fleet's fixes. The `settled()` proof run, with the `unreadOnly` predicate removed, failed E2E-07a at the guarded assertion as intended                      |
+| `test:vr`                           | Not run and not owed: `packages/ui` is untouched                                                                                                                                                                                                                                                                                                                      |
+| Leaked `mysqld`                     | **None.** Checked after every single-suite run, after each of the four revert proofs, after each e2e run, and after each chain                                                                                                                                                                                                                                        |
+| **The chain** on the closing commit | CHAIN4_PLACEHOLDER                                                                                                                                                                                                                                                                                                                                                    |
+
+---
+
 ## Verification actually run — 2026-09-03, the client-inbox session
 
 **The full chain ran the next morning, 2026-09-03, first thing and before any code — the
@@ -795,8 +839,9 @@ show count, latest time, required action. Inline actions reauthorize at executio
 again when link/action opens." Four decisions, each a method rather than a sentence:
 
 1. **A row is a reference; the object is resolved at read time, through its own authorized
-   read.** `InboxService.bundle` calls `WorkItemsService.get` / `ClientRequestsService.get`
-   for every bundle and a 404 from either **drops the bundle silently** — no title, no "you
+   read.** `InboxService.bundle` called `WorkItemsService.get` / `ClientRequestsService.get`
+   for every bundle — since 2026-09-03 their `getMany`, once per object type per page, see
+   "The chain-first session" — and a refusal from either **drops the bundle silently** — no title, no "you
    cannot see this", no count. That is §1's second check and `24-EVENT-CATALOG` §6's "must not
    reveal an object after access was revoked". The database suite proves it three ways: a
    `member` told about work on a project they are not on; a soft-deleted work item; and a
