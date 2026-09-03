@@ -138,6 +138,13 @@ describe('loadEnv', () => {
       expect(() => loadEnv({ ...devEnv(), STORAGE_DRIVER: 'filesystem' })).not.toThrow();
     });
 
+    it("defaults the organization storage quota to 50-BOOTSTRAP §5's 500 MB", () => {
+      expect(loadEnv(devEnv()).STORAGE_ORG_BYTES_LIMIT_BYTES).toBe(524_288_000);
+      expect(
+        issuePaths(() => loadEnv({ ...devEnv(), STORAGE_ORG_BYTES_LIMIT_BYTES: '0' })),
+      ).toContain('STORAGE_ORG_BYTES_LIMIT_BYTES');
+    });
+
     it('caps authorized download URL lifetime at the five-minute spec limit', () => {
       expect(
         issuePaths(() => loadEnv({ ...devEnv(), STORAGE_DOWNLOAD_URL_TTL_SECONDS: '3600' })),

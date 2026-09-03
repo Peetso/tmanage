@@ -1,0 +1,66 @@
+import type {
+  AbortMultipartInput,
+  BeginMultipartInput,
+  CompleteMultipartInput,
+  MultipartUpload,
+  ObjectStore,
+  StoredObject,
+} from './object-store.js';
+
+/**
+ * The driver a suite holds in its hand — `packages/mail`'s console driver, for bytes.
+ *
+ * No bytes move. `beginMultipart` answers `memory://` URLs, a scheme nothing can fetch, so
+ * a test that accidentally treats one as reachable fails loudly instead of touching a
+ * network. `completeMultipart` answers whatever size the suite configured for the key, and
+ * the declared size otherwise — which is how a size mismatch (`27-TEST-CATALOG` INT-12,
+ * "declared size differs from actual") is provable with no object anywhere.
+ *
+ * Everything the store was asked is recorded, because "was the provider asked to abort"
+ * is a fact a release path has to be able to assert.
+ */
+export class FakeObjectStore implements ObjectStore {
+  readonly began: BeginMultipartInput[] = [];
+  readonly completed: CompleteMultipartInput[] = [];
+  readonly aborted: AbortMultipartInput[] = [];
+  /** Provider-reported sizes, by object key. Absent means "the size the caller declared". */
+  readonly sizeFor = new Map<string, number>();
+  /** Thrown by the next call to any method, then cleared. The provider being down. */
+  failNext: Error | null = null;
+
+  private counter = 0;
+
+  constructor(private readonly defaultSizeFor: (objectKey: string) => number) {}
+
+  async beginMultipart(input: BeginMultipartInput): Promise<MultipartUpload> {
+    this.consumeFailure();
+    this.began.push(input);
+    this.counter += 1;
+    const providerUploadId = `fake-upload-${this.counter}`;
+    const parts = Array.from({ length: input.partCount }, (_, index) => ({
+      partNumber: index + 1,
+      url: `memory://${providerUploadId}/part/${index + 1}`,
+    }));
+    return { providerUploadId, parts };
+  }
+
+  async completeMultipart(input: CompleteMultipartInput): Promise<StoredObject> {
+    this.consumeFailure();
+    this.completed.push(input);
+    const sizeBytes = this.sizeFor.get(input.objectKey) ?? this.defaultSizeFor(input.objectKey);
+    return { sizeBytes, etag: `fake-etag-${input.parts.length}` };
+  }
+
+  async abortMultipart(input: AbortMultipartInput): Promise<void> {
+    this.consumeFailure();
+    this.aborted.push(input);
+  }
+
+  private consumeFailure(): void {
+    if (this.failNext) {
+      const error = this.failNext;
+      this.failNext = null;
+      throw error;
+    }
+  }
+}

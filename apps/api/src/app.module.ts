@@ -20,6 +20,7 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
+import { StorageModule } from './common/storage/storage.module.js';
 import { PlatformModule } from './modules/platform/platform.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 
@@ -70,6 +71,14 @@ export interface AppModuleOptions {
    * telling the issuer to send the printed link, which is the bootstrap fallback.
    */
   readonly mailer?: DynamicModule;
+  /**
+   * FILE-001. The object-store wiring, already built — `StorageModule.forObjectStore()` in a
+   * suite that holds the fake. Absent means `StorageModule.none()`: no driver exists yet
+   * (see `storage.module.ts`), and an upload session then fails at the provider call, as
+   * a `500`, rather than at boot — so every other route keeps working in a deployment
+   * whose files are a later ticket.
+   */
+  readonly storage?: DynamicModule;
 }
 
 @Module({})
@@ -89,6 +98,7 @@ export class AppModule {
         // Before `TenancyModule`, whose invitations service is the mail port's first
         // producer and resolves `INVITATION_MAILER` from this injector.
         options.mailer ?? MailerModule.none(),
+        options.storage ?? StorageModule.none(),
         TenancyModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()

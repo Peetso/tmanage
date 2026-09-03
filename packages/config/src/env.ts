@@ -120,6 +120,13 @@ export const envSchema = z
     STORAGE_DOWNLOAD_URL_TTL_SECONDS: positiveInt.max(300).default(300),
     STORAGE_UPLOAD_URL_TTL_SECONDS: positiveInt.max(3_600).default(900),
     STORAGE_FILESYSTEM_ROOT: z.string().default('.local/storage'),
+    /**
+     * FILE-001. The pooled storage quota one organization may reserve against, in bytes.
+     * 50-BOOTSTRAP §5's private-alpha value (500 MB) is the default; `49-PRICING` §3's plan
+     * entitlements replace this variable when `organization_entitlements` exists (ENT-001).
+     * One seam reads it: `storageLimitsFor` in the API's files module.
+     */
+    STORAGE_ORG_BYTES_LIMIT_BYTES: positiveInt.default(524_288_000),
 
     // Sessions and cryptography
     SESSION_COOKIE_NAME: nonEmpty('SESSION_COOKIE_NAME').default('tmanage_session'),
