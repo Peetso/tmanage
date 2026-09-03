@@ -4,6 +4,7 @@ import { ApiError, MESSAGES, apiErrorBody } from './errors.js';
 import type { ApiErrorCode } from './errors.js';
 import { ensureRequestState } from './request-state.js';
 import { CORRELATION_HEADER } from './correlation.js';
+import { isPartRoute } from './fastify-adapter.js';
 import { BootstrapScopeViolation, IdentityScopeViolation } from '../database/tenant-context.js';
 import { TenantGuardViolation } from '../database/tenant-guard.js';
 import {
@@ -37,7 +38,7 @@ import {
 export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
-    const request = http.getRequest<object>();
+    const request = http.getRequest<{ readonly url?: unknown }>();
     const response = http.getResponse<{
       header(name: string, value: string): unknown;
       status(code: number): { send(body: unknown): unknown };
@@ -47,7 +48,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // carries it — that is what makes the log line findable from what the caller saw.
     const correlationId = ensureRequestState(request).correlationId;
     response.header(CORRELATION_HEADER, correlationId);
-    const apiError = this.toApiError(exception);
+    const apiError = this.toApiError(exception, request);
 
     // The audit code and the original error are what a log sink and, later, AUD-001 consume.
     // They are attached to the error object rather than printed here so that wiring the
@@ -55,7 +56,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response.status(apiError.status).send(apiErrorBody(apiError, correlationId));
   }
 
-  private toApiError(exception: unknown): ApiError {
+  private toApiError(exception: unknown, request: { readonly url?: unknown }): ApiError {
     if (exception instanceof ApiError) return exception;
 
     if (exception instanceof ProjectNotFoundError) {
@@ -84,12 +85,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       // meaningful; the message is replaced with one of ours so the envelope is uniform and
       // so a framework string never becomes part of the API's contract by accident.
       const status = exception.getStatus();
-      if (status === 413) {
-        // FILE-001b. Fastify refuses a part body over the octet-stream parser's own limit
-        // before any handler runs, and the adapter hands it here as a 413 `HttpException`.
-        // It is the one framework refusal that deserves a detail of ours: the caller holds a
-        // valid target and sent more than one part may carry — the same answer the driver
-        // gives for one byte over, so a client sees one shape for "too big".
+      if (status === 413 && typeof request.url === 'string' && isPartRoute(request.url)) {
+        // FILE-001b. The octet-stream parser refuses a part body over its own limit before
+        // any handler runs, and it arrives here as a 413 `HttpException`. On the part route
+        // — and only there — it deserves a detail of ours: the caller holds a valid target
+        // and sent more than one part may carry, the same answer the driver gives for one
+        // byte over, so a client sees one shape for "too big". A 413 on any other route is
+        // Fastify's own 1 MiB limit on a JSON body, and gets the generic envelope below.
         return new ApiError(
           413,
           'validation_failed',

@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-04 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-04 (review-debt session) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,27 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-04, start of the review-debt session
+
+The **twenty-ninth** consecutive run, and the table below is this run's output rather than a
+copy of the previous one. Every pair was compared by SHA-256 and, separately, by modification
+time — pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                  |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                           |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                            |
+| Modification times                        | **No pack file is newer than its copy** in either scope. 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later; one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. Unchanged from the twenty-eighth run       |
+| Uncopied pack content                     | The same six as the twenty-eighth run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                            |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
 
 ---
 
@@ -575,6 +596,90 @@ are untouched.
 
 ---
 
+## FILE-001b, the review acted on — twenty-three claims re-read, nineteen fixed and proved
+
+The session of 2026-09-04 opened on the two debts the review session left: the chain on the
+final tree, and the fleet's findings, recorded and untouched. The chain ran first, green.
+Then every kept claim was re-read in the source before anything was written — all
+twenty-three stand as the skeptic described them; not one was dismissed on re-reading — and
+the fixes went in as one batch, each with a case, each case proved red by reverting the fix
+it pins. Four claims are recorded rather than fixed, as the review said they should be.
+
+### What each claim became
+
+| #   | Done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Fixed.** The octet-stream parser is now streaming and refuses first: it reads the URL before a byte of the body, answers 415 to any registered route that is not `PUT /v1/uploads/:handle/parts/:n` with the body unread, lets an unrouted URL through untouched to Fastify's own 404, and buffers only the part route, up to its own limit, counting as it goes. `main.ts` still registers it for every driver; on `s3` it costs one URL check and buffers nothing. The helper's header now says what it does. Case: an octet-stream body on `POST /upload-sessions`, 8 bytes and a byte over the parser's limit, both 415 with no detail |
+| 2   | **Fixed.** The filter's `part_too_large` envelope is keyed on the request URL matching the part route; every other 413 gets the generic envelope. Case: a 1.1 MB JSON body on `POST /upload-sessions` — 413, `validation_failed`, "The request could not be understood", no `details`. Decision 9 corrected below                                                                                                                                                                                                                                                                                                                            |
+| 3   | **Fixed.** `writeAtomically` writes to `<path>.<12 hex>.tmp` and removes it if the write or the rename fails. Cases: a directory squatting on `part-0001` makes the rename fail and nothing but the manifest remains; two PUTs of one part at once both land whole, each answered the etag of its own body                                                                                                                                                                                                                                                                                                                                   |
+| 4   | **Fixed.** Completion is one pass: each part is MD5-hashed and counted through a `Transform` **while** it streams into the staging file, and compared to its presented etag before the next part is read; the size and etag recorded are of the bytes written. Proved by reading; the interleaving it closes cannot be scheduled from a test                                                                                                                                                                                                                                                                                                 |
+| 5   | **Half fixed.** The staging file is `object.<16 hex>.tmp`, per call, and a refused completion discards it and keeps the parts (case: after a wrong etag, exactly the manifest and the parts remain, and the second completion succeeds). The other half — a claim on the row (`reserved → completing`) before the provider call — is **not done** and stays on the carried list as the complete/cancel race                                                                                                                                                                                                                                  |
+| 6   | **Fixed.** `toView` takes the principal; `uploadUrls` is served only when the row is `reserved` **and** the caller opened it. Case, in the wide-list test: the owner's organization-wide list carries `[]` for both sessions while the opener's own read still carries the target                                                                                                                                                                                                                                                                                                                                                            |
+| 7   | **Fixed.** `abortMultipart` reads the manifest, is a no-op without one, and throws `MultipartUploadMismatchError` for a zone or key that is not the upload's — the directory is untouched. Case: two wrong pairs refused with the manifest still present, the right pair removes it                                                                                                                                                                                                                                                                                                                                                          |
+| 8   | **Fixed.** `UPLOAD_PART_SIZE_BYTES` is bounded to 1 KiB … 64 MiB, and `superRefine` refuses a part size that puts `ceil(UPLOAD_MAX_BYTES / part size)` above `UPLOAD_MAX_PART_NUMBER` (99 999), the ceiling the route enforces. Cases: 0, 1 023 and 64 MiB + 1 refused, the bounds accepted; 100 MB in 1 KiB parts refused, in 2 KiB parts accepted                                                                                                                                                                                                                                                                                          |
+| 9   | **Fixed.** The manifest is version 2 and carries `partSizeBytes`; `putPart` refuses above the manifest's size, not the process's; `completeMultipart` refuses a manifest past its expiry as `MultipartUploadNotFoundError`. Cases: a wider store refuses 17 bytes for an upload opened at 16 and a narrower store accepts 16; completion on a moved clock rejects                                                                                                                                                                                                                                                                            |
+| 10  | **Fixed.** The controller checks the sink and the part number before the body's type. Cases: a JSON body for part `one` is 404 (transport suite); a JSON body with no sink bound is 404 (upload-sessions suite, which holds the fake)                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 11  | **Recorded, pinned.** A PUT with no `Content-Type` is 415 from Fastify, not this route's 400. The part-3 sentence is corrected in place; the case sits beside the JSON one                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 12  | **Recorded.** `.env.example` says beside `STORAGE_FILESYSTEM_ROOT` that on Windows the root must be short, ideally absolute, or the final rename fails past `MAX_PATH` as ENOENT                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 13  | **Fixed.** One constant, `UPLOAD_PART_SIZE_DEFAULT_BYTES` in `packages/config`, read by the schema's default and by `api-config.ts`; `files.service.ts` no longer exports a copy, and `common/` no longer takes a value import from a feature module. The config suite asserts the constant is 8 MiB and the default is the constant                                                                                                                                                                                                                                                                                                         |
+| 14  | **Fixed.** `fallbackCodeFor` maps 413 and 415 to `validation_failed`, with a message each ("That is too large to send." / "That could not be sent in this form."). Case: a bare 413 and a bare 415 with a text body                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 15  | **Fixed.** `walk()` in the storage suite sorts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 16  | **Fixed.** Both branches are reached with tokens minted by hand under the real key: part 3 of a two-part upload, and a token expiring after the manifest on a clock moved past the manifest. Each is `null` with nothing written                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 17  | **Fixed.** The 413 case uses `PART_BODY_SLACK_BYTES` rather than a literal, and pins the boundary with a forged token: at the part size plus the slack the body reaches the driver, which refuses the token (404); one byte over, the parser refuses first (413)                                                                                                                                                                                                                                                                                                                                                                             |
+| 18  | **Fixed, all seven.** The `not.toContain('etag')` is now an equality on the detail (`part 2 does not match the etag presented for it`) and on the message; "one millisecond earlier" reads "a second before the expiry"; the "remove part 3" comment says what happens (three of four PUT, the fourth named with a guessed etag); the composite etag is computed and compared, not shape-matched; the traversal case asserts byte-identical bodies and is titled for what it sends; the env case tries 31 and 32 characters; the zone-or-key case tries a wrong key too                                                                      |
+| 19  | **Fixed.** `drainOutbox` takes the run's storage root and `inbox-journeys.spec.ts` passes `TMANAGE_E2E_STORAGE_ROOT`. No case: the worker reads no object yet, so nothing observable turns on it                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 20  | **Recorded.** The parser refuses a body over the slack before any handler, so a forged token with such a body learns that a ceiling exists. The adapter's header says so; claim 17's case is the pin                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 21  | **Fixed.** `releaseAs` takes an `abort` mode; the completion catch uses `best-effort`, which swallows an abort failure the way the create path does. Case: `failNext = MultipartUploadNotFoundError`, `failNextAbort` set — 422 on `parts`, session `failed`, bytes released, both failures consumed                                                                                                                                                                                                                                                                                                                                         |
+| 22  | **Decided — decision 11 below — and fixed.** `MissingPartError` and `PartEtagMismatchError` leave the session `reserved`; only `MultipartUploadNotFoundError` releases it. The two completion-refusal cases now prove the retry: 422, still `reserved`, still counted, parts still on disk; re-PUT (or send the missing part), complete again, 202                                                                                                                                                                                                                                                                                           |
+| 23  | **Recorded.** In the parts 2–4 section's carried list and in `.env.example`: the transport is a development and e2e path; production names `s3` and the route answers 404                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+### Decision 11, for Peter to overturn
+
+11. **A refused completion keeps the upload.** On `MissingPartError` or `PartEtagMismatchError`
+    the session stays `reserved`, the bytes stay counted, the driver keeps its staging
+    directory, and the client re-PUTs the part and completes again. S3 leaves a multipart
+    upload intact on `InvalidPart`; a driver that discarded thirteen parts over one mistyped
+    etag would be stricter than the provider it stands in for, and the fleet's own plan
+    (`releaseAs('failed')` on every refusal) chose that without saying so. Release happens
+    only on `MultipartUploadNotFoundError`, when nothing the client does can finish the
+    upload; that release's abort is best-effort. Cost: a session refused this way holds its
+    reservation until the client completes, cancels, or the expiry sweeper (USAGE-001) runs.
+
+### Verification actually run — 2026-09-04
+
+| Gate                                        | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The chain** on `86b8903`, before any code | `format:check && typecheck && lint && test && test:db && audit:design && format:check` — **exit 0** in 27 m 07 s; unit **1073 passed** across 63 files (up 7 from `104bd78`'s 1066: `packages/config` 30 → 37), `test:db` **893 passed, 29 skipped** across 37 files (up 13: the transport suite), `audit:design` **172 of 172**, both `format:check`s clean, no `mysqld` left behind. The debt the transport session recorded is paid                                                                                                                                                                                     |
+| `packages/storage` unit                     | **33 passed** (25 + 8). Reversal, all at once from a sha-checked copy — range and expiry checks dropped from `putPart`, the ceiling read from the process, no expiry at completion, the zone compared alone, abort on the handle, the staging file kept on a refusal, a deterministic `.tmp` with no cleanup — **8 of 33 red**, each on its own assertion. The concurrent-PUT case stayed green under the deterministic name: the two `writeFile`s did not interleave on this run, so that case is a pin on the fix, not a proof of the bug. Restored sha-identical; `packages/storage` rebuilt before the database suites |
+| `packages/config` unit                      | **39 passed** (37 + 2 net: two cases replaced, two added). Reversal — bounds and the part-number refinement removed — **2 of 39 red**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `apps/web` `api-client.test.ts`             | **19 passed** (18 + 1). Reversal — `fallbackCodeFor` back to 400/422 — **1 of 19 red** (`internal_error` for 413)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/api` unit, `typecheck`, `lint`        | 267 passed; clean (whole repository); clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `file-001b-part-transport.db.test.ts`       | **15 passed** (13 + 2, two rewritten). `file-001-upload-sessions.db.test.ts` **31 passed** (29 + 2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Database revert proofs                      | One run of both suites on the reverted api: the filter keyed on status alone, the parser's URL check removed, the body checked before the sink, targets served to every reserved row, the completion release unconditional and its abort required — **8 of 46 red**, each on its own assertion, 38 green (the storage `dist` was left at the fixed driver on purpose, so no driver reversal cascaded into these). A second run for the slack: the parser's limit one byte over `PART_BODY_SLACK_BYTES` — **1 of 15 red** (404 where 413 was pinned). Both restored sha-identical                                           |
+| An honest slip                              | After the slack run this session restored the adapter with `git checkout` — the exact trap the record warns about — and wiped the uncommitted fix. It was put back from the sha-checked copy (`ad3f142e0c4d`) before anything else ran. Recorded so the warning stays credible                                                                                                                                                                                                                                                                                                                                             |
+| CR bytes in every changed file              | 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **The chain** on the finished tree          | **CHAIN_FINAL**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `pnpm test:e2e`                             | **E2E**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `mysqld` strays                             | **MYSQLD**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+### What is still carried
+
+- **The complete/cancel race** — claim 5's other half. No claim on the row across the provider
+  call; two completions of one session, or a completion and a cancel, still interleave at the
+  service. Observable with the real driver; not fixed.
+- **No rate limit on the public PUT**; **the expiry sweeper** (USAGE-001), which decision 11
+  now leans on a little harder: a refused completion holds its reservation until then.
+- `test:vr` was **not run and is not owed**: `packages/ui` is untouched.
+
+### Ticket accounting
+
+Claims 1–8 were the ticket's own defects and are fixed and proved in this session, so FILE-001
+does not go back to half. **34 of 70 tickets, 272 of 583 points (46.7%)**, unchanged; the
+twelve FILE-001 decisions, the ten FILE-001b decisions and decision 11 remain Peter's to
+overturn.
+
+---
+
 ## FILE-001b reviewed — the fleet's findings, recorded and not yet acted on
 
 Six read-only agents — five lenses (security, wiring, driver, contracts, test honesty) and a
@@ -582,10 +687,12 @@ skeptic — over `7723f01..d113246`, run `wf_388ba028-2ee`. Forty-five claims fr
 the skeptic re-read every cited line, kept **nineteen**, dismissed nine, and found **four**
 the lenses missed. Its hygiene note: of about ninety citations, one line number was fabricated
 (`storage.module.ts:272` in a 107-line file) and two were off by a line; the rest landed.
-Peter called the stop as the fleet returned, so **nothing below has been re-read in the source
-by this session, and nothing has been fixed.** The chain that was running was killed. This
-section is the debt the next session opens on; the full per-agent output is in the run's
-`journal.jsonl` under the session's `subagents/workflows/wf_388ba028-2ee/`.
+Peter called the stop as the fleet returned, so nothing below was re-read in the source or
+fixed by the review session, and the chain that was running was killed. **The next session
+(2026-09-04) re-read every kept claim in the source, confirmed all twenty-three, fixed what
+the record above said to fix and recorded the rest — see "FILE-001b, the review acted on"
+above.** The full per-agent output is in the run's `journal.jsonl` under the session's
+`subagents/workflows/wf_388ba028-2ee/`.
 
 ### Kept by the skeptic, ranked
 
@@ -672,9 +779,11 @@ longer half.
   `@Controller('v1/uploads') @Public() @NoTenant()`, `PUT :providerUploadId/parts/:n`, a `Buffer`
   body, `?t=` read as a query, no `@Ctx()` and no principal. It authorizes nothing itself; every
   `null` from the driver's `PartSink` is one 404 with one body; a body over the part size is 413
-  `validation_failed` (`part_too_large`) whether the driver refused it by one byte or Fastify by a
-  kilobyte — the filter maps the adapter's own 413 to the same detail; a non-octet-stream body
-  is 400. Success is 200, an empty body, a quoted `ETag`. `FilesService.completeSession` now
+  `validation_failed` (`part_too_large`) whether the driver refused it by one byte or the parser by
+  a byte over the slack — the filter maps the parser's 413 to the same detail; a body that names
+  another content type is 400, and a body that names **none** — what `fetch` sends for a
+  `Blob.slice()` — is Fastify's own 415, not this route's 400 (_corrected 2026-09-04, claim 11;
+  pinned by a case_). Success is 200, an empty body, a quoted `ETag`. `FilesService.completeSession` now
   tries `completeMultipart`: `MultipartUploadNotFoundError` / `MissingPartError` /
   `PartEtagMismatchError` fail the session, release the reservation and answer 422 on `parts`
   (`upload_not_found` / `part_missing` / `part_etag_mismatch` as the audit code);
@@ -724,11 +833,15 @@ each cost or bought:
 
 Two more this session took, in the same spirit:
 
-9. **Fastify's own 413 is ours.** Any 413 `HttpException` the adapter raises is rendered as
-   `validation_failed` with a `body` detail and `part_too_large` — the octet-stream parser is
-   the only thing in this API with a limit above the default, so the mapping cannot misdescribe
-   another route today. If a second large-body route arrives, the mapping should read the
-   request's content type.
+9. **The parser's own 413 is ours, on the part route only.** _Corrected 2026-09-04 (claim 2
+   of the review): as first written this said "any 413 `HttpException` the adapter raises",
+   justified by the octet-stream parser being the only limit above the default — but
+   Fastify's untouched 1 MiB default on every JSON route is itself a 413 source, so a
+   1.2 MiB JSON body against any route answered `exceeds the part size`._ The filter now
+   keys the `part_too_large` envelope on the request URL matching
+   `/v1/uploads/:handle/parts/:n`; a 413 anywhere else gets the generic envelope
+   (`validation_failed`, "The request could not be understood", no detail). Pinned by a
+   database case on `POST /upload-sessions` with a 1.1 MB JSON body.
 10. **A non-octet-stream body on the part route is 400, not 404.** It is a client bug, and
     saying so reveals nothing about any upload.
 
@@ -755,6 +868,12 @@ Two more this session took, in the same spirit:
 - **The complete/cancel race** (no claim on the row across the provider call) is now observable
   with a real driver and still not fixed; **the expiry sweeper** is USAGE-001's.
 - **`s3` wires nothing** until FILE-003 brings R2 signature semantics and bucket CORS.
+- **The local transport is a development and e2e path** (_added 2026-09-04, claim 23_).
+  `filesystem` is on `packages/config`'s production blacklist, so a production deployment
+  names `s3`, `LOCAL_PART_SINK` is never bound, and `PUT /v1/uploads/…` answers 404 to
+  everything. Since the review the octet-stream parser refuses every non-part URL by path
+  before reading a byte, so the route's parser costs production one URL check per
+  octet-stream request and buffers nothing. `.env.example` now says so beside the root.
 
 ### Ticket accounting
 

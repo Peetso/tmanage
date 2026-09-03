@@ -9,6 +9,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
+import { UPLOAD_MAX_PART_NUMBER } from '@tmanage/config';
 import { PartTooLargeError } from '@tmanage/storage';
 import type { PartSink, PutPartResult } from '@tmanage/storage';
 import { NoTenant, Public } from '../../common/http/decorators.js';
@@ -30,9 +31,13 @@ import { LOCAL_PART_SINK } from '../../common/http/tokens.js';
  *
  * Every refusal the sink makes is one `null`, and every `null` is one 404 with one body —
  * a forged token, an expired one, an aborted upload, a completed one, a part number the
- * upload does not have. Distinguishing them would tell a prober which handles exist. A body
- * over the part size is the one refusal with its own status, 413, because it is not about
- * authority: the caller holds a valid token and sent more than one part may carry.
+ * upload does not have. Distinguishing them would tell a prober which handles exist. Two
+ * refusals have a status of their own, and neither is about authority. A body over the part
+ * size is 413: the caller holds a valid token and sent more than one part may carry. A body
+ * that is not `application/octet-stream` is 400: a client bug, and saying so reveals nothing
+ * about any upload — which is why it is checked **after** the sink and the part number, so
+ * that with no sink bound, or a part number that is not one, a JSON body still gets the
+ * same 404 as everything else.
  *
  * What this route never does: read a `TenantContext` or a `Principal` (there is neither),
  * echo the object key or the handle in a response (the `ETag` is the only thing it says),
@@ -43,8 +48,16 @@ import { LOCAL_PART_SINK } from '../../common/http/tokens.js';
  * and this route answers 404 to everything — the same body an unknown handle gets.
  */
 
-/** A part number is one to five digits with no leading zero; anything else is not a part. */
-const PART_NUMBER = /^[1-9]\d{0,4}$/;
+/**
+ * A part number is decimal digits with no leading zero, up to `UPLOAD_MAX_PART_NUMBER` —
+ * the ceiling `packages/config` holds `UPLOAD_MAX_BYTES / UPLOAD_PART_SIZE_BYTES` under, so
+ * no session is ever minted a part this route would refuse. Anything else is not a part.
+ */
+const PART_NUMBER = /^[1-9]\d*$/;
+
+function isPartNumber(n: string): boolean {
+  return PART_NUMBER.test(n) && Number(n) <= UPLOAD_MAX_PART_NUMBER;
+}
 
 interface HeaderWriter {
   header(name: string, value: string): unknown;
@@ -69,14 +82,13 @@ export class UploadPartsController {
     @Body() body: unknown,
     @Res({ passthrough: true }) reply: HeaderWriter,
   ): Promise<void> {
+    if (!this.sink || !isPartNumber(n)) throw notFound();
     if (!Buffer.isBuffer(body)) {
-      // The octet-stream parser is the only one that yields a Buffer. A JSON body here is a
-      // client bug, and saying so reveals nothing about any upload.
+      // The octet-stream parser is the only one that yields a Buffer.
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
         { field: 'body', message: `must be sent as ${PART_CONTENT_TYPE}` },
       ]);
     }
-    if (!this.sink || !PART_NUMBER.test(n)) throw notFound();
 
     let result: PutPartResult | null;
     try {

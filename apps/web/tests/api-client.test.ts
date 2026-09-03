@@ -141,6 +141,19 @@ describe('refusals', () => {
     expect(error.message).toContain('Try again');
   });
 
+  it('reads a bare 413 or 415 as a validation failure, not as a failure at our end', async () => {
+    for (const status of [413, 415]) {
+      const { client } = clientWith(
+        () => new Response('', { status, headers: { 'content-type': 'text/plain' } }),
+      );
+      const error = (await client
+        .request({ path: '/v1/thing' })
+        .catch((thrown: unknown) => thrown)) as ApiRequestError;
+      expect(error.code, String(status)).toBe('validation_failed');
+      expect(error.message, String(status)).not.toContain('our end');
+    }
+  });
+
   it('ignores a code the API could not have sent', async () => {
     const { client } = clientWith(() =>
       json({ error: { code: 'you-are-not-an-admin', message: 'x', correlationId: 'y' } }, 403),

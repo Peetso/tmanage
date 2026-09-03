@@ -22,6 +22,26 @@ const port = z.coerce.number().int().min(1).max(65_535);
 const positiveInt = z.coerce.number().int().positive();
 
 /**
+ * FILE-001b. One multipart part, 8 MiB by default: above S3's 5 MiB minimum, small enough
+ * that a retry is cheap. The one definition — `apps/api` reads it from here rather than
+ * keeping a copy that could drift from the schema's default.
+ */
+export const UPLOAD_PART_SIZE_DEFAULT_BYTES = 8_388_608;
+/**
+ * The bounds on `UPLOAD_PART_SIZE_BYTES`. The part size is also the largest body the API's
+ * transport buffers for one request, so the ceiling is a memory decision: 64 MiB. The floor
+ * keeps a mistyped value from minting tens of thousands of parts for one file.
+ */
+export const UPLOAD_PART_SIZE_MIN_BYTES = 1_024;
+export const UPLOAD_PART_SIZE_MAX_BYTES = 67_108_864;
+/**
+ * The largest part number the API's part route accepts (`upload-parts.controller.ts`). The
+ * refinement below keeps `UPLOAD_MAX_BYTES / UPLOAD_PART_SIZE_BYTES` under it, so a session
+ * is never minted a target the route would refuse.
+ */
+export const UPLOAD_MAX_PART_NUMBER = 99_999;
+
+/**
  * MySQL/MariaDB connection strings must be explicit about scheme so a typo cannot
  * silently work. The deployed database is Hostinger's MySQL-compatible MariaDB
  * (03-TECHNICAL-ARCHITECTURE §2); local development uses MariaDB via compose or an
@@ -238,12 +258,16 @@ export const envSchema = z
     MALWARE_SCAN_TIMEOUT_MS: positiveInt.default(30_000),
     UPLOAD_MAX_BYTES: positiveInt.default(104_857_600),
     /**
-     * FILE-001b. The size of one multipart part. 8 MiB by default — above S3's 5 MiB
-     * minimum, small enough that a retry is cheap — and configurable so the database suite
-     * can drive a real multipart upload through the API at a size no deployment uses. The
-     * real size is proved once, in the browser journey (E2E-12a).
+     * FILE-001b. The size of one multipart part, `UPLOAD_PART_SIZE_DEFAULT_BYTES` (8 MiB)
+     * by default, bounded because the API buffers one part per request. Configurable so a
+     * harness can drive a real multipart upload at a small size; the database suite sets
+     * its sixteen bytes directly on `ApiConfig`, below this floor, and the real size is
+     * proved once, in the browser journey (E2E-12a).
      */
-    UPLOAD_PART_SIZE_BYTES: positiveInt.default(8_388_608),
+    UPLOAD_PART_SIZE_BYTES: positiveInt
+      .min(UPLOAD_PART_SIZE_MIN_BYTES)
+      .max(UPLOAD_PART_SIZE_MAX_BYTES)
+      .default(UPLOAD_PART_SIZE_DEFAULT_BYTES),
   })
   .superRefine((env, ctx) => {
     const fail = (path: string, message: string) =>
@@ -259,6 +283,14 @@ export const envSchema = z
     // The filesystem substitute signs its own upload URLs, so it needs a key of its own.
     if (env.STORAGE_DRIVER === 'filesystem' && !env.STORAGE_LOCAL_SIGNING_SECRET) {
       fail('STORAGE_LOCAL_SIGNING_SECRET', 'required when STORAGE_DRIVER=filesystem');
+    }
+    // A file at the upload ceiling must fit in the part numbers the part route accepts.
+    if (Math.ceil(env.UPLOAD_MAX_BYTES / env.UPLOAD_PART_SIZE_BYTES) > UPLOAD_MAX_PART_NUMBER) {
+      const floor = Math.ceil(env.UPLOAD_MAX_BYTES / UPLOAD_MAX_PART_NUMBER);
+      fail(
+        'UPLOAD_PART_SIZE_BYTES',
+        `must be at least ${floor} for UPLOAD_MAX_BYTES=${env.UPLOAD_MAX_BYTES}: a file at the ceiling may have at most ${UPLOAD_MAX_PART_NUMBER} parts`,
+      );
     }
 
     // The smtp driver needs a host; the console substitute needs nothing. Credentials are a

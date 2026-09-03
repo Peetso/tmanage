@@ -5,7 +5,7 @@ import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { FORBIDDEN_CLIENT_FIELDS, uuidv7 } from '@tmanage/domain';
-import { FakeObjectStore } from '@tmanage/storage';
+import { FakeObjectStore, MultipartUploadNotFoundError } from '@tmanage/storage';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { StorageModule } from '../src/common/storage/storage.module.js';
@@ -642,6 +642,30 @@ describe('completing a session', () => {
     ]);
   });
 
+  it('still answers 422 and releases the session when the provider has lost the upload and refuses to abort it', async () => {
+    // The completion catch releases on `MultipartUploadNotFoundError`, and the release
+    // aborts first. Reversal: make that abort required, as cancel's is, and a provider that
+    // throws on abort turns the 422 into a 500 with the bytes held.
+    const studio = await signIn(manager().id);
+    const session = await open(studio);
+    store.failNext = new MultipartUploadNotFoundError();
+    store.failNextAbort = new Error('the provider is down');
+
+    const response = await send(
+      'POST',
+      `/upload-sessions/${session.id}/complete`,
+      studio,
+      partsFor(session),
+    );
+    expect(response.statusCode, response.body).toBe(422);
+    expect(response.json<ErrorBody>().error.details?.map((d) => d.field)).toEqual(['parts']);
+    expect(store.failNext).toBeNull();
+    expect(store.failNextAbort).toBeNull();
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: 0 });
+    const [row] = await observe('select status from upload_sessions where id = ?', [session.id]);
+    expect(row?.['status']).toBe('failed');
+  });
+
   it('refuses an expired session and releases it', async () => {
     const studio = await signIn(manager().id);
     const session = await open(studio);
@@ -774,9 +798,15 @@ describe('the boundary', () => {
     // The wide list: the owner sees both; the manager may not ask for it.
     const wide = await send('GET', '/upload-sessions?scope=organization', boss);
     expect(wide.statusCode, wide.body).toBe(200);
+    const listed = wide.json<{ uploadSessions: UploadSession[] }>().uploadSessions;
+    expect(listed.map((s) => s.id)).toEqual([clients.id, theirs.id]);
+    // The wide list names the sessions and never their targets: since FILE-001b a target is
+    // a bearer credential for a write, and the owner opened neither of these. The opener
+    // still sees their own. Reversal: serve `uploadUrls` for every reserved row.
+    expect(listed.map((s) => s.uploadUrls)).toEqual([[], []]);
     expect(
-      wide.json<{ uploadSessions: UploadSession[] }>().uploadSessions.map((s) => s.id),
-    ).toEqual([clients.id, theirs.id]);
+      (await send('GET', `/upload-sessions/${theirs.id}`, studio)).json<UploadSession>().uploadUrls,
+    ).toHaveLength(1);
     expect((await send('GET', '/upload-sessions?scope=organization', studio)).statusCode).toBe(403);
     expect((await send('GET', '/upload-sessions?scope=elsewhere', boss)).statusCode).toBe(400);
 
@@ -806,6 +836,20 @@ describe('the boundary', () => {
     expect(
       (await send('GET', `/upload-sessions/${theirs.id}`, studio)).json<UploadSession>().status,
     ).toBe('cancelled');
+  });
+
+  it('answers 404 to a part PUT with no sink bound, even when the body is JSON', async () => {
+    // This application holds the fake and binds no `LOCAL_PART_SINK`. The route checks the
+    // sink and the part number before the body's type, so a deployment with no sink says
+    // 404 to everything rather than 400 to a JSON body. Reversal: check the body first.
+    const response = (await app.inject({
+      method: 'PUT',
+      url: `/v1/uploads/${'a'.repeat(32)}/parts/1?t=pu1.1.x`,
+      headers: { 'content-type': 'application/json' },
+      payload: { bytes: 'aaaa' },
+    })) as unknown as InjectedResponse;
+    expect(response.statusCode).toBe(404);
+    expect(response.json<ErrorBody>().error.code).toBe('not_found');
   });
 
   it('refuses a client on the studio’s door and the studio on the client’s, with 403', async () => {

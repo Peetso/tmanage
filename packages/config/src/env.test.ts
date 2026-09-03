@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { EnvironmentValidationError, loadEnv } from './env.js';
+import {
+  EnvironmentValidationError,
+  loadEnv,
+  UPLOAD_MAX_PART_NUMBER,
+  UPLOAD_PART_SIZE_DEFAULT_BYTES,
+} from './env.js';
 
 /**
  * A minimal valid development environment. Individual tests override single keys so a
@@ -149,17 +154,51 @@ describe('loadEnv', () => {
       expect(() => loadEnv(env)).not.toThrow();
     });
 
-    it('refuses a signing secret shorter than 32 characters', () => {
+    it('refuses a signing secret of 31 characters and accepts one of 32', () => {
       expect(
-        issuePaths(() => loadEnv({ ...devEnv(), STORAGE_LOCAL_SIGNING_SECRET: 'short' })),
+        issuePaths(() => loadEnv({ ...devEnv(), STORAGE_LOCAL_SIGNING_SECRET: 'x'.repeat(31) })),
       ).toContain('STORAGE_LOCAL_SIGNING_SECRET');
+      expect(() =>
+        loadEnv({ ...devEnv(), STORAGE_LOCAL_SIGNING_SECRET: 'x'.repeat(32) }),
+      ).not.toThrow();
     });
 
-    it('defaults the multipart part size to 8 MiB (FILE-001b)', () => {
-      expect(loadEnv(devEnv()).UPLOAD_PART_SIZE_BYTES).toBe(8_388_608);
-      expect(loadEnv({ ...devEnv(), UPLOAD_PART_SIZE_BYTES: '16' }).UPLOAD_PART_SIZE_BYTES).toBe(
-        16,
+    it('defaults the multipart part size to the one 8 MiB constant (FILE-001b)', () => {
+      expect(UPLOAD_PART_SIZE_DEFAULT_BYTES).toBe(8_388_608);
+      expect(loadEnv(devEnv()).UPLOAD_PART_SIZE_BYTES).toBe(UPLOAD_PART_SIZE_DEFAULT_BYTES);
+      expect(loadEnv({ ...devEnv(), UPLOAD_PART_SIZE_BYTES: '2048' }).UPLOAD_PART_SIZE_BYTES).toBe(
+        2_048,
       );
+    });
+
+    it('bounds the part size: under 1 KiB or over 64 MiB is refused, the bounds themselves are not', () => {
+      for (const value of ['0', '1023', '67108865']) {
+        expect(
+          issuePaths(() => loadEnv({ ...devEnv(), UPLOAD_PART_SIZE_BYTES: value })),
+          value,
+        ).toContain('UPLOAD_PART_SIZE_BYTES');
+      }
+      // The floor needs a ceiling small enough to fit in the part numbers (the next case).
+      for (const value of ['1024', '67108864']) {
+        expect(
+          () =>
+            loadEnv({ ...devEnv(), UPLOAD_MAX_BYTES: '1048576', UPLOAD_PART_SIZE_BYTES: value }),
+          value,
+        ).not.toThrow();
+      }
+    });
+
+    it('keeps a file at UPLOAD_MAX_BYTES under the part route’s largest part number', () => {
+      // 100 MB in 1 KiB parts is 102,400 parts; the route accepts no part above 99,999.
+      expect(UPLOAD_MAX_PART_NUMBER).toBe(99_999);
+      expect(
+        issuePaths(() =>
+          loadEnv({ ...devEnv(), UPLOAD_MAX_BYTES: '104857600', UPLOAD_PART_SIZE_BYTES: '1024' }),
+        ),
+      ).toContain('UPLOAD_PART_SIZE_BYTES');
+      expect(() =>
+        loadEnv({ ...devEnv(), UPLOAD_MAX_BYTES: '104857600', UPLOAD_PART_SIZE_BYTES: '2048' }),
+      ).not.toThrow();
     });
 
     it('does not require credentials for the filesystem substitute', () => {

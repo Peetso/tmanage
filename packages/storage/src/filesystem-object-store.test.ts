@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -13,11 +21,17 @@ import {
 } from './errors.js';
 import { FilesystemObjectStore } from './filesystem-object-store.js';
 import { uploadObjectKey } from './object-key.js';
+import { derivePartSigningKey, mintPartToken } from './part-token.js';
 
 const ORG = '019203a4-5b6c-7d8e-9f01-23456789abcd';
 const PROJECT = '019203a4-5b6c-7d8e-9f01-23456789abce';
 const UPLOAD = '019203a4-5b6c-7d8e-9f01-23456789abcf';
 const KEY = uploadObjectKey({ organizationId: ORG, projectId: PROJECT, uploadId: UPLOAD });
+const OTHER_KEY = uploadObjectKey({
+  organizationId: ORG,
+  projectId: PROJECT,
+  uploadId: '019203a4-5b6c-7d8e-9f01-23456789abd0',
+});
 const SECRET = 'a_signing_secret_that_is_long_enough_for_the_suite';
 const PUBLIC_URL = 'http://api.test:4000';
 const PART_SIZE = 16;
@@ -54,7 +68,8 @@ function walk(directory: string): string[] {
       join(entry.parentPath, entry.name)
         .slice(root.length + 1)
         .replace(/\\/g, '/'),
-    );
+    )
+    .sort();
 }
 
 beforeEach(() => {
@@ -179,6 +194,15 @@ describe('FilesystemObjectStore — what completion refuses', () => {
       store.completeMultipart({
         zone: 'private',
         objectKey: KEY,
+        providerUploadId: upload.providerUploadId,
+        parts: [],
+      }),
+    ).rejects.toBeInstanceOf(MultipartUploadMismatchError);
+    // Reversal: compare the zone alone and another key under the right zone completes.
+    await expect(
+      store.completeMultipart({
+        zone: 'quarantine',
+        objectKey: OTHER_KEY,
         providerUploadId: upload.providerUploadId,
         parts: [],
       }),
@@ -332,5 +356,195 @@ describe('FilesystemObjectStore — paths', () => {
     });
     expect(walk(root)).toEqual([`objects/private/${KEY}`]);
     expect(existsSync(store.objectPath('quarantine', KEY))).toBe(false);
+  });
+});
+
+describe('FilesystemObjectStore — the fleet’s findings (FILE-001b review)', () => {
+  const key = () => derivePartSigningKey(SECRET);
+
+  it('refuses, by the manifest alone, a hand-minted token for a part the upload does not have', async () => {
+    // The minted URLs cannot reach this branch: their tokens are for parts that exist. A
+    // token signed with the real key for part 3 of a two-part upload verifies, and the
+    // manifest is what refuses it. Reversal: drop the range check and part-0003 is written.
+    const upload = await begin(2);
+    const token = mintPartToken(key(), {
+      providerUploadId: upload.providerUploadId,
+      partNumber: 3,
+      expiresAtMs: clock + 900_000,
+    });
+    expect(
+      await store.putPart({
+        providerUploadId: upload.providerUploadId,
+        partNumber: 3,
+        token,
+        body: bytes('a'),
+      }),
+    ).toBeNull();
+    expect(walk(root)).toEqual([`uploads/${upload.providerUploadId}/manifest.json`]);
+  });
+
+  it('refuses, by the manifest alone, a hand-minted token that outlives the manifest', async () => {
+    // The token carries the manifest's expiry, so the minted URLs cannot reach this branch
+    // either. One signed for a later expiry still verifies once the manifest has lapsed;
+    // the manifest refuses it. Reversal: drop the manifest expiry check and the PUT lands.
+    const upload = await begin(1);
+    const token = mintPartToken(key(), {
+      providerUploadId: upload.providerUploadId,
+      partNumber: 1,
+      expiresAtMs: clock + 2_000_000,
+    });
+    clock += 1_000_000;
+    expect(
+      await store.putPart({
+        providerUploadId: upload.providerUploadId,
+        partNumber: 1,
+        token,
+        body: bytes('a'),
+      }),
+    ).toBeNull();
+    expect(walk(root)).toEqual([`uploads/${upload.providerUploadId}/manifest.json`]);
+  });
+
+  it('judges a part by the size the upload was opened at, not by the process’s current one', async () => {
+    // Reversal: read the ceiling from the store instead of the manifest and the wider
+    // store accepts seventeen bytes for an upload whose URLs were minted at sixteen.
+    const upload = await begin(1);
+    const [one] = targets(upload);
+    const valid = one as NonNullable<typeof one>;
+    const wider = new FilesystemObjectStore({
+      root,
+      signingSecret: SECRET,
+      publicUrl: PUBLIC_URL,
+      partSizeBytes: PART_SIZE * 2,
+      now: () => clock,
+    });
+    await expect(
+      wider.putPart({ ...valid, body: bytes('a', PART_SIZE + 1) }),
+    ).rejects.toBeInstanceOf(PartTooLargeError);
+    const narrower = new FilesystemObjectStore({
+      root,
+      signingSecret: SECRET,
+      publicUrl: PUBLIC_URL,
+      partSizeBytes: PART_SIZE / 2,
+      now: () => clock,
+    });
+    expect((await narrower.putPart({ ...valid, body: bytes('a') }))?.etag).toBe(md5(bytes('a')));
+  });
+
+  it('refuses to complete an upload past the manifest’s expiry, as one the store no longer holds', async () => {
+    // Reversal: skip the expiry at completion and the object is written.
+    const upload = await begin(1);
+    const [one] = targets(upload);
+    const first = await store.putPart({ ...(one as NonNullable<typeof one>), body: bytes('a') });
+    clock += 900_001;
+    await expect(
+      store.completeMultipart({
+        zone: 'quarantine',
+        objectKey: KEY,
+        providerUploadId: upload.providerUploadId,
+        parts: [{ partNumber: 1, etag: first?.etag ?? '' }],
+      }),
+    ).rejects.toBeInstanceOf(MultipartUploadNotFoundError);
+    expect(existsSync(store.objectPath('quarantine', KEY))).toBe(false);
+  });
+
+  it('abort refuses a zone or key that is not the one the upload was opened under, and deletes nothing', async () => {
+    // The one path whose failure mode is silent deletion does not act on the handle alone.
+    // Reversal: delete on the handle and the wrong zone removes the upload.
+    const upload = await begin(1);
+    const manifest = join(root, 'uploads', upload.providerUploadId, 'manifest.json');
+    await expect(
+      store.abortMultipart({
+        zone: 'private',
+        objectKey: KEY,
+        providerUploadId: upload.providerUploadId,
+      }),
+    ).rejects.toBeInstanceOf(MultipartUploadMismatchError);
+    await expect(
+      store.abortMultipart({
+        zone: 'quarantine',
+        objectKey: OTHER_KEY,
+        providerUploadId: upload.providerUploadId,
+      }),
+    ).rejects.toBeInstanceOf(MultipartUploadMismatchError);
+    expect(existsSync(manifest)).toBe(true);
+    await store.abortMultipart({
+      zone: 'quarantine',
+      objectKey: KEY,
+      providerUploadId: upload.providerUploadId,
+    });
+    expect(existsSync(manifest)).toBe(false);
+  });
+
+  it('leaves nothing behind when a part cannot be written into place', async () => {
+    // A directory squatting on the part's name makes the final rename fail. The temporary
+    // file the driver wrote beside it must go with the failure. Reversal: drop the cleanup
+    // and a `part-0001.<suffix>.tmp` stays under the upload.
+    const upload = await begin(1);
+    const [one] = targets(upload);
+    mkdirSync(join(root, 'uploads', upload.providerUploadId, 'part-0001'));
+    await expect(
+      store.putPart({ ...(one as NonNullable<typeof one>), body: bytes('a') }),
+    ).rejects.toThrow();
+    expect(walk(root)).toEqual([`uploads/${upload.providerUploadId}/manifest.json`]);
+  });
+
+  it('lets two PUTs of the same part land whole, each answered with the etag of what it sent', async () => {
+    // A client retrying into its own earlier attempt. Reversal: one deterministic `.tmp`
+    // name and the two writers share a file — one rename finds nothing to move, or the
+    // bytes on disk are neither body.
+    const upload = await begin(1);
+    const [one] = targets(upload);
+    const valid = one as NonNullable<typeof one>;
+    const [x, y] = await Promise.all([
+      store.putPart({ ...valid, body: bytes('x') }),
+      store.putPart({ ...valid, body: bytes('y') }),
+    ]);
+    expect(x?.etag).toBe(md5(bytes('x')));
+    expect(y?.etag).toBe(md5(bytes('y')));
+    const landed = readFileSync(join(root, 'uploads', upload.providerUploadId, 'part-0001'));
+    expect([bytes('x'), bytes('y')].some((body) => body.equals(landed))).toBe(true);
+    expect(walk(root)).toEqual([
+      `uploads/${upload.providerUploadId}/manifest.json`,
+      `uploads/${upload.providerUploadId}/part-0001`,
+    ]);
+  });
+
+  it('discards the staging file of a refused completion, keeps the parts, and completes on the second try', async () => {
+    // Completion is one pass: part 1 is already in the staging file when part 2's etag is
+    // found wrong. The staging file must go and the parts must stay, so the client can
+    // re-PUT and complete again (decision 11). Reversal: skip the discard and an
+    // `object.<suffix>.tmp` sits beside the parts.
+    const upload = await begin(2);
+    const [one, two] = targets(upload);
+    const first = await store.putPart({ ...(one as NonNullable<typeof one>), body: bytes('a') });
+    const second = await store.putPart({ ...(two as NonNullable<typeof two>), body: bytes('b') });
+    const complete = (parts: { partNumber: number; etag: string }[]) =>
+      store.completeMultipart({
+        zone: 'quarantine',
+        objectKey: KEY,
+        providerUploadId: upload.providerUploadId,
+        parts,
+      });
+    await expect(
+      complete([
+        { partNumber: 1, etag: first?.etag ?? '' },
+        { partNumber: 2, etag: md5(bytes('z')) },
+      ]),
+    ).rejects.toBeInstanceOf(PartEtagMismatchError);
+    expect(walk(root)).toEqual([
+      `uploads/${upload.providerUploadId}/manifest.json`,
+      `uploads/${upload.providerUploadId}/part-0001`,
+      `uploads/${upload.providerUploadId}/part-0002`,
+    ]);
+    const stored = await complete([
+      { partNumber: 1, etag: first?.etag ?? '' },
+      { partNumber: 2, etag: second?.etag ?? '' },
+    ]);
+    expect(stored.sizeBytes).toBe(PART_SIZE * 2);
+    expect(readFileSync(store.objectPath('quarantine', KEY))).toEqual(
+      Buffer.concat([bytes('a'), bytes('b')]),
+    );
+    expect(walk(root)).toEqual([`objects/quarantine/${KEY}`]);
   });
 });

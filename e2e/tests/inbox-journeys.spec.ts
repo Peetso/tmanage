@@ -49,6 +49,10 @@ function databaseUrl(): string {
   return process.env['TMANAGE_E2E_DATABASE_URL'] as string;
 }
 
+function storageRoot(): string {
+  return process.env['TMANAGE_E2E_STORAGE_ROOT'] as string;
+}
+
 async function signIn(context: BrowserContext, userId: string): Promise<void> {
   const response = await context.request.post(`${API_URL}/v1/dev/sessions`, {
     data: { userId },
@@ -112,7 +116,7 @@ test.describe.serial('the notification journeys', () => {
     await settled(studio.page);
     await expect(studio.page.getByRole('link', { name: TITLE })).toHaveCount(0);
 
-    await drainOutbox(databaseUrl());
+    await drainOutbox(databaseUrl(), storageRoot());
 
     // After it, one bundle about the request, unread, with the inline action.
     await studio.page.reload();
@@ -169,7 +173,7 @@ test.describe.serial('the notification journeys', () => {
     await expect(studio.page.getByText('Waiting on the client')).toBeVisible();
     await studio.context.close();
 
-    await drainOutbox(databaseUrl());
+    await drainOutbox(databaseUrl(), storageRoot());
 
     // The client's inbox: one bundle, the client-safe status, no internal words.
     const client = await openAs(browser, world().atlas.admin.id);

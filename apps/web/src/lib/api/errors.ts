@@ -149,7 +149,9 @@ function fallbackCodeFor(status: number): ApiErrorCode {
   if (status === 403) return 'forbidden';
   if (status === 404) return 'not_found';
   if (status === 409) return 'conflict';
-  if (status === 422 || status === 400) return 'validation_failed';
+  if (status === 422 || status === 400 || status === 413 || status === 415) {
+    return 'validation_failed';
+  }
   if (status === 429) return 'rate_limited';
   return 'internal_error';
 }
@@ -165,6 +167,8 @@ function fallbackMessageFor(status: number): string {
   if (status === 403) return 'You do not have access to this.';
   if (status === 404) return 'That is not available.';
   if (status === 409) return 'Someone changed this while you were working. Reload and try again.';
+  if (status === 413) return 'That is too large to send.';
+  if (status === 415) return 'That could not be sent in this form.';
   if (status === 429) return 'Too many attempts. Wait a moment and try again.';
   return 'Something went wrong at our end. Try again.';
 }

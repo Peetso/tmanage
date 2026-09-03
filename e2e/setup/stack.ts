@@ -153,9 +153,11 @@ async function waitForHttp(url: string, timeoutMs: number): Promise<void> {
  * ran one batch and called that a drain; the review fleet found it on 2026-09-03 — green
  * only while the backlog stayed under 25. Now it runs until a batch claims nothing, and a
  * batch in which a consumer failed, or parked an event, is the helper's own failure rather
- * than a silent "drained" followed by a visibility timeout fifteen seconds later.
+ * than a silent "drained" followed by a visibility timeout fifteen seconds later. The
+ * worker is given the run's storage root as the API was: the same objects, not a default
+ * relative root under the worker's own working directory.
  */
-export async function drainOutbox(databaseUrl: string): Promise<string> {
+export async function drainOutbox(databaseUrl: string, storageRoot?: string): Promise<string> {
   const reports: string[] = [];
   const passes = 20;
   let parkedBefore: number | null = null;
@@ -163,7 +165,7 @@ export async function drainOutbox(databaseUrl: string): Promise<string> {
     const { stdout, stderr } = await run(
       'pnpm',
       ['--filter', '@tmanage/worker', 'exec', 'tsx', 'src/main.ts', '--once'],
-      { cwd: REPO_ROOT, env: apiEnv(databaseUrl) },
+      { cwd: REPO_ROOT, env: apiEnv(databaseUrl, storageRoot) },
     );
     // The worker reports on stderr (`console.warn`); the shape is main.ts's `describe`.
     const report = /\[worker\] batch: (.*)/.exec(`${stderr}\n${stdout}`)?.[1]?.trim();

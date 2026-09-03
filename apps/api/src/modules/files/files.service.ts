@@ -94,36 +94,46 @@ export interface CreateUploadInput extends ParsedUploadBody {
 }
 
 /**
- * 8 MiB parts: above S3's 5 MiB minimum, small enough that a retry is cheap. The default
- * behind `ApiConfig.uploadPartSizeBytes` (`UPLOAD_PART_SIZE_BYTES`), which is what the
- * service reads — a suite lowers it to move a real multipart upload in a few bytes.
+ * FILE-001b. The provider refusals a completion may answer, and what each does to the
+ * session (decision 11). A part that is missing or whose etag does not match leaves the
+ * upload intact at the provider — S3 keeps a multipart upload open on `InvalidPart`, and
+ * the filesystem driver keeps its staging directory — so the session stays `reserved`: the
+ * client re-sends the part and completes again, and one mistyped etag on a thirteen-part
+ * upload does not cost twelve parts. An upload the provider no longer holds cannot be
+ * finished by anything the client does, so that one fails the session and gives the bytes
+ * back. `MultipartUploadMismatchError` and `UnsafeObjectPathError` are not here: both mean
+ * this service named a zone or key it did not open, which is a bug, and a bug is a 500.
+ * `ApiErrorCode` is closed, so the cause travels as `auditCode` and the caller sees one
+ * 422 on `parts`.
  */
-export const PART_SIZE_BYTES = 8 * 1024 * 1024;
-
-/**
- * FILE-001b. The provider refusals a completion may answer, each of which fails the
- * session and gives the bytes back. `MultipartUploadMismatchError` and
- * `UnsafeObjectPathError` are not here: both mean this service named a zone or key it
- * did not open, which is a bug, and a bug is a 500. `ApiErrorCode` is closed, so the
- * cause travels as `auditCode` and the caller sees one 422 on `parts`.
- */
-function completionRefusal(error: unknown): { message: string; auditCode: string } | null {
+function completionRefusal(
+  error: unknown,
+): { message: string; auditCode: string; releases: boolean } | null {
   if (error instanceof MultipartUploadNotFoundError) {
-    return { message: 'the provider no longer holds this upload', auditCode: 'upload_not_found' };
+    return {
+      message: 'the provider no longer holds this upload',
+      auditCode: 'upload_not_found',
+      releases: true,
+    };
   }
   if (error instanceof MissingPartError) {
-    return { message: `part ${error.partNumber} was never uploaded`, auditCode: 'part_missing' };
+    return {
+      message: `part ${error.partNumber} was never uploaded`,
+      auditCode: 'part_missing',
+      releases: false,
+    };
   }
   if (error instanceof PartEtagMismatchError) {
     return {
       message: `part ${error.partNumber} does not match the etag presented for it`,
       auditCode: 'part_etag_mismatch',
+      releases: false,
     };
   }
   return null;
 }
 
-function toView(row: UploadSessionRow): UploadSessionView {
+function toView(row: UploadSessionRow, principal: Principal): UploadSessionView {
   return {
     id: row.id,
     fileAssetId: row.fileAssetId,
@@ -136,10 +146,14 @@ function toView(row: UploadSessionRow): UploadSessionView {
     partSizeBytes: row.partSizeBytes,
     partCount: row.partCount,
     reservedBytes: row.status === 'reserved' ? row.declaredBytes : 0,
-    // Targets are served only while the session can still use them. Against S3 a cancelled
-    // upload's URLs fail anyway; against a token-authorized local transport they would not.
+    // Targets are served only while the session can still use them, and only to the person
+    // who opened it. Against S3 a cancelled upload's URLs fail anyway; against a
+    // token-authorized local transport they would not. And since FILE-001b a target is a
+    // bearer credential for a write: the organization-wide list, which exists so an owner
+    // can find and release a colleague's reservation, names the session and never its
+    // targets (amended decision 7 — the wide scope may never read its parts).
     uploadUrls:
-      row.status === 'reserved'
+      row.status === 'reserved' && row.actorUserId === principal.userId
         ? row.uploadTargetsJson.map((t) => ({ partNumber: t.partNumber, url: t.url }))
         : [],
     expiresAt: row.expiresAt.toISOString(),
@@ -227,7 +241,7 @@ export class FilesService {
         'not_an_internal_principal',
       );
     }
-    return toView(await this.readOr404(context, principal, uploadSessionId));
+    return toView(await this.readOr404(context, principal, uploadSessionId), principal);
   }
 
   /**
@@ -264,7 +278,7 @@ export class FilesService {
     );
     return rows
       .filter((row) => (wide ? this.mayRelease : this.mayUpload)(principal, row))
-      .map(toView);
+      .map((row) => toView(row, principal));
   }
 
   async complete(
@@ -334,7 +348,9 @@ export class FilesService {
     const rows = await this.database.read(context, (runner) =>
       this.sessions.list(runner, context, { clientOrganizationId, actorUserId: principal.userId }),
     );
-    return rows.filter((row) => this.mayUpload(principal, row)).map(toView);
+    return rows
+      .filter((row) => this.mayUpload(principal, row))
+      .map((row) => toView(row, principal));
   }
 
   async completeForClient(
@@ -506,7 +522,7 @@ export class FilesService {
       throw error;
     }
 
-    return toView(created);
+    return toView(created, principal);
   }
 
   private async completeSession(
@@ -554,7 +570,9 @@ export class FilesService {
 
     // §6 step 6: the provider's count, not the declaration. Outside the transaction —
     // no lock across the network call. A refusal the provider makes about the parts
-    // themselves (FILE-001b) fails the session the way a size mismatch does.
+    // themselves (FILE-001b) is answered as `completionRefusal` says: the upload stays
+    // open for a part that is missing or mismatched, and fails only when the provider no
+    // longer holds it.
     let stored: StoredObject;
     try {
       stored = await this.store.completeMultipart({
@@ -566,7 +584,10 @@ export class FilesService {
     } catch (error) {
       const refusal = completionRefusal(error);
       if (!refusal) throw error;
-      await this.releaseAs(context, session, 'failed');
+      // The abort is best-effort here, as on the create path: the refusal below is the
+      // answer, and a provider that will not abandon an upload it has already lost must
+      // not turn it into a 500 with the bytes held.
+      if (refusal.releases) await this.releaseAs(context, session, 'failed', 'best-effort');
       throw new ApiError(
         422,
         'validation_failed',
@@ -679,35 +700,44 @@ export class FilesService {
     uploadSessionId: string,
   ): Promise<UploadSessionView> {
     const session = await this.readOr404(context, principal, uploadSessionId, 'release');
-    if (session.status === 'cancelled') return toView(session);
+    if (session.status === 'cancelled') return toView(session, principal);
     if (session.status !== 'reserved') {
       throw this.illegal(`a ${session.status} upload cannot be cancelled`);
     }
     const released = await this.releaseAs(context, session, 'cancelled');
     if (!released) {
       const fresh = await this.readOr404(context, principal, uploadSessionId, 'release');
-      if (fresh.status === 'cancelled') return toView(fresh);
+      if (fresh.status === 'cancelled') return toView(fresh, principal);
       throw this.illegal(`a ${fresh.status} upload cannot be cancelled`);
     }
-    return toView(await this.readOr404(context, principal, uploadSessionId, 'release'));
+    return toView(await this.readOr404(context, principal, uploadSessionId, 'release'), principal);
   }
 
   /**
    * §6 step 7: the bytes go back and the provider upload is abandoned. The abort runs first:
    * if the provider refuses, the reservation stands and the caller may try again, which is
    * better than a released reservation over an upload the provider still holds open.
-   * `false` when the session had already left `reserved`.
+   * `best-effort` is for a completion the provider has already refused as lost, where a
+   * failing abort must not hide the refusal. `false` when the session had already left
+   * `reserved`.
    */
   private async releaseAs(
     context: TenantContext,
     session: UploadSessionRow,
     cause: 'cancelled' | 'expired' | 'failed',
+    abort: 'required' | 'best-effort' = 'required',
   ): Promise<boolean> {
-    await this.store.abortMultipart({
-      zone: 'quarantine',
-      objectKey: session.objectKey,
-      providerUploadId: session.providerUploadId,
-    });
+    try {
+      await this.store.abortMultipart({
+        zone: 'quarantine',
+        objectKey: session.objectKey,
+        providerUploadId: session.providerUploadId,
+      });
+    } catch (error) {
+      if (abort === 'required') throw error;
+      // Deliberately swallowed: the caller is answering a refusal the provider already
+      // made, and an upload left open is what lifecycle-abort (50-BOOTSTRAP §4) exists for.
+    }
     return this.writing(() =>
       this.database.transaction(context, async (tx) => {
         const moved = await this.sessions.transition(tx, context, session.id, ['reserved'], cause);
@@ -768,7 +798,7 @@ export class FilesService {
     if (existing.status !== 'reserved') {
       throw conflict(`was used by a session that is now ${existing.status}; use a new key`);
     }
-    return toView(existing);
+    return toView(existing, principal);
   }
 
   /**
