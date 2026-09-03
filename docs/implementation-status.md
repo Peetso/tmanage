@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-03 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-04 · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,27 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-03, start of the transport session
+
+The **twenty-eighth** consecutive run, and the table below is this run's output rather than a
+copy of the previous one. Every pair was compared by SHA-256 and, separately, by modification
+time — pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                            |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                             |
+| Modification times                        | **No pack file is newer than its copy** in either scope. 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later; one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. Unchanged from the twenty-seventh run       |
+| Uncopied pack content                     | The same six as the twenty-seventh run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                             |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
 
 ---
 
@@ -554,6 +575,125 @@ are untouched.
 
 ---
 
+## FILE-001b, parts 2–4 — the bytes move
+
+The session of 2026-09-03/04 (the fifth on the ticket) opened on the two debts the part-1 stop
+left — the chain and the storage revert proofs — and then took the fleet's plan through its
+last three commits. The API now stands in for the bucket: `main.ts` wires
+`FilesystemObjectStore` through `StorageModule.forConfig`, a public `PUT` route receives each
+part under an HMAC token the driver minted, and a whole file — two real 8 MiB parts — crossed
+HTTP with no cookie, was assembled on disk and became a `file_versions` row. FILE-001 is no
+longer half.
+
+### What was built
+
+- **Part 2, `9adb20d` — config and wiring.** `STORAGE_LOCAL_SIGNING_SECRET` is required exactly
+  when `STORAGE_DRIVER=filesystem`, placeholder-refused in production and distinct from
+  `SESSION_SECRET` and `CSRF_SECRET` across every pair (three credentials with one value are one
+  credential). `UPLOAD_PART_SIZE_BYTES` (8 MiB) reaches `FilesService` as
+  `ApiConfig.uploadPartSizeBytes`; the constant stays as the default. `StorageModule.forConfig`
+  mirrors `MailerModule.forConfig` and provides the driver twice — as `OBJECT_STORE` and as
+  `LOCAL_PART_SINK`, which nothing else provides; `s3` still refuses at the first provider call.
+  `createFastifyAdapter` registers the `application/octet-stream` parser with **its own** body
+  limit (part size + 1 KiB), so Fastify's 1 MiB default stays on every JSON route; `ETag` is
+  exposed through CORS. The module header that said "there is deliberately no `forConfig` yet"
+  is gone.
+- **Part 3, `1b8683a` — the route and the mapping.** `UploadPartsController`:
+  `@Controller('v1/uploads') @Public() @NoTenant()`, `PUT :providerUploadId/parts/:n`, a `Buffer`
+  body, `?t=` read as a query, no `@Ctx()` and no principal. It authorizes nothing itself; every
+  `null` from the driver's `PartSink` is one 404 with one body; a body over the part size is 413
+  `validation_failed` (`part_too_large`) whether the driver refused it by one byte or Fastify by a
+  kilobyte — the filter maps the adapter's own 413 to the same detail; a non-octet-stream body
+  is 400. Success is 200, an empty body, a quoted `ETag`. `FilesService.completeSession` now
+  tries `completeMultipart`: `MultipartUploadNotFoundError` / `MissingPartError` /
+  `PartEtagMismatchError` fail the session, release the reservation and answer 422 on `parts`
+  (`upload_not_found` / `part_missing` / `part_etag_mismatch` as the audit code);
+  `MultipartUploadMismatchError` and `UnsafeObjectPathError` stay 500, because both mean this
+  service named a zone or key it did not open.
+- **Part 4, `d113246` — the journey.** The e2e stack gives the API its own signing secret and
+  an absolute, run-private `STORAGE_FILESYSTEM_ROOT` (exported to the specs as
+  `TMANAGE_E2E_STORAGE_ROOT`, removed at stop). E2E-12a opens a session for 8 MiB + 16 bytes,
+  PUTs both parts from a request context that holds no cookie, completes on the returned etags,
+  and finds exactly one `…/object` of the declared size under the tenant's prefix, staging gone.
+  Not scan, not download; E2E-12 itself stays unclaimed.
+
+### Verification actually run — 2026-09-03/04, FILE-001b parts 2–4
+
+| Gate                                                 | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **The chain** on `104bd78`, before any code          | `format:check && typecheck && lint && test && test:db && audit:design && format:check` — **exit 0** in 30 m 56 s; unit **1066 passed** across 62 files (up 19 from `7723f01`'s 1047: `packages/storage` 6 → 25, exactly the part-1 cases), `test:db` **880 passed, 29 skipped** across 36 files (unchanged), `audit:design` **172 of 172**, both `format:check`s clean, no `mysqld` left behind. The debt the part-1 stop recorded is paid                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `packages/storage` revert proofs (owed from part 1)  | **Run, in two passes from sha-checked copies.** Fifteen reversals applied at once — the version and the part number out of the signed input and the label unchecked, `Number()` for the expiry, no expiry, no segment-count check, mint validating nothing; staging kept after completion, etags compared to nothing, `rm` without `force`, no part-size ceiling, no path check and the zone ignored, zone/key mismatch unchecked, the key in the URL, expiry and range unchecked — **16 of 25 red**, each on its own assertion, the 6 fake-store cases and 3 more green. The re-PUT case needed its own pass (an exclusive-create flag on the `.tmp` never fires, because the `.tmp` is renamed away): with a part already on disk refused, **1 red, 24 green**. Two token cases were not reversed: determinism and "carries only the version and the expiry" are shape assertions with no meaningful reversal. The digits case was **strengthened first**: its six values all failed the signature regardless, so three canonical-form spellings of the signed expiry (` 1…`, `+1…`, `1….0`) were added — what a `Number()` verifier would actually accept — and it now goes red under that reversal. Sources restored sha-identical; `packages/storage` rebuilt |
+| `packages/config` unit                               | **37 passed** (30 + 7: filesystem requires the secret; s3 does not; a short secret refused; the part-size default and override; a placeholder signing secret refused in production; the signing secret equal to either neighbour refused). Reversal from a saved copy — the all-pairs check reduced to the old single comparison, the filesystem requirement removed, the placeholder loop limited to two secrets — **4 red, 33 green**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `apps/api` unit, typecheck, `eslint`, `format:check` | 267 passed; clean; clean; clean — after each part                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `file-001b-part-transport.db.test.ts`                | **13 passed** on the real filesystem driver under a temporary root at a sixteen-byte part size: the whole upload (INT-12's etag third, local driver); the public PUT beside the guarded complete (no cookie 200, no cookie on complete 401, no CSRF on complete 403); only the etag in the response; a JSON body 400; **ten refusals with byte-identical 404 bodies** modulo `correlationId` (no token, empty, truncated, foreign upload's, other part's, unknown handle, part 5 of 4, part 0, `one`, `01`); expired on a moved clock and live a second before; a token minted under the session or CSRF secret; five traversal handles with nothing written anywhere; 413 at one byte over (driver) and 1 041 bytes over (Fastify), the exact size accepted; cancel then PUT; complete then PUT with the sealed object unchanged; a wrong etag and a missing part — 422 on `parts`, `reserved` back to 0, no version row, session `failed`, staging gone                                                                                                                                                                                                                                                                                                          |
+| Part 3 revert proofs                                 | **Three runs from sha-checked copies.** (A) the untried completion, the unmapped 413s, a lenient part number (`/^\d+$/` — `01` lands), an unquoted etag and no `Buffer` check, applied together: **7 red, each on its own assertion, 6 green**. (B) `@Public()` removed: every PUT 401, **13 red** — the cascade is the point. (C) the octet-stream parser removed: every PUT 415                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `pnpm test:e2e`                                      | **15 passed** in 2.2 m (fourteen prior journeys plus E2E-12a, 737 ms). Reversal: the parser's own body limit removed — Fastify's 1 MiB default — and the first 8 MiB part is **413**, the journey red; restored sha-identical                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `mysqld` strays                                      | None after any database or e2e run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| CR bytes in every changed file                       | 0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **The chain** on `d113246`                           | Recorded below, under "The chain on the finished ticket"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+
+### Decisions the design fleet took — now live, for Peter to overturn
+
+Recorded in the part-1 section as "live when part 2 wires them"; wired now. Restated with what
+each cost or bought:
+
+1. **The part URL carries the provider handle**, not the session id, and never the key. The
+   handle is a random 128-bit value; the session id is a tenant row id. The transport suite
+   asserts neither the organization id nor the session id appears in a URL.
+2. **The per-part ceiling is not signed**; it is `UPLOAD_PART_SIZE_BYTES`, read by the service,
+   the driver and the parser from one `ApiConfig` number.
+3. **Every PUT refusal is one 404 body.** Ten shapes of refusal, one body. Expiry is not
+   distinguished — the client already holds `expiresAt` on the session.
+4. **Verification lives in the driver**, behind `LOCAL_PART_SINK`; the controller maps `null`.
+5. **The manifest is the revocation.** Cancel removes the directory; the outstanding URLs die;
+   proved over HTTP, not only in the unit.
+6. **Etags are MD5**, hex per part and S3-composite per object, quoted on the wire.
+7. **The large body limit is per content-type.** The JSON limit is untouched.
+8. **`UPLOAD_PART_SIZE_BYTES` exists so the database suite can drive multipart cheaply** — it
+   runs at sixteen bytes, a size no deployment uses; the real 8 MiB is proved once, in E2E-12a.
+
+Two more this session took, in the same spirit:
+
+9. **Fastify's own 413 is ours.** Any 413 `HttpException` the adapter raises is rendered as
+   `validation_failed` with a `body` detail and `part_too_large` — the octet-stream parser is
+   the only thing in this API with a limit above the default, so the mapping cannot misdescribe
+   another route today. If a second large-body route arrives, the mapping should read the
+   request's content type.
+10. **A non-octet-stream body on the part route is 400, not 404.** It is a client bug, and
+    saying so reveals nothing about any upload.
+
+### Divergences added to the register
+
+- The size-mismatch orphan (decision 9 of the FILE-001 review) is **no longer latent**: a
+  client that PUTs fewer bytes than it declared now materialises a real object under
+  `objects/quarantine/` that nothing deletes. Still FILE-003's lifecycle rule (objects with no
+  `file_versions` row expire); the port still has no delete, on purpose.
+- The route `PUT /v1/uploads/{providerUploadId}/parts/{n}` is not in `openapi.yaml`, and cannot
+  be in the shape the contract expects: it is the local substitute for a presigned URL, and the
+  contract describes uploads as going to the bucket. Recorded rather than added.
+- `27-TEST-CATALOG`: the transport suite's refusal cases (forgery, expiry, replay after cancel
+  or complete, a foreign secret) have **no catalog id**; the fleet's proposal to add a
+  signed-upload-URL row rather than borrow SEC-01 or AUTH-15 stands, and is Peter's to make.
+  The 413 and traversal cases are SEC-06's shape. E2E-12a is a named fraction of E2E-12.
+
+### Carried, unchanged
+
+- **No rate limit on the public PUT.** `rate_limited` is in the vocabulary with no guard; the
+  route is bounded only structurally, by the bytes reserved at create and by the token's
+  lifetime. A valid token can be re-PUT for fifteen minutes, each write bounded by the part
+  size. Recorded for whichever ticket adds the first limiter.
+- **The complete/cancel race** (no claim on the row across the provider call) is now observable
+  with a real driver and still not fixed; **the expiry sweeper** is USAGE-001's.
+- **`s3` wires nothing** until FILE-003 brings R2 signature semantics and bucket CORS.
+
+### Ticket accounting
+
+FILE-001 (8 points) is counted **whole**: session, reservation, both doors, and now the bytes
+through the local transport with a real object on disk. **34 of 70 tickets, 272 of 583 points
+(46.7%).**
+
+---
+
 ## FILE-001b, part 1 — the local transport's driver, and a safe stop
 
 After the review session's chain went green and was pushed, a five-agent read-only design
@@ -591,8 +731,8 @@ its own.
 | `packages/storage` typecheck, `eslint` | Clean                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `pnpm --filter @tmanage/api typecheck` | Clean (new exports only)                                                                                                                                                                                                                                                                                                                                                                                  |
 | `format:check`                         | Clean                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Revert proofs                          | **Not run** for this commit — each case names its reversal in a comment; none was executed. Owed with part 2                                                                                                                                                                                                                                                                                              |
-| **The chain**                          | **NOT RUN on this commit.** Package-only, additive; the chain last ran green on `7723f01`. Owed first thing next session                                                                                                                                                                                                                                                                                  |
+| Revert proofs                          | **Not run** for this commit — each case names its reversal in a comment; none was executed. Owed with part 2. **Paid in the next session** — see "FILE-001b, parts 2–4": 17 of 19 cases red under reversal, two shape assertions deliberately not reversed                                                                                                                                                |
+| **The chain**                          | **NOT RUN on this commit.** Package-only, additive; the chain last ran green on `7723f01`. Owed first thing next session. **Paid**: the next session's chain ran green on `104bd78` before any code — unit 1066, database 880 + 29 skipped, audit 172/172                                                                                                                                                 |
 
 ### Decisions the design fleet took, for Peter to overturn (recorded now, live when part 2 wires them)
 
