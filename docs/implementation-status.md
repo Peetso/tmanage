@@ -533,6 +533,151 @@ are untouched.
 
 ---
 
+## FILE-001 — the upload session, the reservation, and the first file rows
+
+The session of 2026-09-03 (the second that day) took the first line of the standing list:
+files, the biggest unblocker. It opened with a six-agent read-only brainstorm over the
+planning pack and the repo — five lenses (planning, repo shape, what already existed, tests,
+web and design) and a design proposer — which produced three candidate shapes and a
+recommendation, and then built the recommended one in three commits, each green on its own.
+
+### What was built
+
+- **`packages/storage`** — the object-store port (`beginMultipart`, `completeMultipart`,
+  `abortMultipart`; no download, no delete), the `49-PRICING` §4 key layout built from checked
+  UUIDs, and `FakeObjectStore`, which moves no bytes and reports the size a suite configures.
+  Modelled one-for-one on `@tmanage/mail`. **No real driver.** `STORAGE_DRIVER` names `s3` and
+  `filesystem`, and neither exists; `StorageModule.none()` is `main.ts`'s default and the
+  first provider call, not boot, is where a deployment without one fails. ADR-0002 already
+  assigns real R2 signature semantics to FILE-003; the local HMAC-signed transport it
+  describes is the droppable fourth commit this session did not reach (FILE-001b).
+- **Migration 0015** — `usage_counters`, `file_assets`, `file_versions`, `upload_sessions`,
+  registered in `TENANT_TABLES`, `schema.ts`'s `TABLES`, `truncateAll` and `users.sql` in one
+  commit. Four immutability triggers. `file_versions` is INSERT-only for the runtime
+  credential and its trigger refuses UPDATE for every credential.
+- **The quota is one statement.** `UsageCountersRepository.reserve` is a conditional UPDATE
+  whose predicate is `used + reserved + declared <= limit`; `commit` and `release` guard on
+  `reserved >= declared`; both counter columns are `BIGINT UNSIGNED`. No read-then-write
+  anywhere. The limit comes from `STORAGE_ORG_BYTES_LIMIT_BYTES` (default 50-BOOTSTRAP §5's
+  500 MB) through one seam on `ApiConfig`, for ENT-001 to replace with an entitlement row.
+- **`FilesService`** drives `49` §6 with one deliberate reordering: the provider is asked to
+  open the multipart upload _before_ the reservation transaction, so no row lock is held
+  across a network call; a refused reservation aborts the provider upload. Completion takes
+  the provider's size, not the declaration; walks the asset `created → uploading → uploaded`
+  through `packages/domain`'s `uploadStateMachine` (its first caller); writes version 1;
+  audits `file_asset.uploaded`; appends `upload.completed.v1` and
+  `usage.storage_committed.v1`. Cancel, expiry and a size mismatch release, and append
+  `usage.storage_released.v1`. Every status move is a conditional UPDATE on the status it
+  leaves, so a double complete commits once and a cancel after completion releases nothing.
+- **Two doors.** `/upload-sessions` (create, list own, get, complete, cancel) for the studio;
+  `/portal/upload-sessions` (create, list own, complete, cancel) for a client attaching to
+  their own request, `client_visible` by construction, swept by `ClientProjectionInterceptor`
+  and driven through `sec-001`'s §11 grid as its fifth client operation. Each door refuses
+  the other kind of principal with 403. `Idempotency-Key` is required; a replay by the same
+  person answers the same session byte for byte and reserves nothing; another person's key is
+  a 409. The object key is on no response, in no error, and in no audit row.
+- **Catalogs.** Four outbox events (`upload.completed.v1`, `usage.storage_reserved.v1`,
+  `usage.storage_committed.v1`, `usage.storage_released.v1`), all on aggregate
+  `upload_session`; two audit actions (`upload_session.refused`, denied, no object id;
+  `file_asset.uploaded`). The worker treats a type with no consumer as delivered, so none of
+  these can park the e2e drain.
+
+### Proved by reverting
+
+With the reservation predicate removed from `reserve` (installed from a saved copy, the whole
+`file-001-quota` describe run): twelve concurrent reservations against a limit holding ten
+were admitted — "expected [...] to have a length of 10 but got 12" — and both refusal cases
+flipped. Restored; the file matches the commit. The other rules each name their reversal in
+the test that pins them (the `where status = 'reserved'` guard, the `reserved >= ?` guard,
+trusting `declared_bytes` at completion, the idempotency unique key, the `UNSIGNED` columns);
+those reversals were not run this session and are not claimed.
+
+### Decisions this slice took that no document states
+
+Recorded here for Peter to overturn, each deny-by-default:
+
+1. **Purpose × principal.** Internal: `request_attachment`, `message_attachment`,
+   `deliverable`. Client: `request_attachment` only, and `objectId` must name a request of
+   their own client organization on the same project. `document`: nobody — Docs is deferred
+   past the vertical slice, and an enum member with no live path is the honest state.
+2. **A quota refusal wears `validation_failed` (422)** with `auditCode
+storage_quota_exhausted`, because `ApiErrorCode` is a closed eight-member set mirrored by
+   hand in the web client and `openapi.yaml` declares no non-201 response for
+   `createUploadSession` at all. A ninth code is a two-app contract change.
+3. **Organization-scoped, not workspace-scoped.** `openapi.yaml`, `49` §5 and `21` all say
+   _workspace_; every table in the DBML carries only `organization_id` and `workspaces` holds
+   nothing but a name. The counter is keyed on the organization; QUOTA-01's "effective
+   workspace quota" is therefore tested against the organization.
+4. **`sizeBytes` is capped at `min(UPLOAD_MAX_BYTES, 5 GiB)`** — 50-BOOTSTRAP §5's 100 MB
+   wins over the contract's ceiling, which stays as written.
+5. **Session and URL lifetime are one value**, `STORAGE_UPLOAD_URL_TTL_SECONDS` (900 s).
+   Nothing in the pack gives an upload number; `25` §9's five minutes is for downloads.
+6. **A successful upload gets an audit row** (`24` §4 grades `upload.completed.v1` as a
+   security log); creating a session does not (`25` §12 does not list it).
+7. **Only the person who opened a session may read, complete or cancel it**, on top of
+   `authorize()`. An owner sees nothing of a colleague's in-flight upload; the expiry sweep,
+   when it exists, is the path that cleans up after a leaver.
+8. **Parts are 8 MiB.** No document bounds `partSizeBytes`.
+
+### Divergences from the planning pack, recorded rather than resolved
+
+- `upload_sessions` exists in `07-DATA-MODEL` and `21` but in no DBML table; the DBML's
+  `storage_reservations` carries no name, MIME type, purpose or part size. The two are one
+  table here (0015's header).
+- `file_assets` as the DBML specifies it lacks `updated_at`, `version`, `project_id`,
+  `purpose` and the `(organization_id, id)` key its child needs; 0015 adds all of them.
+- `CreateUploadSessionRequest` has no `projectId`; the slice requires one — `49` §6 step 2
+  authorizes "the project/object" before reserving and there is no other way to know which.
+- `FileAsset` in the contract is `{id, name, status}`; the response is a superset
+  (`fileVersionId`, `sizeBytes`, `mimeType`, `purpose`, `projectId`, `versionNo`) because
+  `CreateDeliverableVersionRequest` requires `fileVersionIds` no endpoint would otherwise
+  return.
+- `cancel`, the two reads and the portal list are in no contract; `13` §3 requires cancel.
+- Event aggregate is `upload_session`; `24` says `upload`, the DBML `storage_reservation`.
+- No JSON schemas were added under `docs/planning/contracts/events/` — that tree is never
+  written from a session. The payload interfaces in `packages/domain` are the registered
+  shapes until the pack is revised.
+- `idempotency_records` stays unused; the session's natural key is the sanctioned
+  alternative (`schema.ts`'s message precedent).
+- FILE-001 and USAGE-001 are mutually dependent as ticketed (`28` §8); `49` §12 resolves it
+  and the slice follows `49`: the counter and the reservation primitive ship here, the
+  ledger, thresholds and reconciliation stay USAGE-001's.
+- `packages/storage` is not in `18-REPOSITORY-STRUCTURE`'s tree, for `packages/mail`'s reason.
+
+### Named gaps in FILE-001, carried deliberately
+
+- **No bytes move.** `uploadUrls` are `memory://` under the fake and unreachable in a
+  deployment; `main.ts` wires no driver. FILE-001b is the local HMAC-signed transport
+  (`FilesystemObjectStore`, a `@Public()` PUT authorized solely by the token, `bodyLimit` and
+  an octet-stream parser in `main.ts`); FILE-003 the R2 semantics and bucket CORS, which no
+  planning document specifies (`ETag` must be in `ExposeHeaders` or the browser cannot
+  collect the etags `CompleteUploadRequest` requires).
+- **No expiry sweeper.** A session past `expires_at` is released when its owner tries to
+  complete it, and otherwise holds its reservation. A scheduled release is USAGE-001's
+  lifecycle job.
+- **A crash between the provider's completion and the commit transaction** leaves an object
+  the database does not know about; a crash between the reservation and the provider's
+  `begin` cannot happen (begin runs first) but a crash after `begin` and before the commit
+  leaves a provider upload open, which lifecycle-abort (50-BOOTSTRAP §4) is for.
+- **`usage.threshold_reached.v1`, the 70/85/95% warnings and the ledger** are USAGE-001.
+- **`verifying`, `scanning`, `ready`, `rejected`** are FILE-002's; nothing here writes them,
+  and no download exists (FILE-003). A file that is `uploaded` is servable to nobody.
+- **`GET /upload-sessions` is not in the role-matrix grid**: the grid drives list-shaped
+  GETs through every role and this list is the caller's own sessions, which is a different
+  question. Recorded rather than forced.
+- **The least-privilege suite has no FILE-001 rows** yet; the grants are exercised only by
+  the corpus running green under the app credential where that credential exists (not on the
+  default per-file path).
+- **WEB-006 is untouched.** No screen, no client module, no query key.
+
+### Ticket accounting
+
+FILE-001 (8 points) is counted **half**: session, multipart shape, quota and both doors are
+built and tested; "presigned" is a fake and no byte moves. **33 of 70 tickets, 268 of 583
+points (46.0%).**
+
+---
+
 ## The chain-first session — the fleet on the client inbox, and one read per page
 
 The session of 2026-09-03 opened on the debt the safe stop left: the chain. It ran first,
@@ -802,6 +947,25 @@ exists; the drain step is there for any journey that needs the worker). New: the
 authorized read for both inboxes; the `submitted → triage` notification policy — not without
 Peter; and `E2E-07`'s "devices sync" is proved by a second context, which is as far as a single
 browser can take it.
+
+---
+
+## Verification actually run — 2026-09-03, the files session
+
+| Gate                                     | Result                                                                                                                                                                                                                                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/storage` unit                  | **6 passed** — the key layout, the traversal refusal, the fake's sizes and one-shot failure                                                                                                                                                                              |
+| `packages/config` unit                   | **30 passed** — up one: `STORAGE_ORG_BYTES_LIMIT_BYTES` defaults to 524 288 000 and refuses zero                                                                                                                                                                         |
+| `apps/api` unit, `src/modules/files`     | **10 passed** — the body parser, the header, the parts, the purpose table                                                                                                                                                                                                |
+| `schema`, `tenant-isolation`, `migrator` | **101, 45, 17 passed** on 0015 — every registry in step, composite keys and FKs present, InnoDB/utf8mb4/DATETIME(3)                                                                                                                                                      |
+| `file-001-quota.db.test`                 | **11 passed** — twelve concurrent reservations admit ten; commit and release once; UNSIGNED refuses the admin over-release; counters apart per tenant; the machine refuses `uploaded` without `byteSize`; the idempotency key rolls the reservation back with the insert |
+| `file-001-upload-sessions.db.test`       | **23 passed** over HTTP — create, replay, 409, 400s, quota block with the audit row and the aborted provider upload, complete once, INT-12, expiry, cancel, the byte-identical 404s, both doors and the client's four refusals                                           |
+| `sec-001-client-projection`              | **17 passed** — the fifth client operation, `/portal/upload-sessions`, seeded so the sweep is not vacuous                                                                                                                                                                |
+| Revert proof                             | Reservation predicate removed: **3 failed** ("length of 10 but got 12", two `true` for `false`); restored from the saved copy, file identical to the commit                                                                                                              |
+| `pnpm --filter @tmanage/api typecheck`   | exit 0 after every test edit (the single-suite trap)                                                                                                                                                                                                                     |
+| Leaked `mysqld`                          | **None** after any run                                                                                                                                                                                                                                                   |
+| **The chain**                            | **NOT RUN on this tree.** Peter called the safe stop at 40% of context before it could start; the next session owes it first, before any code, as the chain-first session did                                                                                            |
+| The review fleet on `afa4697..8b0f56f`   | Launched (five lenses + skeptic, run `wf_b55c6b5d-545`); its findings had not arrived at the stop and are **not** folded in. The next session reads the run's output file and journal before touching the slice                                                          |
 
 ---
 
