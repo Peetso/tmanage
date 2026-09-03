@@ -1,0 +1,286 @@
+import { createHash, randomBytes } from 'node:crypto';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, resolve, sep } from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import {
+  MissingPartError,
+  MultipartUploadMismatchError,
+  MultipartUploadNotFoundError,
+  PartEtagMismatchError,
+  PartTooLargeError,
+  UnsafeObjectPathError,
+} from './errors.js';
+import type {
+  AbortMultipartInput,
+  BeginMultipartInput,
+  CompleteMultipartInput,
+  MultipartUpload,
+  ObjectStore,
+  StoredObject,
+  TrustZone,
+} from './object-store.js';
+import { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-token.js';
+
+/**
+ * The local substitute for a bucket — ADR-0002's `filesystem` driver (FILE-001b).
+ *
+ * ## On disk
+ *
+ *     <root>/objects/<zone>/<object key>              the completed objects, by trust zone
+ *     <root>/uploads/<providerUploadId>/manifest.json  one in-flight multipart upload
+ *     <root>/uploads/<providerUploadId>/part-0001…     its parts, as they arrive
+ *
+ * ## The manifest is the revocation
+ *
+ * A signed part URL cannot be recalled inside its lifetime; the upload directory can. `abort`
+ * removes it, and from that moment every outstanding URL for the upload answers "not
+ * found" — which is the lock behind `FilesService` no longer serving targets once a session
+ * leaves `reserved`. `complete` removes it too, so a late PUT cannot alter a sealed object.
+ *
+ * ## What the PUT verifies without a database
+ *
+ * The handle in the path must be a handle, the token must verify for exactly that handle
+ * and part, the manifest must exist and not have expired, the part must be within range and
+ * within the part size. Everything else — whose upload this is, which project, which quota —
+ * was decided when the session was created, and is not re-decided by a byte sink. Every
+ * refusal is one `null`; the route turns it into one 404.
+ *
+ * ## Etags
+ *
+ * A part's etag is the hex MD5 of its bytes, S3's shape for a single part, and the object's
+ * is S3's composite (`md5(concat(binary part digests))-partCount`), so a client written
+ * against this driver needs no change when FILE-003 swaps in the real one. MD5 here is an
+ * integrity check on bytes the same caller just sent, not a security primitive.
+ *
+ * ## Paths never escape the root
+ *
+ * `object-key.ts` builds keys from checked UUIDs, and this driver checks again: each key
+ * segment is restricted to a safe alphabet, `.` and `..` are refused, and the resolved path is
+ * asserted to lie under the zone's directory. A driver that trusted its caller's key would be
+ * a second place the tenant prefix could be escaped from.
+ */
+
+const HANDLE = /^[0-9a-f]{32}$/;
+const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const ZONES: readonly TrustZone[] = ['quarantine', 'private', 'derived'];
+const MANIFEST_VERSION = 1;
+
+export interface FilesystemObjectStoreOptions {
+  /** Where everything lives. Resolved once; every path is checked to stay beneath it. */
+  readonly root: string;
+  /** `STORAGE_LOCAL_SIGNING_SECRET`. Never the session or CSRF secret. */
+  readonly signingSecret: string;
+  /** `API_PUBLIC_URL`, from configuration and never from a request header. */
+  readonly publicUrl: string;
+  /** The largest body one part may carry; `FilesService`'s part size. */
+  readonly partSizeBytes: number;
+  /** Injectable clock, for the expiry cases. */
+  readonly now?: () => number;
+}
+
+/** What the transport route hands the store, and what it gets back. */
+export interface PutPartInput {
+  readonly providerUploadId: string;
+  readonly partNumber: number;
+  readonly token: string | undefined;
+  readonly body: Buffer;
+}
+
+export interface PutPartResult {
+  readonly etag: string;
+}
+
+/** The half of the driver the public PUT route talks to. */
+export interface PartSink {
+  /** `null` for every refusal — unknown, forged, expired, aborted, completed, out of range. */
+  putPart(input: PutPartInput): Promise<PutPartResult | null>;
+}
+
+interface Manifest {
+  readonly version: number;
+  readonly providerUploadId: string;
+  readonly zone: TrustZone;
+  readonly objectKey: string;
+  readonly partCount: number;
+  readonly expiresAtMs: number;
+}
+
+function partFileName(partNumber: number): string {
+  return `part-${String(partNumber).padStart(4, '0')}`;
+}
+
+function normalizeEtag(etag: string): string {
+  return etag.replace(/^"|"$/g, '').toLowerCase();
+}
+
+async function md5Of(path: string): Promise<Buffer> {
+  const hash = createHash('md5');
+  await pipeline(createReadStream(path), hash);
+  return hash.digest();
+}
+
+function isNotFound(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === 'ENOENT';
+}
+
+export class FilesystemObjectStore implements ObjectStore, PartSink {
+  private readonly root: string;
+  private readonly key: Buffer;
+  private readonly publicUrl: string;
+  private readonly partSizeBytes: number;
+  private readonly now: () => number;
+
+  constructor(options: FilesystemObjectStoreOptions) {
+    this.root = resolve(options.root);
+    this.key = derivePartSigningKey(options.signingSecret);
+    this.publicUrl = options.publicUrl.replace(/\/+$/, '');
+    this.partSizeBytes = options.partSizeBytes;
+    this.now = options.now ?? (() => Date.now());
+  }
+
+  async beginMultipart(input: BeginMultipartInput): Promise<MultipartUpload> {
+    // Checked before anything is written, so a bad key never leaves a directory behind.
+    this.objectPath(input.zone, input.objectKey);
+    const providerUploadId = randomBytes(16).toString('hex');
+    const expiresAtMs = this.now() + input.expiresInSeconds * 1_000;
+    const manifest: Manifest = {
+      version: MANIFEST_VERSION,
+      providerUploadId,
+      zone: input.zone,
+      objectKey: input.objectKey,
+      partCount: input.partCount,
+      expiresAtMs,
+    };
+    const directory = this.uploadDirectory(providerUploadId);
+    await mkdir(directory, { recursive: true });
+    await this.writeAtomically(`${directory}${sep}manifest.json`, JSON.stringify(manifest));
+
+    const parts = Array.from({ length: input.partCount }, (_, index) => {
+      const partNumber = index + 1;
+      const token = mintPartToken(this.key, { providerUploadId, partNumber, expiresAtMs });
+      return {
+        partNumber,
+        url: `${this.publicUrl}/v1/uploads/${providerUploadId}/parts/${partNumber}?t=${token}`,
+      };
+    });
+    return { providerUploadId, parts };
+  }
+
+  async putPart(input: PutPartInput): Promise<PutPartResult | null> {
+    if (!HANDLE.test(input.providerUploadId)) return null;
+    if (!Number.isSafeInteger(input.partNumber) || input.partNumber < 1) return null;
+    if (
+      !verifyPartToken(this.key, input.token, input.providerUploadId, input.partNumber, this.now())
+    ) {
+      return null;
+    }
+    const manifest = await this.readManifest(input.providerUploadId);
+    if (!manifest) return null;
+    if (manifest.expiresAtMs <= this.now()) return null;
+    if (input.partNumber > manifest.partCount) return null;
+    // Refused after the authorization checks, so a forged request learns nothing about the
+    // limit either; refused before the write, so nothing over the limit ever touches disk.
+    if (input.body.length > this.partSizeBytes) throw new PartTooLargeError(this.partSizeBytes);
+
+    const directory = this.uploadDirectory(input.providerUploadId);
+    await this.writeAtomically(`${directory}${sep}${partFileName(input.partNumber)}`, input.body);
+    return { etag: createHash('md5').update(input.body).digest('hex') };
+  }
+
+  async completeMultipart(input: CompleteMultipartInput): Promise<StoredObject> {
+    const manifest = await this.readManifest(input.providerUploadId);
+    if (!manifest) throw new MultipartUploadNotFoundError();
+    if (manifest.zone !== input.zone || manifest.objectKey !== input.objectKey) {
+      throw new MultipartUploadMismatchError();
+    }
+    const directory = this.uploadDirectory(input.providerUploadId);
+    const presented = new Map(input.parts.map((p) => [p.partNumber, normalizeEtag(p.etag)]));
+
+    // Every part present and matching, before a single byte is assembled.
+    const digests: Buffer[] = [];
+    let sizeBytes = 0;
+    for (let partNumber = 1; partNumber <= manifest.partCount; partNumber += 1) {
+      const path = `${directory}${sep}${partFileName(partNumber)}`;
+      let size: number;
+      try {
+        size = (await stat(path)).size;
+      } catch (error) {
+        if (isNotFound(error)) throw new MissingPartError(partNumber);
+        throw error;
+      }
+      const digest = await md5Of(path);
+      if (presented.get(partNumber) !== digest.toString('hex')) {
+        throw new PartEtagMismatchError(partNumber);
+      }
+      digests.push(digest);
+      sizeBytes += size;
+    }
+
+    const destination = this.objectPath(manifest.zone, manifest.objectKey);
+    await mkdir(dirname(destination), { recursive: true });
+    const assembling = `${directory}${sep}object.tmp`;
+    const sink = createWriteStream(assembling);
+    for (let partNumber = 1; partNumber <= manifest.partCount; partNumber += 1) {
+      await pipeline(createReadStream(`${directory}${sep}${partFileName(partNumber)}`), sink, {
+        end: partNumber === manifest.partCount,
+      });
+    }
+    // The object exists before the staging directory disappears: a crash between the two
+    // leaves an upload that `abort` can still clean, never an object nobody can find.
+    await rename(assembling, destination);
+    await rm(directory, { recursive: true, force: true, maxRetries: 3 });
+
+    const composite = createHash('md5').update(Buffer.concat(digests)).digest('hex');
+    return { sizeBytes, etag: `${composite}-${manifest.partCount}` };
+  }
+
+  /** Idempotent: an upload the store no longer knows is not an error (`ObjectStore`). */
+  async abortMultipart(input: AbortMultipartInput): Promise<void> {
+    if (!HANDLE.test(input.providerUploadId)) return;
+    await rm(this.uploadDirectory(input.providerUploadId), {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+    });
+  }
+
+  /** Where a completed object lives — exposed for a suite that checks the bytes landed. */
+  objectPath(zone: TrustZone, objectKey: string): string {
+    if (!ZONES.includes(zone)) throw new UnsafeObjectPathError('zone');
+    const segments = objectKey.split('/');
+    for (const segment of segments) {
+      if (!SAFE_SEGMENT.test(segment) || segment === '.' || segment === '..') {
+        throw new UnsafeObjectPathError('objectKey');
+      }
+    }
+    const zoneRoot = resolve(this.root, 'objects', zone);
+    const path = resolve(zoneRoot, ...segments);
+    if (!path.startsWith(`${zoneRoot}${sep}`)) throw new UnsafeObjectPathError('objectKey');
+    return path;
+  }
+
+  private uploadDirectory(providerUploadId: string): string {
+    if (!HANDLE.test(providerUploadId)) throw new UnsafeObjectPathError('providerUploadId');
+    return resolve(this.root, 'uploads', providerUploadId);
+  }
+
+  private async readManifest(providerUploadId: string): Promise<Manifest | null> {
+    let raw: string;
+    try {
+      raw = await readFile(`${this.uploadDirectory(providerUploadId)}${sep}manifest.json`, 'utf8');
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+    const manifest = JSON.parse(raw) as Manifest;
+    return manifest.version === MANIFEST_VERSION ? manifest : null;
+  }
+
+  /** Write beside, then rename over: a reader never sees a half-written file. */
+  private async writeAtomically(path: string, content: string | Buffer): Promise<void> {
+    const temporary = `${path}.tmp`;
+    await writeFile(temporary, content);
+    await rename(temporary, path);
+  }
+}

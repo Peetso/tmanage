@@ -7,9 +7,10 @@
  * another's `src/`. Like `mail`, this package is not in `18`'s tree; the divergence is
  * recorded in `docs/implementation-status.md`.
  *
- * **What is not here:** any real driver. FILE-001 is the reservation and the session; the
- * bytes are a later ticket (ADR-0002 assigns real R2 signature semantics to FILE-003), and
- * the configuration that names `s3` or `filesystem` refuses to wire until one exists.
+ * **Two drivers.** `FakeObjectStore` for suites, `FilesystemObjectStore` for a deployment
+ * without a bucket — ADR-0002's local substitute, with HMAC-signed part URLs the API serves
+ * itself (FILE-001b). The `s3` driver with real R2 signature semantics is FILE-003's, and the
+ * configuration that names it still refuses to wire until it exists.
  */
 
 export type {
@@ -26,3 +27,20 @@ export type {
 export { InvalidObjectKeyComponentError, uploadObjectKey } from './object-key.js';
 export type { UploadObjectKeyInput } from './object-key.js';
 export { FakeObjectStore } from './fake-object-store.js';
+export { FilesystemObjectStore } from './filesystem-object-store.js';
+export type {
+  FilesystemObjectStoreOptions,
+  PartSink,
+  PutPartInput,
+  PutPartResult,
+} from './filesystem-object-store.js';
+export { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-token.js';
+export type { PartTokenClaims } from './part-token.js';
+export {
+  MissingPartError,
+  MultipartUploadMismatchError,
+  MultipartUploadNotFoundError,
+  PartEtagMismatchError,
+  PartTooLargeError,
+  UnsafeObjectPathError,
+} from './errors.js';

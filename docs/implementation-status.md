@@ -554,6 +554,94 @@ are untouched.
 
 ---
 
+## FILE-001b, part 1 — the local transport's driver, and a safe stop
+
+After the review session's chain went green and was pushed, a five-agent read-only design
+fleet (four lenses — security, wiring, driver, tests — and a proposer; run `wf_57b82325-48f`)
+produced a four-commit plan for FILE-001b. The first commit is in: `packages/storage` gains
+`FilesystemObjectStore` (ADR-0002's `filesystem` substitute), the HMAC part token, and the
+typed errors a driver may answer. **Nothing in `apps/api` uses it yet** — `main.ts` still
+passes no store, `StorageModule.forConfig` does not exist, there is no PUT route, and no byte
+crosses HTTP. Peter called the safe stop here, at 40% of context, with the package green on
+its own.
+
+### What was built
+
+- **The token.** `pu1.{expiresAtMs}.{base64url(HMAC-SHA256)}` over
+  `pu1.{providerUploadId}.{partNumber}.{expiresAtMs}`, keyed by
+  `HMAC(secret, "tmanage.storage.local-part.v1")`. The handle and the part live in the URL
+  path and in the signed input, never in the token; the version label is inside the signature;
+  the verifier parses one digits-only integer; signature before expiry; every failure is
+  `false`.
+- **The driver.** `<root>/uploads/<handle>/manifest.json` and `part-NNNN` while in flight;
+  `<root>/objects/<zone>/<object key>` when complete. **The manifest is the revocation**: a
+  token cannot be recalled inside its lifetime, the directory can — `abort` removes it and every
+  outstanding URL dies; `complete` removes it too. Etags are hex MD5 per part and S3's
+  composite per object, so the client side needs no change when FILE-003 swaps drivers. Key
+  segments are re-checked against a safe alphabet and the resolved path asserted under the
+  zone; a body over `partSizeBytes` is refused after the token and before the write.
+- **`PartSink.putPart`** — the half of the driver the public PUT route will call: `null` for
+  unknown, forged, foreign, expired, aborted, completed or out-of-range, `{ etag }` otherwise.
+
+### Verification actually run — 2026-09-03, FILE-001b part 1
+
+| Gate                                   | Result                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/storage` unit                | **25 passed** — 8 token cases (deterministic, per part/upload/secret, re-label and tampered expiry refused, expired ≡ forged, digits-only parsing, malformed refused), 11 driver cases (assembly, URLs carry no key or tenant, retry replaces, missing part, wrong etag, zone mismatch, abort idempotent and revoking, PUT after complete, one-null refusals, oversize, traversal, zones), the 6 existing |
+| `packages/storage` typecheck, `eslint` | Clean                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `pnpm --filter @tmanage/api typecheck` | Clean (new exports only)                                                                                                                                                                                                                                                                                                                                                                                  |
+| `format:check`                         | Clean                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Revert proofs                          | **Not run** for this commit — each case names its reversal in a comment; none was executed. Owed with part 2                                                                                                                                                                                                                                                                                              |
+| **The chain**                          | **NOT RUN on this commit.** Package-only, additive; the chain last ran green on `7723f01`. Owed first thing next session                                                                                                                                                                                                                                                                                  |
+
+### Decisions the design fleet took, for Peter to overturn (recorded now, live when part 2 wires them)
+
+1. The part URL carries the **provider handle** (random 128-bit), not the session id, and
+   never the key.
+2. The per-part byte ceiling is **not** signed; it is server-side config.
+3. **Every** PUT refusal is one 404 body — expiry is not distinguished.
+4. Verification lives **in the driver**, behind its own DI token, not in the controller.
+5. **The manifest is the revocation.**
+6. Etags are **MD5**, S3-shaped.
+7. The large body limit will be **per content-type** (`application/octet-stream`), not
+   Fastify-global.
+8. A new `UPLOAD_PART_SIZE_BYTES` env key so the database suite can drive multipart cheaply;
+   the real 8 MiB is proved once, in E2E-12a.
+
+### What parts 2–4 are (the fleet's plan, adopted)
+
+2. `env.ts`: `STORAGE_LOCAL_SIGNING_SECRET` (required when `STORAGE_DRIVER=filesystem`;
+   placeholder-refused and all-pairs distinct from `SESSION_SECRET` / `CSRF_SECRET` in
+   production), `UPLOAD_PART_SIZE_BYTES`; `.env.example`; `ApiConfig.uploadPartSizeBytes` read
+   where `files.service.ts` reads `PART_SIZE_BYTES`; `StorageModule.forConfig` mirroring
+   `MailerModule.forConfig` (`filesystem` → the driver, `s3` → still unavailable); `main.ts`
+   passes it and registers an `application/octet-stream` parser with its own `bodyLimit`, adds
+   `etag` to CORS `exposedHeaders`; a shared adapter helper so the db suites boot the same app.
+3. `upload-parts.controller.ts`: `@Public() @NoTenant()`
+   `PUT /v1/uploads/:providerUploadId/parts/:n?t=`, `Buffer` body, no `@Ctx()`; `null` → one
+   404; `PartTooLargeError` → 413 in our envelope; registered in `FilesModule`, the sink
+   injected `@Optional()` under a new token that only `forConfig` provides.
+   `FilesService.completeSession` wraps `completeMultipart`: `MultipartUploadNotFoundError` /
+   `MissingPartError` / `PartEtagMismatchError` → `releaseAs('failed')` + 422
+   (`upload_not_found`, `part_missing`, `part_etag_mismatch`). A db suite
+   `file-001b-part-transport.db.test.ts` booting `forConfig` on a temp root with a 16-byte
+   part size (the fleet's cases 25–36: the whole upload; PUT with no cookie and no CSRF;
+   byte-identical 404s for no/truncated/foreign token; expired; oversize 413; cancel then PUT;
+   complete then PUT; wrong etag → 422 and the bytes back; missing part; traversal handle; a
+   token minted under the session or CSRF secret refused; `ETag` header and no key in the
+   response).
+4. `e2e/setup/stack.ts`: the signing secret and an absolute temp `STORAGE_FILESYSTEM_ROOT`
+   exported to the specs; `e2e/tests/upload-journeys.spec.ts` — E2E-12a: create → PUT two
+   real 8 MiB parts with no cookie → complete → `uploaded`, one file under the root of the
+   declared size. Not scan, not download.
+
+### Ticket accounting
+
+Unchanged: **33 of 70 tickets, 268 of 583 points (46.0%).** FILE-001 stays at half until the
+bytes move.
+
+---
+
 ## FILE-001 reviewed — the fleet's findings, confirmed, fixed and proved
 
 The session of 2026-09-03 (the third that day) opened on the two debts the safe stop left: the
