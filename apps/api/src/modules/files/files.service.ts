@@ -88,7 +88,11 @@ export interface CreateUploadInput extends ParsedUploadBody {
   readonly idempotencyKey: string;
 }
 
-/** 8 MiB parts: above S3's 5 MiB minimum, small enough that a retry is cheap. */
+/**
+ * 8 MiB parts: above S3's 5 MiB minimum, small enough that a retry is cheap. The default
+ * behind `ApiConfig.uploadPartSizeBytes` (`UPLOAD_PART_SIZE_BYTES`), which is what the
+ * service reads — a suite lowers it to move a real multipart upload in a few bytes.
+ */
 export const PART_SIZE_BYTES = 8 * 1024 * 1024;
 
 function toView(row: UploadSessionRow): UploadSessionView {
@@ -376,7 +380,8 @@ export class FilesService {
       projectId: input.projectId,
       uploadId: id,
     });
-    const partCount = Math.max(1, Math.ceil(input.sizeBytes / PART_SIZE_BYTES));
+    const partSizeBytes = this.config.uploadPartSizeBytes;
+    const partCount = Math.max(1, Math.ceil(input.sizeBytes / partSizeBytes));
     const upload = await this.store.beginMultipart({
       zone: 'quarantine',
       objectKey,
@@ -421,7 +426,7 @@ export class FilesService {
           declaredMimeType: input.mimeType,
           declaredBytes: input.sizeBytes,
           declaredContentHash: input.contentHash,
-          partSizeBytes: PART_SIZE_BYTES,
+          partSizeBytes,
           partCount,
           objectKey,
           providerUploadId: upload.providerUploadId,

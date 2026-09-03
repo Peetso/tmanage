@@ -121,6 +121,14 @@ export const envSchema = z
     STORAGE_UPLOAD_URL_TTL_SECONDS: positiveInt.max(3_600).default(900),
     STORAGE_FILESYSTEM_ROOT: z.string().default('.local/storage'),
     /**
+     * FILE-001b. Signs the part URLs the API serves itself when `STORAGE_DRIVER=filesystem`
+     * (ADR-0002's local substitute). Its own secret, never `SESSION_SECRET` or `CSRF_SECRET`:
+     * the URL authorizes an anonymous byte sink, and a key shared with a session credential
+     * would make one leak two. Required by the `superRefine` below exactly when the
+     * filesystem driver is named — the s3 credentials pattern.
+     */
+    STORAGE_LOCAL_SIGNING_SECRET: secret('STORAGE_LOCAL_SIGNING_SECRET').optional(),
+    /**
      * FILE-001. The pooled storage quota one organization may reserve against, in bytes.
      * 50-BOOTSTRAP §5's private-alpha value (500 MB) is the default; `49-PRICING` §3's plan
      * entitlements replace this variable when `organization_entitlements` exists (ENT-001).
@@ -229,6 +237,13 @@ export const envSchema = z
     MALWARE_SCAN_DRIVER: z.enum(['stub', 'clamav']).default('stub'),
     MALWARE_SCAN_TIMEOUT_MS: positiveInt.default(30_000),
     UPLOAD_MAX_BYTES: positiveInt.default(104_857_600),
+    /**
+     * FILE-001b. The size of one multipart part. 8 MiB by default — above S3's 5 MiB
+     * minimum, small enough that a retry is cheap — and configurable so the database suite
+     * can drive a real multipart upload through the API at a size no deployment uses. The
+     * real size is proved once, in the browser journey (E2E-12a).
+     */
+    UPLOAD_PART_SIZE_BYTES: positiveInt.default(8_388_608),
   })
   .superRefine((env, ctx) => {
     const fail = (path: string, message: string) =>
@@ -240,6 +255,10 @@ export const envSchema = z
         fail('STORAGE_ACCESS_KEY_ID', 'required when STORAGE_DRIVER=s3');
       if (!env.STORAGE_SECRET_ACCESS_KEY)
         fail('STORAGE_SECRET_ACCESS_KEY', 'required when STORAGE_DRIVER=s3');
+    }
+    // The filesystem substitute signs its own upload URLs, so it needs a key of its own.
+    if (env.STORAGE_DRIVER === 'filesystem' && !env.STORAGE_LOCAL_SIGNING_SECRET) {
+      fail('STORAGE_LOCAL_SIGNING_SECRET', 'required when STORAGE_DRIVER=filesystem');
     }
 
     // The smtp driver needs a host; the console substitute needs nothing. Credentials are a
@@ -281,16 +300,29 @@ export const envSchema = z
       }
     }
 
-    for (const key of ['SESSION_SECRET', 'CSRF_SECRET'] as const) {
-      const value = env[key].toLowerCase();
-      if (PLACEHOLDER_MARKERS.some((m) => value.includes(m))) {
+    // The signing secret is in both loops although production refuses the filesystem
+    // driver above: an operator who leaves it in a production `.env` copied from staging
+    // is told, and the check is one line. Checked only when present.
+    const secrets: ReadonlyArray<readonly [string, string | undefined]> = [
+      ['SESSION_SECRET', env.SESSION_SECRET],
+      ['CSRF_SECRET', env.CSRF_SECRET],
+      ['STORAGE_LOCAL_SIGNING_SECRET', env.STORAGE_LOCAL_SIGNING_SECRET],
+    ];
+    for (const [key, value] of secrets) {
+      if (value === undefined) continue;
+      if (PLACEHOLDER_MARKERS.some((m) => value.toLowerCase().includes(m))) {
         fail(key, 'looks like the .env.example placeholder; generate a real secret');
       }
     }
 
-    if (env.SESSION_SECRET === env.CSRF_SECRET) {
-      fail('CSRF_SECRET', 'must differ from SESSION_SECRET');
-    }
+    // All pairs distinct, not only the first two: three credentials with one value are
+    // one credential.
+    secrets.forEach(([key, value], index) => {
+      if (value === undefined) return;
+      for (const [other, otherValue] of secrets.slice(0, index)) {
+        if (value === otherValue) fail(key, `must differ from ${other}`);
+      }
+    });
 
     if (!env.API_PUBLIC_URL.startsWith('https://')) {
       fail('API_PUBLIC_URL', 'must use https in production');

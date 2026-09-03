@@ -73,11 +73,12 @@ export interface AppModuleOptions {
    */
   readonly mailer?: DynamicModule;
   /**
-   * FILE-001. The object-store wiring, already built — `StorageModule.forObjectStore()` in a
-   * suite that holds the fake. Absent means `StorageModule.none()`: no driver exists yet
-   * (see `storage.module.ts`), and an upload session then fails at the provider call, as
-   * a `500`, rather than at boot — so every other route keeps working in a deployment
-   * whose files are a later ticket.
+   * FILE-001. The object-store wiring, already built — `StorageModule.forConfig()` in
+   * production (FILE-001b's filesystem driver, or the still-unavailable `s3`),
+   * `StorageModule.forObjectStore()` in a suite that holds the fake. Absent means
+   * `StorageModule.none()`: no driver at all, and an upload session then fails at the
+   * provider call, as a `500`, rather than at boot — so every other route keeps working
+   * in a deployment whose files are a later ticket.
    */
   readonly storage?: DynamicModule;
 }

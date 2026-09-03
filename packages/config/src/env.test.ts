@@ -16,6 +16,7 @@ const devEnv = (): NodeJS.ProcessEnv => ({
   STORAGE_DRIVER: 'filesystem',
   SESSION_SECRET: 'a'.repeat(48),
   CSRF_SECRET: 'b'.repeat(48),
+  STORAGE_LOCAL_SIGNING_SECRET: 'd'.repeat(48),
   EMAIL_FROM_ADDRESS: 'no-reply@tmanage.example',
 });
 
@@ -134,6 +135,33 @@ describe('loadEnv', () => {
       expect(paths).toContain('STORAGE_SECRET_ACCESS_KEY');
     });
 
+    it('requires a signing secret of its own for the filesystem substitute (FILE-001b)', () => {
+      const env = devEnv();
+      delete env['STORAGE_LOCAL_SIGNING_SECRET'];
+
+      expect(issuePaths(() => loadEnv(env))).toContain('STORAGE_LOCAL_SIGNING_SECRET');
+    });
+
+    it('does not require the signing secret for the s3 driver, which signs nothing locally', () => {
+      const env = prodEnv();
+      delete env['STORAGE_LOCAL_SIGNING_SECRET'];
+
+      expect(() => loadEnv(env)).not.toThrow();
+    });
+
+    it('refuses a signing secret shorter than 32 characters', () => {
+      expect(
+        issuePaths(() => loadEnv({ ...devEnv(), STORAGE_LOCAL_SIGNING_SECRET: 'short' })),
+      ).toContain('STORAGE_LOCAL_SIGNING_SECRET');
+    });
+
+    it('defaults the multipart part size to 8 MiB (FILE-001b)', () => {
+      expect(loadEnv(devEnv()).UPLOAD_PART_SIZE_BYTES).toBe(8_388_608);
+      expect(loadEnv({ ...devEnv(), UPLOAD_PART_SIZE_BYTES: '16' }).UPLOAD_PART_SIZE_BYTES).toBe(
+        16,
+      );
+    });
+
     it('does not require credentials for the filesystem substitute', () => {
       expect(() => loadEnv({ ...devEnv(), STORAGE_DRIVER: 'filesystem' })).not.toThrow();
     });
@@ -214,11 +242,14 @@ describe('loadEnv', () => {
       expect(issuePaths(() => loadEnv(prodEnv({ [key]: value })))).toContain(key);
     });
 
-    it.each(['SESSION_SECRET', 'CSRF_SECRET'])('refuses a placeholder %s in production', (key) => {
-      const placeholder = `local_dev_only_${'x'.repeat(40)}`;
+    it.each(['SESSION_SECRET', 'CSRF_SECRET', 'STORAGE_LOCAL_SIGNING_SECRET'])(
+      'refuses a placeholder %s in production',
+      (key) => {
+        const placeholder = `local_dev_only_${'x'.repeat(40)}`;
 
-      expect(issuePaths(() => loadEnv(prodEnv({ [key]: placeholder })))).toContain(key);
-    });
+        expect(issuePaths(() => loadEnv(prodEnv({ [key]: placeholder })))).toContain(key);
+      },
+    );
 
     it('refuses reusing one secret for both session and CSRF', () => {
       const same = 'c'.repeat(48);
@@ -227,6 +258,25 @@ describe('loadEnv', () => {
         issuePaths(() => loadEnv(prodEnv({ SESSION_SECRET: same, CSRF_SECRET: same }))),
       ).toContain('CSRF_SECRET');
     });
+
+    it.each([
+      [
+        'SESSION_SECRET',
+        { SESSION_SECRET: 'e'.repeat(48), STORAGE_LOCAL_SIGNING_SECRET: 'e'.repeat(48) },
+      ],
+      [
+        'CSRF_SECRET',
+        { CSRF_SECRET: 'f'.repeat(48), STORAGE_LOCAL_SIGNING_SECRET: 'f'.repeat(48) },
+      ],
+    ])(
+      'refuses the signing secret being the same value as %s — every pair is distinct (FILE-001b)',
+      (_key, overrides) => {
+        // Reversal: keep only the SESSION_SECRET === CSRF_SECRET check and both pass.
+        expect(issuePaths(() => loadEnv(prodEnv(overrides)))).toContain(
+          'STORAGE_LOCAL_SIGNING_SECRET',
+        );
+      },
+    );
 
     it.each([
       ['API_PUBLIC_URL', { API_PUBLIC_URL: 'http://api.tmanage.example' }],

@@ -79,6 +79,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
       );
     }
 
+    // FILE-001b. Fastify refuses a part body over the octet-stream parser's own limit before
+    // any handler runs, with an error that is not an HttpException. It is the one framework
+    // refusal that deserves a 4xx of ours: the caller sent more than one part may carry.
+    if ((exception as { code?: unknown } | null)?.code === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+      return new ApiError(
+        413,
+        'validation_failed',
+        'The request body is invalid',
+        [{ field: 'body', message: 'exceeds the part size' }],
+        'part_too_large',
+      );
+    }
+
     if (exception instanceof HttpException) {
       // Nest's own errors — a 404 from the router, a 400 from a pipe. The status is
       // meaningful; the message is replaced with one of ours so the envelope is uniform and

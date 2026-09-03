@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { API_CONFIG } from './tokens.js';
 import type { SessionServiceOptions } from '../../modules/identity/session.service.js';
+import { PART_SIZE_BYTES } from '../../modules/files/files.service.js';
 
 /**
  * The settings the HTTP layer needs, resolved once at boot from `packages/config`.
@@ -61,6 +62,12 @@ export interface ApiConfig extends SessionServiceOptions {
   readonly storageOrgBytesLimit: number;
   readonly uploadMaxBytes: number;
   readonly uploadUrlTtlSeconds: number;
+  /**
+   * FILE-001b. The size of one multipart part (`UPLOAD_PART_SIZE_BYTES`). The service's
+   * constant is the default; a suite lowers it to drive a real multipart upload through
+   * the API in a few hundred bytes. The transport's body limit is derived from it.
+   */
+  readonly uploadPartSizeBytes: number;
 }
 
 export interface ApiConfigSource {
@@ -83,6 +90,7 @@ export interface ApiConfigSource {
   readonly STORAGE_ORG_BYTES_LIMIT_BYTES?: number;
   readonly UPLOAD_MAX_BYTES?: number;
   readonly STORAGE_UPLOAD_URL_TTL_SECONDS?: number;
+  readonly UPLOAD_PART_SIZE_BYTES?: number;
 }
 
 /**
@@ -117,6 +125,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     storageOrgBytesLimit: env.STORAGE_ORG_BYTES_LIMIT_BYTES ?? 524_288_000,
     uploadMaxBytes: env.UPLOAD_MAX_BYTES ?? 104_857_600,
     uploadUrlTtlSeconds: env.STORAGE_UPLOAD_URL_TTL_SECONDS ?? 900,
+    uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES ?? PART_SIZE_BYTES,
   };
 }
 

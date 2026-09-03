@@ -51,6 +51,12 @@ export const PORTAL_INBOX_SERVICE = Symbol.for('tmanage.PortalInboxService');
 export const MAILER = Symbol.for('tmanage.Mailer');
 export const INVITATION_MAILER = Symbol.for('tmanage.InvitationMailer');
 export const OBJECT_STORE = Symbol.for('tmanage.ObjectStore');
+/**
+ * FILE-001b. The half of the filesystem driver the public PUT route talks to. Provided by
+ * `StorageModule.forConfig` alone — a suite holding a fake, or a deployment with no
+ * driver, leaves it unbound and the route answers 404 to everything, which is honest.
+ */
+export const LOCAL_PART_SINK = Symbol.for('tmanage.LocalPartSink');
 export const UPLOAD_SESSIONS_REPOSITORY = Symbol.for('tmanage.UploadSessionsRepository');
 export const FILE_ASSETS_REPOSITORY = Symbol.for('tmanage.FileAssetsRepository');
 export const USAGE_COUNTERS_REPOSITORY = Symbol.for('tmanage.UsageCountersRepository');

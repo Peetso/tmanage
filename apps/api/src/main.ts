@@ -1,10 +1,11 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { loadEnv } from '@tmanage/config';
 import { DatabaseModule } from './common/database/database.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
+import { StorageModule } from './common/storage/storage.module.js';
+import { createFastifyAdapter } from './common/http/fastify-adapter.js';
 import { AppModule } from './app.module.js';
 import { apiConfigFrom } from './common/http/api-config.js';
 
@@ -61,21 +62,35 @@ async function bootstrap(): Promise<void> {
         smtpUsername: env.SMTP_USERNAME,
         smtpPassword: env.SMTP_PASSWORD,
       }),
+      // FILE-001b. `filesystem` is ADR-0002's local substitute and serves its own part
+      // URLs under `API_PUBLIC_URL` — from configuration, never from a `Host` header, for
+      // the reason the mail link is. `s3` still refuses at the first provider call (FILE-003).
+      storage: StorageModule.forConfig({
+        driver: env.STORAGE_DRIVER,
+        root: env.STORAGE_FILESYSTEM_ROOT,
+        signingSecret: env.STORAGE_LOCAL_SIGNING_SECRET,
+        publicUrl: env.API_PUBLIC_URL,
+        partSizeBytes: env.UPLOAD_PART_SIZE_BYTES,
+      }),
     }),
-    new FastifyAdapter({ trustProxy: true }),
+    // The octet-stream parser for the part route rides on the adapter, with its own body
+    // limit — see `fastify-adapter.ts` on why the global limit stays at Fastify's default.
+    createFastifyAdapter({ trustProxy: true, uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES }),
   );
 
   /**
    * Credentials are sent cross-origin, so the origin list is exact — `packages/config` rejects
    * a wildcard outright, and `credentials: true` with `origin: '*'` is refused by browsers
    * anyway. `X-CSRF-Token` has to be allowed explicitly or the preflight fails and every
-   * mutation from the web app breaks.
+   * mutation from the web app breaks. `ETag` is exposed because the browser collects one
+   * per uploaded part and hands them all to `complete` (FILE-001b) — a header the browser
+   * cannot read is a completion it cannot make.
    */
   app.enableCors({
     origin: [...env.CORS_ALLOWED_ORIGINS],
     credentials: true,
     allowedHeaders: ['content-type', 'x-csrf-token', 'x-correlation-id'],
-    exposedHeaders: ['x-correlation-id'],
+    exposedHeaders: ['x-correlation-id', 'etag'],
   });
 
   await app.listen({ port: env.API_PORT, host: '0.0.0.0' });
