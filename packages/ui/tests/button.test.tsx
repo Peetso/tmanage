@@ -32,6 +32,22 @@ describe('Button', () => {
     expect(button).toHaveClass('tm-button', 'tm-button--lime', 'tm-button--accessible');
   });
 
+  it('carries aria-pressed through, so a toggle is announced as well as painted', async () => {
+    const { container } = render(
+      <div role="group" aria-label="Mode">
+        <Button tone="outline" aria-pressed="true">
+          Unread
+        </Button>
+        <Button tone="outline" aria-pressed="false">
+          All
+        </Button>
+      </div>,
+    );
+    expect(screen.getByRole('button', { name: 'Unread', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All', pressed: false })).toBeInTheDocument();
+    await expectNoAxeViolations(container);
+  });
+
   it('defaults to the ink tone and the 40px control', () => {
     render(<Button>Default</Button>);
     expect(screen.getByRole('button', { name: 'Default' })).toHaveClass(

@@ -347,9 +347,8 @@ export class ClientRequestsService {
       this.requests.list(runner, context, options),
     );
     const visible = rows.filter((row) => this.mayTriage(principal, row));
-    // One read for the whole page rather than one per row. The tenant's client organizations
-    // are a short list — `ClientsController` pages them at 50 — and a triage queue that issued
-    // a query per request would make the cost of the queue quadratic in its own length.
+    // One read for the whole page rather than one per row: a triage queue that issued a query
+    // per request would make the cost of the queue quadratic in its own length.
     const names = await this.clientOrganizationNames(context, visible);
     return visible.map((row) => toView(row, names.get(row.clientOrganizationId) ?? null));
   }
@@ -980,6 +979,11 @@ export class ClientRequestsService {
   /**
    * The names of the client organizations these requests belong to, in one read.
    *
+   * By id, through `findManyByIds`, so the answer is the one `clientOrganizationName` gives per
+   * row: an archived client's requests still name their client, and a tenant with more clients
+   * than one page holds still names every one of them. The first shape read a page of active
+   * organizations capped at 200 and answered `null` past either edge.
+   *
    * A `Map` rather than a decorated list, because the caller needs to look one up per row and a
    * second array would have to be kept in step with the first.
    */
@@ -989,7 +993,11 @@ export class ClientRequestsService {
   ): Promise<ReadonlyMap<string, string>> {
     if (rows.length === 0) return new Map();
     const organizations = await this.database.read(context, (runner) =>
-      this.clientOrganizations.list(runner, context, { limit: 200 }),
+      this.clientOrganizations.findManyByIds(
+        runner,
+        context,
+        rows.map((row) => row.clientOrganizationId),
+      ),
     );
     return new Map(organizations.map((organization) => [organization.id, organization.name]));
   }

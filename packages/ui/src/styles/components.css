@@ -131,6 +131,23 @@
   border-color: var(--line-700);
 }
 
+/*
+ * A toggle that is on. The hook is `aria-pressed="true"` and not a class, so the state cannot
+ * be painted without being announced — the inbox screens' `is-active` class matched no rule
+ * for three sessions and nobody could tell. Painted as the ink button whatever the tone, which
+ * is the one fill that reads as "this one" beside its outline siblings in both themes.
+ */
+.tm-button[aria-pressed='true'] {
+  background: var(--ink-950);
+  color: var(--paper-0);
+  border-color: var(--ink-950);
+}
+
+.tm-button[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--ink-800);
+  border-color: var(--ink-800);
+}
+
 .tm-button--text {
   background: transparent;
   color: var(--ink-800);

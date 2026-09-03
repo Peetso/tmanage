@@ -53,6 +53,12 @@ export const States: Story = {
       <Button {...args} loading loadingLabel="Publishing the version">
         Loading
       </Button>
+      <Button {...args} tone="outline" aria-pressed="true">
+        Pressed
+      </Button>
+      <Button {...args} tone="outline" aria-pressed="false">
+        Not pressed
+      </Button>
     </div>
   ),
 };

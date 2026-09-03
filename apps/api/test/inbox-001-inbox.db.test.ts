@@ -935,4 +935,30 @@ describe('one authorized read per object type, not one per bundle', () => {
       ]);
     }
   });
+
+  it('list names an archived client exactly as get does', async () => {
+    // The triage queue named its clients from a page of active organizations until 2026-09-04
+    // (the standing line the chain-first session recorded), so an archived client's request
+    // sat in the queue with no client on it. The queue is the one screen that has to say
+    // whose request this is; it answers by id now, as `get` and `getMany` do.
+    const submitted = await requests.submit(clientCtx, clientAdmin, {
+      projectId: world.northstar.projectId,
+      title: 'Queued before the client was archived',
+      description: 'Filed by the inbox suite.',
+    });
+    await db.admin.execute('update client_organizations set archived_at = now(6) where id = ?', [
+      world.atlas.clientOrganizationId,
+    ]);
+    try {
+      const single = await requests.get(managerCtx, manager, submitted.id);
+      const queue = await requests.list(managerCtx, manager);
+      const queued = queue.find((row) => row.id === submitted.id);
+      expect(single.clientOrganizationName).not.toBeNull();
+      expect(queued?.clientOrganizationName).toBe(single.clientOrganizationName);
+    } finally {
+      await db.admin.execute('update client_organizations set archived_at = null where id = ?', [
+        world.atlas.clientOrganizationId,
+      ]);
+    }
+  });
 });

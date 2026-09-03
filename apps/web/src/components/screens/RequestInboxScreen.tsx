@@ -236,7 +236,7 @@ function FilterButton({ id, label, count, active, onSelect }: FilterButtonProps)
   return (
     <button
       type="button"
-      className={['tm-button', 'tm-button--outline', active ? 'is-active' : ''].join(' ').trim()}
+      className="tm-button tm-button--outline"
       aria-pressed={active}
       onClick={() => onSelect(id)}
     >

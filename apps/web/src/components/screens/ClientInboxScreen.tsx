@@ -124,13 +124,7 @@ export function ClientInboxScreen({
             <button
               key={candidate.id}
               type="button"
-              className={[
-                'tm-button',
-                'tm-button--outline',
-                mode === candidate.id ? 'is-active' : '',
-              ]
-                .join(' ')
-                .trim()}
+              className="tm-button tm-button--outline"
               aria-pressed={mode === candidate.id}
               onClick={() => selectMode(candidate.id)}
             >
