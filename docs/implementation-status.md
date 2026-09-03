@@ -605,6 +605,22 @@ Two more standing lines from it: `ClientRequestsService.list` still names client
 capped, active-only page (pre-existing; the same `findManyByIds` fixes it); and the three
 inbox screens' `is-active` class, as above.
 
+### The rail, under the organization
+
+The third line of the standing list. `navigation.ts` carried `/inbox`, `/work` and the rest
+since WEB-001 while every route is `/{slug}/...`; the internal rail pointed at routes that do
+not exist, on every screen, and nothing asserted otherwise because the shell test asserted
+the bare href back. `AppShell` now takes `organizationSlug` — the prop `ClientPortalShell`
+has had since WEB-004, for the same reason: the slug in the path is the claim the API's
+`TenantContextGuard` resolves against a membership — and prefixes every item and the brand
+orb with it. The eight screens that render the shell pass the slug they already hold.
+
+Proved: the shell test asserts every rail link, the brand link included, starts with
+`/northstar/`, and fails with the prefix removed; E2E-07a asserts the rail's Work link on the
+real inbox page is `/northstar-studio/work`. Home, Calendar, Docs, People and Insights still
+have no route under the slug — the rail now names where they will be, which is what it was
+for.
+
 No ticket moved: **32½ of 70, 264 of 583 points (45.3%)**. INBOX-001 stays half (quiet hours
 need a preferences table), TEST-003 stays half (REL-01/02 need a load balancer).
 
@@ -777,17 +793,19 @@ typecheck project includes `test/`, and the single-suite runs do not typecheck �
 `4292aee`. The third, on that commit, is the green one in this table. The fourth ran on the
 closing commit; its row is the last.
 
-| Gate                                | Result                                                                                                                                                                                                                                                                                                                                                                |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **The chain** on `4292aee`          | `format:check && typecheck && lint && test && test:db && audit:design && format:check` — **exit 0** in 20 m 57 s; unit **1030 passed** across 59 files, `test:db` **826 passed, 29 skipped** across 34 files, `audit:design` **172 of 172**. Two unit cases and two database cases up on the first chain, which is the two web error cases and the two counting cases |
-| `inbox-001-inbox.db.test`           | **19 passed** — up from 17: the counting case, both halves, and the archived-name case; both proved by reverting from a saved copy                                                                                                                                                                                                                                    |
-| `inbox-001-portal-inbox.db.test`    | **14 passed** — up from 13: the counting case, proved by reverting; the predicate case repointed to `getManyForClient`                                                                                                                                                                                                                                                |
-| `sec-001-client-projection`         | **16 passed**, with a notification row and the non-empty assertion; reverted: "answered nothing, so a sweep over it is vacuous"                                                                                                                                                                                                                                       |
-| `portal-inbox-flow` (web)           | **7 passed** — up from 5: the two error branches                                                                                                                                                                                                                                                                                                                      |
-| `pnpm test:e2e`                     | **14 passed**, three times: after the fleet fixes (the first run of the day failed E2E-01b on the bare date, 13 of 14 with 01c skipped in the serial group), after the batched read, and after the second fleet's fixes. The `settled()` proof run, with the `unreadOnly` predicate removed, failed E2E-07a at the guarded assertion as intended                      |
-| `test:vr`                           | Not run and not owed: `packages/ui` is untouched                                                                                                                                                                                                                                                                                                                      |
-| Leaked `mysqld`                     | **None.** Checked after every single-suite run, after each of the four revert proofs, after each e2e run, and after each chain                                                                                                                                                                                                                                        |
-| **The chain** on the closing commit | On `b4ad406`, the second fleet's fixes and this record — **exit 0** in 20 m 13 s; `test:db` **827 passed, 29 skipped** (the archived-name case), `audit:design` **172 of 172**, both `format:check`s clean, no `mysqld` left behind                                                                                                                                   |
+| Gate                                  | Result                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The chain** on `4292aee`            | `format:check && typecheck && lint && test && test:db && audit:design && format:check` — **exit 0** in 20 m 57 s; unit **1030 passed** across 59 files, `test:db` **826 passed, 29 skipped** across 34 files, `audit:design` **172 of 172**. Two unit cases and two database cases up on the first chain, which is the two web error cases and the two counting cases |
+| `inbox-001-inbox.db.test`             | **19 passed** — up from 17: the counting case, both halves, and the archived-name case; both proved by reverting from a saved copy                                                                                                                                                                                                                                    |
+| `inbox-001-portal-inbox.db.test`      | **14 passed** — up from 13: the counting case, proved by reverting; the predicate case repointed to `getManyForClient`                                                                                                                                                                                                                                                |
+| `sec-001-client-projection`           | **16 passed**, with a notification row and the non-empty assertion; reverted: "answered nothing, so a sweep over it is vacuous"                                                                                                                                                                                                                                       |
+| `portal-inbox-flow` (web)             | **7 passed** — up from 5: the two error branches                                                                                                                                                                                                                                                                                                                      |
+| `pnpm test:e2e`                       | **14 passed**, three times: after the fleet fixes (the first run of the day failed E2E-01b on the bare date, 13 of 14 with 01c skipped in the serial group), after the batched read, and after the second fleet's fixes. The `settled()` proof run, with the `unreadOnly` predicate removed, failed E2E-07a at the guarded assertion as intended                      |
+| `test:vr`                             | Not run and not owed: `packages/ui` is untouched                                                                                                                                                                                                                                                                                                                      |
+| Leaked `mysqld`                       | **None.** Checked after every single-suite run, after each of the four revert proofs, after each e2e run, and after each chain                                                                                                                                                                                                                                        |
+| `shells` (web), after the rail change | **19 passed**; the rail case reverted: fails. Web suite **385 passed**; `pnpm test:e2e` **14 passed** with the rail assertion in E2E-07a                                                                                                                                                                                                                              |
+| **The chain** on `b4ad406`            | The second fleet's fixes and this record — the second fleet's fixes and this record — **exit 0** in 20 m 13 s; `test:db` **827 passed, 29 skipped** (the archived-name case), `audit:design` **172 of 172**, both `format:check`s clean, no `mysqld` left behind                                                                                                      |
+| **The chain** on the closing commit   | CHAIN5_PLACEHOLDER                                                                                                                                                                                                                                                                                                                                                    |
 
 ---
 
@@ -918,8 +936,9 @@ this is the kind of thing only a booted application finds, which is why the suit
 - **No design artifact.** `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §4 has `IN-01` through
   `IN-05` and no TM-04 row; `docs/design/source` has no inbox artifact, so `audit:design` has
   nothing to check the screen against.
-- **The rail's href is still org-less.** `navigation.ts` has carried `/inbox` since WEB-001;
-  the route is `/{slug}/inbox`. Fixing it is every rail item at once and is pre-existing.
+- ~~**The rail's href is still org-less.**~~ **Closed 2026-09-03** — `AppShell` takes the
+  slug and prefixes every item, as `ClientPortalShell` has since WEB-004. See "The chain-first
+  session".
 - **Quiet hours, digests, channel preferences** need a preferences table the contract does
   not draw — NOTIF-001's first named gap, unchanged. **TM-05 bundle detail** is not built; a
   row links straight to its object. **Bulk mark read with an undo interval** is not built; the
