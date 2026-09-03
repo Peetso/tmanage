@@ -164,6 +164,30 @@ async function submitRequest(session: Session, projectId = world.northstar.proje
   return response.json<{ id: string; version: number }>();
 }
 
+/**
+ * One notification row for the Atlas reviewer about a request, written the way NOTIF-001's
+ * consumer would. Without it `/portal/inbox` answers `{"items":[]}` and a sweep over that
+ * body proves nothing about the projection — the review fleet's finding of 2026-09-03.
+ */
+async function notifyClientAbout(requestId: string): Promise<void> {
+  const id = uuidv7();
+  const type = 'client_request.transitioned.v1';
+  await db.admin.execute(
+    `insert into notifications
+       (id, organization_id, recipient_user_id, type, object_type, object_id, dedupe_key, read_at, created_at)
+     values (?, ?, ?, ?, 'client_request', ?, ?, null, ?)`,
+    [
+      id,
+      world.northstar.organizationId,
+      world.atlas.reviewer.id,
+      type,
+      requestId,
+      `${type}:${requestId}:${id}`,
+      new Date(),
+    ],
+  );
+}
+
 beforeAll(async () => {
   db = await startTestDatabase();
   app = await NestFactory.create<NestFastifyApplication>(
@@ -394,10 +418,16 @@ describe('§7: forbidden fields never reach the client response path', () => {
     const studio = await signIn(world.northstar.owner.id);
     await publish(studio, 'The homepage design', 'client_visible');
     const atlas = await signIn(world.atlas.reviewer.id);
-    await submitRequest(atlas);
+    const request = await submitRequest(atlas);
+    await notifyClientAbout(request.id);
 
     for (const operation of CLIENT_OPERATIONS) {
       const body = (await send(operation.method, operation.path, atlas)).body;
+      // A body with nothing in it cannot leak, and cannot prove anything either. Every
+      // operation must answer with at least one object before the sweep over it counts.
+      expect(body, `${operation.name} answered nothing, so a sweep over it is vacuous`).toMatch(
+        /"(id|bundleId)":"/,
+      );
       for (const field of FORBIDDEN_CLIENT_FIELDS) {
         expect(body, `${operation.name} leaked ${field}`).not.toContain(`"${field}"`);
       }

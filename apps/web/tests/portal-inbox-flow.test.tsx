@@ -279,4 +279,47 @@ describe('the client inbox', () => {
     await user.click(screen.getByRole('button', { name: 'Load more' }));
     expect(await screen.findByText('Nothing has changed yet')).toBeInTheDocument();
   });
+
+  // The two error branches. Neither was rendered by any case above until the review fleet
+  // said so on 2026-09-03; a screen that dropped either alert would have stayed green.
+
+  it('says when the list could not be loaded, and does not call it empty', async () => {
+    const { client } = clientOver((call) =>
+      call.url.includes('/portal/projects')
+        ? json({ projects: [PROJECT] })
+        : json({ error: { code: 'internal_error', message: 'The portal fell over' } }, 500),
+    );
+
+    render(withQuery(<ClientInboxScreen {...NAMES} client={client} />));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not load your notifications');
+    expect(screen.queryByText('Nothing has changed yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Your notifications' })).not.toBeInTheDocument();
+  });
+
+  it('says when a mark could not be made, and forgets it on a mode change', async () => {
+    const { client } = clientOver((call) => {
+      if (call.method === 'POST') {
+        return json({ error: { code: 'not_found', message: 'Not found' } }, 404);
+      }
+      return respond(call, { items: [bundle()], nextCursor: null });
+    });
+    const user = userEvent.setup();
+
+    render(withQuery(<ClientInboxScreen {...NAMES} client={client} />));
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Mark read: Arabic booking FAQ on the rooms page',
+      }),
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not mark that read');
+    // The row is still there, still unread: nothing was pretended.
+    expect(screen.getByText('2 updates, 1 unread')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Unread' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
 });

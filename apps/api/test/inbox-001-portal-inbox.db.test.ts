@@ -563,7 +563,7 @@ describe('§6: revoked means silent', () => {
 });
 
 describe('an internal principal is refused on the portal route', () => {
-  it('403 over HTTP for every internal role: the guard for most, the service for owner and org_admin', async () => {
+  it('403 over HTTP for owner, org_admin, manager and member: the guard for the last two, the service for the first two', async () => {
     // The owner's and the org_admin's ceilings are every capability, `client_request.submit`
     // included, so the guard passes them and the 403 is the service's. The manager and the
     // member never reach the service. The wire cannot tell the two apart — a uniform 403 is

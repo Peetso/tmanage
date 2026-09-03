@@ -155,7 +155,9 @@ test.describe.serial('the client-request journeys', () => {
       'Accepted',
     );
     await expect(client.page.getByText(SCOPE)).toBeVisible();
-    await expect(client.page.getByText('September 3, 2026')).toBeVisible();
+    // The date they asked for, by its label: on the day this journey runs on 2026-09-03 the
+    // bare date also matches 'Sent September 3, 2026', and a strict locator refuses two.
+    await expect(client.page.getByText('Asked for September 3, 2026')).toBeVisible();
     await expect(client.page.getByText('Agreed for September 10, 2026')).toBeVisible();
     // No internal state words, no door into the studio's workspace.
     await expect(client.page.getByText('Needs triage')).toHaveCount(0);

@@ -70,6 +70,17 @@ test.describe.serial('the notification journeys', () => {
     return { context, page };
   }
 
+  /**
+   * The list has answered. A mode is part of the query key, so switching mode unmounts the
+   * list and renders the loading region until the API replies; a negative assertion issued
+   * straight after the click would be satisfied by that frame and prove nothing. This waits
+   * for the region to go, so "no row" below means the API said so — the review fleet's
+   * finding of 2026-09-03.
+   */
+  async function settled(page: Page): Promise<void> {
+    await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+  }
+
   test('E2E-07a: a submission reaches the studio inbox once the relay has run; mark read syncs across devices', async ({
     browser,
   }) => {
@@ -93,6 +104,7 @@ test.describe.serial('the notification journeys', () => {
       'aria-pressed',
       'true',
     );
+    await settled(studio.page);
     await expect(studio.page.getByRole('link', { name: TITLE })).toHaveCount(0);
 
     await drainOutbox(databaseUrl());
@@ -127,6 +139,7 @@ test.describe.serial('the notification journeys', () => {
     await expect(rowElsewhere.getByRole('button', { name: `Mark read: ${TITLE}` })).toHaveCount(0);
     // And under "Waiting on me" — what is unread — it is gone.
     await elsewhere.page.getByRole('button', { name: 'Waiting on me' }).click();
+    await settled(elsewhere.page);
     await expect(elsewhere.page.getByRole('link', { name: TITLE })).toHaveCount(0);
 
     await elsewhere.context.close();

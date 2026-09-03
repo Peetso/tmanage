@@ -73,7 +73,7 @@ function run(
   command: string,
   args: readonly string[],
   options: { cwd: string; env?: NodeJS.ProcessEnv },
-): Promise<{ stdout: string }> {
+): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -86,7 +86,7 @@ function run(
     child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString()));
     child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
     child.on('close', (code) => {
-      if (code === 0) resolvePromise({ stdout });
+      if (code === 0) resolvePromise({ stdout, stderr });
       else reject(new Error(`${command} ${args.join(' ')} exited ${code}\n${stderr}\n${stdout}`));
     });
   });
@@ -136,16 +136,38 @@ async function waitForHttp(url: string, timeoutMs: number): Promise<void> {
  * written, a mail composed — calls this between the act and the assertion. It is the
  * worker's own `--once` mode (`relay:once`, the shape the bootstrap profile deploys) with
  * the same environment the API got, so what the journey sees is what a deployment's cron
- * tick would have produced. Idempotent by the outbox's own claim: a second drain with
- * nothing pending is a report of zero.
+ * tick would have produced.
+ *
+ * "To completion" is a loop, not one call: `--once` is one batch of `OUTBOX_BATCH_SIZE`
+ * (25 by default), oldest first, and the specs share one database, so a journey's own events
+ * sit behind whatever the specs before it left unpublished. The first shape of this helper
+ * ran one batch and called that a drain; the review fleet found it on 2026-09-03 — green
+ * only while the backlog stayed under 25. Now it runs until a batch claims nothing, and a
+ * batch in which a consumer failed, or parked an event, is the helper's own failure rather
+ * than a silent "drained" followed by a visibility timeout fifteen seconds later.
  */
 export async function drainOutbox(databaseUrl: string): Promise<string> {
-  const { stdout } = await run(
-    'pnpm',
-    ['--filter', '@tmanage/worker', 'exec', 'tsx', 'src/main.ts', '--once'],
-    { cwd: REPO_ROOT, env: apiEnv(databaseUrl) },
-  );
-  return stdout;
+  const reports: string[] = [];
+  const passes = 20;
+  for (let pass = 0; pass < passes; pass += 1) {
+    const { stdout, stderr } = await run(
+      'pnpm',
+      ['--filter', '@tmanage/worker', 'exec', 'tsx', 'src/main.ts', '--once'],
+      { cwd: REPO_ROOT, env: apiEnv(databaseUrl) },
+    );
+    // The worker reports on stderr (`console.warn`); the shape is main.ts's `describe`.
+    const report = /\[worker\] batch: (.*)/.exec(`${stderr}\n${stdout}`)?.[1]?.trim();
+    if (!report) {
+      throw new Error(`drainOutbox: the worker printed no batch report\n${stderr}\n${stdout}`);
+    }
+    reports.push(report);
+    const failed = Number(/failed (\d+)/.exec(report)?.[1] ?? '0');
+    if (failed > 0 || report.includes('parked')) {
+      throw new Error(`drainOutbox: a consumer failed — ${report}`);
+    }
+    if (/^claimed 0,/.test(report)) return reports.join('\n');
+  }
+  throw new Error(`drainOutbox: still claiming after ${passes} batches\n${reports.join('\n')}`);
 }
 
 export async function bootStack(): Promise<StackState & { stop: () => Promise<void> }> {
