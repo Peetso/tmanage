@@ -89,9 +89,13 @@ afterAll(async () => {
 
 describe('QUOTA-01: the reservation is one conditional statement', () => {
   it('admits exactly as many concurrent reservations as the limit holds, never one more', async () => {
-    // Twelve callers, 100 bytes each, a limit that holds ten. Fired together on the pool, so
-    // they contend for the one row. Reversal: replace the predicate with a read-then-write
-    // and this admits twelve.
+    // Twelve callers, 100 bytes each, a limit that holds ten, fired together on a pool of
+    // four connections — so at most four overlap and the rest queue. What this pins is the
+    // predicate: reversal *removed* it (the run recorded in docs/implementation-status.md)
+    // and twelve were admitted. It does not demonstrate atomicity against a read-then-write:
+    // with transactions that mostly do not overlap, a read-then-write also admits ten. The
+    // atomicity claim rests on the statement's shape (one conditional UPDATE, 0015's header),
+    // not on this assertion. Earlier revisions of this comment claimed more.
     const context = northstar();
     const outcomes = await Promise.all(
       Array.from({ length: 12 }, () => reserve(context, 100, 1_000)),
@@ -99,7 +103,6 @@ describe('QUOTA-01: the reservation is one conditional statement', () => {
     expect(outcomes.filter(Boolean)).toHaveLength(10);
     const counter = await counterOf(world.northstar.organizationId);
     expect(counter.reserved).toBe(1_000);
-    expect(counter.used + counter.reserved).toBeLessThanOrEqual(1_000);
   });
 
   it('refuses a reservation that would exceed the limit even when the counter is fresh', async () => {
@@ -173,7 +176,7 @@ describe('QUOTA-03: the counter is the organization’s, and only theirs', () =>
     expect(await counterOf(world.brightops.organizationId)).toEqual({ used: 0, reserved: 900 });
   });
 
-  it('refuses to move a counter, a session or a version between tenants at the engine', async () => {
+  it('refuses to move a counter between tenants at the engine', async () => {
     const context = northstar();
     await reserve(context, 10, 1_000);
     await expect(
@@ -182,6 +185,78 @@ describe('QUOTA-03: the counter is the organization’s, and only theirs', () =>
         world.northstar.organizationId,
       ]),
     ).rejects.toThrow(/immutable/);
+  });
+
+  it('refuses to repoint a session’s opener, or a file’s client, audience or object, even as the admin', async () => {
+    // 0015's triggers pinned the tenant key and left these unpinned; the review of FILE-001
+    // found that `actor_user_id` is the whole per-row authorization and
+    // `client_organization_id` is what keeps Atlas out of Meridian's file. 0016 pins them.
+    // Reversal: drop 0016's trigger bodies back to 0015's and every one of these UPDATEs
+    // succeeds under the admin credential.
+    const context = northstar();
+    const asset = await tenant.transaction(context, (tx) =>
+      assets.create(tx, context, {
+        projectId: world.northstar.projectId,
+        clientOrganizationId: world.atlas.clientOrganizationId,
+        ownerUserId: world.northstar.owner.id,
+        name: 'logo.png',
+        purpose: 'request_attachment',
+        objectId: uuidv7(),
+        audience: 'client_visible',
+      }),
+    );
+    const sessionId = sessions.nextId();
+    await tenant.transaction(context, async (tx) => {
+      await counters.ensure(tx, context, STORAGE_BYTES_METRIC);
+      await counters.reserve(tx, context, STORAGE_BYTES_METRIC, 100, 10_000);
+      return sessions.create(tx, context, {
+        id: sessionId,
+        projectId: world.northstar.projectId,
+        clientOrganizationId: world.atlas.clientOrganizationId,
+        actorUserId: world.northstar.owner.id,
+        fileAssetId: asset.id,
+        idempotencyKey: 'logo-upload-0001',
+        purpose: 'request_attachment',
+        objectId: asset.objectId,
+        declaredName: 'logo.png',
+        declaredMimeType: 'image/png',
+        declaredBytes: 100,
+        declaredContentHash: null,
+        partSizeBytes: 100,
+        partCount: 1,
+        objectKey: `tenant/${world.northstar.organizationId}/project/${world.northstar.projectId}/upload/${sessionId}/object`,
+        providerUploadId: `fake-${sessionId}`,
+        uploadTargets: [{ partNumber: 1, url: `memory://${sessionId}/part/1` }],
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+    });
+
+    const attempts: [string, unknown[]][] = [
+      [
+        'update upload_sessions set actor_user_id = ? where id = ?',
+        [world.northstar.manager.id, sessionId],
+      ],
+      [
+        'update upload_sessions set client_organization_id = ? where id = ?',
+        [world.meridian.clientOrganizationId, sessionId],
+      ],
+      ['update upload_sessions set client_organization_id = null where id = ?', [sessionId]],
+      ['update upload_sessions set object_id = ? where id = ?', [uuidv7(), sessionId]],
+      [
+        'update file_assets set client_organization_id = ? where id = ?',
+        [world.meridian.clientOrganizationId, asset.id],
+      ],
+      ['update file_assets set client_organization_id = null where id = ?', [asset.id]],
+      ["update file_assets set audience = 'internal' where id = ?", [asset.id]],
+      ['update file_assets set object_id = null where id = ?', [asset.id]],
+    ];
+    for (const [sql, params] of attempts) {
+      await expect(db.admin.query(sql, params), sql).rejects.toThrow(/immutable/);
+    }
+    // And the columns the triggers leave alone still move, so the pin is not "no UPDATE".
+    await db.admin.query("update upload_sessions set status = 'cancelled' where id = ?", [
+      sessionId,
+    ]);
   });
 });
 
@@ -195,6 +270,7 @@ describe('the session and the asset', () => {
         ownerUserId: world.northstar.owner.id,
         name: 'brief.pdf',
         purpose: 'document',
+        objectId: null,
         audience: 'internal',
       }),
     );
@@ -222,6 +298,7 @@ describe('the session and the asset', () => {
         ownerUserId: world.northstar.owner.id,
         name: 'brief.pdf',
         purpose: 'document',
+        objectId: null,
         audience: 'internal',
       }),
     );
@@ -233,6 +310,7 @@ describe('the session and the asset', () => {
       fileAssetId: asset.id,
       idempotencyKey: 'brief-upload-0001',
       purpose: 'document' as const,
+      objectId: null,
       declaredName: 'brief.pdf',
       declaredMimeType: 'application/pdf',
       declaredBytes: 100,
@@ -291,6 +369,7 @@ describe('the session and the asset', () => {
         ownerUserId: world.northstar.owner.id,
         name: 'brief.pdf',
         purpose: 'document',
+        objectId: null,
         audience: 'internal',
       }),
     );

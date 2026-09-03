@@ -46,6 +46,7 @@ export interface CreateUploadSessionInput {
   readonly fileAssetId: string;
   readonly idempotencyKey: string;
   readonly purpose: UploadPurpose;
+  readonly objectId: string | null;
   readonly declaredName: string;
   readonly declaredMimeType: string;
   readonly declaredBytes: number;
@@ -168,6 +169,7 @@ export class UploadSessionsRepository {
           fileAssetId: input.fileAssetId,
           idempotencyKey: input.idempotencyKey,
           purpose: input.purpose,
+          objectId: input.objectId,
           declaredName: input.declaredName,
           declaredMimeType: input.declaredMimeType,
           declaredBytes: input.declaredBytes,

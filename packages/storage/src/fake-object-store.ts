@@ -27,6 +27,12 @@ export class FakeObjectStore implements ObjectStore {
   readonly sizeFor = new Map<string, number>();
   /** Thrown by the next call to any method, then cleared. The provider being down. */
   failNext: Error | null = null;
+  /**
+   * Thrown by the next `abortMultipart` only, then cleared — the provider that opened an
+   * upload and then refuses to abandon it, which is the failure the error path has to
+   * survive without losing the error it was handling.
+   */
+  failNextAbort: Error | null = null;
 
   private counter = 0;
 
@@ -53,6 +59,11 @@ export class FakeObjectStore implements ObjectStore {
 
   async abortMultipart(input: AbortMultipartInput): Promise<void> {
     this.consumeFailure();
+    if (this.failNextAbort) {
+      const error = this.failNextAbort;
+      this.failNextAbort = null;
+      throw error;
+    }
     this.aborted.push(input);
   }
 

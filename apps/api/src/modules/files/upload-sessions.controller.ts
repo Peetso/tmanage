@@ -58,15 +58,25 @@ export class UploadSessionsController {
     return this.files.create(context, principal, { ...parsed, idempotencyKey });
   }
 
+  /** `?scope=organization` is the owner's view of every reservation in the studio. */
   @Get()
   @RequireCapability('file.upload')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Query('projectId') projectId?: string,
+    @Query('scope') scope?: string,
   ): Promise<{ readonly uploadSessions: readonly UploadSessionView[] }> {
+    if (scope !== undefined && scope !== 'own' && scope !== 'organization') {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'scope', message: 'must be own or organization' },
+      ]);
+    }
     return {
-      uploadSessions: await this.files.list(context, principal, projectId ? { projectId } : {}),
+      uploadSessions: await this.files.list(context, principal, {
+        ...(projectId ? { projectId } : {}),
+        ...(scope ? { scope } : {}),
+      }),
     };
   }
 

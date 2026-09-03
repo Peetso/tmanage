@@ -103,6 +103,10 @@ export const FORBIDDEN_CLIENT_FIELDS: readonly string[] = [
   'unreleasedVersions',
   'internalFileKey',
   'storageKey',
+  // FILE-001 named the key `objectKey` and the provider's handle `providerUploadId`; a net
+  // that names only the older spelling catches neither (found by the review of FILE-001).
+  'objectKey',
+  'providerUploadId',
   'otherClientIdentities',
 ];
 

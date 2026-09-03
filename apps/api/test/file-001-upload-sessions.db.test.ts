@@ -21,10 +21,11 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * FILE-001 over real HTTP — the upload session, both doors, and the quota a caller sees.
  *
  * The fake object store moves no bytes; what it answers is the size the suite configures,
- * which is how "the provider reported a different size" (27-TEST-CATALOG INT-12) is a case
- * here with no object anywhere. The organization quota is set to ten kilobytes for the
- * suite, so the 100% block (`49-PRICING` §7) is eleven uploads away rather than a
- * gigabyte.
+ * which is how "the provider reported a different size" is a case here with no object
+ * anywhere. That is the *size* third of 27-TEST-CATALOG INT-12 ("ETags/hash/declared size");
+ * the etag and hash thirds are FILE-002's and nothing here claims them. The organization
+ * quota is set to ten kilobytes for the suite, so the 100% block (`49-PRICING` §7) is eleven
+ * uploads away rather than a gigabyte.
  *
  * What only this suite proves:
  *
@@ -37,8 +38,12 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *    fails the session, releases the reservation and writes no version.
  * 4. **A client attaches to their own request and nothing else.** A sibling client's request,
  *    a deliverable, a message — 404, 422, 422 — and never the studio's private audience.
- * 5. **Nothing internal leaves.** No response carries an object key, and the client door's
- *    responses carry none of the forbidden fields.
+ * 5. **Nothing internal leaves.** No response, on either door, carries an object key or the
+ *    provider's upload handle, and the client door's responses carry none of the forbidden
+ *    fields.
+ * 6. **A reservation is somebody's to release.** The opener cancels their own; an owner with
+ *    organization-wide scope can list the studio's sessions and cancel a colleague's — and
+ *    still cannot read or complete it.
  */
 
 let db: TestDatabase;
@@ -237,7 +242,7 @@ async function submitRequest(session: Session, projectId = world.northstar.proje
   if (response.statusCode !== 201) {
     throw new Error(`submit failed: ${response.statusCode} ${response.body}`);
   }
-  return response.json<{ id: string }>();
+  return response.json<{ id: string; version: number }>();
 }
 
 const owner = () => world.northstar.owner;
@@ -345,6 +350,52 @@ describe('creating a session', () => {
     expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: DECLARED });
   });
 
+  it('refuses a replay whose session has since been cancelled, or that names another project, with 409', async () => {
+    // A replay is the same upload or it is a conflict. Reversal: let `replay` check only the
+    // opener and the first case is a 201 carrying `reservedBytes: 0` and the URLs of an
+    // aborted upload; the second hands back project A's session to a request about project B.
+    const studio = await signIn(owner().id);
+    const cancelledKey = freshKey();
+    const session = await open(studio, {}, cancelledKey);
+    await send('POST', `/upload-sessions/${session.id}/cancel`, studio);
+    const afterCancel = await send('POST', '/upload-sessions', studio, body(), {
+      'idempotency-key': cancelledKey,
+    });
+    expect(afterCancel.statusCode).toBe(409);
+    expect(afterCancel.json<ErrorBody>().error.details?.map((d) => d.field)).toEqual([
+      'Idempotency-Key',
+    ]);
+
+    const liveKey = freshKey();
+    await open(studio, {}, liveKey);
+    const otherProject = await send(
+      'POST',
+      '/upload-sessions',
+      studio,
+      body({ projectId: world.northstar.otherProjectId }),
+      { 'idempotency-key': liveKey },
+    );
+    expect(otherProject.statusCode).toBe(409);
+    // The cancelled session gave its bytes back; the live one still holds its own; nothing new.
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: DECLARED });
+    expect(store.began).toHaveLength(2);
+  });
+
+  it('requires objectId for a request attachment from the studio too', async () => {
+    // Reversal: let an internal principal omit it and this is a 201 for a file no request
+    // will ever list.
+    const response = await send(
+      'POST',
+      '/upload-sessions',
+      await signIn(manager().id),
+      body({ purpose: 'request_attachment' }),
+      { 'idempotency-key': freshKey() },
+    );
+    expect(response.statusCode).toBe(400);
+    expect(response.json<ErrorBody>().error.details?.map((d) => d.field)).toEqual(['objectId']);
+    expect(store.began).toHaveLength(0);
+  });
+
   it('requires the Idempotency-Key header and names it as the field', async () => {
     const response = await send('POST', '/upload-sessions', await signIn(manager().id), body());
     expect(response.statusCode).toBe(400);
@@ -430,6 +481,28 @@ describe('the organization quota (49 §6, §7)', () => {
     expect(store.began).toHaveLength(11);
     expect(store.aborted).toHaveLength(1);
     expect(await observe('select id from upload_sessions')).toHaveLength(10);
+  });
+
+  it('still answers 422 and records the refusal when the provider refuses to abandon the upload', async () => {
+    // The error path aborts the provider upload it opened before the reservation. Reversal:
+    // take the try/catch off that abort and a provider that is down turns the only audited
+    // denial in the slice into a 500 with no audit row.
+    const studio = await signIn(manager().id);
+    for (let i = 0; i < 10; i += 1) await open(studio);
+    store.failNextAbort = new Error('the provider is down');
+
+    const refused = await send('POST', '/upload-sessions', studio, body(), {
+      'idempotency-key': freshKey(),
+    });
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(refused.json<ErrorBody>().error.details?.map((d) => d.field)).toEqual(['sizeBytes']);
+    expect(await auditActions()).toEqual(['upload_session.refused']);
+    expect(store.failNextAbort).toBeNull();
+    expect(store.aborted).toHaveLength(0);
+    expect(await counter(world.northstar.organizationId)).toEqual({
+      used: 0,
+      reserved: ORG_LIMIT,
+    });
   });
 
   it('counts a client’s upload against the studio’s quota, not a quota of the client’s own', async () => {
@@ -538,7 +611,10 @@ describe('completing a session', () => {
     expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: DECLARED });
   });
 
-  it('fails the session when the provider reports a different size, and gives the bytes back (INT-12)', async () => {
+  it('fails the session when the provider reports a different size, and gives the bytes back (INT-12, the size third only)', async () => {
+    // Only the size is compared. The etags a caller sends are forwarded to the provider and
+    // compared to nothing here, and `declared_content_hash` is stored and read by no code:
+    // both are FILE-002's verification, and this title claims neither.
     const studio = await signIn(manager().id);
     const session = await open(studio);
     store.sizeFor.set(store.began[0]?.objectKey ?? '', DECLARED + 1);
@@ -599,6 +675,12 @@ describe('cancelling a session', () => {
     expect(first.statusCode).toBe(200);
     expect(first.json<UploadSession>().status).toBe('cancelled');
     expect(first.json<UploadSession>().reservedBytes).toBe(0);
+    // The part URLs leave with the reservation. Against a token-authorized transport a URL
+    // that outlives its session is a door with no lock; reversal: serve `uploadTargetsJson`
+    // for every status and the cancelled session still hands them out.
+    expect(first.json<UploadSession>().uploadUrls).toEqual([]);
+    const read = await send('GET', `/upload-sessions/${session.id}`, studio);
+    expect(read.json<UploadSession>().uploadUrls).toEqual([]);
     expect(again.statusCode).toBe(200);
     expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: 0 });
     expect(store.aborted).toHaveLength(1);
@@ -664,6 +746,68 @@ describe('the boundary', () => {
     ).toEqual([b.id, a.id]);
   });
 
+  it('lets an owner with organization-wide scope see the studio’s sessions and cancel a colleague’s, and nobody else', async () => {
+    // Five abandoned 100 MB sessions by one person hold a 500 MB studio for good if only the
+    // opener can release them. Reversal: gate `cancel` on the opener alone and the owner's
+    // cancel is a 404 with the bytes still held.
+    const studio = await signIn(manager().id);
+    const boss = await signIn(owner().id);
+    const colleague = await signIn(designer().id);
+    const theirs = await open(studio);
+    const atlas = await signIn(world.atlas.reviewer.id);
+    const request = await submitRequest(atlas);
+    const clients = (
+      await send(
+        'POST',
+        '/portal/upload-sessions',
+        atlas,
+        body({
+          purpose: 'request_attachment',
+          objectId: request.id,
+          fileName: 'logo.png',
+          mimeType: 'image/png',
+        }),
+        { 'idempotency-key': freshKey() },
+      )
+    ).json<UploadSession>();
+
+    // The wide list: the owner sees both; the manager may not ask for it.
+    const wide = await send('GET', '/upload-sessions?scope=organization', boss);
+    expect(wide.statusCode, wide.body).toBe(200);
+    expect(
+      wide.json<{ uploadSessions: UploadSession[] }>().uploadSessions.map((s) => s.id),
+    ).toEqual([clients.id, theirs.id]);
+    expect((await send('GET', '/upload-sessions?scope=organization', studio)).statusCode).toBe(403);
+    expect((await send('GET', '/upload-sessions?scope=elsewhere', boss)).statusCode).toBe(400);
+
+    // Read and complete stay the opener's, wide scope or not.
+    expect((await send('GET', `/upload-sessions/${theirs.id}`, boss)).statusCode).toBe(404);
+    expect(
+      (await send('POST', `/upload-sessions/${theirs.id}/complete`, boss, partsFor(theirs)))
+        .statusCode,
+    ).toBe(404);
+    // A colleague without organization-wide scope cannot release it either.
+    expect((await send('POST', `/upload-sessions/${theirs.id}/cancel`, colleague)).statusCode).toBe(
+      404,
+    );
+    expect(await counter(world.northstar.organizationId)).toEqual({
+      used: 0,
+      reserved: 2 * DECLARED,
+    });
+
+    const released = await send('POST', `/upload-sessions/${theirs.id}/cancel`, boss);
+    expect(released.statusCode, released.body).toBe(200);
+    expect(released.json<UploadSession>().status).toBe('cancelled');
+    const clientReleased = await send('POST', `/upload-sessions/${clients.id}/cancel`, boss);
+    expect(clientReleased.statusCode, clientReleased.body).toBe(200);
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: 0 });
+    expect(store.aborted).toHaveLength(2);
+    // The opener sees what happened to their session.
+    expect(
+      (await send('GET', `/upload-sessions/${theirs.id}`, studio)).json<UploadSession>().status,
+    ).toBe('cancelled');
+  });
+
   it('refuses a client on the studio’s door and the studio on the client’s, with 403', async () => {
     const atlas = await signIn(world.atlas.reviewer.id);
     const studio = await signIn(manager().id);
@@ -702,13 +846,27 @@ describe('a client attaching a file to their request', () => {
     expect(created.statusCode, created.body).toBe(201);
     const session = created.json<UploadSession>();
     for (const field of FORBIDDEN_CLIENT_FIELDS) expect(created.body).not.toContain(`"${field}"`);
+    // The literal check the internal door already had, on the door that matters. (The
+    // provider's handle is inside each part URL by design, as an S3 upload id would be; what
+    // must not appear is the handle as a *field*, which `FORBIDDEN_CLIENT_FIELDS` now names.)
+    expect(created.body).not.toContain(store.began[0]?.objectKey ?? 'unset');
+    expect(created.body).not.toContain('tenant/');
+    expect(created.body).not.toContain('"providerUploadId"');
 
     const [asset] = await observe(
-      'select audience, client_organization_id as c from file_assets where id = ?',
+      'select audience, client_organization_id as c, object_id as o from file_assets where id = ?',
       [session.fileAssetId],
     );
     expect(asset?.['audience']).toBe('client_visible');
     expect(asset?.['c']).toBe(world.atlas.clientOrganizationId);
+    // The request the file belongs to is on the row, and on the session — 0016. Reversal:
+    // drop `objectId` from the two create inputs and both read NULL, with nothing for a
+    // "files on this request" panel to join on.
+    expect(asset?.['o']).toBe(request.id);
+    const [sessionRow] = await observe('select object_id as o from upload_sessions where id = ?', [
+      session.id,
+    ]);
+    expect(sessionRow?.['o']).toBe(request.id);
 
     const completed = await send(
       'POST',
@@ -718,11 +876,36 @@ describe('a client attaching a file to their request', () => {
     );
     expect(completed.statusCode, completed.body).toBe(202);
     expect(completed.json<FileAsset>().status).toBe('uploaded');
+    const [event] = await observe(
+      "select payload_json as p from outbox_events where aggregate_id = ? and type = 'upload.completed.v1'",
+      [session.id],
+    );
+    expect((event?.['p'] as { objectId?: string }).objectId).toBe(request.id);
 
     const listed = await send('GET', '/portal/upload-sessions', atlas);
     expect(
       listed.json<{ uploadSessions: UploadSession[] }>().uploadSessions.map((s) => s.id),
     ).toEqual([session.id]);
+  });
+
+  it('cannot attach to a request that has been withdrawn', async () => {
+    // A closed request is not a place to keep adding files, each reserving against the
+    // studio's quota. Reversal: drop the terminal-state check from `requireObject` and this
+    // is a 201 with 1_000 bytes reserved against a request nobody will act on.
+    const atlas = await signIn(world.atlas.reviewer.id);
+    const request = await submitRequest(atlas);
+    const withdrawn = await send('POST', `/portal/requests/${request.id}/withdrawal`, atlas, {
+      version: request.version,
+    });
+    expect(withdrawn.statusCode, withdrawn.body).toBe(200);
+
+    const response = await send('POST', '/portal/upload-sessions', atlas, clientBody(request.id), {
+      'idempotency-key': freshKey(),
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json<ErrorBody>().error.details?.map((d) => d.field)).toEqual(['objectId']);
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: 0 });
+    expect(store.began).toHaveLength(0);
   });
 
   it('cannot attach to a sibling client’s request, and learns nothing from the refusal', async () => {

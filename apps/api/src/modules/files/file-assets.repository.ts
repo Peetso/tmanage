@@ -45,6 +45,7 @@ export interface CreateFileAssetInput {
   readonly ownerUserId: string;
   readonly name: string;
   readonly purpose: UploadPurpose;
+  readonly objectId: string | null;
   readonly audience: Audience;
 }
 
@@ -99,6 +100,7 @@ export class FileAssetsRepository {
         ownerUserId: input.ownerUserId,
         name: input.name,
         purpose: input.purpose,
+        objectId: input.objectId,
         audience: input.audience,
         status: uploadStateMachine.definition.initial,
         version: 1,

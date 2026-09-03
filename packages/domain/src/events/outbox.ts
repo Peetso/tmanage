@@ -193,6 +193,8 @@ export interface UploadCompletedV1 {
   readonly fileVersionId: string;
   readonly projectId: string;
   readonly purpose: string;
+  /** The row `purpose` says the file belongs to — the request, for `request_attachment`. */
+  readonly objectId: string | null;
   readonly sizeBytes: number;
 }
 

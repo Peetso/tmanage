@@ -1,5 +1,5 @@
-import { authorize } from '@tmanage/domain';
-import type { Audience, Principal } from '@tmanage/domain';
+import { authorize, clientRequestStateMachine } from '@tmanage/domain';
+import type { Audience, ClientRequestState, Principal } from '@tmanage/domain';
 import { uploadObjectKey } from '@tmanage/storage';
 import type { ObjectStore, StoredObject } from '@tmanage/storage';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -22,7 +22,7 @@ import {
   type UploadSessionsRepository,
 } from './upload-sessions.repository.js';
 import { STORAGE_BYTES_METRIC, type UsageCountersRepository } from './usage-counters.repository.js';
-import { mayUploadFor } from './purpose-policy.js';
+import { mayUploadFor, objectTableFor } from './purpose-policy.js';
 import type { ParsedPart, ParsedUploadBody } from './upload-input.js';
 
 /**
@@ -46,7 +46,10 @@ import type { ParsedPart, ParsedUploadBody } from './upload-input.js';
  * ## What the single read would refuse, the list omits
  *
  * `mayUpload` is `authorize()` over `file.upload` with the row's project, audience and
- * client organization. `get` refuses with 404; `list` filters. Both are the same predicate.
+ * client organization, and the opener's identity on top. `get` refuses with 404; `list`
+ * filters. Both are the same predicate. One door is wider: a principal with
+ * organization-wide scope may list the studio's sessions and cancel a reserved one —
+ * never complete it — so that a leaver's reservation is somebody's to release.
  */
 
 export interface UploadSessionView {
@@ -101,7 +104,12 @@ function toView(row: UploadSessionRow): UploadSessionView {
     partSizeBytes: row.partSizeBytes,
     partCount: row.partCount,
     reservedBytes: row.status === 'reserved' ? row.declaredBytes : 0,
-    uploadUrls: row.uploadTargetsJson.map((t) => ({ partNumber: t.partNumber, url: t.url })),
+    // Targets are served only while the session can still use them. Against S3 a cancelled
+    // upload's URLs fail anyway; against a token-authorized local transport they would not.
+    uploadUrls:
+      row.status === 'reserved'
+        ? row.uploadTargetsJson.map((t) => ({ partNumber: t.partNumber, url: t.url }))
+        : [],
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };
@@ -190,10 +198,16 @@ export class FilesService {
     return toView(await this.readOr404(context, principal, uploadSessionId));
   }
 
+  /**
+   * The caller's own sessions, or — `scope: 'organization'`, for a principal with
+   * organization-wide scope — every session in the studio, which is how an owner finds the
+   * reservation a leaver left behind. Anyone else asking for the wider scope is refused with
+   * 403 rather than quietly given their own list, so a screen cannot mistake one for the other.
+   */
   async list(
     context: TenantContext,
     principal: Principal,
-    options: { readonly projectId?: string } = {},
+    options: { readonly projectId?: string; readonly scope?: 'own' | 'organization' } = {},
   ): Promise<readonly UploadSessionView[]> {
     if (principal.kind !== 'internal') {
       throw new ApiError(
@@ -204,10 +218,21 @@ export class FilesService {
         'not_an_internal_principal',
       );
     }
+    const wide = options.scope === 'organization';
+    if (wide && !principal.hasOrgWideScope) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'scope_not_org_wide');
+    }
+    const filters = { ...(options.projectId ? { projectId: options.projectId } : {}) };
     const rows = await this.database.read(context, (runner) =>
-      this.sessions.list(runner, context, { ...options, actorUserId: principal.userId }),
+      this.sessions.list(
+        runner,
+        context,
+        wide ? filters : { ...filters, actorUserId: principal.userId },
+      ),
     );
-    return rows.filter((row) => this.mayUpload(principal, row)).map(toView);
+    return rows
+      .filter((row) => (wide ? this.mayRelease : this.mayUpload)(principal, row))
+      .map(toView);
   }
 
   async complete(
@@ -343,7 +368,7 @@ export class FilesService {
     const existing = await this.database.read(context, (runner) =>
       this.sessions.findByIdempotencyKey(runner, context, input.idempotencyKey),
     );
-    if (existing) return this.replay(existing, principal);
+    if (existing) return this.replay(existing, principal, input);
 
     const id = this.sessions.nextId();
     const objectKey = uploadObjectKey({
@@ -359,7 +384,7 @@ export class FilesService {
       expiresInSeconds: this.config.uploadUrlTtlSeconds,
     });
     const expiresAt = new Date(Date.now() + this.config.uploadUrlTtlSeconds * 1_000);
-    const limitBytes = this.config.storageOrgBytesLimit;
+    const limitBytes = this.storageLimitsFor();
 
     let created: UploadSessionRow;
     try {
@@ -380,6 +405,7 @@ export class FilesService {
           ownerUserId: principal.userId,
           name: input.fileName,
           purpose: input.purpose,
+          objectId: input.objectId,
           audience: draft.audience,
         });
         const row = await this.sessions.create(tx, context, {
@@ -390,6 +416,7 @@ export class FilesService {
           fileAssetId: asset.id,
           idempotencyKey: input.idempotencyKey,
           purpose: input.purpose,
+          objectId: input.objectId,
           declaredName: input.fileName,
           declaredMimeType: input.mimeType,
           declaredBytes: input.sizeBytes,
@@ -413,12 +440,19 @@ export class FilesService {
         return row;
       });
     } catch (error) {
-      // Whatever refused, the provider upload opened above is not going to be used.
-      await this.store.abortMultipart({
-        zone: 'quarantine',
-        objectKey,
-        providerUploadId: upload.providerUploadId,
-      });
+      // Whatever refused, the provider upload opened above is not going to be used. The abort
+      // is best-effort: the reservation has already rolled back, and a provider that refuses
+      // to abandon the upload must not turn the refusal below into a 500 with no audit row.
+      // An upload left open is what lifecycle-abort (50-BOOTSTRAP §4) exists for.
+      try {
+        await this.store.abortMultipart({
+          zone: 'quarantine',
+          objectKey,
+          providerUploadId: upload.providerUploadId,
+        });
+      } catch {
+        // Deliberately swallowed; the original error is what the caller needs.
+      }
       if (error instanceof QuotaExhausted) {
         await this.recordRefusal(context, draft, limitBytes);
         throw new ApiError(
@@ -434,7 +468,7 @@ export class FilesService {
         const winner = await this.database.read(context, (runner) =>
           this.sessions.findByIdempotencyKey(runner, context, input.idempotencyKey),
         );
-        if (winner) return this.replay(winner, principal);
+        if (winner) return this.replay(winner, principal, input);
       }
       throw error;
     }
@@ -557,6 +591,7 @@ export class FilesService {
             fileVersionId: version.id,
             projectId: asset.projectId,
             purpose: asset.purpose,
+            objectId: asset.objectId,
             sizeBytes: version.sizeBytes,
           },
         });
@@ -584,23 +619,29 @@ export class FilesService {
     return toFileAssetView(result.asset, result.version, session);
   }
 
+  /**
+   * Cancel is the one move that is not the opener's alone: a principal with organization-wide
+   * scope may release a reserved session anybody in the studio opened. Without that, five
+   * abandoned reservations by one person — or a leaver's one — hold the studio's whole
+   * allowance until an expiry sweep that does not exist yet, and nobody can give them back.
+   */
   private async cancelSession(
     context: TenantContext,
     principal: Principal,
     uploadSessionId: string,
   ): Promise<UploadSessionView> {
-    const session = await this.readOr404(context, principal, uploadSessionId);
+    const session = await this.readOr404(context, principal, uploadSessionId, 'release');
     if (session.status === 'cancelled') return toView(session);
     if (session.status !== 'reserved') {
       throw this.illegal(`a ${session.status} upload cannot be cancelled`);
     }
     const released = await this.releaseAs(context, session, 'cancelled');
     if (!released) {
-      const fresh = await this.readOr404(context, principal, uploadSessionId);
+      const fresh = await this.readOr404(context, principal, uploadSessionId, 'release');
       if (fresh.status === 'cancelled') return toView(fresh);
       throw this.illegal(`a ${fresh.status} upload cannot be cancelled`);
     }
-    return toView(await this.readOr404(context, principal, uploadSessionId));
+    return toView(await this.readOr404(context, principal, uploadSessionId, 'release'));
   }
 
   /**
@@ -658,29 +699,47 @@ export class FilesService {
     return toFileAssetView(found.asset, found.version, session);
   }
 
-  private replay(existing: UploadSessionRow, principal: Principal): UploadSessionView {
-    if (existing.actorUserId !== principal.userId) {
-      throw new ApiError(409, 'conflict', 'This idempotency key belongs to another upload', [
-        { field: 'Idempotency-Key', message: 'was used by a different person' },
+  /**
+   * A replay answers the session the key already made — when it is still the same upload.
+   * The same key from another person, for another project, or for a session that has since
+   * left `reserved` is a conflict: a 201 carrying `reservedBytes: 0` and the URLs of an
+   * aborted upload is an answer nobody can act on, and a revoked project member must not be
+   * handed a session on a project they can no longer see by re-sending a key they hold.
+   */
+  private replay(
+    existing: UploadSessionRow,
+    principal: Principal,
+    input: CreateUploadInput,
+  ): UploadSessionView {
+    const conflict = (message: string) =>
+      new ApiError(409, 'conflict', 'This idempotency key belongs to another upload', [
+        { field: 'Idempotency-Key', message },
       ]);
+    if (existing.actorUserId !== principal.userId) throw conflict('was used by a different person');
+    if (existing.projectId !== input.projectId) throw conflict('was used for a different project');
+    if (existing.status !== 'reserved') {
+      throw conflict(`was used by a session that is now ${existing.status}; use a new key`);
     }
     return toView(existing);
   }
 
-  /** `objectId` must name a row this principal may attach to. 404 when it does not. */
+  /**
+   * For a purpose that belongs to a row, `objectId` must name one this principal may attach
+   * to — for everyone, not only a client: an attachment with no request is a file nothing
+   * can ever show. 404 when the row is not theirs, indistinguishable from one that does not
+   * exist; 422 when it is theirs and closed, because a declined or withdrawn request is not a
+   * place to keep adding files, and each one would reserve against the studio's quota.
+   */
   private async requireObject(
     context: TenantContext,
     draft: Draft,
     input: CreateUploadInput,
   ): Promise<void> {
-    if (input.purpose !== 'request_attachment') return;
+    if (objectTableFor(input.purpose) !== 'client_requests') return;
     if (input.objectId === null) {
-      if (draft.principal.kind === 'client') {
-        throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
-          { field: 'objectId', message: 'must name the request the file belongs to' },
-        ]);
-      }
-      return;
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'objectId', message: 'must name the request the file belongs to' },
+      ]);
     }
     const request = await this.database.read(context, (runner) =>
       this.requests.findById(runner, context, input.objectId as string),
@@ -691,6 +750,17 @@ export class FilesService {
       (draft.clientOrganizationId === null ||
         request.clientOrganizationId === draft.clientOrganizationId);
     if (!ownIt) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    if (
+      clientRequestStateMachine.definition.terminal.includes(request.state as ClientRequestState)
+    ) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'The request body is invalid',
+        [{ field: 'objectId', message: `names a request that is ${request.state}` }],
+        'request_closed',
+      );
+    }
   }
 
   private async recordRefusal(
@@ -721,24 +791,43 @@ export class FilesService {
     context: TenantContext,
     principal: Principal,
     uploadSessionId: string,
+    scope: 'own' | 'release' = 'own',
   ): Promise<UploadSessionRow> {
     const row = await this.database.read(context, (runner) =>
       this.sessions.findById(runner, context, uploadSessionId),
     );
-    if (!row || !this.mayUpload(principal, row)) {
+    const may = scope === 'release' ? this.mayRelease : this.mayUpload;
+    if (!row || !may(principal, row)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     return row;
   }
 
   /**
-   * The per-row rule, and it is stricter than `authorize()` alone: a session is completed or
-   * cancelled by the person who opened it. An owner can see the studio's sessions in a list;
-   * finishing somebody else's upload with parts they did not send is not a thing anybody has
-   * a reason to do.
+   * The per-row rule, and it is stricter than `authorize()` alone: a session is read and
+   * completed by the person who opened it. `list` passes the caller's own id and this
+   * predicate would refuse anybody else's row regardless; finishing somebody else's upload
+   * with parts they did not send is not a thing anybody has a reason to do.
+   *
+   * `lifecycle` is fixed at `active` on purpose. `authorize()` rule 6 allows an archived
+   * resource only for reads and downloads, so the project's true lifecycle here would make a
+   * session vanish (404) the moment its project was archived — unfinishable, uncancellable,
+   * and its bytes held. `createSession` refuses to *open* a session on an archived project;
+   * one opened before the archive may finish or be released.
    */
-  private mayUpload(principal: Principal, row: UploadSessionRow): boolean {
+  private readonly mayUpload = (principal: Principal, row: UploadSessionRow): boolean => {
     if (row.actorUserId !== principal.userId) return false;
+    return this.authorizedOn(principal, row);
+  };
+
+  /** The opener, or a principal with organization-wide scope — cancel and the wide list only. */
+  private readonly mayRelease = (principal: Principal, row: UploadSessionRow): boolean => {
+    if (this.mayUpload(principal, row)) return true;
+    if (principal.kind !== 'internal' || !principal.hasOrgWideScope) return false;
+    return this.authorizedOn(principal, row);
+  };
+
+  private authorizedOn(principal: Principal, row: UploadSessionRow): boolean {
     return authorize({
       principal,
       capability: 'file.upload',
@@ -750,6 +839,14 @@ export class FilesService {
         lifecycle: 'active',
       },
     }).allowed;
+  }
+
+  /**
+   * The one seam ENT-001 replaces with an entitlement row (`49` §5's effective quota).
+   * Named here because two comments elsewhere already send its implementer looking for it.
+   */
+  private storageLimitsFor(): number {
+    return this.config.storageOrgBytesLimit;
   }
 
   private requireClient(principal: Principal): string {

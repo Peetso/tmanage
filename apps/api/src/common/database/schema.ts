@@ -559,6 +559,8 @@ export const fileAssets = mysqlTable(
     ownerUserId: char('owner_user_id', { length: 36 }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
     purpose: mysqlEnum('purpose', UPLOAD_PURPOSES).notNull(),
+    /** The row `purpose` says this file belongs to (0016). No FK: the table depends on the purpose. */
+    objectId: char('object_id', { length: 36 }),
     audience: mysqlEnum('audience', WORK_ITEM_AUDIENCE).notNull().default('internal'),
     /** `23-ERD` §10's nine states, driven by `uploadStateMachine`. */
     status: varchar('status', { length: 32 }).notNull(),
@@ -575,6 +577,7 @@ export const fileAssets = mysqlTable(
       table.status,
       table.createdAt,
     ),
+    index('ix_file_assets_org_object').on(table.organizationId, table.objectId),
   ],
 );
 
@@ -585,7 +588,7 @@ export const fileVersions = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
     versionNo: int('version_no', { unsigned: true }).notNull(),
-    /** Internal. Never a response field — `FORBIDDEN_CLIENT_FIELDS` names `storageKey`. */
+    /** Internal. Never a response field — `FORBIDDEN_CLIENT_FIELDS` names `objectKey`. */
     objectKey: varchar('object_key', { length: 512 }).notNull(),
     /** The provider's count, never the declaration. */
     sizeBytes: bigint('size_bytes', { mode: 'number', unsigned: true }).notNull(),
@@ -616,6 +619,7 @@ export const uploadSessions = mysqlTable(
     fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
     idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
     purpose: mysqlEnum('purpose', UPLOAD_PURPOSES).notNull(),
+    objectId: char('object_id', { length: 36 }),
     declaredName: varchar('declared_name', { length: 255 }).notNull(),
     declaredMimeType: varchar('declared_mime_type', { length: 150 }).notNull(),
     declaredBytes: bigint('declared_bytes', { mode: 'number', unsigned: true }).notNull(),
@@ -651,6 +655,7 @@ export const uploadSessions = mysqlTable(
       table.status,
       table.createdAt,
     ),
+    index('ix_upload_sessions_org_object').on(table.organizationId, table.objectId),
   ],
 );
 
