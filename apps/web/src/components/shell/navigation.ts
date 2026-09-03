@@ -14,6 +14,10 @@
  *
  * The glyphs are decorative. Every item carries a real label, which is the accessible name;
  * the glyph is `aria-hidden` wherever it is rendered.
+ *
+ * Every `href` is a suffix. Both shells prefix it with the organization's slug, because every
+ * screen is tenant-scoped (`/{slug}/inbox`, `/{slug}/portal`); an item rendered bare would
+ * point at a route that does not exist.
  */
 
 export interface NavigationItem {

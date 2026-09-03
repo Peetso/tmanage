@@ -19,7 +19,12 @@ import { expectNoAxeViolations } from './axe';
 describe('AppShell', () => {
   function renderShell() {
     return render(
-      <AppShell organizationName="Northstar Studio" activeNavigationId="work" title="Work">
+      <AppShell
+        organizationSlug="northstar"
+        organizationName="Northstar Studio"
+        activeNavigationId="work"
+        title="Work"
+      >
         <p>Canvas</p>
       </AppShell>,
     );
@@ -42,14 +47,23 @@ describe('AppShell', () => {
     expect(screen.getByText('Northstar Studio')).toBeInTheDocument();
   });
 
-  it('offers every internal destination as a real link', () => {
+  it('offers every internal destination as a real link, under the organization', () => {
     renderShell();
     const rail = screen.getByRole('navigation', { name: 'Primary' });
     for (const item of INTERNAL_NAVIGATION) {
       expect(within(rail).getByRole('link', { name: item.label })).toHaveAttribute(
         'href',
-        item.href,
+        `/northstar${item.href}`,
       );
+    }
+    // The brand orb too. Nothing in the rail is org-less: from WEB-001 until 2026-09-03 every
+    // item was, and pointed at a route that does not exist.
+    expect(within(rail).getByRole('link', { name: 'TManage home' })).toHaveAttribute(
+      'href',
+      '/northstar/home',
+    );
+    for (const link of within(rail).getAllByRole('link')) {
+      expect(link.getAttribute('href')?.startsWith('/northstar/')).toBe(true);
     }
   });
 
@@ -67,6 +81,7 @@ describe('AppShell', () => {
 
     rerender(
       <AppShell
+        organizationSlug="northstar"
         organizationName="Northstar Studio"
         title="Work"
         contextRail={<p>Saved views</p>}

@@ -145,6 +145,7 @@ export function WorkItemDetailScreen({
 
   return (
     <AppShell
+      organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
       title={item.data?.title ?? 'Work item'}

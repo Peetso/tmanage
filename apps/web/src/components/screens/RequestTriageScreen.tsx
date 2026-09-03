@@ -170,6 +170,7 @@ export function RequestTriageScreen({
 
   return (
     <AppShell
+      organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
       title={found?.title ?? 'Client request'}

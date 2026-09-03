@@ -85,6 +85,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
 
   return (
     <AppShell
+      organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="inbox"
       title="Inbox"

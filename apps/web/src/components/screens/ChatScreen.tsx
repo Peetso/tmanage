@@ -82,6 +82,7 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
 
   return (
     <AppShell
+      organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
       title="Chat"

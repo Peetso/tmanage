@@ -221,6 +221,7 @@ export function WorkListScreen({
 
   return (
     <AppShell
+      organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
       title="Work"

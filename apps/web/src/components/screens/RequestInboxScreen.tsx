@@ -87,6 +87,7 @@ export function RequestInboxScreen({
 
   return (
     <AppShell
+      organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
       title="Request inbox"

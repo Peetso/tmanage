@@ -5,6 +5,16 @@ import { Wordmark } from '../brand/Wordmark';
 import { INTERNAL_NAVIGATION } from './navigation';
 
 export interface AppShellProps {
+  /**
+   * The organization the person is working in, as it appears in a URL.
+   *
+   * Every rail destination lives under it — `INTERNAL_NAVIGATION` carries the suffix and this
+   * supplies the prefix — for the reason `ClientPortalShell` gives: every screen is
+   * tenant-scoped, and the slug in the path is the claim the API's `TenantContextGuard`
+   * resolves against a membership row. The rail carried org-less hrefs from WEB-001 until
+   * 2026-09-03, so its links pointed at routes that do not exist.
+   */
+  organizationSlug: string;
   /** The organization the person is working in. Always visible — `22` §1 requires it. */
   organizationName: string;
   /** The id of the rail destination that is current, e.g. `work`. */
@@ -43,6 +53,7 @@ export interface AppShellProps {
  *    That is law 3 of the token export — every state that uses colour also carries a word.
  */
 export function AppShell({
+  organizationSlug,
   organizationName,
   activeNavigationId,
   title,
@@ -57,7 +68,7 @@ export function AppShell({
       <SkipLink targetId="tm-main" />
 
       <nav className="tm-rail" aria-label="Primary">
-        <Link href="/home" className="tm-rail__brand">
+        <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
           <Wordmark variant="icon" label="TManage home" />
         </Link>
 
@@ -67,7 +78,7 @@ export function AppShell({
             return (
               <li key={item.id}>
                 <Link
-                  href={item.href}
+                  href={`/${organizationSlug}${item.href}`}
                   className="tm-rail__item"
                   {...(current ? { 'aria-current': 'page' as const } : {})}
                 >

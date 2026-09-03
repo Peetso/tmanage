@@ -100,6 +100,10 @@ test.describe.serial('the notification journeys', () => {
     // outbox, and the row that TM-04 reads does not exist yet.
     const studio = await openAs(browser, world().northstar.manager.id);
     await studio.page.goto('/northstar-studio/inbox');
+    // The rail is under the organization, like the screen it is on.
+    await expect(
+      studio.page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Work' }),
+    ).toHaveAttribute('href', '/northstar-studio/work');
     await studio.page.getByRole('button', { name: 'Client actions' }).click();
     await expect(studio.page.getByRole('button', { name: 'Client actions' })).toHaveAttribute(
       'aria-pressed',

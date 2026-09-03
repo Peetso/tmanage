@@ -161,6 +161,7 @@ export function ProjectChannelScreen({
 
   return (
     <AppShell
+      organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
       title={conversation.data === undefined ? 'Channel' : `#${conversation.data.name}`}

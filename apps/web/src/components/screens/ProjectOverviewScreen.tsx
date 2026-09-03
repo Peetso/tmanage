@@ -100,6 +100,7 @@ export function ProjectOverviewScreen({
 
   return (
     <AppShell
+      organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
       title={project.data?.name ?? 'Project'}
