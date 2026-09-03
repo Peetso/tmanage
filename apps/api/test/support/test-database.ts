@@ -269,6 +269,12 @@ export async function truncateAll(admin: Pool): Promise<void> {
       'idempotency_records',
       'outbox_events',
       'notifications',
+      // FILE-001. Child first: a version names an asset, a session names an asset and a
+      // project, an asset names a project and possibly a client organization.
+      'file_versions',
+      'upload_sessions',
+      'file_assets',
+      'usage_counters',
       // REQ-001. Before `work_items`: a linked request references one.
       'client_requests',
       // WORK-003. Before `work_items` for the same reason: both reference it.

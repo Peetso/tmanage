@@ -1,0 +1,164 @@
+import { and, eq, sql } from 'drizzle-orm';
+import { uuidv7 } from '@tmanage/domain';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { usageCounters } from '../../common/database/schema.js';
+import type { UsageCounterRow } from '../../common/database/schema.js';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+
+/**
+ * The quota counter — `49-PRICING-ENTITLEMENTS-AND-STORAGE-POLICY` §6, as four statements.
+ *
+ * Every method here is one conditional UPDATE whose `WHERE` clause *is* the rule, and whose
+ * answer is "did a row change". There is no read-then-write anywhere in this file, and that
+ * is the whole design: InnoDB holds the row lock for the statement and re-evaluates the
+ * predicate after the lock is granted, so two reservations racing for the last megabyte
+ * serialise on the row and exactly one of them sees a predicate that still holds. The
+ * database suite proves that with concurrent callers rather than asserting it.
+ *
+ * `BIGINT UNSIGNED` on both counter columns is the second half: a release that exceeds what
+ * was reserved would underflow, and the engine refuses the statement instead of writing a
+ * negative reservation. The `reserved_value >= ?` guard in {@link release} and
+ * {@link commit} turns that refusal into a `false` a caller can reason about, but the column
+ * type is what makes "counters never go negative" (27-TEST-CATALOG CONC-06) true even for a
+ * statement this file did not write.
+ *
+ * ## Where the limit comes from is not this file's business
+ *
+ * The effective quota is a parameter. `storageLimitsFor` in the service reads it from
+ * configuration today and from `organization_entitlements` once ENT-001 exists; this
+ * repository only ever compares against the number it is handed.
+ */
+
+/** The one metric this slice meters. USAGE-001 adds the rest as rows, not as a schema change. */
+export const STORAGE_BYTES_METRIC = 'storage.bytes';
+
+export class UsageCountersRepository {
+  /**
+   * Make sure the organization has a counter row for the metric. Idempotent: the unique key
+   * on `(organization_id, metric_key)` turns a second seed into a no-op, so the reservation
+   * statement that follows can rely on the row existing and read "zero rows" as "would
+   * exceed" and nothing else.
+   */
+  async ensure(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .insert(usageCounters)
+      .values({
+        id: uuidv7(),
+        organizationId: context.organizationId,
+        metricKey,
+        usedValue: 0,
+        reservedValue: 0,
+        version: 1,
+        createdAt: sql`current_timestamp(3)`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .onDuplicateKeyUpdate({ set: { version: sql`version` } });
+  }
+
+  async find(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+  ): Promise<UsageCounterRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(usageCounters)
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * §6 step 3: reserve `bytes` if `used + reserved + bytes <= limit`. `true` when reserved.
+   *
+   * Call {@link ensure} first in the same transaction. Without the row this answers `false`
+   * for a reason that is not the quota, and the caller would report a full quota to an
+   * organization that has never uploaded anything.
+   */
+  async reserve(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+    bytes: number,
+    limitBytes: number,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(usageCounters)
+      .set({
+        reservedValue: sql`reserved_value + ${bytes}`,
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+          sql`used_value + reserved_value + ${bytes} <= ${limitBytes}`,
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
+  /**
+   * §6 step 6: the reservation becomes used bytes — the provider's count, not the
+   * declaration. `false` when less than `reservedBytes` is outstanding, which is the
+   * double-completion the caller must treat as already done rather than as a second commit.
+   */
+  async commit(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+    reservedBytes: number,
+    committedBytes: number,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(usageCounters)
+      .set({
+        reservedValue: sql`reserved_value - ${reservedBytes}`,
+        usedValue: sql`used_value + ${committedBytes}`,
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+          sql`reserved_value >= ${reservedBytes}`,
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
+  /** §6 step 7: cancel, failure or expiry gives the bytes back. Same guard as {@link commit}. */
+  async release(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+    reservedBytes: number,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(usageCounters)
+      .set({
+        reservedValue: sql`reserved_value - ${reservedBytes}`,
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+          sql`reserved_value >= ${reservedBytes}`,
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+}

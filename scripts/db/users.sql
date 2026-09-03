@@ -112,6 +112,18 @@ GRANT INSERT, UPDATE         ON `tmanage`.`notifications`        TO 'tmanage_app
 -- UPDATE (confined by 0011's trigger to the one-time resolution) to resolve, DELETE never.
 GRANT INSERT, DELETE         ON `tmanage`.`work_item_dependencies` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`work_blockers`          TO 'tmanage_app'@'%';
+-- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
+-- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
+-- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through
+-- 23-ERD §10's (UPDATE); neither is ever removed by the runtime — retention is FILE-003's
+-- privileged procedure. A file version is immutable: INSERT only, the `message_work_links`
+-- shape, and the trigger in 0015 refuses the UPDATE for every credential. FILE-002's
+-- worker will need UPDATE on `file_versions` for the hash and detected type; that grant
+-- arrives with the code that writes them.
+GRANT INSERT, UPDATE         ON `tmanage`.`usage_counters`   TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE         ON `tmanage`.`file_assets`      TO 'tmanage_app'@'%';
+GRANT INSERT                 ON `tmanage`.`file_versions`    TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE         ON `tmanage`.`upload_sessions`  TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

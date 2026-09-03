@@ -500,6 +500,161 @@ export const clientRequests = mysqlTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Files — FILE-001 (0015)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `openapi.yaml` `CreateUploadSessionRequest.purpose`, and the ENUM on both file tables. */
+export const UPLOAD_PURPOSES = [
+  'message_attachment',
+  'request_attachment',
+  'deliverable',
+  'document',
+] as const;
+export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
+
+/** The reservation's own lifecycle (`49` §6 steps 4 and 7), not the file's nine states. */
+export const UPLOAD_SESSION_STATUSES = [
+  'reserved',
+  'completed',
+  'cancelled',
+  'expired',
+  'failed',
+] as const;
+export type UploadSessionStatus = (typeof UPLOAD_SESSION_STATUSES)[number];
+
+/** One presigned target, as the provider issued it. Kept on the row so a replay repeats it. */
+export interface UploadTargetJson {
+  readonly partNumber: number;
+  readonly url: string;
+}
+
+export const usageCounters = mysqlTable(
+  'usage_counters',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    metricKey: varchar('metric_key', { length: 64 }).notNull(),
+    usedValue: bigint('used_value', { mode: 'number', unsigned: true }).notNull().default(0),
+    reservedValue: bigint('reserved_value', { mode: 'number', unsigned: true })
+      .notNull()
+      .default(0),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    reconciledAt: datetime('reconciled_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_usage_counters_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_usage_counters_org_metric').on(table.organizationId, table.metricKey),
+  ],
+);
+
+export const fileAssets = mysqlTable(
+  'file_assets',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }),
+    ownerUserId: char('owner_user_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    purpose: mysqlEnum('purpose', UPLOAD_PURPOSES).notNull(),
+    audience: mysqlEnum('audience', WORK_ITEM_AUDIENCE).notNull().default('internal'),
+    /** `23-ERD` §10's nine states, driven by `uploadStateMachine`. */
+    status: varchar('status', { length: 32 }).notNull(),
+    rejectionCode: varchar('rejection_code', { length: 64 }),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_file_assets_org_id').on(table.organizationId, table.id),
+    index('ix_file_assets_org_project_status').on(
+      table.organizationId,
+      table.projectId,
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const fileVersions = mysqlTable(
+  'file_versions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    versionNo: int('version_no', { unsigned: true }).notNull(),
+    /** Internal. Never a response field — `FORBIDDEN_CLIENT_FIELDS` names `storageKey`. */
+    objectKey: varchar('object_key', { length: 512 }).notNull(),
+    /** The provider's count, never the declaration. */
+    sizeBytes: bigint('size_bytes', { mode: 'number', unsigned: true }).notNull(),
+    declaredMimeType: varchar('declared_mime_type', { length: 150 }).notNull(),
+    detectedMimeType: varchar('detected_mime_type', { length: 150 }),
+    contentHash: varchar('content_hash', { length: 128 }),
+    etag: varchar('etag', { length: 255 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_file_versions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_file_versions_org_asset_no').on(
+      table.organizationId,
+      table.fileAssetId,
+      table.versionNo,
+    ),
+  ],
+);
+
+export const uploadSessions = mysqlTable(
+  'upload_sessions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    clientOrganizationId: char('client_organization_id', { length: 36 }),
+    actorUserId: char('actor_user_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
+    purpose: mysqlEnum('purpose', UPLOAD_PURPOSES).notNull(),
+    declaredName: varchar('declared_name', { length: 255 }).notNull(),
+    declaredMimeType: varchar('declared_mime_type', { length: 150 }).notNull(),
+    declaredBytes: bigint('declared_bytes', { mode: 'number', unsigned: true }).notNull(),
+    declaredContentHash: varchar('declared_content_hash', { length: 128 }),
+    committedBytes: bigint('committed_bytes', { mode: 'number', unsigned: true }),
+    partSizeBytes: int('part_size_bytes', { unsigned: true }).notNull(),
+    partCount: int('part_count', { unsigned: true }).notNull(),
+    /** Internal. Never a response field. */
+    objectKey: varchar('object_key', { length: 512 }).notNull(),
+    providerUploadId: varchar('provider_upload_id', { length: 255 }).notNull(),
+    uploadTargetsJson: json('upload_targets_json').$type<readonly UploadTargetJson[]>().notNull(),
+    status: varchar('status', { length: 32 }).notNull(),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_upload_sessions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_upload_sessions_org_idempotency').on(
+      table.organizationId,
+      table.idempotencyKey,
+    ),
+    index('ix_upload_sessions_org_status_expires').on(
+      table.organizationId,
+      table.status,
+      table.expiresAt,
+    ),
+    index('ix_upload_sessions_org_project_status').on(
+      table.organizationId,
+      table.projectId,
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Conversations
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -959,6 +1114,10 @@ export const TABLES = {
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
   notifications,
+  usage_counters: usageCounters,
+  file_assets: fileAssets,
+  file_versions: fileVersions,
+  upload_sessions: uploadSessions,
   user_passwords: userPasswords,
   user_mfa_factors: userMfaFactors,
   user_recovery_codes: userRecoveryCodes,
@@ -987,6 +1146,10 @@ export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
+export type UsageCounterRow = typeof usageCounters.$inferSelect;
+export type FileAssetRow = typeof fileAssets.$inferSelect;
+export type FileVersionRow = typeof fileVersions.$inferSelect;
+export type UploadSessionRow = typeof uploadSessions.$inferSelect;
 export type WorkItemDependencyRow = typeof workItemDependencies.$inferSelect;
 export type WorkBlockerRow = typeof workBlockers.$inferSelect;
 export type UserPasswordRow = typeof userPasswords.$inferSelect;
