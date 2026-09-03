@@ -368,6 +368,33 @@ export class ClientRequestsService {
   }
 
   /**
+   * Read several requests at once, internally, keyed by id — `get`'s rule in one query, plus
+   * one read for the client organizations' names rather than one per row.
+   *
+   * An id that names nothing, or a row this principal may not triage, is missing from the map:
+   * `get`'s 404, said without a throw, for the inbox, which drops the bundle silently either
+   * way. Same `mayTriage`, same `toView`; only the count of round trips differs.
+   */
+  async getMany(
+    context: TenantContext,
+    principal: Principal,
+    clientRequestIds: readonly string[],
+  ): Promise<ReadonlyMap<string, ClientRequestView>> {
+    const unique = [...new Set(clientRequestIds)];
+    if (unique.length === 0) return new Map();
+
+    const rows = await this.database.read(context, (runner) =>
+      this.requests.findManyByIds(runner, context, unique),
+    );
+    const readable = rows.filter((row) => this.mayTriage(principal, row));
+    const names = await this.clientOrganizationNames(context, readable);
+
+    return new Map(
+      readable.map((row) => [row.id, toView(row, names.get(row.clientOrganizationId) ?? null)]),
+    );
+  }
+
+  /**
    * Move a request through §6's lifecycle.
    *
    * Which capability is demanded depends on the *destination*, because §6 divides the machine
@@ -827,6 +854,36 @@ export class ClientRequestsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     return toClientView(row);
+  }
+
+  /**
+   * Read several of the client's own requests at once, keyed by id — `getForClient`'s rule in
+   * one query. The portal inbox's read: a page of a hundred bundles was a hundred round trips.
+   *
+   * The principal must be a client, refused the way `listForClient` refuses. An id that names
+   * nothing, another client's row, or a request in a project no longer shared is missing from
+   * the map — `getForClient`'s 404 without the throw. Same `mayClientRead`, same projection.
+   */
+  async getManyForClient(
+    context: TenantContext,
+    principal: Principal,
+    clientRequestIds: readonly string[],
+  ): Promise<ReadonlyMap<string, ClientRequestClientView>> {
+    if (principal.kind !== 'client' || !principal.clientOrganizationId) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'not_a_client_principal');
+    }
+    const unique = [...new Set(clientRequestIds)];
+    if (unique.length === 0) return new Map();
+
+    const rows = await this.database.read(context, (runner) =>
+      this.requests.findManyByIds(runner, context, unique),
+    );
+
+    return new Map(
+      rows
+        .filter((row) => this.mayClientRead(principal, row))
+        .map((row) => [row.id, toClientView(row)]),
+    );
   }
 
   /**

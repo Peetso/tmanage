@@ -208,6 +208,31 @@ export class WorkItemsRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Fetch several work items by id in one query, within the acting tenant.
+   *
+   * An id that names nothing — or another tenant's row, which the predicate never selects —
+   * is simply absent from the result; the caller decides what an absence means. Soft-deleted
+   * rows are returned like any other, so the service applies the same `deletedAt` and
+   * relation rules `get` applies, row by row. The order is the database's, not the ids'.
+   */
+  async findManyByIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemIds: readonly string[],
+  ): Promise<readonly WorkItemRow[]> {
+    if (workItemIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select()
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          inArray(workItems.id, [...workItemIds]),
+        ),
+      );
+  }
+
   async requireById(
     runner: TenantQueryRunner,
     context: TenantContext,

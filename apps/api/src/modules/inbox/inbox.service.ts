@@ -42,11 +42,19 @@ import type { WorkItemsService } from '../work/work-items.service.js';
  * Quiet hours, digests and channel choice need preferences, which the contract draws no
  * table for — NOTIF-001's first named gap, unchanged. Bundles split at page boundaries: a
  * page is `limit` rows, bundled, and an object whose rows straddle two pages appears on both
- * — the screen merges the two appearances by bundle id, so a reader sees one row. Each
- * bundle's object is resolved by its own `get`, one read per bundle in sequence; a batched
- * authorized read per object type would be cheaper and is recorded, not built. Read state
+ * — the screen merges the two appearances by bundle id, so a reader sees one row. Read state
  * syncs across devices by being a column, which TM-04 asks for; "bulk mark read reversible
  * for a short interval" is not built — the trigger makes a read row permanent.
+ *
+ * ## One read per object type, not one per bundle
+ *
+ * Until 2026-09-03 each bundle's object was resolved by its own `get`, in sequence — a page
+ * of a hundred distinct objects was a hundred-odd round trips, recorded twice as the right
+ * shape to change. Now the page's ids are collected by object type and resolved together
+ * through `WorkItemsService.getMany` and `ClientRequestsService.getMany`, which apply the
+ * same `mayRead` / `mayTriage` `get` applies and leave out what `get` would have refused.
+ * Decision 1 is unchanged: a missing entry drops the bundle, silently. Only the count of
+ * queries moved. `markBundleRead` still reads its one object through `get`.
  */
 
 export type InboxMode = 'important' | 'all' | 'waiting_on_me' | 'client_actions';
@@ -92,6 +100,13 @@ export interface ListInboxOptions {
   readonly mode?: InboxMode;
   readonly before?: string;
   readonly limit?: number;
+}
+
+/** What the inbox keeps of an object it resolved: the three fields a bundle shows. */
+interface ResolvedObject {
+  readonly title: string;
+  readonly state: string;
+  readonly projectId: string;
 }
 
 const BLOCKED_TYPE = 'work_item.blocked.v1';
@@ -187,6 +202,17 @@ export class InboxService {
       else byObject.set(key, [row]);
     }
 
+    // The page's objects, by type, resolved together: one authorized read per type.
+    const workItemIds: string[] = [];
+    const requestIds: string[] = [];
+    for (const group of byObject.values()) {
+      const first = group[0];
+      if (!first) continue;
+      if (first.objectType === 'work_item') workItemIds.push(first.objectId);
+      else if (first.objectType === 'client_request') requestIds.push(first.objectId);
+    }
+    const objects = await this.resolveMany(context, principal, workItemIds, requestIds);
+
     const bundles: InboxBundleView[] = [];
     for (const [bundleId, group] of byObject) {
       const first = group[0];
@@ -198,7 +224,7 @@ export class InboxService {
         // reader may know it.
         continue;
       }
-      const resolved = await this.resolve(context, principal, objectType, first.objectId);
+      const resolved = objects.get(bundleId);
       if (!resolved) continue; // §1's second check: revoked means silent.
 
       const types: string[] = [];
@@ -222,20 +248,53 @@ export class InboxService {
   }
 
   /**
-   * The object behind a notification, through its own authorized read. `null` for a 404 —
-   * absent, deleted, or no longer this person's to see — and every other failure propagates,
-   * because a database fault must not read as "nothing for you".
+   * A page's objects, through the batched authorized reads, keyed by bundle id. An object
+   * absent, deleted, or no longer this person's to see is absent from the map — the same
+   * silence {@link resolve} answers with `null` — and every other failure propagates, because
+   * a database fault must not read as "nothing for you".
+   */
+  private async resolveMany(
+    context: TenantContext,
+    principal: Principal,
+    workItemIds: readonly string[],
+    requestIds: readonly string[],
+  ): Promise<ReadonlyMap<string, ResolvedObject>> {
+    const objects = new Map<string, ResolvedObject>();
+    if (workItemIds.length > 0) {
+      const views = await this.workItems.getMany(context, principal, workItemIds);
+      for (const [id, view] of views) {
+        objects.set(`work_item:${id}`, {
+          title: view.title,
+          state: view.state,
+          projectId: view.projectId,
+        });
+      }
+    }
+    if (requestIds.length > 0) {
+      const views = await this.requests.getMany(context, principal, requestIds);
+      for (const [id, view] of views) {
+        objects.set(`client_request:${id}`, {
+          title: view.title,
+          state: view.state,
+          projectId: view.projectId,
+        });
+      }
+    }
+    return objects;
+  }
+
+  /**
+   * The object behind one notification, through its own authorized read — `markBundleRead`'s
+   * reauthorization. `null` for a 404 — absent, deleted, or no longer this person's to see —
+   * and every other failure propagates, because a database fault must not read as "nothing
+   * for you".
    */
   private async resolve(
     context: TenantContext,
     principal: Principal,
     objectType: 'work_item' | 'client_request',
     objectId: string,
-  ): Promise<{
-    readonly title: string;
-    readonly state: string;
-    readonly projectId: string;
-  } | null> {
+  ): Promise<ResolvedObject | null> {
     try {
       if (objectType === 'work_item') {
         const view = await this.workItems.get(context, principal, objectId);

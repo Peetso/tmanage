@@ -199,12 +199,22 @@ export class PortalInboxService {
       else byRequest.set(row.objectId, [row]);
     }
 
+    // One authorized read for the page's requests, not one per bundle. Until 2026-09-03 each
+    // bundle called `getForClient` in turn — a hundred bundles, a hundred round trips.
+    // `getManyForClient` applies the same `mayClientRead` and leaves out what `getForClient`
+    // would have refused, so the silence below is the same silence.
+    const requests = await this.requests.getManyForClient(context, principal, [
+      ...byRequest.keys(),
+    ]);
+
     const bundles: PortalInboxBundleView[] = [];
     for (const [requestId, group] of byRequest) {
       const first = group[0];
       if (!first) continue;
-      const resolved = await this.resolve(context, principal, requestId);
-      if (!resolved) continue; // §1's second check: revoked means silent.
+      const view = requests.get(requestId);
+      if (!view) continue; // §1's second check: revoked means silent.
+      // Field by field from the client view. Nothing here has ever seen the row.
+      const resolved = { title: view.title, status: view.status, projectId: view.projectId };
 
       const types: string[] = [];
       for (const row of group) {
@@ -230,9 +240,10 @@ export class PortalInboxService {
   }
 
   /**
-   * The request behind a notification, through the portal's own read. `null` for a 404 —
-   * absent, another client's, or in a project no longer shared — and every other failure
-   * propagates, because a database fault must not read as "nothing for you".
+   * The request behind one notification, through the portal's own read — `markBundleRead`'s
+   * reauthorization. `null` for a 404 — absent, another client's, or in a project no longer
+   * shared — and every other failure propagates, because a database fault must not read as
+   * "nothing for you".
    */
   private async resolve(
     context: TenantContext,

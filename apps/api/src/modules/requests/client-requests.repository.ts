@@ -193,6 +193,31 @@ export class ClientRequestsRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Fetch several requests by id in one query, within the acting tenant.
+   *
+   * `WorkItemsRepository.findManyByIds`'s shape: an id that names nothing, or another
+   * tenant's row, is absent from the result rather than an error, and the service applies its
+   * own per-row rule (`mayTriage` or `mayClientRead`) to what comes back. The order is the
+   * database's.
+   */
+  async findManyByIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    clientRequestIds: readonly string[],
+  ): Promise<readonly ClientRequestRow[]> {
+    if (clientRequestIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select()
+      .from(clientRequests)
+      .where(
+        and(
+          eq(clientRequests.organizationId, context.organizationId),
+          inArray(clientRequests.id, [...clientRequestIds]),
+        ),
+      );
+  }
+
   async requireById(
     runner: TenantQueryRunner,
     context: TenantContext,

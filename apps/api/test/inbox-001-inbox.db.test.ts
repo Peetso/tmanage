@@ -12,7 +12,8 @@ import { apiConfigFrom } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
 import type { ApiConfig } from '../src/common/http/api-config.js';
 import { TenantDatabase, createTenantContext } from '../src/common/database/tenant-context.js';
-import type { TenantContext } from '../src/common/database/tenant-context.js';
+import type { TenantContext, TenantQueryRunner } from '../src/common/database/tenant-context.js';
+import type { ClientRequestRow, WorkItemRow } from '../src/common/database/schema.js';
 import { AuditEventsRepository } from '../src/modules/audit/audit-events.repository.js';
 import { AuditService } from '../src/modules/audit/audit.service.js';
 import { OutboxEventsRepository } from '../src/modules/platform/outbox-events.repository.js';
@@ -741,5 +742,120 @@ describe('over HTTP: the guard, and the query', () => {
     expect(response.statusCode, response.body).toBe(200);
     expect(response.json<{ marked: number }>().marked).toBe(1);
     expect(await unreadCountFor(world.northstar.owner.id, itemId)).toBe(0);
+  });
+});
+
+describe('one authorized read per object type, not one per bundle', () => {
+  class CountingWorkItems extends WorkItemsRepository {
+    many = 0;
+    one = 0;
+    override findManyByIds(
+      runner: TenantQueryRunner,
+      context: TenantContext,
+      ids: readonly string[],
+    ): Promise<readonly WorkItemRow[]> {
+      this.many += 1;
+      return super.findManyByIds(runner, context, ids);
+    }
+    override findById(
+      runner: TenantQueryRunner,
+      context: TenantContext,
+      id: string,
+    ): Promise<WorkItemRow | null> {
+      this.one += 1;
+      return super.findById(runner, context, id);
+    }
+  }
+  class CountingRequests extends ClientRequestsRepository {
+    many = 0;
+    one = 0;
+    override findManyByIds(
+      runner: TenantQueryRunner,
+      context: TenantContext,
+      ids: readonly string[],
+    ): Promise<readonly ClientRequestRow[]> {
+      this.many += 1;
+      return super.findManyByIds(runner, context, ids);
+    }
+    override findById(
+      runner: TenantQueryRunner,
+      context: TenantContext,
+      id: string,
+    ): Promise<ClientRequestRow | null> {
+      this.one += 1;
+      return super.findById(runner, context, id);
+    }
+  }
+
+  it('a page of many objects costs one query per type, and answers exactly as the single reads would', async () => {
+    // Six rows for the designer, a member on one project: three items they can read, one on a
+    // project they are not on, one deleted after the fact, one that never existed. The batch
+    // must answer with the three and only the three — what `get` would have answered, one by
+    // one — and must ask the database once for all of them.
+    const visible = [];
+    for (const title of ['Batched one', 'Batched two', 'Batched three']) {
+      visible.push(await createWorkItem(world.northstar.projectId, title));
+    }
+    const hidden = await createWorkItem(world.northstar.otherProjectId, 'Not the designer’s');
+    const deleted = await createWorkItem(world.northstar.projectId, 'Deleted before the read');
+    await work.softDelete(ownerCtx, owner, deleted);
+    const absent = uuidv7();
+
+    for (const [index, id] of [...visible, hidden, deleted, absent].entries()) {
+      await notify({
+        recipient: world.northstar.designer,
+        type: BLOCKED,
+        objectType: 'work_item',
+        objectId: id,
+        createdAt: `2026-09-03 11:${String(index).padStart(2, '0')}:00.000`,
+      });
+    }
+
+    const workItems = new CountingWorkItems();
+    const clientRequests = new CountingRequests();
+    const audit = new AuditService(tenant, new AuditEventsRepository());
+    const batched = new InboxService(
+      tenant,
+      new WorkItemsService(
+        tenant,
+        workItems,
+        audit,
+        new ProjectsRepository(),
+        new OutboxEventsRepository(),
+      ),
+      new ClientRequestsService(
+        tenant,
+        clientRequests,
+        audit,
+        new ProjectsRepository(),
+        new WorkItemsRepository(),
+        new ClientOrganizationsRepository(),
+        new OutboxEventsRepository(),
+      ),
+      new NotificationsRepository(),
+    );
+
+    const page = await batched.list(designerCtx, designer, { mode: 'important' });
+    const ids = page.items.map((bundle) => bundle.objectId);
+    for (const id of visible) expect(ids).toContain(id);
+    expect(ids).not.toContain(hidden);
+    expect(ids).not.toContain(deleted);
+    expect(ids).not.toContain(absent);
+
+    // One query for every work item on the page; none by single id.
+    expect(workItems.many).toBe(1);
+    expect(workItems.one).toBe(0);
+    expect(clientRequests.one).toBe(0);
+
+    // The batch says what the single read says, field for field — and refuses what it refuses.
+    for (const bundle of page.items.filter((candidate) => visible.includes(candidate.objectId))) {
+      const single = await work.get(designerCtx, designer, bundle.objectId);
+      expect(bundle.title).toBe(single.title);
+      expect(bundle.state).toBe(single.state);
+      expect(bundle.projectId).toBe(single.projectId);
+    }
+    for (const id of [hidden, deleted, absent]) {
+      await expect(work.get(designerCtx, designer, id)).rejects.toMatchObject({ status: 404 });
+    }
   });
 });

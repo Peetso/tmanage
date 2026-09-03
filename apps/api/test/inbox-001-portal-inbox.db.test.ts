@@ -12,7 +12,8 @@ import { apiConfigFrom } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
 import type { ApiConfig } from '../src/common/http/api-config.js';
 import { TenantDatabase, createTenantContext } from '../src/common/database/tenant-context.js';
-import type { TenantContext } from '../src/common/database/tenant-context.js';
+import type { TenantContext, TenantQueryRunner } from '../src/common/database/tenant-context.js';
+import type { ClientRequestRow } from '../src/common/database/schema.js';
 import { AuditEventsRepository } from '../src/modules/audit/audit-events.repository.js';
 import { AuditService } from '../src/modules/audit/audit.service.js';
 import { OutboxEventsRepository } from '../src/modules/platform/outbox-events.repository.js';
@@ -470,9 +471,11 @@ describe('recipient only, from the client side', () => {
     // never asked about the work item at all.
     const asked: string[] = [];
     const watched = Object.create(requests) as ClientRequestsService;
-    watched.getForClient = (context, principal, requestId) => {
-      asked.push(requestId);
-      return requests.getForClient(context, principal, requestId);
+    // The page's read is the batched one since 2026-09-03; `getForClient` stays the single
+    // read `markBundleRead` reauthorizes through.
+    watched.getManyForClient = (context, principal, requestIds) => {
+      asked.push(...requestIds);
+      return requests.getManyForClient(context, principal, requestIds);
     };
     const watchedInbox = new PortalInboxService(tenant, watched, new NotificationsRepository());
 
@@ -791,5 +794,89 @@ describe('the modes, the cursor, and the query over HTTP', () => {
       'limit',
       'mode',
     ]);
+  });
+});
+
+describe('one authorized read for the page, not one per bundle', () => {
+  class CountingRequests extends ClientRequestsRepository {
+    many = 0;
+    one = 0;
+    override findManyByIds(
+      runner: TenantQueryRunner,
+      context: TenantContext,
+      ids: readonly string[],
+    ): Promise<readonly ClientRequestRow[]> {
+      this.many += 1;
+      return super.findManyByIds(runner, context, ids);
+    }
+    override findById(
+      runner: TenantQueryRunner,
+      context: TenantContext,
+      id: string,
+    ): Promise<ClientRequestRow | null> {
+      this.one += 1;
+      return super.findById(runner, context, id);
+    }
+  }
+
+  it('a page of many requests costs one query, and answers exactly as getForClient would', async () => {
+    // Five rows for the Atlas admin: three of their own requests, one of Meridian's — a
+    // sibling client's, which the batch must leave out as `getForClient` does — and one that
+    // never existed. Three bundles, one query.
+    const own = [];
+    for (const title of ['Batched one', 'Batched two', 'Batched three']) {
+      own.push(await submitAs(atlasAdminCtx, atlasAdmin, world.northstar.projectId, title));
+    }
+    const siblings = await submitAs(
+      meridianCtx,
+      meridianReviewer,
+      world.meridian.projectId,
+      'Meridian’s, not Atlas’s',
+    );
+    const absent = uuidv7();
+
+    for (const [index, id] of [...own, siblings, absent].entries()) {
+      await notify({
+        recipient: world.atlas.admin,
+        objectId: id,
+        createdAt: `2026-09-03 11:${String(index).padStart(2, '0')}:00.000`,
+      });
+    }
+
+    const counting = new CountingRequests();
+    const batched = new PortalInboxService(
+      tenant,
+      new ClientRequestsService(
+        tenant,
+        counting,
+        new AuditService(tenant, new AuditEventsRepository()),
+        new ProjectsRepository(),
+        new WorkItemsRepository(),
+        new ClientOrganizationsRepository(),
+        new OutboxEventsRepository(),
+      ),
+      new NotificationsRepository(),
+    );
+
+    const page = await batched.list(atlasAdminCtx, atlasAdmin);
+    const ids = page.items.map((bundle) => bundle.requestId);
+    for (const id of own) expect(ids).toContain(id);
+    expect(ids).not.toContain(siblings);
+    expect(ids).not.toContain(absent);
+
+    expect(counting.many).toBe(1);
+    expect(counting.one).toBe(0);
+
+    for (const bundle of page.items.filter((candidate) => own.includes(candidate.requestId))) {
+      const single = await requests.getForClient(atlasAdminCtx, atlasAdmin, bundle.requestId);
+      expect(bundle.title).toBe(single.title);
+      expect(bundle.status).toBe(single.status);
+      expect(bundle.projectId).toBe(single.projectId);
+    }
+    for (const id of [siblings, absent]) {
+      await expect(requests.getForClient(atlasAdminCtx, atlasAdmin, id)).rejects.toMatchObject({
+        status: 404,
+      });
+    }
   });
 });

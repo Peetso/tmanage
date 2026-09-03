@@ -300,6 +300,36 @@ export class WorkItemsService {
   }
 
   /**
+   * Read several work items at once, keyed by id — `get`'s authorized read, in one query
+   * rather than one per id.
+   *
+   * An id that is absent, deleted, or not this principal's to see is **missing from the map**,
+   * which is `get`'s 404 said without a throw: the caller that needs this is the inbox, which
+   * drops a bundle silently in every one of those cases and must not learn which one it was.
+   * Nothing is answered here that `get` would refuse, because the two apply the same
+   * expressions to the same row — the test that proves it reads an item both ways.
+   */
+  async getMany(
+    context: TenantContext,
+    principal: Principal,
+    workItemIds: readonly string[],
+  ): Promise<ReadonlyMap<string, WorkItemView>> {
+    const unique = [...new Set(workItemIds)];
+    if (unique.length === 0) return new Map();
+
+    const rows = await this.database.read(context, (runner) =>
+      this.workItems.findManyByIds(runner, context, unique),
+    );
+
+    const views = new Map<string, WorkItemView>();
+    for (const row of rows) {
+      if (row.deletedAt !== null || !this.mayRead(principal, row)) continue;
+      views.set(row.id, toView(row));
+    }
+    return views;
+  }
+
+  /**
    * Create a work item.
    *
    * The project relation is checked here rather than left to the database, and that is the one
