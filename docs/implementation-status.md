@@ -672,18 +672,24 @@ browser can take it.
 
 ## Verification actually run — 2026-09-03, the client-inbox session
 
-**The full chain was not run.** Peter asked for a safe stop while the fleet's fixes were being
-recorded, and a safe stop is a committed, recorded, pushed tree — not a 24-minute chain started
-on the way out. What ran, each to completion, in this order: the slice committed; the fleet on
-that commit; E2E-07 built and its first run failing on the outbox defect; the fixes made and
-revert-proved on the single suites they concern; the suites and the journeys below. **The
-chain is the first thing the next session owes**, before any code.
+**The full chain ran the next morning, 2026-09-03, first thing and before any code — the
+first thing the safe stop owed.** The session before it stopped on Peter's word with the fixes
+proved on their single suites and no chain; the paragraph that stood here said so. What the
+chain found: nothing. Every gate green in one background command, 21 minutes 34 seconds, no
+repository edit while it ran, no `mysqld` left behind. The single-suite rows beneath the chain
+rows are the previous session's, kept because they are the proofs the chain does not repeat
+(the revert proofs, the three e2e runs).
 
 | Gate                             | Result                                                                                                                                                                               |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `typecheck`                      | Clean for `@tmanage/api` and `@tmanage/e2e` after every fix; the whole repository before the fleet's fixes                                                                           |
-| `lint`                           | Clean for the whole repository after every fix, immediately before the closing commit                                                                                                |
-| `format`                         | `pnpm format` then `pnpm format:check`, clean, immediately before the closing commit; every changed file counted zero CR bytes                                                       |
+| **The chain** (2026-09-03)       | `format:check && typecheck && lint && test && test:db && audit:design && format:check` — **exit 0** in 21 m 34 s                                                                     |
+| `format:check` (both ends)       | Clean, before and after                                                                                                                                                              |
+| `typecheck`                      | Clean, whole repository                                                                                                                                                              |
+| `lint`                           | Clean, whole repository                                                                                                                                                              |
+| `test` (unit)                    | **1028 passed, 0 failed** across 59 files: config 29, domain 136, mail 6, ui 168, test-kit 2, worker 47, web 383, api 257                                                            |
+| `test:db`                        | **824 passed, 29 skipped, 0 failed** across 34 files in 17 m 52 s. The 29 skips are the usual: 27 least-privilege cases (no app-user database URL), one each in chat-001 and req-001 |
+| `audit:design`                   | **172 of 172** screen IDs covered across 29 artifacts, 0 missing                                                                                                                     |
+| Leaked `mysqld` after the chain  | **None**                                                                                                                                                                             |
 | `inbox-001-portal-inbox.db.test` | **13 passed** — boots the application; the outbox, predicate and allowlist cases each proved by reverting                                                                            |
 | `inbox-001-inbox.db.test`        | **17 passed**, unchanged                                                                                                                                                             |
 | `test-001-role-matrix.db.test`   | **9 passed**, with the `/portal/inbox` row removed after it failed for owner and org_admin                                                                                           |
