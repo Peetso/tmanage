@@ -1,6 +1,11 @@
 import { authorize, clientRequestStateMachine } from '@tmanage/domain';
 import type { Audience, ClientRequestState, Principal } from '@tmanage/domain';
-import { uploadObjectKey } from '@tmanage/storage';
+import {
+  MissingPartError,
+  MultipartUploadNotFoundError,
+  PartEtagMismatchError,
+  uploadObjectKey,
+} from '@tmanage/storage';
 import type { ObjectStore, StoredObject } from '@tmanage/storage';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
@@ -94,6 +99,29 @@ export interface CreateUploadInput extends ParsedUploadBody {
  * service reads — a suite lowers it to move a real multipart upload in a few bytes.
  */
 export const PART_SIZE_BYTES = 8 * 1024 * 1024;
+
+/**
+ * FILE-001b. The provider refusals a completion may answer, each of which fails the
+ * session and gives the bytes back. `MultipartUploadMismatchError` and
+ * `UnsafeObjectPathError` are not here: both mean this service named a zone or key it
+ * did not open, which is a bug, and a bug is a 500. `ApiErrorCode` is closed, so the
+ * cause travels as `auditCode` and the caller sees one 422 on `parts`.
+ */
+function completionRefusal(error: unknown): { message: string; auditCode: string } | null {
+  if (error instanceof MultipartUploadNotFoundError) {
+    return { message: 'the provider no longer holds this upload', auditCode: 'upload_not_found' };
+  }
+  if (error instanceof MissingPartError) {
+    return { message: `part ${error.partNumber} was never uploaded`, auditCode: 'part_missing' };
+  }
+  if (error instanceof PartEtagMismatchError) {
+    return {
+      message: `part ${error.partNumber} does not match the etag presented for it`,
+      auditCode: 'part_etag_mismatch',
+    };
+  }
+  return null;
+}
 
 function toView(row: UploadSessionRow): UploadSessionView {
   return {
@@ -525,13 +553,28 @@ export class FilesService {
     }
 
     // §6 step 6: the provider's count, not the declaration. Outside the transaction —
-    // no lock across the network call.
-    const stored: StoredObject = await this.store.completeMultipart({
-      zone: 'quarantine',
-      objectKey: session.objectKey,
-      providerUploadId: session.providerUploadId,
-      parts: [...parts].sort((a, b) => a.partNumber - b.partNumber),
-    });
+    // no lock across the network call. A refusal the provider makes about the parts
+    // themselves (FILE-001b) fails the session the way a size mismatch does.
+    let stored: StoredObject;
+    try {
+      stored = await this.store.completeMultipart({
+        zone: 'quarantine',
+        objectKey: session.objectKey,
+        providerUploadId: session.providerUploadId,
+        parts: [...parts].sort((a, b) => a.partNumber - b.partNumber),
+      });
+    } catch (error) {
+      const refusal = completionRefusal(error);
+      if (!refusal) throw error;
+      await this.releaseAs(context, session, 'failed');
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'The request body is invalid',
+        [{ field: 'parts', message: refusal.message }],
+        refusal.auditCode,
+      );
+    }
     if (stored.sizeBytes !== session.declaredBytes) {
       await this.releaseAs(context, session, 'failed');
       throw new ApiError(

@@ -24,6 +24,7 @@ import { UsageCountersRepository } from './usage-counters.repository.js';
 import { FilesService } from './files.service.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
+import { UploadPartsController } from './upload-parts.controller.js';
 
 /**
  * FILE-001's wiring.
@@ -38,6 +39,11 @@ import { PortalUploadSessionsController } from './portal-upload-sessions.control
  * on purpose: the object store is the ninth and the outbox the tenth, and a copy built
  * elsewhere without the outbox would reserve bytes nobody is ever told about — the wiring
  * defect the inbox session found in `PortalInboxService`.
+ *
+ * `UploadPartsController` (FILE-001b) is the third door: public, tenantless, the local
+ * stand-in for the bucket. It injects `LOCAL_PART_SINK` optionally and nothing from this
+ * module — the bytes never pass through `FilesService`, exactly as they would not pass
+ * through it on the way to R2.
  */
 @Module({})
 export class FilesModule {
@@ -88,7 +94,11 @@ export class FilesModule {
       module: FilesModule,
       providers: [...repositories, service],
       exports: [service],
-      controllers: [UploadSessionsController, PortalUploadSessionsController],
+      controllers: [
+        UploadSessionsController,
+        PortalUploadSessionsController,
+        UploadPartsController,
+      ],
     };
   }
 }
