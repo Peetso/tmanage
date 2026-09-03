@@ -512,6 +512,83 @@ are untouched.
 
 ---
 
+## The chain-first session — the fleet on the client inbox, and one read per page
+
+The session of 2026-09-03 opened on the debt the safe stop left: the chain. It ran first,
+before any code, and found nothing — the table under "Verification actually run — 2026-09-03,
+the client-inbox session" now carries its numbers. Then the review fleet ran on the committed
+slice, then what it found was fixed, then the first line of the standing list was taken.
+
+### What the fleet found on `91545a9..767fdda`
+
+Five read-only lenses (authorization, correctness, data and load, the web client, test honesty)
+and a skeptic, six agents. Nine claims, seven after the skeptic folded duplicates, two
+confirmed, five downgraded, none dismissed, and two that all five lenses missed.
+
+| Claim                                                                                                                                                                                                                                                                                  | Skeptic's verdict                                         | What was done                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sec-001`'s §7 forbidden-field sweep over `/portal/inbox` read `{"items":[]}`: the suite never wrote a notification row (two lenses)                                                                                                                                                   | confirmed, low                                            | The suite writes one row for the reviewer, and every client operation must answer with an object before its sweep counts. Reverted: "answered nothing, so a sweep over it is vacuous". The claim the previous session drew from 16/16 is corrected above       |
+| `drainOutbox` ran one batch of `OUTBOX_BATCH_SIZE` (25), oldest first, and called it a drain; the specs share one outbox (two lenses)                                                                                                                                                  | downgraded to low: an armed trap, not a flake             | It loops until a batch claims nothing, reads the worker's report from stderr, and fails on a failed or parked event                                                                                                                                            |
+| Mark read invalidates the prefix key, so every loaded page of the active mode is refetched                                                                                                                                                                                             | downgraded to low; the "both modes" arithmetic was double | Not changed. `invalidateQueries` refetches only the mounted mode; the other is marked stale, which is what a mode switch should see. Recorded                                                                                                                  |
+| The mode buttons' `is-active` class matches no CSS rule, so the selected mode has no visual state; `aria-pressed` is correct                                                                                                                                                           | downgraded to low; inherited from two older screens       | Not changed: a `packages/ui` stylesheet change, which owes a `test:vr` run. Recorded, three screens at once                                                                                                                                                    |
+| Neither error branch of the client inbox screen was rendered by any web case                                                                                                                                                                                                           | confirmed, low                                            | Two cases: the list that could not load, and a mark that could not be made and is forgotten on a mode change                                                                                                                                                   |
+| `adminRequestId` is set inside the first case of its `describe` and read by three more                                                                                                                                                                                                 | downgraded to low; already recorded                       | Not changed. The mitigation — run the whole `describe` — stands                                                                                                                                                                                                |
+| "403 for every internal role" drives four of seven; the other three do not hold `client_request.submit` and take the same guard path                                                                                                                                                   | downgraded to low; a naming overclaim                     | Renamed to the four roles it drives                                                                                                                                                                                                                            |
+| **Missed by all five:** E2E-07's two `toHaveCount(0)` assertions after a mode click were satisfied by the loading skeleton — the mode is part of the query key, the list unmounts until the API answers, and a negative assertion issued straight after the click passes on that frame | the skeptic's own; medium                                 | A `settled()` wait — no `aria-busy` region — before each. **Proved**: with the `unreadOnly` predicate removed from the repository, the "Waiting on me" assertion now fails where before the wait it passed, so the drain step it stands behind is load-bearing |
+| **Missed by all five:** the portal inbox route feeds the screen the hardcoded fixture names, so E2E-07b's "Northstar Studio answered" matches by coincidence and E2E-07c shows a Meridian reader Atlas's name                                                                          | the skeptic's own; low                                    | Not changed: the fixture pattern is repo-wide and documented in `fixtures.ts`; an org-name endpoint for the portal shell is the real change. Recorded                                                                                                          |
+
+One more, found by the day's first e2e run rather than by the fleet: E2E-01b asserted a bare
+"September 3, 2026", the date the journey asks for, which on 2026-09-03 also matched "Sent
+September 3, 2026" and a strict locator refused two. It asserts the labelled date now. A
+journey that hardcodes a date will meet that date; the assertion, not the date, was the fault.
+
+### One authorized read per object type per page
+
+The first line of the standing list, recorded twice: each bundle's object resolved by its own
+`get` or `getForClient`, in sequence, a hundred-odd round trips for a page of a hundred
+objects. Now:
+
+- `WorkItemsRepository.findManyByIds` and `ClientRequestsRepository.findManyByIds` — one
+  query, the tenant predicate, ids by `IN`. An absent id, or another tenant's, is simply not
+  in the result.
+- `WorkItemsService.getMany` (same `deletedAt` and `mayRead` as `get`),
+  `ClientRequestsService.getMany` (same `mayTriage`, one read for the client organizations'
+  names instead of one per row) and `getManyForClient` (same `mayClientRead`, client
+  principals only). Each answers a map keyed by id; **what the single read would have refused
+  is missing from the map**, which is the 404 without the throw, for a caller that drops the
+  bundle silently in every one of those cases and must not learn which.
+- `InboxService.bundle` collects the page's ids by object type and resolves them through
+  `resolveMany`; `PortalInboxService.bundle` through `getManyForClient`. `markBundleRead`
+  still reauthorizes through the single read on both halves — one object, one read.
+
+Proof, on both suites: a case seeds a page of objects a reader can and cannot see — three
+readable, one on a project the member is not on, one soft-deleted, one that never existed;
+for the client, three of their own, one of a sibling client's, one absent — through a
+repository subclass that counts its calls. One `findManyByIds`, zero `findById`, exactly the
+readable ones on the page, and every bundle equal field for field to what the single read
+answers, while the single read refuses the rest with 404. With the committed services
+installed from a copy, all three cases fail — the two new ones on "expected +0 to be 1", and
+the portal predicate case, which now watches `getManyForClient` rather than `getForClient`
+because that is what the page calls; that repointing is a deliberate change of what the case
+pins.
+
+### Recorded, not built
+
+- Mark read refetches every loaded page of the active mode. Applying the mutation's result
+  with `setQueryData` would make it zero; the web case that pins "posts, then reads the list
+  again" would change with it.
+- `is-active` on the three inbox screens' mode buttons is inert; a
+  `.tm-button[aria-pressed="true"]` rule in `packages/ui` fixes all three and owes `test:vr`.
+- The portal shell's organization names are fixtures; E2E-07c shows a Meridian reader
+  "Atlas Hospitality". An endpoint for the portal shell's names is the change.
+- `findManyByIds` has no upper bound of its own; the inbox hands it at most a page
+  (`MAX_NOTIFICATION_PAGE`, 200) of ids.
+
+No ticket moved: **32½ of 70, 264 of 583 points (45.3%)**. INBOX-001 stays half (quiet hours
+need a preferences table), TEST-003 stays half (REL-01/02 need a load balancer).
+
+---
+
 ## The client inbox — INBOX-001's second half, E2E-07, and the loop the journey found broken
 
 The session of 2026-09-02/03 (the twenty-fourth) took the first line of the standing list: the
@@ -613,25 +690,25 @@ Five lenses and a skeptic, read-only, fourteen minutes on commit `5079a88`. **16
 after the skeptic folded duplicates: 9 confirmed, 5 downgraded, 0 dismissed** — and three
 things no lens reported, which the skeptic found itself. In the order they were fixed:
 
-| Found                                                                                                                                                                                          | Verdict                                                                       | Done                                                                                                                                               |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ClientsModule`'s `ClientRequestsService` built without the outbox, so no portal submission ever emitted its event (architecture lens; E2E-07 had found it an hour earlier from the other end) | confirmed, high                                                               | Injected; pinned over HTTP; revert-proved; E2E-07a green                                                                                           |
-| `latestAt` formatted with `formatDay`, which is for `DATE` columns: the hour dropped and the day pinned to UTC                                                                                 | confirmed, medium                                                             | `formatInstant`; the web case asserts an hour survives                                                                                             |
-| Both new doc comments said the divergence was recorded in this file, and it was not                                                                                                            | confirmed, medium                                                             | This section                                                                                                                                       |
-| "N unread of M" is a false ratio in `unread` mode: the query is the mode, so `count === unreadCount` there (web and correctness lenses)                                                        | downgraded to low (the wrong number is smaller than the truth; nothing leaks) | Each mode says only what its query can vouch for: `all` says "2 updates, 1 unread", `unread` says "1 unread". The service doc says why             |
-| `types` copied verbatim from the row and rendered as-is when unknown (isolation and web lenses)                                                                                                | downgraded to low (unreachable today; no gate for tomorrow)                   | Allowlisted in the service; the screen's fallback is a sentence. Proved by a row with an invented type: dropped from `types`, the bundle stays     |
-| Non-`client_request` rows skipped after the read shorten a page beneath a live cursor, which the doc denied and the screen's copy misattributed                                                | confirmed, low                                                                | `objectTypes` is a repository predicate. Proved by `limit: 1` with a work-item row newest; fails on the skip                                       |
-| `String.replace` with a display name as the replacement: "Ford $& Sons" renders its own placeholder                                                                                            | confirmed, low                                                                | Copy is functions, not templates                                                                                                                   |
-| The revoked-share case edited the principal, never the data                                                                                                                                    | downgraded to low (SEC-001 does the real thing elsewhere)                     | Done in the data over HTTP anyway: the `project_clients` row goes, `limit: 1` answers `[]` with a live cursor, mark read is 404, the row restored  |
-| The HTTP 403 case could not see the guard, so `client_request.submit` was pinned by nothing — a `client_projection.read` guard would have left every case green                                | downgraded to low                                                             | The guard's audit fingerprint: one `security.capability_denied` row per refusal at the door, none from the service                                 |
-| `org_admin`, half of the argument, never exercised                                                                                                                                             | downgraded to low (the refusal reads `kind`, not the role)                    | Seeded and in the loop                                                                                                                             |
-| `expect(after.nextCursor).toBeNull()` passed because 4 ≠ 100, not because of the drop                                                                                                          | confirmed, low                                                                | `limit: 1` with the dropped row newest: `[]` and the cursor is that row's id                                                                       |
-| The `unread`-is-a-predicate comment described `limit: 1` and the newest row read; the fixture is `limit: 2` and the middle row                                                                 | confirmed, low                                                                | The comment says what the fixture is and what tells the two shapes apart; two more assertions                                                      |
-| The fold test asserted counts but neither the type union nor the kept time                                                                                                                     | confirmed, low                                                                | The older page carries a second, unknown type and an older time: the row keeps the newer time, says the known type, prints nothing for the unknown |
-| `InboxModule` built a second `ClientRequestsService` and four repositories for the portal provider                                                                                             | downgraded to low (correct twice, documented)                                 | One module-local provider, both halves read through it                                                                                             |
-| **Missed by every lens:** `sec-001`'s `CLIENT_OPERATIONS` — §7's forbidden-field sweep and §11's cross-tenant grid — still listed three client surfaces                                        | the skeptic's own                                                             | `/portal/inbox` added; 16 of 16 pass, so the interceptor covers the path as its doc says                                                           |
-| **Missed:** the one link to the screen had no test                                                                                                                                             | the skeptic's own                                                             | One assertion on `CL-01`                                                                                                                           |
-| **Missed:** one sequential authorized read per bundle, up to a hundred a page — inherited from the internal half                                                                               | the skeptic's own; recorded, not built                                        | The standing line below, now for both halves                                                                                                       |
+| Found                                                                                                                                                                                          | Verdict                                                                       | Done                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ClientsModule`'s `ClientRequestsService` built without the outbox, so no portal submission ever emitted its event (architecture lens; E2E-07 had found it an hour earlier from the other end) | confirmed, high                                                               | Injected; pinned over HTTP; revert-proved; E2E-07a green                                                                                                                          |
+| `latestAt` formatted with `formatDay`, which is for `DATE` columns: the hour dropped and the day pinned to UTC                                                                                 | confirmed, medium                                                             | `formatInstant`; the web case asserts an hour survives                                                                                                                            |
+| Both new doc comments said the divergence was recorded in this file, and it was not                                                                                                            | confirmed, medium                                                             | This section                                                                                                                                                                      |
+| "N unread of M" is a false ratio in `unread` mode: the query is the mode, so `count === unreadCount` there (web and correctness lenses)                                                        | downgraded to low (the wrong number is smaller than the truth; nothing leaks) | Each mode says only what its query can vouch for: `all` says "2 updates, 1 unread", `unread` says "1 unread". The service doc says why                                            |
+| `types` copied verbatim from the row and rendered as-is when unknown (isolation and web lenses)                                                                                                | downgraded to low (unreachable today; no gate for tomorrow)                   | Allowlisted in the service; the screen's fallback is a sentence. Proved by a row with an invented type: dropped from `types`, the bundle stays                                    |
+| Non-`client_request` rows skipped after the read shorten a page beneath a live cursor, which the doc denied and the screen's copy misattributed                                                | confirmed, low                                                                | `objectTypes` is a repository predicate. Proved by `limit: 1` with a work-item row newest; fails on the skip                                                                      |
+| `String.replace` with a display name as the replacement: "Ford $& Sons" renders its own placeholder                                                                                            | confirmed, low                                                                | Copy is functions, not templates                                                                                                                                                  |
+| The revoked-share case edited the principal, never the data                                                                                                                                    | downgraded to low (SEC-001 does the real thing elsewhere)                     | Done in the data over HTTP anyway: the `project_clients` row goes, `limit: 1` answers `[]` with a live cursor, mark read is 404, the row restored                                 |
+| The HTTP 403 case could not see the guard, so `client_request.submit` was pinned by nothing — a `client_projection.read` guard would have left every case green                                | downgraded to low                                                             | The guard's audit fingerprint: one `security.capability_denied` row per refusal at the door, none from the service                                                                |
+| `org_admin`, half of the argument, never exercised                                                                                                                                             | downgraded to low (the refusal reads `kind`, not the role)                    | Seeded and in the loop                                                                                                                                                            |
+| `expect(after.nextCursor).toBeNull()` passed because 4 ≠ 100, not because of the drop                                                                                                          | confirmed, low                                                                | `limit: 1` with the dropped row newest: `[]` and the cursor is that row's id                                                                                                      |
+| The `unread`-is-a-predicate comment described `limit: 1` and the newest row read; the fixture is `limit: 2` and the middle row                                                                 | confirmed, low                                                                | The comment says what the fixture is and what tells the two shapes apart; two more assertions                                                                                     |
+| The fold test asserted counts but neither the type union nor the kept time                                                                                                                     | confirmed, low                                                                | The older page carries a second, unknown type and an older time: the row keeps the newer time, says the known type, prints nothing for the unknown                                |
+| `InboxModule` built a second `ClientRequestsService` and four repositories for the portal provider                                                                                             | downgraded to low (correct twice, documented)                                 | One module-local provider, both halves read through it                                                                                                                            |
+| **Missed by every lens:** `sec-001`'s `CLIENT_OPERATIONS` — §7's forbidden-field sweep and §11's cross-tenant grid — still listed three client surfaces                                        | the skeptic's own                                                             | `/portal/inbox` added; 16 of 16 passed — but see 2026-09-03: the suite wrote no notification row, so the sweep over that path read `{"items":[]}` and proved nothing until it did |
+| **Missed:** the one link to the screen had no test                                                                                                                                             | the skeptic's own                                                             | One assertion on `CL-01`                                                                                                                                                          |
+| **Missed:** one sequential authorized read per bundle, up to a hundred a page — inherited from the internal half                                                                               | the skeptic's own; recorded, not built                                        | The standing line below, now for both halves                                                                                                                                      |
 
 Two revert proofs beyond the outbox one: with the predicate and the allowlist undone, exactly
 the two cases that name them failed and the two beside them passed. A first attempt at that
@@ -640,9 +717,9 @@ is set by the case before them — which is not a proof; the whole `describe` wa
 
 ### Recorded narrowings
 
-- **One authorized read per bundle, sequential**, on both halves now. A batched
-  `getManyForClient` applying the same `mayClientRead` is the right shape; a change to
-  `ClientRequestsService`.
+- ~~**One authorized read per bundle, sequential**, on both halves now.~~ **Closed 2026-09-03** —
+  `getManyForClient`, one query for the page, same `mayClientRead`. See "The chain-first
+  session".
 - **`count` is per mode**: in `unread` it is the number of unread rows, and the screen's copy
   claims no total there. A bundle-wide total is a second aggregate per page; not built.
 - **The client is told about `submitted → triage`**, a move they cannot see. NOTIF-001's policy
@@ -785,11 +862,9 @@ this is the kind of thing only a booted application finds, which is why the suit
   thing a page loses after the read is a bundle whose object this person may no longer see.
   Such a page says "nothing you can still see on this page" with the cursor beneath it; the
   absolute "nothing" is said only once the cursor is gone.
-- **One authorized read per bundle.** Each bundle's object is resolved by its own `get`, in
-  sequence, on its own pooled connection (two reads for a client request). A page of a hundred
-  distinct objects is a hundred-odd round trips. Recorded, not batched: a batched authorized
-  multi-get per object type applying the same `mayRead`/`mayTriage` is the right shape and a
-  change to two other services.
+- ~~**One authorized read per bundle.**~~ **Closed 2026-09-03** — `WorkItemsService.getMany`
+  and `ClientRequestsService.getMany`, one query per object type per page, the same
+  `mayRead`/`mayTriage`. See "The chain-first session".
 - ~~**Client recipients have no reader yet.**~~ **Closed 2026-09-03** — the portal projection
   above. Until then `client_request.transitioned.v1` rows, written to the client who submitted,
   accumulated unread: fail-closed, nothing leaked.
