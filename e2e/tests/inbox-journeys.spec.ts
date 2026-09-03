@@ -75,7 +75,8 @@ test.describe.serial('the notification journeys', () => {
    * list and renders the loading region until the API replies; a negative assertion issued
    * straight after the click would be satisfied by that frame and prove nothing. This waits
    * for the region to go, so "no row" below means the API said so — the review fleet's
-   * finding of 2026-09-03.
+   * finding of 2026-09-03. It is an absence, so it must follow a presence: the clicked mode's
+   * `aria-pressed`, which the same render that mounts the loading region sets.
    */
   async function settled(page: Page): Promise<void> {
     await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
@@ -139,6 +140,10 @@ test.describe.serial('the notification journeys', () => {
     await expect(rowElsewhere.getByRole('button', { name: `Mark read: ${TITLE}` })).toHaveCount(0);
     // And under "Waiting on me" — what is unread — it is gone.
     await elsewhere.page.getByRole('button', { name: 'Waiting on me' }).click();
+    await expect(elsewhere.page.getByRole('button', { name: 'Waiting on me' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     await settled(elsewhere.page);
     await expect(elsewhere.page.getByRole('link', { name: TITLE })).toHaveCount(0);
 

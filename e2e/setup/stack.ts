@@ -149,6 +149,7 @@ async function waitForHttp(url: string, timeoutMs: number): Promise<void> {
 export async function drainOutbox(databaseUrl: string): Promise<string> {
   const reports: string[] = [];
   const passes = 20;
+  let parkedBefore: number | null = null;
   for (let pass = 0; pass < passes; pass += 1) {
     const { stdout, stderr } = await run(
       'pnpm',
@@ -161,10 +162,17 @@ export async function drainOutbox(databaseUrl: string): Promise<string> {
       throw new Error(`drainOutbox: the worker printed no batch report\n${stderr}\n${stdout}`);
     }
     reports.push(report);
+    // Three failure channels in the report, none of which exits non-zero: a consumer that
+    // threw (`failed N`); an after-commit effect that threw (`of which N failed` — the mail a
+    // journey may be about); and an event parked for good (`N parked`), which the worker
+    // counts over the whole table, so only growth during this drain is this drain's.
     const failed = Number(/failed (\d+)/.exec(report)?.[1] ?? '0');
-    if (failed > 0 || report.includes('parked')) {
+    const effectsFailed = Number(/of which (\d+) failed/.exec(report)?.[1] ?? '0');
+    const parked = Number(/, (\d+) parked/.exec(report)?.[1] ?? '0');
+    if (failed > 0 || effectsFailed > 0 || (parkedBefore !== null && parked > parkedBefore)) {
       throw new Error(`drainOutbox: a consumer failed — ${report}`);
     }
+    parkedBefore = parked;
     if (/^claimed 0,/.test(report)) return reports.join('\n');
   }
   throw new Error(`drainOutbox: still claiming after ${passes} batches\n${reports.join('\n')}`);

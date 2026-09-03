@@ -811,6 +811,35 @@ describe('one authorized read per object type, not one per bundle', () => {
       });
     }
 
+    // And the request half, which the first shape of this case never reached — the review
+    // fleet's finding of 2026-09-03: two requests the manager can triage, told to the manager;
+    // the first also told to the designer, who cannot triage and must be refused by the batch
+    // exactly as `get` refuses them.
+    const requestIds: string[] = [];
+    for (const [index, title] of ['Batched request one', 'Batched request two'].entries()) {
+      const submitted = await requests.submit(clientCtx, clientAdmin, {
+        projectId: world.northstar.projectId,
+        title,
+        description: 'Filed by the inbox suite.',
+      });
+      requestIds.push(submitted.id);
+      await notify({
+        recipient: world.northstar.manager,
+        type: SUBMITTED,
+        objectType: 'client_request',
+        objectId: submitted.id,
+        createdAt: `2026-09-03 11:2${index}:00.000`,
+      });
+    }
+    const firstRequest = requestIds[0] as string;
+    await notify({
+      recipient: world.northstar.designer,
+      type: SUBMITTED,
+      objectType: 'client_request',
+      objectId: firstRequest,
+      createdAt: '2026-09-03 11:30:00.000',
+    });
+
     const workItems = new CountingWorkItems();
     const clientRequests = new CountingRequests();
     const audit = new AuditService(tenant, new AuditEventsRepository());
@@ -835,17 +864,41 @@ describe('one authorized read per object type, not one per bundle', () => {
       new NotificationsRepository(),
     );
 
-    const page = await batched.list(designerCtx, designer, { mode: 'important' });
+    const page = await batched.list(designerCtx, designer);
     const ids = page.items.map((bundle) => bundle.objectId);
     for (const id of visible) expect(ids).toContain(id);
     expect(ids).not.toContain(hidden);
     expect(ids).not.toContain(deleted);
     expect(ids).not.toContain(absent);
+    expect(ids).not.toContain(firstRequest);
 
-    // One query for every work item on the page; none by single id.
+    // One query for every work item on the page, one for the request; none by single id.
     expect(workItems.many).toBe(1);
     expect(workItems.one).toBe(0);
+    expect(clientRequests.many).toBe(1);
     expect(clientRequests.one).toBe(0);
+
+    // The manager's page of client actions: both requests, one query, and the work-item read
+    // never asked because no work item is on it.
+    workItems.many = 0;
+    clientRequests.many = 0;
+    const actions = await batched.list(managerCtx, manager, { mode: 'client_actions' });
+    const actionIds = actions.items.map((bundle) => bundle.objectId);
+    for (const id of requestIds) expect(actionIds).toContain(id);
+    expect(clientRequests.many).toBe(1);
+    expect(clientRequests.one).toBe(0);
+    expect(workItems.many).toBe(0);
+    for (const bundle of actions.items.filter((candidate) =>
+      requestIds.includes(candidate.objectId),
+    )) {
+      const single = await requests.get(managerCtx, manager, bundle.objectId);
+      expect(bundle.title).toBe(single.title);
+      expect(bundle.state).toBe(single.state);
+      expect(bundle.projectId).toBe(single.projectId);
+    }
+    await expect(requests.get(designerCtx, designer, firstRequest)).rejects.toMatchObject({
+      status: 404,
+    });
 
     // The batch says what the single read says, field for field — and refuses what it refuses.
     for (const bundle of page.items.filter((candidate) => visible.includes(candidate.objectId))) {
@@ -856,6 +909,30 @@ describe('one authorized read per object type, not one per bundle', () => {
     }
     for (const id of [hidden, deleted, absent]) {
       await expect(work.get(designerCtx, designer, id)).rejects.toMatchObject({ status: 404 });
+    }
+  });
+
+  it('getMany names an archived client exactly as get does', async () => {
+    // The first shape read names from a page of active organizations and answered `null`
+    // for an archived client's request where `get` answers the name — the review fleet's
+    // finding of 2026-09-03. The inbox discards the name; the contract still has to hold.
+    const submitted = await requests.submit(clientCtx, clientAdmin, {
+      projectId: world.northstar.projectId,
+      title: 'Filed before the client was archived',
+      description: 'Filed by the inbox suite.',
+    });
+    await db.admin.execute('update client_organizations set archived_at = now(6) where id = ?', [
+      world.atlas.clientOrganizationId,
+    ]);
+    try {
+      const single = await requests.get(managerCtx, manager, submitted.id);
+      const many = await requests.getMany(managerCtx, manager, [submitted.id]);
+      expect(single.clientOrganizationName).not.toBeNull();
+      expect(many.get(submitted.id)?.clientOrganizationName).toBe(single.clientOrganizationName);
+    } finally {
+      await db.admin.execute('update client_organizations set archived_at = null where id = ?', [
+        world.atlas.clientOrganizationId,
+      ]);
     }
   });
 });

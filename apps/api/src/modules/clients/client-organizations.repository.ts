@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { clientOrganizations } from '../../common/database/schema.js';
@@ -98,6 +98,31 @@ export class ClientOrganizationsRepository {
       .where(and(...predicates))
       .orderBy(asc(clientOrganizations.id))
       .limit(limit);
+  }
+
+  /**
+   * Fetch several client organizations by id in one query, within the acting tenant.
+   *
+   * `findById`'s rule for many: no archive predicate and no page cap, so a name is answered
+   * here exactly as `findById` answers it — an archived client's requests still name their
+   * client. `list` is the paged, active-only read and is not this.
+   */
+  async findManyByIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    clientOrganizationIds: readonly string[],
+  ): Promise<readonly ClientOrganizationRow[]> {
+    const unique = [...new Set(clientOrganizationIds)];
+    if (unique.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select()
+      .from(clientOrganizations)
+      .where(
+        and(
+          eq(clientOrganizations.organizationId, context.organizationId),
+          inArray(clientOrganizations.id, unique),
+        ),
+      );
   }
 
   /**

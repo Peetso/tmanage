@@ -30,8 +30,9 @@ import type {
  * TM-04, the id is `objectType:objectId`); and **the object is resolved at read time through
  * its own authorized read, and a 404 drops the bundle silently** (`35-NOTIFICATION-AND-EMAIL-
  * COPY` §1's second check, `24-EVENT-CATALOG` §6). Here the authorized read is
- * `ClientRequestsService.getForClient`, which refuses a request outside the principal's own
- * client organization and outside the projects shared with it.
+ * `ClientRequestsService.getManyForClient` for the page (one query since 2026-09-03) and
+ * `getForClient` for the one bundle a mark-read reauthorizes; both refuse a request outside
+ * the principal's own client organization and outside the projects shared with it.
  *
  * ## What is different, and why each difference exists
  *

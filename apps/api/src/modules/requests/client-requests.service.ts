@@ -373,7 +373,8 @@ export class ClientRequestsService {
    *
    * An id that names nothing, or a row this principal may not triage, is missing from the map:
    * `get`'s 404, said without a throw, for the inbox, which drops the bundle silently either
-   * way. Same `mayTriage`, same `toView`; only the count of round trips differs.
+   * way. Same `mayTriage`, same `toView`, the names read by id as `get` reads them; only the
+   * count of round trips differs.
    */
   async getMany(
     context: TenantContext,
@@ -387,7 +388,20 @@ export class ClientRequestsService {
       this.requests.findManyByIds(runner, context, unique),
     );
     const readable = rows.filter((row) => this.mayTriage(principal, row));
-    const names = await this.clientOrganizationNames(context, readable);
+    // By the ids on the rows, the way `get` reads one name: no archive predicate and no page
+    // cap. The first shape used `clientOrganizationNames` — a page of 200 active
+    // organizations — and answered `null` for an archived client's request where `get`
+    // answers the name; the review fleet found it on 2026-09-03.
+    const organizations = await this.database.read(context, (runner) =>
+      this.clientOrganizations.findManyByIds(
+        runner,
+        context,
+        readable.map((row) => row.clientOrganizationId),
+      ),
+    );
+    const names = new Map(
+      organizations.map((organization) => [organization.id, organization.name]),
+    );
 
     return new Map(
       readable.map((row) => [row.id, toView(row, names.get(row.clientOrganizationId) ?? null)]),

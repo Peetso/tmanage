@@ -165,8 +165,9 @@ export class InboxService {
   /**
    * The inline action: mark every row of one bundle read, for this recipient only.
    *
-   * Reauthorized at execution, as TM-04 asks: the object is read through the same authorized
-   * path the list uses **before** anything is written, so a person whose access to the object
+   * Reauthorized at execution, as TM-04 asks: the object is read through its own authorized
+   * `get` — the rule the list's batched read applies — **before** anything is written, so a
+   * person whose access to the object
    * has gone cannot even mark its notifications read — the bundle is not theirs to see, and
    * the answer is the same 404 the list would have hidden it behind.
    */
