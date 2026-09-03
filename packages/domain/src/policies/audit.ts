@@ -355,7 +355,10 @@ export const AUDIT_ACTION_CATALOG = {
   },
   'file_asset.uploaded': {
     objectType: 'file_asset',
-    clause: '24-EVENT-CATALOG §4 — upload.completed.v1 is a security log',
+    // A stored file is content a client may later be shown; the row is the disclosure's start.
+    clause:
+      '§12 publication — a file that reaches the store is the first record of a disclosure; ' +
+      '24-EVENT-CATALOG §4 grades upload.completed.v1 a security log',
   },
   'security.capability_denied': {
     objectType: 'capability',
