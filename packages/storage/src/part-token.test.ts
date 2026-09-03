@@ -56,7 +56,17 @@ describe('the part token', () => {
     // Reversal: `Number()` accepts every one of these; `^\d+$` accepts none. The last three
     // are the ones that matter: they parse to the *signed* expiry, so a `Number()` verifier
     // would accept them and a token would have more than one spelling.
-    for (const expiry of [' 1 ', '1e15', '0x10', '-1', '1.5', '', ` ${EXPIRES}`, `+${EXPIRES}`, `${EXPIRES}.0`]) {
+    for (const expiry of [
+      ' 1 ',
+      '1e15',
+      '0x10',
+      '-1',
+      '1.5',
+      '',
+      ` ${EXPIRES}`,
+      `+${EXPIRES}`,
+      `${EXPIRES}.0`,
+    ]) {
       expect(verifyPartToken(KEY, `pu1.${expiry}.${signature}`, UPLOAD, 1, NOW)).toBe(false);
     }
   });
