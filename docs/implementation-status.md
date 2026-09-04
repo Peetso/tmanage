@@ -617,6 +617,100 @@ are untouched.
 
 ---
 
+## USAGE-001 planned, not built — the fleet's plan, recorded for the next session
+
+Five read-only agents (four readers — the pack, the code, the background-work infrastructure,
+this record — and a planner) over the tree at `6daf54b`, run `wf_7e34c244-c97`, while the
+chain ran. The skeptic that was to refute the plan did not run: the session's usage limit
+was reached as it started. So what follows is **the planner's output, unrefuted**; the next
+session re-reads every cited line before building on it, the way the review-debt session
+did for the FILE-001b claims. The full output, with about a hundred `path:line` citations,
+is in the run's `journal.jsonl` under the session's `subagents/workflows/wf_7e34c244-c97/`.
+
+### What the pack demands (as read)
+
+- `28` §8: _append-only storage ledger, reconciled counters, atomic byte reservation,
+  threshold events_, 8 points, after FILE-001 and AUTHZ-001; ENT-001 depends on it.
+- `24` §4: four events — `usage.storage_reserved.v1`, `usage.storage_committed.v1`,
+  `usage.storage_released.v1` (all three already registered and produced by FILE-001), and
+  `usage.threshold_reached.v1` (_70/85/95/100 crossed with hysteresis_; audit "yes at 100%").
+  No JSON schema exists for any `usage.*` event under `contracts/events`.
+- `49` §6: the bands — 70 insight, 85 warning and cleanup guidance, 95 persistent warning
+  and plan offer, 100 block new reservations and keep reads, downloads, deletion, export,
+  billing and plan change; and the eight-step atomic reservation algorithm, of which step 7
+  (_failure, abort or expiry releases reserved bytes and removes abandoned parts_) is the
+  sweeper. **No numeric hysteresis appears anywhere in the pack.**
+- `49` §5 and the DBML (`contracts/tmanage-core.dbml` `usage_ledger_entries`): the ledger's
+  minimum fields — organization, project when applicable, asset/version, storage class, byte
+  delta, reason, source event, occurred time, idempotency key — and a scheduled
+  reconciliation against provider inventory.
+
+### The five slices, in order
+
+1. **The expiry sweeper.** Hosted in `apps/api`, not the worker (the worker has no storage
+   driver and no `UPDATE` grant on `upload_sessions`; `FilesService.releaseAs` already does
+   the whole release atomically and emits `usage.storage_released.v1` with cause `expired`).
+   Selection in two steps because `TenantContext` binds one organization and the index
+   `ix_upload_sessions_org_status_expires` is organization-prefixed: a `bootstrapRead` for
+   the distinct organizations holding `reserved` rows past `expires_at`, then per
+   organization a service context and a new `UploadSessionsRepository.listExpired` in
+   batches of 100 until a pass releases nothing. Release through the existing
+   `releaseAs(…, 'expired', 'best-effort')`; the conditional transition is the idempotency
+   gate, so a row moved by complete, cancel or another pass is counted `skipped`. The
+   discarded `counters.release` boolean becomes load-bearing: captured into audit metadata
+   as `counter_drift`, not thrown. One audit action, `upload_session.expired`, actor null.
+   Driven like the relay: `apps/api/src/sweep.ts` with `--once`, a `sweep:once` script, a
+   parseable `[sweeper] pass: scanned N, released N, skipped N, failed N` line, and an e2e
+   `sweepUploads` beside `drainOutbox`. No new event type. Six database cases and one
+   journey (E2E-12b: an abandoned upload is released and the quota is free again).
+2. **The append-only ledger**, written in the producing transaction after the outbox row
+   (whose id is `source_event_id`): migration `0017_usage_ledger_entries.sql`, a `BEFORE
+UPDATE` trigger and no `UPDATE`/`DELETE` grant, idempotency key
+   `<uploadSessionId>:<reason>`, `INSERT … ON DUPLICATE KEY UPDATE id = id`. Cases: one
+   ledger row per counter move joined to its outbox row; the ledger sums to the counter
+   after a mixed sequence including an expiry; a replayed key inserts nothing; rows are
+   immutable for the app credential; two tenants never mix.
+3. **Reconciled counters**: ledger-versus-counter per organization under `FOR UPDATE`,
+   `reconciled_at` written (the column exists and nothing writes it), a correcting ledger
+   row and an audit row on drift, version-conditional repair (CONC-06). Provider-inventory
+   comparison is **not** possible yet: `ObjectStore` has no list or head.
+4. **Threshold events** `usage.threshold_reached.v1` with a band state per organization and
+   hysteresis; the 100 % band is what the reservation guard already refuses.
+5. **The usage read** for the billing screen (`49` §8 wants used, reserved and quota shown).
+
+### Ten questions for Peter, with the planner's recommendation
+
+1. The sweeper's identity: `createTenantContext` demands a user id and a membership id and
+   `principalKind: 'service'` has no builder. Recommend a documented nil-UUID sentinel with
+   audit rows carrying a null actor; `25` §10 (background jobs run with scoped repositories)
+   is satisfied either way.
+2. Using `bootstrapRead` for a job's cross-tenant scan — a new use of the escape hatch,
+   documented today for pre-context session resolution. Recommend yes, with an explicit
+   reason string.
+3. A `false` from `counters.release` or `commit`: record `counter_drift` and proceed, so a
+   drifted organization's sessions still expire; slice 3 repairs. The alternative leaves them
+   stuck.
+4. One audit row per expired session (`upload_session.expired`). Recommend yes: it is the
+   only trace of a leaver's abandoned reservation being cleaned (decision 7).
+5. The hysteresis value: recommend 5 percentage points below the band. Nothing in the pack
+   says.
+6. The band's basis: used + reserved (what the guard blocks on) or used alone (what the bill
+   measures). Recommend used + reserved.
+7. Which capability authorizes the usage read and the threshold notification (AUTH-16). None
+   exists in code; ENT-001 may own it. Slices 4 and 5 cannot ship without a name.
+8. The ledger's shape: an extra `counter` column (`used` | `reserved`) or two rows per
+   commit. Recommend the column, recorded as a divergence; `13-ENGINEERING-EXECUTION-SPEC` (the planner cites line 36) says paid-beta additions
+   must not change the P0 ledger contract, so this is Peter's.
+9. Provider-inventory reconciliation (QUOTA-07) needs an `ObjectStore` inventory method that
+   does not exist. Recommend ledger-only reconciliation in slice 3 and a follow-up.
+10. Cadence on the Hostinger target: the same external tick that runs `relay:once` runs
+    `sweep:once` after it. No scheduler inside the process.
+
+Slice 1 is buildable now under recommendations 1–4 and 10, each behind one clearly named
+function so a different answer is one edit. Nothing was written to the tree for it.
+
+---
+
 ## The queue names its clients by id, and a pressed button is painted — two standing lines closed
 
 The session of 2026-09-04 that followed the review-debt session opened on a green chain and
