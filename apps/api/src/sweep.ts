@@ -2,7 +2,8 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { loadEnv } from '@tmanage/config';
 import { composeAppModule } from './app-composition.js';
-import { UPLOAD_SESSION_SWEEPER } from './common/http/tokens.js';
+import { TENANT_DATABASE, UPLOAD_SESSION_SWEEPER } from './common/http/tokens.js';
+import type { TenantDatabase } from './common/database/tenant-context.js';
 import { describeSweep } from './modules/files/upload-session-sweeper.js';
 import type { UploadSessionSweeper } from './modules/files/upload-session-sweeper.js';
 
@@ -31,12 +32,18 @@ async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(composeAppModule(env), {
     logger: ['error', 'warn'],
   });
+  const database = app.get<TenantDatabase>(TENANT_DATABASE);
   try {
     const sweeper = app.get<UploadSessionSweeper>(UPLOAD_SESSION_SWEEPER);
     const report = await sweeper.sweep();
     console.warn(`[sweeper] pass: ${describeSweep(report)}`);
   } finally {
     await app.close();
+    // `app.close()` tears the injector down and leaves the pool open — the HTTP process
+    // never needs it closed, and a pool with idle connections keeps the event loop alive.
+    // A job has to let the process end, the way the relay ends its own pool. The first
+    // E2E-12b run found this: the sweep reported and then never exited.
+    await database.end();
   }
 }
 
