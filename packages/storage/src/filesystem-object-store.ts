@@ -12,6 +12,7 @@ import {
   MultipartUploadNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
+  SizeMismatchError,
   UnsafeObjectPathError,
 } from './errors.js';
 import type {
@@ -87,7 +88,7 @@ const HANDLE = /^[0-9a-f]{32}$/;
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const ZONES: readonly TrustZone[] = ['quarantine', 'private', 'derived'];
 /** Bumped when the manifest gains a field; an older manifest reads as "unknown upload". */
-const MANIFEST_VERSION = 2;
+const MANIFEST_VERSION = 3;
 
 export interface FilesystemObjectStoreOptions {
   /** Where everything lives. Resolved once; every path is checked to stay beneath it. */
@@ -128,7 +129,21 @@ interface Manifest {
   readonly partCount: number;
   /** The ceiling the upload's URLs were minted for; `putPart` refuses above it. */
   readonly partSizeBytes: number;
+  /**
+   * The size declared and reserved at `beginMultipart`. Two refusals stand on it: a part
+   * may carry no more than the declaration leaves for its position, and a completion whose
+   * bytes do not add up to it is refused before the object exists (security review,
+   * 2026-09-04 — without it a one-byte reservation held a full part on disk, and a
+   * mismatched completion left a real, uncounted, undeletable object).
+   */
+  readonly declaredBytes: number;
   readonly expiresAtMs: number;
+}
+
+/** What part `partNumber` of a `declaredBytes` upload may carry at most. Never below zero. */
+function partCeiling(manifest: Manifest, partNumber: number): number {
+  const remaining = manifest.declaredBytes - (partNumber - 1) * manifest.partSizeBytes;
+  return Math.max(0, Math.min(manifest.partSizeBytes, remaining));
 }
 
 function partFileName(partNumber: number): string {
@@ -184,6 +199,7 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
       objectKey: input.objectKey,
       partCount: input.partCount,
       partSizeBytes: this.partSizeBytes,
+      declaredBytes: input.declaredBytes,
       expiresAtMs,
     };
     const directory = this.uploadDirectory(providerUploadId);
@@ -219,9 +235,12 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
     if (input.partNumber > manifest.partCount) return null;
     // Refused after the authorization checks, so a forged request that the transport let
     // through learns nothing about the limit; refused before the write, so nothing over
-    // the limit ever touches disk. The ceiling is the upload's own, from its manifest.
-    if (input.body.length > manifest.partSizeBytes) {
-      throw new PartTooLargeError(manifest.partSizeBytes);
+    // the limit ever touches disk. The ceiling is the upload's own, from its manifest:
+    // the part size, and no more than the declaration leaves for this part — so a
+    // one-byte reservation cannot hold a full part on disk.
+    const ceiling = partCeiling(manifest, input.partNumber);
+    if (input.body.length > ceiling) {
+      throw new PartTooLargeError(ceiling);
     }
 
     const directory = this.uploadDirectory(input.providerUploadId);
@@ -282,6 +301,14 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
       // completed again once the client has re-sent what was wrong.
       await discard(sink, staging);
       throw error;
+    }
+
+    // Before the object exists, never after: a mismatch that first landed the object left
+    // a real file the reservation no longer covered and nothing could delete. The parts
+    // stay, as for an etag mismatch; the caller decides what the session becomes.
+    if (sizeBytes !== manifest.declaredBytes) {
+      await discard(sink, staging);
+      throw new SizeMismatchError(manifest.declaredBytes, sizeBytes);
     }
 
     // The object exists before the staging directory disappears: a crash between the two

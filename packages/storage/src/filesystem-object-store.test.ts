@@ -56,8 +56,18 @@ function targets(upload: { providerUploadId: string; parts: readonly { url: stri
   });
 }
 
-async function begin(partCount = 2, zone: 'quarantine' | 'private' = 'quarantine') {
-  return store.beginMultipart({ zone, objectKey: KEY, partCount, expiresInSeconds: 900 });
+async function begin(
+  partCount = 2,
+  zone: 'quarantine' | 'private' = 'quarantine',
+  declaredBytes = partCount * PART_SIZE,
+) {
+  return store.beginMultipart({
+    zone,
+    objectKey: KEY,
+    partCount,
+    declaredBytes,
+    expiresInSeconds: 900,
+  });
 }
 
 function walk(directory: string): string[] {
@@ -90,7 +100,7 @@ afterEach(() => {
 
 describe('FilesystemObjectStore — the whole upload', () => {
   it('assembles the parts in order, reports the true size and the S3 composite etag, and clears the staging directory', async () => {
-    const upload = await begin(2);
+    const upload = await begin(2, 'quarantine', PART_SIZE + 5);
     const [one, two] = targets(upload) as [
       ReturnType<typeof targets>[number],
       ReturnType<typeof targets>[number],
@@ -337,7 +347,13 @@ describe('FilesystemObjectStore — paths', () => {
       `${KEY}/../escape`,
     ]) {
       await expect(
-        store.beginMultipart({ zone: 'quarantine', objectKey, partCount: 1, expiresInSeconds: 60 }),
+        store.beginMultipart({
+          zone: 'quarantine',
+          objectKey,
+          partCount: 1,
+          declaredBytes: PART_SIZE,
+          expiresInSeconds: 60,
+        }),
       ).rejects.toBeInstanceOf(UnsafeObjectPathError);
     }
     expect(() => store.objectPath('nowhere' as 'quarantine', KEY)).toThrow(UnsafeObjectPathError);
@@ -546,5 +562,65 @@ describe('FilesystemObjectStore — the fleet’s findings (FILE-001b review)', 
       Buffer.concat([bytes('a'), bytes('b')]),
     );
     expect(walk(root)).toEqual([`objects/quarantine/${KEY}`]);
+  });
+});
+
+describe('FilesystemObjectStore — the security review (2026-09-04)', () => {
+  it('refuses a completion whose bytes do not add up to the declaration before any object exists, and keeps the parts', async () => {
+    // Declared two full parts; the second arrives short. Before the review the object was
+    // written, then the size reported, and the mismatch left a real file behind that no
+    // reservation covered and nothing could delete.
+    const upload = await begin(2);
+    const [one, two] = targets(upload) as [
+      ReturnType<typeof targets>[number],
+      ReturnType<typeof targets>[number],
+    ];
+    const first = await store.putPart({ ...one, body: bytes('a') });
+    const second = await store.putPart({ ...two, body: bytes('b', 5) });
+    await expect(
+      store.completeMultipart({
+        zone: 'quarantine',
+        objectKey: KEY,
+        providerUploadId: upload.providerUploadId,
+        parts: [
+          { partNumber: 1, etag: first?.etag ?? '' },
+          { partNumber: 2, etag: second?.etag ?? '' },
+        ],
+      }),
+    ).rejects.toMatchObject({ name: 'SizeMismatchError', declaredBytes: 2 * PART_SIZE });
+    // Reversal: move the check after `rename` and `objects/quarantine/<key>` appears here.
+    expect(walk(root)).toEqual(
+      [
+        `uploads/${upload.providerUploadId}/manifest.json`,
+        `uploads/${upload.providerUploadId}/part-0001`,
+        `uploads/${upload.providerUploadId}/part-0002`,
+      ].sort(),
+    );
+  });
+
+  it('holds a part to what the declaration leaves for it: a one-byte upload cannot land a full part', async () => {
+    const upload = await begin(1, 'quarantine', 1);
+    const [one] = targets(upload);
+    const valid = one as NonNullable<typeof one>;
+    // Reversal: judge the body by `partSizeBytes` alone and sixteen bytes land on disk.
+    await expect(store.putPart({ ...valid, body: bytes('a', 2) })).rejects.toMatchObject({
+      name: 'PartTooLargeError',
+      maxBytes: 1,
+    });
+    expect(walk(root)).toEqual([`uploads/${upload.providerUploadId}/manifest.json`]);
+    expect((await store.putPart({ ...valid, body: bytes('a', 1) }))?.etag).toBe(md5(bytes('a', 1)));
+  });
+
+  it('caps the last part at the remainder, and the parts before it at the part size', async () => {
+    const upload = await begin(2, 'quarantine', PART_SIZE + 3);
+    const [one, two] = targets(upload) as [
+      ReturnType<typeof targets>[number],
+      ReturnType<typeof targets>[number],
+    ];
+    expect(await store.putPart({ ...one, body: bytes('a') })).not.toBeNull();
+    await expect(store.putPart({ ...two, body: bytes('b', 4) })).rejects.toMatchObject({
+      maxBytes: 3,
+    });
+    expect(await store.putPart({ ...two, body: bytes('b', 3) })).not.toBeNull();
   });
 });

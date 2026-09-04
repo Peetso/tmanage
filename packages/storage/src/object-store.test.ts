@@ -43,6 +43,7 @@ describe('FakeObjectStore', () => {
       zone: 'quarantine',
       objectKey: key,
       partCount: 3,
+      declaredBytes: 30,
       expiresInSeconds: 900,
     });
     expect(upload.parts.map((p) => p.partNumber)).toEqual([1, 2, 3]);

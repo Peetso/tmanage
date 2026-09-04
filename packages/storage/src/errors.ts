@@ -45,6 +45,22 @@ export class PartTooLargeError extends Error {
   }
 }
 
+/**
+ * The assembled bytes do not add up to the size the upload was opened with. Refused before
+ * the object exists: a completion that first materialised the object and then reported
+ * its size left a real, uncounted, undeletable file behind for every mismatch (security
+ * review, 2026-09-04). The parts and the manifest stay, as for an etag mismatch.
+ */
+export class SizeMismatchError extends Error {
+  constructor(
+    readonly declaredBytes: number,
+    readonly actualBytes: number,
+  ) {
+    super(`the upload holds ${actualBytes} bytes; ${declaredBytes} were declared`);
+    this.name = 'SizeMismatchError';
+  }
+}
+
 /** A key or handle component that would compose a path outside the store's root. */
 export class UnsafeObjectPathError extends Error {
   constructor(readonly component: string) {

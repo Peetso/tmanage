@@ -42,5 +42,6 @@ export {
   MultipartUploadNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
+  SizeMismatchError,
   UnsafeObjectPathError,
 } from './errors.js';

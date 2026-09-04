@@ -41,6 +41,13 @@ export interface BeginMultipartInput {
   readonly zone: TrustZone;
   readonly objectKey: string;
   readonly partCount: number;
+  /**
+   * The size the caller declared and reserved against the quota (`49` §6 step 4). The
+   * driver holds the upload to it: a part may carry no more than the declaration leaves
+   * for it, and a completion whose bytes do not add up to it is refused before any object
+   * exists — the security review of 2026-09-04 found both doors open without this.
+   */
+  readonly declaredBytes: number;
   readonly expiresInSeconds: number;
 }
 

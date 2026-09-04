@@ -6,6 +6,7 @@ import type {
   ObjectStore,
   StoredObject,
 } from './object-store.js';
+import { SizeMismatchError } from './errors.js';
 
 /**
  * The driver a suite holds in its hand — `packages/mail`'s console driver, for bytes.
@@ -35,6 +36,8 @@ export class FakeObjectStore implements ObjectStore {
   failNextAbort: Error | null = null;
 
   private counter = 0;
+  /** What each upload declared at `beginMultipart`, by handle — the provider's own record. */
+  private readonly declared = new Map<string, number>();
 
   constructor(private readonly defaultSizeFor: (objectKey: string) => number) {}
 
@@ -43,6 +46,7 @@ export class FakeObjectStore implements ObjectStore {
     this.began.push(input);
     this.counter += 1;
     const providerUploadId = `fake-upload-${this.counter}`;
+    this.declared.set(providerUploadId, input.declaredBytes);
     const parts = Array.from({ length: input.partCount }, (_, index) => ({
       partNumber: index + 1,
       url: `memory://${providerUploadId}/part/${index + 1}`,
@@ -54,6 +58,13 @@ export class FakeObjectStore implements ObjectStore {
     this.consumeFailure();
     this.completed.push(input);
     const sizeBytes = this.sizeFor.get(input.objectKey) ?? this.defaultSizeFor(input.objectKey);
+    // The provider refuses, as the filesystem driver does, before any object exists. An
+    // upload this fake never began (a port test completing a bare handle) has no
+    // declaration to hold it to.
+    const declared = this.declared.get(input.providerUploadId);
+    if (declared !== undefined && sizeBytes !== declared) {
+      throw new SizeMismatchError(declared, sizeBytes);
+    }
     return { sizeBytes, etag: `fake-etag-${input.parts.length}` };
   }
 

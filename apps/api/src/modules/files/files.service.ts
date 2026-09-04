@@ -4,6 +4,7 @@ import {
   MissingPartError,
   MultipartUploadNotFoundError,
   PartEtagMismatchError,
+  SizeMismatchError,
   uploadObjectKey,
 } from '@tmanage/storage';
 import type { ObjectStore, StoredObject } from '@tmanage/storage';
@@ -132,6 +133,17 @@ function completionRefusal(
       message: `part ${error.partNumber} does not match the etag presented for it`,
       auditCode: 'part_etag_mismatch',
       releases: false,
+    };
+  }
+  if (error instanceof SizeMismatchError) {
+    // The provider refused before any object existed (security review, 2026-09-04). The
+    // declaration is fixed on the row, so nothing the client re-sends can make the bytes
+    // add up: the session fails and the bytes go back, as the post-completion size check
+    // below already decided for a provider that reports rather than refuses.
+    return {
+      message: 'the uploaded size does not match the declared size',
+      auditCode: 'size_mismatch',
+      releases: true,
     };
   }
   return null;
@@ -444,6 +456,7 @@ export class FilesService {
       zone: 'quarantine',
       objectKey,
       partCount,
+      declaredBytes: input.sizeBytes,
       expiresInSeconds: this.config.uploadUrlTtlSeconds,
     });
     const expiresAt = new Date(Date.now() + this.config.uploadUrlTtlSeconds * 1_000);
