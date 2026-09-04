@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-04 (review-debt session) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-04 (queue-and-toggle session) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,27 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-04, start of the queue-and-toggle session
+
+The **thirtieth** consecutive run, and the table below is this run's output rather than a
+copy of the previous one. Every pair was compared by SHA-256 and, separately, by modification
+time — pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                          |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                           |
+| Modification times                        | **No pack file is newer than its copy** in either scope. 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later; one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. Unchanged from the twenty-ninth run       |
+| Uncopied pack content                     | The same six as the twenty-ninth run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                           |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
 
 ---
 
@@ -593,6 +614,48 @@ pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db &&
 Outside the chain, `pnpm test:e2e`: **10 passed** in ~1.8 m against the full booted stack — up
 from 7. `pnpm test:vr` was **not run and is not owed**: `packages/ui` source, styles and stories
 are untouched.
+
+---
+
+## The queue names its clients by id, and a pressed button is painted — two standing lines closed
+
+The session of 2026-09-04 that followed the review-debt session opened on a green chain and
+nothing owed, and took the two smallest standing lines first, in the order the record listed
+them. Both are pre-existing, both were named by the chain-first session's fleet, and each is
+proved by reverting.
+
+### What was built
+
+| Line                                                  | Done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ClientRequestsService.list` names from a capped page | `clientOrganizationNames` reads by id through `ClientOrganizationsRepository.findManyByIds` — the ids on the page's own rows — instead of a page of active organizations capped at 200. It is the same helper `getMany` was moved to on 2026-09-03, so the queue now answers what `get` answers: an archived client's request still names its client, and a tenant with more clients than one page holds names every one. Still one read per page. Case, in the inbox suite beside `getMany`'s: submit, archive the client by SQL, `list` carries the same name `get` does |
+| `is-active` on the three inbox screens' mode buttons  | The class matched no rule, so the selected mode had no visual state. The hook is now the attribute the screens already set: `.tm-button[aria-pressed='true']` in `packages/ui` paints the toggle as the ink button, whatever its tone, with the ink hover; the inert class is removed from `InboxScreen`, `RequestInboxScreen` and `ClientInboxScreen`. The `States` story shows a pressed and an unpressed outline button, so the VR harness pins the paint; a unit case pins that `aria-pressed` passes through `Button` and the pair is axe-clean                       |
+
+One decision, small enough to state here rather than number: **a pressed toggle is painted
+ink, not lime.** Lime is the one call to action on a screen (`40-DESIGN-SYSTEM`), and a mode
+toggle is not that; the ink fill is what reads as "this one" beside its outline siblings in
+both themes. The attribute rather than a class is deliberate — the state cannot be painted
+without being announced.
+
+### Verification actually run — 2026-09-04, queue-and-toggle session
+
+| Gate                                       | Result                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inbox-001-inbox.db.test.ts`               | **20 passed** (19 + 1). Reversal — `clientOrganizationNames` back to `list({ limit: 200 })` — **1 of 20 red**, `expected null to be 'Atlas Hospitality'`, on the new case alone. Restored from a sha-checked copy (`2117f3050928`), not with `git checkout`                                                                                                                                                       |
+| `packages/ui` `button.test.tsx`            | **22 passed** (21 + 1)                                                                                                                                                                                                                                                                                                                                                                                            |
+| `pnpm test:vr`                             | First run on the changed story: **106 passed, 3 failed** — exactly the three `States` shots (light, dark, RTL), each about 1 % of pixels. The actual render was inspected before anything was accepted: the pressed button is ink-filled, the unpressed one stays outline. The three baselines were re-taken with `--update-snapshots -g "buttons--states"` and nothing else; the full run after — **109 of 109** |
+| CSS revert proof                           | The rule removed, Storybook rebuilt, the `States` shots re-run — **3 of 3 red**. Restored sha-identical (`ea2a40e554d5`); `packages/ui` rebuilt                                                                                                                                                                                                                                                                   |
+| `apps/web` inbox screens                   | 26 passed on the mode/inbox filter; no web case referenced `is-active`                                                                                                                                                                                                                                                                                                                                            |
+| `apps/api` `typecheck`, `prettier --check` | Clean; clean on every changed file. CR bytes in every changed file: 0                                                                                                                                                                                                                                                                                                                                             |
+| **The chain** on the finished tree         | **Exit 0** on `6daf54b` in 29 m 52 s, launched detached with no repository edit underneath it: unit **1085 passed** across 63 files, `test:db` **898 passed, 29 skipped** across 37 files, `audit:design` **172 of 172**, both `format:check`s clean                                                                                                                                                              |
+| `mysqld` strays                            | None after the database runs or the chain                                                                                                                                                                                                                                                                                                                                                                         |
+
+### Ticket accounting
+
+Neither line was a ticket. **34 of 70 tickets, 272 of 583 points (46.7%)**, unchanged; the
+twelve FILE-001 decisions, the ten FILE-001b decisions and decision 11 remain Peter's to
+overturn. Carried, unchanged: the complete/cancel race, no rate limit on the public PUT, the
+expiry sweeper (USAGE-001, next).
 
 ---
 
@@ -1298,6 +1361,8 @@ pins.
   again" would change with it.
 - `is-active` on the three inbox screens' mode buttons is inert; a
   `.tm-button[aria-pressed="true"]` rule in `packages/ui` fixes all three and owes `test:vr`.
+  **Closed 2026-09-04** (queue-and-toggle session): the rule is in, the class is gone,
+  `test:vr` 109 of 109.
 - The portal shell's organization names are fixtures; E2E-07c shows a Meridian reader
   "Atlas Hospitality". An endpoint for the portal shell's names is the change.
 - `findManyByIds` has no upper bound of its own; the inbox hands it at most a page
@@ -1322,7 +1387,8 @@ five missed. What was done about each:
 
 Two more standing lines from it: `ClientRequestsService.list` still names clients from a
 capped, active-only page (pre-existing; the same `findManyByIds` fixes it); and the three
-inbox screens' `is-active` class, as above.
+inbox screens' `is-active` class, as above. **Both closed 2026-09-04** (queue-and-toggle
+session).
 
 ### The rail, under the organization
 
