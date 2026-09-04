@@ -34,8 +34,13 @@ export type {
   PutPartInput,
   PutPartResult,
 } from './filesystem-object-store.js';
-export { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-token.js';
-export type { PartTokenClaims } from './part-token.js';
+export {
+  createPartAdmission,
+  derivePartSigningKey,
+  mintPartToken,
+  verifyPartToken,
+} from './part-token.js';
+export type { PartAdmission, PartTokenClaims } from './part-token.js';
 export {
   MissingPartError,
   MultipartUploadMismatchError,

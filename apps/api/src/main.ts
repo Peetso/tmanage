@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { loadEnv } from '@tmanage/config';
+import { createPartAdmission } from '@tmanage/storage';
 import { createFastifyAdapter } from './common/http/fastify-adapter.js';
 import { composeAppModule } from './app-composition.js';
 
@@ -32,7 +33,16 @@ async function bootstrap(): Promise<void> {
     composeAppModule(env),
     // The octet-stream parser for the part route rides on the adapter, with its own body
     // limit — see `fastify-adapter.ts` on why the global limit stays at Fastify's default.
-    createFastifyAdapter({ trustProxy: true, uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES }),
+    createFastifyAdapter({
+      trustProxy: true,
+      uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES,
+      // The same secret the filesystem driver signs with; with no local transport there is
+      // no admission and the part route reads no body at all.
+      admitPart:
+        env.STORAGE_DRIVER === 'filesystem' && env.STORAGE_LOCAL_SIGNING_SECRET
+          ? createPartAdmission(env.STORAGE_LOCAL_SIGNING_SECRET)
+          : undefined,
+    }),
   );
 
   /**

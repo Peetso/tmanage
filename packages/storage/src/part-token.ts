@@ -91,3 +91,23 @@ export function verifyPartToken(
 
   return expiresAtMs > nowMs;
 }
+
+/** What the transport asks before it reads a body: may this handle, part and token be read? */
+export type PartAdmission = (
+  providerUploadId: string,
+  partNumber: number,
+  token: string | undefined,
+) => boolean;
+
+/**
+ * The admission the API's octet-stream parser consults **before** buffering a part body
+ * (security review, 2026-09-04: without it any anonymous caller could hold a part-sized
+ * buffer per connection with a token that verified nothing). The same key derivation and
+ * the same verifier as `putPart`, so what the parser admits is exactly what the sink would
+ * accept — the manifest's own refusals (aborted, completed, out of range) still follow.
+ */
+export function createPartAdmission(secret: string, now: () => number = Date.now): PartAdmission {
+  const key = derivePartSigningKey(secret);
+  return (providerUploadId, partNumber, token) =>
+    verifyPartToken(key, token, providerUploadId, partNumber, now());
+}

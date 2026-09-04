@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
-import { derivePartSigningKey, mintPartToken } from '@tmanage/storage';
+import { createPartAdmission, derivePartSigningKey, mintPartToken } from '@tmanage/storage';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { StorageModule } from '../src/common/storage/storage.module.js';
@@ -305,7 +305,10 @@ beforeAll(async () => {
         now: () => Date.now() + clockOffsetMs,
       }),
     }),
-    createFastifyAdapter({ uploadPartSizeBytes: PART_SIZE }),
+    createFastifyAdapter({
+      uploadPartSizeBytes: PART_SIZE,
+      admitPart: createPartAdmission(SIGNING_SECRET, () => Date.now() + clockOffsetMs),
+    }),
     { logger: false, abortOnError: false },
   );
   await app.init();
@@ -566,18 +569,19 @@ describe('what the PUT refuses', () => {
     // Exactly the part size is not over it.
     expect((await putPart(target, bytes('a', PART_SIZE))).statusCode).toBe(200);
 
-    // The boundary between the two refusals, made visible with a forged token: up to the
-    // slack the body reaches the driver, which refuses the token first (404); one byte
-    // over it the parser refuses before any handler (413), so a forged request over the
-    // slack learns that a ceiling exists and nothing else. Reversal: move the slack by a
-    // byte in either direction and one of these flips.
+    // A forged token learns nothing at all, not even that a ceiling exists: since the
+    // security review of 2026-09-04 the parser admits the token before it reads a byte,
+    // so a forged body of any size — under the slack, one over it, four parts' worth — is
+    // the one 404, and none of it was buffered. Reversal: read the body before the
+    // admission and the two larger ones answer 413 again.
     const forged = `/v1/uploads/${handle}/parts/1?t=pu1.1.x`;
-    expect((await putPart(forged, bytes('a', PART_SIZE + PART_BODY_SLACK_BYTES))).statusCode).toBe(
-      404,
-    );
-    expect(
-      (await putPart(forged, bytes('a', PART_SIZE + PART_BODY_SLACK_BYTES + 1))).statusCode,
-    ).toBe(413);
+    for (const length of [
+      PART_SIZE + PART_BODY_SLACK_BYTES,
+      PART_SIZE + PART_BODY_SLACK_BYTES + 1,
+      PART_SIZE * 4,
+    ]) {
+      expect((await putPart(forged, bytes('a', length))).statusCode, String(length)).toBe(404);
+    }
     expect(under(handle)).toEqual([
       `uploads/${handle}/manifest.json`,
       `uploads/${handle}/part-0001`,

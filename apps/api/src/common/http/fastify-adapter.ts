@@ -1,5 +1,6 @@
 import { PayloadTooLargeException, UnsupportedMediaTypeException } from '@nestjs/common';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
+import type { PartAdmission } from '@tmanage/storage';
 import type { IncomingMessage } from 'node:http';
 
 /**
@@ -23,10 +24,10 @@ import type { IncomingMessage } from 'node:http';
  * The limit is deliberately over the part size: a body that is over by one byte reaches the
  * driver, which refuses it with `PartTooLargeError` after the token check and before any
  * write; a body over the slack is refused here, before the handler, as a 413 that
- * `HttpExceptionFilter` renders in the same envelope. That ordering is a property of the
- * transport and not a leak: the token is checked before the size only for bodies the parser
- * let through, so a forged token with a body over the slack learns that a ceiling exists —
- * the same fact `UPLOAD_PART_SIZE_BYTES` documents — and nothing about any upload.
+ * `HttpExceptionFilter` renders in the same envelope. Both come **after** the admission:
+ * since the security review of 2026-09-04 the token is verified before the first byte is
+ * read, so a forged request of any size is the one 404 and holds no buffer — it does not
+ * even learn that a ceiling exists.
  *
  * `main.ts` registers the parser for every driver, including `s3`, where the part route is
  * bound to no sink and answers 404; the parser then costs a URL check per octet-stream
@@ -54,6 +55,28 @@ export interface FastifyAdapterOptions {
   readonly trustProxy?: boolean;
   /** `ApiConfig.uploadPartSizeBytes` — the same number the driver refuses above. */
   readonly uploadPartSizeBytes: number;
+  /**
+   * Whether a part body may be read at all — `createPartAdmission` over the local
+   * transport's signing secret. Consulted **before** the first byte is buffered (security
+   * review, 2026-09-04): a PUT whose token does not verify hands the handler an empty body,
+   * which the sink refuses with the same 404 as before, and never holds a part-sized
+   * buffer for a caller who proved nothing. Absent — the `s3` driver, a suite with no
+   * sink — no body is ever read on this route, which is what a route with no sink answers.
+   */
+  readonly admitPart?: PartAdmission | undefined;
+}
+
+/** `/v1/uploads/<handle>/parts/<n>?t=<token>`, taken apart the way the controller does. */
+function partRequest(
+  url: string,
+): { providerUploadId: string; partNumber: number; token: string | undefined } | null {
+  const parsed = new URL(url, 'http://localhost');
+  const [, , , providerUploadId, , n] = parsed.pathname.split('/');
+  if (!providerUploadId || !n || !/^[1-9]\d*$/.test(n)) return null;
+  const partNumber = Number(n);
+  if (!Number.isSafeInteger(partNumber)) return null;
+  const token = parsed.searchParams.get('t');
+  return { providerUploadId, partNumber, token: token ?? undefined };
 }
 
 /** What the parser reads off the request before deciding whether to read the body at all. */
@@ -84,6 +107,17 @@ export function createFastifyAdapter(options: FastifyAdapterOptions): FastifyAda
           // Not the part route: the same 415 Fastify gave before this parser existed, and
           // not one byte of the body read on the way to it.
           done(new UnsupportedMediaTypeException());
+          return;
+        }
+        const part = partRequest(request.url);
+        if (
+          !options.admitPart ||
+          !part ||
+          !options.admitPart(part.providerUploadId, part.partNumber, part.token)
+        ) {
+          // Nothing proved, nothing read. The handler gets an empty body and the sink
+          // refuses it as it refuses every forged or expired token — one 404, one body.
+          done(null, Buffer.alloc(0));
           return;
         }
         const declared = Number(request.headers['content-length']);
