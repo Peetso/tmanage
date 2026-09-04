@@ -371,8 +371,8 @@ export const AUDIT_ACTION_CATALOG = {
   'upload_session.expired': {
     objectType: 'upload_session',
     clause:
-      '49-PRICING §6 step 7 — expiry releases reserved bytes; 24-EVENT-CATALOG §4 grades ' +
-      'usage.storage_released.v1 audit conditional, and a release nobody asked for is the condition',
+      "§12 — a system-initiated change to a tenant's quota with no actor is exactly what the " +
+      'log exists to explain; 49-PRICING §6 step 7 expiry, 24-EVENT-CATALOG §4 audit conditional',
   },
   'security.capability_denied': {
     objectType: 'capability',
