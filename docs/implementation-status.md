@@ -638,6 +638,102 @@ are untouched.
 
 ---
 
+## USAGE-001 slice 1 — the plan refuted, then the expiry sweeper built and proved
+
+The sweeper session of 2026-09-04 opened on a green chain and nothing owed, and took the
+plan below in the order the record asked: refute first, build second. Four read-only
+skeptics (run `wf_b8110818-1cd`, one each for the sweeper's mechanics, its drive and tests,
+the pack and the later slices, and the record and the ten questions) re-read every cited
+line of the planner's output. **47 refutations, 33 of them wrong line numbers** — the
+planner's `files.service.ts` cites are two lines high throughout, its `outbox.ts` cites name
+a banner comment and a closing brace, and every `implementation-status.md` cite points at a
+different section than claimed (the discarded-boolean row is :1191, decision 11 is
+:816-824, decision 7 is :1207-1210). The plan's shape survived; what did not is below, and
+each item changed what was built.
+
+### What the skeptics refuted, and what it changed
+
+| Refuted                                                                                                                                                                                                                                                               | Built instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Sweep selects `expires_at < NOW(3)`; complete refuses at the same instant, so a client cannot lose a completion." `complete` checks `expiresAt < Date.now()` — the API host's clock, not the database's — and does so _before_ the provider call and the transaction | The cutoff is the host clock, bound as a parameter in both statements (`listExpired`, `organizationsHoldingExpired`), never `NOW(3)`. A one-minute grace (`sweepCutoff`, `EXPIRY_GRACE_MS`) covers a completion that passed its check just before expiry and is still streaming. What remains is stated honestly in the sweeper's header: a completion in flight when the sweep wins gets the illegal-transition 422 and may leave a provider object no version names — the complete/cancel race's shape, carried beside it |
+| "The abort is best-effort … audit metadata records `abort_failed`" — `releaseAs` swallowed the failure and returned one boolean; the plan's "transaction unchanged" could not know                                                                                    | `releaseAs` is split into `abortUpload` (answers whether the provider abandoned the upload) and `releaseInTransaction` (takes a callback that runs inside the release transaction). `expire` composes them and writes the audit row _in the same transaction_ with `abort_failed` and `counter_drift`; `cancel` and the refusal paths are unchanged in behaviour                                                                                                                                                            |
+| "Hook `FakeObjectStore.abortMultipart` to cancel mid-pass" — the fake has a throw-once flag and no callback                                                                                                                                                           | The suite subclasses it (`HookedObjectStore`, a once-only `onAbort`); `packages/storage` is untouched                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| "E2E-12b moves `expires_at` back by raw SQL" — the e2e package has no database client, and "a fresh session for the full quota is accepted" cannot be declared under the 500 MiB default                                                                              | `apps/api/test/age-upload-session-cli.ts`, driven from `stack.ts` the way the seed CLI is; `STORAGE_ORG_BYTES_LIMIT_BYTES` in the stack's API env is two of E2E-12a's uploads; the journey runs on BrightOps, whose counter no other spec touches, reserves the whole quota in one session, and proves 422 before the sweep and 201 after                                                                                                                                                                                   |
+| `bootstrapRead` needs a `correlationId` the plan omitted; `createTenantContext` needs five fields, not the two the question names                                                                                                                                     | One `uuidv7()` per pass, shared by the bootstrap read and every organization's context, so one pass's guard events, outbox rows and audit rows read together. `createServiceContext` decides all five                                                                                                                                                                                                                                                                                                                       |
+| `drizzle-orm` in feature code — found by the lint boundary, not a skeptic                                                                                                                                                                                             | The distinct-organizations statement is the repository's (`organizationsHoldingExpired`, over a `BootstrapQueryRunner`); the sweeper holds no driver handle                                                                                                                                                                                                                                                                                                                                                                 |
+| `sweep.ts` "runs one pass and exits" — the first E2E-12b run timed out at 120 s: `app.close()` leaves the pool open and idle connections keep the event loop alive                                                                                                    | The job ends its pool after `app.close()`, as the relay ends its own. Found by the journey, not by any suite: the database suite holds the sweeper in-process                                                                                                                                                                                                                                                                                                                                                               |
+
+For the later slices, recorded and not acted on: the DBML ledger omits `49` §5's asset/version
+and storage class (slice 2 must say what `object_type`/`object_id` carry and record the
+missing class as a divergence); `24` §5 wants every `usage.*` payload to carry the ledger
+entry, so the ledger id must be minted before the outbox append (additive, still v1); `25`
+§10 classes data repair as a separate command with dry-run and a bound organization, so
+slice 3's scheduled pass may detect and alert but not repair from the cron tick;
+`reconciled_at` is defined in 0015 as written against _provider_ inventory, and a ledger-only
+pass must not write it without amending that comment; `listActiveInternalMemberships` needs
+a project and a threshold event has none; the outbox is nullable on `FilesService`, so a
+ledger row beside it would carry a null `source_event_id` in a harness without one. And one
+question shrinks: the permission matrix (`12` row "Billing/ownership": owner full, org admin
+policy) already fixes slice 4's recipients as org-wide owner and admin memberships — no new
+capability; only slice 5's usage read still needs a name.
+
+### What was built
+
+| Piece            | Where                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The sweeper      | `apps/api/src/modules/files/upload-session-sweeper.ts` — one pass: a bootstrap read for the organizations holding `reserved` rows past the cutoff (`SWEEP_SCAN_REASON` on every guard event), then per organization a service context and batches of 100 over the org-prefixed index until a batch releases nothing; a release that throws is counted `failed`, named on `console.error`, and left for the next pass. Report: scanned / released / skipped / failed / counter drift / organizations |
+| The release      | `FilesService.expire` — abort best-effort, then the same transaction `cancel` uses, plus one audit row `upload_session.expired` (actor null, metadata `project_id`, `purpose`, `declared_bytes`, `expired_at`, `opened_by_user_id`, `counter_drift`, `abort_failed`). The discarded `counters.release` boolean is load-bearing here for the first time                                                                                                                                              |
+| The identity     | `createServiceContext` and `SERVICE_PRINCIPAL_ID` (the nil UUID, which `uuidv7()` cannot mint) in `tenant-context.ts`; `policyVersion` `'upload-expiry-sweep'`, after `'provisioning'` and `'invitation-acceptance'`; no capabilities                                                                                                                                                                                                                                                               |
+| The reads        | `UploadSessionsRepository.listExpired` (full index prefix, host clock bound) and `organizationsHoldingExpired` (the one unscoped read on the table, over a `BootstrapQueryRunner`)                                                                                                                                                                                                                                                                                                                  |
+| The drive        | `apps/api/src/sweep.ts` (`sweep:once`), on `composeAppModule` — the module composition extracted from `main.ts` so the job and the HTTP process are wired identically; `[sweeper] pass: …` on stderr; exit non-zero only when the pass itself could not run                                                                                                                                                                                                                                         |
+| The audit action | `'upload_session.expired'` in `packages/domain/src/policies/audit.ts`, object type `upload_session`                                                                                                                                                                                                                                                                                                                                                                                                 |
+| The proofs       | `apps/api/test/usage-001-expiry-sweeper.db.test.ts` (six cases); `e2e/setup/stack.ts` `sweepUploads` and `ageUploadSession`; E2E-12b in `upload-journeys.spec.ts`; `apps/api/test/age-upload-session-cli.ts`                                                                                                                                                                                                                                                                                        |
+
+Built under the planner's recommendations 1–4 and 10, each behind one named thing so a
+different answer from Peter is one edit: (1) `SERVICE_PRINCIPAL_ID` / `createServiceContext`;
+(2) `SWEEP_SCAN_REASON` and the bootstrap read in `organizationsHoldingExpired`; (3)
+`counter_drift` recorded in `expire`, never thrown; (4) `'upload_session.expired'`; (10)
+`sweep:once`, no scheduler in the process. One decision the plan did not have, numbered on
+from the ten questions — **11. the grace: sixty seconds** past `expires_at` before a pass
+may take a reservation (`EXPIRY_GRACE_MS`); nothing in the pack names a value.
+
+### Verification actually run — 2026-09-04, the sweeper session
+
+| Gate                                        | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `usage-001-expiry-sweeper.db.test.ts`       | **6 passed**: the abandoned taken and the live left (including one thirty seconds past expiry, inside the grace); a second pass scans nothing; a cancel between select and release is skipped and the bytes come back once; a refused abort still releases and the row says so; two tenants in one pass, each its own counter and audit row; a drifted counter recorded, the session still expired                                                                                                                                                                |
+| Batched revert proof, one suite run         | Three reversals at once — the grace to zero, the sweeper's abort to `required`, the counter's answer discarded — **exactly 3 of 6 red**: cases 1, 4 and 6, each on the assertion its reversal targets; the other three green. Restored from sha-checked copies (`b80cebf25790`, `adcfd2878a6a`), never with `git checkout`                                                                                                                                                                                                                                        |
+| `upload-journeys.spec.ts`, first run        | **E2E-12a green, E2E-12b timed out** at 120 s — the sweep reported and never exited (the pool). Fixed in `sweep.ts`; recorded because a suite could not have found it                                                                                                                                                                                                                                                                                                                                                                                             |
+| `upload-journeys.spec.ts`, second run       | **2 of 2 passed** (12b in 26 s): 201, 422 `exceeds the storage available`, aged, `released 1`, 201, the abandoned session reads `expired`, `drainOutbox` consumes the release without a failure, the accepted session cancelled                                                                                                                                                                                                                                                                                                                                   |
+| E2E revert proof, one run                   | The sweeper's release replaced by "skipped" — **E2E-12b red** on the report line, `scanned 1, released 0, skipped 1, failed 0`; E2E-12a green. Restored sha-identical                                                                                                                                                                                                                                                                                                                                                                                             |
+| `typecheck` api and e2e, `eslint`, prettier | Clean on every touched file before the chain; the lint boundary caught one `drizzle-orm` import in feature code and it was moved. Line endings LF throughout (`git ls-files --eol`)                                                                                                                                                                                                                                                                                                                                                                               |
+| **The chain** on `08ec1ea`, twice           | The first launch **died at the lint step** — a Git Bash `fork: Resource temporarily unavailable` on the machine, not a gate; `format:check` and `typecheck` had passed. The relaunch went **red in `packages/domain`**: `audit.test.ts` requires every action's clause to cite §12, and the new `upload_session.expired` clause cited `49-PRICING` and `24-EVENT-CATALOG` instead. One clause rewritten (`0de0b21`); domain rebuilt, its 136 unit cases green. Recorded because a gate that refuses a wording is a gate, and the chain, not the author, caught it |
+| **The chain** on `0de0b21`                  | @@CHAIN@@                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `mysqld` strays                             | None after any database run, either journey run, or the chain                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+`test:vr` was **not run and is not owed**: `packages/ui` is untouched.
+
+### What is still carried
+
+- **Slices 2–5 of USAGE-001** (ledger, reconciled counters, threshold events, the usage read),
+  under the skeptics' corrections above. The ticket stays open: one slice of five is built.
+- **The ten questions for Peter**, plus decision 11 (the grace). The sweeper runs under
+  recommendations 1–4 and 10 until he says otherwise.
+- **The complete/cancel race**, which is now also a complete/sweep race — same mechanism, same
+  fix (a claim on the row across the provider call), observable with the real driver.
+- **No rate limit on the public PUT.** Unchanged.
+- **The cron tick.** `sweep:once` exists; nothing on the Hostinger target runs it yet, as
+  nothing runs `relay:once`. Deployment's, not this slice's.
+
+### Ticket accounting
+
+No ticket closes: USAGE-001 is 8 points across five slices and one is built. **34 of 70
+tickets, 272 of 583 points (46.7%)**, unchanged; the twelve FILE-001 decisions, the ten
+FILE-001b decisions, decision 11 (the refused completion) and the sweeper's decision 11 (the
+grace) are Peter's to overturn.
+
+---
+
 ## USAGE-001 planned, not built — the fleet's plan, recorded for the next session
 
 Five read-only agents (four readers — the pack, the code, the background-work infrastructure,
@@ -770,7 +866,7 @@ without being announced.
 Neither line was a ticket. **34 of 70 tickets, 272 of 583 points (46.7%)**, unchanged; the
 twelve FILE-001 decisions, the ten FILE-001b decisions and decision 11 remain Peter's to
 overturn. Carried, unchanged: the complete/cancel race, no rate limit on the public PUT, the
-expiry sweeper (USAGE-001, next).
+expiry sweeper (USAGE-001, next — built in the session that followed).
 
 ---
 
@@ -1252,7 +1348,9 @@ bodies in a second, the forbidden-field net in a third — and the files restore
 - **FILE-003**: the orphaned object after a size mismatch (a lifecycle rule for objects with no
   version row); the audience of an internal `request_attachment`, resolved through `object_id`.
 - **USAGE-001**: the expiry sweeper (`ix_upload_sessions_org_status_expires` is its index); the
-  discarded `commit`/`release` booleans become load-bearing the day it runs.
+  discarded `commit`/`release` booleans become load-bearing the day it runs. _Built 2026-09-04
+  as slice 1 of five — see the sweeper session above; `release`'s answer is now recorded as
+  `counter_drift`, `commit`'s is still discarded._
 
 ### Ticket accounting
 
