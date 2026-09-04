@@ -9,6 +9,7 @@
     "test": "vitest run --project unit",
     "test:unit": "vitest run --project unit",
     "test:db": "vitest run --project database",
+    "sweep:once": "node dist/sweep.js --once",
     "db:migrate": "tsx src/common/database/cli.ts migrate",
     "db:status": "tsx src/common/database/cli.ts status",
     "db:grants": "tsx src/common/database/cli.ts grants",

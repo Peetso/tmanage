@@ -111,6 +111,52 @@ export function createTenantContext(input: TenantContextInput): TenantContext {
   });
 }
 
+/**
+ * The user id and membership id a `service` context carries.
+ *
+ * The nil UUID — the same value {@link UNRESOLVED_ORGANIZATION_ID} uses, for the same
+ * reason: `uuidv7()` cannot produce it, so it can never name a real person or a real
+ * membership row. A background job (spec section 10) has neither. It has an organization,
+ * because a service context is still bound to exactly one, and it has a correlation id, so
+ * the guard events, outbox rows and audit rows of one pass can be read together.
+ *
+ * Every audit row such a context writes must say `actorUserId: null` explicitly: the
+ * repository defaults the actor to `context.userId`, `audit_events.actor_user_id` is a
+ * foreign key to `users`, and this value is not a user. USAGE-001 decision 1 (the sweeper's
+ * identity) — a different answer from Peter is one edit here.
+ */
+export const SERVICE_PRINCIPAL_ID = '00000000-0000-0000-0000-000000000000';
+
+export interface ServiceContextInput {
+  readonly organizationId: string;
+  readonly correlationId: string;
+  /**
+   * Names the job, the way `'provisioning'` and `'invitation-acceptance'` name theirs — a
+   * literal no resolved context can produce, so a cache key or an authorization decision
+   * made under it can never be mistaken for a person's.
+   */
+  readonly policyVersion: string;
+}
+
+/**
+ * A context for a background job, bound to one organization and to nobody.
+ *
+ * No capabilities: a job reaches repositories directly (section 10, "background jobs run
+ * with scoped repositories") and never `authorize()`, so an empty list is the honest one —
+ * a capability here would be a claim nobody checked.
+ */
+export function createServiceContext(input: ServiceContextInput): TenantContext {
+  return createTenantContext({
+    organizationId: input.organizationId,
+    userId: SERVICE_PRINCIPAL_ID,
+    principalKind: 'service',
+    membershipId: SERVICE_PRINCIPAL_ID,
+    capabilities: [],
+    policyVersion: input.policyVersion,
+    correlationId: input.correlationId,
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Guarded query runner
 // ─────────────────────────────────────────────────────────────────────────────

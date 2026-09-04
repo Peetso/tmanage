@@ -9,7 +9,11 @@ import {
 import type { ObjectStore, StoredObject } from '@tmanage/storage';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import type {
   FileAssetRow,
   FileVersionRow,
@@ -186,6 +190,16 @@ interface Draft {
   readonly clientOrganizationId: string | null;
   readonly audience: Audience;
   readonly input: CreateUploadInput;
+}
+
+/** USAGE-001. What {@link FilesService.expire} did to one session. */
+export interface ExpiryOutcome {
+  /** `false` when the session had already left `reserved` — nothing was touched. */
+  readonly released: boolean;
+  /** Meaningful only when released. `false` is the counter drift the audit row records. */
+  readonly counterMoved: boolean;
+  /** The provider refused to abandon the upload; the reservation was released regardless. */
+  readonly abortFailed: boolean;
 }
 
 export class FilesService {
@@ -727,22 +741,107 @@ export class FilesService {
     cause: 'cancelled' | 'expired' | 'failed',
     abort: 'required' | 'best-effort' = 'required',
   ): Promise<boolean> {
+    await this.abortUpload(session, abort);
+    return this.releaseInTransaction(context, session, cause);
+  }
+
+  // ── The sweeper's door ─────────────────────────────────────────────────────
+
+  /**
+   * USAGE-001: expire one abandoned reservation — `49` §6 step 7 for a session nobody
+   * completed or cancelled before `expires_at`. Called by `UploadSessionSweeper` under a
+   * service context, never by a controller; the caller has already selected the row as
+   * past the cutoff, and this method does not re-check the clock — the conditional
+   * transition is the gate, so a session that `complete` or `cancel` moved in the meantime
+   * answers `released: false` and nothing else happens to it.
+   *
+   * The abort is best-effort, as it is for a completion the provider already refused: the
+   * reservation is what expiry exists to give back, and an upload the provider would not
+   * abandon is what lifecycle-abort (`50-BOOTSTRAP` §4) exists for. Whether it failed is
+   * recorded on the audit row rather than lost.
+   *
+   * One audit row per expired session, `actorUserId: null`, inside the release transaction
+   * (§3 step 8) — see `'upload_session.expired'` in the catalog for why. The counter's
+   * answer is captured there too: `counters.release` refuses when less than the declared
+   * bytes is outstanding, which on this path means the counter drifted from the sessions
+   * (a repaired or hand-edited row). Recorded as `counter_drift`, not thrown — a thrown
+   * drift would leave every session of that organization un-expirable until someone found
+   * it, and the reconciliation slice is what repairs the counter. USAGE-001 decision 3.
+   */
+  async expire(context: TenantContext, session: UploadSessionRow): Promise<ExpiryOutcome> {
+    const abortFailed = !(await this.abortUpload(session, 'best-effort'));
+    let counterMoved = false;
+    const released = await this.releaseInTransaction(
+      context,
+      session,
+      'expired',
+      async (tx, facts) => {
+        counterMoved = facts.counterMoved;
+        await this.audit?.record(tx, context, {
+          action: 'upload_session.expired',
+          objectId: session.id,
+          result: 'allowed',
+          actorUserId: null,
+          metadata: {
+            project_id: session.projectId,
+            purpose: session.purpose,
+            declared_bytes: session.declaredBytes,
+            expired_at: session.expiresAt.toISOString(),
+            opened_by_user_id: session.actorUserId,
+            counter_drift: !facts.counterMoved,
+            abort_failed: abortFailed,
+          },
+        });
+      },
+    );
+    return { released, counterMoved, abortFailed };
+  }
+
+  /**
+   * Ask the provider to abandon the upload. `true` when it did; `false` only in
+   * `best-effort` mode, when it refused and the caller carries on regardless.
+   */
+  private async abortUpload(
+    session: UploadSessionRow,
+    abort: 'required' | 'best-effort',
+  ): Promise<boolean> {
     try {
       await this.store.abortMultipart({
         zone: 'quarantine',
         objectKey: session.objectKey,
         providerUploadId: session.providerUploadId,
       });
+      return true;
     } catch (error) {
       if (abort === 'required') throw error;
       // Deliberately swallowed: the caller is answering a refusal the provider already
-      // made, and an upload left open is what lifecycle-abort (50-BOOTSTRAP §4) exists for.
+      // made, or expiring a session nobody will finish, and an upload left open is what
+      // lifecycle-abort (50-BOOTSTRAP §4) exists for.
+      return false;
     }
+  }
+
+  /**
+   * The release itself, in one transaction: the conditional status move, the counter, the
+   * asset, the event, and whatever the caller must record beside them. `false` when the
+   * session had already left `reserved`, in which case nothing below the transition ran.
+   */
+  private releaseInTransaction(
+    context: TenantContext,
+    session: UploadSessionRow,
+    cause: 'cancelled' | 'expired' | 'failed',
+    then?: (tx: TenantQueryRunner, facts: { readonly counterMoved: boolean }) => Promise<void>,
+  ): Promise<boolean> {
     return this.writing(() =>
       this.database.transaction(context, async (tx) => {
         const moved = await this.sessions.transition(tx, context, session.id, ['reserved'], cause);
         if (!moved) return false;
-        await this.counters.release(tx, context, STORAGE_BYTES_METRIC, session.declaredBytes);
+        const counterMoved = await this.counters.release(
+          tx,
+          context,
+          STORAGE_BYTES_METRIC,
+          session.declaredBytes,
+        );
         await this.assets.transition(
           tx,
           context,
@@ -759,6 +858,7 @@ export class FilesService {
             cause,
           },
         });
+        await then?.(tx, { counterMoved });
         return true;
       }),
     );

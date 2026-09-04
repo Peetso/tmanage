@@ -61,3 +61,5 @@ export const UPLOAD_SESSIONS_REPOSITORY = Symbol.for('tmanage.UploadSessionsRepo
 export const FILE_ASSETS_REPOSITORY = Symbol.for('tmanage.FileAssetsRepository');
 export const USAGE_COUNTERS_REPOSITORY = Symbol.for('tmanage.UsageCountersRepository');
 export const FILES_SERVICE = Symbol.for('tmanage.FilesService');
+/** USAGE-001. The expiry sweeper — resolved by `sweep.ts`, never by a controller. */
+export const UPLOAD_SESSION_SWEEPER = Symbol.for('tmanage.UploadSessionSweeper');

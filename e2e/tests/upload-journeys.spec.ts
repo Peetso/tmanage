@@ -2,7 +2,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext } from '@playwright/test';
-import { API_URL, WEB_URL } from '../setup/stack.js';
+import { API_URL, WEB_URL, ageUploadSession, drainOutbox, sweepUploads } from '../setup/stack.js';
 
 /**
  * The upload, end to end, through the real API and the real filesystem driver (FILE-001b).
@@ -14,6 +14,14 @@ import { API_URL, WEB_URL } from '../setup/stack.js';
  *   the run's storage root. This is the one place the 8 MiB part crosses HTTP: the database
  *   suite drives the same route at sixteen bytes a part, which proves the protocol and not
  *   the body limit. Leaving Fastify's 1 MiB default in place would pass every other test.
+ *
+ * - **E2E-12b** (USAGE-001) — a BrightOps owner reserves the tenant's whole quota in one
+ *   session and never sends a byte; the next reservation is refused
+ *   (`storage_quota_exhausted`). The session is aged past its lifetime, the sweep runs as a
+ *   deployment's tick would (`sweep:once`), and the same reservation is now accepted; the
+ *   abandoned session reads `expired`, and the relay consumes the release without a failure.
+ *   BrightOps rather than Northstar so the quota arithmetic owes nothing to E2E-12a's
+ *   committed bytes.
  *
  * Not E2E-12 itself: no interrupt, no resume, no scan, no download. Those are FILE-002's and
  * FILE-003's, and the catalog row stays unclaimed until they exist.
@@ -33,6 +41,11 @@ interface World {
     readonly organizationId: string;
     readonly projectId: string;
     readonly manager: SeededUser;
+  };
+  readonly brightops: {
+    readonly organizationId: string;
+    readonly projectId: string;
+    readonly owner: SeededUser;
   };
 }
 
@@ -148,6 +161,71 @@ test.describe('the upload journey', () => {
     );
     expect(fresh[0]?.size).toBe(DECLARED);
     expect(filesUnder(join(root, 'uploads'))).toHaveLength(0);
+
+    await studio.close();
+  });
+
+  test('E2E-12b: an abandoned upload is released by the sweep, and the quota is free again', async ({
+    browser,
+  }) => {
+    const databaseUrl = process.env['TMANAGE_E2E_DATABASE_URL'] as string;
+    const root = process.env['TMANAGE_E2E_STORAGE_ROOT'] as string;
+    expect(databaseUrl).toBeTruthy();
+    // `stack.ts` sets the organization quota to two of E2E-12a's uploads.
+    const QUOTA = 2 * DECLARED;
+
+    const studio = await browser.newContext();
+    await signIn(studio, world().brightops.owner.id);
+    const headers = { 'x-csrf-token': await csrfToken(studio), origin: WEB_URL };
+    const open = (sizeBytes: number, key: string) =>
+      studio.request.post(`${API_URL}/v1/organizations/brightops-consulting/upload-sessions`, {
+        headers: { ...headers, 'idempotency-key': `e2e-12b-${key}-${Date.now()}` },
+        data: {
+          projectId: world().brightops.projectId,
+          fileName: 'finance-review.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes,
+          purpose: 'deliverable',
+        },
+      });
+
+    // The whole quota, reserved by one session nobody will finish.
+    const abandoned = await open(QUOTA, 'abandoned');
+    expect(abandoned.status(), await abandoned.text()).toBe(201);
+    const session = (await abandoned.json()) as UploadSession;
+    expect(session.status).toBe('reserved');
+
+    // The next byte is refused — the reservation is counted whether or not bytes follow.
+    const refused = await open(16, 'refused');
+    expect(refused.status()).toBe(422);
+    const refusal = (await refused.json()) as { error: { code: string } };
+    expect(refusal.error.code).toBe('validation_failed');
+    expect(await refused.text()).toContain('exceeds the storage available');
+
+    // Time passes. The sweep runs as the deployment's tick would.
+    await ageUploadSession(databaseUrl, session.id);
+    const report = await sweepUploads(databaseUrl, root);
+    expect(report).toMatch(/released [1-9]/);
+
+    // The same reservation is now accepted, and the abandoned session reads expired.
+    const accepted = await open(16, 'accepted');
+    expect(accepted.status(), await accepted.text()).toBe(201);
+    const read = await studio.request.get(
+      `${API_URL}/v1/organizations/brightops-consulting/upload-sessions/${session.id}`,
+    );
+    expect(read.status()).toBe(200);
+    expect(((await read.json()) as UploadSession).status).toBe('expired');
+
+    // The release is an event; the relay consumes it without a failure.
+    await drainOutbox(databaseUrl, root);
+
+    // Leave the tenant as found.
+    const fresh = (await accepted.json()) as UploadSession;
+    const cancelled = await studio.request.post(
+      `${API_URL}/v1/organizations/brightops-consulting/upload-sessions/${fresh.id}/cancel`,
+      { headers },
+    );
+    expect(cancelled.status(), await cancelled.text()).toBe(200);
 
     await studio.close();
   });

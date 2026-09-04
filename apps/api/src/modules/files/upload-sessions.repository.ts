@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
@@ -9,7 +9,11 @@ import type {
   UploadSessionStatus,
   UploadTargetJson,
 } from '../../common/database/schema.js';
-import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import type {
+  BootstrapQueryRunner,
+  TenantContext,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 
 /**
  * Upload sessions — the reservation with its declaration attached (0015's header on why the
@@ -115,6 +119,54 @@ export class UploadSessionsRepository {
       )
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /**
+   * USAGE-001: the reservations the sweeper is for — still `reserved`, past the cutoff,
+   * oldest first. The predicate is the full prefix of `ix_upload_sessions_org_status_expires`
+   * (organization, status, expires_at), which is the index 0015 created for exactly this
+   * read. `before` is the caller's clock, bound as a parameter rather than `NOW(3)`: the
+   * session's `expires_at` was minted from the API host's clock and `complete` refuses
+   * against that same clock, so the sweeper compares against it too — two clocks would
+   * let the sweeper expire a session `complete` still accepted.
+   */
+  async listExpired(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    before: Date,
+    limit: number,
+  ): Promise<readonly UploadSessionRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(uploadSessions)
+      .where(
+        and(
+          eq(uploadSessions.organizationId, context.organizationId),
+          eq(uploadSessions.status, 'reserved'),
+          lt(uploadSessions.expiresAt, before),
+        ),
+      )
+      .orderBy(asc(uploadSessions.expiresAt), asc(uploadSessions.id))
+      .limit(Math.min(Math.max(limit, 1), MAX_PAGE_SIZE));
+  }
+
+  /**
+   * USAGE-001's cross-tenant half: which organizations hold a `reserved` session past the
+   * cutoff. The one read on this table with no tenant predicate, and therefore the one that
+   * takes a `BootstrapQueryRunner` — the caller declares the reason and the allowlist, and
+   * the escape hatch refuses anything but a select on `upload_sessions`. A `select
+   * distinct` over the same index {@link listExpired} uses.
+   */
+  async organizationsHoldingExpired(
+    runner: BootstrapQueryRunner,
+    before: Date,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ organizationId: uploadSessions.organizationId })
+      .from(uploadSessions)
+      .where(and(eq(uploadSessions.status, 'reserved'), lt(uploadSessions.expiresAt, before)))
+      .orderBy(asc(uploadSessions.organizationId));
+    return rows.map((row) => row.organizationId);
   }
 
   async requireById(

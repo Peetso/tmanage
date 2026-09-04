@@ -10,6 +10,7 @@ import {
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
   UPLOAD_SESSIONS_REPOSITORY,
+  UPLOAD_SESSION_SWEEPER,
   USAGE_COUNTERS_REPOSITORY,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
@@ -22,6 +23,7 @@ import { FileAssetsRepository } from './file-assets.repository.js';
 import { UploadSessionsRepository } from './upload-sessions.repository.js';
 import { UsageCountersRepository } from './usage-counters.repository.js';
 import { FilesService } from './files.service.js';
+import { UploadSessionSweeper } from './upload-session-sweeper.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
 import { UploadPartsController } from './upload-parts.controller.js';
@@ -90,10 +92,23 @@ export class FilesModule {
         ),
     };
 
+    // USAGE-001. The sweeper is a job, not a route: exported so `sweep.ts` can resolve it
+    // from the application context, and constructed on the same service instance the
+    // controllers use, so its release is the one `cancel` makes.
+    const sweeper: Provider = {
+      provide: UPLOAD_SESSION_SWEEPER,
+      inject: [TENANT_DATABASE, UPLOAD_SESSIONS_REPOSITORY, FILES_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        sessions: UploadSessionsRepository,
+        files: FilesService,
+      ) => new UploadSessionSweeper(database, sessions, files),
+    };
+
     return {
       module: FilesModule,
-      providers: [...repositories, service],
-      exports: [service],
+      providers: [...repositories, service, sweeper],
+      exports: [service, sweeper],
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,

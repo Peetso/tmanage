@@ -360,6 +360,20 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 publication — a file that reaches the store is the first record of a disclosure; ' +
       '24-EVENT-CATALOG §4 grades upload.completed.v1 a security log',
   },
+  /**
+   * USAGE-001. The sweeper's one row per session it expires. Nobody acted — the actor is
+   * null, the documented system case — and it is the only trace that a leaver's abandoned
+   * reservation was cleaned rather than left counted against the tenant forever
+   * (implementation-status, FILE-001b decision 7). `24-EVENT-CATALOG` §4 grades
+   * `usage.storage_released.v1` audit "conditional"; expiry is the condition, because a
+   * cancel is a person's act on the API and an expiry is nobody's.
+   */
+  'upload_session.expired': {
+    objectType: 'upload_session',
+    clause:
+      '49-PRICING §6 step 7 — expiry releases reserved bytes; 24-EVENT-CATALOG §4 grades ' +
+      'usage.storage_released.v1 audit conditional, and a release nobody asked for is the condition',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the

@@ -70,6 +70,10 @@ function apiEnv(databaseUrl: string, storageRoot?: string): NodeJS.ProcessEnv {
     STORAGE_BUCKET: 'e2e-local',
     STORAGE_LOCAL_SIGNING_SECRET: 'local_dev_only_storage_signing_secret_for_the_e2e_xxx',
     ...(storageRoot ? { STORAGE_FILESYSTEM_ROOT: storageRoot } : {}),
+    // USAGE-001 / E2E-12b. Two of E2E-12a's uploads, so a journey can fill a tenant's
+    // quota with one abandoned reservation and see the sweep give it back — the default
+    // 500 MiB would take sixty such uploads to exhaust. E2E-12a still fits.
+    STORAGE_ORG_BYTES_LIMIT_BYTES: String(2 * (8 * 1024 * 1024 + 16)),
     QUEUE_DRIVER: 'memory',
     CACHE_DRIVER: 'memory',
     EMAIL_DRIVER: 'console',
@@ -187,6 +191,52 @@ export async function drainOutbox(databaseUrl: string, storageRoot?: string): Pr
     if (/^claimed 0,/.test(report)) return reports.join('\n');
   }
   throw new Error(`drainOutbox: still claiming after ${passes} batches\n${reports.join('\n')}`);
+}
+
+/**
+ * Run USAGE-001's expiry sweeper once, to completion — E2E-12b's step between "abandoned"
+ * and "the quota is free again".
+ *
+ * The API's own `sweep.ts`, the shape `sweep:once` deploys, with the environment the API
+ * got: the same database, the same storage root, so the abort reaches the same driver
+ * that opened the upload. One invocation is one whole pass — the sweeper batches
+ * internally until nothing is left — so, unlike {@link drainOutbox}, there is no loop
+ * here. The report line is the sweeper's `[sweeper] pass:` on stderr; a release that
+ * threw is `failed N` in it and the process still exits zero, so the helper reads the
+ * count and fails the journey itself.
+ */
+export async function sweepUploads(databaseUrl: string, storageRoot?: string): Promise<string> {
+  const { stdout, stderr } = await run(
+    'pnpm',
+    ['--filter', '@tmanage/api', 'exec', 'tsx', 'src/sweep.ts', '--once'],
+    { cwd: REPO_ROOT, env: apiEnv(databaseUrl, storageRoot) },
+  );
+  const report = /\[sweeper\] pass: (.*)/.exec(`${stderr}\n${stdout}`)?.[1]?.trim();
+  if (!report) {
+    throw new Error(`sweepUploads: the sweeper printed no report\n${stderr}\n${stdout}`);
+  }
+  const failed = Number(/failed (\d+)/.exec(report)?.[1] ?? '0');
+  if (failed > 0) throw new Error(`sweepUploads: a release failed — ${report}`);
+  return report;
+}
+
+/**
+ * Move one upload session's `expires_at` a day into the past, so the next sweep treats it
+ * as abandoned. Through the API package's own CLI (`test/age-upload-session-cli.ts`), the
+ * way the seed is: this package holds no database client, and is meant not to.
+ */
+export async function ageUploadSession(
+  databaseUrl: string,
+  uploadSessionId: string,
+): Promise<void> {
+  const { stdout } = await run(
+    'pnpm',
+    ['--filter', '@tmanage/api', 'exec', 'tsx', 'test/age-upload-session-cli.ts', uploadSessionId],
+    { cwd: REPO_ROOT, env: { ...process.env, TMANAGE_SEED_DATABASE_URL: databaseUrl } },
+  );
+  const line = stdout.trim().split('\n').pop() as string;
+  const { aged } = JSON.parse(line) as { aged: number };
+  if (aged !== 1) throw new Error(`ageUploadSession: ${aged} rows aged for ${uploadSessionId}`);
 }
 
 export async function bootStack(): Promise<StackState & { stop: () => Promise<void> }> {

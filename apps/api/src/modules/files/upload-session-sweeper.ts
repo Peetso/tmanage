@@ -1,0 +1,200 @@
+import { uuidv7 } from '@tmanage/domain';
+import { createServiceContext } from '../../common/database/tenant-context.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { FilesService } from './files.service.js';
+import type { UploadSessionsRepository } from './upload-sessions.repository.js';
+
+/**
+ * USAGE-001, slice 1 — the expiry sweeper: `49-PRICING` §6 step 7 for the reservations
+ * nobody completed or cancelled.
+ *
+ * An upload session is a reservation against the organization's storage quota, and a
+ * browser that closed mid-upload, or a person who left (FILE-001b decision 7), leaves the
+ * bytes counted and the provider upload open. Until this ran, the only thing that returned
+ * them was the next `complete` call on that session, which nobody was going to make. One
+ * pass here finds every `reserved` session past the cutoff, in every organization, and
+ * expires each one through {@link FilesService.expire} — the same release `cancel` and a
+ * refused completion use, with `usage.storage_released.v1` (cause `expired`) as its event
+ * and one audit row as its trace.
+ *
+ * ## Why it lives in the API and not the worker
+ *
+ * The release must ask the object store to abandon the upload, and the worker has no
+ * storage driver; and the worker credential has no `UPDATE` on `upload_sessions`,
+ * `usage_counters` or `file_assets` (`scripts/db/users.sql`), while `tmanage_app` does. It
+ * is driven the way the relay is: `sweep:once`, one pass and exit, from the same external
+ * tick — decision 10.
+ *
+ * ## Why the scan is two steps
+ *
+ * A `TenantContext` binds one organization, and the index for this read
+ * (`ix_upload_sessions_org_status_expires`) is organization-prefixed, so the pass first
+ * asks, unscoped, *which* organizations hold expired reservations — through
+ * `bootstrapRead`, the audited escape hatch, with a reason string that names this use —
+ * and then sweeps each under its own service context, in batches, until a batch releases
+ * nothing. Decision 2: this is a new use of the escape hatch, recorded as such.
+ *
+ * ## The clock
+ *
+ * `expires_at` was minted from the API host's clock and `complete` refuses against that
+ * same clock, so the cutoff is taken from it too and bound as a parameter — never
+ * `NOW(3)`. Two clocks would let this expire a session `complete` still accepted.
+ *
+ * ## What one pass cannot promise
+ *
+ * A completion that passed its expiry check a moment before expiry and is still talking to
+ * the provider when this pass moves the row loses: its transaction finds the session
+ * `expired` and answers the illegal-transition 422, and the provider may hold a completed
+ * object no version row names (FILE-003's orphan lifecycle). {@link sweepCutoff}'s grace
+ * makes that window as wide as the slowest completion the driver allows; the conditional
+ * transition guarantees that at most one of the two moves the row. This is the same shape
+ * as the carried complete/cancel race, and is recorded beside it.
+ */
+
+export interface SweepReport {
+  /** Organizations that held at least one expired reservation when the pass began. */
+  readonly organizations: number;
+  /** Rows the per-organization batches selected, over the whole pass. */
+  readonly scanned: number;
+  /** Rows this pass moved to `expired`. */
+  readonly released: number;
+  /** Rows that had left `reserved` between selection and release — a complete, a cancel, or another pass. */
+  readonly skipped: number;
+  /** Rows whose release threw. Logged by the caller; the row stays `reserved` for the next pass. */
+  readonly failed: number;
+  /** Released rows whose counter refused the release — recorded on their audit rows as `counter_drift`. */
+  readonly counterDrift: number;
+}
+
+/** The `policyVersion` every sweeper context carries — a literal no resolved context can produce. */
+export const SWEEP_POLICY_VERSION = 'upload-expiry-sweep';
+
+/** Rows per organization per batch. A batch is one select and one release per row. */
+export const SWEEP_BATCH_SIZE = 100;
+
+/** A ceiling on batches per organization per pass, so a row that fails every time cannot loop forever. */
+const MAX_BATCHES_PER_ORGANIZATION = 100;
+
+/**
+ * How long past `expires_at` a reservation must be before a pass may take it — a minute.
+ *
+ * `complete` refuses a session at `expires_at` exactly, so a client gains nothing from the
+ * grace; what it buys is that a completion which passed that check *just* before expiry
+ * and is still streaming the last part to the provider is not undercut by a pass that
+ * started a second later. Nothing in the pack names a value; this one is the sweeper's
+ * and is Peter's to change (USAGE-001 decision 11) — one edit here.
+ */
+export const EXPIRY_GRACE_MS = 60_000;
+
+/** The instant before which a `reserved` session counts as abandoned. */
+export function sweepCutoff(now: Date): Date {
+  return new Date(now.getTime() - EXPIRY_GRACE_MS);
+}
+
+/**
+ * The context one organization is swept under. Decision 1: a service context bound to the
+ * organization and to nobody — see `createServiceContext` for the sentinel and why every
+ * audit row on this path names `actorUserId: null` explicitly.
+ */
+export function sweeperContextFor(organizationId: string, correlationId: string): TenantContext {
+  return createServiceContext({
+    organizationId,
+    correlationId,
+    policyVersion: SWEEP_POLICY_VERSION,
+  });
+}
+
+/** The reason string the bootstrap read records on every guard event it raises. */
+export const SWEEP_SCAN_REASON =
+  'finding which organizations hold upload reservations past their expiry, so each can be ' +
+  'swept under its own service context (USAGE-001)';
+
+export class UploadSessionSweeper {
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly sessions: UploadSessionsRepository,
+    private readonly files: FilesService,
+    /** Injectable for the suite; the process clock otherwise. */
+    private readonly now: () => Date = () => new Date(),
+    /** Where a failed release is reported. The row is named, never its payload. */
+    private readonly onFailure: (uploadSessionId: string, error: unknown) => void = (id, error) =>
+      console.error(`[sweeper] releasing upload session ${id} failed`, error),
+  ) {}
+
+  /** One pass over every organization. Safe to run again at once: a second pass finds nothing. */
+  async sweep(): Promise<SweepReport> {
+    const correlationId = uuidv7();
+    const cutoff = sweepCutoff(this.now());
+    const organizations = await this.organizationsHoldingExpired(cutoff, correlationId);
+
+    let scanned = 0;
+    let released = 0;
+    let skipped = 0;
+    let failed = 0;
+    let counterDrift = 0;
+
+    for (const organizationId of organizations) {
+      const context = sweeperContextFor(organizationId, correlationId);
+      for (let batch = 0; batch < MAX_BATCHES_PER_ORGANIZATION; batch += 1) {
+        const rows = await this.database.read(context, (db) =>
+          this.sessions.listExpired(db, context, cutoff, SWEEP_BATCH_SIZE),
+        );
+        scanned += rows.length;
+        let releasedInBatch = 0;
+        for (const row of rows) {
+          try {
+            const outcome = await this.files.expire(context, row);
+            if (outcome.released) {
+              released += 1;
+              releasedInBatch += 1;
+              if (!outcome.counterMoved) counterDrift += 1;
+            } else {
+              skipped += 1;
+            }
+          } catch (error) {
+            failed += 1;
+            this.onFailure(row.id, error);
+          }
+        }
+        // A batch that released nothing has only rows that failed or were taken by
+        // someone else; selecting again would find the same rows.
+        if (rows.length < SWEEP_BATCH_SIZE || releasedInBatch === 0) break;
+      }
+    }
+
+    return {
+      organizations: organizations.length,
+      scanned,
+      released,
+      skipped,
+      failed,
+      counterDrift,
+    };
+  }
+
+  /**
+   * The cross-tenant half: which organizations hold a `reserved` session past the cutoff.
+   * The escape hatch is read-only, allowlisted to `upload_sessions`, and raises a guard
+   * event per statement carrying {@link SWEEP_SCAN_REASON}; the statement itself is the
+   * repository's.
+   */
+  private organizationsHoldingExpired(
+    cutoff: Date,
+    correlationId: string,
+  ): Promise<readonly string[]> {
+    return this.database.bootstrapRead(
+      { correlationId, reason: SWEEP_SCAN_REASON, tables: ['upload_sessions'] },
+      (db) => this.sessions.organizationsHoldingExpired(db, cutoff),
+    );
+  }
+}
+
+/** The one line a pass prints — `e2e/setup/stack.ts`'s `sweepUploads` parses it. */
+export function describeSweep(report: SweepReport): string {
+  return (
+    `scanned ${report.scanned}, released ${report.released}, skipped ${report.skipped}, ` +
+    `failed ${report.failed}` +
+    (report.counterDrift > 0 ? `, ${report.counterDrift} with counter drift` : '') +
+    ` (${report.organizations} organization(s))`
+  );
+}
