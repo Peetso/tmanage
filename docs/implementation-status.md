@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-05 (completing-claim session; the carried race closed; chain green on 35613f2; FILE-002 planned) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-05 (FILE-002 slice A session; the verification pass built and proved; Peter delegated F1–F5; chain green on 2a3bd3a) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -698,6 +698,131 @@ pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db &&
 Outside the chain, `pnpm test:e2e`: **10 passed** in ~1.8 m against the full booted stack — up
 from 7. `pnpm test:vr` was **not run and is not owed**: `packages/ui` source, styles and stories
 are untouched.
+
+---
+
+## FILE-002 slice A — the verification pass, built and proved
+
+Read after the thirty-fourth reconciliation, on a green chain with nothing owed. Mid-session
+Peter wrote (Egyptian Arabic, 2026-09-05): _take the most suitable decisions yourself; the
+ten old questions you already answered anyway; continue._ So **F1–F5, USAGE-001's ten
+questions and decisions 11 and 12 are no longer "blocked on Peter"**: each recommendation
+recorded below the plan is the decision, attributed "Peter delegated, 2026-09-05", and
+each stays recorded with its trade-off so he can reverse one later. Slice B is therefore
+unblocked; this session built slice A.
+
+### The plan refuted first
+
+Eight read-only readers (run `wf_f84dd4df-6f9`: the repository and trigger, the audit
+rule, the outbox and contracts, the sweeper's wiring, the storage port, the config and
+views, the planning documents, and one adversarial lens) re-read every line the plan cites.
+What the plan got wrong, and what changed because of it:
+
+- **`49` §4 has three key layouts, not two** (quarantine, private, derived, :59–67). The
+  divergence F1 records is unchanged in substance — the key must change across zones and
+  the trigger forbids it — but the count in the plan was wrong.
+- **`24` §7 is "machine-readable schemas"; the "never raw content" rule is §1** (:5).
+  `24` :63 (not :65) is the storage-usage minimum; `49` :72 (not :73) is the separate
+  identities sentence. The plan's cites are corrected here rather than in the plan.
+- **0015's header was right and two other texts were wrong.** 0015 :107–109 rests
+  immutability on structure and privilege only; the false sentence "the trigger refuses the
+  UPDATE for every credential" lived in `FileAssetsRepository`'s header and in
+  `users.sql`. Both are rewritten; 0018's header records what the trigger actually pinned.
+- **The audit key `content_hash` is refused** — `content` is a forbidden segment, as are
+  `reason` and `signature`; and **no MIME type can be a metadata value** (no `/`). The row
+  carries `sha256`, `detected_type` as a family token, `rejection_code`.
+- **`users-sql.test.ts` needs no edit** for a new grant, `migrator.test.ts` counts nothing,
+  no test snapshots DDL. `file-001-quota`'s "size_bytes stays immutable" assertion stands.
+- **The database suite runs as the admin credential on this machine.** The least-privilege
+  pool is used only when `TMANAGE_TEST_APP_DATABASE_URL` is set, which only the dead CI job
+  does. **The new `UPDATE` grant is therefore proven statically (the grants test) and not at
+  runtime here** — recorded honestly, with the trigger as the control that matters.
+- **The pack assigns provider size/checksum to completion** (`49` :106), which FILE-001
+  already does; the pass owns the client's declaration and the bytes' signature.
+- **`27` REL-05: "scan worker failure: file remains quarantined and retryable"** — so a
+  failure of the pass is an error that moves nothing, never a rejection.
+- **The DBML contract disagrees with the schema**: `tmanage-core.dbml` :190 has
+  `content_hash [not null]` and no `detected_mime_type`; `file_assets` there has no
+  `rejection_code`. The schema (0015) is what runs; recorded as a contract divergence.
+- **`35` :100 fixes the rejection copy** — "did not pass the security check", a
+  correlation id, no reason — while `22` :154 asks for a "rejection reason". `12` §39 makes
+  `rejection_code` and the detected type security metadata. The client projection is slice
+  C's, and it will show the copy, not the code.
+- The adversarial lens's doors, all confirmed and all built in: the family rule (an Office
+  document is a ZIP), markup refused before the family is asked, signatures at offset zero
+  only, the textual rule over the whole object, the opened size held to the row, a missing
+  object as an error, a store that is not wired stopping the pass, and the redelivery that
+  hashes differently as an error and never a rewrite.
+
+### What was built
+
+| Piece                                                | Where                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`ObjectStore.openObject`** — the port's first read | `packages/storage/src/object-store.ts`, header rewritten: the rule that admitted a read (`23` §10's "authorized processing", `03` §108), why it is not a download, and the contract FILE-003's `s3` driver must keep — presign `UploadPart`, never `PutObject`, or hash-then-promote is a TOCTOU. The filesystem driver `lstat`s and refuses anything that is not a regular file (a planted symbolic link would otherwise be hashed and later served); the fake answers bytes a suite seeds; the stub rejects                                                            |
+| **The allowlist and the judge** (decision F5)        | `apps/api/src/modules/files/content-signature.ts`: PDF, PNG, JPEG, GIF, WebP, the ZIP family (`application/zip` and the three OOXML types, recorded as the declared member — the container signature cannot tell them apart and the contents are **not** inspected), and text (`plain`, `csv`, `markdown`: valid UTF-8 over the whole object, no NUL, no markup). SVG and HTML absent; a first byte of `<` is `type_not_allowed` whatever was declared; the deep marker scan is applied to the text family only, because a PDF's XMP packet may legitimately say `<?xml` |
+| **The pass**                                         | `file-verifier.ts`: `uploaded → verifying` as the per-asset claim; one stream — digest, the first 8 KiB, the text check; the declaration compared first, then the type; one transaction — `recordVerification` (conditional on NULL), the move with its facts, the audit row, `file.rejected.v1` on a rejection. `verify.ts` + `verify:once` beside `sweep:once`. **Stale `verifying` rows older than `STALE_VERIFYING_MS` are re-run — decision 13, fifteen minutes, one edit**                                                                                         |
+| **Facts written, not only checked**                  | `FileAssetsRepository.transition` projects `rejectionCode` to `rejection_code`; `recordVerification`; `listAwaitingVerification`; `organizationsAwaitingVerification` through the bootstrap hatch with its own reason string (`tables: ['file_assets']`, a new use, recorded). `UploadSessionsRepository.findCompletedForAsset` for the declared hash                                                                                                                                                                                                                    |
+| **Migration 0018**                                   | Recreates `trg_file_versions_immutable`: every column pinned outright, `content_hash` and `detected_mime_type` **write-once** (`OLD IS NOT NULL AND NOT (NEW <=> OLD)`); corrects 0015's header. **Deployment: one more migration to apply, and `users.sql` to re-apply** — `UPDATE` on `file_versions` for `tmanage_app` (decision F2)                                                                                                                                                                                                                                  |
+| **Three audit actions, one event, one rule**         | `file_asset.verified` (allowed), `file_asset.rejected` (denied — and `AuditEventsRepository` now refuses any other result for it, the second such rule after `security.capability_denied`), `file_asset.scan_failed` (error); `file.rejected.v1` with aggregate `file_asset` — the first event on that aggregate, a departure from FILE-001's `upload_session` choice, recorded — carrying ids and the code, no name, no type, no digest                                                                                                                                 |
+
+Nothing is promoted, nothing is `ready`, nothing is deleted, and a rejected object stays in
+quarantine with its bytes counted (decision F4, `49` §5/§108's inference).
+
+### Decisions taken under Peter's delegation
+
+- **F1** — the trust zone will be a column and the key stable across zones (slice B).
+- **F2** — the pass runs in the API under `tmanage_app` with one new grant; `49` §72's
+  separate quarantine identity is the paid-beta follow-up.
+- **F3** — slice B adds `MALWARE_SCAN_DRIVER=none` as a real member that records
+  `unscanned` and leaves the asset at `scanning`, never `ready`.
+- **F4** — rejected bytes stay counted until FILE-003 deletes them.
+- **F5** — the seven families above; SVG and HTML refused.
+- **13** — `STALE_VERIFYING_MS`, fifteen minutes.
+- USAGE-001's ten questions and decisions 11 (60 s grace) and 12 (15 min claim bound) stand
+  as recommended.
+
+### Verification actually run — 2026-09-05, the FILE-002 slice A session
+
+| Gate                                                  | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content-signature.test.ts` (unit)                    | **14 passed**: each family by its signature, the Office container as its declared member, spoofed labels as `type_mismatch`, a polyglot with `%PDF-` at byte 606 refused, a zero-byte object, SVG-as-PNG and HTML-as-PDF as `type_not_allowed`, markup behind a BOM and buried in markdown, the deep scan not applied to a PDF's XMP, UTF-8 split across chunks, a NUL and an invalid sequence anywhere                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `packages/storage` (unit)                             | **44 passed** (36 + 8): the fake's `openObject`, the driver's — the sealed object streamed, not-found for another key or zone, a directory refused, the key checked before disk. **The symbolic-link case cannot be built on this machine** (`symlinkSync` is `EPERM` without the privilege) and returns early; the `isFile()` check it would exercise is reached by the directory case                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `file-002-verification.db.test.ts`                    | **10 passed**, the real filesystem driver through `forLocalStore`, bytes PUT through the public route: a clean PDF verified (digest, detected type, `scanning`, one `verified` row with no actor and no filename, a second pass finds nothing); no declared hash → `declared_hash_present: false`; a hash mismatch rejected with the digest recorded, one `denied` row, one `file.rejected.v1`, the object still on disk and still counted; six files in one pass — SVG, HTML-as-PDF, PNG-as-PDF, a `.docx`, a CSV, text with a NUL — 2 verified, 4 rejected with no slash in any metadata value; two organizations; a stale `verifying` row re-run and a fresh one left; a missing object → `scan_failed` `object_not_found`, row stays `verifying`, re-tried once stale; a truncated object → `size_mismatch`, no verdict; `file_asset.rejected` as `allowed` refused before any row; 0018 refuses a rewrite of the verdict and keeps the rest immutable |
+| Revert proofs, one run                                | Ten reversals at once, each keeping the others' preconditions — **A** `transition` drops `rejectionCode`, **B** the declared hash compared to nothing, **C** the family consulted before the markup check, **K** `%PDF-` searched for instead of matched at zero, **D** 0018 without the write-once pins, **E1/E2** the two reads selecting `uploaded` only, **H1/H2** the size not held to the row, **I** a rejection filed as `allowed` — **unit exactly 2 of 14 red** (the polyglot, SVG-as-PNG), **database exactly 7 of 10 red** (the hash mismatch, SEC-06, decision 13, the missing object's re-run, the truncated object, the audit rule, the trigger). Restored from sha-checked copies, `save` first on its own line                                                                                                                                                                                                                             |
+| `file-001-quota`, `migrator` (db)                     | **29 passed**: the old immutability assertion and the migration ledger with 0018                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `typecheck` (the chain's project), `eslint`, prettier | Clean. Line endings LF throughout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **The chain**                                         | **Green on `2a3bd3a`, the first launch**: `format:check`, `typecheck`, `lint`, unit **1123 passed across 69 files** (1101 + the 22 of this session), database **922 passed, 29 skipped across 39 files** (912 + the ten of this session), `audit:design` **172 of 172**, `format:check` again; 26 minutes. One note from the log: the transport and verification suites print Node's `MaxListenersExceededWarning` (eleven close listeners on the driver's staging `WriteStream` — one per part `pipeline` with `end: false`); it predates this slice, fails nothing, and is carried                                                                                                                                                                                                                                                                                                                                                                       |
+| `mysqld` strays                                       | None after any database run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+`test:vr` was **not run and is not owed**: `packages/ui` is untouched.
+
+### What is carried
+
+- **Slice B** (scanning and promotion — F1–F3 now decided) and **slice C** (the gate and the
+  views: `FileAssetView` still serves the _declared_ MIME and no rejection, `isServable`
+  still has no caller, the OpenAPI `FileAsset` has no `rejectionCode`, and `35` :100 fixes
+  the copy a client sees).
+- **No e2e journey runs the pass yet**: `e2e/setup/stack.ts` has no `verifyUploads`
+  sibling; E2E-12's "scan → download" needs slice B's promotion first.
+- **The redelivery that hashes differently** (`verdict_conflict`) is code and comment, not
+  a case: it needs two passes overlapping on one stale row, which the suite cannot stage.
+- **The symbolic-link refusal** is proved on a machine with the privilege, not this one.
+- **No exit from `verifying` on a permanent outage** (door 8): a missing object is re-tried
+  every pass once stale, for ever, with one `scan_failed` row per try.
+- **The contract divergences**: `tmanage-core.dbml` (`content_hash` not null, no
+  `detected_mime_type`, no `rejection_code`), no `contracts/events/file-rejected.v1` schema,
+  and `21` FR-12's row not yet naming the new actions.
+- **The grant, unproven at runtime here**; **the cron tick** still runs nothing on the
+  Hostinger target (`relay:once`, `sweep:once`, now `verify:once`); production needs
+  migrations 0017 and 0018, `users.sql` re-applied, three database users, and — until
+  slice B — `MALWARE_SCAN_DRIVER` still has no honest bootstrap value.
+- The earlier carried items stand: the sealed-object orphan on a commit failure (FILE-003),
+  USAGE-001 slices 2–5 (the ledger takes 0019).
+
+### Ticket accounting
+
+FILE-002 (13 points) is split and slice A is `tested`; the ticket does not close. **34 of 70
+tickets, 272 of 583 points (46.7%)**, unchanged.
 
 ---
 
