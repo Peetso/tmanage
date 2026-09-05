@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-05 (completing-claim session; the carried race closed; chain green on 35613f2) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-05 (completing-claim session; the carried race closed; chain green on 35613f2; FILE-002 planned) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -680,6 +680,137 @@ are untouched.
 
 ---
 
+## FILE-002 planned, not built — the fleet's map, the doors, and the decisions that are Peter's
+
+Read after the completing claim landed, on a green chain with nothing owed. USAGE-001 slices
+2–5 are blocked on questions 7 and 8 (the ledger's shape is a P0-contract question, the
+usage read's capability has no name), so FILE-002 — `28` row "verification/hash/MIME/scan
+state worker, 13 → split" — is the next unblocked ticket. Six read-only readers (run
+`wf_44df7122-fd1`: the pack, the worker and its queue, the storage package, the assets and
+versions, this record, and one adversarial lens) mapped it with about a hundred `path:line`
+cites; the full output is in the run's `journal.jsonl`. **Nothing was written to the tree.**
+The next session refutes every cited line before building, as the sweeper session did.
+
+### What the pack demands, as read
+
+- `23` §10 is one sentence: `created → uploading → uploaded → verifying → scanning → ready |
+rejected | expired | cancelled`, "file is inaccessible outside upload owner/authorized
+  processing until `ready`". Nothing defines `verifying` against `scanning`; `03` §108
+  ("worker verifies checksum, MIME, size, malware scan … unscanned uploads are quarantined")
+  and `26`'s DFD (one verification job, one combined check node, `safe → ready`, `unsafe →
+rejected + security event`) are the only semantics.
+- `24` §4 has exactly three file rows: `upload.completed.v1` (consumer: "verification/scan
+  worker"), `file.ready.v1` ("validation/scan passed", audit: security metadata) and
+  `file.rejected.v1` ("validation/scan failed", audit: yes). No `upload.verified`, no
+  `scan.*`, no payload minimums for any of the three. `24` §7: never raw content; §65: usage
+  events carry no filename.
+- `49` §4: three buckets by trust state, and **two different key layouts** — quarantine
+  `…/upload/{upload_uuid}/…`, private `…/asset/{asset_uuid}/version/{version_uuid}/{safe_name}`.
+  §73: "quarantine and preview workers have separate least-privilege identities." §5: a
+  rejected object's bytes are still an "uploaded source object" and §108 reduces usage only
+  after provider deletion is confirmed — so a rejected file stays counted until FILE-003
+  deletes it. That is the document's answer, not a question.
+- `26` §79 and `27` SEC-06: signature allowlist, spoofed MIME, SVG/HTML, polyglot, archive
+  bomb, forced safe disposition, quarantine. `50` §39: malware scanning is feature-flagged or
+  conservative in private alpha.
+
+### What the code has, and what it lacks
+
+| Has                                                                                                                                                                                                                          | Lacks                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The machine in `packages/domain` with the facts each edge requires (`verifying → scanning` needs `contentHash`, `detectedMimeType`; `→ rejected` needs `rejectionCode`; `scanning → ready` needs `scanVerdict`, `scannedAt`) | Any caller of `isServable` — the "only `ready` may be served" rule is documentation; SEC-001 filters field names, not status                                                                                                                            |
+| `file_versions.content_hash`, `detected_mime_type`, `file_assets.rejection_code` — NULL, written by nothing; `upload_sessions.declared_content_hash` written and compared to nothing                                         | Any column for `scan_verdict`, `scanned_at`, the scanner, or the **trust zone** — `zone: 'quarantine'` is a literal at four call sites and no row says where an object is                                                                               |
+| `FileAssetsRepository.transition`, conditional on the status it leaves                                                                                                                                                       | It discards `facts`: `rejectionCode` would pass the machine and never reach the column. No `recordVerification` on a version at all                                                                                                                     |
+| `ObjectStore`: begin, complete, abort — and its header arguing that a `getObject` nobody has a rule for is an escape hatch                                                                                                   | Read, head, copy, promote, delete. A sealed object is unreadable and **undeletable** through the port; the composite etag is `md5(concat(part digests))-N`, not a hash of the bytes, so SHA-256 means a second pass                                     |
+| The worker: at-least-once outbox handlers inside the batch transaction, `afterCommit` effects at-most-once                                                                                                                   | Any grant on `file_assets` or `file_versions` for `tmanage_worker`; any storage driver in the worker; `tmanage_app` has INSERT only on `file_versions` ("the grant arrives with the code that writes them", `users.sql`)                                |
+| `MALWARE_SCAN_DRIVER` in `packages/config` (`stub` \| `clamav`, 30 s timeout)                                                                                                                                                | An honest bootstrap value: production refuses `stub` and there is no `none`, so the first production boot must either lie (`clamav` pointed at nothing) or fail. A config bug, recorded here                                                            |
+| `trg_file_versions_immutable` pins organization, asset, `object_key`, `size_bytes`                                                                                                                                           | The repository header and 0015 §107 both say the trigger refuses every UPDATE; it does not — only the missing grant does. Both comments become false with the first grant and must be corrected in the same change (0015's in a new migration's header) |
+
+### The doors the adversarial lens found
+
+1. **Promotion is structurally impossible as specified.** `49` §4's two layouts need the
+   key to change; the trigger forbids it. The safe choice is a `trust_zone` column on
+   `file_versions` with the key **stable across zones** (the driver already lays every zone
+   out under the same key), promotion a copy under an unchanged key — recorded as a
+   divergence from `49` §4 by ADR, because the alternative is a mutable key.
+2. **A network call inside the outbox batch.** Hashing, sniffing, a 30 s scanner round-trip
+   and a copy do not belong inside the relay's transaction (row locks across the network) nor
+   in `afterCommit` (at-most-once, unretryable). The split the ticket asks for is along the
+   transaction boundary: the state moves are transactional and conditional; the work runs in
+   a pass over `file_assets` by status — the sweeper's shape, stale-claim reclaim included.
+3. **The audit validator refuses a media type.** `VALUE_PATTERN` admits no `/` or `+`, so
+   `image/svg+xml` throws `UnsafeAuditMetadataError`; `signature` and `reason` are forbidden
+   key segments. Record the detected type as a token (`application_pdf`), the rejection under
+   `rejection_code`, and never widen the pattern. Three catalog actions: `file_asset.verified`
+   (allowed), `file_asset.rejected` (denied — §12's "denied sensitive attempt"),
+   `file_asset.scan_failed` (error). A SHA-256 hex digest is exactly the 64-character cap.
+4. **A rejected object is evidence.** It stays in quarantine, is never promoted, never
+   deleted by the verification job, and its bytes stay counted (`49` §5/§108 above); deletion
+   is FILE-003's privileged, time-bounded job. A malware finding is recorded as a token, never
+   the scanner's free text.
+5. **Redelivery must be a no-op, and a verdict must be unrewritable.** Conditional writes
+   (`… WHERE content_hash IS NULL`) and a trigger that pins `content_hash` and `scan_verdict`
+   once set, so a second delivery cannot change a recorded verdict even if a guard is
+   forgotten.
+6. **A late PUT during verification.** The public part route is session-blind; the manifest
+   is the revocation and the driver removes it at completion, so a sealed object cannot be
+   altered — but the S3 driver (FILE-003) must presign `UploadPart`, never `PutObject`, or
+   every minted URL outlives the seal and hash-then-promote becomes a TOCTOU. Written into the
+   port's contract before the adapter exists.
+7. **The gate.** `FileAssetView.status` is raw and the view carries the _declared_ MIME.
+   Until `ready` exists, a client sees a `scanning` or `rejected` asset exactly like a ready
+   one; FILE-002 gives `isServable` its first caller and decides what a client DTO shows
+   (`rejectionCode` yes, hashes and scanner no).
+8. **No exit from `verifying`.** The machine has no `verifying → expired`, no
+   `uploaded → expired`, and `ready`/`rejected` are terminal — a parked event or a dead pass
+   leaves an asset mid-pipeline with its bytes counted. A stale-`verifying` re-run (the
+   conditional final transition is the guard) needs no new edge; a permanent outage does.
+
+### The split, as this session would build it
+
+- **Slice A — verification, in the API.** `verify:once` beside `sweep:once` on the same tick:
+  organizations holding `uploaded` assets (bootstrap read, its own reason string), then per
+  organization `uploaded → verifying` (the machine's conditional move as the claim), one pass
+  over the object — SHA-256 and the first bytes' signature in the same stream — compared with
+  `declared_content_hash` when one was given, then in one transaction `recordVerification`
+  (conditional on NULL), `verifying → scanning` with the facts written, or `→ rejected` with
+  `rejection_code` (`hash_mismatch`, `type_not_allowed`, `type_mismatch`), the audit row, and
+  `file.rejected.v1`. A signature allowlist in code (PDF, PNG, JPEG, GIF, WebP, ZIP-family
+  for the Office types, textual for `text/plain|csv|markdown`; SVG and HTML refused as active
+  content, `27` SEC-06). Needs: `ObjectStore.openObject` (the port's header rewritten, a stub
+  on `UnavailableObjectStore`, real bytes in the suite via `forLocalStore`), `UPDATE` on
+  `file_versions` for the credential that runs the pass, a migration recreating
+  `trg_file_versions_immutable` to pin `content_hash` / `detected_mime_type` once set (and
+  correcting 0015's "immutable by construction"), the repository projecting facts to columns.
+  Nothing is promoted and nothing becomes `ready` in slice A.
+- **Slice B — scanning and promotion.** `scan_verdict`, `scanned_at`, `scanner`, `trust_zone`
+  columns; a scanner port with an honest `none` driver that records `unscanned` and does
+  **not** mark `ready` unless a documented profile says so; `ObjectStore.promote` defined for
+  copy semantics; `scanning → ready` + `file.ready.v1`; the client gate. Blocked on decisions
+  F1–F4 below.
+- **Slice C — the gate and the views**, with FILE-003's download path.
+
+### Decisions for Peter (numbered on from USAGE-001's twelve)
+
+- **F1. The trust zone is a column and the key is stable** across zones — a divergence from
+  `49` §4's two layouts, by ADR. Recommend yes; the alternative relaxes the immutability
+  trigger.
+- **F2. Who verifies.** The pass in the API under `tmanage_app` with one new `UPDATE` grant
+  (the sweeper's precedent, decision 10), or a fourth database user for the quarantine worker
+  as `49` §73 asks. Recommend the API pass for the bootstrap profile, recorded as a divergence
+  with the fourth user as the paid-beta follow-up.
+- **F3. Scanning in the bootstrap profile.** `50` §39 allows conservative or flagged scanning;
+  `packages/config` has no honest value. Recommend `MALWARE_SCAN_DRIVER=none` as a real
+  member that records `unscanned` and leaves the asset at `scanning` — never `ready` — until
+  a scanner exists, with the bootstrap profile document saying so; the alternative (ready
+  while unscanned, recorded) is a product call.
+- **F4. Rejected bytes stay counted** until FILE-003 deletes them (`49` §5/§108). Recommend
+  following the document; recorded so it is not a surprise on a bill.
+- **F5. Slice A's allowlist** — the seven families above, SVG and HTML refused. Recommend
+  yes; a wider list is one edit in one file.
+
+---
+
 ## The completing claim — the carried race closed, the claim reaped, the silent abort named
 
 The one item that had been carried through four sessions — a completion still talking to the
@@ -801,8 +932,9 @@ to apply.** The ledger migration the USAGE-001 plan named `0017` becomes `0018`.
   by a client retry as well as by expiry.
 - **A production deployment now needs three database users** and, from this session,
   **migration 0017**.
-- **USAGE-001 slices 2–5** (the ledger is `0018`), FILE-002, FILE-003, and Peter's ten
-  questions plus decisions 11 (the grace) and **12 (the stale-claim bound)**.
+- **USAGE-001 slices 2–5** (the ledger takes the next free migration number), FILE-002 (planned
+  above, decisions F1–F5), FILE-003, and Peter's ten questions plus decisions 11 (the grace)
+  and **12 (the stale-claim bound)**.
 
 ### Ticket accounting
 
