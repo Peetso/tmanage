@@ -762,6 +762,66 @@ are untouched.
 
 ---
 
+## E2E-12a / E2E-12c — upload through download, 2026-09-05 (Codex)
+
+Implementation commit: `7b95864`. No production code changed. E2E-12a now sends PDF-signature
+bytes in two real parts, proves pre-scan download refusal, verification, scan, retained
+quarantine and private promotion, then downloads identical bytes with safe headers and
+content length. E2E-12c sends the EICAR test signature in text, proves `malware_detected`,
+no detection-name leak, 404 download, and quarantine retention. The helper invokes the real
+`verify.ts --once` with the stack environment and requires both pass reports and zero
+failure counts. E2E-12b still covers expiry and quota release.
+
+Actually run: E2E typecheck passed; full `pnpm test:e2e` **17/17 passed in 2.8 minutes**.
+The first attempt could not launch the missing Playwright browser (9 failed, 8 not run);
+after installing the pinned Chromium, the complete rerun passed. Ambient pnpm initially
+selected unsupported Node 24/pnpm 11 and aborted before dependency replacement; checks used
+Node 22.22.0 and Corepack-selected pnpm 10.15.0. This session's shim directory is
+`C:/Users/Peter/Documents/ChatGPT/TManage`, ahead of `C:/Program Files/nodejs` on PATH.
+
+The mandatory chain on `7b95864` is **IN PROGRESS at handoff**, not green: format, typecheck,
+lint and unit/component tests passed (**1,156 runner-reported tests across 70 files**).
+Database tests are still running. Database final totals, design audit and final formatting
+are NOT yet claimed. The log is `C:/Users/Peter/Documents/ChatGPT/TManage/chain.log`.
+No push has occurred. Next assistant must inspect its final result, finish verification,
+record results, commit generated audit output as appropriate, and push only origin.
+
+The pre-existing untracked review artifacts made baseline formatting fail in 14 files and
+lint fail with 15 errors. They were moved intact to
+`C:/Users/Peter/Documents/ChatGPT/TManage/review-artifact-hold/` for the unchanged chain.
+No ignore rules, tests or constraints were weakened. A companion restoration script waits
+for `CHAIN END PASS` or `CHAIN FAIL`, then returns both artifacts with SHA-256 verification;
+see `restore-review.log` in the same workspace. If interrupted, manually restore the two
+named artifacts only after verification has ended. The manifest is `review-artifact-hashes.json`.
+
+Peter explicitly requested (2026-09-05) that usage limits be checked throughout work and a
+handoff be delivered BEFORE exhaustion. Last reading: five-hour usage **87%**, weekly
+**29%**; this is a snapshot, not a future assistant's allowance. This request takes priority
+over waiting here for a green boundary. No new implementation slice was started.
+
+Peter also explicitly requires the next assistant to read the prior project review:
+`CODEX_REVIEW_FOR_CLAUDE_2026-09-05.md`, then
+`CODEX-REVIEW-2026-09-05/START-HERE-CLAUDE.md`, the full `CLAUDE-REVIEW-REPORT.md` and its
+evidence. The report was read this session and its synthetic probes re-run against
+`7b95864`: scanner W01 remains pending on source error until manual stream destruction;
+D01 cache retention, D02 CSRF defaults, conditional D09 proxy trust and D12 missing route
+destinations remain reproduced by those probes. Fresh evidence is at
+`C:/Users/Peter/Documents/ChatGPT/TManage/continuation-probes/`. These probes are not a
+deployment exploit proof or complete browser acceptance. No review findings were fixed.
+Prioritize reconciling W01, then the report's session/browser and authentication slices.
+
+Read-only review of the E2E patch tightened the case-insensitive detection-name assertion,
+content-length assertion and missing-failure-count handling. These are new test coverage;
+no production bug fix/reversal proof is claimed. Draining the outbox proves processing
+without consumer failure, not asset-scoped event emission. The detected-MIME distinction,
+rejected-byte accounting witness, interrupt/resume and file UI remain unclaimed. Original
+contract drift, scanner-none door 8, provider/grant/symlink/deployment and lifecycle carried
+items remain. No ticket closes: **35/70, 285/583 points (48.9%)**.
+
+Handoff: `C:/Users/Peter/Documents/ChatGPT/TManage/CLAUDE-NEXT-PROMPT.md`.
+
+---
+
 ## FILE-002 slice C — the download gate and the views, built and proved
 
 Built in the same session as slice B's completion, on a green chain (`631e092`). A read-only
