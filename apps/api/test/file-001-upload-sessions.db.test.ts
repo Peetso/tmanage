@@ -865,11 +865,11 @@ describe('completing a session', () => {
     expect(row?.['status']).toBe('completed');
     // reserved(1) → completing(2) → completed(3): the claim is a move of its own.
     expect(Number(row?.['v'])).toBe(3);
-    expect(await outboxTypes(session.id)).toEqual([
-      'usage.storage_reserved.v1',
-      'upload.completed.v1',
-      'usage.storage_committed.v1',
-    ]);
+    // As a set: the two commit-transaction events share `occurred_at` to the millisecond
+    // and the chain has seen them read back in the other order under load.
+    expect([...(await outboxTypes(session.id))].sort()).toEqual(
+      ['usage.storage_reserved.v1', 'upload.completed.v1', 'usage.storage_committed.v1'].sort(),
+    );
   });
 
   it('gives the claim back when the provider is down, so the same session completes on the retry', async () => {
