@@ -122,6 +122,7 @@ function messageForStatus(status: number): string {
   if (status === 403) return MESSAGES.forbidden;
   if (status === 404) return MESSAGES.notFound;
   if (status === 409) return MESSAGES.conflict;
+  if (status === 429) return MESSAGES.rateLimited;
   if (status >= 500) return MESSAGES.internal;
   return 'The request could not be understood';
 }

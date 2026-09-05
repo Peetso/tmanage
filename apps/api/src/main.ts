@@ -4,6 +4,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { loadEnv } from '@tmanage/config';
 import { createPartAdmission } from '@tmanage/storage';
 import { createFastifyAdapter } from './common/http/fastify-adapter.js';
+import { createFixedWindowLimiter } from './common/http/rate-limiter.js';
 import { composeAppModule } from './app-composition.js';
 
 /**
@@ -42,6 +43,12 @@ async function bootstrap(): Promise<void> {
         env.STORAGE_DRIVER === 'filesystem' && env.STORAGE_LOCAL_SIGNING_SECRET
           ? createPartAdmission(env.STORAGE_LOCAL_SIGNING_SECRET)
           : undefined,
+      // The one anonymous route's limit, per client address per window (security review
+      // 2026-09-04, finding 4). In process: one API process in the bootstrap profile.
+      admitClient: createFixedWindowLimiter({
+        windowMs: env.RATE_LIMIT_WINDOW_SECONDS * 1_000,
+        max: env.RATE_LIMIT_MAX_REQUESTS,
+      }),
     }),
   );
 

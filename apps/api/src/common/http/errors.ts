@@ -106,4 +106,5 @@ export const MESSAGES = {
   notFound: 'The requested resource was not found',
   conflict: 'The resource was modified concurrently. Reload and try again',
   internal: 'The request could not be completed',
+  rateLimited: 'Too many requests. Wait a moment and try again',
 } as const;

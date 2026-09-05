@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createPartAdmission, derivePartSigningKey, mintPartToken } from '@tmanage/storage';
 import { PART_CONTENT_TYPE, createFastifyAdapter } from './fastify-adapter.js';
+import { createFixedWindowLimiter } from './rate-limiter.js';
 
 /**
  * The octet-stream parser, on its own Fastify instance with one echoing route: what
@@ -24,10 +25,14 @@ function tokenFor(partNumber: number, expiresAtMs = NOW + 60_000): string {
   });
 }
 
-async function instance(admit: boolean) {
+async function instance(admit: boolean, clientMax?: number) {
   const adapter = createFastifyAdapter({
     uploadPartSizeBytes: PART_SIZE,
     admitPart: admit ? createPartAdmission(SECRET, () => NOW) : undefined,
+    admitClient:
+      clientMax === undefined
+        ? undefined
+        : createFixedWindowLimiter({ windowMs: 60_000, max: clientMax, now: () => NOW }),
   });
   const app = adapter.getInstance();
   app.put('/v1/uploads/:handle/parts/:n', async (request) => ({
@@ -68,6 +73,21 @@ describe('the part parser reads a body only behind a token that verifies', () =>
     const app = await instance(false);
     const response = await put(app, `/v1/uploads/${HANDLE}/parts/1?t=${tokenFor(1)}`, 40);
     expect(response.json()).toEqual({ received: 0 });
+  });
+
+  it('admits a client max times per window and answers the next 429, before the token is even looked at', async () => {
+    const app = await instance(true, 2);
+    const url = `/v1/uploads/${HANDLE}/parts/1?t=${tokenFor(1)}`;
+    expect((await put(app, url, 40)).json()).toEqual({ received: 40 });
+    expect((await put(app, url, 40)).json()).toEqual({ received: 40 });
+    // Reversal: consult the limiter after the admission and the forged request below is
+    // 200 with 0 bytes — the flood reached the verifier (proved 2026-09-05); drop the
+    // limiter altogether and this line is 200 with 40.
+    expect((await put(app, url, 40)).statusCode).toBe(429);
+    // A forged token from the same client is refused by the window too: the limiter came
+    // first, so a flood of garbage never reaches the verifier.
+    const forged = await put(app, `/v1/uploads/${HANDLE}/parts/1?t=pu1.${NOW + 60_000}.forged`, 40);
+    expect(forged.statusCode).toBe(429);
   });
 
   it('still refuses a body over the limit, after the token, as 413', async () => {

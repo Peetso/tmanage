@@ -1,7 +1,12 @@
-import { PayloadTooLargeException, UnsupportedMediaTypeException } from '@nestjs/common';
+import {
+  HttpException,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { PartAdmission } from '@tmanage/storage';
 import type { IncomingMessage } from 'node:http';
+import type { RequestAdmission } from './rate-limiter.js';
 
 /**
  * The Fastify adapter, with the one parser the request pipeline adds to Fastify's own.
@@ -28,6 +33,16 @@ import type { IncomingMessage } from 'node:http';
  * since the security review of 2026-09-04 the token is verified before the first byte is
  * read, so a forged request of any size is the one 404 and holds no buffer — it does not
  * even learn that a ceiling exists.
+ *
+ * Before the token comes the client: `admitClient` (the fixed-window limiter in
+ * `rate-limiter.ts`, keyed by `request.ip`) is consulted first of all, so a caller who
+ * has used their window costs one map lookup and a 429 — not a signature verification per
+ * request, and never a byte of body. `03-TECHNICAL-ARCHITECTURE` §8: "rate limits apply
+ * by IP before authentication", and this is the API's one route with no session. The key
+ * is what `trustProxy` says it is: behind the bootstrap profile's proxy it is the
+ * forwarded client address, and a caller who could reach the process directly could
+ * rotate it — which the limiter's bounded map turns into a memory ceiling, never into
+ * admitting fewer requests than the window says.
  *
  * `main.ts` registers the parser for every driver, including `s3`, where the part route is
  * bound to no sink and answers 404; the parser then costs a URL check per octet-stream
@@ -64,6 +79,13 @@ export interface FastifyAdapterOptions {
    * sink — no body is ever read on this route, which is what a route with no sink answers.
    */
   readonly admitPart?: PartAdmission | undefined;
+  /**
+   * Whether this client may make another part request at all — `createFixedWindowLimiter`
+   * over `RATE_LIMIT_WINDOW_SECONDS` and `RATE_LIMIT_MAX_REQUESTS`, keyed by the request's
+   * ip. Consulted before the token and before the body; refused as 429 `rate_limited`.
+   * Absent — a suite that is not about the limit — every client is admitted.
+   */
+  readonly admitClient?: RequestAdmission | undefined;
 }
 
 /** `/v1/uploads/<handle>/parts/<n>?t=<token>`, taken apart the way the controller does. */
@@ -82,6 +104,8 @@ function partRequest(
 /** What the parser reads off the request before deciding whether to read the body at all. */
 interface ParserRequest {
   readonly url: string;
+  /** Fastify's client address: the socket's, or the forwarded one under `trustProxy`. */
+  readonly ip: string;
   readonly headers: { readonly 'content-length'?: string | undefined };
   /** Fastify's own flag: the URL matched no route, and the not-found handler is next. */
   readonly is404?: boolean;
@@ -107,6 +131,12 @@ export function createFastifyAdapter(options: FastifyAdapterOptions): FastifyAda
           // Not the part route: the same 415 Fastify gave before this parser existed, and
           // not one byte of the body read on the way to it.
           done(new UnsupportedMediaTypeException());
+          return;
+        }
+        if (options.admitClient && !options.admitClient(request.ip)) {
+          // The window is used. Before the token, so a flood costs no verification; before
+          // the body, so it holds no buffer. 429 says nothing about handles.
+          done(new HttpException('Too Many Requests', 429));
           return;
         }
         const part = partRequest(request.url);
