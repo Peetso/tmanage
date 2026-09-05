@@ -678,6 +678,25 @@ describe('the none driver (decision F3)', () => {
     // Once, not every tick: the selection skips a version already `unscanned` under `none`.
     expect(await none.scan()).toMatchObject({ organizations: 0, scanned: 0 });
     expect(await audits(fileAssetId)).toHaveLength(1);
+    // And the write itself is conditional on no verdict at all: a second `unscanned`, from a
+    // pass whose selection was older than this row's verdict, writes nothing rather than a
+    // fresh `scanned_at`. Reversal: make `unscanned` conditional on "no final verdict" and
+    // this returns true and moves the time.
+    const later = new Date((row.scannedAt?.getTime() ?? 0) + 60_000);
+    const context = scannerContextFor(
+      world.northstar.organizationId,
+      '019203a4-5b6c-7d8e-9f01-23456789abd0',
+    );
+    expect(
+      await database.transaction(context, (tx) =>
+        assets.recordScan(tx, context, row.versionId, {
+          scanVerdict: 'unscanned',
+          scannedAt: later,
+          scanner: 'none',
+        }),
+      ),
+    ).toBe(false);
+    expect((await asset(fileAssetId)).scannedAt?.getTime()).toBe(row.scannedAt?.getTime());
 
     // A real scanner takes the parked version and the one replaceable verdict is replaced.
     expect(await pass()).toMatchObject({ scanned: 1, ready: 1, reran: 0 });
