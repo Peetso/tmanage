@@ -167,6 +167,8 @@ export {
 export type {
   ClientRequestSubmittedV1,
   ClientRequestTransitionedV1,
+  FileReadyV1,
+  FileRejectedV1,
   MessageConvertedV1,
   MessageCreatedV1,
   OutboxEventDefinition,

@@ -1,4 +1,4 @@
-import { Readable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import type {
   AbortMultipartInput,
   BeginMultipartInput,
@@ -7,9 +7,12 @@ import type {
   ObjectStore,
   OpenObjectInput,
   OpenedObject,
+  PromoteObjectInput,
+  Promotion,
   StoredObject,
+  WithdrawObjectInput,
 } from './object-store.js';
-import { ObjectNotFoundError, SizeMismatchError } from './errors.js';
+import { ObjectNotFoundError, PromotionClosedError, SizeMismatchError } from './errors.js';
 
 /**
  * The driver a suite holds in its hand — `packages/mail`'s console driver, for bytes.
@@ -26,6 +29,10 @@ import { ObjectNotFoundError, SizeMismatchError } from './errors.js';
  * `openObject` answers the bytes a suite placed under the key in {@link objects}, and
  * `ObjectNotFoundError` for a key it holds nothing under — so a verification case can be
  * run against this fake with the bytes it chooses, and the "object gone" case with none.
+ *
+ * `promote` collects what the caller writes and, on `commit`, places it under
+ * `private/objectKey` in {@link objects} — so a suite can assert that the private object
+ * is the bytes the scan saw. `withdraw` removes that entry; both are recorded.
  */
 export class FakeObjectStore implements ObjectStore {
   readonly began: BeginMultipartInput[] = [];
@@ -37,6 +44,12 @@ export class FakeObjectStore implements ObjectStore {
   readonly objects = new Map<string, Buffer>();
   /** Every `openObject` call, whether or not it found anything. */
   readonly opened: OpenObjectInput[] = [];
+  /** Every promotion opened, and every one committed or aborted. */
+  readonly promoted: PromoteObjectInput[] = [];
+  readonly committed: string[] = [];
+  readonly abortedPromotions: string[] = [];
+  /** Every `withdraw` call, by key. */
+  readonly withdrawn: string[] = [];
   /** Thrown by the next call to any method, then cleared. The provider being down. */
   failNext: Error | null = null;
   /**
@@ -85,6 +98,48 @@ export class FakeObjectStore implements ObjectStore {
     const bytes = this.objects.get(`${input.zone}/${input.objectKey}`);
     if (!bytes) throw new ObjectNotFoundError();
     return { sizeBytes: bytes.length, stream: Readable.from([bytes]) };
+  }
+
+  async promote(input: PromoteObjectInput): Promise<Promotion> {
+    this.consumeFailure();
+    this.promoted.push(input);
+    const chunks: Buffer[] = [];
+    let closed = false;
+    const sink = new Writable({
+      write: (chunk: Buffer, _encoding, callback) => {
+        if (closed) {
+          callback(new PromotionClosedError());
+          return;
+        }
+        chunks.push(Buffer.from(chunk));
+        callback();
+      },
+    });
+    return {
+      sink,
+      commit: async () => {
+        if (closed) throw new PromotionClosedError();
+        closed = true;
+        const bytes = Buffer.concat(chunks);
+        if (bytes.length !== input.sizeBytes) {
+          throw new SizeMismatchError(input.sizeBytes, bytes.length);
+        }
+        this.objects.set(`private/${input.objectKey}`, bytes);
+        this.committed.push(input.objectKey);
+        return { sizeBytes: bytes.length, etag: `fake-etag-promoted` };
+      },
+      abort: async () => {
+        if (closed) return;
+        closed = true;
+        this.abortedPromotions.push(input.objectKey);
+      },
+    };
+  }
+
+  async withdraw(input: WithdrawObjectInput): Promise<void> {
+    this.consumeFailure();
+    this.withdrawn.push(input.objectKey);
+    this.objects.delete(`private/${input.objectKey}`);
   }
 
   async abortMultipart(input: AbortMultipartInput): Promise<void> {

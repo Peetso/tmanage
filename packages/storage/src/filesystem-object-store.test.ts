@@ -21,6 +21,8 @@ import {
   ObjectNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
+  PromotionClosedError,
+  SizeMismatchError,
   UnsafeObjectPathError,
 } from './errors.js';
 import { FilesystemObjectStore } from './filesystem-object-store.js';
@@ -705,5 +707,141 @@ describe('FilesystemObjectStore — openObject (FILE-002)', () => {
     await expect(
       store.openObject({ zone: 'quarantine', objectKey: '../../etc/passwd' }),
     ).rejects.toBeInstanceOf(UnsafeObjectPathError);
+  });
+});
+
+describe('FilesystemObjectStore — promote and withdraw (FILE-002 slice B)', () => {
+  /** Complete a two-part upload under KEY in quarantine and return the bytes it holds. */
+  async function seal(): Promise<Buffer> {
+    const upload = await begin(2, 'quarantine');
+    const [one, two] = targets(upload) as [
+      ReturnType<typeof targets>[number],
+      ReturnType<typeof targets>[number],
+    ];
+    const first = await store.putPart({ ...one, body: bytes('a') });
+    const second = await store.putPart({ ...two, body: bytes('b') });
+    await store.completeMultipart({
+      zone: 'quarantine',
+      objectKey: KEY,
+      providerUploadId: upload.providerUploadId,
+      parts: [
+        { partNumber: 1, etag: first?.etag ?? '' },
+        { partNumber: 2, etag: second?.etag ?? '' },
+      ],
+    });
+    return Buffer.concat([bytes('a'), bytes('b')]);
+  }
+
+  /** What the scan pass does: feed the one quarantine stream into the promotion's sink. */
+  async function feed(sink: NodeJS.WritableStream, stream: NodeJS.ReadableStream): Promise<void> {
+    for await (const chunk of stream) {
+      if (!sink.write(chunk)) await new Promise<void>((done) => sink.once('drain', () => done()));
+    }
+  }
+
+  async function drain(stream: NodeJS.ReadableStream): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+  }
+
+  it('seals the bytes it was fed as the private object under the same key, and only on commit', async () => {
+    const expected = await seal();
+    const opened = await store.openObject({ zone: 'quarantine', objectKey: KEY });
+    const promotion = await store.promote({ objectKey: KEY, sizeBytes: 2 * PART_SIZE });
+    await feed(promotion.sink, opened.stream);
+    // Nothing is sealed while the promotion is open: the private path is still empty.
+    await expect(store.openObject({ zone: 'private', objectKey: KEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    const stored = await promotion.commit();
+    expect(stored).toEqual({ sizeBytes: 2 * PART_SIZE, etag: md5(expected) });
+    const promoted = await store.openObject({ zone: 'private', objectKey: KEY });
+    expect(await drain(promoted.stream)).toEqual(expected);
+    // The quarantine object is untouched: it is the evidence and the counted bytes.
+    expect(
+      await drain((await store.openObject({ zone: 'quarantine', objectKey: KEY })).stream),
+    ).toEqual(expected);
+    // No staging file is left beside the object.
+    expect(walk(join(root, 'objects', 'private')).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('refuses to seal staged bytes that are not the size the row recorded, and leaves nothing behind', async () => {
+    await seal();
+    const opened = await store.openObject({ zone: 'quarantine', objectKey: KEY });
+    const promotion = await store.promote({ objectKey: KEY, sizeBytes: 2 * PART_SIZE + 1 });
+    await feed(promotion.sink, opened.stream);
+    await expect(promotion.commit()).rejects.toBeInstanceOf(SizeMismatchError);
+    await expect(store.openObject({ zone: 'private', objectKey: KEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    expect(
+      existsSync(join(root, 'objects', 'private')) ? walk(join(root, 'objects', 'private')) : [],
+    ).toEqual([]);
+  });
+
+  it('abort discards the staging file and touches nothing sealed', async () => {
+    const expected = await seal();
+    const opened = await store.openObject({ zone: 'quarantine', objectKey: KEY });
+    const promotion = await store.promote({ objectKey: KEY, sizeBytes: 2 * PART_SIZE });
+    await feed(promotion.sink, opened.stream);
+    await promotion.abort();
+    expect(
+      existsSync(join(root, 'objects', 'private')) ? walk(join(root, 'objects', 'private')) : [],
+    ).toEqual([]);
+    await expect(store.openObject({ zone: 'private', objectKey: KEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    expect(
+      await drain((await store.openObject({ zone: 'quarantine', objectKey: KEY })).stream),
+    ).toEqual(expected);
+    // The handle is one-shot: a commit after the abort is a bug, not a second object.
+    await expect(promotion.commit()).rejects.toBeInstanceOf(PromotionClosedError);
+  });
+
+  it('a second promotion of the same key lands whole over the first — a pass re-run after a crash', async () => {
+    const expected = await seal();
+    for (let run = 0; run < 2; run += 1) {
+      const opened = await store.openObject({ zone: 'quarantine', objectKey: KEY });
+      const promotion = await store.promote({ objectKey: KEY, sizeBytes: 2 * PART_SIZE });
+      await feed(promotion.sink, opened.stream);
+      await promotion.commit();
+    }
+    const promoted = await store.openObject({ zone: 'private', objectKey: KEY });
+    expect(await drain(promoted.stream)).toEqual(expected);
+  });
+
+  it('withdraw removes the private object and nothing else, and is idempotent', async () => {
+    const expected = await seal();
+    const opened = await store.openObject({ zone: 'quarantine', objectKey: KEY });
+    const promotion = await store.promote({ objectKey: KEY, sizeBytes: 2 * PART_SIZE });
+    await feed(promotion.sink, opened.stream);
+    await promotion.commit();
+    await store.withdraw({ objectKey: KEY });
+    await expect(store.openObject({ zone: 'private', objectKey: KEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    expect(
+      await drain((await store.openObject({ zone: 'quarantine', objectKey: KEY })).stream),
+    ).toEqual(expected);
+    await expect(store.withdraw({ objectKey: KEY })).resolves.toBeUndefined();
+    await expect(store.withdraw({ objectKey: OTHER_KEY })).resolves.toBeUndefined();
+  });
+
+  it('withdraw refuses a directory at the private path rather than removing it', async () => {
+    mkdirSync(store.objectPath('private', OTHER_KEY), { recursive: true });
+    await expect(store.withdraw({ objectKey: OTHER_KEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    expect(existsSync(store.objectPath('private', OTHER_KEY))).toBe(true);
+  });
+
+  it('checks the key before it touches the disk', async () => {
+    await expect(
+      store.promote({ objectKey: '../../etc/passwd', sizeBytes: 1 }),
+    ).rejects.toBeInstanceOf(UnsafeObjectPathError);
+    await expect(store.withdraw({ objectKey: '../../etc/passwd' })).rejects.toBeInstanceOf(
+      UnsafeObjectPathError,
+    );
   });
 });

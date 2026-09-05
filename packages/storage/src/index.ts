@@ -11,8 +11,9 @@
  * without a bucket — ADR-0002's local substitute, with HMAC-signed part URLs the API serves
  * itself (FILE-001b). The `s3` driver with real R2 signature semantics is FILE-003's, and the
  * configuration that names it still refuses to wire until it exists. FILE-002 gave the port
- * its first read, `openObject`, for the verification pass and nothing else — see the port's
- * header for the rule that admitted it.
+ * its first read, `openObject`, for the verification pass; slice B gave it `promote`, the
+ * one write into the private zone, fed from that same read, and `withdraw`, its undo — see
+ * the port's header for the rules that admitted them.
  */
 
 export type {
@@ -24,9 +25,12 @@ export type {
   ObjectStore,
   OpenObjectInput,
   OpenedObject,
+  PromoteObjectInput,
+  Promotion,
   StoredObject,
   TrustZone,
   UploadTarget,
+  WithdrawObjectInput,
 } from './object-store.js';
 export { InvalidObjectKeyComponentError, uploadObjectKey } from './object-key.js';
 export type { UploadObjectKeyInput } from './object-key.js';
@@ -52,6 +56,7 @@ export {
   ObjectNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
+  PromotionClosedError,
   SizeMismatchError,
   UnsafeObjectPathError,
 } from './errors.js';

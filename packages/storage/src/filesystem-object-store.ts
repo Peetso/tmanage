@@ -13,6 +13,7 @@ import {
   ObjectNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
+  PromotionClosedError,
   SizeMismatchError,
   UnsafeObjectPathError,
 } from './errors.js';
@@ -24,8 +25,11 @@ import type {
   ObjectStore,
   OpenObjectInput,
   OpenedObject,
+  PromoteObjectInput,
+  Promotion,
   StoredObject,
   TrustZone,
+  WithdrawObjectInput,
 } from './object-store.js';
 import { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-token.js';
 
@@ -85,6 +89,18 @@ import { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-tok
  * serve — a file outside the store. `lstat`, not `stat`, is the check that sees the link.
  * The size answered is the file's size at open, so the caller can refuse an object whose
  * size no longer matches the row that names it.
+ *
+ * ## Promotion is a staged write beside the private path
+ *
+ * `promote` (FILE-002 slice B) opens `<root>/objects/private/<key>.<random>.tmp` and hands
+ * back a sink; the scan pass writes the chunks of the quarantine stream it is hashing and
+ * scanning into it. `commit` closes the file, holds its byte count to the size the row
+ * recorded, and renames it over the private path — the same write-beside-then-rename every
+ * other write here makes, so a reader never sees a half-promoted object and a second
+ * promotion of the same key (a pass re-run after a crash) lands whole over the first.
+ * `abort` closes and removes the staging file and touches nothing sealed. `withdraw`
+ * removes the private object under a key, and only that: the quarantine object is never
+ * touched by this driver after it is sealed. The port's header says who may call it.
  *
  * ## Paths never escape the root
  *
@@ -330,6 +346,74 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
 
     const composite = createHash('md5').update(Buffer.concat(digests)).digest('hex');
     return { sizeBytes, etag: `${composite}-${manifest.partCount}` };
+  }
+
+  async promote(input: PromoteObjectInput): Promise<Promotion> {
+    const destination = this.objectPath('private', input.objectKey);
+    await mkdir(dirname(destination), { recursive: true });
+    const staging = temporaryBeside(destination);
+    const file = createWriteStream(staging);
+    const hash = createHash('md5');
+    let written = 0;
+    let closed = false;
+    const counting = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        hash.update(chunk);
+        written += chunk.length;
+        callback(null, chunk);
+      },
+    });
+    counting.pipe(file);
+    // A failure of the file stream surfaces on the sink the caller holds, not as an
+    // unhandled event on a stream it never sees.
+    file.on('error', (error) => {
+      if (!closed) counting.destroy(error);
+    });
+
+    return {
+      sink: counting,
+      commit: async () => {
+        if (closed) throw new PromotionClosedError();
+        closed = true;
+        counting.end();
+        await once(file, 'close');
+        if (written !== input.sizeBytes) {
+          await rm(staging, { force: true, maxRetries: 3 });
+          throw new SizeMismatchError(input.sizeBytes, written);
+        }
+        await rename(staging, destination);
+        return { sizeBytes: written, etag: hash.digest('hex') };
+      },
+      abort: async () => {
+        if (closed) return;
+        closed = true;
+        counting.unpipe(file);
+        counting.destroy();
+        // A write still in flight makes the file stream emit an error as it is destroyed
+        // (`ERR_STREAM_DESTROYED`); it is the abort's own doing and not the caller's
+        // problem. Waited on by hand: `events.once` would reject on that error.
+        file.on('error', () => undefined);
+        if (!file.closed) {
+          file.destroy();
+          await new Promise<void>((resolve) => file.once('close', () => resolve()));
+        }
+        await rm(staging, { force: true, maxRetries: 3 });
+      },
+    };
+  }
+
+  async withdraw(input: WithdrawObjectInput): Promise<void> {
+    const path = this.objectPath('private', input.objectKey);
+    let info: Awaited<ReturnType<typeof lstat>>;
+    try {
+      info = await lstat(path);
+    } catch (error) {
+      if (isNotFound(error)) return;
+      throw error;
+    }
+    // Only an object this driver could have written: never a directory, never a link.
+    if (!info.isFile()) throw new ObjectNotFoundError();
+    await rm(path, { force: true, maxRetries: 3 });
   }
 
   async openObject(input: OpenObjectInput): Promise<OpenedObject> {

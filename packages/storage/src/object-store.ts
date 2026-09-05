@@ -8,7 +8,7 @@
  * implement. Today only the fake exists (FILE-001); the filesystem driver and the R2
  * signature semantics are later tickets, as ADR-0002 already records.
  *
- * ## Four methods, and what is deliberately absent
+ * ## Six methods, and what is deliberately absent
  *
  * `beginMultipart`, `completeMultipart`, `abortMultipart` — and, since FILE-002,
  * `openObject`: the bytes of a sealed object, streamed once, for **authorized processing**
@@ -20,8 +20,38 @@
  * (`25-AUTH-AND-TENANT-ISOLATION` §9 caps it at five minutes), it is served to a principal,
  * and it is gated on `ready`. `openObject` is served to a job, under a service context,
  * on an object in `quarantine`, and answers a stream rather than a URL, so nothing it
- * returns can be handed to a browser. Still absent: delete, head, list, copy — deletion is
- * FILE-003's retention hook and promotion is slice B's, each with its own rule first.
+ * returns can be handed to a browser. FILE-002 slice B added the last two: `promote`, the
+ * one write into the `private` zone, and `withdraw`, its undo. Still absent: a general
+ * delete, head, list and copy — deletion is FILE-003's retention hook, with its own rule
+ * first.
+ *
+ * ## Promotion is the same pass, never a copy
+ *
+ * `49` §4 promotes an object from quarantine to private once "validation/scan passed". The
+ * obvious shape — scan the quarantine object, then copy it — reads the bytes twice, and
+ * what was scanned is then not provably what was served: on a bucket, a copy is a second
+ * request against a key, and the header below this one already names hash-then-promote
+ * as a time-of-check/time-of-use race. So `promote` does not copy. It opens a **staging
+ * sink** in the private zone under the *same key*, and the scan pass writes every chunk
+ * of the one stream it reads into the digest, the scanner and that sink together;
+ * `commit` seals the staged bytes as the private object only when the pass has decided
+ * `clean` and the digest matched the verified `content_hash`, and `abort` discards the
+ * staging. The private object is therefore, by construction, the bytes the scanner saw.
+ * The key is stable across zones (decision F1, ADR-0006): `object_key` is immutable at the
+ * engine (0015/0018) and a row's `trust_zone` says which zone holds the servable object —
+ * a divergence from `49` §4's per-zone layouts, recorded there.
+ *
+ * `withdraw` removes the private-zone object under a key. It exists for one reason: a
+ * promotion is committed *before* the transaction that records the verdict, so a crash or
+ * a lost race between the two leaves a private object that no row vouches for, and a
+ * rejected asset must never keep one. The scan pass calls it after every conclusion that
+ * is not `ready`, and never on an asset whose row already says `private`. It is not a
+ * general delete: it names the private zone alone, and the quarantine object — the
+ * evidence, the counted bytes — is FILE-003's to remove.
+ *
+ * The object then exists twice for a promoted version, under one key in two zones, until
+ * FILE-003 deletes the quarantine copy of a `ready` version: `49` §5's reconciliation must
+ * expect that. Recorded in `docs/implementation-status.md`.
  *
  * ## A sealed object is read, never re-read
  *
@@ -119,6 +149,29 @@ export interface OpenedObject {
   readonly stream: NodeJS.ReadableStream;
 }
 
+export interface PromoteObjectInput {
+  /** The verified version's key; the private object lands under the same key. */
+  readonly objectKey: string;
+  /** The row's `size_bytes`. `commit` refuses staged bytes that do not add up to it. */
+  readonly sizeBytes: number;
+}
+
+/**
+ * An open promotion: a sink in the private zone that the scan pass feeds from the one
+ * stream it reads. Exactly one of `commit` and `abort` is called; a `commit` whose byte
+ * count is not the declared size throws `SizeMismatchError` and leaves nothing behind.
+ * `abort` after `commit` is a no-op on the sealed object — use `withdraw` for that.
+ */
+export interface Promotion {
+  readonly sink: NodeJS.WritableStream;
+  commit(): Promise<StoredObject>;
+  abort(): Promise<void>;
+}
+
+export interface WithdrawObjectInput {
+  readonly objectKey: string;
+}
+
 export interface ObjectStore {
   beginMultipart(input: BeginMultipartInput): Promise<MultipartUpload>;
   completeMultipart(input: CompleteMultipartInput): Promise<StoredObject>;
@@ -131,4 +184,16 @@ export interface ObjectStore {
    * an error rather than hashing nothing.
    */
   openObject(input: OpenObjectInput): Promise<OpenedObject>;
+  /**
+   * Open a staged write into the `private` zone under the key (FILE-002 slice B). The
+   * bytes the caller writes are the bytes it is scanning; `commit` seals them as the
+   * private object, `abort` discards them. Never a copy — see the header.
+   */
+  promote(input: PromoteObjectInput): Promise<Promotion>;
+  /**
+   * Remove the private-zone object under the key, if any. Idempotent: nothing there is
+   * not an error. The one undo of a committed promotion; see the header for who may call
+   * it and when.
+   */
+  withdraw(input: WithdrawObjectInput): Promise<void>;
 }

@@ -10,7 +10,10 @@ import type {
   OpenObjectInput,
   OpenedObject,
   PartSink,
+  PromoteObjectInput,
+  Promotion,
   StoredObject,
+  WithdrawObjectInput,
 } from '@tmanage/storage';
 import { LOCAL_PART_SINK, OBJECT_STORE } from '../http/tokens.js';
 
@@ -70,6 +73,12 @@ class UnavailableObjectStore implements ObjectStore {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
   openObject(_input: OpenObjectInput): Promise<OpenedObject> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
+  promote(_input: PromoteObjectInput): Promise<Promotion> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
+  withdraw(_input: WithdrawObjectInput): Promise<void> {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
 }

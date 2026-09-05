@@ -123,6 +123,12 @@ export class AuditEventsRepository {
       // `allowed` and make the security log read as if the file passed.
       throw new AuditActionResultError(input.action, input.result);
     }
+    if (input.action === 'file_asset.scanned' && input.result !== 'allowed') {
+      // FILE-002 slice B, the rule's mirror: `scanned` is the row that says a scanner
+      // cleared the file and it was promoted. Filed as anything else it would read as a
+      // clearance that was refused, which is `rejected` or `scan_failed`, never this.
+      throw new AuditActionResultError(input.action, input.result);
+    }
 
     const id = uuidv7();
 

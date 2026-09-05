@@ -201,8 +201,11 @@ export class FileVerifier {
         let movedInBatch = 0;
         for (const row of rows) {
           if (row.status === 'verifying') reran += 1;
+          // One correlation id per asset (slice B): the audit row and the outbox row an
+          // asset produces share it, so `35` :100's copy can name it to the uploader.
+          const assetContext = verifierContextFor(organizationId, uuidv7());
           try {
-            const outcome = await this.verifyOne(context, row);
+            const outcome = await this.verifyOne(assetContext, row);
             if (outcome === 'verified') verified += 1;
             else if (outcome === 'rejected') rejected += 1;
             else skipped += 1;

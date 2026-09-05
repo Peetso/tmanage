@@ -398,11 +398,35 @@ export const AUDIT_ACTION_CATALOG = {
   'file_asset.scan_failed': {
     objectType: 'file_asset',
     // `error`: the pass could not judge — the object is missing, the store is down, the
-    // size on disk is not the row's. Nothing moves; the row stays `verifying` for a re-run,
-    // and this is the only trace of why. Named for the stage slice B adds too.
+    // size on disk is not the row's; since slice B, the scanner could not answer, or no
+    // scanner is configured (`cause: no_scanner`, recorded once per version under
+    // `MALWARE_SCAN_DRIVER=none`). Nothing moves; the row stays where it was for a re-run,
+    // and this is the only trace of why.
     clause:
       "§12 — a system job that could not verify a tenant's file with no actor is what the " +
       'log exists to explain; 03-ARCHITECTURE §108 unscanned uploads are quarantined',
+  },
+  /**
+   * FILE-002, slice B — the scan pass. One `scanned` row per version a scanner cleared:
+   * `actorUserId: null`, `scanner` as a token (`stub`, `clamav`), `verdict: clean`, and
+   * the zone the object now lives in. An infected verdict is not a second action: it is
+   * `file_asset.rejected` (`denied`) with `rejection_code: malware_detected` — the
+   * scanner's signature name is never in the log (a token, never its free text; the
+   * stderr line of the pass names it for an operator). `scan_disputed` is the loud case:
+   * a scan of a version with a standing verdict reached a different one — a signature
+   * update, or two passes overlapping — and the standing verdict is the one that holds.
+   */
+  'file_asset.scanned': {
+    objectType: 'file_asset',
+    clause:
+      '§12 — the scan verdict and the promotion are the facts a later disclosure rests on; ' +
+      '03-ARCHITECTURE §108 malware scan; 24-EVENT-CATALOG §4 file.ready.v1 security metadata',
+  },
+  'file_asset.scan_disputed': {
+    objectType: 'file_asset',
+    clause:
+      '§12 — a verdict that a second scan would have changed is a security signal with safe ' +
+      'metadata; 27-TEST-CATALOG SEC-06; 26-THREAT-MODELS §79 immutable verdicts',
   },
   /**
    * USAGE-001. The sweeper's one row per session it expires. Nobody acted — the actor is

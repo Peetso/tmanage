@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, isNull, lt, or, sql } from 'drizzle-orm';
 import { uploadStateMachine, uuidv7 } from '@tmanage/domain';
 import type { Audience, UploadState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -18,8 +18,11 @@ import type {
  * uploaded` requires a byte size. This repository asks the machine and writes the answer;
  * it does not restate the transitions. FILE-001 drives `created → uploading → uploaded` and
  * the two early exits; FILE-002's verification pass (`file-verifier.ts`) drives `uploaded →
- * verifying → scanning | rejected`. `ready` is still written by nothing: it needs a scan
- * verdict, and that is slice B's.
+ * verifying → scanning | rejected`, and its scan pass (`file-scanner.ts`) drives
+ * `scanning → ready | rejected`. `ready` is written by {@link transition} alone, and only
+ * with `scanVerdict: 'clean'`: the machine's `requires` is a presence rule, so the value
+ * is checked here before the machine is asked, and migration 0019's trigger refuses the
+ * move at the engine unless the latest version is clean and promoted.
  *
  * ## The facts a move carries are written, not only checked
  *
@@ -32,13 +35,15 @@ import type {
  * ## A version is written once, and its verdict once
  *
  * A version's identity, key, size, declared type, etag and number are immutable at the
- * engine (`trg_file_versions_immutable`, recreated in 0018); its `content_hash` and
- * `detected_mime_type` are NULL at creation and **write-once**: {@link recordVerification}
+ * engine (`trg_file_versions_immutable`, recreated in 0018 and 0019); its `content_hash`
+ * and `detected_mime_type` are NULL at creation and **write-once**: {@link recordVerification}
  * writes them conditionally on NULL, and the trigger refuses a second value even if that
- * condition is forgotten. `users.sql` grants the runtime credential INSERT and, since
- * FILE-002, UPDATE — the trigger is what keeps that grant to those two values.
- * "Replacement creates new file version" (§10) remains the only way the bytes behind an
- * asset ever change.
+ * condition is forgotten. The scan verdict, its time and its scanner are write-once as a
+ * unit ({@link recordScan}), with `unscanned` the one verdict a real scanner may replace;
+ * `trust_zone` moves once, to `private`, in the same write as a `clean` verdict. `users.sql`
+ * grants the runtime credential INSERT and, since FILE-002, UPDATE — the trigger is what
+ * keeps that grant to those writes. "Replacement creates new file version" (§10) remains
+ * the only way the bytes behind an asset ever change.
  */
 
 export class FileAssetNotFoundError extends Error {
@@ -75,6 +80,24 @@ export interface CreateFileVersionInput {
   readonly sizeBytes: number;
   readonly declaredMimeType: string;
   readonly etag: string | null;
+}
+
+/**
+ * The asset's latest version has no final verdict: `NULL`, or `unscanned` when the pass
+ * may replace it. A correlated `EXISTS` on the greatest `version_no`, in the same
+ * organization — the shape 0019's trigger reads too.
+ */
+function awaitingScanVersion(rescanUnscanned: boolean) {
+  const verdict = rescanUnscanned
+    ? or(isNull(fileVersions.scanVerdict), eq(fileVersions.scanVerdict, 'unscanned'))
+    : isNull(fileVersions.scanVerdict);
+  return exists(
+    sql`(select 1 from ${fileVersions} where ${fileVersions.organizationId} = ${fileAssets.organizationId}
+      and ${fileVersions.fileAssetId} = ${fileAssets.id}
+      and ${verdict}
+      and ${fileVersions.versionNo} = (select max(l.version_no) from file_versions l
+        where l.organization_id = ${fileAssets.organizationId} and l.file_asset_id = ${fileAssets.id}))`,
+  );
 }
 
 export class FileAssetsRepository {
@@ -151,6 +174,11 @@ export class FileAssetsRepository {
     const from = current.status as UploadState;
     const verdict = uploadStateMachine.transition(from, to, facts);
     if (!verdict.ok) throw new FileAssetTransitionError(from, to, verdict.detail);
+    // The machine asks that a verdict be present; only a clean one reaches `ready`. Checked
+    // before any write, and again at the engine by 0019's trigger.
+    if (to === 'ready' && facts['scanVerdict'] !== 'clean') {
+      throw new FileAssetTransitionError(from, to, 'ready requires a clean scan verdict');
+    }
 
     const rejectionCode = facts['rejectionCode'];
     const result = await tenantDrizzle(runner)
@@ -248,6 +276,123 @@ export class FileAssetsRepository {
           eq(fileVersions.organizationId, context.organizationId),
           eq(fileVersions.id, fileVersionId),
           isNull(fileVersions.contentHash),
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
+  /**
+   * FILE-002 slice B. The assets one scan pass should look at in this organization: every
+   * `scanning` one whose latest version has no final verdict — `NULL`, or `unscanned` when
+   * a real scanner is now configured (`rescanUnscanned`) — and that no live pass holds:
+   * `scan_claimed_at` is NULL or older than `staleBefore` (decision 13's bound, a pass that
+   * died). Oldest first, so a stuck row is never starved by new arrivals.
+   */
+  async listAwaitingScan(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: { readonly staleBefore: Date; readonly rescanUnscanned: boolean },
+    limit: number,
+  ): Promise<readonly FileAssetRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(fileAssets)
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.status, 'scanning'),
+          or(isNull(fileAssets.scanClaimedAt), lt(fileAssets.scanClaimedAt, options.staleBefore)),
+          awaitingScanVersion(options.rescanUnscanned),
+        ),
+      )
+      .orderBy(asc(fileAssets.updatedAt), asc(fileAssets.id))
+      .limit(Math.min(Math.max(limit, 1), 500));
+  }
+
+  /** The scan pass's cross-tenant half, through the bootstrap hatch as the verifier's is. */
+  async organizationsAwaitingScan(
+    runner: BootstrapQueryRunner,
+    options: { readonly staleBefore: Date; readonly rescanUnscanned: boolean },
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ organizationId: fileAssets.organizationId })
+      .from(fileAssets)
+      .where(
+        and(
+          eq(fileAssets.status, 'scanning'),
+          or(isNull(fileAssets.scanClaimedAt), lt(fileAssets.scanClaimedAt, options.staleBefore)),
+          awaitingScanVersion(options.rescanUnscanned),
+        ),
+      )
+      .orderBy(asc(fileAssets.organizationId));
+    return rows.map((row) => row.organizationId);
+  }
+
+  /**
+   * FILE-002 slice B. The scan pass's claim: `scan_claimed_at = now` on a `scanning` row
+   * nobody holds, conditional on the row's `version` so two passes that selected it
+   * together cannot both take it. `true` when this call took it. A claim is left standing
+   * when the scan fails, so the row waits out decision 13's bound before the next try — a
+   * scanner that times out on one object cannot fill every batch with it (the fleet's
+   * starvation finding).
+   */
+  async claimForScan(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    row: FileAssetRow,
+    now: Date,
+    staleBefore: Date,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(fileAssets)
+      .set({ scanClaimedAt: now, version: sql`version + 1`, updatedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.id, row.id),
+          eq(fileAssets.status, 'scanning'),
+          eq(fileAssets.version, row.version),
+          or(isNull(fileAssets.scanClaimedAt), lt(fileAssets.scanClaimedAt, staleBefore)),
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
+  /**
+   * FILE-002 slice B. Record what the scanner said — the verdict, when, and which driver —
+   * and, for a clean verdict, that the object now lives in the private zone. A final
+   * verdict is conditional on no final verdict standing (`NULL`, or `unscanned`);
+   * `unscanned` itself is conditional on `NULL`, so two `none` passes record it once.
+   * `true` when this call wrote it, `false` when a verdict already stood, in which case
+   * the caller compares and a different final one is `file_asset.scan_disputed`, never a
+   * rewrite. 0019's trigger refuses the rewrite even if this condition is forgotten, and
+   * refuses `private` without `clean`.
+   */
+  async recordScan(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileVersionId: string,
+    facts: {
+      readonly scanVerdict: 'clean' | 'infected' | 'unscanned';
+      readonly scannedAt: Date;
+      readonly scanner: string;
+    },
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(fileVersions)
+      .set({
+        scanVerdict: facts.scanVerdict,
+        scannedAt: facts.scannedAt,
+        scanner: facts.scanner,
+        ...(facts.scanVerdict === 'clean' ? { trustZone: 'private' } : {}),
+      })
+      .where(
+        and(
+          eq(fileVersions.organizationId, context.organizationId),
+          eq(fileVersions.id, fileVersionId),
+          facts.scanVerdict === 'unscanned'
+            ? isNull(fileVersions.scanVerdict)
+            : or(isNull(fileVersions.scanVerdict), eq(fileVersions.scanVerdict, 'unscanned')),
         ),
       );
     return result[0].affectedRows === 1;

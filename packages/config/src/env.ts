@@ -277,9 +277,17 @@ export const envSchema = z
       .default('false')
       .transform((value) => value === 'true'),
 
-    // Files
-    MALWARE_SCAN_DRIVER: z.enum(['stub', 'clamav']).default('stub'),
+    // Files. FILE-002 slice B: `none` is a real member, legal in production — the honest
+    // bootstrap value (`50-BOOTSTRAP` §39: scanning "feature-flagged or processed
+    // conservatively"). Under it the scan pass records every verified version `unscanned`
+    // once and leaves the asset at `scanning`: nothing becomes `ready`, nothing is
+    // promoted, nothing is served. `stub` marks everything clean and stays a development
+    // substitute; `clamav` dials a clamd at CLAMAV_HOST:CLAMAV_PORT (INSTREAM).
+    MALWARE_SCAN_DRIVER: z.enum(['none', 'stub', 'clamav']).default('stub'),
+    /** One object's whole scan — connect, stream, reply. The connect alone is capped separately. */
     MALWARE_SCAN_TIMEOUT_MS: positiveInt.default(30_000),
+    CLAMAV_HOST: nonEmpty('CLAMAV_HOST').optional(),
+    CLAMAV_PORT: port.default(3310),
     UPLOAD_MAX_BYTES: positiveInt.default(104_857_600),
     /**
      * FILE-001b. The size of one multipart part, `UPLOAD_PART_SIZE_DEFAULT_BYTES` (8 MiB)
@@ -331,6 +339,9 @@ export const envSchema = z
     // otherwise surface as an authentication refusal at the first send rather than at boot.
     if (env.EMAIL_DRIVER === 'smtp' && !env.SMTP_HOST) {
       fail('SMTP_HOST', 'required when EMAIL_DRIVER=smtp');
+    }
+    if (env.MALWARE_SCAN_DRIVER === 'clamav' && !env.CLAMAV_HOST) {
+      fail('CLAMAV_HOST', 'required when MALWARE_SCAN_DRIVER=clamav');
     }
     if (env.SMTP_USERNAME !== undefined && env.SMTP_PASSWORD === undefined) {
       fail('SMTP_PASSWORD', 'required when SMTP_USERNAME is set');

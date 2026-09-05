@@ -6,7 +6,9 @@ import {
   AUDIT_SERVICE,
   FILES_SERVICE,
   FILE_ASSETS_REPOSITORY,
+  FILE_SCANNER,
   FILE_VERIFIER,
+  MALWARE_SCANNER,
   OBJECT_STORE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
@@ -18,6 +20,7 @@ import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import { FileAssetsRepository } from './file-assets.repository.js';
@@ -25,6 +28,7 @@ import { UploadSessionsRepository } from './upload-sessions.repository.js';
 import { UsageCountersRepository } from './usage-counters.repository.js';
 import { FilesService } from './files.service.js';
 import { FileVerifier } from './file-verifier.js';
+import { FileScanner } from './file-scanner.js';
 import { UploadSessionSweeper } from './upload-session-sweeper.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
@@ -131,10 +135,34 @@ export class FilesModule {
       ) => new FileVerifier(database, assets, sessions, store, audit, outbox),
     };
 
+    // FILE-002 slice B. The scan pass, after the verifier on the same tick: the same store
+    // (it promotes into the zone the uploads' driver owns), the scanner the deployment
+    // named, and the same audit and outbox — `file.ready.v1` is appended inside its
+    // transaction, and a copy without the outbox would make files ready nobody is told of.
+    const scanner: Provider = {
+      provide: FILE_SCANNER,
+      inject: [
+        TENANT_DATABASE,
+        FILE_ASSETS_REPOSITORY,
+        OBJECT_STORE,
+        MALWARE_SCANNER,
+        AUDIT_SERVICE,
+        OUTBOX_EVENTS_REPOSITORY,
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        store: ObjectStore,
+        malwareScanner: MalwareScanner,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+      ) => new FileScanner(database, assets, store, malwareScanner, audit, outbox),
+    };
+
     return {
       module: FilesModule,
-      providers: [...repositories, service, sweeper, verifier],
-      exports: [service, sweeper, verifier],
+      providers: [...repositories, service, sweeper, verifier, scanner],
+      exports: [service, sweeper, verifier, scanner],
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,

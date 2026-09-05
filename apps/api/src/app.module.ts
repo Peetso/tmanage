@@ -21,6 +21,7 @@ import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
+import { ScannerModule } from './common/scan/scanner.module.js';
 import { PlatformModule } from './modules/platform/platform.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { FilesModule } from './modules/files/files.module.js';
@@ -81,6 +82,15 @@ export interface AppModuleOptions {
    * in a deployment whose files are a later ticket.
    */
   readonly storage?: DynamicModule;
+  /**
+   * FILE-002 slice B. The malware-scanner wiring, already built — `ScannerModule.forConfig()`
+   * in production (`none`, or `clamav` at a host), `ScannerModule.forScanner()` in a suite
+   * that holds its own. Absent means `ScannerModule.none()`: the `none` driver, under
+   * which the scan pass records every verified version `unscanned` once and promotes
+   * nothing — the bootstrap profile's honest shape, and a suite that never runs the pass
+   * notices no difference.
+   */
+  readonly scanner?: DynamicModule;
 }
 
 @Module({})
@@ -101,6 +111,7 @@ export class AppModule {
         // producer and resolves `INVITATION_MAILER` from this injector.
         options.mailer ?? MailerModule.none(),
         options.storage ?? StorageModule.none(),
+        options.scanner ?? ScannerModule.none(),
         TenancyModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()

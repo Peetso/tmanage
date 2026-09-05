@@ -73,6 +73,17 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
+/**
+ * A promotion was committed or fed after it was already committed or aborted. A bug in
+ * the caller: the handle is one-shot by contract.
+ */
+export class PromotionClosedError extends Error {
+  constructor() {
+    super('the promotion is already closed');
+    this.name = 'PromotionClosedError';
+  }
+}
+
 /** A key or handle component that would compose a path outside the store's root. */
 export class UnsafeObjectPathError extends Error {
   constructor(readonly component: string) {

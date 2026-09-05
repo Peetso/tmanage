@@ -3,6 +3,7 @@ import type { Env } from '@tmanage/config';
 import { DatabaseModule } from './common/database/database.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
+import { ScannerModule } from './common/scan/scanner.module.js';
 import { AppModule } from './app.module.js';
 import { apiConfigFrom } from './common/http/api-config.js';
 
@@ -58,6 +59,15 @@ export function composeAppModule(env: Env): DynamicModule {
       signingSecret: env.STORAGE_LOCAL_SIGNING_SECRET,
       publicUrl: env.API_PUBLIC_URL,
       partSizeBytes: env.UPLOAD_PART_SIZE_BYTES,
+    }),
+    // FILE-002 slice B. `none` records `unscanned` and promotes nothing (decision F3);
+    // `stub` is refused in production by `packages/config`; `clamav` dials the host named
+    // here — from configuration, as every network address in this file is.
+    scanner: ScannerModule.forConfig({
+      driver: env.MALWARE_SCAN_DRIVER,
+      host: env.CLAMAV_HOST,
+      port: env.CLAMAV_PORT,
+      timeoutMs: env.MALWARE_SCAN_TIMEOUT_MS,
     }),
   });
 }

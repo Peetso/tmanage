@@ -101,6 +101,16 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'file_asset',
     catalog: '§4 file.rejected.v1 — inbox/notification, security log',
   },
+  /**
+   * FILE-002 slice B. §4: "validation/scan passed", sensitivity "security metadata". The
+   * aggregate is the asset for `file.rejected.v1`'s reason. Raised only by the scan pass,
+   * inside the transaction that moves `scanning → ready`, so a consumer never learns of a
+   * file that is not servable.
+   */
+  'file.ready.v1': {
+    aggregateType: 'file_asset',
+    catalog: '§4 file.ready.v1 — preview, requester notification; security metadata',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -245,6 +255,20 @@ export interface FileRejectedV1 {
   readonly rejectionCode: string;
 }
 
+/**
+ * FILE-002 slice B. Ids, the purpose and the size — §7's "never raw content": no
+ * filename, no type, no digest, no scanner. A consumer that renders the file reads the row
+ * under its own permissions; the correlation id on the outbox row is the audit row's.
+ */
+export interface FileReadyV1 {
+  readonly fileAssetId: string;
+  readonly fileVersionId: string;
+  readonly projectId: string;
+  readonly purpose: string;
+  readonly objectId: string | null;
+  readonly sizeBytes: number;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -258,4 +282,5 @@ export interface OutboxEventPayloads {
   readonly 'usage.storage_committed.v1': UsageStorageCommittedV1;
   readonly 'usage.storage_released.v1': UsageStorageReleasedV1;
   readonly 'file.rejected.v1': FileRejectedV1;
+  readonly 'file.ready.v1': FileReadyV1;
 }

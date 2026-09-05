@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FakeObjectStore } from './fake-object-store.js';
-import { ObjectNotFoundError } from './errors.js';
+import { ObjectNotFoundError, PromotionClosedError, SizeMismatchError } from './errors.js';
 import { InvalidObjectKeyComponentError, uploadObjectKey } from './object-key.js';
 
 const ORG = '019203a4-5b6c-7d8e-9f01-23456789abcd';
@@ -107,5 +107,53 @@ describe('FakeObjectStore — openObject (FILE-002)', () => {
     await expect(store.openObject({ zone: 'quarantine', objectKey: key })).resolves.toMatchObject({
       sizeBytes: 1,
     });
+  });
+});
+
+describe('FakeObjectStore — promote and withdraw (FILE-002 slice B)', () => {
+  const key = uploadObjectKey({ organizationId: ORG, projectId: PROJECT, uploadId: UPLOAD });
+
+  async function feed(sink: NodeJS.WritableStream, ...chunks: string[]): Promise<void> {
+    for (const chunk of chunks) {
+      await new Promise<void>((done, fail) =>
+        sink.write(Buffer.from(chunk), (error) => (error ? fail(error) : done())),
+      );
+    }
+  }
+
+  it('places what it was fed under private/key on commit, and records it', async () => {
+    const store = new FakeObjectStore(() => 1);
+    const promotion = await store.promote({ objectKey: key, sizeBytes: 5 });
+    await feed(promotion.sink, 'he', 'llo');
+    expect(store.objects.has(`private/${key}`)).toBe(false);
+    expect(await promotion.commit()).toMatchObject({ sizeBytes: 5 });
+    expect(store.objects.get(`private/${key}`)?.toString()).toBe('hello');
+    expect(store.promoted).toEqual([{ objectKey: key, sizeBytes: 5 }]);
+    expect(store.committed).toEqual([key]);
+    await expect(promotion.commit()).rejects.toBeInstanceOf(PromotionClosedError);
+  });
+
+  it('refuses a commit whose bytes are not the declared size', async () => {
+    const store = new FakeObjectStore(() => 1);
+    const promotion = await store.promote({ objectKey: key, sizeBytes: 4 });
+    await feed(promotion.sink, 'hello');
+    await expect(promotion.commit()).rejects.toBeInstanceOf(SizeMismatchError);
+    expect(store.objects.has(`private/${key}`)).toBe(false);
+  });
+
+  it('abort leaves nothing and withdraw removes what a commit placed', async () => {
+    const store = new FakeObjectStore(() => 1);
+    const aborted = await store.promote({ objectKey: key, sizeBytes: 1 });
+    await feed(aborted.sink, 'x');
+    await aborted.abort();
+    expect(store.objects.has(`private/${key}`)).toBe(false);
+    expect(store.abortedPromotions).toEqual([key]);
+
+    const committed = await store.promote({ objectKey: key, sizeBytes: 1 });
+    await feed(committed.sink, 'x');
+    await committed.commit();
+    await store.withdraw({ objectKey: key });
+    expect(store.objects.has(`private/${key}`)).toBe(false);
+    expect(store.withdrawn).toEqual([key]);
   });
 });

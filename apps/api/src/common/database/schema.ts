@@ -572,6 +572,8 @@ export const fileAssets = mysqlTable(
     /** `23-ERD` §10's nine states, driven by `uploadStateMachine`. */
     status: varchar('status', { length: 32 }).notNull(),
     rejectionCode: varchar('rejection_code', { length: 64 }),
+    /** FILE-002 slice B. The scan pass's claim on a `scanning` row; stale after fifteen minutes. */
+    scanClaimedAt: datetime('scan_claimed_at', { mode: 'date', fsp: 3 }),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -602,6 +604,12 @@ export const fileVersions = mysqlTable(
     declaredMimeType: varchar('declared_mime_type', { length: 150 }).notNull(),
     detectedMimeType: varchar('detected_mime_type', { length: 150 }),
     contentHash: varchar('content_hash', { length: 128 }),
+    /** FILE-002 slice B (0019). `clean` | `infected` | `unscanned`; write-once with its time and scanner. */
+    scanVerdict: varchar('scan_verdict', { length: 16 }),
+    scannedAt: datetime('scanned_at', { mode: 'date', fsp: 3 }),
+    scanner: varchar('scanner', { length: 64 }),
+    /** Which zone holds the servable object: `quarantine` at birth, `private` once promoted (ADR-0006). */
+    trustZone: varchar('trust_zone', { length: 16 }).notNull().default('quarantine'),
     etag: varchar('etag', { length: 255 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },

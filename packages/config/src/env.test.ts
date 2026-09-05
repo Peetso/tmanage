@@ -37,6 +37,7 @@ const prodEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
   QUEUE_DRIVER: 'redis',
   CACHE_DRIVER: 'redis',
   MALWARE_SCAN_DRIVER: 'clamav',
+  CLAMAV_HOST: 'clamd.tmanage.example',
   EMAIL_DRIVER: 'smtp',
   WORKER_DATABASE_URL: 'mysql://tmanage_worker:pw@localhost:3306/tmanage',
   SMTP_HOST: 'smtp.tmanage.example',
@@ -327,6 +328,30 @@ describe('loadEnv', () => {
       ['EMAIL_DRIVER', 'console'],
     ])('refuses the %s development substitute "%s" in production', (key, value) => {
       expect(issuePaths(() => loadEnv(prodEnv({ [key]: value })))).toContain(key);
+    });
+
+    it('accepts MALWARE_SCAN_DRIVER=none in production: the honest bootstrap value, not a substitute (FILE-002 F3)', () => {
+      expect(() =>
+        loadEnv(prodEnv({ MALWARE_SCAN_DRIVER: 'none', CLAMAV_HOST: undefined })),
+      ).not.toThrow();
+    });
+
+    it('refuses a scan driver that is not a member', () => {
+      expect(issuePaths(() => loadEnv(prodEnv({ MALWARE_SCAN_DRIVER: 'off' })))).toContain(
+        'MALWARE_SCAN_DRIVER',
+      );
+    });
+
+    it('requires a host for the clamav driver, in every environment', () => {
+      expect(issuePaths(() => loadEnv(prodEnv({ CLAMAV_HOST: undefined })))).toContain(
+        'CLAMAV_HOST',
+      );
+      expect(issuePaths(() => loadEnv({ ...devEnv(), MALWARE_SCAN_DRIVER: 'clamav' }))).toContain(
+        'CLAMAV_HOST',
+      );
+      expect(
+        loadEnv({ ...devEnv(), MALWARE_SCAN_DRIVER: 'clamav', CLAMAV_HOST: 'clamd' }).CLAMAV_PORT,
+      ).toBe(3310);
     });
 
     it.each(['SESSION_SECRET', 'CSRF_SECRET', 'STORAGE_LOCAL_SIGNING_SECRET'])(
