@@ -6,7 +6,7 @@ describe('the fixed-window limiter', () => {
     let clock = 1_000;
     const admit = createFixedWindowLimiter({ windowMs: 60_000, max: 3, now: () => clock });
     expect([admit('a'), admit('a'), admit('a')]).toEqual([true, true, true]);
-    // Reversal: compare with `<` and the fourth is admitted.
+    // Reversal: compare with `<` and the third is already refused (proved 2026-09-05).
     expect(admit('a')).toBe(false);
     expect(admit('a')).toBe(false);
     // Another key has its own window.

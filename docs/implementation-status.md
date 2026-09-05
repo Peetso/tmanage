@@ -29,6 +29,27 @@ change what a command does rather than merely how it is typed.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-09-05, start of the debt-and-limiter session
+
+The **thirty-second** consecutive run, and the table below is this run's output rather than a
+copy of the previous one. Every pair was compared by SHA-256 and, separately, by modification
+time — pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                          |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                           |
+| Modification times                        | **No pack file is newer than its copy** in either scope. 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later; one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. Unchanged from the thirty-first run       |
+| Uncopied pack content                     | The same six as the thirty-first run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                           |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-09-04, start of the sweeper session
 
 The **thirty-first** consecutive run, and the table below is this run's output rather than a
@@ -763,7 +784,7 @@ may take a reservation (`EXPIRY_GRACE_MS`); nothing in the pack names a value.
 | E2E revert proof, one run                   | The sweeper's release replaced by "skipped" — **E2E-12b red** on the report line, `scanned 1, released 0, skipped 1, failed 0`; E2E-12a green. Restored sha-identical                                                                                                                                                                                                                                                                                                                                                                                             |
 | `typecheck` api and e2e, `eslint`, prettier | Clean on every touched file before the chain; the lint boundary caught one `drizzle-orm` import in feature code and it was moved. Line endings LF throughout (`git ls-files --eol`)                                                                                                                                                                                                                                                                                                                                                                               |
 | **The chain** on `08ec1ea`, twice           | The first launch **died at the lint step** — a Git Bash `fork: Resource temporarily unavailable` on the machine, not a gate; `format:check` and `typecheck` had passed. The relaunch went **red in `packages/domain`**: `audit.test.ts` requires every action's clause to cite §12, and the new `upload_session.expired` clause cited `49-PRICING` and `24-EVENT-CATALOG` instead. One clause rewritten (`0de0b21`); domain rebuilt, its 136 unit cases green. Recorded because a gate that refuses a wording is a gate, and the chain, not the author, caught it |
-| **The chain** on `0de0b21`                  | @@CHAIN@@                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **The chain** on `0de0b21`                  | **Green.** `format:check`, `typecheck`, `lint`, unit **1085 passed** across 63 files, database **904 passed, 29 skipped** across 38 files, `audit:design` **172 of 172**, `format:check` again                                                                                                                                                                                                                                                                                                                                                                    |
 | `mysqld` strays                             | None after any database run, either journey run, or the chain                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 `test:vr` was **not run and is not owed**: `packages/ui` is untouched.
