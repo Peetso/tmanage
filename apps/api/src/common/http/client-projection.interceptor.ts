@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, StreamableFile } from '@nestjs/common';
 import type { CallHandler, ExecutionContext, NestInterceptor } from '@nestjs/common';
 import { map } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
@@ -48,6 +48,10 @@ export class ClientProjectionInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       map((body) => {
+        // FILE-002 slice C. A download's body is bytes, not fields: the gate has already
+        // decided, and walking a stream's internals would prove nothing about the row. Let
+        // through by name — any other object is still swept.
+        if (body instanceof StreamableFile) return body;
         const offending = findForbiddenClientFields(body);
         if (offending.length > 0) {
           // The field *names* are safe to carry: they are the keys of a fixed list in

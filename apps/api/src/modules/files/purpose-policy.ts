@@ -31,6 +31,30 @@ export function mayUploadFor(kind: PrincipalKind, purpose: UploadPurpose): boole
   return PERMITTED[kind].includes(purpose);
 }
 
+/**
+ * FILE-002 slice C. Which purposes which kind of principal may **download**. Again no
+ * document states the table; the decision, deny-by-default and recorded in
+ * docs/implementation-status.md (slice C, decision D3):
+ *
+ * | purpose              | internal | client                                                    |
+ * | -------------------- | -------- | --------------------------------------------------------- |
+ * | `request_attachment` | yes      | yes — their own request's files, held to the request row  |
+ * | `message_attachment` | yes      | no — a client reads no messages yet (CHAT-001)            |
+ * | `deliverable`        | yes      | no — until DEL-001 supplies the published fact (CL-05)    |
+ * | `document`           | no       | no — Docs is deferred                                     |
+ *
+ * A service principal downloads nothing through the API: a job opens the store directly.
+ */
+const DOWNLOADABLE: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = {
+  internal: ['request_attachment', 'message_attachment', 'deliverable'],
+  client: ['request_attachment'],
+  service: [],
+};
+
+export function mayDownloadFor(kind: PrincipalKind, purpose: UploadPurpose): boolean {
+  return DOWNLOADABLE[kind].includes(purpose);
+}
+
 /** The purposes whose `objectId` must name an existing row, and which table it names. */
 export function objectTableFor(purpose: UploadPurpose): 'client_requests' | null {
   return purpose === 'request_attachment' ? 'client_requests' : null;

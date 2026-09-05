@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { lastValueFrom, of } from 'rxjs';
+import { StreamableFile } from '@nestjs/common';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
+import { Readable } from 'node:stream';
 import { ClientProjectionInterceptor } from './client-projection.interceptor.js';
 import { ApiError } from './errors.js';
 
@@ -106,5 +108,21 @@ describe('the client projection boundary', () => {
     await expect(
       lastValueFrom(interceptor.intercept(context, handlerReturning(body))),
     ).resolves.toBe(body);
+  });
+});
+
+describe('a download under /portal (FILE-002 slice C)', () => {
+  it('lets a StreamableFile through by name, without walking the stream it wraps', async () => {
+    // A stream is an object with internals; the sweep must not be what decides. Reversal:
+    // drop the by-name check and the walk finds this property and answers a 500.
+    const stream = Object.assign(Readable.from([Buffer.from('%PDF-')]), { objectKey: 'tenant/x' });
+    const file = new StreamableFile(stream);
+    expect(await run('/v1/organizations/atlas/portal/files/x/content', file)).toBe(file);
+  });
+
+  it('still refuses an object beside it that names a forbidden field', async () => {
+    await expect(
+      run('/v1/organizations/atlas/portal/files/x', { objectKey: 'tenant/x' }),
+    ).rejects.toBeInstanceOf(ApiError);
   });
 });

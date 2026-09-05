@@ -422,6 +422,18 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 — the scan verdict and the promotion are the facts a later disclosure rests on; ' +
       '03-ARCHITECTURE §108 malware scan; 24-EVENT-CATALOG §4 file.ready.v1 security metadata',
   },
+  /**
+   * FILE-002 slice C. One row per download attempt: `allowed` before the first byte leaves,
+   * `denied` for every refusal with the cause on `audit_code` alone. The metadata names the
+   * project, the purpose, the version, the size, the principal's kind and the delivery —
+   * never the filename, the type, the key or the address.
+   */
+  'file_asset.downloaded': {
+    objectType: 'file_asset',
+    clause:
+      '§12 — a download of file content is a disclosure; 25-AUTHORIZATION §115 restricted ' +
+      'export/download is audited; 27-TEST-CATALOG SEC-10 mass-download evidence',
+  },
   'file_asset.scan_disputed': {
     objectType: 'file_asset',
     clause:

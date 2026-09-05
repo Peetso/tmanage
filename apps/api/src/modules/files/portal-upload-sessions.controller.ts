@@ -5,7 +5,7 @@ import { ApiError } from '../../common/http/errors.js';
 import { API_CONFIG, FILES_SERVICE } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { FileAssetView, FilesService, UploadSessionView } from './files.service.js';
+import type { ClientFileAssetView, FilesService, UploadSessionView } from './files.service.js';
 import { parseParts, parseUploadBody, requiredIdempotencyKey } from './upload-input.js';
 import type { ValidationDetail } from './upload-input.js';
 
@@ -61,7 +61,7 @@ export class PortalUploadSessionsController {
     @CurrentPrincipal() principal: Principal,
     @Param('uploadSessionId') uploadSessionId: string,
     @Body() body: unknown,
-  ): Promise<FileAssetView> {
+  ): Promise<ClientFileAssetView> {
     const details: ValidationDetail[] = [];
     const parts = parseParts(body, details);
     if (details.length > 0) {

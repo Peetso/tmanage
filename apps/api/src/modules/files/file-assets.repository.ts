@@ -437,6 +437,40 @@ export class FileAssetsRepository {
   }
 
   /**
+   * FILE-002 slice C. The asset and its **latest** version in one statement — the download
+   * gate's read. Two reads (`findById`, then `findLatestVersion`) can describe two moments;
+   * one join cannot. The version is `null` before the first completion. The latest version
+   * is the greatest `version_no` in the asset's own organization — the same correlated
+   * shape 0019's trigger and {@link awaitingScanVersion} use.
+   */
+  async findWithLatestVersion(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileAssetId: string,
+  ): Promise<{ readonly asset: FileAssetRow; readonly version: FileVersionRow | null } | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ asset: fileAssets, version: fileVersions })
+      .from(fileAssets)
+      .leftJoin(
+        fileVersions,
+        and(
+          eq(fileVersions.organizationId, fileAssets.organizationId),
+          eq(fileVersions.fileAssetId, fileAssets.id),
+          eq(
+            fileVersions.versionNo,
+            sql`(select max(l.version_no) from file_versions l where l.organization_id = ${fileAssets.organizationId} and l.file_asset_id = ${fileAssets.id})`,
+          ),
+        ),
+      )
+      .where(
+        and(eq(fileAssets.organizationId, context.organizationId), eq(fileAssets.id, fileAssetId)),
+      )
+      .limit(1);
+    const row = rows[0];
+    return row ? { asset: row.asset, version: row.version ?? null } : null;
+  }
+
+  /**
    * Append the asset's next version. The number is allocated from the asset's own rows
    * inside the caller's transaction, and `uq_file_versions_org_asset_no` refuses a duplicate
    * if two completions ever reach here for one asset at once.

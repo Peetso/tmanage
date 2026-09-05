@@ -9,7 +9,7 @@ import {
   approvalStateMachine,
   type ReviewerOutcome,
 } from './approval.js';
-import { isServable, uploadStateMachine, UPLOAD_STATES } from './upload.js';
+import { isServable, isServableVersion, uploadStateMachine, UPLOAD_STATES } from './upload.js';
 import { invitationStateMachine } from './invitation.js';
 import { offboardingStateMachine } from './offboarding.js';
 import { StateMachine } from './state-machine.js';
@@ -326,6 +326,28 @@ describe('upload lifecycle (23-ERD §10)', () => {
     for (const state of UPLOAD_STATES) {
       expect(isServable(state), `${state} servability`).toBe(state === 'ready');
     }
+  });
+
+  it('serves a version only when ready, clean and private hold together (FILE-002 slice C)', () => {
+    const verdicts = ['clean', 'infected', 'unscanned', null];
+    const zones = ['quarantine', 'private', 'derived'];
+    let admitted = 0;
+    for (const status of UPLOAD_STATES) {
+      for (const scanVerdict of verdicts) {
+        for (const trustZone of zones) {
+          const servable = isServableVersion({ status, scanVerdict, trustZone });
+          if (servable) admitted += 1;
+          expect(servable, `${status}/${scanVerdict}/${trustZone}`).toBe(
+            status === 'ready' && scanVerdict === 'clean' && trustZone === 'private',
+          );
+        }
+      }
+    }
+    expect(admitted).toBe(1);
+    // Reversal: a status the machine does not know is never servable either.
+    expect(isServableVersion({ status: 'READY', scanVerdict: 'clean', trustZone: 'private' })).toBe(
+      false,
+    );
   });
 
   it('cannot reach ready without a recorded scan verdict', () => {

@@ -94,6 +94,30 @@ export interface FileAssetView {
   readonly fileVersionId: string;
   readonly versionNo: number;
   readonly createdAt: string;
+  /**
+   * FILE-002 slice C. Why a `rejected` asset was rejected — `12-PERMISSION-MATRIX` §39 makes
+   * it security metadata, so the studio sees it (TM-15, `22` :153) and a client never does:
+   * the client's projection is {@link ClientFileAssetView}, and `35` :100 fixes their copy.
+   */
+  readonly rejectionCode: string | null;
+}
+
+/** The client's projection of a file asset: everything but the security metadata. */
+export type ClientFileAssetView = Omit<FileAssetView, 'rejectionCode'>;
+
+export function clientFileAssetView(view: FileAssetView): ClientFileAssetView {
+  return {
+    id: view.id,
+    name: view.name,
+    status: view.status,
+    purpose: view.purpose,
+    projectId: view.projectId,
+    mimeType: view.mimeType,
+    sizeBytes: view.sizeBytes,
+    fileVersionId: view.fileVersionId,
+    versionNo: view.versionNo,
+    createdAt: view.createdAt,
+  };
 }
 
 export interface CreateUploadInput extends ParsedUploadBody {
@@ -193,11 +217,14 @@ function toFileAssetView(
     status: asset.status,
     purpose: asset.purpose,
     projectId: asset.projectId,
-    mimeType: session.declaredMimeType,
+    // The verifier's detected type once it has one (FILE-002 slice A); the declaration
+    // only until then. A view never says a type the bytes' signature did not.
+    mimeType: version.detectedMimeType ?? session.declaredMimeType,
     sizeBytes: version.sizeBytes,
     fileVersionId: version.id,
     versionNo: version.versionNo,
     createdAt: asset.createdAt.toISOString(),
+    rejectionCode: asset.rejectionCode,
   };
 }
 
@@ -389,9 +416,11 @@ export class FilesService {
     principal: Principal,
     uploadSessionId: string,
     parts: readonly ParsedPart[],
-  ): Promise<FileAssetView> {
+  ): Promise<ClientFileAssetView> {
     this.requireClient(principal);
-    return this.completeSession(context, principal, uploadSessionId, parts);
+    return clientFileAssetView(
+      await this.completeSession(context, principal, uploadSessionId, parts),
+    );
   }
 
   async cancelForClient(

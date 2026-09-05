@@ -45,6 +45,7 @@ export {
   UPLOAD_STATES,
   SERVABLE_UPLOAD_STATES,
   isServable,
+  isServableVersion,
 } from './state-machines/upload.js';
 export type { UploadState } from './state-machines/upload.js';
 

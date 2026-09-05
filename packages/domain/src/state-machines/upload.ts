@@ -55,8 +55,8 @@ const definition: StateMachineDefinition<UploadState> = {
 export const uploadStateMachine = new StateMachine(definition);
 
 /**
- * The only state in which file content may be served to any principal other than the
- * uploader or an authorized processing job.
+ * The only state in which file content may be served to any principal other than an
+ * authorized processing job — the uploader included: nothing is exposed before the scan.
  *
  * `23-ERD §10`. Read paths assert against this rather than testing `!== 'rejected'`,
  * because a file still `scanning` is equally unsafe to serve.
@@ -65,4 +65,26 @@ export const SERVABLE_UPLOAD_STATES: readonly UploadState[] = ['ready'];
 
 export function isServable(state: UploadState): boolean {
   return SERVABLE_UPLOAD_STATES.includes(state);
+}
+
+/**
+ * FILE-002 slice C. Whether a **version** may be served: the asset `ready`, the version's
+ * verdict `clean`, the version promoted to the `private` zone — three facts, together.
+ *
+ * The 0019 trigger holds the transition into `ready` to the latest version being clean and
+ * promoted; a read path must hold the version it is about to serve to the same rule,
+ * because a replacement version (`23-ERD` §10) is born in quarantine under an asset that is
+ * already `ready`. The predicate takes the values as the row carries them — strings — so a
+ * caller cannot satisfy it by asserting a type.
+ */
+export function isServableVersion(facts: {
+  readonly status: string;
+  readonly scanVerdict: string | null;
+  readonly trustZone: string;
+}): boolean {
+  return (
+    isServable(facts.status as UploadState) &&
+    facts.scanVerdict === 'clean' &&
+    facts.trustZone === 'private'
+  );
 }

@@ -67,5 +67,6 @@ export const UPLOAD_SESSION_SWEEPER = Symbol.for('tmanage.UploadSessionSweeper')
 export const FILE_VERIFIER = Symbol.for('tmanage.FileVerifier');
 /** FILE-002 slice B. The scan pass — resolved by `verify.ts` after the verifier, on the same tick. */
 export const FILE_SCANNER = Symbol.for('tmanage.FileScanner');
+export const FILE_DOWNLOAD_SERVICE = Symbol.for('tmanage.FileDownloadService');
 /** FILE-002 slice B. The malware scanner port, provided by `ScannerModule`. */
 export const MALWARE_SCANNER = Symbol.for('tmanage.MalwareScanner');

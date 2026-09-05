@@ -7,6 +7,7 @@ import {
   FILES_SERVICE,
   FILE_ASSETS_REPOSITORY,
   FILE_SCANNER,
+  FILE_DOWNLOAD_SERVICE,
   FILE_VERIFIER,
   MALWARE_SCANNER,
   OBJECT_STORE,
@@ -29,6 +30,9 @@ import { UsageCountersRepository } from './usage-counters.repository.js';
 import { FilesService } from './files.service.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
+import { FileDownloadService } from './file-download.service.js';
+import { FileDownloadsController } from './file-downloads.controller.js';
+import { PortalFileDownloadsController } from './portal-file-downloads.controller.js';
 import { UploadSessionSweeper } from './upload-session-sweeper.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
@@ -159,14 +163,37 @@ export class FilesModule {
       ) => new FileScanner(database, assets, store, malwareScanner, audit, outbox),
     };
 
+    // FILE-002 slice C. The download gate: its own service, so the read path that hands
+    // bytes out shares no method with the write path that takes them in.
+    const downloads: Provider = {
+      provide: FILE_DOWNLOAD_SERVICE,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, OBJECT_STORE, AUDIT_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        store: ObjectStore,
+        audit: AuditService,
+      ) =>
+        new FileDownloadService(
+          database,
+          assets,
+          new ProjectsRepository(),
+          new ClientRequestsRepository(),
+          store,
+          audit,
+        ),
+    };
+
     return {
       module: FilesModule,
-      providers: [...repositories, service, sweeper, verifier, scanner],
-      exports: [service, sweeper, verifier, scanner],
+      providers: [...repositories, service, sweeper, verifier, scanner, downloads],
+      exports: [service, sweeper, verifier, scanner, downloads],
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,
         UploadPartsController,
+        FileDownloadsController,
+        PortalFileDownloadsController,
       ],
     };
   }
