@@ -58,10 +58,13 @@ Consequences that follow, each deliberate:
    object is missing can be re-promoted from quarantine, and a rejected row's quarantine
    object stays counted (`49` §5, decision F4). Storage accounting counts the version once;
    the quarantine copy's lifetime is FILE-003's.
-3. **The download path reads the zone from the row**, never from a literal. Slice C's
-   `isServable` will require `status = 'ready'`, `trust_zone = 'private'` and
-   `scan_verdict = 'clean'` on the latest version together; the engine already refuses
-   `ready` without the last two.
+3. **The download path holds the row to `private` and opens `private` by literal.**
+   Slice C's `isServableVersion` requires `status = 'ready'`, `trust_zone = 'private'` and
+   `scan_verdict = 'clean'` on the latest version together, and the gate then opens the
+   `private` zone by name — never a zone read from the row, so a row that lied would fail
+   the read rather than steer it. (0019's header says "reads it from the row and never from
+   a zone literal"; this is the corrected rule. The engine already refuses `ready` without
+   the last two.)
 4. **`withdraw` is the one undo**: it removes a private object under a key and nothing
    else. It runs after a rejection (a crashed earlier run may have sealed the object before
    it could conclude) and when a pass loses a dispute to a standing `infected`. It never

@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-05 (FILE-002 slice B completion session; scanning and promotion built and proved; ADR-0006; chain green on 631e092) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-05 (FILE-002 slice C session; the download gate and the views built and proved; FILE-002 closes; chain green on d30087c) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -740,6 +740,145 @@ pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db &&
 Outside the chain, `pnpm test:e2e`: **10 passed** in ~1.8 m against the full booted stack — up
 from 7. `pnpm test:vr` was **not run and is not owed**: `packages/ui` source, styles and stories
 are untouched.
+
+---
+
+## FILE-002 slice C — the download gate and the views, built and proved
+
+Built in the same session as slice B's completion, on a green chain (`631e092`). A read-only
+fleet of seventeen (run `wf_1aca4f71-dcb`: twelve readers over the domain predicate, the
+views, the repository, the contracts, the e2e stack, the planning documents and the HTTP
+conventions; four adversarial lenses; one synthesizer) mapped the slice before a line was
+written. Peter raised the agent cap to 30 for that fleet and put it back to 10 the same
+evening; the cap is 10. **FILE-002 closes with this slice.**
+
+### What the fleet found, and what changed because of it
+
+- **`isServable` had no caller and one argument.** `packages/domain` checked the status
+  alone; the verdict's _value_ and the zone were nowhere in the domain package. Built:
+  `isServableVersion({ status, scanVerdict, trustZone })` — `ready`, `clean`, `private`,
+  together — on the values as the row carries them. 0019's trigger guards the transition
+  into `ready`; this guards the read, because a replacement version (`23` §10) is born in
+  quarantine under an asset that is already `ready`.
+- **Two reads describe two moments.** `findById` then `findLatestVersion` (the completion
+  view's shape) can straddle a promotion. Built: `findWithLatestVersion` — one statement, the
+  asset `LEFT JOIN` its greatest `version_no` in its own organization.
+- **The client's relation is the request row, never the asset alone.** An internal upload
+  carries no client organization, so `authorize()`'s rule 7 is a no-op on it; a sibling
+  client organization sharing the project would have read an internal upload. Built: for a
+  client, the request named by `object_id` must exist, sit in the asset's project and belong
+  to the principal's client organization, before `authorize()` is even asked.
+- **`lifecycle: 'active'` was fixed on purpose in FILE-001's write path** and would have
+  been wrong on the read path: rule 6 lets an internal principal read an archived project's
+  file and lets no client. Built: the project's true lifecycle from its row.
+- **The zone is a literal.** `openObject({ zone: 'private' })`, never `version.trustZone`
+  passed through — the row must _say_ private (the predicate) and the code must _open_
+  private; a row that lied would fail the read rather than steer it. The size is held to the
+  row's before the first byte, as the scanner's read is. ADR-0006's sentence "reads it from
+  the row and never from a zone literal" is corrected there to this rule.
+- **The two doors' views were one type.** `FileAssetView` served the _declared_ MIME to
+  everyone and no rejection to anyone. Built: the detected type once the verifier has one;
+  `rejectionCode` on the studio's view (TM-15, `22` :153) and a `ClientFileAssetView` without
+  it (`12-PERMISSION-MATRIX` §39: security metadata) — `35` :100's copy is the client's,
+  and the studio sees the code, never the engine's detection name.
+- **Every refusal is one 404.** Not found, another tenant's, another client's, still
+  `scanning`, `rejected`, a quarantine-only latest version, a missing or truncated private
+  object: byte-identical bodies but for the per-request correlation id; the cause lives on a
+  `file_asset.downloaded` `denied` row's `audit_code` alone. A polling client writes denied
+  rows — `27` SEC-10's mass-download evidence is worth the rows (decision D6).
+- **The proxied stream is the first streaming route** in `apps/api`. `StreamableFile` keeps
+  Nest in its own response mode (the exception filter and the interceptors still shape
+  everything that is not the bytes); the `ClientProjectionInterceptor` lets a
+  `StreamableFile` through **by name** rather than walking a stream's internals — the walk
+  finds nothing today, and a property on the stream would have turned a download into a 500.
+- **No planning line fixes the response headers.** Recorded as decision D2: `attachment`
+  always (never `inline` — `26` §5's polyglots and content-disposition XSS), the detected
+  type, `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store` (`27` SEC-05),
+  `Content-Length`, no `ETag`. The filename has an ASCII fallback with quotes, backslashes,
+  semicolons, separators and control bytes replaced, and an RFC 5987 `filename*` for the
+  real name.
+- **What the fleet could not establish, settled by reading:** `malware_detected` _is_ written
+  to `rejection_code` by the scanner (its enum has four codes, not three); no contract
+  harness validates `contracts/events/*.schema.json`, and the contracts live under
+  `docs/planning/`, which this repository never edits — so the OpenAPI and event-schema
+  divergences are recorded, not fixed.
+
+### What was built
+
+| Piece               | Where                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **The predicate**   | `packages/domain/src/state-machines/upload.ts` `isServableVersion`; the doc comment no longer names the uploader as an exception (nothing is exposed before the scan)                                                                                                                                                                                  |
+| **The read**        | `FileAssetsRepository.findWithLatestVersion` — asset and latest version in one statement                                                                                                                                                                                                                                                               |
+| **The gate**        | `apps/api/src/modules/files/file-download.service.ts` — the order above; `purpose-policy.ts` `mayDownloadFor` (decision D3: a client downloads request attachments only; deliverables wait for DEL-001's published fact); one `file_asset.downloaded` row per attempt, `allowed` before the first byte, `denied` with `audit_code` for every refusal   |
+| **The doors**       | `file-downloads.controller.ts` (`GET v1/organizations/:orgSlug/files/:fileAssetId/content`) and `portal-file-downloads.controller.ts` (`…/portal/files/:fileAssetId/content`), both `@RequireCapability('file.download')`; `download-response.ts` writes the five headers and returns a `StreamableFile`; a `GET` carries no CSRF token and needs none |
+| **The views**       | `FileAssetView.rejectionCode`, `mimeType` = detected ?? declared; `ClientFileAssetView` and `clientFileAssetView()` for the portal's completion route                                                                                                                                                                                                  |
+| **The interceptor** | `ClientProjectionInterceptor` lets a `StreamableFile` through by name                                                                                                                                                                                                                                                                                  |
+| **Audit**           | `file_asset.downloaded` in `packages/domain` (`§12`; `25` :115; `27` SEC-10); metadata: `project_id`, `purpose`, `file_version_id`, `size_bytes`, `principal_kind`, `delivery: 'proxy'` — never the filename, the type, the key or an address                                                                                                          |
+| **Wiring**          | `FILE_DOWNLOAD_SERVICE`; `FilesModule` builds the service on the same repositories and store the write path uses, and shares no method with it                                                                                                                                                                                                         |
+
+No migration, no new grant, no new event: the gate reads and audits.
+
+### Decisions taken under Peter's delegation
+
+- **D1 — proxy, not a signed URL.** Membership is re-resolved on every request (`27`
+  AUTH-12); the bootstrap target is one proxied Node process anyway (50-BOOTSTRAP). The
+  signed-URL twin of the part route is the paid-beta option, and it would need a principal
+  in the token and a re-check at redemption.
+- **D2 — the headers**, above. Previews and inline rendering are CL-03's and SEC-12's.
+- **D3 — a client downloads request attachments only**, held to the request row.
+- **D4 — `rejectionCode` is never on the client's view**; `35` :100's copy is theirs. This
+  overturns the earlier "rejectionCode yes" note in the FILE-002 plan; recorded.
+- **D5 — no uploader carve-out** before `ready`.
+- **D6 — a denied row for every refusal**, the not-yet-ready ones included.
+- **D7 — the correlation id in the client's copy** is read from the rejection audit row
+  when the portal shows it (a later ticket); no column added.
+
+### Verification actually run — 2026-09-05, the FILE-002 slice C session
+
+| Gate                                                                 | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/domain` (unit)                                             | **137 passed** (136 + 1): the 9 × 4 × 3 servability table admits exactly one cell, and an unknown status admits none                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `download-response.test.ts`, `client-projection.interceptor.test.ts` | **4 + 11 passed**: the disposition cannot be split by CR/LF, ended by a quote, or emptied; non-ASCII travels only in `filename*`; the five headers; a `StreamableFile` whose stream carries a forbidden-named property passes by name, an object beside it is still refused                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `file-002-download.db.test.ts`                                       | **7 passed** (real driver, verifier and stub scanner, bytes PUT through the public route): a ready PDF served byte for byte with the five headers and one `allowed` row naming no filename, a second download a second row; a `scanning` file, a `rejected` file, an unknown id and another tenant's principal — 404 with bodies identical but for the correlation id, the codes `not_servable`, `not_servable`, `file_not_found`, `file_not_found` on the denied rows, the quarantine object untouched, and the studio's replayed view carrying `rejectionCode: malware_detected` and never the detection name; a `ready` asset with an admin-inserted quarantine v2 → 404; the client's door — own request attachment 200 with the detected type, the sibling client organization 404 (`client_relation_mismatch`), the studio 200 on the client's file, the client 404 on an internal deliverable (`purpose_not_downloadable`), the client 403 on the studio's route; the private object truncated → `size_mismatch`, removed → `private_object_missing`, quarantine never served; an archived project — studio 200, client 404 (`resource_not_active`), and the client's replayed view without a `rejectionCode` key; a filename with quotes and Arabic |
+| Revert proofs, three batches                                         | **Thirteen reversals, one witness each.** Batch 1: the oldest version as "latest", no client relation check, the size not held, refusals leaving no denied row, an archived project read as active, the filename not made safe — **db exactly 6 of 7 red, unit exactly 2 red**. Batch 2: servability by status alone (domain unit red; the db case still refused, by `no_detected_type` — the next check caught it), a client allowed a deliverable, the quarantine zone opened, the studio's view dropping the code — **domain 1 red, db 4 of 7 red**. Batch 3: the interceptor walking the stream (unit red, after the test was sharpened to carry a forbidden-named property on the stream — its first form passed with the guard gone and proved nothing), the client's view keeping the code — **db 1 of 7 red**. Restored from sha-checked copies each time, `save` first                                                                                                                                                                                                                                                                                                                                                                             |
+| Neighbours (db)                                                      | **83 passed** across `file-002-download`, `file-001-upload-sessions`, `sec-001-client-projection`, `file-002-scanning`, `file-002-verification`: the view's new field and type broke nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `typecheck`, `eslint`, prettier                                      | Clean; LF throughout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **The chain**                                                        | **Green on `d30087c`, the first launch**: `format:check`, `typecheck`, `lint`, unit **1156 passed across 70 files** (1149 + the 7 of this slice: 1 domain, 4 disposition, 2 interceptor), database **944 passed, 29 skipped across 41 files** (937 + the 7 of this slice), `audit:design` **172 of 172**, `format:check` again; 30 minutes. The pre-existing `MaxListenersExceededWarning` appears 83 times, fails nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `mysqld` strays                                                      | None after any database run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+`test:vr` was **not run and is not owed**: `packages/ui` is untouched. `test:e2e` was not
+run: no journey changed (see below).
+
+### What is carried
+
+- **The detected type on the view has no distinguishing witness**: the cases declare the
+  type the verifier detects, so reversing `detected ?? declared` fails nothing. Recorded
+  rather than claimed.
+- **No e2e journey reaches a download yet.** `e2e/setup/stack.ts` has no `verifyUploads`
+  sibling to `sweepUploads`, and E2E-12a (`27` :85, "upload → resume → scan → download") still
+  stops at completion; its declared type (`image/vnd.adobe.photoshop`) is one the verifier
+  refuses, so the journey must change its file as well as grow. Next slice of work, not a
+  FILE-002 blocker: every step it would exercise is proved in the database suites.
+- **Contract divergences, now larger**: `openapi.yaml`'s `FileAsset` lacks `rejectionCode`,
+  `purpose`, `projectId`, `fileVersionId`, `versionNo` and the two `…/files/{id}/content`
+  paths; no `file-ready.v1` / `file-rejected.v1` schema; the DBML lacks every FILE-002
+  column. The contracts live under `docs/planning/`, which is never edited here.
+- **`apps/web`** renders no file status and no download control; a portal files page is
+  FILE-003 / CL-07 work.
+- **Rate limiting on the download route** is the session's, not a per-route limiter; `27`
+  SEC-10 is answered by the audit rows, not by throttling. A decision for the paid beta.
+- **0019's header** still says the download path "reads it from the row and never from a zone
+  literal"; the rule as built is stricter (the row must say `private` _and_ the literal is
+  what is opened). Migrations are checksummed by the migrator, so the comment stays and the
+  correction lives in ADR-0006.
+- The earlier carried items stand: the quarantine copy's deletion and the sealed-object
+  orphan (FILE-003), the symbolic-link refusal, the grant proven statically, door 8, USAGE-001
+  slices 2–5 (ledger at 0020), deployment needing 0017–0019 and `users.sql`.
+
+### Ticket accounting
+
+**FILE-002 (13 points) closes: slices A, B and C are `tested`.** **35 of 70 tickets, 285 of
+583 points (48.9%).**
 
 ---
 
