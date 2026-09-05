@@ -23,6 +23,12 @@
  * So the wrapper is removed on the way out of the database layer, and the original error —
  * with its `code`, its `errno`, and its own message — is what callers see.
  *
+ * **The driver's `sql` goes with it.** mysql2 puts the executed statement on its error,
+ * bound values inlined; it is the wrapper's parameter list over again, one property
+ * down, and it reaches a log the moment anyone logs the error (security review
+ * 2026-09-04). `code`, `errno`, `sqlState` and `sqlMessage` stay: the last quotes at most
+ * one offending value, and the callers that read it match a key name, not content.
+ *
  * Detected structurally rather than with `instanceof`. `DrizzleQueryError` does not set
  * `name`, so it is indistinguishable from a plain `Error` by that route, and importing the
  * class here would make this module depend on the ORM in order to describe a property of
@@ -35,7 +41,10 @@ export function unwrapQueryError(error: unknown): unknown {
     'params' in error &&
     error.cause instanceof Error
   ) {
-    return error.cause;
+    const cause = error.cause;
+    // Reversal: return `cause` untouched and the statement, values inlined, travels with it.
+    if ('sql' in cause) Reflect.deleteProperty(cause, 'sql');
+    return cause;
   }
   return error;
 }

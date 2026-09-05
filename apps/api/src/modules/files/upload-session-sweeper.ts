@@ -104,6 +104,30 @@ export function sweeperContextFor(organizationId: string, correlationId: string)
   });
 }
 
+/**
+ * What a failed release is logged as: fields, never the error object. A driver error's
+ * message is its `sqlMessage`, which quotes the offending value, and its `sql` (stripped at
+ * the database boundary) inlined every bound one; an operator acts on the name and the
+ * code, and nothing the row held belongs on stderr (security review 2026-09-04).
+ */
+export function describeFailure(error: unknown): Record<string, string | number> {
+  if (!(error instanceof Error)) return { kind: typeof error };
+  const candidate = error as Error & {
+    code?: unknown;
+    errno?: unknown;
+    sqlState?: unknown;
+    sqlMessage?: unknown;
+  };
+  const driver = candidate.sqlState !== undefined || candidate.sqlMessage !== undefined;
+  return {
+    name: error.name,
+    ...(typeof candidate.code === 'string' ? { code: candidate.code } : {}),
+    ...(typeof candidate.errno === 'number' ? { errno: candidate.errno } : {}),
+    // Reversal: log the message for a driver error too and the quoted value is on stderr.
+    ...(driver ? {} : { message: error.message }),
+  };
+}
+
 /** The reason string the bootstrap read records on every guard event it raises. */
 export const SWEEP_SCAN_REASON =
   'finding which organizations hold upload reservations past their expiry, so each can be ' +
@@ -118,7 +142,7 @@ export class UploadSessionSweeper {
     private readonly now: () => Date = () => new Date(),
     /** Where a failed release is reported. The row is named, never its payload. */
     private readonly onFailure: (uploadSessionId: string, error: unknown) => void = (id, error) =>
-      console.error(`[sweeper] releasing upload session ${id} failed`, error),
+      console.error(`[sweeper] releasing upload session ${id} failed`, describeFailure(error)),
   ) {}
 
   /** One pass over every organization. Safe to run again at once: a second pass finds nothing. */

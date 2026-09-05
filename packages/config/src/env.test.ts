@@ -38,6 +38,7 @@ const prodEnv = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
   CACHE_DRIVER: 'redis',
   MALWARE_SCAN_DRIVER: 'clamav',
   EMAIL_DRIVER: 'smtp',
+  WORKER_DATABASE_URL: 'mysql://tmanage_worker:pw@localhost:3306/tmanage',
   SMTP_HOST: 'smtp.tmanage.example',
   SMTP_USERNAME: 'no-reply@tmanage.example',
   SMTP_PASSWORD: 'mail-credential-example',
@@ -129,6 +130,53 @@ describe('loadEnv', () => {
           loadEnv({ ...devEnv(), DATABASE_URL: shared, DATABASE_MIGRATION_URL: shared }),
         ),
       ).toContain('DATABASE_MIGRATION_URL');
+    });
+
+    it('in production, refuses the same user twice even when the strings differ', () => {
+      // Reversal: compare the strings alone and `?connectionLimit=1` is a second user.
+      expect(
+        issuePaths(() =>
+          loadEnv(
+            prodEnv({
+              DATABASE_URL: 'mysql://tmanage_app:pw@db.example:3306/tmanage',
+              DATABASE_MIGRATION_URL:
+                'mysql://tmanage_app:pw@db.example:3306/tmanage?connectionLimit=1',
+            }),
+          ),
+        ),
+      ).toContain('DATABASE_MIGRATION_URL');
+    });
+
+    it('outside production, a harness may append a driver parameter to one root credential', () => {
+      // What `e2e/setup/stack.ts` does, stated here so a change to the rule is a change to a test.
+      expect(() =>
+        loadEnv({
+          ...devEnv(),
+          DATABASE_URL: 'mysql://root@127.0.0.1:3306/tmanage',
+          DATABASE_MIGRATION_URL: 'mysql://root@127.0.0.1:3306/tmanage?connectionLimit=1',
+        }),
+      ).not.toThrow();
+    });
+
+    it('in production, requires a worker credential that is neither the runtime nor the migration user', () => {
+      expect(issuePaths(() => loadEnv(prodEnv({ WORKER_DATABASE_URL: undefined })))).toContain(
+        'WORKER_DATABASE_URL',
+      );
+      expect(
+        issuePaths(() =>
+          loadEnv(
+            prodEnv({ WORKER_DATABASE_URL: 'mysql://tmanage_app:pw@localhost:3306/tmanage' }),
+          ),
+        ),
+      ).toContain('WORKER_DATABASE_URL');
+      expect(
+        issuePaths(() =>
+          loadEnv(
+            prodEnv({ WORKER_DATABASE_URL: 'mysql://tmanage_migrator:pw@localhost:3306/tmanage' }),
+          ),
+        ),
+      ).toContain('WORKER_DATABASE_URL');
+      expect(() => loadEnv(prodEnv())).not.toThrow();
     });
   });
 

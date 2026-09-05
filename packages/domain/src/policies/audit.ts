@@ -355,6 +355,14 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 denied sensitive attempts; 49-PRICING §7 — the 100% block is a recorded refusal; ' +
       '26-THREAT-MODELS §5 quota abuse — so is the open-upload cap',
   },
+  'upload_session.abort_failed': {
+    objectType: 'upload_session',
+    // `error`, no object id: the reservation was refused and never became a row, and the
+    // provider still holds the upload the API opened for it. The handle is the metadata.
+    clause:
+      '§12 — an upload the provider holds open that no row names is a fact only the log ' +
+      'can carry; 49-PRICING §6 step 7 abort; 50-BOOTSTRAP §4 lifecycle-abort is the backstop',
+  },
   'file_asset.uploaded': {
     objectType: 'file_asset',
     // A stored file is content a client may later be shown; the row is the disclosure's start.

@@ -47,6 +47,21 @@ export const UPLOAD_MAX_PART_NUMBER = 99_999;
  * (03-TECHNICAL-ARCHITECTURE §2); local development uses MariaDB via compose or an
  * embedded MySQL server (ADR-0002).
  */
+/**
+ * The user a connection string names, for the checks that are about *who* connects.
+ * `DATABASE_URL !== DATABASE_MIGRATION_URL` compares strings, and one credential with a
+ * query string appended passes it; the user is what the privilege boundary is made of.
+ * A string the URL parser refuses is compared whole, so an odd but working DSN is not
+ * refused for being odd.
+ */
+function databaseUser(url: string): string {
+  try {
+    return decodeURIComponent(new URL(url).username);
+  } catch {
+    return url;
+  }
+}
+
 const mysqlUrl = z
   .string()
   .trim()
@@ -111,6 +126,15 @@ export const envSchema = z
     // Database — two distinct users (ADR-0001 layer 2, 25-AUTH-AND-TENANT-ISOLATION §5).
     DATABASE_URL: mysqlUrl,
     DATABASE_MIGRATION_URL: mysqlUrl,
+    /**
+     * The relay's own credential — `tmanage_worker` in `scripts/db/users.sql`, which can
+     * mark outbox rows and append audit rows and delete nothing (`25-AUTH-AND-TENANT-
+     * ISOLATION` §2, §10: background work under minimal privileges). Optional outside
+     * production, where the worker falls back to `DATABASE_URL` and says so at boot;
+     * required in production, where the fallback would be the API's user doing the
+     * worker's job. Security review 2026-09-04.
+     */
+    WORKER_DATABASE_URL: mysqlUrl.optional(),
     // Hostinger's smallest Cloud plan has a tight connection allowance
     // (50-BOOTSTRAP §4: "a small bounded pool ... strict connection budgets matched to
     // the plan"), so this defaults low rather than to a typical server default.
@@ -328,6 +352,30 @@ export const envSchema = z
     if (env.NODE_ENV !== 'production') return;
 
     // ── Production guardrails ────────────────────────────────────────────────
+    // Two URLs differing is not two users differing. The string check above is what the
+    // e2e stack relies on (one embedded root credential, a driver parameter appended —
+    // `e2e/setup/stack.ts`), so the user comparison is a production guardrail: there the
+    // boundary is real, and `?x=1` must not be how it is passed.
+    if (databaseUser(env.DATABASE_URL) === databaseUser(env.DATABASE_MIGRATION_URL)) {
+      fail(
+        'DATABASE_MIGRATION_URL',
+        'must name a different database user from DATABASE_URL, not the same user twice',
+      );
+    }
+    if (env.WORKER_DATABASE_URL === undefined) {
+      fail(
+        'WORKER_DATABASE_URL',
+        'is required in production: the relay runs as its own least-privilege user (25 §10)',
+      );
+    } else {
+      const worker = databaseUser(env.WORKER_DATABASE_URL);
+      if (worker === databaseUser(env.DATABASE_URL)) {
+        fail('WORKER_DATABASE_URL', 'must name a different database user from DATABASE_URL');
+      }
+      if (worker === databaseUser(env.DATABASE_MIGRATION_URL)) {
+        fail('WORKER_DATABASE_URL', 'must not name the migration user');
+      }
+    }
     const substitutes: ReadonlyArray<readonly [string, string, string]> = [
       ['QUEUE_DRIVER', env.QUEUE_DRIVER, 'memory'],
       ['CACHE_DRIVER', env.CACHE_DRIVER, 'memory'],

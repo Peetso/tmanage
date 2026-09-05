@@ -540,8 +540,11 @@ export class FilesService {
           objectKey,
           providerUploadId: upload.providerUploadId,
         });
-      } catch {
-        // Deliberately swallowed; the original error is what the caller needs.
+      } catch (abortError) {
+        // Swallowed for the caller — the original error is what they need — and recorded
+        // for the operator: the provider holds an upload no row names, and until this row
+        // nothing said which (security review 2026-09-04).
+        await this.recordAbortFailure(context, draft, upload.providerUploadId, error, abortError);
       }
       if (error instanceof TooManyOpenUploads) {
         throw await this.refuseOpenUploads(context, draft, error.open, cap);
@@ -802,6 +805,13 @@ export class FilesService {
    * it, and the reconciliation slice is what repairs the counter. USAGE-001 decision 3.
    */
   async expire(context: TenantContext, session: UploadSessionRow): Promise<ExpiryOutcome> {
+    if (session.organizationId !== context.organizationId) {
+      // The caller selected the row under this context, and the release below is bound to
+      // it by the tenant guard; the abort above the transaction is not. One line, so a row
+      // from anywhere else is refused before the provider hears of it (25 §6). Thrown,
+      // so a pass counts it `failed` and names it.
+      throw new SessionOutsideContextError(session.id);
+    }
     const abortFailed = !(await this.abortUpload(session, 'best-effort'));
     let counterMoved = false;
     const released = await this.releaseInTransaction(
@@ -823,6 +833,8 @@ export class FilesService {
             opened_by_user_id: session.actorUserId,
             counter_drift: !facts.counterMoved,
             abort_failed: abortFailed,
+            // The handle the provider still holds, so the upload nobody names can be found.
+            ...(abortFailed ? { provider_upload_id: session.providerUploadId } : {}),
           },
         });
       },
@@ -974,6 +986,41 @@ export class FilesService {
     }
   }
 
+  /**
+   * `upload_session.abort_failed`, `error`, no object id: the reservation was refused and
+   * never became a row, and the provider still holds the upload opened for it. Its own
+   * transaction, and best-effort itself — a refusal must not become a 500 for want of a
+   * row about it. The handle is the one fact an operator needs to abort it by hand.
+   */
+  private async recordAbortFailure(
+    context: TenantContext,
+    draft: Draft,
+    providerUploadId: string,
+    refusal: unknown,
+    failure: unknown,
+  ): Promise<void> {
+    if (!this.audit) return;
+    try {
+      await this.database.transaction(context, (tx) =>
+        this.audit!.record(tx, context, {
+          action: 'upload_session.abort_failed',
+          objectId: null,
+          result: 'error',
+          metadata: {
+            provider_upload_id: providerUploadId,
+            refusal: refusal instanceof Error ? refusal.name : typeof refusal,
+            failure: failure instanceof Error ? failure.name : typeof failure,
+            project_id: draft.input.projectId,
+            declared_bytes: draft.input.sizeBytes,
+            principal_kind: draft.principal.kind,
+          },
+        }),
+      );
+    } catch {
+      // Reversal: let this throw and a provider outage turns the refusal into a 500.
+    }
+  }
+
   /** The open-upload cap's refusal: one audit row, one 429 that names no handle. */
   private async refuseOpenUploads(
     context: TenantContext,
@@ -1114,6 +1161,14 @@ export class FilesService {
       }
       throw error;
     }
+  }
+}
+
+/** A row handed to the sweeper's door under a context bound to another organization. */
+export class SessionOutsideContextError extends Error {
+  constructor(readonly uploadSessionId: string) {
+    super(`upload session ${uploadSessionId} does not belong to the organization in context`);
+    this.name = 'SessionOutsideContextError';
   }
 }
 

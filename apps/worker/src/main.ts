@@ -73,8 +73,13 @@ async function main(): Promise<void> {
   const env = loadEnv();
   const once = process.argv.includes('--once');
 
+  // The relay's own least-privilege credential when it is set; the API's otherwise, named
+  // on stderr so nobody reads a development fallback as the production shape.
+  console.warn(
+    `[worker] database credential: ${env.WORKER_DATABASE_URL ? 'WORKER_DATABASE_URL' : 'DATABASE_URL (WORKER_DATABASE_URL not set)'}`,
+  );
   const database = createWorkerDatabase({
-    url: env.DATABASE_URL,
+    url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
     connectionLimit: Math.min(env.DATABASE_POOL_MAX, 2),
     statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => {

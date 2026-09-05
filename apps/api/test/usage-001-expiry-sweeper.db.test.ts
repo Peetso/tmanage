@@ -12,7 +12,17 @@ import { StorageModule } from '../src/common/storage/storage.module.js';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
 import type { ApiConfig } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
-import { UPLOAD_SESSION_SWEEPER } from '../src/common/http/tokens.js';
+import { uuidv7 } from '@tmanage/domain';
+import {
+  FILES_SERVICE,
+  TENANT_DATABASE,
+  UPLOAD_SESSIONS_REPOSITORY,
+  UPLOAD_SESSION_SWEEPER,
+} from '../src/common/http/tokens.js';
+import type { TenantDatabase } from '../src/common/database/tenant-context.js';
+import type { FilesService } from '../src/modules/files/files.service.js';
+import type { UploadSessionsRepository } from '../src/modules/files/upload-sessions.repository.js';
+import { sweeperContextFor } from '../src/modules/files/upload-session-sweeper.js';
 import type { UploadSessionSweeper } from '../src/modules/files/upload-session-sweeper.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
@@ -401,7 +411,13 @@ describe('one pass over abandoned reservations', () => {
     expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: 0 });
     expect(store.aborted).toHaveLength(0);
     const [audit] = await expiryAudits(session.id);
-    expect(audit?.metadata).toMatchObject({ abort_failed: true, counter_drift: false });
+    // The handle travels with the failure, so the upload the provider still holds can be
+    // found. Reversal: leave it off and the row says only that something is out there.
+    expect(audit?.metadata).toMatchObject({
+      abort_failed: true,
+      counter_drift: false,
+      provider_upload_id: expect.stringMatching(/^fake-upload-\d+$/) as unknown as string,
+    });
   });
 });
 
@@ -449,5 +465,31 @@ describe('a drifted counter', () => {
     expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: 0 });
     const [audit] = await expiryAudits(session.id);
     expect(audit?.metadata).toMatchObject({ counter_drift: true });
+  });
+});
+
+describe('the release door is bound to its context', () => {
+  it('refuses a row from another organization before the provider is asked', async () => {
+    const studio = await signIn(world.northstar.manager.id);
+    const session = await openNorthstar(studio);
+    await age(session.id, A_DAY);
+    const database = app.get<TenantDatabase>(TENANT_DATABASE);
+    const sessions = app.get<UploadSessionsRepository>(UPLOAD_SESSIONS_REPOSITORY);
+    const files = app.get<FilesService>(FILES_SERVICE);
+    const northstar = sweeperContextFor(world.northstar.organizationId, uuidv7());
+    const row = await database.read(northstar, (runner) =>
+      sessions.findById(runner, northstar, session.id),
+    );
+    if (!row) throw new Error('the session was just opened');
+
+    // Reversal: drop the check at the top of `expire` and the provider is told to abandon
+    // the upload under the wrong tenant's context before the release refuses it.
+    const brightops = sweeperContextFor(world.brightops.organizationId, uuidv7());
+    await expect(files.expire(brightops, row)).rejects.toMatchObject({
+      name: 'SessionOutsideContextError',
+    });
+    expect(store.aborted).toHaveLength(0);
+    expect((await statusOf(session.id)).session).toBe('reserved');
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: DECLARED });
   });
 });

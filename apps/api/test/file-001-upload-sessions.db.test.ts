@@ -543,7 +543,16 @@ describe('the organization quota (49 §6, §7)', () => {
     });
     expect(refused.statusCode, refused.body).toBe(422);
     expect(refused.json<ErrorBody>().error.details?.map((d) => d.field)).toEqual(['sizeBytes']);
-    expect(await auditActions()).toEqual(['upload_session.refused']);
+    // The abort that failed is a row of its own, naming the handle the provider still
+    // holds. Reversal: swallow the abort silently again and only the refusal is here.
+    expect(await auditActions()).toEqual(['upload_session.abort_failed', 'upload_session.refused']);
+    const [abortRow] = await observe(
+      "select result, metadata_json as m from audit_events where action = 'upload_session.abort_failed'",
+    );
+    expect(abortRow?.['result']).toBe('error');
+    // The fake numbers its handles across the whole run, so the shape and not the number.
+    expect(JSON.stringify(abortRow?.['m'])).toMatch(/"provider_upload_id":"fake-upload-\d+"/);
+    expect(JSON.stringify(abortRow?.['m'])).toContain('"refusal":"QuotaExhausted"');
     expect(store.failNextAbort).toBeNull();
     expect(store.aborted).toHaveLength(0);
     expect(await counter(world.northstar.organizationId)).toEqual({
