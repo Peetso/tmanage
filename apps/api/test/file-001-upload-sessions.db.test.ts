@@ -193,7 +193,12 @@ interface FileAsset {
 }
 
 interface ErrorBody {
-  error: { code: string; message: string; correlationId: string; details?: { field: string }[] };
+  error: {
+    code: string;
+    message: string;
+    correlationId: string;
+    details?: { field: string; message?: string }[];
+  };
 }
 
 let keyCounter = 0;
