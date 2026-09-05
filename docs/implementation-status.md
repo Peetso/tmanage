@@ -29,6 +29,27 @@ change what a command does rather than merely how it is typed.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-09-05, start of the FILE-002 slice A session
+
+The **thirty-fourth** consecutive run, and the table below is this run's output rather than a
+copy of the previous one. Every pair was compared by SHA-256 and, separately, by modification
+time — pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                          |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                           |
+| Modification times                        | **No pack file is newer than its copy** in either scope. 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later; one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. Unchanged from the thirty-third run       |
+| Uncopied pack content                     | The same six as the thirty-third run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                           |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-09-05, start of the completing-claim session
 
 The **thirty-third** consecutive run, and the table below is this run's output rather than a

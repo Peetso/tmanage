@@ -1,12 +1,15 @@
+import { Readable } from 'node:stream';
 import type {
   AbortMultipartInput,
   BeginMultipartInput,
   CompleteMultipartInput,
   MultipartUpload,
   ObjectStore,
+  OpenObjectInput,
+  OpenedObject,
   StoredObject,
 } from './object-store.js';
-import { SizeMismatchError } from './errors.js';
+import { ObjectNotFoundError, SizeMismatchError } from './errors.js';
 
 /**
  * The driver a suite holds in its hand — `packages/mail`'s console driver, for bytes.
@@ -19,6 +22,10 @@ import { SizeMismatchError } from './errors.js';
  *
  * Everything the store was asked is recorded, because "was the provider asked to abort"
  * is a fact a release path has to be able to assert.
+ *
+ * `openObject` answers the bytes a suite placed under the key in {@link objects}, and
+ * `ObjectNotFoundError` for a key it holds nothing under — so a verification case can be
+ * run against this fake with the bytes it chooses, and the "object gone" case with none.
  */
 export class FakeObjectStore implements ObjectStore {
   readonly began: BeginMultipartInput[] = [];
@@ -26,6 +33,10 @@ export class FakeObjectStore implements ObjectStore {
   readonly aborted: AbortMultipartInput[] = [];
   /** Provider-reported sizes, by object key. Absent means "the size the caller declared". */
   readonly sizeFor = new Map<string, number>();
+  /** The bytes `openObject` answers, by `zone/objectKey`. A suite writes them; nothing else does. */
+  readonly objects = new Map<string, Buffer>();
+  /** Every `openObject` call, whether or not it found anything. */
+  readonly opened: OpenObjectInput[] = [];
   /** Thrown by the next call to any method, then cleared. The provider being down. */
   failNext: Error | null = null;
   /**
@@ -66,6 +77,14 @@ export class FakeObjectStore implements ObjectStore {
       throw new SizeMismatchError(declared, sizeBytes);
     }
     return { sizeBytes, etag: `fake-etag-${input.parts.length}` };
+  }
+
+  async openObject(input: OpenObjectInput): Promise<OpenedObject> {
+    this.consumeFailure();
+    this.opened.push(input);
+    const bytes = this.objects.get(`${input.zone}/${input.objectKey}`);
+    if (!bytes) throw new ObjectNotFoundError();
+    return { sizeBytes: bytes.length, stream: Readable.from([bytes]) };
   }
 
   async abortMultipart(input: AbortMultipartInput): Promise<void> {

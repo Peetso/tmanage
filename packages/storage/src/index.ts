@@ -10,7 +10,9 @@
  * **Two drivers.** `FakeObjectStore` for suites, `FilesystemObjectStore` for a deployment
  * without a bucket — ADR-0002's local substitute, with HMAC-signed part URLs the API serves
  * itself (FILE-001b). The `s3` driver with real R2 signature semantics is FILE-003's, and the
- * configuration that names it still refuses to wire until it exists.
+ * configuration that names it still refuses to wire until it exists. FILE-002 gave the port
+ * its first read, `openObject`, for the verification pass and nothing else — see the port's
+ * header for the rule that admitted it.
  */
 
 export type {
@@ -20,6 +22,8 @@ export type {
   CompletedPart,
   MultipartUpload,
   ObjectStore,
+  OpenObjectInput,
+  OpenedObject,
   StoredObject,
   TrustZone,
   UploadTarget,
@@ -45,6 +49,7 @@ export {
   MissingPartError,
   MultipartUploadMismatchError,
   MultipartUploadNotFoundError,
+  ObjectNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
   SizeMismatchError,

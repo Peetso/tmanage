@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FakeObjectStore } from './fake-object-store.js';
+import { ObjectNotFoundError } from './errors.js';
 import { InvalidObjectKeyComponentError, uploadObjectKey } from './object-key.js';
 
 const ORG = '019203a4-5b6c-7d8e-9f01-23456789abcd';
@@ -67,5 +68,44 @@ describe('FakeObjectStore', () => {
     await expect(store.abortMultipart(input)).rejects.toThrow('provider down');
     await expect(store.abortMultipart(input)).resolves.toBeUndefined();
     expect(store.aborted).toHaveLength(1);
+  });
+});
+
+describe('FakeObjectStore — openObject (FILE-002)', () => {
+  const key = uploadObjectKey({ organizationId: ORG, projectId: PROJECT, uploadId: UPLOAD });
+
+  it('answers the bytes a suite placed under the zone and key, once, with their size', async () => {
+    const store = new FakeObjectStore(() => 1);
+    store.objects.set(`quarantine/${key}`, Buffer.from('%PDF-1.4 hello'));
+    const opened = await store.openObject({ zone: 'quarantine', objectKey: key });
+    expect(opened.sizeBytes).toBe(14);
+    const chunks: Buffer[] = [];
+    for await (const chunk of opened.stream) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString()).toBe('%PDF-1.4 hello');
+    expect(store.opened).toEqual([{ zone: 'quarantine', objectKey: key }]);
+  });
+
+  it('throws ObjectNotFoundError for a key it holds nothing under, and for the same key in another zone', async () => {
+    const store = new FakeObjectStore(() => 1);
+    store.objects.set(`quarantine/${key}`, Buffer.from('x'));
+    await expect(store.openObject({ zone: 'private', objectKey: key })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    await expect(
+      store.openObject({ zone: 'quarantine', objectKey: `${key}-other` }),
+    ).rejects.toBeInstanceOf(ObjectNotFoundError);
+    expect(store.opened).toHaveLength(2);
+  });
+
+  it('is the provider being down when failNext is set', async () => {
+    const store = new FakeObjectStore(() => 1);
+    store.objects.set(`quarantine/${key}`, Buffer.from('x'));
+    store.failNext = new Error('provider down');
+    await expect(store.openObject({ zone: 'quarantine', objectKey: key })).rejects.toThrow(
+      'provider down',
+    );
+    await expect(store.openObject({ zone: 'quarantine', objectKey: key })).resolves.toMatchObject({
+      sizeBytes: 1,
+    });
   });
 });

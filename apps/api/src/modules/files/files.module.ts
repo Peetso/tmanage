@@ -6,6 +6,7 @@ import {
   AUDIT_SERVICE,
   FILES_SERVICE,
   FILE_ASSETS_REPOSITORY,
+  FILE_VERIFIER,
   OBJECT_STORE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
@@ -23,6 +24,7 @@ import { FileAssetsRepository } from './file-assets.repository.js';
 import { UploadSessionsRepository } from './upload-sessions.repository.js';
 import { UsageCountersRepository } from './usage-counters.repository.js';
 import { FilesService } from './files.service.js';
+import { FileVerifier } from './file-verifier.js';
 import { UploadSessionSweeper } from './upload-session-sweeper.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
@@ -105,10 +107,34 @@ export class FilesModule {
       ) => new UploadSessionSweeper(database, sessions, files),
     };
 
+    // FILE-002. The verification pass is a job too: exported so `verify.ts` can resolve
+    // it, built on the same store the uploads went into and the same audit and outbox
+    // the service writes through — a copy without the outbox would reject files nobody is
+    // ever told about.
+    const verifier: Provider = {
+      provide: FILE_VERIFIER,
+      inject: [
+        TENANT_DATABASE,
+        FILE_ASSETS_REPOSITORY,
+        UPLOAD_SESSIONS_REPOSITORY,
+        OBJECT_STORE,
+        AUDIT_SERVICE,
+        OUTBOX_EVENTS_REPOSITORY,
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        sessions: UploadSessionsRepository,
+        store: ObjectStore,
+        audit: AuditService,
+        outbox: OutboxEventsRepository,
+      ) => new FileVerifier(database, assets, sessions, store, audit, outbox),
+    };
+
     return {
       module: FilesModule,
-      providers: [...repositories, service, sweeper],
-      exports: [service, sweeper],
+      providers: [...repositories, service, sweeper, verifier],
+      exports: [service, sweeper, verifier],
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,

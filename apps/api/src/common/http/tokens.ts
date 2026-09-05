@@ -63,3 +63,5 @@ export const USAGE_COUNTERS_REPOSITORY = Symbol.for('tmanage.UsageCountersReposi
 export const FILES_SERVICE = Symbol.for('tmanage.FilesService');
 /** USAGE-001. The expiry sweeper — resolved by `sweep.ts`, never by a controller. */
 export const UPLOAD_SESSION_SWEEPER = Symbol.for('tmanage.UploadSessionSweeper');
+/** FILE-002. The verification pass — resolved by `verify.ts`, never by a controller. */
+export const FILE_VERIFIER = Symbol.for('tmanage.FileVerifier');

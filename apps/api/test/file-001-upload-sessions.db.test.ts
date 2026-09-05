@@ -726,9 +726,10 @@ describe('completing a session', () => {
   });
 
   it('fails the session when the provider reports a different size, and gives the bytes back (INT-12, the size third only)', async () => {
-    // Only the size is compared. The etags a caller sends are forwarded to the provider and
-    // compared to nothing here, and `declared_content_hash` is stored and read by no code:
-    // both are FILE-002's verification, and this title claims neither.
+    // Only the size is compared here. The etags a caller sends are forwarded to the provider
+    // and compared to nothing at completion, and `declared_content_hash` is compared to the
+    // bytes only by FILE-002's verification pass (`file-002-verification.db.test.ts`); this
+    // title claims neither.
     const studio = await signIn(manager().id);
     const session = await open(studio);
     store.sizeFor.set(store.began[0]?.objectKey ?? '', DECLARED + 1);

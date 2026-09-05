@@ -61,6 +61,18 @@ export class SizeMismatchError extends Error {
   }
 }
 
+/**
+ * Nothing is stored under the zone and key `openObject` was asked for. Distinct from the
+ * multipart "not found": that is an upload the provider no longer holds; this is an object
+ * that was supposed to exist — a row names it — and does not.
+ */
+export class ObjectNotFoundError extends Error {
+  constructor() {
+    super('no object is stored under that zone and key');
+    this.name = 'ObjectNotFoundError';
+  }
+}
+
 /** A key or handle component that would compose a path outside the store's root. */
 export class UnsafeObjectPathError extends Error {
   constructor(readonly component: string) {

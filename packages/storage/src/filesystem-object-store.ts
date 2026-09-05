@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { createReadStream, createWriteStream } from 'node:fs';
 import type { WriteStream } from 'node:fs';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -10,6 +10,7 @@ import {
   MissingPartError,
   MultipartUploadMismatchError,
   MultipartUploadNotFoundError,
+  ObjectNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
   SizeMismatchError,
@@ -21,6 +22,8 @@ import type {
   CompleteMultipartInput,
   MultipartUpload,
   ObjectStore,
+  OpenObjectInput,
+  OpenedObject,
   StoredObject,
   TrustZone,
 } from './object-store.js';
@@ -73,6 +76,15 @@ import { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-tok
  * is S3's composite (`md5(concat(binary part digests))-partCount`), so a client written
  * against this driver needs no change when FILE-003 swaps in the real one. MD5 here is an
  * integrity check on bytes the same caller just sent, not a security primitive.
+ *
+ * ## A read is of a regular file, under the zone, and nothing else
+ *
+ * `openObject` (FILE-002) resolves the path the way every write does, then refuses
+ * anything that is not a regular file *before* following it: a symbolic link left under
+ * the root by anything at all would otherwise let a verification pass hash — and later
+ * serve — a file outside the store. `lstat`, not `stat`, is the check that sees the link.
+ * The size answered is the file's size at open, so the caller can refuse an object whose
+ * size no longer matches the row that names it.
  *
  * ## Paths never escape the root
  *
@@ -318,6 +330,20 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
 
     const composite = createHash('md5').update(Buffer.concat(digests)).digest('hex');
     return { sizeBytes, etag: `${composite}-${manifest.partCount}` };
+  }
+
+  async openObject(input: OpenObjectInput): Promise<OpenedObject> {
+    const path = this.objectPath(input.zone, input.objectKey);
+    let info: Awaited<ReturnType<typeof lstat>>;
+    try {
+      info = await lstat(path);
+    } catch (error) {
+      if (isNotFound(error)) throw new ObjectNotFoundError();
+      throw error;
+    }
+    // A link, a directory, a device: not an object this store wrote, whatever it points at.
+    if (!info.isFile()) throw new ObjectNotFoundError();
+    return { sizeBytes: info.size, stream: createReadStream(path) };
   }
 
   /**

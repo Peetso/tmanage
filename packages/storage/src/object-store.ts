@@ -8,13 +8,31 @@
  * implement. Today only the fake exists (FILE-001); the filesystem driver and the R2
  * signature semantics are later tickets, as ADR-0002 already records.
  *
- * ## Three methods, and what is deliberately absent
+ * ## Four methods, and what is deliberately absent
  *
- * `beginMultipart`, `completeMultipart`, `abortMultipart`. No download, no delete, no
- * listing: a download URL is FILE-003's short-lived authorized link and carries its own
- * rules (`25-AUTH-AND-TENANT-ISOLATION` §9 caps it at five minutes); deletion is FILE-003's
- * retention hook. A port with a `getObject` nobody has a rule for yet would be an escape
- * hatch waiting for a caller.
+ * `beginMultipart`, `completeMultipart`, `abortMultipart` — and, since FILE-002,
+ * `openObject`: the bytes of a sealed object, streamed once, for **authorized processing**
+ * only (`23-ERD` §10: "inaccessible outside upload owner/authorized processing until
+ * `ready`"). It exists because verification has a rule — `03-TECHNICAL-ARCHITECTURE`
+ * §108, "worker verifies checksum, MIME, size" — and a rule is what an earlier revision of
+ * this header said a read would need before it was added. It is *not* a download: a
+ * download URL is FILE-003's short-lived authorized link with its own rules
+ * (`25-AUTH-AND-TENANT-ISOLATION` §9 caps it at five minutes), it is served to a principal,
+ * and it is gated on `ready`. `openObject` is served to a job, under a service context,
+ * on an object in `quarantine`, and answers a stream rather than a URL, so nothing it
+ * returns can be handed to a browser. Still absent: delete, head, list, copy — deletion is
+ * FILE-003's retention hook and promotion is slice B's, each with its own rule first.
+ *
+ * ## A sealed object is read, never re-read
+ *
+ * The verification pass hashes and sniffs in **one** pass over one stream, and what it
+ * records is what it read. For that to be the object the client will later be served, the
+ * object must be unalterable from the moment `completeMultipart` returns: the filesystem
+ * driver removes the upload's manifest at completion, so every outstanding part URL
+ * answers "not found" from then on. **The `s3` driver (FILE-003) must presign
+ * `UploadPart` for the multipart upload, never `PutObject` on the key** — a `PutObject`
+ * URL outlives the seal, and hash-then-promote becomes a time-of-check/time-of-use race
+ * against a client that kept one. Written here, in the port, before the adapter exists.
  *
  * ## The adapter never composes a key
  *
@@ -85,9 +103,32 @@ export interface StoredObject {
   readonly etag: string;
 }
 
+export interface OpenObjectInput {
+  readonly zone: TrustZone;
+  readonly objectKey: string;
+}
+
+/**
+ * A sealed object, opened for one read. `sizeBytes` is what the store holds *now*, so a
+ * caller can refuse an object whose size no longer matches the row that names it; the
+ * stream yields the bytes exactly once. The caller consumes or destroys it — a stream
+ * left open is a file handle left open.
+ */
+export interface OpenedObject {
+  readonly sizeBytes: number;
+  readonly stream: NodeJS.ReadableStream;
+}
+
 export interface ObjectStore {
   beginMultipart(input: BeginMultipartInput): Promise<MultipartUpload>;
   completeMultipart(input: CompleteMultipartInput): Promise<StoredObject>;
   /** Idempotent: aborting an upload the provider no longer knows is not an error. */
   abortMultipart(input: AbortMultipartInput): Promise<void>;
+  /**
+   * The bytes of a sealed object, for authorized processing (FILE-002). Throws
+   * `ObjectNotFoundError` when nothing is stored under the zone and key — an upload that
+   * was never completed, or an object something removed — so a verification pass records
+   * an error rather than hashing nothing.
+   */
+  openObject(input: OpenObjectInput): Promise<OpenedObject>;
 }

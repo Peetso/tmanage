@@ -91,6 +91,16 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'upload_session',
     catalog: '§4 usage.storage_released.v1 — usage UI, reconciliation',
   },
+  /**
+   * FILE-002. §4: "validation/scan failed", audit yes. The aggregate is the asset — the
+   * row the verification judged and the row a consumer would read to learn why — not the
+   * session that produced it; `ix_outbox_events_org_aggregate` answers "everything about
+   * this file" only if the file's events name the file.
+   */
+  'file.rejected.v1': {
+    aggregateType: 'file_asset',
+    catalog: '§4 file.rejected.v1 — inbox/notification, security log',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -221,6 +231,20 @@ export interface UsageStorageReleasedV1 {
   readonly cause: 'cancelled' | 'expired' | 'failed';
 }
 
+/**
+ * FILE-002. Ids, the purpose, and the rejection as a code — §7's "never raw content" and
+ * §1's forbidden list: no filename, no declared or detected type, no digest. A consumer
+ * that may tell the uploader why reads the row under its own permissions.
+ */
+export interface FileRejectedV1 {
+  readonly fileAssetId: string;
+  readonly fileVersionId: string;
+  readonly projectId: string;
+  readonly purpose: string;
+  readonly objectId: string | null;
+  readonly rejectionCode: string;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -233,4 +257,5 @@ export interface OutboxEventPayloads {
   readonly 'usage.storage_reserved.v1': UsageStorageReservedV1;
   readonly 'usage.storage_committed.v1': UsageStorageCommittedV1;
   readonly 'usage.storage_released.v1': UsageStorageReleasedV1;
+  readonly 'file.rejected.v1': FileRejectedV1;
 }

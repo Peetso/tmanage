@@ -7,7 +7,10 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
+  writeFileSync,
 } from 'node:fs';
+import { dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -15,6 +18,7 @@ import {
   MissingPartError,
   MultipartUploadMismatchError,
   MultipartUploadNotFoundError,
+  ObjectNotFoundError,
   PartEtagMismatchError,
   PartTooLargeError,
   UnsafeObjectPathError,
@@ -622,5 +626,84 @@ describe('FilesystemObjectStore — the security review (2026-09-04)', () => {
       maxBytes: 3,
     });
     expect(await store.putPart({ ...two, body: bytes('b', 3) })).not.toBeNull();
+  });
+});
+
+describe('FilesystemObjectStore — openObject (FILE-002)', () => {
+  /** Complete a two-part upload under KEY and return the bytes the object holds. */
+  async function seal(zone: 'quarantine' | 'private' = 'quarantine'): Promise<Buffer> {
+    const upload = await begin(2, zone);
+    const [one, two] = targets(upload) as [
+      ReturnType<typeof targets>[number],
+      ReturnType<typeof targets>[number],
+    ];
+    const first = await store.putPart({ ...one, body: bytes('a') });
+    const second = await store.putPart({ ...two, body: bytes('b') });
+    await store.completeMultipart({
+      zone,
+      objectKey: KEY,
+      providerUploadId: upload.providerUploadId,
+      parts: [
+        { partNumber: 1, etag: first?.etag ?? '' },
+        { partNumber: 2, etag: second?.etag ?? '' },
+      ],
+    });
+    return Buffer.concat([bytes('a'), bytes('b')]);
+  }
+
+  async function drain(stream: NodeJS.ReadableStream): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+  }
+
+  it('streams the sealed object with the size it holds now', async () => {
+    const expected = await seal();
+    const opened = await store.openObject({ zone: 'quarantine', objectKey: KEY });
+    expect(opened.sizeBytes).toBe(2 * PART_SIZE);
+    expect(await drain(opened.stream)).toEqual(expected);
+  });
+
+  it('answers not-found for a key nothing was sealed under, and for the same key in another zone', async () => {
+    await seal('quarantine');
+    await expect(store.openObject({ zone: 'private', objectKey: KEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    await expect(
+      store.openObject({ zone: 'quarantine', objectKey: OTHER_KEY }),
+    ).rejects.toBeInstanceOf(ObjectNotFoundError);
+  });
+
+  it('refuses a symbolic link left under the root, so a read can never leave the store', async () => {
+    // Something outside this driver put a link where an object should be. `lstat` sees
+    // the link; `stat` would have followed it and hashed the secret.
+    const secret = join(root, 'secret.txt');
+    writeFileSync(secret, 'not an object');
+    const path = store.objectPath('quarantine', OTHER_KEY);
+    mkdirSync(dirname(path), { recursive: true });
+    try {
+      symlinkSync(secret, path, 'file');
+    } catch {
+      // Windows without the symlink privilege: the case cannot be built here, and the
+      // driver's `isFile()` check is exercised by the directory case below instead.
+      return;
+    }
+    // Reversal: `stat` instead of `lstat` and this resolves with the secret's thirteen bytes.
+    await expect(
+      store.openObject({ zone: 'quarantine', objectKey: OTHER_KEY }),
+    ).rejects.toBeInstanceOf(ObjectNotFoundError);
+  });
+
+  it('refuses a directory at the object path as not an object', async () => {
+    mkdirSync(store.objectPath('quarantine', OTHER_KEY), { recursive: true });
+    await expect(
+      store.openObject({ zone: 'quarantine', objectKey: OTHER_KEY }),
+    ).rejects.toBeInstanceOf(ObjectNotFoundError);
+  });
+
+  it('checks the key before it touches the disk', async () => {
+    await expect(
+      store.openObject({ zone: 'quarantine', objectKey: '../../etc/passwd' }),
+    ).rejects.toBeInstanceOf(UnsafeObjectPathError);
   });
 });

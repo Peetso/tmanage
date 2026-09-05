@@ -117,6 +117,12 @@ export class AuditEventsRepository {
       // that reads as "this denial succeeded", which is not a thing that can happen.
       throw new AuditActionResultError(input.action, input.result);
     }
+    if (input.action === 'file_asset.rejected' && input.result !== 'denied') {
+      // FILE-002: a rejection is §12's "denied sensitive attempt". The grading is a rule
+      // here rather than a comment on the catalog, so a later producer cannot file one as
+      // `allowed` and make the security log read as if the file passed.
+      throw new AuditActionResultError(input.action, input.result);
+    }
 
     const id = uuidv7();
 

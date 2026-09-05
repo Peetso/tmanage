@@ -116,13 +116,16 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_blockers`          TO 'tmanage_a
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through
 -- 23-ERD §10's (UPDATE); neither is ever removed by the runtime — retention is FILE-003's
--- privileged procedure. A file version is immutable: INSERT only, the `message_work_links`
--- shape, and the trigger in 0015 refuses the UPDATE for every credential. FILE-002's
--- worker will need UPDATE on `file_versions` for the hash and detected type; that grant
--- arrives with the code that writes them.
+-- privileged procedure. A file version was INSERT-only through FILE-001; FILE-002's
+-- verification pass runs in the API under this credential (decision F2, the sweeper's
+-- precedent) and writes exactly two values on a version, once — `content_hash` and
+-- `detected_mime_type`, NULL until then — so UPDATE arrives here with the code that writes
+-- them. What keeps the grant narrow is the trigger, not the privilege: 0018 recreates
+-- `trg_file_versions_immutable` to pin every other column outright and those two once set,
+-- so the runtime credential can move two NULLs and nothing else. DELETE stays withheld.
 GRANT INSERT, UPDATE         ON `tmanage`.`usage_counters`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`file_assets`      TO 'tmanage_app'@'%';
-GRANT INSERT                 ON `tmanage`.`file_versions`    TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE         ON `tmanage`.`file_versions`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`upload_sessions`  TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is

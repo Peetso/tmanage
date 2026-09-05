@@ -7,6 +7,8 @@ import type {
   CompleteMultipartInput,
   MultipartUpload,
   ObjectStore,
+  OpenObjectInput,
+  OpenedObject,
   PartSink,
   StoredObject,
 } from '@tmanage/storage';
@@ -65,6 +67,9 @@ class UnavailableObjectStore implements ObjectStore {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
   abortMultipart(_input: AbortMultipartInput): Promise<void> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
+  openObject(_input: OpenObjectInput): Promise<OpenedObject> {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
 }

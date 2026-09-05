@@ -240,6 +240,31 @@ export class UploadSessionsRepository {
     return rows.map((row) => row.organizationId);
   }
 
+  /**
+   * FILE-002. The completed session that produced an asset's bytes — where the client's
+   * `declared_content_hash` lives. One per asset today (a replacement is a new asset's
+   * version in a later ticket); the newest completed one if that ever changes.
+   */
+  async findCompletedForAsset(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    fileAssetId: string,
+  ): Promise<UploadSessionRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(uploadSessions)
+      .where(
+        and(
+          eq(uploadSessions.organizationId, context.organizationId),
+          eq(uploadSessions.fileAssetId, fileAssetId),
+          eq(uploadSessions.status, 'completed'),
+        ),
+      )
+      .orderBy(desc(uploadSessions.updatedAt), desc(uploadSessions.id))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
   async requireById(
     runner: TenantQueryRunner,
     context: TenantContext,

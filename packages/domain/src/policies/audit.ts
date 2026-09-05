@@ -373,6 +373,38 @@ export const AUDIT_ACTION_CATALOG = {
       '24-EVENT-CATALOG §4 grades upload.completed.v1 a security log',
   },
   /**
+   * FILE-002, slice A — the verification pass, one row per asset it judges, `actorUserId:
+   * null` (a job under a service context). The metadata is tokens: the digest as bare hex
+   * (`sha256`, exactly the 64-character cap), the detected type as a family token
+   * (`detected_type: pdf | png | … | text_plain`, never a MIME type — `VALUE_PATTERN`
+   * admits no `/`), the rejection under `rejection_code`; never the declared name, never
+   * a scanner's or a sniffer's free text.
+   */
+  'file_asset.verified': {
+    objectType: 'file_asset',
+    clause:
+      '§12 — the checksum and the detected type are the facts a later disclosure rests on; ' +
+      '03-ARCHITECTURE §108 checksum/MIME/size verification; 27-TEST-CATALOG INT-12',
+  },
+  'file_asset.rejected': {
+    objectType: 'file_asset',
+    // `denied`: a file the pass refused is exactly a "denied sensitive attempt" — the
+    // attempt was the upload, the refusal is here, and the bytes stay in quarantine as
+    // evidence (49-PRICING §5: still counted until FILE-003's deletion).
+    clause:
+      '§12 denied sensitive attempts are security events with safe metadata; ' +
+      '24-EVENT-CATALOG §4 file.rejected.v1 is audited; 27-TEST-CATALOG SEC-06',
+  },
+  'file_asset.scan_failed': {
+    objectType: 'file_asset',
+    // `error`: the pass could not judge — the object is missing, the store is down, the
+    // size on disk is not the row's. Nothing moves; the row stays `verifying` for a re-run,
+    // and this is the only trace of why. Named for the stage slice B adds too.
+    clause:
+      "§12 — a system job that could not verify a tenant's file with no actor is what the " +
+      'log exists to explain; 03-ARCHITECTURE §108 unscanned uploads are quarantined',
+  },
+  /**
    * USAGE-001. The sweeper's one row per session it expires. Nobody acted — the actor is
    * null, the documented system case — and it is the only trace that a leaver's abandoned
    * reservation was cleaned rather than left counted against the tenant forever
