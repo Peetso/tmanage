@@ -2,7 +2,14 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { BrowserContext } from '@playwright/test';
-import { API_URL, WEB_URL, ageUploadSession, drainOutbox, sweepUploads } from '../setup/stack.js';
+import {
+  API_URL,
+  WEB_URL,
+  ageUploadSession,
+  drainOutbox,
+  sweepUploads,
+  verifyUploads,
+} from '../setup/stack.js';
 
 /**
  * The upload, end to end, through the real API and the real filesystem driver (FILE-001b).
@@ -23,8 +30,9 @@ import { API_URL, WEB_URL, ageUploadSession, drainOutbox, sweepUploads } from '.
  *   BrightOps rather than Northstar so the quota arithmetic owes nothing to E2E-12a's
  *   committed bytes.
  *
- * Not E2E-12 itself: no interrupt, no resume, no scan, no download. Those are FILE-002's and
- * FILE-003's, and the catalog row stays unclaimed until they exist.
+ * E2E-12a continues through verification, scan, private promotion and byte-exact download.
+ * E2E-12c proves malware rejection, denied download and retained quarantine bytes.
+ * Not full E2E-12: interrupt/resume and the file UI remain unclaimed.
  *
  * No browser page is opened: the upload screen is not built yet (a later UI ticket), and
  * the journey is about the transport. Playwright's request contexts are the two clients a
@@ -80,20 +88,37 @@ function filesUnder(directory: string): { path: string; size: number }[] {
 const PART_SIZE = 8 * 1024 * 1024;
 const DECLARED = PART_SIZE + 16;
 
+/** A PDF by its signature (`%PDF-` at byte zero), the rest filler: what the verifier admits. */
+function pdfPart(partNumber: number, size: number): Buffer {
+  if (partNumber !== 1) return Buffer.alloc(size, 'b');
+  const head = Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n', 'latin1');
+  return Buffer.concat([head, Buffer.alloc(size - head.length, 'a')]);
+}
+/** `27` SEC-06's test file inside otherwise admissible text: the stub scanner finds it. */
+const EICAR = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
+function malwarePart(partNumber: number, size: number): Buffer {
+  if (partNumber !== 1) return Buffer.alloc(size, ' ');
+  const head = Buffer.from(`notes: ${EICAR}\n`, 'latin1');
+  return Buffer.concat([head, Buffer.alloc(size - head.length, ' ')]);
+}
+
 interface UploadSession {
   readonly id: string;
   readonly status: string;
   readonly partCount: number;
   readonly uploadUrls: readonly { readonly partNumber: number; readonly url: string }[];
+  readonly fileAssetId: string;
 }
 
 test.describe('the upload journey', () => {
-  test('E2E-12a: two real parts, no cookie, one object of the declared size on disk', async ({
+  test('E2E-12a: two real parts, no cookie, one object on disk; verified, scanned, promoted and downloaded', async ({
     browser,
     playwright,
   }) => {
     const root = process.env['TMANAGE_E2E_STORAGE_ROOT'] as string;
+    const databaseUrl = process.env['TMANAGE_E2E_DATABASE_URL'] as string;
     expect(root).toBeTruthy();
+    expect(databaseUrl).toBeTruthy();
     const objectsBefore = filesUnder(join(root, 'objects'));
 
     // The signed-in client opens the session — the browser's shape: cookie, CSRF, origin.
@@ -106,8 +131,10 @@ test.describe('the upload journey', () => {
         headers: { ...headers, 'idempotency-key': `e2e-12a-${Date.now()}` },
         data: {
           projectId: world().northstar.projectId,
-          fileName: 'autumn-hero.psd',
-          mimeType: 'image/vnd.adobe.photoshop',
+          // A PDF, not the `.psd` this journey once declared: the verifier admits the seven
+          // families of decision F5, and Photoshop is not one of them.
+          fileName: 'autumn-hero.pdf',
+          mimeType: 'application/pdf',
           sizeBytes: DECLARED,
           purpose: 'deliverable',
         },
@@ -130,7 +157,7 @@ test.describe('the upload journey', () => {
       const size = target.partNumber === 1 ? PART_SIZE : DECLARED - PART_SIZE;
       const put = await anonymous.put(target.url, {
         headers: { 'content-type': 'application/octet-stream' },
-        data: Buffer.alloc(size, target.partNumber === 1 ? 'a' : 'b'),
+        data: pdfPart(target.partNumber, size),
         timeout: 60_000,
       });
       expect(put.status(), `part ${target.partNumber}: ${await put.text()}`).toBe(200);
@@ -161,6 +188,126 @@ test.describe('the upload journey', () => {
     );
     expect(fresh[0]?.size).toBe(DECLARED);
     expect(filesUnder(join(root, 'uploads'))).toHaveLength(0);
+    const quarantinePath = fresh[0]?.path as string;
+
+    // Not yet downloadable: the file is `uploaded`, and the gate answers one 404.
+    const fileAssetId = session.fileAssetId;
+    const early = await studio.request.get(
+      `${API_URL}/v1/organizations/northstar-studio/files/${fileAssetId}/content`,
+    );
+    expect(early.status()).toBe(404);
+
+    // The deployment's tick: verify (hash, signature) then scan (stub) and promote.
+    const passes = await verifyUploads(databaseUrl, root);
+    expect(passes.verifier).toMatch(/verified [1-9]/);
+    expect(passes.scanner).toMatch(/ready [1-9]/);
+    const privatePath = quarantinePath.replace('/objects/quarantine/', '/objects/private/');
+    expect(existsSync(privatePath)).toBe(true);
+    expect(statSync(privatePath).size).toBe(DECLARED);
+    // The quarantine copy stays until FILE-003 deletes it (ADR-0006).
+    expect(existsSync(quarantinePath)).toBe(true);
+
+    // The download: the bytes the anonymous client sent, the detected type, an attachment.
+    const download = await studio.request.get(
+      `${API_URL}/v1/organizations/northstar-studio/files/${fileAssetId}/content`,
+      { timeout: 60_000 },
+    );
+    const body = await download.body();
+    expect(download.status(), body.length < 4_096 ? body.toString() : '').toBe(200);
+    expect(body.length).toBe(DECLARED);
+    expect(download.headers()['content-length']).toBe(String(DECLARED));
+    expect(
+      Buffer.compare(
+        body,
+        Buffer.concat([pdfPart(1, PART_SIZE), pdfPart(2, DECLARED - PART_SIZE)]),
+      ),
+    ).toBe(0);
+    expect(download.headers()['content-type']).toBe('application/pdf');
+    expect(download.headers()['content-disposition']).toContain(
+      'attachment; filename="autumn-hero.pdf"',
+    );
+    expect(download.headers()['x-content-type-options']).toBe('nosniff');
+    expect(download.headers()['cache-control']).toBe('private, no-store');
+    expect(JSON.stringify(download.headers())).not.toContain(world().northstar.organizationId);
+
+    // Drain the outbox without consumer failure (event emission is covered by DB tests).
+    await drainOutbox(databaseUrl, root);
+
+    await studio.close();
+  });
+
+  test('E2E-12c: a file the scanner rejects is never downloadable, and its bytes stay in quarantine', async ({
+    browser,
+    playwright,
+  }) => {
+    const root = process.env['TMANAGE_E2E_STORAGE_ROOT'] as string;
+    const databaseUrl = process.env['TMANAGE_E2E_DATABASE_URL'] as string;
+    const objectsBefore = filesUnder(join(root, 'objects'));
+
+    const studio = await browser.newContext();
+    await signIn(studio, world().northstar.manager.id);
+    const headers = { 'x-csrf-token': await csrfToken(studio), origin: WEB_URL };
+    const created = await studio.request.post(
+      `${API_URL}/v1/organizations/northstar-studio/upload-sessions`,
+      {
+        headers: { ...headers, 'idempotency-key': `e2e-12c-${Date.now()}` },
+        data: {
+          projectId: world().northstar.projectId,
+          fileName: 'notes.txt',
+          mimeType: 'text/plain',
+          sizeBytes: DECLARED,
+          purpose: 'deliverable',
+        },
+      },
+    );
+    expect(created.status(), await created.text()).toBe(201);
+    const session = (await created.json()) as UploadSession;
+
+    const anonymous = await playwright.request.newContext();
+    const parts: { partNumber: number; etag: string }[] = [];
+    for (const target of session.uploadUrls) {
+      const size = target.partNumber === 1 ? PART_SIZE : DECLARED - PART_SIZE;
+      const put = await anonymous.put(target.url, {
+        headers: { 'content-type': 'application/octet-stream' },
+        data: malwarePart(target.partNumber, size),
+        timeout: 60_000,
+      });
+      expect(put.status(), `part ${target.partNumber}: ${await put.text()}`).toBe(200);
+      parts.push({ partNumber: target.partNumber, etag: put.headers()['etag'] as string });
+    }
+    await anonymous.dispose();
+    const completed = await studio.request.post(
+      `${API_URL}/v1/organizations/northstar-studio/upload-sessions/${session.id}/complete`,
+      { headers, data: { parts } },
+    );
+    expect(completed.status(), await completed.text()).toBe(202);
+
+    const passes = await verifyUploads(databaseUrl, root);
+    expect(passes.verifier).toMatch(/verified [1-9]/);
+    expect(passes.scanner).toMatch(/rejected [1-9]/);
+
+    // The studio's replayed view says why — the code, never the engine's detection name.
+    const replay = await studio.request.post(
+      `${API_URL}/v1/organizations/northstar-studio/upload-sessions/${session.id}/complete`,
+      { headers, data: { parts } },
+    );
+    expect(replay.status()).toBe(202);
+    const view = (await replay.json()) as { status: string; rejectionCode: string | null };
+    expect(view).toMatchObject({ status: 'rejected', rejectionCode: 'malware_detected' });
+    expect(await replay.text()).not.toMatch(/eicar/i);
+
+    // Never downloadable; nothing promoted; the quarantine object stays.
+    const download = await studio.request.get(
+      `${API_URL}/v1/organizations/northstar-studio/files/${session.fileAssetId}/content`,
+    );
+    expect(download.status()).toBe(404);
+    const objectsAfter = filesUnder(join(root, 'objects'));
+    const fresh = objectsAfter.filter((f) => !objectsBefore.some((b) => b.path === f.path));
+    expect(fresh).toHaveLength(1);
+    expect(fresh[0]?.path).toContain('/objects/quarantine/');
+
+    // Drain the outbox without consumer failure (event emission is covered by DB tests).
+    await drainOutbox(databaseUrl, root);
 
     await studio.close();
   });

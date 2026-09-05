@@ -221,6 +221,44 @@ export async function sweepUploads(databaseUrl: string, storageRoot?: string): P
 }
 
 /**
+ * Run FILE-002's verification and scan passes once — E2E-12a's steps between "uploaded" and
+ * "downloadable". The API's own `verify.ts`, the shape `verify:once` deploys, with the
+ * environment the API got (the same database, the same storage root, the stub scanner).
+ * One invocation runs the verifier then the scanner; each prints one report line on
+ * stderr. A pass that could not judge an object is `failed N` in its line and the process
+ * still exits zero, so the helper reads both counts and fails the journey itself.
+ */
+export async function verifyUploads(
+  databaseUrl: string,
+  storageRoot?: string,
+): Promise<{ verifier: string; scanner: string }> {
+  const { stdout, stderr } = await run(
+    'pnpm',
+    ['--filter', '@tmanage/api', 'exec', 'tsx', 'src/verify.ts', '--once'],
+    { cwd: REPO_ROOT, env: apiEnv(databaseUrl, storageRoot) },
+  );
+  const output = `${stderr}\n${stdout}`;
+  const verifier = /\[verifier\] pass: (.*)/.exec(output)?.[1]?.trim();
+  const scanner = /\[scanner\] pass: (.*)/.exec(output)?.[1]?.trim();
+  if (!verifier || !scanner) {
+    throw new Error(`verifyUploads: a pass printed no report\n${stderr}\n${stdout}`);
+  }
+  for (const [name, report] of [
+    ['verifier', verifier],
+    ['scanner', scanner],
+  ] as const) {
+    const failedCount = /failed (\d+)/.exec(report)?.[1];
+    if (failedCount === undefined) {
+      throw new Error(`verifyUploads: the ${name} report omitted its failure count — ${report}`);
+    }
+    if (Number(failedCount) > 0) {
+      throw new Error(`verifyUploads: the ${name} failed on an object — ${report}`);
+    }
+  }
+  return { verifier, scanner };
+}
+
+/**
  * Move one upload session's `expires_at` a day into the past, so the next sweep treats it
  * as abandoned. Through the API package's own CLI (`test/age-upload-session-cli.ts`), the
  * way the seed is: this package holds no database client, and is meant not to.

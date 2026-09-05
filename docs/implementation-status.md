@@ -29,6 +29,25 @@ change what a command does rather than merely how it is typed.
 
 ---
 
+## Planning-pack reconciliation — re-verified 2026-09-05, start of the E2E download session
+
+The **thirty-seventh** consecutive run compared SHA-256 and modification times pair by
+pair. Planning: **61 of 61 byte-identical**, zero differing, missing or repo-only files.
+Design: **147 of 147 byte-identical**, zero differing, missing, repo-only or pack-only files.
+No pack file is newer. The repository is later for 60 planning pairs and all 147 design
+pairs; `contracts/tmanage-core.dbml` is in the same second.
+
+The planning traversal excluded `tmanage/`, `graphify-out/` and the design-handoff subtree.
+The six pack-only extras are `.claude/scheduled_tasks.lock`, `.claude/settings.json`,
+`.claude/settings.local.json`, `CLAUDE.md`, `TManage Design System Kickoff-handoff.zip` and
+`TManage-Product-System-Master-Plan.docx`. Neither protected source directory was edited.
+
+The starting HEAD is `af2773940b81aeeb4d676d283be89c38da49da05`. Unlike the incoming handoff,
+the tree contains pre-existing untracked `CODEX-REVIEW-2026-09-05/` and
+`CODEX_REVIEW_FOR_CLAUDE_2026-09-05.md`; these are preserved and excluded from our commits.
+
+---
+
 ## Planning-pack reconciliation — re-verified 2026-09-05, start of the FILE-002 slice B completion session
 
 The **thirty-sixth** consecutive run, and the table below is this run's output rather than a
