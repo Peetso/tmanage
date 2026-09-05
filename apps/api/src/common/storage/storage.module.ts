@@ -100,6 +100,16 @@ export class StorageModule {
     return moduleFor(store, null);
   }
 
+  /**
+   * A suite's *local* store, held by the suite and moving real bytes — the filesystem
+   * driver, or a subclass of it with a hook, wired as `forConfig` wires the driver: the
+   * same object serves the store and the part sink, so the public PUT lands where the
+   * completion will look.
+   */
+  static forLocalStore(store: ObjectStore & PartSink): DynamicModule {
+    return moduleFor(store, store);
+  }
+
   /** No driver at all: the first provider call throws `ObjectStoreUnavailableError`. */
   static none(): DynamicModule {
     return moduleFor(new UnavailableObjectStore(), null);

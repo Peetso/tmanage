@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
@@ -20,11 +20,15 @@ import type {
  * DBML's `storage_reservations` and `07-DATA-MODEL`'s `UploadSession` are one table here).
  *
  * The row is created with the counter reservation in one transaction and moves through
- * `reserved → completed | cancelled | expired | failed`. Every move is a conditional UPDATE
- * on the status it leaves, so the caller that flips the status is the one caller that then
- * touches the counter — which is how a double `complete` commits once and a cancel after a
- * completion releases nothing (`49` §7: "duplicate completion/release ... do not
- * double-count bytes").
+ * `reserved → completing → completed | failed`, with `reserved → cancelled | expired` as the
+ * exits a person or the sweeper takes and `completing → reserved` as the one backward edge
+ * (migration 0017). Every move is a conditional UPDATE on the status it leaves, so the
+ * caller that flips the status is the one caller that then touches the counter — which is
+ * how a double `complete` commits once and a cancel after a completion releases nothing
+ * (`49` §7: "duplicate completion/release ... do not double-count bytes"). The claim is
+ * what makes that hold across the provider call as well: `completeMultipart` is only ever
+ * called by the request that moved the row to `completing`, and nothing else moves a
+ * `completing` row.
  */
 
 export class UploadSessionNotFoundError extends Error {
@@ -73,6 +77,9 @@ export interface ListUploadSessionsOptions {
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
+
+/** The statuses under which a session still holds its bytes and its provider upload. */
+export const OPEN_STATUSES: readonly UploadSessionStatus[] = ['reserved', 'completing'];
 
 function isDuplicateKey(error: unknown): boolean {
   const unwrapped = unwrapQueryError(error);
@@ -151,13 +158,16 @@ export class UploadSessionsRepository {
   }
 
   /**
-   * How many `reserved` sessions one person holds open in this organization — the number
+   * How many sessions one person holds open in this organization — the number
    * `UPLOAD_MAX_OPEN_SESSIONS_PER_USER` is measured against (security review 2026-09-04).
+   * Open means `reserved` or `completing`: a claim still holds the bytes and the provider
+   * upload, and a cap that stopped counting a session the moment its completion began
+   * would let a person hold the cap-th plus every completion they can keep in flight.
    * Over the `(organization, status, …)` prefix of `ix_upload_sessions_org_status_expires`:
    * a tenant's open reservations are bounded by its quota, so the filter on the opener runs
    * over a short range and no index of its own is warranted yet.
    */
-  async countReservedFor(
+  async countOpenFor(
     runner: TenantQueryRunner,
     context: TenantContext,
     actorUserId: string,
@@ -168,7 +178,7 @@ export class UploadSessionsRepository {
       .where(
         and(
           eq(uploadSessions.organizationId, context.organizationId),
-          eq(uploadSessions.status, 'reserved'),
+          inArray(uploadSessions.status, [...OPEN_STATUSES]),
           eq(uploadSessions.actorUserId, actorUserId),
         ),
       );
@@ -176,20 +186,56 @@ export class UploadSessionsRepository {
   }
 
   /**
+   * The claims a dead process left behind: `completing` rows whose last move is older than
+   * `staleBefore`. A live completion moves its row again within seconds — to `completed`,
+   * `failed` or back to `reserved` — so a claim this old belongs to a request that is not
+   * coming back. The sweeper returns each to `reserved` (migration 0017's header, USAGE-001
+   * decision 12); nothing here releases anything. `updated_at` rather than `expires_at`,
+   * because the claim is what is stale, not the reservation. Same index prefix as
+   * {@link listExpired}, then a filter over the (short) `completing` range.
+   */
+  async listStaleClaims(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    staleBefore: Date,
+    limit: number,
+  ): Promise<readonly UploadSessionRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(uploadSessions)
+      .where(
+        and(
+          eq(uploadSessions.organizationId, context.organizationId),
+          eq(uploadSessions.status, 'completing'),
+          lt(uploadSessions.updatedAt, staleBefore),
+        ),
+      )
+      .orderBy(asc(uploadSessions.updatedAt), asc(uploadSessions.id))
+      .limit(Math.min(Math.max(limit, 1), MAX_PAGE_SIZE));
+  }
+
+  /**
    * USAGE-001's cross-tenant half: which organizations hold a `reserved` session past the
-   * cutoff. The one read on this table with no tenant predicate, and therefore the one that
-   * takes a `BootstrapQueryRunner` — the caller declares the reason and the allowlist, and
-   * the escape hatch refuses anything but a select on `upload_sessions`. A `select
-   * distinct` over the same index {@link listExpired} uses.
+   * cutoff, or a `completing` one whose claim is older than `staleBefore`. The one read on
+   * this table with no tenant predicate, and therefore the one that takes a
+   * `BootstrapQueryRunner` — the caller declares the reason and the allowlist, and the
+   * escape hatch refuses anything but a select on `upload_sessions`. A `select distinct`
+   * over the same index {@link listExpired} and {@link listStaleClaims} use.
    */
   async organizationsHoldingExpired(
     runner: BootstrapQueryRunner,
     before: Date,
+    staleBefore: Date,
   ): Promise<readonly string[]> {
     const rows = await tenantDrizzle(runner)
       .selectDistinct({ organizationId: uploadSessions.organizationId })
       .from(uploadSessions)
-      .where(and(eq(uploadSessions.status, 'reserved'), lt(uploadSessions.expiresAt, before)))
+      .where(
+        or(
+          and(eq(uploadSessions.status, 'reserved'), lt(uploadSessions.expiresAt, before)),
+          and(eq(uploadSessions.status, 'completing'), lt(uploadSessions.updatedAt, staleBefore)),
+        ),
+      )
       .orderBy(asc(uploadSessions.organizationId));
     return rows.map((row) => row.organizationId);
   }
@@ -272,7 +318,11 @@ export class UploadSessionsRepository {
   /**
    * Move the session out of one of `from`, into `to`. `true` when this call made the move;
    * `false` when the row was already elsewhere — the caller then reads the row and answers
-   * from what it finds rather than repeating a side effect.
+   * from what it finds rather than repeating a side effect. `from` is always the caller's,
+   * never a default: the release paths pass `['reserved']`, the completion's post-claim
+   * moves pass `['completing']`, and one status→status edge per path is what keeps a
+   * double release unreachable (the counter's guard is organization-wide and would not
+   * catch it).
    */
   async transition(
     runner: TenantQueryRunner,

@@ -512,9 +512,16 @@ export const UPLOAD_PURPOSES = [
 ] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 
-/** The reservation's own lifecycle (`49` §6 steps 4 and 7), not the file's nine states. */
+/**
+ * The reservation's own lifecycle (`49` §6 steps 4 and 7), not the file's nine states.
+ * `completing` is the claim a completion takes on the row before it asks the provider
+ * (migration 0017): its exits are `completed`, `failed`, and back to `reserved` when the
+ * provider refused something the client can still put right. A cancel or a sweep finds a
+ * `completing` row and leaves it alone.
+ */
 export const UPLOAD_SESSION_STATUSES = [
   'reserved',
+  'completing',
   'completed',
   'cancelled',
   'expired',

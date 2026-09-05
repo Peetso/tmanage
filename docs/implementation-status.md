@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-05 (debt-and-limiter session; the review's every row closed; chain green) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-05 (completing-claim session; the carried race closed; chain result recorded below) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,27 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-05, start of the completing-claim session
+
+The **thirty-third** consecutive run, and the table below is this run's output rather than a
+copy of the previous one. Every pair was compared by SHA-256 and, separately, by modification
+time — pair by pair rather than newest-against-newest. The comparison filters the pack's own
+`tmanage/`, `graphify-out/` and design-handoff subtrees, without which the planning scope
+reports a spurious "10 differing".
+
+| Scope                                     | Result                                                                                                                                                                                                                                                                  |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/planning/` vs the pack (SHA-256)    | **61 of 61 byte-identical.** 0 differ, 0 missing, 0 repo-only                                                                                                                                                                                                           |
+| `docs/design/source/` vs the pack handoff | **147 of 147 byte-identical.** 0 differ, 0 missing, 0 repo-only, 0 pack-only                                                                                                                                                                                            |
+| Modification times                        | **No pack file is newer than its copy** in either scope. 60 of 61 planning pairs and all 147 design pairs have the repo copy stamped later; one planning pair (`contracts/tmanage-core.dbml`) is stamped in the same second. Unchanged from the thirty-second run       |
+| Uncopied pack content                     | The same six as the thirty-second run: the five deliberate files — the design-handoff `.zip`, `TManage-Product-System-Master-Plan.docx`, `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json` — plus the harness artifact `.claude/scheduled_tasks.lock` |
+| Conclusion                                | Nothing revised since the previous check. Safe to write code                                                                                                                                                                                                            |
+
+Nothing under `docs/planning/` or `docs/design/source/` was written to this session. A stale
+copy is refreshed _from_ the pack and never authored.
 
 ---
 
@@ -659,6 +680,137 @@ are untouched.
 
 ---
 
+## The completing claim — the carried race closed, the claim reaped, the silent abort named
+
+The one item that had been carried through four sessions — a completion still talking to the
+provider while a cancel, a second completion or a sweep moved its row — is closed. Designed
+first with a read-only fleet of six (run `wf_c173e07e-bd6`: the contract surface, the test
+suites, the migrator, the planning docs, the sweeper and the audit catalog, and one
+adversarial lens on the new state), then built, then proved by seven reversals. Peter's
+standing instruction was the brief: nothing may slip because a decision made things easier.
+The fleet found three places where the naive claim would have.
+
+### What the claim is
+
+`upload_sessions.status` gains **`completing`** — migration `0017_upload_session_completing.sql`,
+`UPLOAD_SESSION_STATUSES`, and the repository header. A completion moves its row
+`reserved → completing` in its own short transaction **before** `completeMultipart` is called;
+from then until it settles, that request is the one thing that can move the row:
+
+- **Cancel** finds `completing` and answers **409 `conflict`** (`completion_in_flight`,
+  message "the upload is being completed; wait for it to finish", no `version` field, so the
+  web client renders the API's words rather than its version-conflict banner) — checked
+  _before_ `releaseAs`, because on that path the provider abort runs ahead of the status
+  guard and would have abandoned an upload the provider was assembling.
+- **A second completion** of the same session answers the same 409.
+- **A replay of the key** answers 409 with "whose completion is in flight; wait for it" —
+  _not_ "use a new key": a client that followed that advice would open a second reservation
+  and a second provider upload for the same bytes.
+- **The sweeper** never selects it: `listExpired` is `status = 'reserved'`, unchanged.
+- **The open-upload cap** counts it: `countReservedFor` became `countOpenFor` over
+  `reserved | completing`. Without that a person at the cap held the cap-th plus every
+  completion they could keep in flight (the fleet's door 5).
+- **The view** still reports `reservedBytes` under a claim (the bytes are held) and withholds
+  the part targets (they are a bearer credential for a write; the claim is when the object is
+  being assembled from them).
+
+Every exit settles the claim, and `from` is explicit at every transition — never a widened
+default, so exactly one status→status edge exists per release path and a double release is
+unreachable by construction (the counter's guard is organization-wide and would not catch
+one): `completing → completed` in the commit transaction; `completing → failed` for a lost
+upload or a wrong size, through `releaseAs(…, { from: ['completing'] })`; and **`completing →
+reserved`** — the one backward edge — in a `finally`, for everything else: a part the client
+can re-send (FILE-001b decision 11 stands, its two cases green), a provider outage, a refused
+abort, a commit that did not go through. A claim never outlives its request.
+
+### The door the naive claim would have opened, and its reaper
+
+A process that dies between the claim and the `finally` leaves a row `completing` for good:
+complete and cancel answer 409, expiry does not see it, the bytes stay counted, and one of
+the opener's capped slots stays taken. The fleet's verdict — "shipping the claim without a
+reaper is strictly worse than not claiming" — was right, and the sweeper's pass now has a
+second door: `listStaleClaims` selects `completing` rows whose `updated_at` is older than
+**`STALE_CLAIM_MS` (fifteen minutes)**, `FilesService.reclaim` returns each to `reserved`
+(bound to its context as `expire` is), and the expiry in the same pass then takes it if it is
+also past the cutoff. The reclaim releases nothing itself; a reclaimed row still inside its
+lifetime waits for its opener or for expiry like any other. `organizationsHoldingExpired`
+finds an organization by either condition. The report gains `reclaimed`; the parsed line
+appends "N claim(s) reclaimed" only when non-zero, so `e2e/setup/stack.ts` reads it as before.
+**USAGE-001 decision 12: the bound is fifteen minutes, one edit in `upload-session-sweeper.ts`,
+Peter's to change.** The trade is stated in the file: too short undercuts a slow assembly
+(that one row's race reopened, no more); too long holds a dead claim's bytes and slot.
+
+One clock note, learned from a red test: `updated_at` is stamped by the application pool's
+session, pinned to `+00:00`, and compared against the host clock, as `expires_at` is. The
+suite's helper must date a claim from a bound `Date`, never from the admin connection's
+`current_timestamp` — that pool's server clock is `SYSTEM`, hours off on this machine.
+
+### The silent abort, named
+
+The completion-refusal path (`releaseAs … 'best-effort'`) now records
+**`upload_session.abort_failed`** when the provider refuses to abandon an upload it has
+already lost: `error`, `objectId` the session, `provider_upload_id`, `cause`, the refusal's
+name (`MultipartUploadNotFoundError`), the project and the declared bytes — in its own
+best-effort transaction, as the create path's row is. The catalog comment names both
+producers. The last of the review's low findings is closed.
+
+### Why 0017 is a migration when the column admits the value already
+
+`status` is a `VARCHAR(32)` with no ENUM and no CHECK, and 0015's header — which enumerates
+five values — is frozen by the migrator's checksum, so it is amended in 0017's header (the
+0016 precedent) and not in place. A comment-only file is refused by the migrator ("contains
+no statements"), so 0017 rewrites the column with a `COMMENT` naming all six values — same
+type, same NOT NULL, no DEFAULT, both indexes and 0016's trigger untouched — because
+`SHOW CREATE TABLE` is what an operator reads, not `schema.ts`. **Deployment: one migration
+to apply.** The ledger migration the USAGE-001 plan named `0017` becomes `0018`.
+
+### What the fleet flagged and this session did not change
+
+- **Provider succeeded, commit failed** (the fleet's door 9). The `finally` returns the row to
+  `reserved`; the retry re-calls `completeMultipart`, the filesystem driver has already sealed
+  the object and removed the manifest, so the retry is `upload_not_found` → `failed`, the
+  bytes go back, and the sealed object is an orphan no version names. **The same orphan as
+  before the claim** (then: `reserved` until expiry, same object), reached by the client's
+  retry rather than the sweeper. The fix is a probe of the destination before the retry, or
+  a record of the sealed object's etag on the row — FILE-003's orphan lifecycle, carried.
+- **A PUT during the assembly** (door 7). The part targets are withdrawn from the view under a
+  claim, but a client that already holds them can PUT through the public route, which has no
+  session to consult, until the driver removes the manifest at the end of `completeMultipart`.
+  The window is the driver's, existed before the claim, and stays recorded; a session lookup on
+  the public parts route would undo its stated no-tenant design.
+- **No session state machine in `packages/domain`** (door 10): the illegality lives in the
+  explicit `from` at every `transition` call, and the repository's `transition` doc says so.
+
+### Verification actually run — 2026-09-05, the completing-claim session
+
+| Gate                                           | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `file-001-upload-sessions.db.test.ts`          | **35 passed** (32 + 3): the race — a cancel, a second completion, a replay of the key and a read, all inside `completeMultipart` through a `HookedObjectStore` the suite owns: 409, 409, 409, and the view reads `completing` / bytes held / no targets; then 202, `used` once, `began` 1, `completed` 1, `aborted` 0, `version` 3 (the claim is a move of its own); the provider down — 500, the row back at `reserved` with the bytes still held, the retry 202; the cap — a completion in flight still holds its slot (429 inside the hook, 201 after). The provider-refuses case now asserts the `abort_failed` row: `error`, the session's id, the handle, the refusal's name, `cause: failed`                                                                                                                                            |
+| `file-001b-part-transport.db.test.ts`          | **16 passed** (15 + 1): **the real driver** — a `HookedFilesystemObjectStore` wired through the new `StorageModule.forLocalStore` (store and part sink, as `forConfig` wires them); a cancel during the assembly is 409 with the row `completing` and the five staging files still on disk; then 202, one new object, the staging directory gone, one version, the bytes counted once. Decision 11's two retry cases still green — the un-claim is what keeps them so                                                                                                                                                                                                                                                                                                                                                                          |
+| `usage-001-expiry-sweeper.db.test.ts`          | **9 passed** (7 + 2): a fresh claim past its reservation's expiry is not selected — `organizations 0`, nothing touched, no abort, no audit row; a stale claim past the cutoff is reclaimed and expired in the same pass, and a stale claim still inside its lifetime is reclaimed and left `reserved`, then completes normally — `reclaimed 2, scanned 1, released 1`                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Batched revert proofs, two runs                | Run 1, three suites, five reversals at once — **A** no claim (the provider call on a `reserved` row; the four `from`s back to `reserved`), **C** the abort failure not recorded, **E** the sweeper never reclaims, **F** the sweeper selects a claim as abandoned — **exactly 5 of 60 red**: the fake's race, the real driver's race, the abort row, both claim cases. Run 2, FILE-001 alone, two reversals — **D** the claim never given back, **B** the cap counts `reserved` only — **exactly 2 of 35 red**: the provider-down retry (409 for ever), the cap. B was first batched with A and stayed green, correctly: without a claim there is no `completing` row to miscount; it needs the claim to be visible. Restored each time from sha-checked copies (`b3a1390eb8d7`, `59826110c2da`, `716da1f4b559`), `save` first on its own line |
+| `typecheck` api and worker, `eslint`, prettier | Clean on every touched file. Line endings LF throughout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **The chain**                                  | CHAIN_RESULT                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `mysqld` strays                                | None after any database run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+`test:vr` was **not run and is not owed**: `packages/ui` is untouched.
+
+### What is still carried
+
+- **The sealed-object orphan on a commit failure** (above) — FILE-003's lifecycle, now reached
+  by a client retry as well as by expiry.
+- **A production deployment now needs three database users** and, from this session,
+  **migration 0017**.
+- **USAGE-001 slices 2–5** (the ledger is `0018`), FILE-002, FILE-003, and Peter's ten
+  questions plus decisions 11 (the grace) and **12 (the stale-claim bound)**.
+
+### Ticket accounting
+
+No ticket closes or opens: hardening under FILE-001, FILE-001b and USAGE-001 slice 1.
+**34 of 70 tickets, 272 of 583 points (46.7%)**, unchanged.
+
+---
+
 ## The security review acted on — the debt paid, the limiter wired, the cap built, the low findings closed
 
 The debt-and-limiter session of 2026-09-05 opened on the tree the security session left:
@@ -927,7 +1079,8 @@ is in the run's `journal.jsonl` under the session's `subagents/workflows/wf_7e34
    `sweepUploads` beside `drainOutbox`. No new event type. Six database cases and one
    journey (E2E-12b: an abandoned upload is released and the quota is free again).
 2. **The append-only ledger**, written in the producing transaction after the outbox row
-   (whose id is `source_event_id`): migration `0017_usage_ledger_entries.sql`, a `BEFORE
+   (whose id is `source_event_id`): migration `0018_usage_ledger_entries.sql` (0017 was
+   taken by the completing claim on 2026-09-05), a `BEFORE
 UPDATE` trigger and no `UPDATE`/`DELETE` grant, idempotency key
    `<uploadSessionId>:<reason>`, `INSERT … ON DUPLICATE KEY UPDATE id = id`. Cases: one
    ledger row per counter move joined to its outbox row; the ledger sums to the counter

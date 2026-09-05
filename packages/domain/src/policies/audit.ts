@@ -357,8 +357,10 @@ export const AUDIT_ACTION_CATALOG = {
   },
   'upload_session.abort_failed': {
     objectType: 'upload_session',
-    // `error`, no object id: the reservation was refused and never became a row, and the
-    // provider still holds the upload the API opened for it. The handle is the metadata.
+    // `error`. Two producers: a reservation that was refused and never became a row (no
+    // object id), and a release whose best-effort abort the provider refused (the session
+    // is the object id). Either way the provider still holds an upload; the handle is the
+    // metadata.
     clause:
       '§12 — an upload the provider holds open that no row names is a fact only the log ' +
       'can carry; 49-PRICING §6 step 7 abort; 50-BOOTSTRAP §4 lifecycle-abort is the backstop',

@@ -6,6 +6,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { FORBIDDEN_CLIENT_FIELDS, uuidv7 } from '@tmanage/domain';
 import { FakeObjectStore, MultipartUploadNotFoundError } from '@tmanage/storage';
+import type { CompleteMultipartInput, StoredObject } from '@tmanage/storage';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { StorageModule } from '../src/common/storage/storage.module.js';
@@ -44,12 +45,32 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * 6. **A reservation is somebody's to release.** The opener cancels their own; an owner with
  *    organization-wide scope can list the studio's sessions and cancel a colleague's — and
  *    still cannot read or complete it.
+ * 7. **A completion holds its row while it talks to the provider** (migration 0017). A
+ *    cancel, a second completion, or a replay of the key that arrives while the provider is
+ *    assembling the object is refused with 409 and moves nothing; the completion then lands,
+ *    once, and the bytes are counted once.
  */
+
+/**
+ * The fake with a hook on `completeMultipart`: the one place a completion yields between
+ * claiming its row and settling it, which is where a racing cancel has to be injected.
+ * The subclass is the suite's, as the sweeper suite's `onAbort` one is.
+ */
+class HookedObjectStore extends FakeObjectStore {
+  onComplete: ((input: CompleteMultipartInput) => Promise<void>) | null = null;
+
+  override async completeMultipart(input: CompleteMultipartInput): Promise<StoredObject> {
+    const hook = this.onComplete;
+    this.onComplete = null; // Once: a completion the hook itself sends must not re-enter.
+    if (hook) await hook(input);
+    return super.completeMultipart(input);
+  }
+}
 
 let db: TestDatabase;
 let world: SeedWorld;
 let app: NestFastifyApplication;
-let store: FakeObjectStore;
+let store: HookedObjectStore;
 
 /** What the fake reports at completion when the suite has not said otherwise. */
 const DECLARED = 1_000;
@@ -253,7 +274,7 @@ const designer = () => world.northstar.designer;
 
 beforeAll(async () => {
   db = await startTestDatabase();
-  store = new FakeObjectStore(() => DECLARED);
+  store = new HookedObjectStore(() => DECLARED);
   app = await NestFactory.create<NestFastifyApplication>(
     AppModule.register({
       config: CONFIG,
@@ -274,6 +295,7 @@ beforeEach(async () => {
   store.completed.length = 0;
   store.aborted.length = 0;
   store.sizeFor.clear();
+  store.onComplete = null;
 });
 
 afterAll(async () => {
@@ -483,6 +505,37 @@ describe('the organization quota (49 §6, §7)', () => {
     expect(store.began).toHaveLength(11);
     expect(store.aborted).toHaveLength(1);
     expect(await observe('select id from upload_sessions')).toHaveLength(10);
+  });
+
+  it('counts a claim against the cap: a completion in flight still holds its slot', async () => {
+    const studio = await signIn(manager().id);
+    const cap = CONFIG.uploadMaxOpenSessionsPerUser;
+    // The first at the declared size the fake reports, the rest small: twelve of a
+    // thousand would cross the ten-kilobyte quota before the cap is reached.
+    const first = await open(studio);
+    for (let i = 1; i < cap; i += 1) await open(studio, { sizeBytes: 100 });
+    let inFlight = 0;
+    // Reversal: count only `reserved` in `countOpenFor` and the open below is 201 — a
+    // person at the cap holds the cap-th plus every completion they can keep in flight.
+    store.onComplete = async () => {
+      const opened = await send('POST', '/upload-sessions', studio, body({ sizeBytes: 100 }), {
+        'idempotency-key': freshKey(),
+      });
+      inFlight = opened.statusCode;
+    };
+    const done = await send(
+      'POST',
+      `/upload-sessions/${first.id}/complete`,
+      studio,
+      partsFor(first),
+    );
+    expect(done.statusCode, done.body).toBe(202);
+    expect(inFlight).toBe(429);
+    // Completed, the slot is free.
+    const after = await send('POST', '/upload-sessions', studio, body({ sizeBytes: 100 }), {
+      'idempotency-key': freshKey(),
+    });
+    expect(after.statusCode).toBe(201);
   });
 
   it('caps the reservations one person holds open: the thirteenth is 429, a colleague is not, and a cancel makes room', async () => {
@@ -720,6 +773,18 @@ describe('completing a session', () => {
     expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: 0 });
     const [row] = await observe('select status from upload_sessions where id = ?', [session.id]);
     expect(row?.['status']).toBe('failed');
+    // The refused abort is recorded, as the create path records its own: the provider
+    // holds an upload the session no longer describes, and the row names the handle.
+    // Reversal: drop `recordSessionAbortFailure` from `releaseAs` and the log is empty.
+    expect(await auditActions()).toEqual(['upload_session.abort_failed']);
+    const [abortRow] = await observe(
+      "select result as r, object_id as o, metadata_json as m from audit_events where action = 'upload_session.abort_failed'",
+    );
+    expect(abortRow?.['r']).toBe('error');
+    expect(abortRow?.['o']).toBe(session.id);
+    expect(JSON.stringify(abortRow?.['m'])).toMatch(/"provider_upload_id":"fake-upload-\d+"/);
+    expect(JSON.stringify(abortRow?.['m'])).toContain('"refusal":"MultipartUploadNotFoundError"');
+    expect(JSON.stringify(abortRow?.['m'])).toContain('"cause":"failed"');
   });
 
   it('refuses an expired session and releases it', async () => {
@@ -739,6 +804,94 @@ describe('completing a session', () => {
     expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: 0 });
     const [row] = await observe('select status from upload_sessions where id = ?', [session.id]);
     expect(row?.['status']).toBe('expired');
+  });
+
+  it('holds the row while the provider assembles: a cancel, a second completion and a replay of the key in that window are 409, and the completion lands once', async () => {
+    const studio = await signIn(manager().id);
+    const key = freshKey();
+    const session = await open(studio, {}, key);
+    const seen: Record<string, unknown> = {};
+
+    // The provider is mid-`completeMultipart` when the same person cancels, completes
+    // again, and re-sends the key. Reversal: drop the claim (`reserved → completing`
+    // before the provider call) and the cancel answers 200, releases the bytes and aborts
+    // the upload under the completion; the completion then finds its row `cancelled`.
+    store.onComplete = async () => {
+      const [cancel, again, replay, read] = await Promise.all([
+        send('POST', `/upload-sessions/${session.id}/cancel`, studio),
+        send('POST', `/upload-sessions/${session.id}/complete`, studio, partsFor(session)),
+        send('POST', '/upload-sessions', studio, body(), { 'idempotency-key': key }),
+        send('GET', `/upload-sessions/${session.id}`, studio),
+      ]);
+      seen['cancel'] = [cancel.statusCode, cancel.json<ErrorBody>().error.code];
+      seen['again'] = [again.statusCode, again.json<ErrorBody>().error.code];
+      seen['replay'] = [
+        replay.statusCode,
+        replay.json<ErrorBody>().error.details?.[0]?.message ?? '',
+      ];
+      const view = read.json<UploadSession>();
+      seen['read'] = [view.status, view.reservedBytes, view.uploadUrls.length];
+    };
+
+    const response = await send(
+      'POST',
+      `/upload-sessions/${session.id}/complete`,
+      studio,
+      partsFor(session),
+    );
+    expect(response.statusCode, response.body).toBe(202);
+    expect(seen['cancel']).toEqual([409, 'conflict']);
+    expect(seen['again']).toEqual([409, 'conflict']);
+    expect(seen['replay']).toEqual([
+      409,
+      'was used by a session whose completion is in flight; wait for it',
+    ]);
+    // While claimed: the bytes are still reserved and the part targets are withdrawn.
+    expect(seen['read']).toEqual(['completing', DECLARED, 0]);
+
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: DECLARED, reserved: 0 });
+    expect(store.completed).toHaveLength(1);
+    expect(store.aborted).toHaveLength(0);
+    expect(store.began).toHaveLength(1);
+    expect(await observe('select id from file_versions')).toHaveLength(1);
+    const [row] = await observe('select status, version as v from upload_sessions where id = ?', [
+      session.id,
+    ]);
+    expect(row?.['status']).toBe('completed');
+    // reserved(1) → completing(2) → completed(3): the claim is a move of its own.
+    expect(Number(row?.['v'])).toBe(3);
+    expect(await outboxTypes(session.id)).toEqual([
+      'usage.storage_reserved.v1',
+      'upload.completed.v1',
+      'usage.storage_committed.v1',
+    ]);
+  });
+
+  it('gives the claim back when the provider is down, so the same session completes on the retry', async () => {
+    const studio = await signIn(manager().id);
+    const session = await open(studio);
+    store.failNext = new Error('the provider is down');
+    const down = await send(
+      'POST',
+      `/upload-sessions/${session.id}/complete`,
+      studio,
+      partsFor(session),
+    );
+    expect(down.statusCode).toBe(500);
+    // Reversal: drop the `finally` un-claim and the row stays `completing`: the retry below
+    // is 409 for ever, the bytes are held, and only the sweeper's reclaim frees it.
+    const [row] = await observe('select status from upload_sessions where id = ?', [session.id]);
+    expect(row?.['status']).toBe('reserved');
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: DECLARED });
+
+    const retry = await send(
+      'POST',
+      `/upload-sessions/${session.id}/complete`,
+      studio,
+      partsFor(session),
+    );
+    expect(retry.statusCode, retry.body).toBe(202);
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: DECLARED, reserved: 0 });
   });
 });
 

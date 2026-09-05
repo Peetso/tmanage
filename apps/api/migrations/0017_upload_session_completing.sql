@@ -1,0 +1,47 @@
+-- 0017_upload_session_completing — the claim a completion takes on its row before the
+-- provider is asked (FILE-001, the carried complete/cancel/sweep race).
+--
+-- Governing sources: 49-PRICING-ENTITLEMENTS-AND-STORAGE-POLICY §6 steps 6 and 7 (completion
+-- verifies the provider's count and converts the reservation; failure or expiry releases
+-- it); 07-DATA-MODEL §"Invariants" (unique active reservation, non-negative counters);
+-- 27-TEST-CATALOG CONC-06 (counters never go negative under concurrent release);
+-- 26-THREAT-MODELS §5 (quota abuse); ADR-0002 (a real server under the database suite).
+--
+-- ## A sixth status, and why it is a migration at all
+--
+-- `upload_sessions.status` is a VARCHAR(32) with no ENUM and no CHECK, so the engine admits
+-- `completing` today. This migration exists because the column's vocabulary is a fact the
+-- schema should carry — `SHOW CREATE TABLE` is what an operator reads at three in the
+-- morning, not `schema.ts` — and because 0015's header enumerates five values and cannot be
+-- edited: the migrator re-hashes every applied file, so an amended 0015 refuses to migrate
+-- any database it has already run on (0016 set the precedent, "A correction to 0015's
+-- header"). The one statement below rewrites the column with a COMMENT and changes nothing
+-- else about it: same type, same NOT NULL, no DEFAULT, both indexes untouched, and
+-- `trg_upload_sessions_immutable` (0016) does not name the column.
+--
+-- ## A correction to 0015's header
+--
+-- 0015 says the reservation's lifecycle is "reserved, completed, cancelled, expired,
+-- failed". It is now `reserved → completing → completed | failed`, with `completing → reserved`
+-- as the one backward edge, beside the two exits `reserved → cancelled | expired` that a
+-- person or the sweeper takes. `completing` is taken in its own short transaction *before*
+-- `completeMultipart` is called, so the provider call is never made on a row somebody else
+-- can move: a cancel that arrives during it is refused with 409 rather than aborting an
+-- upload the provider is assembling, and a sweep never selects it. A completion that the
+-- provider refuses as lost, or that reports the wrong size, goes `completing → failed` and
+-- releases the bytes; one it refuses on a part the client can re-send goes back to
+-- `reserved` (FILE-001b decision 11 stands); the success path goes `completing → completed`
+-- inside the commit transaction.
+--
+-- ## What a stuck claim is, and who unsticks it
+--
+-- A process that dies between the claim and the end of the completion leaves the row
+-- `completing` with the bytes held and the provider upload open. Nothing a caller does moves
+-- it: complete answers 409, cancel answers 409, expiry does not select it. The sweeper's
+-- pass therefore reclaims a claim older than `STALE_CLAIM_MS` (`upload-session-sweeper.ts`)
+-- back to `reserved`, from which every exit is the proven one — it releases nothing itself.
+-- The bound is USAGE-001 decision 12 and is Peter's to change.
+
+ALTER TABLE upload_sessions
+  MODIFY COLUMN status VARCHAR(32) NOT NULL
+    COMMENT 'reserved | completing | completed | cancelled | expired | failed (0017)';

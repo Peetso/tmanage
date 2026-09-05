@@ -22,7 +22,7 @@ import {
 import type { TenantDatabase } from '../src/common/database/tenant-context.js';
 import type { FilesService } from '../src/modules/files/files.service.js';
 import type { UploadSessionsRepository } from '../src/modules/files/upload-sessions.repository.js';
-import { sweeperContextFor } from '../src/modules/files/upload-session-sweeper.js';
+import { sweeperContextFor, STALE_CLAIM_MS } from '../src/modules/files/upload-session-sweeper.js';
 import type { UploadSessionSweeper } from '../src/modules/files/upload-session-sweeper.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
@@ -215,6 +215,22 @@ async function age(uploadSessionId: string, seconds: number): Promise<void> {
 
 /** Past the session's whole lifetime and the sweeper's grace, with a day to spare. */
 const A_DAY = 86_400;
+
+/**
+ * Put a session under a claim, as a completion does before it asks the provider, and
+ * date the claim: `updated_at` is what marks a claim stale (migration 0017's header).
+ * `ON UPDATE CURRENT_TIMESTAMP(3)` would restamp it, so the column is set in the same
+ * statement — and set from a bound `Date`, not the admin connection's `current_timestamp`:
+ * the application pool pins its session to `+00:00` and stamps `updated_at` in UTC, which
+ * is what the sweeper's host clock is compared against; the admin pool's server clock is
+ * `SYSTEM`, and a value stamped from it is hours off on this machine.
+ */
+async function claim(uploadSessionId: string, ageSeconds: number): Promise<void> {
+  await db.admin.execute(
+    "update upload_sessions set status = 'completing', updated_at = ? where id = ?",
+    [new Date(Date.now() - ageSeconds * 1_000), uploadSessionId],
+  );
+}
 
 async function counter(organizationId: string): Promise<{ used: number; reserved: number }> {
   const [row] = await observe(
@@ -418,6 +434,65 @@ describe('one pass over abandoned reservations', () => {
       counter_drift: false,
       provider_upload_id: expect.stringMatching(/^fake-upload-\d+$/) as unknown as string,
     });
+  });
+});
+
+describe('a claim (migration 0017)', () => {
+  it('is not selected while it is fresh, even past the reservation’s expiry, and nothing touches it', async () => {
+    const studio = await signIn(world.northstar.manager.id);
+    const session = await openNorthstar(studio);
+    await age(session.id, A_DAY);
+    await claim(session.id, 60);
+
+    const report = await sweeper.sweep();
+
+    // Reversal: select `completing` beside `reserved` in `listExpired` and the row is
+    // expired under a completion that may be assembling the object at the provider.
+    expect(report).toMatchObject({ organizations: 0, scanned: 0, released: 0, reclaimed: 0 });
+    expect(await statusOf(session.id)).toEqual({ session: 'completing', asset: 'created' });
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: DECLARED });
+    expect(store.aborted).toHaveLength(0);
+    expect(await expiryAudits(session.id)).toEqual([]);
+  });
+
+  it('is reclaimed once it is stale, and then expired in the same pass when its reservation is also past the cutoff', async () => {
+    const studio = await signIn(world.northstar.manager.id);
+    const stale = await openNorthstar(studio);
+    await age(stale.id, A_DAY);
+    await claim(stale.id, STALE_CLAIM_MS / 1_000 + 60);
+    // A stale claim whose reservation is still inside its lifetime: reclaimed, not expired.
+    const live = await openNorthstar(studio);
+    await claim(live.id, STALE_CLAIM_MS / 1_000 + 60);
+
+    const report = await sweeper.sweep();
+
+    // Reversal: drop the reclaim from the pass (or its organization from the scan) and
+    // both rows are `completing` for ever, the bytes held, the opener's slots taken.
+    expect(report).toMatchObject({
+      organizations: 1,
+      reclaimed: 2,
+      scanned: 1,
+      released: 1,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(await statusOf(stale.id)).toEqual({ session: 'expired', asset: 'expired' });
+    expect(await statusOf(live.id)).toEqual({ session: 'reserved', asset: 'created' });
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: 0, reserved: DECLARED });
+    expect(await releasedEvents(stale.id)).toEqual([{ cause: 'expired' }]);
+    expect(await expiryAudits(live.id)).toEqual([]);
+    // The reclaimed live row completes as any reserved one does — the claim is taken again.
+    const done = await send(
+      'northstar-studio',
+      'POST',
+      `/upload-sessions/${live.id}/complete`,
+      studio,
+      {
+        parts: [{ partNumber: 1, etag: 'etag-1' }],
+      },
+    );
+    expect(done.statusCode, done.body).toBe(202);
+    expect(await counter(world.northstar.organizationId)).toEqual({ used: DECLARED, reserved: 0 });
   });
 });
 

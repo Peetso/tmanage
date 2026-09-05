@@ -20,6 +20,7 @@ import type {
   FileVersionRow,
   UploadPurpose,
   UploadSessionRow,
+  UploadSessionStatus,
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
@@ -27,6 +28,7 @@ import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import { FileAssetTransitionError, type FileAssetsRepository } from './file-assets.repository.js';
 import {
+  OPEN_STATUSES,
   UploadSessionKeyTakenError,
   UploadSessionNotFoundError,
   type UploadSessionsRepository,
@@ -161,7 +163,10 @@ function toView(row: UploadSessionRow, principal: Principal): UploadSessionView 
     sizeBytes: row.declaredBytes,
     partSizeBytes: row.partSizeBytes,
     partCount: row.partCount,
-    reservedBytes: row.status === 'reserved' ? row.declaredBytes : 0,
+    // A claim still holds the bytes; only the part targets stop with it (below).
+    reservedBytes: (OPEN_STATUSES as readonly string[]).includes(row.status)
+      ? row.declaredBytes
+      : 0,
     // Targets are served only while the session can still use them, and only to the person
     // who opened it. Against S3 a cancelled upload's URLs fail anyway; against a
     // token-authorized local transport they would not. And since FILE-001b a target is a
@@ -450,7 +455,7 @@ export class FilesService {
     // together cannot both be the twentieth.
     const cap = this.config.uploadMaxOpenSessionsPerUser;
     const openBefore = await this.database.read(context, (runner) =>
-      this.sessions.countReservedFor(runner, context, principal.userId),
+      this.sessions.countOpenFor(runner, context, principal.userId),
     );
     if (openBefore >= cap) throw await this.refuseOpenUploads(context, draft, openBefore, cap);
 
@@ -486,7 +491,7 @@ export class FilesService {
         if (!reserved) throw new QuotaExhausted();
         // Reversal: drop this second count and two simultaneous requests can both land
         // as the cap-th session; the sequential case above is what the suite can see.
-        const open = await this.sessions.countReservedFor(tx, context, principal.userId);
+        const open = await this.sessions.countOpenFor(tx, context, principal.userId);
         if (open >= cap) throw new TooManyOpenUploads(open);
 
         const asset = await this.assets.create(tx, context, {
@@ -584,6 +589,7 @@ export class FilesService {
     const session = await this.readOr404(context, principal, uploadSessionId);
 
     if (session.status === 'completed') return this.completedView(context, session);
+    if (session.status === 'completing') throw this.inFlight();
     if (session.status !== 'reserved') {
       throw this.illegal(`a ${session.status} upload cannot be completed`);
     }
@@ -618,52 +624,132 @@ export class FilesService {
       );
     }
 
-    // §6 step 6: the provider's count, not the declaration. Outside the transaction —
-    // no lock across the network call. A refusal the provider makes about the parts
-    // themselves (FILE-001b) is answered as `completionRefusal` says: the upload stays
-    // open for a part that is missing or mismatched, and fails only when the provider no
-    // longer holds it.
-    let stored: StoredObject;
-    try {
-      stored = await this.store.completeMultipart({
-        zone: 'quarantine',
-        objectKey: session.objectKey,
-        providerUploadId: session.providerUploadId,
-        parts: [...parts].sort((a, b) => a.partNumber - b.partNumber),
-      });
-    } catch (error) {
-      const refusal = completionRefusal(error);
-      if (!refusal) throw error;
-      // The abort is best-effort here, as on the create path: the refusal below is the
-      // answer, and a provider that will not abandon an upload it has already lost must
-      // not turn it into a 500 with the bytes held.
-      if (refusal.releases) await this.releaseAs(context, session, 'failed', 'best-effort');
-      throw new ApiError(
-        422,
-        'validation_failed',
-        'The request body is invalid',
-        [{ field: 'parts', message: refusal.message }],
-        refusal.auditCode,
-      );
-    }
-    if (stored.sizeBytes !== session.declaredBytes) {
-      await this.releaseAs(context, session, 'failed');
-      throw new ApiError(
-        422,
-        'validation_failed',
-        'The request body is invalid',
-        [{ field: 'parts', message: 'the uploaded size does not match the declared size' }],
-        'size_mismatch',
-      );
+    // The claim (migration 0017): `reserved → completing` in its own short transaction,
+    // before the provider is asked, so that for the whole provider call this request is
+    // the one thing that can move the row. A cancel arriving now is refused (409) rather
+    // than aborting an upload the provider is assembling; a sweep never selects the row;
+    // a second completion of the same session finds the claim and is told to wait. Lost
+    // the claim: somebody moved it first, and what they made is the answer.
+    const claimed = await this.writing(() =>
+      this.database.transaction(context, (tx) =>
+        this.sessions.transition(tx, context, session.id, ['reserved'], 'completing'),
+      ),
+    );
+    if (!claimed) {
+      const fresh = await this.readOr404(context, principal, uploadSessionId);
+      if (fresh.status === 'completed') return this.completedView(context, fresh);
+      if (fresh.status === 'completing') throw this.inFlight();
+      throw this.illegal(`a ${fresh.status} upload cannot be completed`);
     }
 
-    const result = await this.writing(() =>
+    // From here every exit settles the claim: `completed` on success, `failed` when the
+    // provider has lost the upload or the size is wrong (the bytes go back), and back to
+    // `reserved` for everything else — a part the client can re-send (FILE-001b decision
+    // 11), a provider outage, a refused abort, a commit that did not go through. The
+    // `finally` is what makes a claim never outlive its request; only a process that dies
+    // mid-flight leaves one, and the sweeper's reclaim (`STALE_CLAIM_MS`) is for that.
+    let settled = false;
+    try {
+      // §6 step 6: the provider's count, not the declaration. Outside any transaction —
+      // no lock across the network call. A refusal the provider makes about the parts
+      // themselves (FILE-001b) is answered as `completionRefusal` says: the upload stays
+      // open for a part that is missing or mismatched, and fails only when the provider no
+      // longer holds it.
+      let stored: StoredObject;
+      try {
+        stored = await this.store.completeMultipart({
+          zone: 'quarantine',
+          objectKey: session.objectKey,
+          providerUploadId: session.providerUploadId,
+          parts: [...parts].sort((a, b) => a.partNumber - b.partNumber),
+        });
+      } catch (error) {
+        const refusal = completionRefusal(error);
+        if (!refusal) throw error;
+        // The abort is best-effort here, as on the create path: the refusal below is the
+        // answer, and a provider that will not abandon an upload it has already lost must
+        // not turn it into a 500 with the bytes held. A refused abort is recorded, as the
+        // create path records it, so the upload the provider still holds has a row naming it.
+        if (refusal.releases) {
+          settled = await this.releaseAs(context, session, 'failed', {
+            abort: 'best-effort',
+            from: ['completing'],
+            refusal: error,
+          });
+        }
+        throw new ApiError(
+          422,
+          'validation_failed',
+          'The request body is invalid',
+          [{ field: 'parts', message: refusal.message }],
+          refusal.auditCode,
+        );
+      }
+      if (stored.sizeBytes !== session.declaredBytes) {
+        settled = await this.releaseAs(context, session, 'failed', { from: ['completing'] });
+        throw new ApiError(
+          422,
+          'validation_failed',
+          'The request body is invalid',
+          [{ field: 'parts', message: 'the uploaded size does not match the declared size' }],
+          'size_mismatch',
+        );
+      }
+
+      const result = await this.commitCompletion(context, session, stored);
+      settled = result !== null;
+      if (result === null) {
+        // Somebody else flipped it first. Answer what they made.
+        const fresh = await this.readOr404(context, principal, uploadSessionId);
+        if (fresh.status === 'completed') return this.completedView(context, fresh);
+        throw this.illegal(`a ${fresh.status} upload cannot be completed`);
+      }
+      return toFileAssetView(result.asset, result.version, session);
+    } finally {
+      if (!settled) await this.unclaim(context, session);
+    }
+  }
+
+  /**
+   * The claim given back: `completing → reserved`, bumping `version`. For a completion
+   * that ends without settling the row — the client can re-send a part, the provider was
+   * down, the commit failed. `false` when the row had already left `completing`, which
+   * only a reclaim (a stale claim the sweeper returned) can have done.
+   */
+  private unclaim(context: TenantContext, session: UploadSessionRow): Promise<boolean> {
+    return this.writing(() =>
+      this.database.transaction(context, (tx) =>
+        this.sessions.transition(tx, context, session.id, ['completing'], 'reserved'),
+      ),
+    );
+  }
+
+  /**
+   * USAGE-001 decision 12, the sweeper's other door: a claim a dead process left behind is
+   * returned to `reserved`, from which every exit is the proven one. Nothing is released
+   * here — the reservation stands until `expire` takes it on the same pass or the next, or
+   * the opener completes or cancels it. Bound to its context as {@link expire} is.
+   */
+  async reclaim(context: TenantContext, session: UploadSessionRow): Promise<boolean> {
+    if (session.organizationId !== context.organizationId) {
+      throw new SessionOutsideContextError(session.id);
+    }
+    return this.unclaim(context, session);
+  }
+
+  /** The commit transaction of a completion: `completing → completed` and everything beside it. */
+  private commitCompletion(
+    context: TenantContext,
+    session: UploadSessionRow,
+    stored: StoredObject,
+  ): Promise<{ asset: FileAssetRow; version: FileVersionRow } | null> {
+    return this.writing(() =>
       this.database.transaction(context, async (tx) => {
         const moved = await this.sessions.transition(
           tx,
           context,
           session.id,
-          ['reserved'],
+          ['completing'],
           'completed',
           { committedBytes: stored.sizeBytes },
         );
@@ -728,14 +814,6 @@ export class FilesService {
         return { asset, version };
       }),
     );
-
-    if (result === null) {
-      // Somebody else flipped it first. Answer what they made.
-      const fresh = await this.readOr404(context, principal, uploadSessionId);
-      if (fresh.status === 'completed') return this.completedView(context, fresh);
-      throw this.illegal(`a ${fresh.status} upload cannot be completed`);
-    }
-    return toFileAssetView(result.asset, result.version, session);
   }
 
   /**
@@ -751,6 +829,9 @@ export class FilesService {
   ): Promise<UploadSessionView> {
     const session = await this.readOr404(context, principal, uploadSessionId, 'release');
     if (session.status === 'cancelled') return toView(session, principal);
+    // A claim is refused here, before `releaseAs` can ask the provider to abandon an upload
+    // a completion is assembling: the abort runs ahead of the status guard on that path.
+    if (session.status === 'completing') throw this.inFlight();
     if (session.status !== 'reserved') {
       throw this.illegal(`a ${session.status} upload cannot be cancelled`);
     }
@@ -758,6 +839,7 @@ export class FilesService {
     if (!released) {
       const fresh = await this.readOr404(context, principal, uploadSessionId, 'release');
       if (fresh.status === 'cancelled') return toView(fresh, principal);
+      if (fresh.status === 'completing') throw this.inFlight();
       throw this.illegal(`a ${fresh.status} upload cannot be cancelled`);
     }
     return toView(await this.readOr404(context, principal, uploadSessionId, 'release'), principal);
@@ -768,17 +850,27 @@ export class FilesService {
    * if the provider refuses, the reservation stands and the caller may try again, which is
    * better than a released reservation over an upload the provider still holds open.
    * `best-effort` is for a completion the provider has already refused as lost, where a
-   * failing abort must not hide the refusal. `false` when the session had already left
-   * `reserved`.
+   * failing abort must not hide the refusal — and is then recorded as
+   * `upload_session.abort_failed`, as the create path records its own, because an upload
+   * the provider holds that no row names is a fact only the log can carry. `from` is the
+   * status the release leaves: `['reserved']` for a cancel and an expiry, `['completing']`
+   * for a completion that fails after its claim. `false` when the session had already left
+   * it.
    */
   private async releaseAs(
     context: TenantContext,
     session: UploadSessionRow,
     cause: 'cancelled' | 'expired' | 'failed',
-    abort: 'required' | 'best-effort' = 'required',
+    options: {
+      readonly abort?: 'required' | 'best-effort';
+      readonly from?: readonly UploadSessionStatus[];
+      /** The provider's refusal the release answers, named on the audit row if the abort fails. */
+      readonly refusal?: unknown;
+    } = {},
   ): Promise<boolean> {
-    await this.abortUpload(session, abort);
-    return this.releaseInTransaction(context, session, cause);
+    const aborted = await this.abortUpload(session, options.abort ?? 'required');
+    if (!aborted) await this.recordSessionAbortFailure(context, session, cause, options.refusal);
+    return this.releaseInTransaction(context, session, cause, options.from ?? ['reserved']);
   }
 
   // ── The sweeper's door ─────────────────────────────────────────────────────
@@ -788,8 +880,10 @@ export class FilesService {
    * completed or cancelled before `expires_at`. Called by `UploadSessionSweeper` under a
    * service context, never by a controller; the caller has already selected the row as
    * past the cutoff, and this method does not re-check the clock — the conditional
-   * transition is the gate, so a session that `complete` or `cancel` moved in the meantime
-   * answers `released: false` and nothing else happens to it.
+   * transition is the gate, so a session that `complete` claimed or finished, or that
+   * `cancel` moved in the meantime, answers `released: false` and nothing else happens to
+   * it. The abort runs before that gate; a claim never reaches here because the sweeper's
+   * select does not return one, and the abort is the reason it must not.
    *
    * The abort is best-effort, as it is for a completion the provider already refused: the
    * reservation is what expiry exists to give back, and an upload the provider would not
@@ -818,6 +912,7 @@ export class FilesService {
       context,
       session,
       'expired',
+      ['reserved'],
       async (tx, facts) => {
         counterMoved = facts.counterMoved;
         await this.audit?.record(tx, context, {
@@ -867,19 +962,20 @@ export class FilesService {
   }
 
   /**
-   * The release itself, in one transaction: the conditional status move, the counter, the
-   * asset, the event, and whatever the caller must record beside them. `false` when the
-   * session had already left `reserved`, in which case nothing below the transition ran.
+   * The release itself, in one transaction: the conditional status move out of `from`, the
+   * counter, the asset, the event, and whatever the caller must record beside them. `false`
+   * when the session had already left `from`, in which case nothing below the transition ran.
    */
   private releaseInTransaction(
     context: TenantContext,
     session: UploadSessionRow,
     cause: 'cancelled' | 'expired' | 'failed',
+    from: readonly UploadSessionStatus[],
     then?: (tx: TenantQueryRunner, facts: { readonly counterMoved: boolean }) => Promise<void>,
   ): Promise<boolean> {
     return this.writing(() =>
       this.database.transaction(context, async (tx) => {
-        const moved = await this.sessions.transition(tx, context, session.id, ['reserved'], cause);
+        const moved = await this.sessions.transition(tx, context, session.id, from, cause);
         if (!moved) return false;
         const counterMoved = await this.counters.release(
           tx,
@@ -940,6 +1036,11 @@ export class FilesService {
       ]);
     if (existing.actorUserId !== principal.userId) throw conflict('was used by a different person');
     if (existing.projectId !== input.projectId) throw conflict('was used for a different project');
+    if (existing.status === 'completing') {
+      // Not "use a new key": a second session for a file whose completion is in flight is
+      // a second reservation and a second provider upload for the same bytes.
+      throw conflict('was used by a session whose completion is in flight; wait for it');
+    }
     if (existing.status !== 'reserved') {
       throw conflict(`was used by a session that is now ${existing.status}; use a new key`);
     }
@@ -1018,6 +1119,38 @@ export class FilesService {
       );
     } catch {
       // Reversal: let this throw and a provider outage turns the refusal into a 500.
+    }
+  }
+
+  /**
+   * The same row for a session that exists: the provider refused to abandon an upload a
+   * release was giving back. `objectId` is the session, which is what an operator will
+   * search by; the handle is still the metadata, because the row does not carry it.
+   */
+  private async recordSessionAbortFailure(
+    context: TenantContext,
+    session: UploadSessionRow,
+    cause: 'cancelled' | 'expired' | 'failed',
+    refusal: unknown,
+  ): Promise<void> {
+    if (!this.audit) return;
+    try {
+      await this.database.transaction(context, (tx) =>
+        this.audit!.record(tx, context, {
+          action: 'upload_session.abort_failed',
+          objectId: session.id,
+          result: 'error',
+          metadata: {
+            provider_upload_id: session.providerUploadId,
+            cause,
+            refusal: refusal instanceof Error ? refusal.name : typeof refusal,
+            project_id: session.projectId,
+            declared_bytes: session.declaredBytes,
+          },
+        }),
+      );
+    } catch {
+      // As above: the refusal being answered is the caller's answer, not this row.
     }
   }
 
@@ -1137,6 +1270,21 @@ export class FilesService {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'not_a_client_principal');
     }
     return clientOrganizationId;
+  }
+
+  /**
+   * A row under a claim: 409 `conflict`, the contract's "state" conflict, without a
+   * `version` — the web client treats a 409 as a version conflict only when one is named.
+   * Not the illegal-transition 422, because nothing is illegal: the caller is early.
+   */
+  private inFlight(): ApiError {
+    return new ApiError(
+      409,
+      'conflict',
+      'A completion of this upload is in flight',
+      [{ field: 'status', message: 'the upload is being completed; wait for it to finish' }],
+      'completion_in_flight',
+    );
   }
 
   private illegal(message: string): ApiError {

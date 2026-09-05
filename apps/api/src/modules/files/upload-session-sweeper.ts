@@ -40,15 +40,20 @@ import type { UploadSessionsRepository } from './upload-sessions.repository.js';
  * same clock, so the cutoff is taken from it too and bound as a parameter — never
  * `NOW(3)`. Two clocks would let this expire a session `complete` still accepted.
  *
- * ## What one pass cannot promise
+ * ## The claim, and the second door
  *
- * A completion that passed its expiry check a moment before expiry and is still talking to
- * the provider when this pass moves the row loses: its transaction finds the session
- * `expired` and answers the illegal-transition 422, and the provider may hold a completed
- * object no version row names (FILE-003's orphan lifecycle). {@link sweepCutoff}'s grace
- * makes that window as wide as the slowest completion the driver allows; the conditional
- * transition guarantees that at most one of the two moves the row. This is the same shape
- * as the carried complete/cancel race, and is recorded beside it.
+ * Since migration 0017 a completion claims its row (`reserved → completing`) before it
+ * asks the provider, and this pass selects only `reserved` rows: a completion in flight
+ * when the pass runs is not selected, and one that claims between the select and the
+ * release makes the conditional transition answer `false` (counted `skipped`). The grace
+ * ({@link sweepCutoff}) stays, for the completion that passed its expiry check a moment
+ * before expiry and has not yet claimed. What the claim cannot cover is a process that
+ * died holding one: that row is `completing` for good — complete and cancel answer 409,
+ * and expiry does not see it — with the bytes counted and the provider upload open. So a
+ * pass has a second door: every claim older than {@link STALE_CLAIM_MS} is returned to
+ * `reserved` ({@link FilesService.reclaim}) and then, if it is also past the cutoff, taken
+ * by the expiry in the same pass. The reclaim releases nothing itself; a reclaimed row
+ * that is still inside its lifetime waits for its opener or for expiry like any other.
  */
 
 export interface SweepReport {
@@ -64,6 +69,8 @@ export interface SweepReport {
   readonly failed: number;
   /** Released rows whose counter refused the release — recorded on their audit rows as `counter_drift`. */
   readonly counterDrift: number;
+  /** Claims older than {@link STALE_CLAIM_MS} this pass returned to `reserved` (decision 12). */
+  readonly reclaimed: number;
 }
 
 /** The `policyVersion` every sweeper context carries — a literal no resolved context can produce. */
@@ -89,6 +96,22 @@ export const EXPIRY_GRACE_MS = 60_000;
 /** The instant before which a `reserved` session counts as abandoned. */
 export function sweepCutoff(now: Date): Date {
   return new Date(now.getTime() - EXPIRY_GRACE_MS);
+}
+
+/**
+ * How old a `completing` claim must be before a pass returns it to `reserved` — fifteen
+ * minutes. A live completion moves its row again within the one provider call it makes,
+ * and `UPLOAD_URL_TTL_SECONDS` bounds the parts' own lifetime; a claim older than this
+ * belongs to a process that died holding it. Too short and a slow assembly is undercut —
+ * the one row's race reopened, no more; too long and a dead claim holds the bytes and one
+ * of the opener's capped slots. Nothing in the pack names a value; this one is the
+ * sweeper's and is Peter's to change (USAGE-001 decision 12) — one edit here.
+ */
+export const STALE_CLAIM_MS = 15 * 60_000;
+
+/** The instant before which a claim's last move marks it stale. */
+export function staleClaimCutoff(now: Date): Date {
+  return new Date(now.getTime() - STALE_CLAIM_MS);
 }
 
 /**
@@ -130,8 +153,8 @@ export function describeFailure(error: unknown): Record<string, string | number>
 
 /** The reason string the bootstrap read records on every guard event it raises. */
 export const SWEEP_SCAN_REASON =
-  'finding which organizations hold upload reservations past their expiry, so each can be ' +
-  'swept under its own service context (USAGE-001)';
+  'finding which organizations hold upload reservations past their expiry or completion ' +
+  'claims gone stale, so each can be swept under its own service context (USAGE-001)';
 
 export class UploadSessionSweeper {
   constructor(
@@ -148,17 +171,27 @@ export class UploadSessionSweeper {
   /** One pass over every organization. Safe to run again at once: a second pass finds nothing. */
   async sweep(): Promise<SweepReport> {
     const correlationId = uuidv7();
-    const cutoff = sweepCutoff(this.now());
-    const organizations = await this.organizationsHoldingExpired(cutoff, correlationId);
+    const now = this.now();
+    const cutoff = sweepCutoff(now);
+    const staleBefore = staleClaimCutoff(now);
+    const organizations = await this.organizationsHoldingExpired(
+      cutoff,
+      staleBefore,
+      correlationId,
+    );
 
     let scanned = 0;
     let released = 0;
     let skipped = 0;
     let failed = 0;
     let counterDrift = 0;
+    let reclaimed = 0;
 
     for (const organizationId of organizations) {
       const context = sweeperContextFor(organizationId, correlationId);
+      // The second door first, so a reclaimed row that is also past the cutoff is taken by
+      // the expiry below in this same pass rather than the next.
+      reclaimed += await this.reclaimStaleClaims(context, staleBefore);
       for (let batch = 0; batch < MAX_BATCHES_PER_ORGANIZATION; batch += 1) {
         const rows = await this.database.read(context, (db) =>
           this.sessions.listExpired(db, context, cutoff, SWEEP_BATCH_SIZE),
@@ -193,22 +226,52 @@ export class UploadSessionSweeper {
       skipped,
       failed,
       counterDrift,
+      reclaimed,
     };
   }
 
   /**
-   * The cross-tenant half: which organizations hold a `reserved` session past the cutoff.
-   * The escape hatch is read-only, allowlisted to `upload_sessions`, and raises a guard
-   * event per statement carrying {@link SWEEP_SCAN_REASON}; the statement itself is the
-   * repository's.
+   * Return every stale claim in this organization to `reserved`, in batches until a batch
+   * moves nothing. A claim that a live completion settles between the select and the move
+   * answers `false` and is not counted; a throw is reported like a failed release and the
+   * row waits for the next pass.
+   */
+  private async reclaimStaleClaims(context: TenantContext, staleBefore: Date): Promise<number> {
+    let reclaimed = 0;
+    for (let batch = 0; batch < MAX_BATCHES_PER_ORGANIZATION; batch += 1) {
+      const rows = await this.database.read(context, (db) =>
+        this.sessions.listStaleClaims(db, context, staleBefore, SWEEP_BATCH_SIZE),
+      );
+      let movedInBatch = 0;
+      for (const row of rows) {
+        try {
+          if (await this.files.reclaim(context, row)) {
+            reclaimed += 1;
+            movedInBatch += 1;
+          }
+        } catch (error) {
+          this.onFailure(row.id, error);
+        }
+      }
+      if (rows.length < SWEEP_BATCH_SIZE || movedInBatch === 0) break;
+    }
+    return reclaimed;
+  }
+
+  /**
+   * The cross-tenant half: which organizations hold a `reserved` session past the cutoff
+   * or a claim older than `staleBefore`. The escape hatch is read-only, allowlisted to
+   * `upload_sessions`, and raises a guard event per statement carrying
+   * {@link SWEEP_SCAN_REASON}; the statement itself is the repository's.
    */
   private organizationsHoldingExpired(
     cutoff: Date,
+    staleBefore: Date,
     correlationId: string,
   ): Promise<readonly string[]> {
     return this.database.bootstrapRead(
       { correlationId, reason: SWEEP_SCAN_REASON, tables: ['upload_sessions'] },
-      (db) => this.sessions.organizationsHoldingExpired(db, cutoff),
+      (db) => this.sessions.organizationsHoldingExpired(db, cutoff, staleBefore),
     );
   }
 }
@@ -219,6 +282,7 @@ export function describeSweep(report: SweepReport): string {
     `scanned ${report.scanned}, released ${report.released}, skipped ${report.skipped}, ` +
     `failed ${report.failed}` +
     (report.counterDrift > 0 ? `, ${report.counterDrift} with counter drift` : '') +
+    (report.reclaimed > 0 ? `, ${report.reclaimed} claim(s) reclaimed` : '') +
     ` (${report.organizations} organization(s))`
   );
 }

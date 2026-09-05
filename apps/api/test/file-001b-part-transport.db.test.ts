@@ -7,7 +7,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
-import { createPartAdmission, derivePartSigningKey, mintPartToken } from '@tmanage/storage';
+import {
+  FilesystemObjectStore,
+  createPartAdmission,
+  derivePartSigningKey,
+  mintPartToken,
+} from '@tmanage/storage';
+import type { CompleteMultipartInput, StoredObject } from '@tmanage/storage';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { StorageModule } from '../src/common/storage/storage.module.js';
@@ -55,9 +61,29 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * 6. **The response says only the etag.** No key, no tenant, no handle, empty body.
  * 7. **The parser and the 413 mapping stay off every other route.** An octet-stream body
  *    anywhere else is 415 unread; an oversize JSON body anywhere else is a generic 413.
+ * 8. **The claim holds against the real driver** (migration 0017). A cancel that lands while
+ *    the driver is assembling the object is 409; the assembly finishes, the object is sealed,
+ *    the staging directory is gone, and the bytes are counted once.
  */
 
+/**
+ * The real driver with a hook on `completeMultipart` — the window between the claim and
+ * the commit, where a racing cancel is injected. Wired through `StorageModule.forLocalStore`
+ * so the same object is the store and the part sink, as `forConfig` wires it.
+ */
+class HookedFilesystemObjectStore extends FilesystemObjectStore {
+  onComplete: ((input: CompleteMultipartInput) => Promise<void>) | null = null;
+
+  override async completeMultipart(input: CompleteMultipartInput): Promise<StoredObject> {
+    const hook = this.onComplete;
+    this.onComplete = null;
+    if (hook) await hook(input);
+    return super.completeMultipart(input);
+  }
+}
+
 let db: TestDatabase;
+let store: HookedFilesystemObjectStore;
 let world: SeedWorld;
 let app: NestFastifyApplication;
 let root: string;
@@ -292,18 +318,18 @@ function shape(response: InjectedResponse): unknown {
 beforeAll(async () => {
   db = await startTestDatabase();
   root = mkdtempSync(join(tmpdir(), 'tmanage-transport-'));
+  store = new HookedFilesystemObjectStore({
+    root,
+    signingSecret: SIGNING_SECRET,
+    publicUrl: PUBLIC_URL,
+    partSizeBytes: PART_SIZE,
+    now: () => Date.now() + clockOffsetMs,
+  });
   app = await NestFactory.create<NestFastifyApplication>(
     AppModule.register({
       config: CONFIG,
       database: DatabaseModule.forPool({ pool: db.runtime, guardMode: 'enforce' }),
-      storage: StorageModule.forConfig({
-        driver: 'filesystem',
-        root,
-        signingSecret: SIGNING_SECRET,
-        publicUrl: PUBLIC_URL,
-        partSizeBytes: PART_SIZE,
-        now: () => Date.now() + clockOffsetMs,
-      }),
+      storage: StorageModule.forLocalStore(store),
     }),
     createFastifyAdapter({
       uploadPartSizeBytes: PART_SIZE,
@@ -319,6 +345,7 @@ beforeEach(async () => {
   await truncateAll(db.admin);
   world = await seedTwoTenants(db.admin);
   clockOffsetMs = 0;
+  store.onComplete = null;
 });
 
 afterAll(async () => {
@@ -611,6 +638,36 @@ describe('after cancel and after complete', () => {
     expect(late.statusCode).toBe(404);
     expect(under(handle)).toEqual([]);
     expect(walk(root).some((p) => p.includes(handle))).toBe(false);
+  });
+
+  it('a cancel during the assembly is 409, and the object is sealed once with the bytes counted once (the claim, real driver)', async () => {
+    const studio = await signIn(world.northstar.manager.id);
+    const upload = await open(studio);
+    const parts = await putAll(upload);
+    const before = objects();
+    let cancel: { status: number; session: string; staging: number } | null = null;
+
+    // The driver has read the manifest and is assembling when the opener cancels.
+    // Reversal: drop the claim and the cancel answers 200, `abortMultipart` removes the
+    // upload directory under the assembly, and the completion fails or seals an object
+    // whose session is `cancelled` and whose bytes were given back.
+    store.onComplete = async () => {
+      const response = await send('POST', `/upload-sessions/${upload.id}/cancel`, studio);
+      cancel = {
+        status: response.statusCode,
+        session: await sessionStatus(upload.id),
+        staging: under(handleOf(upload)).length,
+      };
+    };
+
+    const response = await complete(studio, upload, parts);
+    expect(response.statusCode, response.body).toBe(202);
+    expect(cancel).toEqual({ status: 409, session: 'completing', staging: 5 });
+    expect(await sessionStatus(upload.id)).toBe('completed');
+    expect(await counter()).toEqual({ used: DECLARED, reserved: 0 });
+    expect(objects().filter((p) => !before.includes(p))).toHaveLength(1);
+    expect(under(handleOf(upload))).toEqual([]);
+    expect(await versionRows(upload.fileAssetId)).toHaveLength(1);
   });
 
   it('complete, then PUT: 404, and the sealed object is unchanged', async () => {
