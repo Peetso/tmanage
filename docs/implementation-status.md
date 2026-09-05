@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-05 (FILE-002 slice A session; the verification pass built and proved; Peter delegated F1–F5; chain green on 2a3bd3a) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-05 (FILE-002 slice B completion session; scanning and promotion built and proved; ADR-0006; chain green on 631e092) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -740,6 +740,146 @@ pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm test:db &&
 Outside the chain, `pnpm test:e2e`: **10 passed** in ~1.8 m against the full booted stack — up
 from 7. `pnpm test:vr` was **not run and is not owed**: `packages/ui` source, styles and stories
 are untouched.
+
+---
+
+## FILE-002 slice B — scanning and promotion, built and proved
+
+Built across two sessions on 2026-09-05: the first stopped at Peter's request at 44% of its
+context with the work committed as `217c415` and honestly labelled _not green, nothing
+proven_; this one (after the thirty-sixth reconciliation) took the suite from 13 of 15 to
+15 of 15, proved nine fixes by reversal, and ran the chain. Peter's delegation of F1–F5
+stands as recorded under slice A; this slice takes F1 (ADR-0006), F2 and F3 to code.
+
+### The plan refuted first
+
+A read-only fleet of ten (run `wf_33acafb7-110`) re-read the slice B plan against the code,
+the trigger, the storage port, clamd's protocol and the planning documents before a line was
+written. Its refutations are the design; each is now a built control and a test case:
+
+- **D1 — a second read is a second chance.** The plan copied the sealed quarantine object
+  after a clean verdict. Built instead: **one read, teed** — the same stream feeds the
+  sha256, the scanner and a streamed promotion sink under the same key in `private`; the
+  digest is held to `content_hash` before anything is committed. The bytes in `private` are
+  the bytes the scanner saw, by construction (ADR-0006).
+- **D2 — the orphan.** A pass that seals the private object and dies before its transaction
+  leaves a servable object under a row that says `quarantine`. Built: `ObjectStore.withdraw`,
+  the one undo; it runs after every rejection and when a pass loses a dispute to a standing
+  `infected`, and never when the row is `ready` (same bytes).
+- **D3 — "any clean version" is not "the latest".** `23` §10's replacement creates a new
+  version; a clean first version must not vouch for an unscanned second. 0019's trigger
+  binds `ready` to the version with the greatest `version_no`, in the asset's own
+  organization — the schema's first cross-table trigger, org-filtered like every read (D13).
+- **D4 — `unscanned` churn.** Under `none` the plan re-recorded `unscanned` every tick.
+  Built: the selection skips a version already `unscanned` unless the driver is an engine
+  (`rescanUnscanned`), and the write itself is conditional on `NULL` — two `none` passes
+  record it once, with one `scan_failed` row (`no_scanner`).
+- **D6 — starvation.** Without a claim, one object that always fails is scanned first every
+  pass and the rest wait behind it for ever. Built: `claimForScan` (a conditional UPDATE,
+  `scan_claimed_at`, optimistic on `version`), the claim left standing on failure so the row
+  waits out `STALE_SCAN_CLAIM_MS` (decision 13, fifteen minutes), then a bound of
+  `MAX_CONSECUTIVE_FAILURES` (5) per pass, after which the pass stops and leaves the rest
+  unclaimed.
+- **D7 — the stub's per-chunk search misses a split signature.** Built: a rolling window
+  that carries the last `EICAR.length - 1` bytes of each chunk into the next comparison.
+- **D8/D9 — clamd.** INSTREAM over `node:net`: 4-byte big-endian length frames, a zero
+  frame to finish, `OK` / `FOUND` / `ERROR` parsed exactly and anything else a protocol
+  error; a connect timeout (5 s) apart from the per-object timeout
+  (`MALWARE_SCAN_TIMEOUT_MS`); `probe` (PING → PONG) before any row is claimed, so an
+  unreachable engine stops the pass without a claim; the consecutive-failure breaker above.
+- **D10 — the triple is pinned as a unit.** `scan_verdict`, `scanned_at`, `scanner` are
+  write-once together (0019), `unscanned` the one replaceable value; a verdict never loses its
+  time or its scanner, and never goes back to `NULL`.
+- **D11 — the detection name is a fingerprint of the engine.** It goes to stderr only
+  (`onDetection`), keyed by asset id and correlation id; the row, the audit metadata and the
+  event carry `malware_detected` and nothing the engine said.
+- **D12 — the machine checks presence, not value.** `FileAssetsRepository.transition`
+  refuses `ready` unless `scanVerdict === 'clean'` before any write; 0019's trigger refuses
+  it again at the engine.
+- **C4 — one correlation id per asset**, minted by the verifier and by the scanner, so the
+  `scanned` row and `file.ready.v1` for one asset share it and two assets never do.
+
+### What was built
+
+| Piece                                  | Where                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`ObjectStore.promote` / `withdraw`** | `packages/storage`: `promote` opens a staging sink beside the destination in `private` under the **same key** (`<key>.<random>.tmp`), counts and md5s what it is fed; `commit` closes, holds the byte count to the size the row says, and renames — the same atomic seal `completeMultipart` makes; `abort` closes quietly (a write in flight makes the file stream emit `ERR_STREAM_DESTROYED`, waited on by hand) and removes the staging file. Fake and filesystem drivers, one-shot handles (`PromotionClosedError`). 54 storage tests                                                                                                                                                                                                           |
+| **The scanner port**                   | `apps/api/src/common/scan/`: `MalwareScanner` with `kind: 'none' \| 'engine'`, `probe`, `scan(stream, size)`; `NoneScanner`, `StubScanner` (the EICAR rolling window), `ClamavScanner` (INSTREAM, D8/D9), `ScannerModule.forConfig / forScanner / none`. `MALWARE_SCAN_DRIVER` gains `none` as a legal production value (F3), `CLAMAV_HOST` required for `clamav`, `CLAMAV_PORT` defaults 3310                                                                                                                                                                                                                                                                                                                                                       |
+| **The pass**                           | `file-scanner.ts`: probe first; per organization, per row — claim, open, size held before reading, one stream teed three ways, digest held to `content_hash`; **clean** → commit → one transaction {`recordScan`, `scanning → ready` with the verdict, `file_asset.scanned` (`allowed`), `file.ready.v1`}; **infected** → abort → one transaction {`recordScan`, `scanning → rejected` (`malware_detected`), `file_asset.rejected` (`denied`), `file.rejected.v1`} → `withdraw`; **none** → `unscanned` once, no claim, `scan_failed` `no_scanner`; **failure** → the claim stands, `scan_failed` with the cause; a standing verdict that differs → `file_asset.scan_disputed`. `verify.ts` runs the verifier then the scanner — no new cron command |
+| **Migration 0019**                     | `scan_verdict`, `scanned_at`, `scanner`, `trust_zone` on `file_versions`; `scan_claimed_at` on `file_assets`; the write-once triple with the `unscanned` exception; `trust_zone` `quarantine → private` only with `clean`, **NULL-safe (`<=>`)** — `NEW.scan_verdict = 'clean'` is NULL for a verdict-less row and `IF NOT (NULL)` would have let the move through; a `BEFORE INSERT` "born in quarantine, without a verdict" trigger; the latest-version `ready` trigger. `schema.ts` mirrored                                                                                                                                                                                                                                                      |
+| **Repository, domain, audit**          | `FileAssetsRepository.listAwaitingScan`, `organizationsAwaitingScan` (bootstrap hatch), `claimForScan`, `recordScan`, the `ready` value guard in `transition`; `file.ready.v1` in `packages/domain`; audit actions `file_asset.scanned` (must be `allowed` — the third such rule in `AuditEventsRepository`) and `file_asset.scan_disputed`                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+### Decisions taken under Peter's delegation
+
+- **F1 — the trust zone is a column; the key is stable across zones.** ADR-0006. Promotion
+  is streamed, not copied; the object exists twice until FILE-003 deletes the quarantine
+  copy of a `ready` version (H5 — kept for reconciliation).
+- **F3 — `none` is honest, and its consequence is stated plainly: under
+  `MALWARE_SCAN_DRIVER=none` no upload ever becomes downloadable.** Every asset parks at
+  `scanning` with `unscanned` on its version; a real scanner later replaces the verdict and
+  the asset moves. `scanning → expired` stays the machine's unused edge — door 8 (no exit on
+  a permanent outage) is now one state later than it was, and still open.
+- **D14 — the API identity writes to `private`.** The bucket-policy split (`49` :72's
+  separate identity, F2) is the paid-beta follow-up, recorded in the ADR.
+- **H5 — the duplicate object** is accepted for reconciliation rather than deleted at
+  commit.
+- Decision 13's fifteen minutes is the scan claim's bound too; the failure bound is five.
+
+### What went wrong between the two sessions
+
+`217c415` shipped with **stale `dist/` in `packages/storage` and `packages/config`**: the
+quiet-close `abort` and the `none`-in-production config were in source and not in the build
+the api reads. The two red cases (a `.tmp` staging file left in `private` after a hash
+mismatch; an overlapping pass whose rejection counted as a failure) were both the old
+`abort` throwing `ERR_STREAM_DESTROYED`. Rebuilding the three packages made the suite 15 of
+15 with no source change. The rule stands and is repeated here: **`pnpm --filter <pkg> build`
+after touching `packages/*`, before any api suite is believed.**
+
+### Verification actually run — 2026-09-05, the FILE-002 slice B completion session
+
+| Gate                                                                 | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `malware-scanner.test.ts` (unit)                                     | **13 passed**: the stub clean, found in one chunk anywhere, **found split across two chunks**, drains after finding; `none` never a verdict; clamd against a fake daemon — frames reassembled byte for byte and `OK` clean, `FOUND` with the name, `ERROR` an engine error and never a verdict, an unknown reply a protocol error and a close without one a stream error, a timeout for one object, a mid-object reset a stream error, nothing listening → unavailable for probe and scan alike, `PING`/`PONG`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `packages/storage`, `domain`, `config` (unit)                        | **54, 136, 45 passed** — `promote` seals only on commit and holds the size, `abort` discards the staging file and refuses a later commit, `withdraw` removes the private object and nothing else, keys checked before disk; `file.ready.v1`; `none` legal in production, `CLAMAV_HOST` required for `clamav`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `file-002-scanning.db.test.ts`                                       | **15 passed** (real filesystem driver, bytes PUT through the public route): a clean PDF scanned, promoted under the same key, `ready`, one `scanned` row and one `file.ready.v1` sharing a correlation id; EICAR rejected with the token and never the name, no private object, bytes still counted; a crashed run's private orphan withdrawn; `none` records `unscanned` once, a second pass finds nothing, a **direct second `recordScan` of `unscanned` writes nothing** (added this session), a real scanner later replaces it; a tampered object → `hash_mismatch`, nothing moves, the claim keeps the row out until the bound; a truncated object → `size_mismatch` before reading; one failing object waits with its claim and succeeds after the bound; an unreachable engine stops the pass before any claim; every object failing stops after five, the rest unclaimed; two passes overlapping on a stale claim cannot disagree — the standing `infected` holds, the loser writes `scan_disputed`, the private object is withdrawn; two organizations under their own contexts; 0019 refuses `ready` without a clean promoted latest version, `private` without `clean` (the `NULL` case), a rewrite of a final verdict, admits a replacement of `unscanned`, binds `ready` to the latest version, refuses a version born private or with a verdict; the repository refuses `ready` without `clean` before any write and the audit repository refuses `scanned` as anything but `allowed` |
+| Revert proofs, two batches                                           | Nine fixes, each with its own witness. **Batch 1, seven at once**: the trigger's `<=>` back to `=` (engine case 1 red), the latest-version subselect removed (case 2 red), the digest compared to nothing (hash-mismatch case red), no `withdraw` after a rejection (orphan case red), `unscanned` replacing `unscanned` (none case red at the new assertion), no stub carry-over (**unit exactly 1 of 13 red**), the repository's `ready` value guard removed (engine case 4 red) — **database exactly 6 of 15 red**. **Batch 2, apart** because they share witnesses with batch 1: both reads ignoring the claim (hash-mismatch case red at "select claimed rows again"), `scanned` filed as `denied` (engine case 4 red) — **exactly 2 of 15 red**. Restored from sha-checked copies both times, `save` first on its own line with `\|\| exit 1`. `packages/*/dist` left at the fixed build                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `file-002-verification`, `file-001-quota`, `schema`, `migrator` (db) | **140 passed** (10 + 12 + 101 + 17): the verifier untouched in behaviour, the old immutability assertions, the schema mirror, the migration ledger with 0019                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `typecheck` (the chain's project), `eslint`, prettier                | Clean. Line endings LF throughout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **The chain**                                                        | **Green on `631e092`, the first launch**: `format:check`, `typecheck`, `lint`, unit **1149 passed across 69 files** (1123 + the 26 of this slice: 13 scanner, 10 storage, 3 config), database **937 passed, 29 skipped across 40 files** (922 + the 15 of this slice), `audit:design` **172 of 172**, `format:check` again; 30 minutes. The `MaxListenersExceededWarning` appears 65 times in the log (the driver's staging `WriteStream`, pre-existing), fails nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `mysqld` strays                                                      | None after any database run                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+`test:vr` was **not run and is not owed**: `packages/ui` is untouched.
+
+### What is carried
+
+- **Slice C — the gate and the views**: `isServable`'s first caller (the download path
+  reads `trust_zone` from the row, never a zone literal); `FileAssetView.rejectionCode` for
+  studio principals only, and `35` :100's copy — "did not pass the security check", a
+  correlation id, no reason — for clients; the detected MIME replacing the declared one once
+  verified; the OpenAPI `FileAsset` divergence (no `rejectionCode`, no verdict); `verifyUploads`
+  in `e2e/setup/stack.ts` and an E2E journey through upload → verify → scan → ready.
+- **Contract divergences**: no `contracts/events/file-ready.v1` schema (nor
+  `file-rejected.v1`); `tmanage-core.dbml` has none of `scan_verdict`, `scanned_at`,
+  `scanner`, `trust_zone`, `scan_claimed_at`, and still says `content_hash [not null]`;
+  `21` FR-12's row not yet naming the new actions.
+- **Door 8 moved, not closed**: under `none`, or under a permanently failing engine, an
+  asset stays `scanning` for ever, re-tried once its claim is stale, one `scan_failed` row
+  per try. `scanning → expired` is the edge that would close it.
+- **The symbolic-link refusal** stays unproven on this machine (`EPERM`); **the `UPDATE`
+  grant** on `file_versions` is proven statically only (the suite runs as the admin here).
+- **Deployment**: migrations 0017, 0018 and 0019 to apply, `users.sql` to re-apply, the
+  cron tick unchanged (`verify:once` now runs both passes); `MALWARE_SCAN_DRIVER=none` is
+  the honest bootstrap value and means no downloads until `clamav` is configured.
+- **The `MaxListenersExceededWarning`** from the driver's staging `WriteStream` (eleven
+  listeners, one per part `pipeline`) predates this slice, fails nothing, and is carried.
+- **USAGE-001's ledger migration moves to 0020**; slices 2–5 stand.
+- The earlier carried items stand: the sealed-object orphan on a commit failure (FILE-003),
+  the quarantine copy's deletion (FILE-003), the redelivery `verdict_conflict` case.
+
+### Ticket accounting
+
+FILE-002 (13 points): slices A and B are `tested`; the ticket stays open for slice C. **34 of
+70 tickets, 272 of 583 points (46.7%)**, unchanged.
 
 ---
 
