@@ -72,6 +72,8 @@ const CONFIG: ApiConfig = {
   storageOrgBytesLimit: ORG_LIMIT,
   uploadMaxBytes: 5_000,
   uploadUrlTtlSeconds: 900,
+  // The open-upload cap, low enough to reach under the quota above at 100 bytes a session.
+  uploadMaxOpenSessionsPerUser: 12,
 };
 
 interface InjectedResponse {
@@ -481,6 +483,51 @@ describe('the organization quota (49 §6, §7)', () => {
     expect(store.began).toHaveLength(11);
     expect(store.aborted).toHaveLength(1);
     expect(await observe('select id from upload_sessions')).toHaveLength(10);
+  });
+
+  it('caps the reservations one person holds open: the thirteenth is 429, a colleague is not, and a cancel makes room', async () => {
+    const studio = await signIn(manager().id);
+    const small = { sizeBytes: 100 };
+    const held: UploadSession[] = [];
+    for (let i = 0; i < CONFIG.uploadMaxOpenSessionsPerUser; i += 1) {
+      held.push(await open(studio, small));
+    }
+    expect(store.began).toHaveLength(12);
+
+    const refused = await send('POST', '/upload-sessions', studio, body(small), {
+      'idempotency-key': freshKey(),
+    });
+    expect(refused.statusCode, refused.body).toBe(429);
+    expect(refused.json<ErrorBody>().error.code).toBe('rate_limited');
+    // Reversal: drop the count before `beginMultipart` and `began` reads 13 here — the
+    // provider was asked and then told to abandon; drop the count inside the reservation
+    // as well and this is a 201 with thirteen rows.
+    expect(store.began).toHaveLength(12);
+    expect(store.aborted).toHaveLength(0);
+    expect(await auditActions()).toEqual(['upload_session.refused']);
+    const [row] = await observe(
+      "select metadata_json as m from audit_events where action = 'upload_session.refused'",
+    );
+    expect(JSON.stringify(row?.['m'])).toContain('too_many_open_uploads');
+    expect(JSON.stringify(row?.['m'])).toContain('"limit_sessions":12');
+    expect(await observe('select id from upload_sessions')).toHaveLength(12);
+
+    // The cap is the person's, not the organization's.
+    const colleague = await signIn(owner().id);
+    const theirs = await send('POST', '/upload-sessions', colleague, body(small), {
+      'idempotency-key': freshKey(),
+    });
+    expect(theirs.statusCode, theirs.body).toBe(201);
+
+    // A cancel makes room: the count is of `reserved` rows, and a cancelled one is not.
+    const first = held[0] as UploadSession;
+    expect((await send('POST', `/upload-sessions/${first.id}/cancel`, studio)).statusCode).toBe(
+      200,
+    );
+    const again = await send('POST', '/upload-sessions', studio, body(small), {
+      'idempotency-key': freshKey(),
+    });
+    expect(again.statusCode, again.body).toBe(201);
   });
 
   it('still answers 422 and records the refusal when the provider refuses to abandon the upload', async () => {

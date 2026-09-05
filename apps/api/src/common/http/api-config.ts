@@ -70,6 +70,12 @@ export interface ApiConfig extends SessionServiceOptions {
    * transport's body limit is derived from it.
    */
   readonly uploadPartSizeBytes: number;
+  /**
+   * Security review 2026-09-04. `reserved` sessions one person may hold open at once in an
+   * organization (`UPLOAD_MAX_OPEN_SESSIONS_PER_USER`); the next is 429 `rate_limited` with
+   * an `upload_session.refused` row. The quota bounds bytes; this bounds the count.
+   */
+  readonly uploadMaxOpenSessionsPerUser: number;
 }
 
 export interface ApiConfigSource {
@@ -93,6 +99,7 @@ export interface ApiConfigSource {
   readonly UPLOAD_MAX_BYTES?: number;
   readonly STORAGE_UPLOAD_URL_TTL_SECONDS?: number;
   readonly UPLOAD_PART_SIZE_BYTES?: number;
+  readonly UPLOAD_MAX_OPEN_SESSIONS_PER_USER?: number;
 }
 
 /**
@@ -128,6 +135,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     uploadMaxBytes: env.UPLOAD_MAX_BYTES ?? 104_857_600,
     uploadUrlTtlSeconds: env.STORAGE_UPLOAD_URL_TTL_SECONDS ?? 900,
     uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES ?? UPLOAD_PART_SIZE_DEFAULT_BYTES,
+    uploadMaxOpenSessionsPerUser: env.UPLOAD_MAX_OPEN_SESSIONS_PER_USER ?? 20,
   };
 }
 

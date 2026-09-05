@@ -268,6 +268,15 @@ export const envSchema = z
       .min(UPLOAD_PART_SIZE_MIN_BYTES)
       .max(UPLOAD_PART_SIZE_MAX_BYTES)
       .default(UPLOAD_PART_SIZE_DEFAULT_BYTES),
+    /**
+     * Security review 2026-09-04. How many `reserved` upload sessions one person may hold
+     * open at once in one organization. The quota bounds the bytes, not the count: without
+     * this, one account with `file.upload` could open one-byte reservations without end,
+     * each a provider upload and a directory (`26-THREAT-MODELS` §5 "quota abuse"). The
+     * twenty-first is refused 429 and recorded; a completion, a cancel or the sweep makes
+     * room. Nothing in the pack names a value; twenty is a person, not a script.
+     */
+    UPLOAD_MAX_OPEN_SESSIONS_PER_USER: positiveInt.default(20),
   })
   .superRefine((env, ctx) => {
     const fail = (path: string, message: string) =>

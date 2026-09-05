@@ -1,5 +1,5 @@
 import { authorize, clientRequestStateMachine } from '@tmanage/domain';
-import type { Audience, ClientRequestState, Principal } from '@tmanage/domain';
+import type { Audience, AuditMetadata, ClientRequestState, Principal } from '@tmanage/domain';
 import {
   MissingPartError,
   MultipartUploadNotFoundError,
@@ -444,6 +444,16 @@ export class FilesService {
     );
     if (existing) return this.replay(existing, principal, input);
 
+    // The open-upload cap (security review 2026-09-04): the quota bounds the bytes, this
+    // bounds the count. Read here so a person at the cap costs no provider upload; read
+    // again inside the reservation, after the counter's row lock, so two requests arriving
+    // together cannot both be the twentieth.
+    const cap = this.config.uploadMaxOpenSessionsPerUser;
+    const openBefore = await this.database.read(context, (runner) =>
+      this.sessions.countReservedFor(runner, context, principal.userId),
+    );
+    if (openBefore >= cap) throw await this.refuseOpenUploads(context, draft, openBefore, cap);
+
     const id = this.sessions.nextId();
     const objectKey = uploadObjectKey({
       organizationId: context.organizationId,
@@ -474,6 +484,10 @@ export class FilesService {
           limitBytes,
         );
         if (!reserved) throw new QuotaExhausted();
+        // Reversal: drop this second count and two simultaneous requests can both land
+        // as the cap-th session; the sequential case above is what the suite can see.
+        const open = await this.sessions.countReservedFor(tx, context, principal.userId);
+        if (open >= cap) throw new TooManyOpenUploads(open);
 
         const asset = await this.assets.create(tx, context, {
           projectId: input.projectId,
@@ -529,8 +543,14 @@ export class FilesService {
       } catch {
         // Deliberately swallowed; the original error is what the caller needs.
       }
+      if (error instanceof TooManyOpenUploads) {
+        throw await this.refuseOpenUploads(context, draft, error.open, cap);
+      }
       if (error instanceof QuotaExhausted) {
-        await this.recordRefusal(context, draft, limitBytes);
+        await this.recordRefusal(context, draft, {
+          denial_code: 'storage_quota_exhausted',
+          limit_bytes: limitBytes,
+        });
         throw new ApiError(
           422,
           'validation_failed',
@@ -954,10 +974,35 @@ export class FilesService {
     }
   }
 
+  /** The open-upload cap's refusal: one audit row, one 429 that names no handle. */
+  private async refuseOpenUploads(
+    context: TenantContext,
+    draft: Draft,
+    open: number,
+    cap: number,
+  ): Promise<ApiError> {
+    await this.recordRefusal(context, draft, {
+      denial_code: 'too_many_open_uploads',
+      open_sessions: open,
+      limit_sessions: cap,
+    });
+    return new ApiError(
+      429,
+      'rate_limited',
+      'Too many open uploads. Complete or cancel one and try again',
+      undefined,
+      'too_many_open_uploads',
+    );
+  }
+
+  /**
+   * `upload_session.refused`, `denied`, no object id: the session never became a row. The
+   * facts the refusal turned on come from the caller; what every refusal shares is here.
+   */
   private async recordRefusal(
     context: TenantContext,
     draft: Draft,
-    limitBytes: number,
+    facts: AuditMetadata,
   ): Promise<void> {
     if (!this.audit) return;
     // Its own transaction: the reservation's rolled back, and this row must not.
@@ -967,9 +1012,8 @@ export class FilesService {
         objectId: null,
         result: 'denied',
         metadata: {
-          denial_code: 'storage_quota_exhausted',
+          ...facts,
           declared_bytes: draft.input.sizeBytes,
-          limit_bytes: limitBytes,
           purpose: draft.input.purpose,
           project_id: draft.input.projectId,
           principal_kind: draft.principal.kind,
@@ -1070,6 +1114,14 @@ export class FilesService {
       }
       throw error;
     }
+  }
+}
+
+/** Internal signal: the opener already holds the cap's worth of `reserved` sessions. */
+class TooManyOpenUploads extends Error {
+  constructor(readonly open: number) {
+    super('too many open uploads');
+    this.name = 'TooManyOpenUploads';
   }
 }
 

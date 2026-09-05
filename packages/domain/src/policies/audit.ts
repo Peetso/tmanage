@@ -351,7 +351,9 @@ export const AUDIT_ACTION_CATALOG = {
   'upload_session.refused': {
     objectType: 'upload_session',
     // Recorded as `denied` with no object id: the session that was refused never became a row.
-    clause: '§12 denied sensitive attempts; 49-PRICING §7 — the 100% block is a recorded refusal',
+    clause:
+      '§12 denied sensitive attempts; 49-PRICING §7 — the 100% block is a recorded refusal; ' +
+      '26-THREAT-MODELS §5 quota abuse — so is the open-upload cap',
   },
   'file_asset.uploaded': {
     objectType: 'file_asset',

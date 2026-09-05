@@ -151,6 +151,31 @@ export class UploadSessionsRepository {
   }
 
   /**
+   * How many `reserved` sessions one person holds open in this organization — the number
+   * `UPLOAD_MAX_OPEN_SESSIONS_PER_USER` is measured against (security review 2026-09-04).
+   * Over the `(organization, status, …)` prefix of `ix_upload_sessions_org_status_expires`:
+   * a tenant's open reservations are bounded by its quota, so the filter on the opener runs
+   * over a short range and no index of its own is warranted yet.
+   */
+  async countReservedFor(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    actorUserId: string,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ open: sql<number>`count(*)` })
+      .from(uploadSessions)
+      .where(
+        and(
+          eq(uploadSessions.organizationId, context.organizationId),
+          eq(uploadSessions.status, 'reserved'),
+          eq(uploadSessions.actorUserId, actorUserId),
+        ),
+      );
+    return Number(rows[0]?.open ?? 0);
+  }
+
+  /**
    * USAGE-001's cross-tenant half: which organizations hold a `reserved` session past the
    * cutoff. The one read on this table with no tenant predicate, and therefore the one that
    * takes a `BootstrapQueryRunner` — the caller declares the reason and the allowlist, and
