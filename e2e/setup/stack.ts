@@ -320,7 +320,10 @@ export async function bootStack(): Promise<StackState & { stop: () => Promise<vo
       env: {
         ...process.env,
         NEXT_PUBLIC_API_BASE_URL: API_URL,
-        NEXT_PUBLIC_SESSION_COOKIE_NAME: 'tmanage_session',
+        // Deliberately NOT setting NEXT_PUBLIC_SESSION_COOKIE_NAME. The API above runs on the
+        // documented default cookie name, and the browser must find the CSRF cookie by *its*
+        // default too: review finding D02 was a browser default (`tm_session_csrf`) that
+        // disagreed with the server's, and this override is what hid it from the suite.
         PORT: String(WEB_PORT),
       },
       logName: 'web',

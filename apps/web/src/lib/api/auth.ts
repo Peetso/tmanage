@@ -43,7 +43,10 @@ export async function signInWithPassword(
     method: 'POST',
     path: '/v1/auth/password',
     body: input,
+    // A wrong password is a 401 that means "wrong password", not "expired" — see `client.ts`.
+    authentication: 'none',
   });
+  if (data.status === 'authenticated') client.rememberCsrfToken(data.csrfToken);
   return data;
 }
 
@@ -55,7 +58,9 @@ export async function completeMfaChallenge(
     method: 'POST',
     path: '/v1/auth/mfa',
     body: input,
+    authentication: 'none',
   });
+  client.rememberCsrfToken(data.csrfToken);
   return data;
 }
 
@@ -67,7 +72,9 @@ export async function completeWithRecoveryCode(
     method: 'POST',
     path: '/v1/auth/recovery-code',
     body: input,
+    authentication: 'none',
   });
+  client.rememberCsrfToken(data.csrfToken);
   return data;
 }
 

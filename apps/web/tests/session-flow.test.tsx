@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { SessionsScreen } from '../src/components/screens/SessionsScreen';
 import { SignInScreen } from '../src/components/screens/SignInScreen';
 import { ApiClient } from '../src/lib/api/client';
+import { AuthBoundary, type AuthNotice } from '../src/lib/auth-boundary';
 import { expectNoAxeViolations } from './axe';
 
 /**
@@ -73,6 +74,53 @@ describe('ID-01 development sign-in', () => {
       userId: '0198f0aa-0000-7000-8000-000000000001',
     });
     expect(screen.getByText('Session started')).toBeInTheDocument();
+  });
+
+  it('announces the new principal on the boundary before it navigates (D01)', async () => {
+    const user = userEvent.setup();
+    const order: string[] = [];
+    const boundary = new AuthBoundary();
+    boundary.subscribe(({ event, origin }) => order.push(`${event}:${origin}`));
+    const onSignedIn = vi.fn(() => order.push('navigate'));
+
+    const client = clientOver(() => json({ csrfToken: 'abc', expiresAt: 'x' }, 201));
+    render(
+      <SignInScreen
+        client={client}
+        onSignedIn={onSignedIn}
+        boundary={boundary}
+        developmentSignInEnabled
+      />,
+    );
+    await user.type(screen.getByLabelText(/User id/), 'someone');
+    await user.click(screen.getByRole('button', { name: /Start a development session/ }));
+
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(order).toEqual(['signed-in:local', 'navigate']);
+  });
+
+  it('keeps the CSRF token the API returned and echoes it on the next mutation (D03)', async () => {
+    const user = userEvent.setup();
+    const csrfHeaders: (string | null)[] = [];
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tmanage_session_csrf',
+      fetch: ((_input: RequestInfo | URL, init?: RequestInit) => {
+        csrfHeaders.push(new Headers(init?.headers).get('x-csrf-token'));
+        return Promise.resolve(json({ csrfToken: 'from-the-api', expiresAt: 'x' }, 201));
+      }) as typeof globalThis.fetch,
+      // The cookie is not readable — the API on another host.
+      readCsrfToken: () => undefined,
+      newCorrelationId: () => 'c',
+    });
+
+    render(<SignInScreen client={client} boundary={new AuthBoundary()} developmentSignInEnabled />);
+    await user.type(screen.getByLabelText(/User id/), 'someone');
+    await user.click(screen.getByRole('button', { name: /Start a development session/ }));
+    await screen.findByText('Session started');
+
+    await client.request({ method: 'POST', path: '/v1/anything', body: {} });
+    expect(csrfHeaders).toEqual([null, 'from-the-api']);
   });
 
   it('trims the user id before sending it', async () => {
@@ -203,6 +251,46 @@ describe('ID-05 sessions and devices', () => {
     expect(
       calls.some((call) => call.method === 'DELETE' && call.url.endsWith('/v1/sessions/current')),
     ).toBe(true);
+  });
+
+  it('announces the sign-out on the boundary, before the page navigates (D01)', async () => {
+    const user = userEvent.setup();
+    const order: string[] = [];
+    const boundary = new AuthBoundary();
+    boundary.subscribe((notice: AuthNotice) => order.push(`${notice.event}:${notice.origin}`));
+    const onSignedOut = vi.fn(() => order.push('navigate'));
+
+    const client = clientOver((_url, init) =>
+      init.method === 'DELETE' ? new Response(null, { status: 204 }) : json({ sessions: SESSIONS }),
+    );
+    render(
+      withQuery(<SessionsScreen client={client} onSignedOut={onSignedOut} boundary={boundary} />),
+    );
+    await screen.findByText('Mozilla/5.0 (Macintosh) Chrome/140');
+
+    await user.click(screen.getByRole('button', { name: /Sign out of this session/ }));
+    await waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
+
+    expect(order).toEqual(['signed-out:local', 'navigate']);
+  });
+
+  it('announces nothing when the sign-out was refused', async () => {
+    const user = userEvent.setup();
+    const boundary = new AuthBoundary();
+    const heard = vi.fn();
+    boundary.subscribe(heard);
+
+    const client = clientOver((_url, init) =>
+      init.method === 'DELETE'
+        ? json({ error: { code: 'internal_error', message: 'x', correlationId: 'c' } }, 500)
+        : json({ sessions: SESSIONS }),
+    );
+    render(withQuery(<SessionsScreen client={client} boundary={boundary} />));
+    await screen.findByText('Mozilla/5.0 (Macintosh) Chrome/140');
+    await user.click(screen.getByRole('button', { name: /Sign out of this session/ }));
+
+    expect(await screen.findByText('Sign-out failed')).toBeInTheDocument();
+    expect(heard).not.toHaveBeenCalled();
   });
 
   it('reports a refusal instead of an empty list', async () => {

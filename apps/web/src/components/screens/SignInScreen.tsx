@@ -11,6 +11,7 @@ import { signInWithPassword, type MfaRequiredResponse } from '../../lib/api/auth
 import { developmentSignIn } from '../../lib/api/session';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 
 export interface SignInScreenProps {
   /** Injected in tests. Defaults to the browser client. */
@@ -29,6 +30,8 @@ export interface SignInScreenProps {
    * until TEN-001 provisions one.
    */
   developmentSignInEnabled?: boolean;
+  /** Injected in tests. Defaults to the application's boundary. */
+  boundary?: AuthBoundary;
 }
 
 /**
@@ -68,8 +71,19 @@ export function SignInScreen({
   client,
   onSignedIn,
   developmentSignInEnabled = process.env.NODE_ENV !== 'production',
+  boundary = authBoundary,
 }: SignInScreenProps) {
   const api = client ?? browserApiClient();
+
+  /**
+   * A new principal is a boundary (review finding D01). Announced before the caller
+   * navigates, so whatever the previous person left in the caches is gone before the next
+   * screen mounts and starts reading.
+   */
+  function signedIn() {
+    boundary.announce('signed-in');
+    onSignedIn?.();
+  }
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -103,7 +117,7 @@ export function SignInScreen({
         setPassword('');
         return;
       }
-      onSignedIn?.();
+      signedIn();
     } catch (error) {
       setFailure(describe(error));
     } finally {
@@ -117,7 +131,7 @@ export function SignInScreen({
         client={api}
         challengeToken={challenge.challengeToken}
         {...(challenge.factors[0] ? { factorLabel: challenge.factors[0].label } : {})}
-        {...(onSignedIn ? { onCompleted: onSignedIn } : {})}
+        onCompleted={signedIn}
       />
     );
   }
@@ -135,7 +149,7 @@ export function SignInScreen({
     try {
       await developmentSignIn(api, userId.trim());
       setDevelopmentState('signed-in');
-      onSignedIn?.();
+      signedIn();
     } catch (error) {
       setDevelopmentState('idle');
       setDevelopmentFailure(describe(error));

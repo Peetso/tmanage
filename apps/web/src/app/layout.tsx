@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 import '@tmanage/ui/styles.css';
 import './globals.css';
+import { AuthBoundaryProvider } from '../components/providers/AuthBoundaryProvider';
 import { QueryProvider } from '../components/providers/QueryProvider';
 
 /**
@@ -94,7 +95,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       data-density="balanced"
     >
       <body>
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
+        </QueryProvider>
       </body>
     </html>
   );

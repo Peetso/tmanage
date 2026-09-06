@@ -2,6 +2,7 @@ export {
   envSchema,
   loadEnv,
   EnvironmentValidationError,
+  SESSION_COOKIE_NAME_DEFAULT,
   UPLOAD_MAX_PART_NUMBER,
   UPLOAD_PART_SIZE_DEFAULT_BYTES,
   UPLOAD_PART_SIZE_MAX_BYTES,

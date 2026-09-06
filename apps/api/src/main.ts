@@ -4,6 +4,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { loadEnv } from '@tmanage/config';
 import { createPartAdmission } from '@tmanage/storage';
 import { createFastifyAdapter } from './common/http/fastify-adapter.js';
+import { corsOptions } from './common/http/cors.js';
 import { createFixedWindowLimiter } from './common/http/rate-limiter.js';
 import { composeAppModule } from './app-composition.js';
 
@@ -52,20 +53,9 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  /**
-   * Credentials are sent cross-origin, so the origin list is exact — `packages/config` rejects
-   * a wildcard outright, and `credentials: true` with `origin: '*'` is refused by browsers
-   * anyway. `X-CSRF-Token` has to be allowed explicitly or the preflight fails and every
-   * mutation from the web app breaks. `ETag` is exposed because the browser collects one
-   * per uploaded part and hands them all to `complete` (FILE-001b) — a header the browser
-   * cannot read is a completion it cannot make.
-   */
-  app.enableCors({
-    origin: [...env.CORS_ALLOWED_ORIGINS],
-    credentials: true,
-    allowedHeaders: ['content-type', 'x-csrf-token', 'x-correlation-id'],
-    exposedHeaders: ['x-correlation-id', 'etag'],
-  });
+  // The policy itself, with its reasons and the D20 history, lives in `common/http/cors.ts`,
+  // where a test can hold it against a real preflight.
+  app.enableCors(corsOptions(env.CORS_ALLOWED_ORIGINS));
 
   await app.listen({ port: env.API_PORT, host: '0.0.0.0' });
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, Skeleton, StatusDot } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { BackendPending } from './BackendPending';
@@ -8,12 +8,15 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listDevices, signOut } from '../../lib/api/session';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 
 export interface SessionsScreenProps {
   /** Injected in tests. Defaults to the browser client. */
   client?: ApiClient;
   /** Called after a successful sign-out, so the page can navigate. */
   onSignedOut?: () => void;
+  /** Injected in tests. Defaults to the application's boundary. */
+  boundary?: AuthBoundary;
 }
 
 /**
@@ -41,9 +44,12 @@ export interface SessionsScreenProps {
  * `current` is not among them. Guessing from the user agent would be wrong the moment two
  * tabs of the same browser hold two sessions, so it is left unmarked.
  */
-export function SessionsScreen({ client, onSignedOut }: SessionsScreenProps) {
+export function SessionsScreen({
+  client,
+  onSignedOut,
+  boundary = authBoundary,
+}: SessionsScreenProps) {
   const api = client ?? browserApiClient();
-  const queryClient = useQueryClient();
 
   const devices = useQuery({
     queryKey: ['sessions', 'devices'],
@@ -52,8 +58,12 @@ export function SessionsScreen({ client, onSignedOut }: SessionsScreenProps) {
 
   const endSession = useMutation({
     mutationFn: () => signOut(api),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    onSuccess: () => {
+      // Not `invalidateQueries(['sessions'])`. Review finding D01: the root `QueryClient`
+      // outlives a client-side navigation, and every other cached query is keyed by
+      // organization, not by person, so the next person to sign in on this browser was shown
+      // this person's rows. The boundary clears everything, in every tab, before navigation.
+      boundary.announce('signed-out');
       onSignedOut?.();
     },
   });

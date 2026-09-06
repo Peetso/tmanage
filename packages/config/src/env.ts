@@ -100,6 +100,14 @@ const originList = z
       .min(1, 'at least one allowed origin is required'),
   );
 
+/**
+ * The default session cookie name. Exported because the browser derives the readable CSRF
+ * cookie's name from it (`${SESSION_COOKIE_NAME}_csrf`) and must default to the same value:
+ * review finding D02 (2026-09-05) was the two defaults disagreeing. `apps/web` cannot import
+ * this package into a browser bundle, so it carries a copy and a test holds the two equal.
+ */
+export const SESSION_COOKIE_NAME_DEFAULT = 'tmanage_session';
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -181,7 +189,7 @@ export const envSchema = z
     STORAGE_ORG_BYTES_LIMIT_BYTES: positiveInt.default(524_288_000),
 
     // Sessions and cryptography
-    SESSION_COOKIE_NAME: nonEmpty('SESSION_COOKIE_NAME').default('tmanage_session'),
+    SESSION_COOKIE_NAME: nonEmpty('SESSION_COOKIE_NAME').default(SESSION_COOKIE_NAME_DEFAULT),
     SESSION_SECRET: secret('SESSION_SECRET'),
     SESSION_TTL_SECONDS: positiveInt.default(900),
     REFRESH_TTL_SECONDS: positiveInt.default(1_209_600),
