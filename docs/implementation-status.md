@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-05 (FILE-002 slice C session; the download gate and the views built and proved; FILE-002 closes; chain green on d30087c) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-06 (D20 — the API's CORS method list — fixed on branch `w02-session-browser` with a preflight witness and a reversal proof; the D04 journey's harness defect fixed; the whole browser suite green on the branch; the live `next build` witness for D19 run in four shapes, which exposed and corrected a rule the slice itself had got wrong for `API_PROXY_TARGET`; still uncommitted and unpushed, awaiting Codex's review) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,242 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-06, start of the D20 / build-witness continuation
+
+The **fortieth** consecutive run compared SHA-256 and modification times pair by pair.
+Planning: **61 of 61 byte-identical**, zero differing, missing or repo-only files. Design:
+**147 of 147 byte-identical**, zero differing, missing, repo-only or pack-only files. No pack
+file is newer. The six pack-only extras are the usual six. Neither protected source directory
+was edited. Output: `C:/Users/Peter/Documents/ChatGPT/TManage/reconcile-40.json`.
+
+---
+
+## D20 and the D19 build witness — the session/browser slice continued on the same branch
+
+Codex's status file was unchanged (2026-09-05 22:58) when this session began, so neither branch
+was landed; the work below continues `w02-session-browser` exactly as the previous entry's
+"not done here" list and the handoff prescribed. Nothing on `master` was touched.
+
+**D20 — the API's CORS policy never allowed `DELETE`.** Confirmed at `1d89a04` by the D01
+journey's trace (previous entry) and now by a unit witness. The cause is more specific than the
+previous entry said: `@fastify/cors` 11.3.0 — the plugin `@nestjs/platform-fastify` registers —
+defaults `methods` to **`GET,HEAD,POST`**, not the `cors` package's six, so `PUT` and `PATCH`
+were refused cross-origin as well as `DELETE` (the browser sends a `PATCH` for a work-item
+edit and would send `PUT` for an upload part). Changed: `apps/api/src/common/http/cors.ts`
+(new) holds the policy as one value — the origin list, credentials, the six methods, the
+allowed and exposed headers, with the reasons — and `main.ts` passes `corsOptions(...)` to
+`enableCors`; the inline object and its comment moved there so a test can reach it. Witness:
+`cors.test.ts` (3) — a minimal Nest/Fastify application with the same options answers a
+preflight for `DELETE` carrying `x-csrf-token` from an allowed origin with `204`, the origin
+echoed, credentials allowed, `DELETE` in `Access-Control-Allow-Methods`; the same for `PUT`
+and `PATCH`; a stranger origin is not named. **Reversal** (`w02-proof/d20/`): `cors.ts` swapped
+for a copy without the `methods` line (SHA `e64ac36c…`), **2 of 3 fail** — `expected [ 'GET',
+'HEAD', 'POST' ] to include 'DELETE'` — restored by copy, SHA re-verified (`6c5d584f…`), **3 of
+3**. The api `unit` project: 22 files, **313 tests** (was 310). The api typecheck (after
+`build:worker`), eslint and prettier on the changed files: pass. In the browser, the D01
+journey — whose `DELETE` was blocked before — now passes end to end.
+
+**The D04 journey's harness defect.** The `cookie` helper in `e2e/tests/session-journeys.spec.ts`
+reads the whole jar (`context.cookies()`) instead of `context.cookies(API_URL)`, which
+Playwright filters by URL _path_ and so never listed the refresh cookie scoped to
+`/v1/sessions/refresh`. One line, with the reason beside it.
+
+**The browser suite on the branch** (`pnpm test:e2e`, run twice — once after the two fixes
+above and again on the final bytes after the `API_PROXY_TARGET` correction below):
+**20 of 20 pass** (2.4 and 2.5 min; `w02-proof/d20/e2e-run.log`, `e2e-run-final.log`). That is all
+17 existing journeys and the three new ones — D01 (sign-out in one tab clears every tab; the
+next person sees only their organizations), D04 (an expired access token is refreshed, the
+refresh cookie rotates, a revoked session ends at sign-in) and the refused-refresh journey,
+which now exercises the write path its name promises. No `mysqld` and nothing on 3100/3101
+left behind.
+
+**The live `next build` witness for D19** — run only after the e2e stack had exited, since
+they share `apps/web/.next`; `.next` removed afterwards. Four shapes
+(`w02-proof/d20/d19-build-*.log`):
+
+| `NEXT_PUBLIC_API_BASE_URL` | `API_PROXY_TARGET`            | Result                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| absent                     | absent                        | **Refused in the first second**: `PublicConfigError: NEXT_PUBLIC_API_BASE_URL is not set. A production build has no safe default…`                                                                                                                                                                                                                             |
+| `http://localhost:3101`    | absent                        | **Refused**: `…a production build must use https, or "same-origin" with API_PROXY_TARGET.`                                                                                                                                                                                                                                                                     |
+| `same-origin`              | `http://api.internal.example` | **Refused**: `…a production web server must reach an API on another host over https. Plain http is accepted only for a loopback…`                                                                                                                                                                                                                              |
+| `same-origin`              | `http://127.0.0.1:3101`       | **Builds** (compiled, 9 static pages). Inspected: the call site is inlined as `{nodeEnv:"production",apiBaseUrl:"same-origin",…}`, so the resolver returns `''` and the bundle dials its own origin; the literal `http://localhost:3001` is still present in five chunks as the resolver's development branch, unreachable there (`d19-bundle-inspection.txt`) |
+
+**What the witness found, and the correction.** The first same-origin build was **refused**:
+the previous entry's `parseOrigin` held `API_PROXY_TARGET` to the browser's production rules
+(https, never loopback), while `.env.example` on the same branch documents
+`API_PROXY_TARGET=http://127.0.0.1:4000` — the documented value could not build. The two
+readers dial from different places: a loopback compiled into the browser bundle dials the
+reader's own machine (D19's point); a loopback in the web server's target is the API on the
+same machine, the ordinary case for two Node applications on one host, and plain http is safe
+exactly there. Decision (Peter delegated the open decisions on 2026-09-05; recorded): in
+production `API_PROXY_TARGET` may be plain http **only when its host is loopback**; a target
+on any other host must be https, because that hop carries the session cookies across a
+network. `NEXT_PUBLIC_API_BASE_URL`'s rules are unchanged. Changed: `public-config.ts`
+(`parseOrigin` takes who dials; the rule and the reason in its comment), the test that held
+the target to the browser's rule now asserts the new rule both ways, `.env.example` and
+`apps/web/README.md` say it. **Reversal**: `public-config.ts` swapped for the branch's
+previous bytes (SHA `63fe5e79…`), **1 of 26 fails** (the loopback target refused), restored by
+copy and SHA re-verified (`cfcf29d4…`), **26 of 26**. Whole web unit suite: **23 files, 445
+tests**; web typecheck, eslint and prettier: pass (`w02-proof/d20/proxy-target-checks.log`).
+
+**Open, for the reviewer.** (1) `cors.ts` spells the options' shape as a local `CorsPolicy`
+interface rather than importing `FastifyCorsOptions`: `@fastify/cors` is
+`@nestjs/platform-fastify`'s dependency, not this package's, and Nest's own `CorsOptions`
+type is not assignable to it under `exactOptionalPropertyTypes`. No dependency was added.
+(2) `@fastify/cors` still writes `Access-Control-Allow-Methods` to a stranger origin; the
+browser refuses on the absent `Access-Control-Allow-Origin`, which is the gate the test
+holds. (3) The loopback-http allowance for the proxy target is a policy call; the trade-off
+(no TLS on the intra-machine hop) is the one `50-BOOTSTRAP` §3's single host already makes
+for the database.
+
+**Where it lives:** the same branch and worktree; still uncommitted and unpushed on purpose.
+The patch is regenerated as `w02-proof/w02-branch.patch` (its figures and SHA-256 are in
+the desk's `result.md`, since a file cannot carry its own hash); per-file hashes in
+`w02-proof/fixed-sha256.txt`. The dependency-file flag of the previous entry stands. No
+ticket closes: **35/70, 285/583 points (48.9%)**.
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-06, start of the session/browser slice
+
+The **thirty-ninth** consecutive run compared SHA-256 and modification times pair by pair.
+Planning: **61 of 61 byte-identical**, zero differing, missing or repo-only files. Design:
+**147 of 147 byte-identical**, zero differing, missing, repo-only or pack-only files. No pack
+file is newer. The repository is later for 60 planning pairs and all 147 design pairs;
+`contracts/tmanage-core.dbml` is in the same second. The planning traversal excluded
+`tmanage/`, `graphify-out/` and the design-handoff subtree; the six pack-only extras are the
+usual six. Neither protected source directory was edited. Output:
+`C:/Users/Peter/Documents/ChatGPT/TManage/reconcile-39.json`.
+
+---
+
+## Session/browser slice — D01, D02, D03, D04, D19: built on a branch, proved in units, two browser journeys open
+
+**Findings** (Codex review of 2026-09-05, `CLAUDE-REVIEW-REPORT.md` §4; reviewed revision
+`af27739`; D01 and D02 re-probed on `1d89a04`), taken together as the report's §9 step 2
+prescribes, because they share one cause: the browser's configuration and its session state
+were each handled in several places with several sets of assumptions.
+
+**D01 — sign-out keeps the previous person's cache.** Confirmed at `1d89a04` (probe:
+organization and work data retained after the exact `invalidateQueries(['sessions'])`).
+Changed: `apps/web/src/lib/auth-boundary.ts` (new) — sign-in, sign-out and an ended session
+are announced as events, in this tab and over a same-origin `BroadcastChannel` to the others,
+carrying the event name and nothing else; `AuthBoundaryProvider` (new, in the root layout)
+cancels every in-flight query, clears the query and mutation caches, and sends the tab to
+sign-in when it has no session left; `SessionsScreen` announces instead of invalidating;
+`SignInScreen` announces before it navigates. Witness: `tests/auth-boundary.test.tsx` (11) —
+the probe inverted, every key gone; a response requested as A that lands after B signed in
+does not populate the cache; navigation only on `session-ended` or a remote sign-out;
+`tests/session-flow.test.tsx` (+4) — the screens announce, in order, before navigating.
+
+**D02 — default CSRF cookie names disagree.** Confirmed (probe: browser reads
+`tm_session_csrf`, server sets `tmanage_session_csrf`). Changed: the default is
+`tmanage_session` on both sides — `packages/config` exports `SESSION_COOKIE_NAME_DEFAULT` and
+its schema uses it; `apps/web/src/lib/public-config.ts` carries the same value and
+`tests/public-config.test.ts` imports both and holds them equal; `e2e/setup/stack.ts` no
+longer tells the web app the cookie name, so the suite runs the documented default path.
+Witness: Codex's probe re-run against the branch (`w02-proof/probe/review-probes.json`):
+`browserReads: tmanage_session_csrf`, `readsServerCookie: true`; in the browser (trace of the
+D01 journey) the sign-out request carried `x-csrf-token` read from the default-named cookie.
+
+**D03 — API on a sibling subdomain cannot supply the token.** Confirmed by reading; not
+testable here, where two localhost ports share one host. Decision (Peter delegated the open
+decisions on 2026-09-05; recorded with its trade-off): the supported production topology is
+**same-origin through the web application** — `NEXT_PUBLIC_API_BASE_URL=same-origin` and
+`API_PROXY_TARGET`; `next.config.ts` rewrites `/v1/:path*` to the API under the identical
+path so the refresh cookie's `Path=/v1/sessions/refresh` still matches. `50-BOOTSTRAP` §3's
+two Node applications stay two; the browser sees one. Trade-off: every API byte crosses the
+web process (Next's rewrite proxy), which on a shared host is one more hop and one more
+memory budget for large downloads that stream through the API — accepted for private alpha,
+named for the capacity review. Split origin stays supported only where the API shares the
+page's host name (development, e2e); sibling subdomains are documented unsupported
+(`apps/web/README.md`, `.env.example`). Also: `ApiClient` keeps the CSRF token the API
+returned in memory and prefers it over the cookie, so a tab that signed in can mutate where
+the cookie is not readable. Witness: `tests/public-config.test.ts` (rewrite shape, path
+identity, both-or-neither rule); `tests/session-recovery.test.ts` (token from sign-in and
+from refresh echoed with no cookie readable). **No deployed subdomain pair was tested.**
+
+**D04 — the browser never refreshes.** Confirmed (no caller of `refreshSession` in
+`apps/web`). Changed: `ApiClient` (`client.ts`) — a 401 `unauthenticated` on a
+session-authenticated request refreshes **once** (coalesced in the tab; serialised across
+tabs with `navigator.locks`, because two tabs presenting one refresh token is exactly what
+the API's reuse detection revokes a session for) and replays the request **once** — a 401 is
+a refusal before the handler ran, so the write was not applied; the refresh's own refusal is
+terminal (`onSessionEnded`, once) and the original refusal is thrown; a refresh that never
+reaches the API ends nothing; routes that authenticate by password, challenge token or
+invitation say `authentication: 'none'` and are never refreshed on. Witness:
+`tests/session-recovery.test.ts` (18) — expiry during a read, before a mutation, concurrent
+requests, the lock, revoked refresh, network failure, the non-loop, public routes, a client
+without recovery.
+
+**D19 — production build silently targets localhost.** Confirmed (`apiBaseUrl()` returned
+`http://localhost:3001` under `NODE_ENV=production` with nothing set). Changed:
+`public-config.ts` resolves both public values with one set of rules; `next.config.ts` runs
+them at load, so `next build` for production **fails in its first second** when the origin is
+absent, plain-http, loopback, or carries a path; development keeps `localhost:3001`. Witness:
+`tests/public-config.test.ts` (26), including the browser readers through the real
+`process.env`. A live `next build` witness was **not** run: it shares `apps/web/.next` with
+the e2e stack, which was running when the stop came.
+
+**Reversal proof** (batched; `w02-proof/reversal-run.log`, `restored-run.log`): the seven
+production files (`client.ts`, `browser-client.ts`, `session.ts`, `auth.ts`,
+`invitations.ts`, `SessionsScreen.tsx`, `SignInScreen.tsx`) swapped for their `1d89a04`
+bytes by copy, SHA-256 verified both ways (`reversal-prefix-sha.txt`,
+`reversal-fixed-sha.txt`): **16 of 70 fail** — every D01, D02, D03, D04 and D19 witness that
+reaches production code; the 54 that pass exercise only the new modules. Restored by copy,
+SHA re-verified: **70 of 70**. Whole web unit suite on the branch: **23 files, 445 tests**
+(was 21 files, 405; the new 40 are the four files above). Web typecheck, e2e typecheck,
+`packages/config` typecheck and tests, eslint over `apps/web`, `packages/config` and `e2e`,
+prettier over every changed file: pass (`w02-proof/static-checks-2.log` and the later
+re-check). Node 22.22.0 / pnpm 10.15.0 via the Corepack shim, worktree `tmanage-w02`.
+
+**Browser journeys** (`e2e/tests/session-journeys.spec.ts`, new, three journeys; the whole
+suite run once on the branch, `w02-proof/e2e-run.log`, 3.0 min): **18 of 20 pass** — all 17
+existing journeys with the cookie-name override removed, and the refused-refresh journey.
+Two fail, and both are recorded rather than adjusted away:
+
+1. **The D04 idle-return journey — a test-harness defect, not the product.** Its first
+   assertion read the refresh cookie through `context.cookies(API_URL)`; Playwright filters
+   that list by URL _path_, and the refresh cookie is scoped to `/v1/sessions/refresh`, so it
+   is never returned for the origin. Fix: `context.cookies()` with no URL, in the `cookie`
+   helper. Nothing after that line ran.
+2. **The D01 journey — a newly confirmed API defect, D20.** The browser's
+   `DELETE /v1/sessions/current` was refused **before it left the browser**: `Access to fetch
+... has been blocked by CORS policy: Method DELETE is not allowed by
+Access-Control-Allow-Methods in preflight response` (console line in
+   `w02-proof/e2e-failures/…4eb88…/trace.zip`; the request shows status −1 with the CSRF
+   header present and no cookies attached). `apps/api/src/main.ts`'s `enableCors` names
+   origins and headers but not methods, and the adapter's default does not include `DELETE`.
+   Consequence at `1d89a04`, unchanged by this slice: **on any split-origin deployment the
+   browser cannot sign out and cannot remove a factor** (`disableFactor` is the other
+   `DELETE`); no existing journey sent a `DELETE` from a page, which is why it was never seen.
+   In the same-origin topology no preflight exists and the route works. Candidate fix, one
+   line in `main.ts` — `methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']` — **not
+   applied**: the API is outside this slice's owned paths and the stop came first. Carried as
+   **D20** (P1 on split origin, moot on same origin) for the next slice, with the journey as
+   its ready witness. The passing refused-refresh journey is therefore weaker than its name:
+   its `DELETE` was CORS-blocked too, and the tab reached sign-in through the read path's
+   refresh refusal, not the write's; it is re-read after D20 lands.
+
+**Not done here, on purpose or by the stop:** the API `methods` line (D20); a live
+`next build` witness for D19; the D04 journey re-run after its one-line test fix; a real
+subdomain pair for D03; proactive refresh before expiry (reactive-on-401 satisfies the
+acceptance list; a timer is an optimisation); a client-side link to the sessions screen (it
+is reachable only by URL — D12's family).
+
+**Where it lives:** branch `w02-session-browser`, worktree `tmanage-w02`, cut from
+`1d89a04`; uncommitted and unpushed on purpose (the parallel arrangement of 2026-09-05 makes
+Codex the reviewer and default integrator). The patch (`w02-branch.patch`, 24 files, +1,899
+−49), hashes, logs, probe output and the two failure traces are under
+`C:/Users/Peter/Documents/ChatGPT/TManage/w02-proof/`. The branch touches
+`apps/web/package.json` and `pnpm-lock.yaml` (a dev-dependency on `@tmanage/config` for one
+test; workspace link only, `pnpm install --offline` resolved it) — a dependency file, flagged
+for the integrator. It adds sections at the top of this file, as `w01-scanner-cleanup` does;
+the two insertions are independent. No ticket closes: **35/70, 285/583 points (48.9%)**;
+these are repairs inside WEB-001, ID-002 and the deployment profile.
 
 ---
 

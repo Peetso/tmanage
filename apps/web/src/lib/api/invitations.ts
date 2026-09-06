@@ -112,6 +112,8 @@ export async function previewInvitation(
     method: 'POST',
     path: '/v1/invitations/previews',
     body: { token },
+    // The token is the credential here; a refusal is about the token, never about a session.
+    authentication: 'none',
   });
   return data;
 }

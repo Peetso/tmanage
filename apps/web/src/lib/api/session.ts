@@ -1,4 +1,4 @@
-import type { ApiClient } from './client';
+import { REFRESH_PATH, type ApiClient } from './client';
 
 /**
  * The session endpoints, as the screens use them.
@@ -6,6 +6,10 @@ import type { ApiClient } from './client';
  * These mirror `apps/api/src/modules/identity/session.controller.ts`. The shapes are
  * hand-written for the boundary reason given in `errors.ts` and are replaced when
  * `packages/contracts` is generated.
+ *
+ * Every helper that receives a `csrfToken` hands it to the client (`rememberCsrfToken`), so
+ * the token the API returned to this tab is the one this tab echoes — see `client.ts` on why
+ * that matters when the cookie is not readable (review finding D03).
  */
 
 export interface EstablishedSession {
@@ -55,22 +59,42 @@ export async function developmentSignIn(
     method: 'POST',
     path: '/v1/dev/sessions',
     body: { userId },
+    authentication: 'none',
   });
+  client.rememberCsrfToken(data.csrfToken);
   return data;
 }
 
-/** Rotate the refresh token. The refresh cookie is the credential; nothing is passed in. */
+/**
+ * Rotate the refresh token. The refresh cookie is the credential; nothing is passed in.
+ *
+ * The client refreshes on its own when an access token expires (`client.ts`); this helper is
+ * for a caller that wants to refresh deliberately. Its 401 is terminal by the client's rule,
+ * never a reason to refresh again.
+ */
 export async function refreshSession(client: ApiClient): Promise<EstablishedSession> {
   const { data } = await client.request<EstablishedSession>({
     method: 'POST',
-    path: '/v1/sessions/refresh',
+    path: REFRESH_PATH,
+    authentication: 'none',
   });
+  client.rememberCsrfToken(data.csrfToken);
   return data;
 }
 
-/** Sign out of this session. Idempotent — a second call changes nothing. */
+/**
+ * Sign out of this session. Idempotent — a second call changes nothing.
+ *
+ * The remembered CSRF token is dropped whether or not the API answered: the caller is about
+ * to announce the sign-out on the authentication boundary, and a token bound to a session
+ * that is ending has nothing left to authorise.
+ */
 export async function signOut(client: ApiClient): Promise<void> {
-  await client.request<void>({ method: 'DELETE', path: '/v1/sessions/current' });
+  try {
+    await client.request<void>({ method: 'DELETE', path: '/v1/sessions/current' });
+  } finally {
+    client.forgetCsrfToken();
+  }
 }
 
 /** The device/session list — `04-SECURITY-PRIVACY` §3, screen ID-05. */

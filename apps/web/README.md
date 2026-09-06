@@ -10,7 +10,47 @@ pnpm --filter @tmanage/web build
 ```
 
 The API must be running separately on `NEXT_PUBLIC_API_BASE_URL` (default
-`http://localhost:3001`) for the two screens that talk to it.
+`http://localhost:3001` in development) for the screens that talk to it.
+
+## Where the API is, and why it matters
+
+`src/lib/public-config.ts` holds the rules; `next.config.ts` runs them at build time and
+`src/lib/api/browser-client.ts` at run time. A production build (`next build`) **refuses** to
+proceed with `NEXT_PUBLIC_API_BASE_URL` absent, plain-http, or pointing at a loopback address
+(review finding D19, 2026-09-05 — it used to compile `localhost:3001` into the bundle and
+ship).
+
+| Topology                         | `NEXT_PUBLIC_API_BASE_URL` | Also                                               | When                                                                                                                                                                                                                                                                                                  |
+| -------------------------------- | -------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Same-origin** (production)     | `same-origin`              | `API_PROXY_TARGET` = the API's origin, server-side | `50-BOOTSTRAP` §3 deploys the web app and the API as two Node applications, which on the target host is two hostnames. Next rewrites `/v1/*` to the API; the browser sees one origin. The target may be plain http only when it is loopback (the API on the same machine); another host must be https |
+| Split origin, same host name     | `http://localhost:3101`    | —                                                  | Development and the e2e stack: two ports on `localhost`. Cookies ignore the port, so the API's readable CSRF cookie is readable here                                                                                                                                                                  |
+| Split origin, sibling subdomains | —                          | —                                                  | **Not supported.** The API's cookies are host-only; the page's script cannot read the CSRF cookie and cannot refresh after a reload (review finding D03). Use same-origin                                                                                                                             |
+
+The rewrite keeps the path identical (`/v1/:path*` to `/v1/:path*`), because the API scopes
+its refresh cookie to `Path=/v1/sessions/refresh`; a prefix on the browser side would leave
+the browser holding a cookie for a path it never requests.
+
+`NEXT_PUBLIC_SESSION_COOKIE_NAME` must equal the API's `SESSION_COOKIE_NAME`; both default to
+`tmanage_session` (review finding D02 — the browser used to default to a different name, and
+the readable CSRF cookie was never found). `tests/public-config.test.ts` imports both defaults
+and holds them equal.
+
+## The session in the browser
+
+Three things happen at the client that no screen has to remember:
+
+- **A change of principal is a boundary** (`src/lib/auth-boundary.ts`, review finding D01).
+  Sign-in, sign-out and a session the API ended are announced; `AuthBoundaryProvider` cancels
+  every in-flight query, clears the query and mutation caches, and sends the tab to sign-in
+  when it has no session left. Other tabs hear it over a same-origin `BroadcastChannel`
+  carrying the event name and nothing else.
+- **An expired access token is refreshed, once, and the refused request replayed, once**
+  (`src/lib/api/client.ts`, review finding D04) — coalesced within the tab and serialised
+  across tabs with `navigator.locks`, because two tabs presenting one refresh token at once
+  is exactly what the API's reuse detection revokes a session for. A refresh the API refuses
+  ends the session cleanly; a refresh that never reaches the API ends nothing.
+- **The CSRF token the API returned is kept in memory** and preferred over the cookie, so a
+  tab that signed in can mutate even where the cookie is not readable. It dies with the tab.
 
 ## What is in here
 

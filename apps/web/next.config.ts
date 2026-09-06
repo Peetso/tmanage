@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { validatePublicConfigForBuild } from './src/lib/public-config';
 
 /**
  * Next.js configuration.
@@ -15,11 +16,38 @@ import type { NextConfig } from 'next';
  * its final asset origins is a CSP that gets loosened once and never tightened again; it
  * is recorded as an open item in `docs/implementation-status.md` instead of being guessed
  * at here. Every other header below is already correct at this stage.
+ *
+ * ## The public configuration is validated here, at load
+ *
+ * Review finding D19 (2026-09-05): a production build with no `NEXT_PUBLIC_API_BASE_URL`
+ * compiled `http://localhost:3001` into every chunk and shipped. This runs before any route
+ * compiles; a production build that would do that now stops in its first second with a
+ * sentence naming the variable. In development the defaults stand — `next dev` sets
+ * `NODE_ENV=development` and the resolver keeps `localhost:3001` there on purpose.
+ *
+ * ## Same-origin API (review finding D03)
+ *
+ * When `NEXT_PUBLIC_API_BASE_URL` is `same-origin`, `/v1/*` is rewritten to
+ * `API_PROXY_TARGET`. The browser then sees one origin: the API's cookies are set on this
+ * host, its readable CSRF cookie is readable by this page, and its path-scoped refresh cookie
+ * is sent to the path it was scoped to. `50-BOOTSTRAP` §3's two applications remain two
+ * applications; only the browser's view of them changes. See `public-config.ts`.
  */
+const publicConfig = validatePublicConfigForBuild({
+  nodeEnv: process.env.NODE_ENV,
+  apiBaseUrl: process.env['NEXT_PUBLIC_API_BASE_URL'],
+  sessionCookieName: process.env['NEXT_PUBLIC_SESSION_COOKIE_NAME'],
+  apiProxyTarget: process.env['API_PROXY_TARGET'],
+});
+
 const config: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@tmanage/ui'],
   poweredByHeader: false,
+
+  async rewrites() {
+    return [...publicConfig.rewrites];
+  },
 
   async headers() {
     return [
