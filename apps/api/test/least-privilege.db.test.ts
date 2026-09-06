@@ -74,6 +74,28 @@ async function refused(pool: Pool, sql: string, params: unknown[] = []): Promise
 let db: TestDatabase;
 let world: SeedWorld;
 let app: Pool;
+let workerDb: TestDatabase;
+let worker: Pool;
+
+/**
+ * Where to connect as `tmanage_worker`.
+ *
+ * `TMANAGE_TEST_WORKER_DATABASE_URL` when an operator supplies one. Otherwise the same URL
+ * as the application's, with the worker's user and password substituted: `users.sql`
+ * creates both users on the same database with fixed local-development passwords, so any
+ * server that can offer `TMANAGE_TEST_APP_DATABASE_URL` has had that file applied and has
+ * this credential too. Deriving rather than demanding a second variable is deliberate —
+ * requiring one would mean the D07 cases skipped in CI, which is precisely where the
+ * database-wide worker grant went unnoticed for as long as it did.
+ */
+function workerDatabaseUrl(): string {
+  const configured = process.env['TMANAGE_TEST_WORKER_DATABASE_URL'];
+  if (configured !== undefined && configured !== '') return configured;
+  const url = new URL(leastPrivilegeDatabaseUrl());
+  url.username = 'tmanage_worker';
+  url.password = 'local_dev_only_worker';
+  return url.toString();
+}
 
 // Skipped where there is no least-privilege credential to test. That is not necessarily a
 // containerised run: any long-lived server which has had `scripts/db/users.sql` applied to
@@ -465,5 +487,70 @@ withCredential('the runtime user (tmanage_app)', () => {
     // so this is the production connect sequence, executed.
     expect(db.leastPrivilege).toBe(true);
     expect(db.connectionErrors).toEqual([]);
+  });
+});
+
+/**
+ * D07 — the relay credential and the credential tables.
+ *
+ * `tmanage_worker` held `SELECT ON `tmanage`.*` until D07, which meant the relay's
+ * connection string could read every password hash, every TOTP seed and every recovery
+ * code on the server for a process that reads neither. `users-sql.test.ts` asserts the
+ * grants file no longer says so; this asserts the server no longer does — the same
+ * distinction the block above draws between a file that was reviewed and a file that ran.
+ *
+ * The refusal must be `ER_TABLEACCESS_DENIED_ERROR` (1142) specifically, and errno is
+ * checked beside the code for the reason the header gives: only the privilege system
+ * produces it, so a passing case cannot be a trigger, a view, or a missing table wearing
+ * a denial's clothes.
+ */
+withCredential('the worker user (tmanage_worker)', () => {
+  beforeAll(async () => {
+    // Against the shared server this reconnects to the database the block above used and
+    // applies no migration — `startTestDatabase` treats the canonical database as
+    // outliving the process, and its `stop()` ends only the pools it opened. A second
+    // handle here is therefore a second pool, not a second server.
+    workerDb = await startTestDatabase();
+    worker = createPool({
+      uri: workerDatabaseUrl(),
+      connectionLimit: 2,
+      multipleStatements: false,
+      timezone: 'Z',
+      charset: 'utf8mb4_unicode_ci',
+    });
+  });
+
+  afterAll(async () => {
+    await worker?.end();
+    await workerDb?.stop();
+  });
+
+  it('is the relay credential, not the application’s', async () => {
+    // Without this the three refusals below would pass just as well against a credential
+    // that cannot reach the database at all, or against `tmanage_app` misconfigured.
+    const [rows] = await worker.query<RowDataPacket[]>('select current_user() as u');
+    expect(String(rows[0]?.['u'])).toMatch(/^tmanage_worker@/);
+  });
+
+  for (const table of ['user_passwords', 'user_mfa_factors', 'user_recovery_codes']) {
+    it(`cannot read ${table} — the relay never handles a credential`, async () => {
+      const error = await refused(worker, `select * from ${table}`);
+      expect(error.code).toBe(ER_TABLEACCESS_DENIED);
+      // 1142 is ER_TABLEACCESS_DENIED_ERROR's number. Asserted alongside the name because
+      // the name is the driver's mapping and the number is the server's own answer.
+      expect(error.errno).toBe(1142);
+      expect(error.message).toMatch(/SELECT command denied/i);
+    });
+  }
+
+  it('can still claim from the outbox — the narrowing is not an outage', async () => {
+    // The other half of every least-privilege change: a credential locked down until the
+    // relay stops working is an outage, not a control. This is the first statement the
+    // dispatcher issues, without the `FOR UPDATE SKIP LOCKED` that needs a transaction.
+    await expect(
+      worker.query(
+        'select id, type, organization_id from outbox_events where published_at is null limit 1',
+      ),
+    ).resolves.toBeDefined();
   });
 });
