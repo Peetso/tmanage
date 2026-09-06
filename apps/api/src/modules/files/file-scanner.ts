@@ -349,10 +349,32 @@ export class FileScanner {
       throw new ScanFailure('store_error');
     }
 
+    // A sink that breaks mid-write reports it to the write's callback *and* emits `error`;
+    // unheard, the event would take the process down with it. Heard, it is this pass's
+    // failure and nobody else's.
+    onError(promotion.sink, () => undefined);
+
     const toScanner = new PassThrough();
     const scanning = this.scanner.scan({ stream: toScanner, sizeBytes: version.sizeBytes });
-    // Settled either way below; an early engine reply must not be an unhandled rejection.
-    scanning.catch(() => undefined);
+    // The engine's settlement, watched from the moment it starts (W01, the Codex review of
+    // 2026-09-05). Once the engine has answered — a verdict, or a failure before the last
+    // byte — nothing drains the tee, so a write waiting on a full `PassThrough` would wait
+    // forever: the tee is destroyed and that write fails instead. An early engine reply is
+    // therefore never an unhandled rejection either.
+    let engineSettled = false;
+    let engineFailure: unknown = null;
+    const engine = scanning.then(
+      () => {
+        engineSettled = true;
+      },
+      (failure: unknown) => {
+        engineSettled = true;
+        engineFailure = failure ?? new Error('the scanner rejected without a reason');
+      },
+    );
+    void engine.then(() => {
+      if (!toScanner.writableEnded) destroy(toScanner);
+    });
     const hash = createHash('sha256');
     let result: ScanResult;
     let sizeBytes = 0;
@@ -369,12 +391,18 @@ export class FileScanner {
         toScanner.end();
         result = await scanning;
       } catch (error) {
-        // The scanner's own failure is the more precise one when both sides broke.
-        const scanFailure = await scanning.then(
-          () => null,
-          (failure: unknown) => failure,
-        );
-        if (scanFailure instanceof ScanError) throw new ScanFailure(scanFailure.failure);
+        // The engine's own failure is the more precise one when both sides broke — but
+        // only when it broke on its own. Whether it had is read *before* the tee is
+        // released: a drain-to-end engine waits for an end this side can no longer send
+        // (W01), so both streams are destroyed first and the engine is asked afterwards,
+        // and a failure it reports only because it was cut off does not rewrite the cause.
+        const engineBrokeFirst = engineSettled;
+        destroy(opened.stream);
+        destroy(toScanner);
+        await engine;
+        if (engineBrokeFirst && engineFailure instanceof ScanError) {
+          throw new ScanFailure(engineFailure.failure);
+        }
         if (error instanceof ScanFailure) throw error;
         if (error instanceof ScanError) throw new ScanFailure(error.failure);
         throw new ScanFailure('stream_error');
@@ -385,7 +413,10 @@ export class FileScanner {
     } catch (error) {
       destroy(opened.stream);
       destroy(toScanner);
-      await promotion.abort();
+      // Best effort, and separately observable: an abort that fails is one line on stderr
+      // and the staged write is the next conclusion's to remove. It never replaces the
+      // cause above — except a store that is not there at all, which stops the pass.
+      await this.abortQuietly(promotion);
       throw error;
     }
 
@@ -603,6 +634,15 @@ export class FileScanner {
     }
   }
 
+  private async abortQuietly(promotion: Promotion): Promise<void> {
+    try {
+      await promotion.abort();
+    } catch (error) {
+      if (error instanceof ObjectStoreUnavailableError) throw error;
+      console.error(`[scanner] aborting a staged promotion failed`, describeFailure(error));
+    }
+  }
+
   private async withdrawQuietly(objectKey: string): Promise<void> {
     try {
       await this.store.withdraw({ objectKey });
@@ -614,10 +654,46 @@ export class FileScanner {
   }
 }
 
+/**
+ * A write's callback is not guaranteed once the sink is destroyed mid-flight: a write
+ * already blocked behind a full `PassThrough` that nobody drains can be left uncalled
+ * by `.destroy()` (W01, the Codex review of 2026-09-06). `close` always follows a
+ * destroy, so it is the fallback that unblocks this promise either way.
+ */
 function writeTo(sink: NodeJS.WritableStream, chunk: Buffer): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    sink.write(chunk, (error) => (error ? reject(error) : resolve()));
+    let settled = false;
+    const cleanup = () => {
+      sink.off('error', onError);
+      sink.off('close', onClose);
+    };
+    const onError = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onClose = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error('the sink closed before this write settled'));
+    };
+    sink.once('error', onError);
+    sink.once('close', onClose);
+    sink.write(chunk, (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    });
   });
+}
+
+function onError(stream: NodeJS.WritableStream, listener: (error: Error) => void): void {
+  const candidate = stream as { on?: (event: 'error', listener: (error: Error) => void) => void };
+  if (typeof candidate.on === 'function') candidate.on('error', listener);
 }
 
 function destroy(stream: NodeJS.ReadableStream | NodeJS.WritableStream): void {
