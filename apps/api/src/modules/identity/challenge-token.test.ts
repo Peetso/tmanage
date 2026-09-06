@@ -146,6 +146,7 @@ describe('the Argon2 parameters agree with packages/config', () => {
     WEB_PUBLIC_URL: 'http://localhost:3000',
     SESSION_SECRET: 'local_dev_only_session_secret_change_me_00000000000',
     CSRF_SECRET: 'local_dev_only_csrf_secret_change_me_0000000000',
+    AUTH_MFA_SEED_KEYS: '1:local_dev_only_mfa_seed_key_change_me_00000',
     STORAGE_BUCKET: 'tmanage-local',
     STORAGE_ENDPOINT: 'http://127.0.0.1:9000',
     STORAGE_ACCESS_KEY_ID: 'local',

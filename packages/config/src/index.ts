@@ -9,3 +9,5 @@ export {
   UPLOAD_PART_SIZE_MIN_BYTES,
 } from './env.js';
 export type { Env } from './env.js';
+export { parseSeedKeys } from './seed-keys.js';
+export type { SeedKey, SeedKeyring } from './seed-keys.js';
