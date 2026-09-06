@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-06 (Claude-only run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-06 (Claude-only run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); D07 (TOTP seed encryption) in progress on `d07-totp-seed-encryption`. Previous run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -66,6 +66,24 @@ slices A–C) closed on 2026-09-05; D05, W01, W02 and D06 are review corrections
 ticket. Remaining P1 findings from the 2026-09-05 review: **D07** (TOTP seeds in plaintext),
 **D08** (password endpoint without source-based abuse control), **D09** (proxy headers,
 conditional).
+
+---
+
+## The chain on `2a15603` — green, recorded after the fact
+
+The documented chain was launched on `master` at `2a15603` (the D06 merge) by run
+`claude-auto-1788718770` (2026-09-06 21:39 local,
+`d06-password-cutoff-2026-09-06/master-chain/chain.sh`, log `chain.log`) and finished at
+22:13 local under the next run, `claude-auto-1788721119`, which read the log and the process
+table before recording it. Every step exit 0, in the `pnpm verify` order: `build:packages`,
+`build:worker`, `format:check`, `typecheck`, `lint`, `contracts:validate`, `audit:design`,
+`test` (unit, every package), then `test:db` **41 files, 966 tests pass, 29 skipped** (28
+minutes, `step-test-db.log`) and `test:e2e` **20 passed** (2.9 minutes, `step-test-e2e.log`),
+both serialised under `locks/db-e2e.lock`, which the chain released itself; `CHAIN END PASS
+2026-09-06T19:13:15Z` and no `mysqld`, `vitest` or `playwright` process left behind. The same
+two untracked Codex artefacts were ignored for `format:check` and `lint` as before; the DB
+suites still ran on embedded MySQL 8.0, not MariaDB. With the chain green and recorded,
+`master` was pushed to `origin` by the recording run.
 
 ---
 
