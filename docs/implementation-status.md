@@ -6,7 +6,66 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-06 (Claude-only run `claude-auto-1788718770`: the post-merge chain on `master` `9129b5b` is **green and recorded** — see "The chain on `9129b5b`" below — so `master` is pushed; the session/browser slice (D01–D04, D19, D20), D05 re-authentication (`06c373e`) and the W01 scanner fix (`4f3ff99`) are all on `master`; Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-06 (Claude-only run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+
+---
+
+## D06 — replacing a password left every other session alive: fixed, proved, merged
+
+**Finding** (Codex review of 2026-09-05, `CLAUDE-REVIEW-REPORT.md` lines 134–141, P1):
+`AuthenticationService.setPassword` wrote the new hash and an authentication event and
+nothing else, so a person replacing their password to recover from a suspected compromise
+left every session the intruder already held alive, access and refresh alike. Confirmed at
+`8c59cc6` by reading `setPassword` (no call to any revocation) and `SessionService`, whose
+`revokeAllForUser` existed and was called by nobody.
+
+**Policy chosen** (Peter delegated the open decisions on 2026-09-05): replacing a password ends
+**every other live session** of the person, in the **same transaction** as the new hash, with
+`sessions.revoked_reason = 'password_changed'`. The session that carried the change is kept — it
+is the device in the person's hand, and `D05` already bound the proof to it, which is the
+fresh proof the finding asks for before a session survives. Refresh credentials end with the
+session row, because `SessionService.refresh` and `authenticate` both refuse a revoked
+session; nothing separate is needed for them. A **first** password ends nothing: no session
+was ever opened against a password that is now stale. A refused or rejected replacement (no
+proof, weak password) ends nothing either — the cutoff lands with the hash or not at all.
+
+**What was built** (branch `d06-password-session-cutoff`, commit `87fc4fd`, rebased on
+`8c59cc6`):
+
+- `SessionsRepository.revokeOthersForUser(runner, userId, keepSessionId, reason)` — the
+  `revokeAllForUser` statement with one `id <> keep` predicate added; live rows only.
+- `AuthenticationService` takes a `SessionsRepository` as a fifth constructor argument
+  (stateless, so the default is the real one and `identity.module.ts` is unchanged) and
+  exports `PASSWORD_CHANGE_REVOCATION_REASON`. `setPassword` reads whether a password already
+  exists (it did for `D05`), and when it does the transaction declares `sessions` as well as the
+  identity tables and revokes the others between writing the hash and recording the event.
+- No web change: no screen calls `setPassword` yet (recorded under D05), so the user-facing
+  explanation the finding asks for belongs to the first screen that does. Recorded as open.
+
+**Evidence** (`C:/Users/Peter/Documents/ChatGPT/TManage/d06-password-cutoff-2026-09-06/`):
+`pnpm typecheck` for `@tmanage/api` and `@tmanage/web` clean (the first web run failed only
+because the worktree's built `@tmanage/config` predated W02; `pnpm build:packages` fixed it);
+eslint and prettier on the four touched files clean; `@tmanage/api` unit project **24 files,
+337 tests, all pass**; `id-002-credentials.db.test.ts` + `id-002-auth-http.db.test.ts` +
+`sessions.db.test.ts` on the local database under `locks/db-e2e.lock`, **3 files, 122 tests,
+all pass** (`db-identity-run.log`) — three new service-level cases under `D06 — replacing a
+password ends every other session` (revokes the others with the reason and keeps the proving
+one, and never touches another person's sessions; ends nothing on a first password; ends
+nothing on a refused or rejected replacement) and one HTTP acceptance case exactly as the
+review states it (two devices, the other one answers 401 on the device list and on refresh
+immediately, the device in hand still refreshes and lists one session). Reverse proof by file
+copy, never `git checkout`: with the `HEAD` service and repository swapped back in and the new
+tests kept, **the two revocation cases fail and the two "ends nothing" guards pass**
+(`reverse-run.log`, 2 failed / 77 passed); the corrected bytes restored by copy re-pass
+(`restore-run.log`, 79/79), SHA-256 verified before and after (`hashes-corrected.txt`,
+`hashes-reverse-state.txt`, `hashes-after-restore.txt`).
+
+**Ticket accounting.** A defect closed, not a ticket: **35 of 70 tickets, 285 of 583 points
+(48.9%)** unchanged. Re-derived this run against the sections below: FILE-002 (13 points,
+slices A–C) closed on 2026-09-05; D05, W01, W02 and D06 are review corrections that close no
+ticket. Remaining P1 findings from the 2026-09-05 review: **D07** (TOTP seeds in plaintext),
+**D08** (password endpoint without source-based abuse control), **D09** (proxy headers,
+conditional).
 
 ---
 

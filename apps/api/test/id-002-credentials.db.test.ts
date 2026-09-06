@@ -10,6 +10,7 @@ import {
 } from '../src/modules/identity/authentication.service.js';
 import type { AuthenticationOptions } from '../src/modules/identity/authentication.service.js';
 import { CredentialsRepository } from '../src/modules/identity/credentials.repository.js';
+import { SessionsRepository } from '../src/modules/identity/sessions.repository.js';
 import { signChallengeToken } from '../src/modules/identity/challenge-token.js';
 import { signReauthToken } from '../src/modules/identity/reauth-token.js';
 import { hashPassword } from '../src/modules/identity/password.js';
@@ -156,6 +157,8 @@ beforeEach(async () => {
       'user_mfa_factors',
       'user_passwords',
       'authentication_events',
+      'session_refresh_tokens',
+      'sessions',
     ]) {
       await db.admin.query(`TRUNCATE TABLE \`${table}\``);
     }
@@ -1230,5 +1233,115 @@ describe('the log', () => {
         await db.query('select id from projects limit 1', []);
       }),
     ).rejects.toBeInstanceOf(IdentityScopeViolation);
+  });
+});
+
+/**
+ * `D06`. A password is replaced to *recover* from a suspected compromise as often as for any
+ * other reason, and a session the intruder already holds does not care that the password it
+ * was opened with is gone. So replacing the password ends every other live session the person
+ * has, in the same transaction as the new hash — the row and the cutoff land together or not
+ * at all. The session that proved itself (`D05` bound the proof to it) is the one kept: it is
+ * the device the person is holding, and signing it out would turn the recovery into a lockout.
+ * A *first* password ends nothing, because no session was ever opened against a password that
+ * is now stale.
+ */
+describe('D06 — replacing a password ends every other session', () => {
+  const sessionsRepository = new SessionsRepository();
+  const SESSION_TABLES = ['sessions', 'session_refresh_tokens'];
+
+  /** A live session row, opened directly: this file is about credentials, not sign-in. */
+  async function openSession(userId: string, agent: string): Promise<string> {
+    const row = await tenant.identityTransaction(
+      { correlationId: uuidv7(), tables: SESSION_TABLES },
+      (tx) =>
+        sessionsRepository.create(tx, {
+          userId,
+          refreshTokenHash: uuidv7().replaceAll('-', '').padEnd(64, '0'),
+          userAgent: agent,
+          ttlSeconds: 3600,
+        }),
+    );
+    return row.id;
+  }
+
+  async function sessionRows(userId: string): Promise<RowDataPacket[]> {
+    return observe(
+      'select id, revoked_at, revoked_reason from sessions where user_id = ? order by id',
+      [userId],
+    );
+  }
+
+  it('revokes the other sessions with the reason recorded, and keeps the proving one', async () => {
+    await giveOwnerAPassword();
+    const here = await openSession(owner().id, 'the laptop in hand');
+    const elsewhere = await openSession(owner().id, 'a phone left on a desk');
+    const another = await openSession(owner().id, 'an intruder');
+    const someoneElse = await openSession(designer().id, 'a colleague');
+
+    await service.setPassword({
+      userId: owner().id,
+      sessionId: here,
+      password: 'a different quiet line',
+      reauthToken: proofFor(owner().id, here),
+      context: context(),
+    });
+
+    const rows = await sessionRows(owner().id);
+    const byId = new Map(rows.map((row) => [row['id'], row]));
+    expect(byId.get(here)!['revoked_at']).toBeNull();
+    for (const ended of [elsewhere, another]) {
+      expect(byId.get(ended)!['revoked_at']).not.toBeNull();
+      expect(byId.get(ended)!['revoked_reason']).toBe('password_changed');
+    }
+    // Another person's session is not this person's to end.
+    const theirs = await sessionRows(designer().id);
+    expect(theirs).toHaveLength(1);
+    expect(theirs[0]!['id']).toBe(someoneElse);
+    expect(theirs[0]!['revoked_at']).toBeNull();
+  });
+
+  it('ends nothing when the first password is set', async () => {
+    const here = await openSession(owner().id, 'the laptop in hand');
+    const elsewhere = await openSession(owner().id, 'a phone');
+
+    await service.setPassword({
+      userId: owner().id,
+      sessionId: here,
+      password: PASSWORD,
+      context: context(),
+    });
+
+    const rows = await sessionRows(owner().id);
+    expect(rows.map((row) => row['revoked_at'])).toEqual([null, null]);
+    expect(rows.map((row) => row['id'])).toEqual([here, elsewhere].sort());
+  });
+
+  it('ends nothing when the replacement is refused or rejected', async () => {
+    await giveOwnerAPassword();
+    const here = await openSession(owner().id, 'the laptop in hand');
+    await openSession(owner().id, 'a phone');
+
+    await expect(
+      service.setPassword({
+        userId: owner().id,
+        sessionId: here,
+        password: 'a different quiet line',
+        context: context(),
+      }),
+    ).rejects.toBeInstanceOf(ReauthenticationRequiredError);
+    await expect(
+      service.setPassword({
+        userId: owner().id,
+        sessionId: here,
+        password: 'password',
+        reauthToken: proofFor(owner().id, here),
+        context: context(),
+      }),
+    ).rejects.toBeInstanceOf(PasswordRejectedError);
+
+    const rows = await sessionRows(owner().id);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row['revoked_at'])).toEqual([null, null]);
   });
 });

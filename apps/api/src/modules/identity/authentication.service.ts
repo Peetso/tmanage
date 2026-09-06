@@ -16,6 +16,7 @@ import {
 import { REAUTH_TTL_SECONDS, signReauthToken, verifyReauthToken } from './reauth-token.js';
 import { findRecoveryCode, generateRecoveryCodes } from './recovery-codes.js';
 import { generateTotpSecret, totpUri, verifyTotp } from './totp.js';
+import { SessionsRepository } from './sessions.repository.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -66,6 +67,12 @@ const IDENTITY_TABLES = [
   'user_recovery_codes',
   'authentication_events',
 ] as const;
+
+/**
+ * `D06`. Recorded on `sessions.revoked_reason` for every session a password replacement ends.
+ * A lifecycle reason, not a security finding: the person chose the change.
+ */
+export const PASSWORD_CHANGE_REVOCATION_REASON = 'password_changed';
 
 /**
  * A real Argon2id hash of a value nobody knows, used to keep the unknown-user path as
@@ -210,6 +217,8 @@ export class AuthenticationService {
     credentials: CredentialsRepository = new CredentialsRepository(),
     /** Injectable so a test can drive the TOTP window without waiting thirty seconds. */
     private readonly now: () => number = () => Date.now(),
+    /** `D06`: the session cutoff a password replacement applies. Stateless, so the default is real. */
+    private readonly sessions: SessionsRepository = new SessionsRepository(),
   ) {
     this.credentials = credentials;
   }
@@ -625,6 +634,16 @@ export class AuthenticationService {
    * a row already exists is read before the new value is hashed. An invited person finishing
    * enrolment has no password to re-present, and demanding one would make the account
    * unusable rather than safer. Once a password exists, it is the proof.
+   *
+   * `D06`: replacing a password ends every *other* live session, in the same transaction as
+   * the new hash. A password is replaced to recover from a suspected compromise as often as
+   * for any other reason, and a session an intruder already holds is not ended by the
+   * password it was opened with going stale — only by a cutoff. The session that carried the
+   * proof is kept: it is the device the person is holding, and the change it just made is the
+   * fresh proof `D06` asks for before a session survives. Refresh credentials end with the
+   * session row (`SessionService.refresh` refuses a revoked session), so nothing has to be
+   * done to them separately. A first password ends nothing: no session was ever opened
+   * against a password that is now stale.
    */
   async setPassword(input: {
     userId: string;
@@ -661,11 +680,23 @@ export class AuthenticationService {
     }
 
     const hash = await hashPassword(input.password);
+    const replacing = existing !== null;
 
     await this.database.identityTransaction(
-      { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
+      {
+        correlationId: input.context.correlationId,
+        tables: replacing ? [...IDENTITY_TABLES, 'sessions'] : [...IDENTITY_TABLES],
+      },
       async (tx) => {
         await this.credentials.setPassword(tx, input.userId, hash);
+        if (replacing) {
+          await this.sessions.revokeOthersForUser(
+            tx,
+            input.userId,
+            input.sessionId,
+            PASSWORD_CHANGE_REVOCATION_REASON,
+          );
+        }
         await this.credentials.recordAuthenticationEvent(tx, {
           userId: input.userId,
           action: AUTHENTICATION_ACTIONS.passwordSet,

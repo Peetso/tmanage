@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { sessionRefreshTokens, sessions } from '../../common/database/schema.js';
@@ -222,6 +222,32 @@ export class SessionsRepository {
       .update(sessions)
       .set({ revokedAt: sql`current_timestamp(3)`, revokedReason: reason })
       .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)));
+    return result[0].affectedRows;
+  }
+
+  /**
+   * `D06`: the cutoff that spares one session. Every live session this person holds ends
+   * except `keepSessionId` — the one that just proved itself for the change that is ending the
+   * others. Same statement shape as {@link revokeAllForUser}; the exception is the only
+   * difference, and it is applied here rather than by re-issuing the kept session, because a
+   * session that is ended and re-opened is a different row with a different history.
+   */
+  async revokeOthersForUser(
+    runner: IdentityQueryRunner,
+    userId: string,
+    keepSessionId: string,
+    reason: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .update(sessions)
+      .set({ revokedAt: sql`current_timestamp(3)`, revokedReason: reason })
+      .where(
+        and(
+          eq(sessions.userId, userId),
+          ne(sessions.id, keepSessionId),
+          isNull(sessions.revokedAt),
+        ),
+      );
     return result[0].affectedRows;
   }
 
