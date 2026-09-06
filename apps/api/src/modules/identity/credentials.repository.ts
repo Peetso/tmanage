@@ -14,6 +14,7 @@ import type {
   UserRecoveryCodeRow,
 } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
+import type { SeedCipher } from './seed-cipher.js';
 
 /**
  * Credential storage — ID-002's persistence half.
@@ -35,6 +36,21 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  * Passwords arrive already hashed by `password.ts`; recovery codes arrive already hashed by
  * `recovery-codes.ts`. A TOTP secret is the one credential stored recoverably, because the
  * algorithm needs it back — see the note on the column in migration 0004.
+ *
+ * ## The seed is encrypted here and nowhere else — D07 (2026-09-06)
+ *
+ * "Recoverably" used to mean the base32 seed went into the column exactly as the
+ * authenticator produced it, so a dump or a backup disclosed every second factor. It now
+ * means an `mfa1.` envelope from {@link SeedCipher}, and this class is the boundary: every
+ * write encrypts, every read that hands a secret upward decrypts, and the service, `totp.ts`
+ * and the controller above continue to see the base32 seed they always saw. One boundary
+ * rather than a call at each use site, because the property that
+ * matters — nothing above this line ever holds ciphertext, nothing below it ever holds a
+ * seed — is only checkable if there is one line.
+ *
+ * A value that will not open is not swallowed. A `SeedCipherError` propagates out of the
+ * read, and every caller here already fails closed on a repository error, so a tampered row
+ * or a leftover plaintext one refuses a sign-in rather than quietly permitting it.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,6 +58,16 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class CredentialsRepository {
+  /**
+   * The cipher is injected rather than built here, and it has no default.
+   *
+   * A default would have to invent a keyring, and the only keyring this file could invent
+   * is one that is not the deployment's — which would encrypt seeds under a key nobody
+   * keeps, and open none of the rows already stored. Constructing this class therefore
+   * requires having decided where the key comes from; `identity.module.ts` decides.
+   */
+  constructor(private readonly seeds: SeedCipher) {}
+
   /** The password row for a user, or `null` when they have never set one. */
   async findPassword(runner: IdentityQueryRunner, userId: string): Promise<UserPasswordRow | null> {
     const rows = await tenantDrizzle(runner)
@@ -122,7 +148,7 @@ export class CredentialsRepository {
     runner: IdentityQueryRunner,
     userId: string,
   ): Promise<readonly UserMfaFactorRow[]> {
-    return tenantDrizzle(runner)
+    const rows = await tenantDrizzle(runner)
       .select()
       .from(userMfaFactors)
       .where(
@@ -133,6 +159,7 @@ export class CredentialsRepository {
         ),
       )
       .orderBy(desc(userMfaFactors.createdAt));
+    return rows.map((row) => this.open(row));
   }
 
   /** Every factor a person holds, confirmed or not, for the security screen. */
@@ -140,11 +167,12 @@ export class CredentialsRepository {
     runner: IdentityQueryRunner,
     userId: string,
   ): Promise<readonly UserMfaFactorRow[]> {
-    return tenantDrizzle(runner)
+    const rows = await tenantDrizzle(runner)
       .select()
       .from(userMfaFactors)
       .where(and(eq(userMfaFactors.userId, userId), isNull(userMfaFactors.disabledAt)))
       .orderBy(desc(userMfaFactors.createdAt));
+    return rows.map((row) => this.open(row));
   }
 
   async findFactor(
@@ -156,7 +184,8 @@ export class CredentialsRepository {
       .from(userMfaFactors)
       .where(eq(userMfaFactors.id, factorId))
       .limit(1);
-    return rows[0] ?? null;
+    const row = rows[0];
+    return row === undefined ? null : this.open(row);
   }
 
   /** Begin enrolment. The row exists and authorises nothing until `confirmFactor` succeeds. */
@@ -172,10 +201,24 @@ export class CredentialsRepository {
         userId: input.userId,
         kind: input.kind,
         label: input.label,
-        secret: input.secret,
+        // The seed the caller generated goes no further than this line in the clear.
+        secret: this.seeds.encrypt(input.secret, { userId: input.userId }),
         createdAt: sql`current_timestamp(3)`,
       });
     return id;
+  }
+
+  /**
+   * Turn a stored row into the row the rest of the application expects.
+   *
+   * The row's own `user_id` is the additional authenticated data, which is what makes a
+   * ciphertext non-portable: copied into another person's row it fails here, because the id
+   * this decrypt is asked for is not the id the tag covers. Reading the id from the row
+   * rather than from the caller's argument matters — a caller that passed the wrong id would
+   * otherwise be able to make the check pass.
+   */
+  private open(row: UserMfaFactorRow): UserMfaFactorRow {
+    return { ...row, secret: this.seeds.decrypt(row.secret, { userId: row.userId }) };
   }
 
   /**

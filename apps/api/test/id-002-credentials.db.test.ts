@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
+import { parseSeedKeys } from '@tmanage/config';
 import type { RowDataPacket } from 'mysql2/promise';
 import { IdentityScopeViolation, TenantDatabase } from '../src/common/database/tenant-context.js';
 import {
@@ -10,6 +11,8 @@ import {
 } from '../src/modules/identity/authentication.service.js';
 import type { AuthenticationOptions } from '../src/modules/identity/authentication.service.js';
 import { CredentialsRepository } from '../src/modules/identity/credentials.repository.js';
+import { createSeedCipher, SeedCipherError } from '../src/modules/identity/seed-cipher.js';
+import { encryptSeeds } from '../src/modules/identity/seed-backfill.repository.js';
 import { SessionsRepository } from '../src/modules/identity/sessions.repository.js';
 import { signChallengeToken } from '../src/modules/identity/challenge-token.js';
 import { signReauthToken } from '../src/modules/identity/reauth-token.js';
@@ -37,6 +40,9 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * 4. **The log is append-only and is not `audit_events`.** It records attempts that name no
  *    user at all, which is precisely why it cannot live in a table whose `organization_id` is
  *    NOT NULL.
+ * 5. **A TOTP seed is not readable from the table** — D07. The column holds an `mfa1.`
+ *    envelope; an altered one, or one moved to another person's row, refuses a sign-in
+ *    rather than granting it; and a row left in plaintext refuses too, naming the backfill.
  */
 
 let db: TestDatabase;
@@ -45,7 +51,16 @@ let tenant: TenantDatabase;
 let service: AuthenticationService;
 let clockMs: number;
 
-const repository = new CredentialsRepository();
+/** Obviously fake keys: a byte repeated thirty-two times. Nothing here is a real key. */
+const seedKey = (fill: number): string => Buffer.alloc(32, fill).toString('base64url');
+
+/**
+ * The suite runs on key version 1 alone, so every enrolment below writes `mfa1.1.…` and the
+ * rotation case has something older than the active key to sweep.
+ */
+const seedCipher = createSeedCipher(parseSeedKeys(`1:${seedKey(0x11)}`));
+
+const repository = new CredentialsRepository(seedCipher);
 
 const SECRET = 'local_dev_only_session_secret_for_the_credentials_suite';
 
@@ -1343,5 +1358,232 @@ describe('D06 — replacing a password ends every other session', () => {
     const rows = await sessionRows(owner().id);
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row['revoked_at'])).toEqual([null, null]);
+  });
+});
+
+/**
+ * `D07`. The TOTP seed was written to `user_mfa_factors.secret` exactly as the authenticator
+ * produced it, so a database dump or a backup disclosure handed over every second factor in
+ * the system. It now holds an AES-256-GCM envelope under a key that lives in the
+ * environment, and the cases below are the four things that has to mean in a real database
+ * rather than in a unit test: the column no longer holds the seed; editing it breaks it;
+ * moving it between rows breaks it; and a row nobody has swept yet refuses rather than works.
+ *
+ * `db.admin` is used to read and to corrupt the column directly, exactly as the cases above
+ * use it to observe what actually landed — the point is what an attacker with database
+ * access can and cannot do, so the assertions have to be made from that side of the line.
+ */
+describe('D07 — the seed is ciphertext in the column', () => {
+  /** Keys 1 and 2. Version 2 is active, so version 1 rows are what the sweep rotates. */
+  const rotatedCipher = createSeedCipher(parseSeedKeys(`1:${seedKey(0x11)};2:${seedKey(0x22)}`));
+
+  /** A real seed shape: RFC 4648 base32, which is what the column held before D07. */
+  const LEGACY_SEED = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+
+  async function givePassword(userId: string): Promise<void> {
+    const hash = await hashPassword(PASSWORD);
+    await tenant.identityTransaction(identity(), (tx) => repository.setPassword(tx, userId, hash));
+  }
+
+  async function enrolTotpFor(
+    user: { id: string; email: string },
+    label: string,
+  ): Promise<{ factorId: string; secret: string }> {
+    const begun = await service.beginTotpEnrolment({
+      userId: user.id,
+      accountName: user.email,
+      label,
+      context: context(),
+    });
+    await service.confirmTotpFactor({
+      userId: user.id,
+      factorId: begun.factorId,
+      code: codeFor(begun.secret, clockMs),
+      context: context(),
+    });
+    return { factorId: begun.factorId, secret: begun.secret };
+  }
+
+  /** The column as a dump would show it. Never through the repository, which decrypts. */
+  async function rawSecret(factorId: string): Promise<string> {
+    const rows = await observe('select secret from user_mfa_factors where id = ?', [factorId]);
+    return String(rows[0]!['secret']);
+  }
+
+  async function setRawSecret(factorId: string, secret: string): Promise<void> {
+    await db.admin.query('update user_mfa_factors set secret = ? where id = ?', [secret, factorId]);
+  }
+
+  /** Alter one character of the ciphertext field, keeping it valid base64url. */
+  function tamper(envelope: string): string {
+    const parts = envelope.split('.');
+    const ciphertext = parts[3];
+    if (ciphertext === undefined) throw new Error('not an envelope');
+    parts[3] = (ciphertext[0] === 'A' ? 'B' : 'A') + ciphertext.slice(1);
+    return parts.join('.');
+  }
+
+  async function refusal(work: Promise<unknown>): Promise<SeedCipherError> {
+    const error = await work.catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(SeedCipherError);
+    return error as SeedCipherError;
+  }
+
+  /** (a) The acceptance criterion: a dump contains ciphertext rather than a usable seed. */
+  it('writes an envelope, not the seed the enrolment handed back', async () => {
+    const begun = await service.beginTotpEnrolment({
+      userId: owner().id,
+      accountName: owner().email,
+      label: 'Test phone',
+      context: context(),
+    });
+
+    expect(await rawSecret(begun.factorId)).toMatch(/^mfa1\.1\./);
+    // The whole row, not just the column: nothing else quietly keeps a copy.
+    const rows = await observe('select * from user_mfa_factors where id = ?', [begun.factorId]);
+    expect(JSON.stringify(rows)).not.toContain(begun.secret);
+  });
+
+  /** (b) "Altered ciphertext is rejected", stated as the thing a person would notice. */
+  it('refuses the sign-in after one character of the stored ciphertext is altered', async () => {
+    await givePassword(owner().id);
+    const enrolled = await enrolTotpFor(owner(), 'Test phone');
+    clockMs += 30_000;
+
+    await setRawSecret(enrolled.factorId, tamper(await rawSecret(enrolled.factorId)));
+
+    const error = await refusal(
+      service.signInWithPassword({
+        email: owner().email,
+        password: PASSWORD,
+        context: context(),
+      }),
+    );
+    // Not "wrong code", and not a challenge either: the read fails, so no sign-in of any
+    // kind is offered. Failing closed is the whole point of the tag.
+    expect(error.reason).toBe('authentication_failed');
+  });
+
+  /** (c) The AAD, under test. Ciphertext is not portable between rows. */
+  it('refuses a ciphertext moved into another person’s row', async () => {
+    await givePassword(owner().id);
+    await givePassword(designer().id);
+    const ownersFactor = await enrolTotpFor(owner(), 'Owner phone');
+    const designersFactor = await enrolTotpFor(designer(), 'Designer phone');
+
+    await setRawSecret(designersFactor.factorId, await rawSecret(ownersFactor.factorId));
+
+    const error = await refusal(
+      service.signInWithPassword({
+        email: designer().email,
+        password: PASSWORD,
+        context: context(),
+      }),
+    );
+    expect(error.reason).toBe('authentication_failed');
+
+    // And the row it was copied from is untouched, so this is the transplant failing rather
+    // than the suite having broken both factors.
+    clockMs += 30_000;
+    const outcome = await service.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(outcome.status).toBe('mfa_required');
+  });
+
+  /** (d) "Rotation works": a second key, a sweep, and the same authenticator still signs in. */
+  it('rotates a factor onto a new key version without invalidating the authenticator', async () => {
+    await givePassword(owner().id);
+    const enrolled = await enrolTotpFor(owner(), 'Test phone');
+    expect(await rawSecret(enrolled.factorId)).toMatch(/^mfa1\.1\./);
+
+    const report = await encryptSeeds(db.admin, rotatedCipher);
+    expect(report).toMatchObject({
+      plaintextEncrypted: 0,
+      rotated: 1,
+      unchanged: 0,
+      failed: 0,
+    });
+    expect(await rawSecret(enrolled.factorId)).toMatch(/^mfa1\.2\./);
+
+    // The API restarted with both keys: same options, same clock, a repository holding the
+    // rotated keyring. The person's authenticator knows nothing about any of this.
+    const rotated = new AuthenticationService(
+      tenant,
+      OPTIONS,
+      new CredentialsRepository(rotatedCipher),
+      () => clockMs,
+    );
+    clockMs += 30_000;
+    const challenge = await rotated.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    if (challenge.status !== 'mfa_required') throw new Error('expected a challenge');
+    const completed = await rotated.completeMfaChallenge({
+      challengeToken: challenge.challengeToken,
+      code: codeFor(enrolled.secret, clockMs),
+      context: context(),
+    });
+    expect(completed).toEqual({ status: 'authenticated', userId: owner().id });
+
+    // A second sweep has nothing left to do, which is what makes the command safe to re-run.
+    expect(await encryptSeeds(db.admin, rotatedCipher)).toMatchObject({
+      rotated: 0,
+      unchanged: 1,
+      failed: 0,
+    });
+  });
+
+  /**
+   * (e) A row from before the backfill. It holds a *usable* seed, which is exactly why it
+   * must not be used: accepting it would leave plaintext working forever, invisibly.
+   */
+  it('refuses a row still holding a bare seed, and names the command that fixes it', async () => {
+    await givePassword(owner().id);
+    const factorId = uuidv7();
+    await db.admin.query(
+      `insert into user_mfa_factors (id, user_id, kind, label, secret, confirmed_at, created_at)
+       values (?, ?, 'totp', 'Legacy phone', ?, current_timestamp(3), current_timestamp(3))`,
+      [factorId, owner().id, LEGACY_SEED],
+    );
+
+    const error = await refusal(
+      service.signInWithPassword({
+        email: owner().email,
+        password: PASSWORD,
+        context: context(),
+      }),
+    );
+    expect(error.reason).toBe('not_encrypted');
+    expect(error.message).toContain('mfa:encrypt-seeds');
+  });
+
+  it('encrypts that row when the backfill is run, keeping the seed the person enrolled', async () => {
+    await givePassword(owner().id);
+    const factorId = uuidv7();
+    await db.admin.query(
+      `insert into user_mfa_factors (id, user_id, kind, label, secret, confirmed_at, created_at)
+       values (?, ?, 'totp', 'Legacy phone', ?, current_timestamp(3), current_timestamp(3))`,
+      [factorId, owner().id, LEGACY_SEED],
+    );
+
+    const report = await encryptSeeds(db.admin, seedCipher);
+    expect(report).toMatchObject({ plaintextEncrypted: 1, rotated: 0, failed: 0 });
+
+    const stored = await rawSecret(factorId);
+    expect(stored).toMatch(/^mfa1\.1\./);
+    expect(seedCipher.decrypt(stored, { userId: owner().id })).toBe(LEGACY_SEED);
+
+    // And the sign-in the previous case refused now reaches the challenge.
+    const outcome = await service.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(outcome.status).toBe('mfa_required');
   });
 });

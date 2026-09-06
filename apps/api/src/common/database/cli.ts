@@ -1,6 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { parseSeedKeys } from '@tmanage/config';
+import type { SeedKeyring } from '@tmanage/config';
+import { createSeedCipher } from '../../modules/identity/seed-cipher.js';
+import {
+  encryptSeeds,
+  seedEncryptionStatus,
+} from '../../modules/identity/seed-backfill.repository.js';
 import { createMigrationConnection } from './connection.js';
 import {
   migrate,
@@ -11,12 +18,19 @@ import {
 } from './migrator.js';
 
 /**
- * `pnpm db:migrate` / `db:status` / `db:reset` / `db:grants`.
+ * `pnpm db:migrate` / `db:status` / `db:reset` / `db:grants`, and D07's
+ * `mfa:encrypt-seeds` / `mfa:seeds-status`.
  *
  * Reads `DATABASE_MIGRATION_URL` directly rather than through `loadEnv`: this process needs
  * one variable, and demanding the API's full environment (public URLs, session secrets,
  * storage credentials) to run a migration would push operators toward inventing values for
  * settings the migrator never uses. Full validation still happens at API boot.
+ *
+ * The `mfa-seeds` subcommands need a second variable, `AUTH_MFA_SEED_KEYS`, read the same
+ * way and for the same reason. They run on the **migration** credential rather than the
+ * runtime one on purpose: `tmanage_app` holds INSERT and UPDATE on `user_mfa_factors` for
+ * the sign-in path, and a maintenance sweep over every second factor in the system is not
+ * something the process serving requests should be able to start.
  */
 
 const MIGRATIONS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../../migrations');
@@ -106,8 +120,82 @@ async function main(): Promise<number> {
         return 0;
       }
 
+      // D07 — `pnpm --filter @tmanage/api mfa:encrypt-seeds` / `mfa:seeds-status`.
+      //
+      // `encrypt` is the command every error message about an unencrypted seed names, and
+      // it is also the second half of a key rotation: append a higher version to
+      // `AUTH_MFA_SEED_KEYS`, restart, run this, then drop the old entry once `status`
+      // reports no rows left under it. Re-running is safe — a row already on the active key
+      // is counted and not written.
+      case 'mfa-seeds': {
+        const action = process.argv[3];
+        if (action !== 'encrypt' && action !== 'status') {
+          process.stderr.write(`unknown subcommand '${action ?? ''}' (encrypt | status)\n`);
+          return 2;
+        }
+
+        const raw = process.env['AUTH_MFA_SEED_KEYS'];
+        if (!raw) {
+          process.stderr.write(
+            'AUTH_MFA_SEED_KEYS is not set. It must hold the same keyring the API runs ' +
+              'with,\notherwise this command would write rows the API cannot open.\n',
+          );
+          return 2;
+        }
+
+        // Parsed here rather than deep inside, so a mistyped keyring is one clear line
+        // before anything has been read, let alone written.
+        let keyring: SeedKeyring;
+        try {
+          keyring = parseSeedKeys(raw);
+        } catch (error) {
+          process.stderr.write(
+            `AUTH_MFA_SEED_KEYS is not usable: ${error instanceof Error ? error.message : String(error)}\n`,
+          );
+          return 2;
+        }
+        const cipher = createSeedCipher(keyring);
+
+        if (action === 'status') {
+          const status = await seedEncryptionStatus(connection, cipher);
+          out(`active key version   ${keyring.active.version}`);
+          for (const entry of status.byVersion) {
+            out(`key version ${String(entry.version).padEnd(8)} ${entry.rows}`);
+          }
+          out(`plaintext            ${status.plaintext}`);
+          out(`unreadable           ${status.unreadable}`);
+          out(`total                ${status.total}`);
+          return 0;
+        }
+
+        const report = await encryptSeeds(connection, cipher);
+        out(`plaintext_encrypted  ${report.plaintextEncrypted}`);
+        out(`rotated              ${report.rotated}`);
+        out(`unchanged            ${report.unchanged}`);
+        out(`failed               ${report.failed}`);
+        if (report.failures.length > 0) {
+          // Factor ids and reasons only. A seed, a stored envelope or a key would end up in
+          // a scrollback and quite possibly a ticket, which is the disclosure D07 is about.
+          process.stderr.write('\nfactors this sweep could not re-encrypt:\n');
+          for (const failure of report.failures) {
+            process.stderr.write(`  ${failure.factorId}  ${failure.reason}\n`);
+          }
+          process.stderr.write(
+            '\nNothing above was overwritten. `authentication_failed` means the stored value ' +
+              'was altered\nor moved between users; `unknown_key_version` means ' +
+              'AUTH_MFA_SEED_KEYS is missing a key the row\nneeds; `malformed` and `empty` ' +
+              'mean the column holds neither a seed nor an envelope;\n`concurrently_changed` ' +
+              'means someone re-enrolled mid-sweep and re-running will pick it up.\n',
+          );
+          return 1;
+        }
+        return 0;
+      }
+
       default:
-        process.stderr.write(`unknown command '${command}' (migrate | status | grants | reset)\n`);
+        process.stderr.write(
+          `unknown command '${command}' (migrate | status | grants | reset | mfa-seeds)\n`,
+        );
         return 2;
     }
   } catch (error) {
