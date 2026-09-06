@@ -6,10 +6,12 @@ import {
   AuthenticationRejectedError,
   AuthenticationService,
   PasswordRejectedError,
+  ReauthenticationRequiredError,
 } from '../src/modules/identity/authentication.service.js';
 import type { AuthenticationOptions } from '../src/modules/identity/authentication.service.js';
 import { CredentialsRepository } from '../src/modules/identity/credentials.repository.js';
 import { signChallengeToken } from '../src/modules/identity/challenge-token.js';
+import { signReauthToken } from '../src/modules/identity/reauth-token.js';
 import { hashPassword } from '../src/modules/identity/password.js';
 import { hotpCode, base32Decode, totpCounterAt } from '../src/modules/identity/totp.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
@@ -83,6 +85,18 @@ const owner = () => world.northstar.owner;
 const designer = () => world.northstar.designer;
 
 const PASSWORD = 'a quiet line on paper';
+
+/** The session every enrolment call in this file is made from. `D05` binds proof to it. */
+const SESSION = '0198f0aa-0000-7000-8000-00000000aaaa';
+
+/**
+ * Fresh proof, minted directly. Most cases here are about passwords, factors and codes, not
+ * about how proof is obtained; `D05 — re-authentication` below is where the minting path
+ * itself is proved, through `confirmReauthentication`.
+ */
+function proofFor(userId: string, sessionId = SESSION): string {
+  return signReauthToken({ userId, sessionId, expiresAt: new Date(clockMs + 60_000) }, SECRET);
+}
 
 /** Set a password directly, so a sign-in case does not depend on the enrolment path. */
 async function giveOwnerAPassword(password = PASSWORD): Promise<void> {
@@ -159,7 +173,12 @@ afterAll(async () => {
 
 describe('setting a password', () => {
   it('stores an Argon2id hash and never the password', async () => {
-    await service.setPassword({ userId: owner().id, password: PASSWORD, context: context() });
+    await service.setPassword({
+      userId: owner().id,
+      sessionId: SESSION,
+      password: PASSWORD,
+      context: context(),
+    });
 
     const rows = await observe('select * from user_passwords where user_id = ?', [owner().id]);
     expect(rows).toHaveLength(1);
@@ -169,14 +188,21 @@ describe('setting a password', () => {
   });
 
   it('replaces rather than duplicating when set twice', async () => {
-    await service.setPassword({ userId: owner().id, password: PASSWORD, context: context() });
+    await service.setPassword({
+      userId: owner().id,
+      sessionId: SESSION,
+      password: PASSWORD,
+      context: context(),
+    });
     const first = await observe('select password_hash from user_passwords where user_id = ?', [
       owner().id,
     ]);
 
     await service.setPassword({
       userId: owner().id,
+      sessionId: SESSION,
       password: 'a different quiet line',
+      reauthToken: proofFor(owner().id),
       context: context(),
     });
     const second = await observe('select password_hash from user_passwords where user_id = ?', [
@@ -189,7 +215,12 @@ describe('setting a password', () => {
 
   it('refuses a password the bundled list knows, and says exactly why', async () => {
     const error = await service
-      .setPassword({ userId: owner().id, password: 'Password123', context: context() })
+      .setPassword({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: 'Password123',
+        context: context(),
+      })
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(PasswordRejectedError);
@@ -201,6 +232,7 @@ describe('setting a password', () => {
     const error = await service
       .setPassword({
         userId: owner().id,
+        sessionId: SESSION,
         password: 'northstar-is-great',
         identifiers: ['Northstar'],
         context: context(),
@@ -211,7 +243,12 @@ describe('setting a password', () => {
   });
 
   it('records the change in the log', async () => {
-    await service.setPassword({ userId: owner().id, password: PASSWORD, context: context() });
+    await service.setPassword({
+      userId: owner().id,
+      sessionId: SESSION,
+      password: PASSWORD,
+      context: context(),
+    });
     const rows = await events(owner().id);
     expect(rows).toHaveLength(1);
     expect(rows[0]!['action']).toBe('password_set');
@@ -629,7 +666,9 @@ describe('the second factor', () => {
     expect(
       await service.disableFactor({
         userId: owner().id,
+        sessionId: SESSION,
         factorId: factors[0]!.id,
+        reauthToken: proofFor(owner().id),
         context: context(),
       }),
     ).toBe(true);
@@ -648,7 +687,9 @@ describe('the second factor', () => {
     expect(
       await service.disableFactor({
         userId: designer().id,
+        sessionId: SESSION,
         factorId: factors[0]!.id,
+        reauthToken: proofFor(designer().id),
         context: context(),
       }),
     ).toBe(false);
@@ -672,6 +713,8 @@ describe('recovery codes', () => {
     await enrolOwnerTotp();
     const issued = await service.regenerateRecoveryCodes({
       userId: owner().id,
+      sessionId: SESSION,
+      reauthToken: proofFor(owner().id),
       context: context(),
     });
     clockMs += 30_000;
@@ -703,6 +746,8 @@ describe('recovery codes', () => {
     await enrolOwnerTotp();
     const issued = await service.regenerateRecoveryCodes({
       userId: owner().id,
+      sessionId: SESSION,
+      reauthToken: proofFor(owner().id),
       context: context(),
     });
     clockMs += 30_000;
@@ -741,6 +786,8 @@ describe('recovery codes', () => {
     await enrolOwnerTotp();
     const issued = await service.regenerateRecoveryCodes({
       userId: owner().id,
+      sessionId: SESSION,
+      reauthToken: proofFor(owner().id),
       context: context(),
     });
 
@@ -773,9 +820,16 @@ describe('recovery codes', () => {
     await enrolOwnerTotp();
     const first = await service.regenerateRecoveryCodes({
       userId: owner().id,
+      sessionId: SESSION,
+      reauthToken: proofFor(owner().id),
       context: context(),
     });
-    await service.regenerateRecoveryCodes({ userId: owner().id, context: context() });
+    await service.regenerateRecoveryCodes({
+      userId: owner().id,
+      sessionId: SESSION,
+      reauthToken: proofFor(owner().id),
+      context: context(),
+    });
 
     const token = signChallengeToken(
       { userId: owner().id, expiresAt: new Date(clockMs + 60_000) },
@@ -797,7 +851,12 @@ describe('recovery codes', () => {
 
   it('leaves the revoked rows in place, distinguishable from the spent ones', async () => {
     await enrolOwnerTotp();
-    await service.regenerateRecoveryCodes({ userId: owner().id, context: context() });
+    await service.regenerateRecoveryCodes({
+      userId: owner().id,
+      sessionId: SESSION,
+      reauthToken: proofFor(owner().id),
+      context: context(),
+    });
 
     const rows = await observe(
       'select used_at, revoked_at from user_recovery_codes where user_id = ?',
@@ -807,6 +866,325 @@ describe('recovery codes', () => {
     expect(rows.filter((row) => row['revoked_at'] !== null)).toHaveLength(10);
     // "Spent" and "replaced" are different answers to "why did my code not work".
     expect(rows.filter((row) => row['used_at'] !== null)).toHaveLength(0);
+  });
+});
+
+/**
+ * `D05`. A session proves that someone authenticated once; replacing the password, removing
+ * the second factor and reissuing the recovery codes are the three moves that decide who can
+ * authenticate from now on, and each one now needs the person to prove themselves again,
+ * bound to the very session making the change.
+ */
+describe('D05 — re-authentication before a credential changes', () => {
+  async function factorIdOf(userId: string): Promise<string> {
+    const factors = await service.listFactors({ userId, correlationId: uuidv7() });
+    return factors[0]!.id;
+  }
+
+  async function reject(work: Promise<unknown>): Promise<ReauthenticationRequiredError> {
+    const error = await work.catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(ReauthenticationRequiredError);
+    return error as ReauthenticationRequiredError;
+  }
+
+  it('lets a first password be set with no proof, because there is nothing to re-present', async () => {
+    await service.setPassword({
+      userId: owner().id,
+      sessionId: SESSION,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(
+      await observe('select * from user_passwords where user_id = ?', [owner().id]),
+    ).toHaveLength(1);
+  });
+
+  it('refuses to replace an existing password without proof, and changes nothing', async () => {
+    await giveOwnerAPassword();
+    const before = await observe('select password_hash from user_passwords where user_id = ?', [
+      owner().id,
+    ]);
+
+    const error = await reject(
+      service.setPassword({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: 'a different quiet line',
+        context: context(),
+      }),
+    );
+    expect(error.reason).toBe('reauth_required');
+
+    const after = await observe('select password_hash from user_passwords where user_id = ?', [
+      owner().id,
+    ]);
+    expect(after[0]!['password_hash']).toBe(before[0]!['password_hash']);
+
+    const rows = await events(owner().id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!['action']).toBe('password_set');
+    expect(rows[0]!['outcome']).toBe('failed');
+    expect(rows[0]!['reason']).toBe('reauth_required');
+  });
+
+  it('refuses to remove a factor without proof, and the factor stays live', async () => {
+    await enrolOwnerTotp();
+    const factorId = await factorIdOf(owner().id);
+
+    const error = await reject(
+      service.disableFactor({
+        userId: owner().id,
+        sessionId: SESSION,
+        factorId,
+        context: context(),
+      }),
+    );
+    expect(error.reason).toBe('reauth_required');
+
+    const rows = await observe('select disabled_at from user_mfa_factors where id = ?', [factorId]);
+    expect(rows[0]!['disabled_at']).toBeNull();
+  });
+
+  it('refuses to reissue recovery codes without proof, and the old set stays usable', async () => {
+    await enrolOwnerTotp();
+
+    const error = await reject(
+      service.regenerateRecoveryCodes({
+        userId: owner().id,
+        sessionId: SESSION,
+        context: context(),
+      }),
+    );
+    expect(error.reason).toBe('reauth_required');
+
+    expect(
+      await service.countUsableRecoveryCodes({ userId: owner().id, correlationId: uuidv7() }),
+    ).toBe(10);
+    expect(
+      await observe('select * from user_recovery_codes where user_id = ?', [owner().id]),
+    ).toHaveLength(10);
+  });
+
+  /** The acceptance criterion: proof minted in one session is not proof in another. */
+  it('refuses proof minted for another session, even the same person’s', async () => {
+    await enrolOwnerTotp();
+    const error = await reject(
+      service.regenerateRecoveryCodes({
+        userId: owner().id,
+        sessionId: SESSION,
+        reauthToken: proofFor(owner().id, '0198f0aa-0000-7000-8000-00000000bbbb'),
+        context: context(),
+      }),
+    );
+    expect(error.reason).toBe('reauth_wrong_session');
+  });
+
+  it('refuses proof minted for another person in the same session id', async () => {
+    await enrolOwnerTotp();
+    const error = await reject(
+      service.disableFactor({
+        userId: owner().id,
+        sessionId: SESSION,
+        factorId: await factorIdOf(owner().id),
+        reauthToken: proofFor(designer().id),
+        context: context(),
+      }),
+    );
+    expect(error.reason).toBe('reauth_wrong_session');
+  });
+
+  it('refuses expired proof, forged proof, and a challenge token presented as proof', async () => {
+    await enrolOwnerTotp();
+    const attempt = (reauthToken: string) =>
+      reject(
+        service.regenerateRecoveryCodes({
+          userId: owner().id,
+          sessionId: SESSION,
+          reauthToken,
+          context: context(),
+        }),
+      );
+
+    const expired = signReauthToken(
+      { userId: owner().id, sessionId: SESSION, expiresAt: new Date(clockMs - 1) },
+      SECRET,
+    );
+    expect((await attempt(expired)).reason).toBe('reauth_expired');
+
+    const forged = signReauthToken(
+      { userId: owner().id, sessionId: SESSION, expiresAt: new Date(clockMs + 60_000) },
+      'another secret entirely',
+    );
+    expect((await attempt(forged)).reason).toBe('reauth_invalid');
+
+    const challenge = signChallengeToken(
+      { userId: owner().id, expiresAt: new Date(clockMs + 60_000) },
+      SECRET,
+    );
+    expect((await attempt(challenge)).reason).toBe('reauth_invalid');
+  });
+
+  describe('obtaining proof', () => {
+    it('mints proof from a correct password when there is no factor, bound to the session', async () => {
+      await giveOwnerAPassword();
+      const minted = await service.confirmReauthentication({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        context: context(),
+      });
+      expect(minted.expiresAt.getTime()).toBe(clockMs + 300_000);
+
+      // Usable on the enforcement points, in this session only.
+      await service.setPassword({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: 'a different quiet line',
+        reauthToken: minted.reauthToken,
+        context: context(),
+      });
+      const elsewhere = await reject(
+        service.regenerateRecoveryCodes({
+          userId: owner().id,
+          sessionId: '0198f0aa-0000-7000-8000-00000000bbbb',
+          reauthToken: minted.reauthToken,
+          context: context(),
+        }),
+      );
+      expect(elsewhere.reason).toBe('reauth_wrong_session');
+
+      const rows = await events(owner().id);
+      expect(rows.map((row) => [row['action'], row['outcome']])).toEqual([
+        ['reauthentication', 'succeeded'],
+        ['password_set', 'succeeded'],
+        ['recovery_codes_issued', 'failed'],
+      ]);
+    });
+
+    it('refuses a wrong password with the sign-in vocabulary, and logs the precise cause', async () => {
+      await giveOwnerAPassword();
+      const error = await service
+        .confirmReauthentication({
+          userId: owner().id,
+          sessionId: SESSION,
+          password: 'not it',
+          context: context(),
+        })
+        .catch((thrown: unknown) => thrown);
+
+      expect(error).toBeInstanceOf(AuthenticationRejectedError);
+      expect((error as AuthenticationRejectedError).rejection).toBe('invalid_credentials');
+      expect((error as AuthenticationRejectedError).reason).toBe('bad_password');
+      const rows = await events(owner().id);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!['action']).toBe('reauthentication');
+      expect(rows[0]!['reason']).toBe('bad_password');
+    });
+
+    it('refuses when no password is set, with the same rejection', async () => {
+      const error = await service
+        .confirmReauthentication({
+          userId: owner().id,
+          sessionId: SESSION,
+          password: PASSWORD,
+          context: context(),
+        })
+        .catch((thrown: unknown) => thrown);
+      expect((error as AuthenticationRejectedError).rejection).toBe('invalid_credentials');
+      expect((error as AuthenticationRejectedError).reason).toBe('no_password_set');
+    });
+
+    it('requires a code once a factor is confirmed, and accepts the right one once', async () => {
+      await giveOwnerAPassword();
+      const secret = await enrolOwnerTotp();
+      clockMs += 30_000;
+
+      const withoutCode = await service
+        .confirmReauthentication({
+          userId: owner().id,
+          sessionId: SESSION,
+          password: PASSWORD,
+          context: context(),
+        })
+        .catch((thrown: unknown) => thrown);
+      expect((withoutCode as AuthenticationRejectedError).rejection).toBe('invalid_credentials');
+      expect((withoutCode as AuthenticationRejectedError).reason).toBe('mfa_bad_code');
+
+      const wrongCode = await service
+        .confirmReauthentication({
+          userId: owner().id,
+          sessionId: SESSION,
+          password: PASSWORD,
+          code: '000000',
+          context: context(),
+        })
+        .catch((thrown: unknown) => thrown);
+      expect((wrongCode as AuthenticationRejectedError).reason).toBe('mfa_bad_code');
+
+      const code = codeFor(secret, clockMs);
+      const minted = await service.confirmReauthentication({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        code,
+        context: context(),
+      });
+
+      // The same code again is a replay, exactly as it would be at sign-in.
+      const replayed = await service
+        .confirmReauthentication({
+          userId: owner().id,
+          sessionId: SESSION,
+          password: PASSWORD,
+          code,
+          context: context(),
+        })
+        .catch((thrown: unknown) => thrown);
+      expect((replayed as AuthenticationRejectedError).reason).toBe('mfa_replayed');
+
+      // And the proof it minted removes the factor.
+      expect(
+        await service.disableFactor({
+          userId: owner().id,
+          sessionId: SESSION,
+          factorId: await factorIdOf(owner().id),
+          reauthToken: minted.reauthToken,
+          context: context(),
+        }),
+      ).toBe(true);
+    });
+
+    it('shares the sign-in lockout window in both directions', async () => {
+      await giveOwnerAPassword();
+
+      // Failures here count against sign-in.
+      for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+        await service
+          .confirmReauthentication({
+            userId: owner().id,
+            sessionId: SESSION,
+            password: 'not it',
+            context: context(),
+          })
+          .catch(() => undefined);
+      }
+      const signIn = await service
+        .signInWithPassword({ email: owner().email, password: PASSWORD, context: context() })
+        .catch((thrown: unknown) => thrown);
+      expect((signIn as AuthenticationRejectedError).rejection).toBe('rate_limited');
+
+      // And a locked-out account cannot mint proof with the right password either.
+      const locked = await service
+        .confirmReauthentication({
+          userId: owner().id,
+          sessionId: SESSION,
+          password: PASSWORD,
+          context: context(),
+        })
+        .catch((thrown: unknown) => thrown);
+      expect((locked as AuthenticationRejectedError).rejection).toBe('rate_limited');
+      expect((locked as AuthenticationRejectedError).reason).toBe('locked_out');
+    });
   });
 });
 

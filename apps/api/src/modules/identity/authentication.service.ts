@@ -13,8 +13,10 @@ import {
   type BreachedPasswordScreen,
   type PasswordRejection,
 } from './password.js';
+import { REAUTH_TTL_SECONDS, signReauthToken, verifyReauthToken } from './reauth-token.js';
 import { findRecoveryCode, generateRecoveryCodes } from './recovery-codes.js';
 import { generateTotpSecret, totpUri, verifyTotp } from './totp.js';
+import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
  * ID-002 — what actually proves a person is who they say they are.
@@ -86,6 +88,8 @@ export const AUTHENTICATION_ACTIONS = {
   factorEnrolled: 'mfa_factor_enrolled',
   factorDisabled: 'mfa_factor_disabled',
   recoveryCodesIssued: 'recovery_codes_issued',
+  /** `D05`: the fresh proof asked for before a credential-changing action. */
+  reauthentication: 'reauthentication',
 } as const;
 
 export type AuthenticationAction =
@@ -110,7 +114,11 @@ export type AuthenticationReason =
   | 'challenge_invalid'
   | 'challenge_expired'
   | 'recovery_code_invalid'
-  | 'recovery_code_spent';
+  | 'recovery_code_spent'
+  | 'reauth_required'
+  | 'reauth_invalid'
+  | 'reauth_expired'
+  | 'reauth_wrong_session';
 
 /** What the caller is told. Deliberately coarse — see the note at the top of the file. */
 export type SignInRejection = 'invalid_credentials' | 'rate_limited';
@@ -163,6 +171,23 @@ export class AuthenticationRejectedError extends Error {
   ) {
     super(rejection);
     this.name = 'AuthenticationRejectedError';
+  }
+}
+
+/**
+ * `D05`. A credential-changing action was asked for without fresh proof of the person.
+ *
+ * Its own class rather than an `AuthenticationRejectedError`, because the two mean different
+ * things to a caller: that one says "you are not signed in", this one says "you are, and this
+ * particular action needs you to prove it again". The controller maps it to `403
+ * reauthentication_required`, which the client answers by asking for the password (and code)
+ * and retrying with the token `confirmReauthentication` returns. The `reason` still goes to
+ * the log only.
+ */
+export class ReauthenticationRequiredError extends Error {
+  constructor(readonly reason: AuthenticationReason) {
+    super('reauthentication_required');
+    this.name = 'ReauthenticationRequiredError';
   }
 }
 
@@ -345,29 +370,7 @@ export class AuthenticationService {
         const factors = await this.credentials.listActiveFactors(tx, userId);
         if (factors.length === 0) return 'mfa_no_factor';
 
-        const atMs = this.now();
-        let replayed = false;
-
-        for (const factor of factors) {
-          const result = verifyTotp({
-            secret: factor.secret,
-            code,
-            atMs,
-            lastAcceptedCounter: factor.lastAcceptedCounter,
-          });
-
-          if (result.ok) {
-            // The counter write is itself a compare-and-swap. If it does not apply, another
-            // request spent this counter between the verify and here, and this one is the
-            // replay.
-            const recorded = await this.credentials.recordFactorUse(tx, factor.id, result.counter);
-            return recorded ? null : 'mfa_replayed';
-          }
-
-          if (result.rejection === 'replayed') replayed = true;
-        }
-
-        return replayed ? 'mfa_replayed' : 'mfa_bad_code';
+        return this.spendTotpCode(tx, factors, code);
       },
     );
 
@@ -467,6 +470,146 @@ export class AuthenticationService {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+  // Re-authentication — `D05`
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Prove, from inside a live session, that the person holding it is the person it names.
+   *
+   * The password is verified with the same discipline as `signInWithPassword` — the lockout
+   * window is shared, the dummy-hash verify keeps the no-password path as slow as the
+   * wrong-password path — so this surface cannot become a second, unthrottled password oracle
+   * beside the one sign-in already guards. If the account holds a confirmed factor, a code is
+   * required as well and is spent through the same replay-protected loop `ID-02` uses.
+   *
+   * On success, mints a token bound to this `userId` **and** this `sessionId`. Nothing is
+   * written except the log row; the token is the whole result.
+   */
+  async confirmReauthentication(input: {
+    userId: string;
+    sessionId: string;
+    password: string;
+    code?: string | undefined;
+    context: SignInContext;
+  }): Promise<{ reauthToken: string; expiresAt: Date }> {
+    const { userId, sessionId, password, code, context } = input;
+
+    const found = await this.database.identityRead(
+      { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
+      async (db) => {
+        const [stored, failures] = await Promise.all([
+          this.credentials.findPassword(db, userId),
+          this.credentials.countRecentFailures(db, userId, this.options.failureWindowSeconds),
+        ]);
+        return { stored, failures };
+      },
+    );
+
+    if (found.failures >= this.options.maxFailuresInWindow) {
+      await this.record(context, {
+        userId,
+        action: AUTHENTICATION_ACTIONS.reauthentication,
+        outcome: 'failed',
+        reason: 'locked_out',
+      });
+      throw new AuthenticationRejectedError('rate_limited', 'locked_out');
+    }
+
+    const correct = await verifyPassword(
+      found.stored?.passwordHash ?? DUMMY_PASSWORD_HASH,
+      password,
+    );
+    if (!found.stored || !correct) {
+      const reason: AuthenticationReason = !found.stored ? 'no_password_set' : 'bad_password';
+      await this.record(context, {
+        userId,
+        action: AUTHENTICATION_ACTIONS.reauthentication,
+        outcome: 'failed',
+        reason,
+      });
+      throw new AuthenticationRejectedError('invalid_credentials', reason);
+    }
+
+    const outcome = await this.database.identityTransaction(
+      { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
+      async (tx): Promise<AuthenticationReason | null> => {
+        const factors = await this.credentials.listActiveFactors(tx, userId);
+        if (factors.length === 0) return null;
+        // A factor exists, so the password alone is not the person. Treated as a wrong code
+        // rather than a shape error: the response must not say whether a factor exists.
+        if (code === undefined || code === '') return 'mfa_bad_code';
+        return this.spendTotpCode(tx, factors, code);
+      },
+    );
+
+    if (outcome !== null) {
+      await this.record(context, {
+        userId,
+        action: AUTHENTICATION_ACTIONS.reauthentication,
+        outcome: 'failed',
+        reason: outcome,
+      });
+      throw new AuthenticationRejectedError('invalid_credentials', outcome);
+    }
+
+    await this.record(context, {
+      userId,
+      action: AUTHENTICATION_ACTIONS.reauthentication,
+      outcome: 'succeeded',
+      reason: null,
+    });
+
+    const expiresAt = new Date(this.now() + REAUTH_TTL_SECONDS * 1000);
+    return {
+      reauthToken: signReauthToken({ userId, sessionId, expiresAt }, this.options.sessionSecret),
+      expiresAt,
+    };
+  }
+
+  /**
+   * The gate in front of every credential-changing action.
+   *
+   * Verifies the token, then separately checks that its claims name the caller's own user
+   * *and* session. A token minted for another session — even the same person's — is refused
+   * with its own reason, so an incident reviewer can tell "no proof" from "someone else's
+   * proof". Nothing is written on refusal beyond the log row; the caller has changed nothing.
+   */
+  private async requireReauth(input: {
+    userId: string;
+    sessionId: string;
+    reauthToken: string | undefined;
+    action: AuthenticationAction;
+    context: SignInContext;
+  }): Promise<void> {
+    const verified = verifyReauthToken(input.reauthToken, this.options.sessionSecret, this.now());
+
+    let reason: AuthenticationReason | null = null;
+    if (!verified.ok) {
+      reason =
+        verified.rejection === 'missing'
+          ? 'reauth_required'
+          : verified.rejection === 'expired'
+            ? 'reauth_expired'
+            : 'reauth_invalid';
+    } else if (
+      verified.claims.userId !== input.userId ||
+      verified.claims.sessionId !== input.sessionId
+    ) {
+      reason = 'reauth_wrong_session';
+    }
+
+    if (reason === null) return;
+
+    await this.record(input.context, {
+      userId: input.userId,
+      action: input.action,
+      outcome: 'failed',
+      reason,
+    });
+    throw new ReauthenticationRequiredError(reason);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // Enrolment — every method here runs for an already-authenticated person
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -477,13 +620,34 @@ export class AuthenticationService {
    * place in the identity surface where being specific is right, because the person is
    * choosing a value and cannot fix it without knowing what is wrong with it. There is no
    * enumeration risk: they are already authenticated, and the subject is their own password.
+   *
+   * `D05`: *replacing* a password needs fresh proof; *setting the first one* does not. Whether
+   * a row already exists is read before the new value is hashed. An invited person finishing
+   * enrolment has no password to re-present, and demanding one would make the account
+   * unusable rather than safer. Once a password exists, it is the proof.
    */
   async setPassword(input: {
     userId: string;
+    sessionId: string;
     password: string;
+    reauthToken?: string | undefined;
     identifiers?: readonly string[];
     context: SignInContext;
   }): Promise<void> {
+    const existing = await this.database.identityRead(
+      { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
+      (db) => this.credentials.findPassword(db, input.userId),
+    );
+    if (existing !== null) {
+      await this.requireReauth({
+        userId: input.userId,
+        sessionId: input.sessionId,
+        reauthToken: input.reauthToken,
+        action: AUTHENTICATION_ACTIONS.passwordSet,
+        context: input.context,
+      });
+    }
+
     const screened = await screenPassword({
       password: input.password,
       identifiers: input.identifiers ?? [],
@@ -617,11 +781,26 @@ export class AuthenticationService {
     return { recoveryCodes: generated.codes };
   }
 
-  /** Issue a fresh set of recovery codes, invalidating whatever came before. */
+  /**
+   * Issue a fresh set of recovery codes, invalidating whatever came before.
+   *
+   * `D05`: always behind fresh proof. Recovery codes only exist once a factor has been
+   * confirmed, so there is no first-time case to exempt.
+   */
   async regenerateRecoveryCodes(input: {
     userId: string;
+    sessionId: string;
+    reauthToken?: string | undefined;
     context: SignInContext;
   }): Promise<{ recoveryCodes: readonly string[] }> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.recoveryCodesIssued,
+      context: input.context,
+    });
+
     const generated = generateRecoveryCodes();
 
     await this.database.identityTransaction(
@@ -642,12 +821,27 @@ export class AuthenticationService {
     return { recoveryCodes: generated.codes };
   }
 
-  /** Remove a second factor. Soft-disabled, so the removal itself stays answerable. */
+  /**
+   * Remove a second factor. Soft-disabled, so the removal itself stays answerable.
+   *
+   * `D05`: always behind fresh proof, and checked **before** the ownership lookup, so the
+   * refusal for a missing token is the same whether or not the id names a real factor.
+   */
   async disableFactor(input: {
     userId: string;
+    sessionId: string;
     factorId: string;
+    reauthToken?: string | undefined;
     context: SignInContext;
   }): Promise<boolean> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.factorDisabled,
+      context: input.context,
+    });
+
     return this.database.identityTransaction(
       { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
       async (tx) => {
@@ -700,6 +894,44 @@ export class AuthenticationService {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Check a TOTP code against every confirmed factor and spend the counter of the one that
+   * matches. Returns the reason for a refusal, or `null` on success.
+   *
+   * Shared by `completeMfaChallenge` (`ID-02`) and `confirmReauthentication` (`D05`) so that
+   * the two places a code is accepted cannot drift apart on replay protection. Extracted, not
+   * rewritten: the loop is the one `completeMfaChallenge` has always run.
+   */
+  private async spendTotpCode(
+    tx: IdentityQueryRunner,
+    factors: readonly { id: string; secret: string; lastAcceptedCounter: number | null }[],
+    code: string,
+  ): Promise<AuthenticationReason | null> {
+    const atMs = this.now();
+    let replayed = false;
+
+    for (const factor of factors) {
+      const result = verifyTotp({
+        secret: factor.secret,
+        code,
+        atMs,
+        lastAcceptedCounter: factor.lastAcceptedCounter,
+      });
+
+      if (result.ok) {
+        // The counter write is itself a compare-and-swap. If it does not apply, another
+        // request spent this counter between the verify and here, and this one is the
+        // replay.
+        const recorded = await this.credentials.recordFactorUse(tx, factor.id, result.counter);
+        return recorded ? null : 'mfa_replayed';
+      }
+
+      if (result.rejection === 'replayed') replayed = true;
+    }
+
+    return replayed ? 'mfa_replayed' : 'mfa_bad_code';
+  }
 
   /**
    * Append one row to the pre-tenant security log, in a transaction of its own.

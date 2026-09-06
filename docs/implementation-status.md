@@ -6,7 +6,89 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-05 (FILE-002 slice C session; the download gate and the views built and proved; FILE-002 closes; chain green on d30087c) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-06 (D05 re-authentication session on branch `d05-reauth`, run `claude-d05-chat-1788703207`, in a normal TManage-Planning-Pack chat; the three credential-changing routes now demand fresh proof bound to the session; awaiting Codex's independent review before integration) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-06, start of the D05 re-authentication session (reservation 44)
+
+Run on the `tmanage-d05` worktree (branch `d05-reauth`, cut from `1d89a04`), not on the
+`tmanage` checkout the earlier runs used. Raw byte comparison reported **59 of 61 planning
+pairs and 70 of 147 design pairs differing**, zero missing, repo-only or pack-newer files.
+Every one of those differences is line endings only: the worktree was created with
+`core.autocrlf=true` and its working copies carry CRLF where the pack carries LF. With
+line endings normalised, **61 of 61 planning and 147 of 147 design pairs are identical**
+(`d05-implementation-2026-09-06/reconcile-44.json` and `reconcile-44-eol-normalised.json`).
+`git status` for `docs/planning` and `docs/design/source` is empty against `HEAD`; neither
+protected directory was edited. The six pack-only extras are the usual six.
+
+---
+
+## D05 — password, second factor and recovery codes could be replaced by any live session: built on a branch
+
+**Finding** (Codex review of 2026-09-05, `CLAUDE-REVIEW-REPORT.md` lines 125–132, P1):
+`POST /v1/auth/password/set`, `DELETE /v1/auth/factors/:factorId` and
+`POST /v1/auth/recovery-codes` required only an ordinary session. A hijacked or left-open
+session could replace the password, remove the second factor, or reissue the recovery codes
+and keep the account after its owner noticed. Confirmed at `1d89a04` by reading
+`CredentialsController` and `AuthenticationService`: none of the three read a password, a
+code or any fresher proof than the session cookie.
+
+**What was built** (worktree `tmanage-d05`, branch `d05-reauth`, no commit):
+
+- `apps/api/src/modules/identity/reauth-token.ts` — a signed, stateless, five-minute token
+  in the shape of `challenge-token.ts`, with its own purpose string (`reauth`) so a challenge
+  token is refused as `malformed` before any signature is compared, and with the
+  **session id inside the signed claims**. Unit-tested in `reauth-token.test.ts` (16 cases).
+- `AuthenticationService.confirmReauthentication` — re-verifies the password with the
+  sign-in discipline (shared per-user lockout window, dummy-hash verify when no password
+  exists, one coarse `invalid_credentials` for every cause); if a confirmed factor exists a
+  TOTP code is required and spent through the same replay-protected loop `ID-02` uses,
+  which was extracted into a private `spendTotpCode` helper rather than duplicated. Mints a
+  token bound to `userId` + `sessionId`. Every attempt is a `reauthentication` row in
+  `authentication_events`.
+- `requireReauth` (private) — verifies the token and separately checks that its claims name
+  the caller's own user **and** session. Refusals throw the new
+  `ReauthenticationRequiredError` with a precise reason (`reauth_required`, `reauth_invalid`,
+  `reauth_expired`, `reauth_wrong_session`) that goes to the log only.
+- Enforcement: `setPassword` demands proof only when a password row **already exists**, so a
+  first-ever password (the invited person's enrolment) still goes through with no token;
+  `disableFactor` and `regenerateRecoveryCodes` always demand it, because the state they act
+  on only exists after enrolment. Each now takes `sessionId` and an optional `reauthToken`.
+- HTTP: new `POST /v1/auth/reauth` on `CredentialsController` (session required, `@NoTenant`,
+  body `{ password, code? }`, returns `{ reauthToken, expiresAt }`, refuses with the same 401
+  body a wrong sign-in gets and 429 when locked out). The three guarded routes read the
+  `x-reauth-token` header and answer **403 `reauthentication_required`** without it — a new
+  `ApiErrorCode` in the API and mirrored by hand in `apps/web/src/lib/api/errors.ts`, per
+  that file's own note. The session stays usable after a refusal.
+
+**Evidence** (`C:/Users/Peter/Documents/ChatGPT/TManage/d05-implementation-2026-09-06/`):
+`pnpm typecheck` for `@tmanage/api` and `@tmanage/web` clean; eslint on the eight touched
+files clean; prettier clean after LF normalisation; `@tmanage/api` unit project **22 files,
+328 tests, all pass**; `id-002-credentials.db.test.ts` + `id-002-auth-http.db.test.ts` on the
+local MariaDB, serialised under `locks/db-e2e.lock`, **2 files, 75 tests, all pass** (12 new
+service-level cases under `D05 — re-authentication before a credential changes`, 6 new HTTP
+cases under `re-authentication over HTTP`, and the pre-existing cases re-threaded with a
+session id and proof). Reverse proof by file copy, never `git checkout`: with the `HEAD`
+service and controller swapped back in, the same two suites fail on the D05 cases; the
+corrected bytes restored by copy re-pass, SHA-256 verified before and after
+(`hashes-corrected.txt`, `hashes-reverse-state.txt`, `hashes-after-restore.txt`,
+`reverse-run.log`, `restore-run.log`, `api-unit-final.log`).
+
+**Deferred, recorded as open gaps rather than dropped:**
+
+- _Notify the account owner of changes_ — the review's secondary hardening. No generic
+  security-notification mailer exists; building one means new DI wiring in
+  `identity.module.ts`, a second `Mailer` consumer beside `InvitationMailer`, and templates.
+  Real scope of its own; not started.
+- `confirmTotpEnrolment` (adding a further factor while one is confirmed) is outside the
+  review's cited lines and was left as it was.
+- The web client helpers `setPassword`, `disableFactor` and `regenerateRecoveryCodes` in
+  `apps/web/src/lib/api/auth.ts` do not yet send the header and there is no `reauthenticate`
+  helper; nothing in `apps/web/src` calls them today, so no screen regressed, but the first
+  screen to use them needs the header and a password prompt on `reauthentication_required`.
+- Acceptance, integration onto `master` and the full chain remain Codex's (the parallel
+  arrangement of 2026-09-05); this slice ran the two identity DB suites, not `pnpm test:db`.
 
 ---
 

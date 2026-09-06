@@ -10,6 +10,7 @@ import { DatabaseModule } from '../src/common/database/database.module.js';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
 import type { ApiConfig } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
+import { REAUTH_HEADER } from '../src/modules/identity/authentication.controller.js';
 import { base32Decode, hotpCode, totpCounterAt } from '../src/modules/identity/totp.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
@@ -122,6 +123,25 @@ async function setPasswordFor(userId: string, password = PASSWORD): Promise<void
   if (response.statusCode !== 204) {
     throw new Error(`setting the password failed: ${response.statusCode} ${response.body}`);
   }
+}
+
+/**
+ * `D05`. Prove the person again inside `session` and return the header value the three
+ * credential-changing routes require. The session must already hold `password`.
+ */
+async function proofFor(
+  session: { cookie: string; csrfToken: string },
+  password = PASSWORD,
+): Promise<string> {
+  const response = await post(
+    '/v1/auth/reauth',
+    { password },
+    { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+  );
+  if (response.statusCode !== 200) {
+    throw new Error(`re-authentication failed: ${response.statusCode} ${response.body}`);
+  }
+  return response.json<{ reauthToken: string }>().reauthToken;
 }
 
 beforeAll(async () => {
@@ -391,6 +411,7 @@ describe('the enrolment routes', () => {
       '/v1/auth/factors/totp',
       '/v1/auth/factors/totp/confirm',
       '/v1/auth/recovery-codes',
+      '/v1/auth/reauth',
     ]) {
       const response = await post(path, { password: PASSWORD, label: 'x' });
       expect(response.statusCode).toBe(401);
@@ -458,25 +479,42 @@ describe('the enrolment routes', () => {
     );
     const { factorId } = begun.json<{ factorId: string }>();
 
+    // `D05`: the designer proves themselves first, so the 404 below is the ownership answer
+    // and not the re-authentication one.
     const designerSession = await developmentSession(designer().id);
+    await post(
+      '/v1/auth/password/set',
+      { password: PASSWORD },
+      { cookie: designerSession.cookie, [CSRF_HEADER]: designerSession.csrfToken },
+    );
     const response = (await app.inject({
       method: 'DELETE',
       url: `/v1/auth/factors/${factorId}`,
       headers: {
         cookie: designerSession.cookie,
         [CSRF_HEADER]: designerSession.csrfToken,
+        [REAUTH_HEADER]: await proofFor(designerSession),
       },
     })) as unknown as InjectedResponse;
 
     expect(response.statusCode).toBe(404);
   });
 
-  it('issue a fresh set of recovery codes on request', async () => {
+  it('issue a fresh set of recovery codes on request, behind fresh proof', async () => {
     const session = await developmentSession(owner().id);
+    await post(
+      '/v1/auth/password/set',
+      { password: PASSWORD },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
     const response = await post(
       '/v1/auth/recovery-codes',
       {},
-      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+      {
+        cookie: session.cookie,
+        [CSRF_HEADER]: session.csrfToken,
+        [REAUTH_HEADER]: await proofFor(session),
+      },
     );
 
     expect(response.statusCode).toBe(200);
@@ -505,14 +543,22 @@ describe('the enrolment routes', () => {
     await post(
       '/v1/auth/recovery-codes',
       {},
-      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+      {
+        cookie: session.cookie,
+        [CSRF_HEADER]: session.csrfToken,
+        [REAUTH_HEADER]: await proofFor(session),
+      },
     );
 
     const [rows] = await db.admin.query<RowDataPacket[]>(
-      'select action from authentication_events where user_id = ? order by occurred_at',
+      'select action from authentication_events where user_id = ? order by occurred_at, id',
       [owner().id],
     );
-    expect(rows.map((row) => row['action'])).toEqual(['password_set', 'recovery_codes_issued']);
+    expect(rows.map((row) => row['action'])).toEqual([
+      'password_set',
+      'reauthentication',
+      'recovery_codes_issued',
+    ]);
   });
 
   it('carry the request’s correlation id onto the row', async () => {
@@ -533,5 +579,149 @@ describe('the enrolment routes', () => {
       [owner().id],
     );
     expect(rows[0]!['correlation_id']).toBe(correlationId);
+  });
+});
+
+/**
+ * `D05` over HTTP. The three credential-changing routes answer **403 `reauthentication_required`**
+ * without the `x-reauth-token` header, the session stays usable, and `POST /v1/auth/reauth`
+ * is where the header's value comes from.
+ */
+describe('re-authentication over HTTP', () => {
+  /** A session that already holds a password, so it has something to re-present. */
+  async function establishedWithPassword(userId: string) {
+    const session = await developmentSession(userId);
+    const set = await post(
+      '/v1/auth/password/set',
+      { password: PASSWORD },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
+    if (set.statusCode !== 204) throw new Error(`first password: ${set.statusCode} ${set.body}`);
+    return session;
+  }
+
+  it('refuses an unauthenticated caller', async () => {
+    const response = await post('/v1/auth/reauth', { password: PASSWORD });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('answers 403 reauthentication_required when a password is changed without proof', async () => {
+    const session = await establishedWithPassword(owner().id);
+    const [before] = await db.admin.query<RowDataPacket[]>(
+      'select password_hash from user_passwords where user_id = ?',
+      [owner().id],
+    );
+
+    const response = await post(
+      '/v1/auth/password/set',
+      { password: 'a different quiet line' },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe(
+      'reauthentication_required',
+    );
+    const [after] = await db.admin.query<RowDataPacket[]>(
+      'select password_hash from user_passwords where user_id = ?',
+      [owner().id],
+    );
+    expect(after[0]!['password_hash']).toBe(before[0]!['password_hash']);
+
+    // The session itself is untouched: the same cookie still reads the factor list.
+    const still = (await app.inject({
+      method: 'GET',
+      url: '/v1/auth/factors',
+      headers: { cookie: session.cookie },
+    })) as unknown as InjectedResponse;
+    expect(still.statusCode).toBe(200);
+  });
+
+  it('answers 403 for removing a factor and reissuing codes without proof', async () => {
+    const session = await establishedWithPassword(owner().id);
+    const begun = await post(
+      '/v1/auth/factors/totp',
+      { label: 'Owner phone' },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
+    const { factorId } = begun.json<{ factorId: string }>();
+
+    const removed = (await app.inject({
+      method: 'DELETE',
+      url: `/v1/auth/factors/${factorId}`,
+      headers: { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    })) as unknown as InjectedResponse;
+    expect(removed.statusCode).toBe(403);
+    expect(removed.json<{ error: { code: string } }>().error.code).toBe(
+      'reauthentication_required',
+    );
+
+    const codes = await post(
+      '/v1/auth/recovery-codes',
+      {},
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
+    expect(codes.statusCode).toBe(403);
+    expect(codes.json<{ error: { code: string } }>().error.code).toBe('reauthentication_required');
+  });
+
+  it('mints proof from the password, which then authorises the change in that session only', async () => {
+    const session = await establishedWithPassword(owner().id);
+
+    const minted = await post(
+      '/v1/auth/reauth',
+      { password: PASSWORD },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
+    expect(minted.statusCode).toBe(200);
+    const { reauthToken, expiresAt } = minted.json<{ reauthToken: string; expiresAt: string }>();
+    expect(typeof reauthToken).toBe('string');
+    expect(Date.parse(expiresAt)).toBeGreaterThan(Date.now());
+
+    const changed = await post(
+      '/v1/auth/password/set',
+      { password: 'a different quiet line' },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken, [REAUTH_HEADER]: reauthToken },
+    );
+    expect(changed.statusCode).toBe(204);
+
+    // The same proof presented from a second session of the same person is refused.
+    const other = await developmentSession(owner().id);
+    const elsewhere = await post(
+      '/v1/auth/recovery-codes',
+      {},
+      { cookie: other.cookie, [CSRF_HEADER]: other.csrfToken, [REAUTH_HEADER]: reauthToken },
+    );
+    expect(elsewhere.statusCode).toBe(403);
+    expect(elsewhere.json<{ error: { code: string } }>().error.code).toBe(
+      'reauthentication_required',
+    );
+  });
+
+  it('refuses a wrong password with the same body a wrong sign-in gets', async () => {
+    const session = await establishedWithPassword(owner().id);
+
+    const reauth = await post(
+      '/v1/auth/reauth',
+      { password: 'not the password' },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
+    const signIn = await post('/v1/auth/password', {
+      email: owner().email,
+      password: 'not the password',
+    });
+
+    expect(reauth.statusCode).toBe(401);
+    expect(withoutCorrelationId(reauth)).toBe(withoutCorrelationId(signIn));
+  });
+
+  it('rejects a missing password as a shape error', async () => {
+    const session = await establishedWithPassword(owner().id);
+    const response = await post(
+      '/v1/auth/reauth',
+      {},
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
+    expect(response.statusCode).toBe(400);
   });
 });
