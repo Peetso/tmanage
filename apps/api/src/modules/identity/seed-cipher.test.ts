@@ -169,6 +169,9 @@ describe('decrypt', () => {
     ['nothing after the prefix', 'mfa1.'],
     ['a non-numeric version', 'mfa1.two.AAAAAAAAAAAAAAAA.AAAA.AAAAAAAAAAAAAAAAAAAAAA'],
     ['a zero version', 'mfa1.0.AAAAAAAAAAAAAAAA.AAAA.AAAAAAAAAAAAAAAAAAAAAA'],
+    // Not read as version 1: one key version has to have exactly one spelling, or a sweep
+    // and a re-encrypt can disagree about how much of the table is still on the old key.
+    ['a leading-zero version', 'mfa1.01.AAAAAAAAAAAAAAAA.AAAA.AAAAAAAAAAAAAAAAAAAAAA'],
     ['an iv that is not 12 bytes', 'mfa1.2.AAAAAAAA.AAAA.AAAAAAAAAAAAAAAAAAAAAA'],
     ['a tag that is not 16 bytes', 'mfa1.2.AAAAAAAAAAAAAAAA.AAAA.AAAAAAAA'],
     ['an empty ciphertext', 'mfa1.2.AAAAAAAAAAAAAAAA..AAAAAAAAAAAAAAAAAAAAAA'],

@@ -1365,9 +1365,11 @@ describe('D06 — replacing a password ends every other session', () => {
  * `D07`. The TOTP seed was written to `user_mfa_factors.secret` exactly as the authenticator
  * produced it, so a database dump or a backup disclosure handed over every second factor in
  * the system. It now holds an AES-256-GCM envelope under a key that lives in the
- * environment, and the cases below are the four things that has to mean in a real database
+ * environment, and the cases below are the five things that has to mean in a real database
  * rather than in a unit test: the column no longer holds the seed; editing it breaks it;
- * moving it between rows breaks it; and a row nobody has swept yet refuses rather than works.
+ * moving it between rows breaks it; a row nobody has swept yet refuses rather than works;
+ * and refusing a sign-in is *all* it refuses — the screens that list and remove a factor
+ * never open the envelope, so they still work on the row that will not open.
  *
  * `db.admin` is used to read and to corrupt the column directly, exactly as the cases above
  * use it to observe what actually landed — the point is what an attacker with database
@@ -1560,6 +1562,52 @@ describe('D07 — the seed is ciphertext in the column', () => {
     );
     expect(error.reason).toBe('not_encrypted');
     expect(error.message).toContain('mfa:encrypt-seeds');
+  });
+
+  /**
+   * (f) The other half of (e): the row refuses a *sign-in*, and refuses nothing else.
+   *
+   * The security screen shows labels, not seeds, and the "remove this factor" route needs
+   * only to know who owns the row. If either of them opened the envelope, an unopenable row
+   * would take down the two screens a person would use to get out of the situation — and
+   * every row in the window between deploying D07 and running the backfill is unopenable.
+   * So neither reads `secret`, and this case is what says so from outside.
+   */
+  it('still lists and still removes a row the cipher cannot open', async () => {
+    await givePassword(owner().id);
+    const factorId = uuidv7();
+    await db.admin.query(
+      `insert into user_mfa_factors (id, user_id, kind, label, secret, confirmed_at, created_at)
+       values (?, ?, 'totp', 'Legacy phone', ?, current_timestamp(3), current_timestamp(3))`,
+      [factorId, owner().id, LEGACY_SEED],
+    );
+
+    const factors = await service.listFactors({ userId: owner().id, correlationId: uuidv7() });
+    expect(factors.map((factor) => factor.label)).toEqual(['Legacy phone']);
+    // Not merely "no seed in the field": no such field, on any row the screen returns.
+    expect(factors.every((factor) => !('secret' in factor))).toBe(true);
+    expect(JSON.stringify(factors)).not.toContain(LEGACY_SEED);
+
+    expect(
+      await service.disableFactor({
+        userId: owner().id,
+        sessionId: SESSION,
+        factorId,
+        reauthToken: proofFor(owner().id),
+        context: context(),
+      }),
+    ).toBe(true);
+
+    // Gone from the screen, and the sign-in it was blocking is offered again.
+    expect(await service.listFactors({ userId: owner().id, correlationId: uuidv7() })).toHaveLength(
+      0,
+    );
+    const outcome = await service.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(outcome.status).toBe('authenticated');
   });
 
   it('encrypts that row when the backfill is run, keeping the seed the person enrolled', async () => {

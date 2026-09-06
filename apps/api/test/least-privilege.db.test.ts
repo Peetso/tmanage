@@ -74,7 +74,6 @@ async function refused(pool: Pool, sql: string, params: unknown[] = []): Promise
 let db: TestDatabase;
 let world: SeedWorld;
 let app: Pool;
-let workerDb: TestDatabase;
 let worker: Pool;
 
 /**
@@ -506,11 +505,12 @@ withCredential('the runtime user (tmanage_app)', () => {
  */
 withCredential('the worker user (tmanage_worker)', () => {
   beforeAll(async () => {
-    // Against the shared server this reconnects to the database the block above used and
-    // applies no migration — `startTestDatabase` treats the canonical database as
-    // outliving the process, and its `stop()` ends only the pools it opened. A second
-    // handle here is therefore a second pool, not a second server.
-    workerDb = await startTestDatabase();
+    // A pool and nothing else. This block is skipped unless a least-privilege credential is
+    // configured, which means an external, already-migrated database that outlives the
+    // process — so a second `startTestDatabase()` here would open an admin pool, a tenant
+    // pool and re-run the migrator for a block that uses none of the three, and its `stop()`
+    // would end only those pools anyway. The schema this block needs is the canonical
+    // database's, applied before the suite started.
     worker = createPool({
       uri: workerDatabaseUrl(),
       connectionLimit: 2,
@@ -522,7 +522,6 @@ withCredential('the worker user (tmanage_worker)', () => {
 
   afterAll(async () => {
     await worker?.end();
-    await workerDb?.stop();
   });
 
   it('is the relay credential, not the application’s', async () => {
@@ -532,7 +531,15 @@ withCredential('the worker user (tmanage_worker)', () => {
     expect(String(rows[0]?.['u'])).toMatch(/^tmanage_worker@/);
   });
 
-  for (const table of ['user_passwords', 'user_mfa_factors', 'user_recovery_codes']) {
+  // All four credential tables named in the global constraints, not the three the brief
+  // listed: `authentication_events` holds the security log, and a relay that can read it can
+  // see who signed in, from where, and which addresses were probed.
+  for (const table of [
+    'user_passwords',
+    'user_mfa_factors',
+    'user_recovery_codes',
+    'authentication_events',
+  ]) {
     it(`cannot read ${table} — the relay never handles a credential`, async () => {
       const error = await refused(worker, `select * from ${table}`);
       expect(error.code).toBe(ER_TABLEACCESS_DENIED);
@@ -547,10 +554,11 @@ withCredential('the worker user (tmanage_worker)', () => {
     // The other half of every least-privilege change: a credential locked down until the
     // relay stops working is an outage, not a control. This is the first statement the
     // dispatcher issues, without the `FOR UPDATE SKIP LOCKED` that needs a transaction.
-    await expect(
-      worker.query(
-        'select id, type, organization_id from outbox_events where published_at is null limit 1',
-      ),
-    ).resolves.toBeDefined();
+    // The result shape, not merely "something came back": a rejected statement throws, and
+    // `toBeDefined` would also pass on a value that is not a result set at all.
+    const [rows] = await worker.query<RowDataPacket[]>(
+      'select id, type, organization_id from outbox_events where published_at is null limit 1',
+    );
+    expect(Array.isArray(rows)).toBe(true);
   });
 });

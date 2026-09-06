@@ -37,8 +37,11 @@ import type { SeedKeyring } from '@tmanage/config';
  *
  * One string, because it has to fit the existing `VARCHAR(255)` column without a migration,
  * and self-describing, because the alternative is a second column that can disagree with
- * the first. The leading `mfa1.` is the format's own version: a later scheme (a different
- * cipher, a KDF) becomes `mfa2.` and this code keeps reading the old rows.
+ * the first. The leading `mfa1.` is the format's own version, and it names the one format
+ * *this* code reads: a later scheme (a different cipher, a KDF) becomes `mfa2.`, and it is
+ * that later code's job to read both. Here, anything not starting `mfa1.` is `not_encrypted`
+ * — including a hypothetical `mfa2.` row — because the safe reading of a value this build
+ * does not understand is "this is not a seed I can use", not "assume it is fine".
  *
  * The `<version>` field is the **key** version, which is what makes rotation possible
  * without a downtime window: a row says which key opens it, so a new key can be added and

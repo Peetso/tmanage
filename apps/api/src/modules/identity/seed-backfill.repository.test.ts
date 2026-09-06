@@ -209,6 +209,33 @@ describe('encryptSeeds', () => {
     expect(printed).not.toContain('mfa1.');
   });
 
+  /**
+   * The failure an operator produces by accident: a key is dropped from
+   * `AUTH_MFA_SEED_KEYS` while rows are still written under it.
+   *
+   * `needsRotation` means "not the active version", so such a row is picked up for rewriting
+   * and then cannot be opened. It has to be counted and named — not retried forever, and not
+   * allowed to stop the sweep, because the rows after it are the ones that can still be
+   * fixed. Hence the second row: the run walks past the failure and encrypts it.
+   */
+  it('counts a row under a key the keyring no longer holds, and keeps going', async () => {
+    const underV2 = V1_AND_V2.encrypt(SEED, { userId: ALICE });
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: underV2 },
+      { id: 'f2', userId: BOB, secret: OTHER_SEED },
+    ]);
+
+    const report = await encryptSeeds(table, V1);
+
+    expect(report.failed).toBe(1);
+    expect(report.failures).toEqual([{ factorId: 'f1', reason: 'unknown_key_version' }]);
+    // Left exactly as found: a row this deployment cannot open is evidence, not scrap.
+    expect(table.rows[0]!.secret).toBe(underV2);
+    // And the run did not stop at it.
+    expect(report.plaintextEncrypted).toBe(1);
+    expect(V1.decrypt(table.rows[1]!.secret, { userId: BOB })).toBe(OTHER_SEED);
+  });
+
   it('counts an empty stored value as a failure rather than encrypting nothing', async () => {
     const table = new FakeFactorTable([{ id: 'f1', userId: ALICE, secret: '' }]);
 

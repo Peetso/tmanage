@@ -51,7 +51,31 @@ import type { SeedCipher } from './seed-cipher.js';
  * A value that will not open is not swallowed. A `SeedCipherError` propagates out of the
  * read, and every caller here already fails closed on a repository error, so a tampered row
  * or a leftover plaintext one refuses a sign-in rather than quietly permitting it.
+ *
+ * Which is why only the reads that *hand a seed upward* select the column at all. A read
+ * whose caller discards the secret does not decrypt it and does not select it — see
+ * {@link CredentialsRepository.listAllFactors} and
+ * {@link CredentialsRepository.findFactorIdentity}. Two reasons, and the second is the one
+ * that shows up in an incident: a seed is never materialised in memory for a screen that
+ * shows none, and a row that will not open — a legacy plaintext one before the backfill has
+ * run, an unknown key version, a tampered envelope — still lists and can still be removed,
+ * instead of turning the security screen and the "remove this factor" route into a 500 at
+ * exactly the moment someone needs them.
  */
+
+/**
+ * A factor as the security screen sees it: what it displays, and nothing else.
+ *
+ * A distinct type rather than `Omit<UserMfaFactorRow, 'secret'>` because it is the shape of a
+ * `SELECT`, not a row with a field hidden — the seed is never fetched, so no later edit here
+ * can accidentally start returning it.
+ */
+export type UserMfaFactorSummary = {
+  readonly id: string;
+  readonly kind: string;
+  readonly label: string;
+  readonly confirmedAt: Date | null;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Passwords
@@ -162,19 +186,51 @@ export class CredentialsRepository {
     return rows.map((row) => this.open(row));
   }
 
-  /** Every factor a person holds, confirmed or not, for the security screen. */
+  /**
+   * Every factor a person holds, confirmed or not, for the security screen.
+   *
+   * The four columns the screen displays, and not `secret`. The caller
+   * (`authentication.service.ts`'s `listFactors`, "No secrets, ever") discards the seed, so
+   * selecting it would only mean decrypting every one of a person's seeds to throw them
+   * away — and making one unopenable row take the whole screen down with it. The narrower
+   * return type is the point: the field is not there to be leaked or to fail.
+   */
   async listAllFactors(
     runner: IdentityQueryRunner,
     userId: string,
-  ): Promise<readonly UserMfaFactorRow[]> {
-    const rows = await tenantDrizzle(runner)
-      .select()
+  ): Promise<readonly UserMfaFactorSummary[]> {
+    return tenantDrizzle(runner)
+      .select({
+        id: userMfaFactors.id,
+        kind: userMfaFactors.kind,
+        label: userMfaFactors.label,
+        confirmedAt: userMfaFactors.confirmedAt,
+      })
       .from(userMfaFactors)
       .where(and(eq(userMfaFactors.userId, userId), isNull(userMfaFactors.disabledAt)))
       .orderBy(desc(userMfaFactors.createdAt));
-    return rows.map((row) => this.open(row));
   }
 
+  /**
+   * Who owns a factor, for callers that act on the row without reading it.
+   *
+   * `disableFactor` needs the ownership check and nothing else; going through
+   * {@link findFactor} for it would decrypt a seed it never looks at, and would refuse to
+   * remove precisely the broken factor a person is trying to remove.
+   */
+  async findFactorIdentity(
+    runner: IdentityQueryRunner,
+    factorId: string,
+  ): Promise<{ readonly id: string; readonly userId: string } | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: userMfaFactors.id, userId: userMfaFactors.userId })
+      .from(userMfaFactors)
+      .where(eq(userMfaFactors.id, factorId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** One factor with its seed opened, for the paths that must verify a code against it. */
   async findFactor(
     runner: IdentityQueryRunner,
     factorId: string,
