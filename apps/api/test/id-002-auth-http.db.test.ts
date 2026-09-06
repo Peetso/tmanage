@@ -725,3 +725,71 @@ describe('re-authentication over HTTP', () => {
     expect(response.statusCode).toBe(400);
   });
 });
+
+/**
+ * `D06` over HTTP, as the review's acceptance reads: signed in on two devices, the password is
+ * replaced on one, and the other's access *and* refresh credentials fail at once. The device
+ * that proved itself keeps working, and the device list it reads afterwards has one entry.
+ */
+describe('replacing a password over HTTP ends the other devices', () => {
+  async function devices(cookie: string): Promise<InjectedResponse> {
+    return (await app.inject({
+      method: 'GET',
+      url: '/v1/sessions/current/devices',
+      headers: { cookie },
+    })) as unknown as InjectedResponse;
+  }
+
+  async function refresh(session: {
+    cookie: string;
+    csrfToken: string;
+  }): Promise<InjectedResponse> {
+    return (await app.inject({
+      method: 'POST',
+      url: '/v1/sessions/refresh',
+      headers: { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    })) as unknown as InjectedResponse;
+  }
+
+  it('signs the other device out of access and refresh, and keeps the device in hand', async () => {
+    const laptop = await developmentSession(owner().id);
+    const phone = await developmentSession(owner().id);
+
+    // The first password ends nothing: both devices still read the list, and it has two rows.
+    const first = await post(
+      '/v1/auth/password/set',
+      { password: PASSWORD },
+      { cookie: laptop.cookie, [CSRF_HEADER]: laptop.csrfToken },
+    );
+    expect(first.statusCode).toBe(204);
+    expect((await devices(phone.cookie)).statusCode).toBe(200);
+    expect((await devices(laptop.cookie)).json<{ sessions: unknown[] }>().sessions).toHaveLength(2);
+
+    // Replaced from the laptop, with the laptop's own proof.
+    const token = await proofFor(laptop);
+    const replaced = await post(
+      '/v1/auth/password/set',
+      { password: 'a different quiet line' },
+      { cookie: laptop.cookie, [CSRF_HEADER]: laptop.csrfToken, 'x-reauth-token': token },
+    );
+    expect(replaced.statusCode).toBe(204);
+
+    // The phone is out — on the access credential and on the refresh credential alike.
+    expect((await devices(phone.cookie)).statusCode).toBe(401);
+    const refused = await refresh(phone);
+    expect(refused.statusCode).toBe(401);
+    expect(setCookies(refused).length).toBeGreaterThan(0);
+
+    // The laptop is still in, and it is now the only device.
+    const remaining = await devices(laptop.cookie);
+    expect(remaining.statusCode).toBe(200);
+    expect(remaining.json<{ sessions: unknown[] }>().sessions).toHaveLength(1);
+    expect((await refresh(laptop)).statusCode).toBe(200);
+
+    const [rows] = await db.admin.query<RowDataPacket[]>(
+      'select revoked_reason from sessions where user_id = ? and revoked_at is not null',
+      [owner().id],
+    );
+    expect(rows.map((row) => row['revoked_reason'])).toEqual(['password_changed']);
+  });
+});
