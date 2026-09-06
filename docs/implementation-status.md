@@ -6,7 +6,28 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-06 (Claude-only integration run `claude-auto-1788710489`: the session/browser slice — D01, D02, D03, D04, D19 and D20 — merged into `master` from `w02-session-browser` after an independent re-verification (all gates re-run, reversal proof by file copy, `next build` witness, browser journeys 20/20) — see the "Session/browser slice" and "D20 and the D19 build witness" sections below; earlier the same day D05 re-authentication (`06c373e`) and the W01 scanner tee-settlement fix (`4f3ff99`) were merged; Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-06 (Claude-only run `claude-auto-1788718770`: the post-merge chain on `master` `9129b5b` is **green and recorded** — see "The chain on `9129b5b`" below — so `master` is pushed; the session/browser slice (D01–D04, D19, D20), D05 re-authentication (`06c373e`) and the W01 scanner fix (`4f3ff99`) are all on `master`; Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+
+---
+
+## The chain on `9129b5b` — green, recorded after the fact
+
+The documented chain was launched on `master` at `9129b5b` by run `claude-auto-1788710489`
+(2026-09-06 20:48 local, `w02-verify-2026-09-06/master-chain/chain.sh`, log `chain.log`) after
+the W02 merge, and finished at 21:25 local under the next run, `claude-auto-1788718770`, which
+read the log and the process table before recording it. Every step exit 0, in the `pnpm verify`
+order: `build:packages`, `build:worker`, `format:check`, `typecheck`, `lint`,
+`contracts:validate`, `audit:design`, `test` (unit, every package), then `test:db` **41 files,
+all pass** (31 minutes, `step-test-db.log`) and `test:e2e` **20 passed** (3.1 minutes,
+`step-test-e2e.log`), both serialised under `locks/db-e2e.lock`; `CHAIN END PASS
+2026-09-06T18:25:19Z` and no `mysqld`, `vitest` or `playwright` process left behind. Two
+deviations, both recorded in the evidence folder and neither a repository defect: the two
+untracked Codex artefacts (`CODEX-REVIEW-2026-09-05/`, `CODEX_REVIEW_FOR_CLAUDE_2026-09-05.md`)
+were ignored for `format:check` and `lint`, and the chain was relaunched once after the
+`tmanage` checkout needed `pnpm install` for the merged `@tmanage/config` link and the merge's
+CRLF working copies were normalised to LF (`chain-attempt1-stopped.log`, `crlf-files.txt`;
+content unchanged against `HEAD`). The DB suites still ran on embedded MySQL 8.0, not MariaDB.
+With the chain green and recorded, `master` was pushed to `origin` by the recording run.
 
 ---
 
