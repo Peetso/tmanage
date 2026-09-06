@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-05 (FILE-002 slice C session; the download gate and the views built and proved; FILE-002 closes; chain green on d30087c) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-06 (W01 correction session on branch `w01-scanner-cleanup`, run `claude-w01-1788701585`; the blocked-write P1 fixed and proved, awaiting Codex's re-review before integration) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -26,6 +26,125 @@ change what a command does rather than merely how it is typed.
 | **MariaDB, without a container** | As of 2026-08-25 there **is** a local MariaDB: the plain `mariadb-11.4.5-winx64` zip, the same version `compose.yaml` pins, needing no installer and no administrator rights. Started with compose.yaml's own server flags, it runs the whole database suite. Two Windows traps: the data directory must sit on a **short path** (`MAX_PATH` truncates trigger `.TRN~` files and the failure reads as `Errcode: 2 "No such file or directory"`), and `mariadb-install-db.exe` cannot run without an interactive stdin — bootstrap `mariadbd --bootstrap` directly instead                                                         |
 | File encoding                    | Source must not be edited through PowerShell `Get-Content` / `Set-Content`: it re-encodes UTF-8 and corrupts every em dash and `§` in this codebase's comments. Bash heredocs with a quoted delimiter are safe                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **A stale second copy**          | `outputs/TManage-Planning-Pack/tmanage/` is a duplicate of this repository and is **stale as of 2026-08-24**: it is missing every file from the HTTP-surface and PROJ-001 sessions, its `implementation-status.md` is an older revision, and its git repository holds **zero commits**, so it preserves nothing this one lacks. Kept on purpose (Peter's decision, 2026-08-25). **Never edit it and never read it as current** — the live repository is `tmanage/`                                                                                                                                                                |
+
+---
+
+## Planning-pack reconciliation — re-verified 2026-09-05, start of the W01 scanner-cleanup session
+
+The **thirty-eighth** consecutive run compared SHA-256 and modification times pair by pair.
+Planning: **61 of 61 byte-identical**, zero differing, missing or repo-only files. Design:
+**147 of 147 byte-identical**, zero differing, missing, repo-only or pack-only files. No pack
+file is newer. The repository is later for 60 planning pairs and all 147 design pairs;
+`contracts/tmanage-core.dbml` is in the same second. The planning traversal excluded
+`tmanage/`, `graphify-out/` and the design-handoff subtree; the six pack-only extras are the
+usual six. Neither protected source directory was edited.
+
+---
+
+## The chain on `1d89a04` — green, recorded after the fact
+
+The chain the previous handoff left running ended **`CHAIN END PASS`** at 23:23:38 (+03:00) on
+2026-09-05, on `1d89a04` (the documentation commit over `7b95864`): format:check, typecheck,
+lint, test (1,156 runner-reported unit/component tests), test:db (**41 files, 944 passed, 29
+skipped**), audit:design, format:check. No `mysqld` was left behind. The restoration companion
+returned both untracked review artifacts with every SHA-256 matched
+(`restore-review.log`: `RESTORE PASS`); they remain untracked and are excluded from commits.
+Nothing has been pushed; the record of this result on `master` and the push are the
+integrator's (Codex, by the parallel arrangement of 2026-09-05).
+
+---
+
+## W01 — the scan pass could wait forever after a source or sink failure: fixed on a branch
+
+**Finding** (Codex review of 2026-09-05, `CLAUDE-REVIEW-REPORT.md` §5, P1; reviewed revision
+`af27739`, re-probed on `7b95864`): in `FileScanner.judge`, the inner catch awaited the
+scanner's settlement **before** the tee into the scanner (`toScanner`, a `PassThrough`) was
+ended or destroyed. Every driver drains its stream to the end by contract, so after a read or
+sink failure the pass waited for an end it could no longer send. **Confirmed** at `1d89a04`:
+the same tee stalls the other way too — an engine that fails early stops reading, and the
+pass's next write into the full `PassThrough` never calls back. A third hazard surfaced while
+writing the witness: a sink that fails a write also emits `error`, and nobody listened, so a
+failing promotion sink would have taken the process down rather than the asset.
+
+**Fix** (`apps/api/src/modules/files/file-scanner.ts`, `judge` only): the engine's settlement
+is watched from the moment it starts, and once it has settled with the tee still open the
+tee is destroyed so a pending write fails instead of waiting; in the catch, both streams are
+destroyed **before** the engine is awaited; whether the engine broke on its own is read before
+it is released, so a failure it reports only because it was cut off does not rewrite the
+primary cause (`size_mismatch` stays `size_mismatch`); the promotion abort is best-effort
+and separately observable (`abortQuietly`: one stderr line, the cause preserved, an
+unavailable store still stops the pass); the sink's `error` event is heard. The happy path,
+the infected path and the verdict precedence rule are unchanged.
+
+**Witness** (`apps/api/src/modules/files/file-scanner.test.ts`, the `unit` project, no
+database): source failure, sink failure, early engine failure and a mid-loop size mismatch
+each raced against a 1 s clock, plus the happy path. Pre-fix source (SHA-256
+`44071717aa5a…565a80`, the committed file at `1d89a04`): **4 of 5 fail**, each `still pending`
+at 1 s, and the sink case raises an uncaught exception. Fixed source (`5bd3eb7df06d…5abb0`):
+**5 of 5 pass in 20 ms**; restored by copy and re-run, 5 of 5. Codex's own probe
+(`review-probes.mts`, root pointed at the branch's worktree) now reports `after350ms:
+"rejected"` and `cleanupReachedBeforeIntervention: true`. On the branch: prettier, eslint and
+the api typecheck pass; the api `unit` project is 22 files, 315 tests; the FILE-002 scanning
+database suite result is recorded in the parallel-desk `result.md`.
+
+**Not done here, on purpose:** a whole-operation timeout for a _source_ stream that stalls
+without failing. The ClamAV driver bounds an engine stall with `MALWARE_SCAN_TIMEOUT_MS`; a
+quarantine read that hangs is the store's to bound, and the local store does not hang. It is
+an open risk on the pass, not a regression of this fix, and is carried.
+
+**Where it lives:** branch `w01-scanner-cleanup`, worktree `tmanage-w01`, cut from `1d89a04`.
+Not committed to `master` and not pushed: the parallel arrangement of 2026-09-05 makes Codex
+the reviewer and default integrator, and the brief says the proposed fix is not landed before
+that review. The diff, the proof logs and the probe output are under
+`C:/Users/Peter/Documents/ChatGPT/TManage/w01-proof/`. No ticket closes: **35/70, 285/583
+points (48.9%)**; W01 is a repair inside FILE-002, which stays closed.
+
+**Other review probes at `1d89a04`, same run, unchanged:** D01 (sign-out keeps another user's
+cached organizations and work), D02 (browser reads `tm_session_csrf`, server default
+`tmanage_session_csrf`), conditional D09 (two forwarded addresses on one socket both admitted),
+D12 (ten navigation targets with no page). Confirmed, not fixed; they are the next bounded
+slice per the report's order.
+
+---
+
+## W01 correction — a blocked write into the destroyed tee never called back (Codex re-review of 2026-09-06)
+
+**Finding** (`CODEX-W01-REVIEW-2026-09-06.md`, P1; reviewed revision `1d89a04`, the W01 fix
+above): the settlement handler destroyed `toScanner` with a plain `.destroy()` and no error.
+On Node 22.22.0, when a write into that `PassThrough` was already blocked behind the readable
+side's high-water mark (nobody was draining it — an engine that answered only after it had
+stopped reading), destroying the stream did not reliably invoke that write's own callback.
+`writeTo` only listened on the callback, so `judge` never re-entered its catch, never
+destroyed the source or aborted the promotion, and a scan that already had a known engine
+failure could not conclude. Distinct from the four W01 paths already proved: those all
+resolved or rejected a write that had not yet started blocking.
+
+**Fix** (`file-scanner.ts`, `writeTo` only): the promise now also races the sink's own
+`close` event — always emitted once, whatever destroyed it and whether or not the write
+callback fires — and its `error` event, each guarded so only the first settlement wins and
+listeners are removed either way. Nothing else in `judge` changed; the precedence logic
+that keeps the engine's own cause when it broke first (`engineBrokeFirst`) is what actually
+turns this unblock into the right `ScanFailure`, unchanged from the fix above.
+
+**Witness** (new test in `file-scanner.test.ts`, `unit` project, no database): a 64 KiB
+source into an engine that never reads and rejects with `ScanError('engine_error')` only
+after 50 ms — long enough for a write to be genuinely stuck, not merely about to start.
+Reviewed bytes (SHA-256 `5bd3eb7d…4b5abb0`): 5 of 6 pass, the new witness `still pending` at
+1,041 ms. Corrected bytes (`6c856d76…50404a`): 6 of 6 pass in 70–80 ms. Reverted to the
+reviewed copy by file copy (never `git checkout`) and re-run: the same single failure
+reproduces exactly; restored to the corrected copy and re-run: 6 of 6 pass again. Full
+`pnpm --filter @tmanage/api build` then `pnpm test:unit`: 22 files, 316 tests, all pass. The
+scoped `test/file-002-scanning.db.test.ts` (`database` project, real MariaDB, serialized
+under `locks/db-e2e.lock`): 15 of 15 pass, 89 s. Evidence, logs and both file copies are under
+`C:/Users/Peter/Documents/ChatGPT/TManage/w01-correction-2026-09-06/`.
+
+**Not re-opened here:** the disclosed unbounded source-stall risk (a quarantine read that
+hangs without failing) remains an open, separately carried risk, not part of this P1.
+
+**Where it lives:** same branch and worktree as the W01 fix above, three dirty files
+(`file-scanner.ts`, `file-scanner.test.ts`, this document), not committed, not pushed.
+Handoff is `awaiting_codex_review` via `cycle-state.json` (`claude` lane), run
+`claude-w01-1788701585`.
 
 ---
 
