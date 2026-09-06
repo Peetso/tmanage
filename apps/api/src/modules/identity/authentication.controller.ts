@@ -18,9 +18,19 @@ import type { AuthenticatedSession, SessionService } from './session.service.js'
 import {
   AuthenticationRejectedError,
   PasswordRejectedError,
+  ReauthenticationRequiredError,
   type AuthenticationService,
 } from './authentication.service.js';
 import { describePasswordRejection } from './password.js';
+
+/**
+ * `D05`. The header a credential-changing request carries its re-authentication token in.
+ *
+ * A header rather than a body field, for the same reason the CSRF token is one:
+ * `DELETE /factors/:id` has no body to put it in, and one convention across the three routes
+ * is one thing for a client to get right.
+ */
+export const REAUTH_HEADER = 'x-reauth-token';
 
 /**
  * ID-002's HTTP surface — `22-SCREEN-BY-SCREEN` §3's `ID-01`, `ID-02` and the enrolment half
@@ -74,6 +84,11 @@ interface ChallengeBody {
 
 interface SetPasswordBody {
   readonly password?: unknown;
+}
+
+interface ReauthenticateBody {
+  readonly password?: unknown;
+  readonly code?: unknown;
 }
 
 interface BeginEnrolmentBody {
@@ -276,11 +291,69 @@ export class CredentialsController {
   ) {}
 
   /**
+   * `D05`. Re-present the password (and the code, when a factor exists) from inside a live
+   * session, and receive the short-lived token the three credential-changing routes require.
+   *
+   * The refusal is the same 401 sign-in gives, with the same discipline: whether a factor
+   * exists is not disclosed by the response. The session itself is untouched either way.
+   */
+  @Post('reauth')
+  @NoTenant()
+  @HttpCode(200)
+  async reauthenticate(
+    @CurrentSession() session: AuthenticatedSession,
+    @Body() body: ReauthenticateBody,
+    @Req() request: RequestLike,
+  ): Promise<{ reauthToken: string; expiresAt: string }> {
+    const state = requireRequestState(request);
+    const password = typeof body?.password === 'string' ? body.password : undefined;
+    if (!password) {
+      throw new ApiError(400, 'validation_failed', 'password is required', [
+        { field: 'password', message: 'must be a string' },
+      ]);
+    }
+
+    try {
+      const minted = await this.authentication.confirmReauthentication({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        password,
+        code: typeof body?.code === 'string' ? body.code : undefined,
+        context: this.contextOf(request, state.correlationId),
+      });
+      return { reauthToken: minted.reauthToken, expiresAt: minted.expiresAt.toISOString() };
+    } catch (error) {
+      if (error instanceof AuthenticationRejectedError) {
+        if (error.rejection === 'rate_limited') {
+          throw new ApiError(
+            429,
+            'rate_limited',
+            'Too many attempts. Wait a few minutes and try again.',
+            undefined,
+            error.reason,
+          );
+        }
+        throw new ApiError(
+          401,
+          'unauthenticated',
+          MESSAGES.unauthenticated,
+          undefined,
+          error.reason,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Set or change this person's password.
    *
    * The rejections are returned in full, which is the opposite of every other route in this
    * file and is right here: the person is authenticated, the subject is their own password,
    * and they cannot fix it without being told what is wrong with it.
+   *
+   * `D05`: changing an existing password needs the `x-reauth-token` header; setting the first
+   * one does not. The service decides which case this is.
    */
   @Post('password/set')
   @NoTenant()
@@ -301,10 +374,13 @@ export class CredentialsController {
     try {
       await this.authentication.setPassword({
         userId: session.userId,
+        sessionId: session.sessionId,
         password,
-        context: { correlationId: state.correlationId },
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
       });
     } catch (error) {
+      this.translateReauth(error);
       if (error instanceof PasswordRejectedError) {
         throw new ApiError(
           422,
@@ -436,11 +512,19 @@ export class CredentialsController {
     @Req() request: RequestLike,
   ): Promise<void> {
     const state = requireRequestState(request);
-    const removed = await this.authentication.disableFactor({
-      userId: session.userId,
-      factorId,
-      context: { correlationId: state.correlationId },
-    });
+    let removed: boolean;
+    try {
+      removed = await this.authentication.disableFactor({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        factorId,
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
+      });
+    } catch (error) {
+      this.translateReauth(error);
+      throw error;
+    }
     // `not_found` for a factor belonging to someone else as well as for one that does not
     // exist. Distinguishing them would confirm that a given id is a real factor.
     if (!removed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
@@ -455,9 +539,51 @@ export class CredentialsController {
     @Req() request: RequestLike,
   ): Promise<{ recoveryCodes: readonly string[] }> {
     const state = requireRequestState(request);
-    return this.authentication.regenerateRecoveryCodes({
-      userId: session.userId,
-      context: { correlationId: state.correlationId },
-    });
+    try {
+      return await this.authentication.regenerateRecoveryCodes({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
+      });
+    } catch (error) {
+      this.translateReauth(error);
+      throw error;
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** The `x-reauth-token` header, if one was sent. Absence is the service's decision to make. */
+  private reauthTokenOf(request: RequestLike): string | undefined {
+    const raw = request.headers[REAUTH_HEADER];
+    return typeof raw === 'string' && raw !== '' ? raw : undefined;
+  }
+
+  /**
+   * `D05`'s refusal: **403 `reauthentication_required`**. Not 401 — the session is genuine
+   * and must stay usable — and not the generic `forbidden`, because the client's correct
+   * response is specific: ask for the password, call `POST /v1/auth/reauth`, retry with the
+   * header. The precise reason (missing, expired, another session's) goes to the log only.
+   */
+  private translateReauth(error: unknown): void {
+    if (error instanceof ReauthenticationRequiredError) {
+      throw new ApiError(
+        403,
+        'reauthentication_required',
+        'Confirm your password to make this change.',
+        undefined,
+        error.reason,
+      );
+    }
+  }
+
+  private contextOf(request: RequestLike, correlationId: string) {
+    const userAgent = request.headers['user-agent'];
+    return {
+      correlationId,
+      ip: request.ip ?? null,
+      userAgent: typeof userAgent === 'string' ? userAgent : null,
+    };
   }
 }

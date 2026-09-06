@@ -18,6 +18,7 @@ export type ApiErrorCode =
   | 'unauthenticated'
   | 'forbidden'
   | 'csrf_failed'
+  | 'reauthentication_required'
   | 'not_found'
   | 'conflict'
   | 'validation_failed'
@@ -42,6 +43,7 @@ const API_ERROR_CODES: readonly ApiErrorCode[] = [
   'unauthenticated',
   'forbidden',
   'csrf_failed',
+  'reauthentication_required',
   'not_found',
   'conflict',
   'validation_failed',
