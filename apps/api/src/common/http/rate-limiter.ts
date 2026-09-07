@@ -32,12 +32,17 @@ interface Window {
   count: number;
 }
 
-const DEFAULT_MAX_KEYS = 10_000;
+/**
+ * Distinct keys one limiter remembers when the caller names no ceiling. Exported so a caller
+ * that keeps its own per-key memory alongside a limiter (`sign-in-abuse-control.ts`) bounds it
+ * to the same number rather than to a copy of it that is free to drift.
+ */
+export const FIXED_WINDOW_DEFAULT_MAX_KEYS = 10_000;
 
 export function createFixedWindowLimiter(options: FixedWindowLimiterOptions): RequestAdmission {
   const windowMs = Math.max(1, options.windowMs);
   const max = Math.max(1, options.max);
-  const maxKeys = Math.max(1, options.maxKeys ?? DEFAULT_MAX_KEYS);
+  const maxKeys = Math.max(1, options.maxKeys ?? FIXED_WINDOW_DEFAULT_MAX_KEYS);
   const now = options.now ?? Date.now;
   // Insertion order is age: a key touched again is deleted and re-set, so the first entry
   // is always the one least recently seen.

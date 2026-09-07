@@ -274,7 +274,22 @@ export const envSchema = z
     // Rate limiting
     RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
     RATE_LIMIT_MAX_REQUESTS: positiveInt.default(300),
+    /**
+     * D08. The sign-in abuse control's budgets, one shared window, one number per key:
+     * `RATE_LIMIT_AUTH_MAX_REQUESTS` bounds source+account (one address grinding one
+     * account), `RATE_LIMIT_AUTH_MAX_PER_SOURCE` bounds the address across every account it
+     * names, and `RATE_LIMIT_AUTH_MAX_GLOBAL` bounds every address together — the one an
+     * attacker rotating addresses cannot evade.
+     *
+     * These are ceilings for the bootstrap profile, not a traffic plan: they are set where
+     * ordinary use never reaches them, and lowering them is a deliberate act. The per-source
+     * default is 30 rather than 5 because success is not exempt from the count, so a real
+     * person retyping a password must not be able to reach it.
+     */
     RATE_LIMIT_AUTH_MAX_REQUESTS: positiveInt.default(10),
+    RATE_LIMIT_AUTH_WINDOW_SECONDS: positiveInt.default(300),
+    RATE_LIMIT_AUTH_MAX_PER_SOURCE: positiveInt.default(30),
+    RATE_LIMIT_AUTH_MAX_GLOBAL: positiveInt.default(600),
 
     // Observability
     OTEL_SERVICE_NAME: nonEmpty('OTEL_SERVICE_NAME').default('tmanage-api'),

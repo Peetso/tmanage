@@ -299,6 +299,53 @@ describe('loadEnv', () => {
     });
   });
 
+  /**
+   * D08. The sign-in abuse control's three budgets and the window they share. They are
+   * ceilings for the bootstrap profile rather than a traffic plan, so the schema's whole job
+   * is to refuse a value that would silently disable one — a zero, a negative, a fraction.
+   */
+  describe('sign-in abuse control (D08)', () => {
+    it('applies the documented defaults when none of the four is set', () => {
+      const env = loadEnv(devEnv());
+
+      expect(env.RATE_LIMIT_AUTH_WINDOW_SECONDS).toBe(300);
+      expect(env.RATE_LIMIT_AUTH_MAX_PER_SOURCE).toBe(30);
+      expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBe(10);
+      expect(env.RATE_LIMIT_AUTH_MAX_GLOBAL).toBe(600);
+    });
+
+    it('reads an operator-supplied ceiling for each of them', () => {
+      const env = loadEnv({
+        ...devEnv(),
+        RATE_LIMIT_AUTH_WINDOW_SECONDS: '60',
+        RATE_LIMIT_AUTH_MAX_PER_SOURCE: '5',
+        RATE_LIMIT_AUTH_MAX_REQUESTS: '3',
+        RATE_LIMIT_AUTH_MAX_GLOBAL: '100',
+      });
+
+      expect(env.RATE_LIMIT_AUTH_WINDOW_SECONDS).toBe(60);
+      expect(env.RATE_LIMIT_AUTH_MAX_PER_SOURCE).toBe(5);
+      expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBe(3);
+      expect(env.RATE_LIMIT_AUTH_MAX_GLOBAL).toBe(100);
+    });
+
+    it('refuses zero, a negative, and a fraction — a budget of none is not a configuration', () => {
+      for (const variable of [
+        'RATE_LIMIT_AUTH_WINDOW_SECONDS',
+        'RATE_LIMIT_AUTH_MAX_PER_SOURCE',
+        'RATE_LIMIT_AUTH_MAX_REQUESTS',
+        'RATE_LIMIT_AUTH_MAX_GLOBAL',
+      ]) {
+        for (const value of ['0', '-1', '1.5']) {
+          expect(
+            issuePaths(() => loadEnv({ ...devEnv(), [variable]: value })),
+            `${variable}=${value}`,
+          ).toContain(variable);
+        }
+      }
+    });
+  });
+
   describe('CORS', () => {
     it('rejects wildcard origins because the API is called with credentials', () => {
       expect(issuePaths(() => loadEnv({ ...devEnv(), CORS_ALLOWED_ORIGINS: '*' }))).toContain(
