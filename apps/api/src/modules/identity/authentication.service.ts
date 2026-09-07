@@ -71,9 +71,22 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *   the process count.
  * - It is **bounded by D09**, which is unfixed: `main.ts` sets `trustProxy: true`, so
  *   `request.ip` is whatever `X-Forwarded-For` says. Anyone who can reach the origin directly,
- *   or set that header, can rotate the source key at will. The account key is not evadable
- *   that way and the global key is not evadable at all — read the source key as a cost bound
- *   on honest traffic, not as a defence against a determined attacker, until D09 lands.
+ *   or set that header, can rotate the source key at will — and the source+account key with
+ *   it, because that key is `sa:<ip>:<hash>` and *contains* the address. An earlier version of
+ *   this comment claimed the account key was not evadable that way; it is, and the final
+ *   review of 2026-09-07 was right to call that the wrong claim in the safe-sounding
+ *   direction. While D09 stands, what holds against a caller who can set that header is the
+ *   global key and the **durable per-user lockout** above (5 failures in 900 s) — and the
+ *   lockout is the one that actually catches a grind against a named account. Read both
+ *   address-keyed budgets as a cost bound on honest traffic, not as a defence against a
+ *   determined attacker, until D09 lands.
+ * - The **global key is a deployment-wide refusal lever**, and it is charged only by attempts
+ *   that were admitted. That is what keeps it out of one address's reach: a single source is
+ *   refused by its own key long before it could spend a global budget of 3000 in 300 s, and a
+ *   refused attempt charges nothing wider than the key that refused it. The route that
+ *   remains is, again, D09 — one attacker who can look like thousands of addresses has every
+ *   attempt admitted, and can spend the global budget and refuse everybody until the window
+ *   turns. `sign-in-abuse-control.ts` carries the full argument and the sizing.
  *
  * The second limitation — the counter-not-a-lock race — is untouched.
  */

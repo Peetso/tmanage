@@ -171,7 +171,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     authAbuseWindowSeconds: env.RATE_LIMIT_AUTH_WINDOW_SECONDS ?? 300,
     authAbuseMaxPerSource: env.RATE_LIMIT_AUTH_MAX_PER_SOURCE ?? 30,
     authAbuseMaxPerSourceAccount: env.RATE_LIMIT_AUTH_MAX_REQUESTS ?? 10,
-    authAbuseMaxGlobal: env.RATE_LIMIT_AUTH_MAX_GLOBAL ?? 600,
+    authAbuseMaxGlobal: env.RATE_LIMIT_AUTH_MAX_GLOBAL ?? 3000,
   };
 }
 

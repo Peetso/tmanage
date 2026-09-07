@@ -285,11 +285,26 @@ export const envSchema = z
      * ordinary use never reaches them, and lowering them is a deliberate act. The per-source
      * default is 30 rather than 5 because success is not exempt from the count, so a real
      * person retyping a password must not be able to reach it.
+     *
+     * What that 30 actually buys: 30 charges per address per five minutes across all four
+     * authentication routes together — password, MFA, recovery, reauthentication — which is
+     * roughly fifteen complete MFA sign-ins. Wherever egress is shared it is a per-office
+     * ceiling and not a per-person one. It self-heals the moment the window turns, and it is
+     * the number an operator behind NAT should expect to raise.
+     *
+     * The global budget is unevadable in both directions, and that cuts against the
+     * deployment as much as for it: nobody can rotate addresses past it, and anybody who
+     * spends it refuses everybody — password, MFA, recovery and reauthentication alike —
+     * until the window turns. That is why it is 3000 (about ten a second) rather than 600. At
+     * 600 a twenty-source spray, trivial for as long as `trustProxy: true` stands (D09), buys
+     * a repeatable authentication outage for about two requests a second; at 3000 the same
+     * outage costs an attacker real sustained traffic, while the Argon2 and log cost the
+     * budget exists to bound is still bounded.
      */
     RATE_LIMIT_AUTH_MAX_REQUESTS: positiveInt.default(10),
     RATE_LIMIT_AUTH_WINDOW_SECONDS: positiveInt.default(300),
     RATE_LIMIT_AUTH_MAX_PER_SOURCE: positiveInt.default(30),
-    RATE_LIMIT_AUTH_MAX_GLOBAL: positiveInt.default(600),
+    RATE_LIMIT_AUTH_MAX_GLOBAL: positiveInt.default(3000),
 
     // Observability
     OTEL_SERVICE_NAME: nonEmpty('OTEL_SERVICE_NAME').default('tmanage-api'),

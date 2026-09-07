@@ -311,7 +311,7 @@ describe('loadEnv', () => {
       expect(env.RATE_LIMIT_AUTH_WINDOW_SECONDS).toBe(300);
       expect(env.RATE_LIMIT_AUTH_MAX_PER_SOURCE).toBe(30);
       expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBe(10);
-      expect(env.RATE_LIMIT_AUTH_MAX_GLOBAL).toBe(600);
+      expect(env.RATE_LIMIT_AUTH_MAX_GLOBAL).toBe(3000);
     });
 
     it('reads an operator-supplied ceiling for each of them', () => {

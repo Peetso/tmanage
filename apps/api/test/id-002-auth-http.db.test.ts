@@ -316,6 +316,13 @@ describe('POST /v1/auth/password', () => {
      * Small enough that a handful of posts crosses it; large enough for the lockout case
      * below, which needs `maxFailuresInWindow` failures *and* the attempt that is refused
      * before the source budget would have refused it first.
+     *
+     * That makes 6 a coupling, not a free choice: it is `AUTH_MAX_FAILURES_IN_WINDOW + 1` for
+     * the `ENV` bag above (5 + 1). The lockout case spends five failures and then makes a sixth
+     * post that must reach the lockout, so the source budget has to admit exactly six. Move
+     * either number without the other and that case stops testing the lockout — but it fails
+     * loudly rather than quietly, because the `locked_out` read-back below expects one row and
+     * a source refusal writes `source_throttled` instead.
      */
     const MAX_PER_SOURCE = 6;
 
