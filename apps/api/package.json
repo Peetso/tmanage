@@ -14,7 +14,9 @@
     "db:migrate": "tsx src/common/database/cli.ts migrate",
     "db:status": "tsx src/common/database/cli.ts status",
     "db:grants": "tsx src/common/database/cli.ts grants",
-    "db:reset": "tsx src/common/database/cli.ts reset"
+    "db:reset": "tsx src/common/database/cli.ts reset",
+    "mfa:encrypt-seeds": "tsx src/common/database/cli.ts mfa-seeds encrypt",
+    "mfa:seeds-status": "tsx src/common/database/cli.ts mfa-seeds status"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.1",

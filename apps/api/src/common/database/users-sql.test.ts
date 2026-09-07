@@ -192,6 +192,69 @@ describe('the runtime user is actually least-privilege', () => {
       expect(grant.privileges, `worker grant on ${grant.table}`).not.toContain('DELETE');
     }
   });
+
+  it('never receives a database-wide SELECT for the worker', () => {
+    // D07. The database-wide read above is a convenience the application earns: a new
+    // module's tables are readable the moment a migration creates them, and nobody has to
+    // remember to amend `users.sql` before the first request. The relay earns nothing by
+    // it — it reads a fixed, short list of tables, named one by one in the file — and the
+    // convenience was paying for read access to every password hash and MFA seed on the
+    // server. A table-level grant per real dependency is the whole of the fix, so this is
+    // the assertion that stops `SELECT ON \`tmanage\`.*` coming back for the old reason.
+    for (const grant of grantsFor('tmanage_worker')) {
+      expect(grant.table, `'tmanage_worker' holds a database-wide grant`).not.toBe('*');
+    }
+  });
+
+  it('never grants the worker anything on the credential tables', () => {
+    // The point D07 was raised for. A relay is a batch process on the same host as the
+    // API, restarted by cron, and its connection string is read by whoever operates it;
+    // what it must never be is a second way to read the second factor. Nothing in
+    // `apps/worker/src` names any of these four tables, and nothing should: an MFA seed is
+    // decrypted inside the API's identity module and nowhere else.
+    //
+    // Asserted on the *effective* privileges — a reintroduced `SELECT ON \`tmanage\`.*`
+    // fails here as well as above, which is what makes this case independent of that one.
+    const credentialTables = [
+      'user_passwords',
+      'user_mfa_factors',
+      'user_recovery_codes',
+      'authentication_events',
+    ];
+    for (const table of credentialTables) {
+      expect(
+        effectivePrivilegesOn('tmanage_worker', table),
+        `'tmanage_worker' can reach '${table}'`,
+      ).toEqual([]);
+    }
+  });
+
+  it('can read every table the worker is allowed to write', () => {
+    // The failure mode the narrowing above introduces, and the reason the worker's SELECT
+    // list is not simply the tables its SELECTs name. MySQL reads to write: an
+    // `UPDATE … WHERE` needs SELECT on the columns it filters by, and the notification
+    // insert's `ON DUPLICATE KEY UPDATE id = id` reads the row it collided with. A write
+    // grant without the matching read is a grant that cannot be used, and the statement
+    // that discovers it fails in the relay rather than here.
+    const appendOnlyForTheWorker: Record<string, string> = {
+      audit_events:
+        'the relay appends a system audit row and never reads one back, so SELECT ' +
+        'would be privilege granted against no statement',
+    };
+    const written = new Set(
+      grantsFor('tmanage_worker')
+        .filter((grant) => grant.table !== '*')
+        .filter((grant) => grant.privileges.some((privilege) => privilege !== 'SELECT'))
+        .map((grant) => grant.table),
+    );
+    for (const table of written) {
+      if (table in appendOnlyForTheWorker) continue;
+      expect(
+        effectivePrivilegesOn('tmanage_worker', table),
+        `'tmanage_worker' may write '${table}' but not read it`,
+      ).toContain('SELECT');
+    }
+  });
 });
 
 describe('the file states its own ordering requirement', () => {

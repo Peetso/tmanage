@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { UPLOAD_PART_SIZE_DEFAULT_BYTES } from '@tmanage/config';
+import { parseSeedKeys, UPLOAD_PART_SIZE_DEFAULT_BYTES } from '@tmanage/config';
+import type { SeedKeyring } from '@tmanage/config';
 import { API_CONFIG } from './tokens.js';
 import type { SessionServiceOptions } from '../../modules/identity/session.service.js';
 
@@ -14,6 +15,13 @@ import type { SessionServiceOptions } from '../../modules/identity/session.servi
 export interface ApiConfig extends SessionServiceOptions {
   /** `CSRF_SECRET`. Required by `packages/config` to differ from `SESSION_SECRET` in production. */
   readonly csrfSecret: string;
+  /**
+   * D07. `AUTH_MFA_SEED_KEYS`, parsed once at boot into the keyring the identity module's
+   * seed cipher encrypts and decrypts TOTP seeds with. Parsed here rather than where it is
+   * used so a malformed list is a boot failure, not the first enrolment's failure — and
+   * kept as the keyring rather than the string so nothing downstream re-parses it.
+   */
+  readonly mfaSeedKeys: SeedKeyring;
   /**
    * The cookie the client reads the CSRF token from. Derived from `SESSION_COOKIE_NAME` so the
    * three cookies of one session share a prefix and cannot be configured out of alignment.
@@ -85,6 +93,11 @@ export interface ApiConfigSource {
   readonly SESSION_TTL_SECONDS: number;
   readonly REFRESH_TTL_SECONDS: number;
   readonly CSRF_SECRET: string;
+  /**
+   * D07. Required rather than optional: a default would be a key nobody chose, and every
+   * seed encrypted under it would be unreadable after the next restart that used a real one.
+   */
+  readonly AUTH_MFA_SEED_KEYS: string;
   readonly API_PUBLIC_URL: string;
   readonly AUTH_MAX_FAILURES_IN_WINDOW: number;
   readonly AUTH_FAILURE_WINDOW_SECONDS: number;
@@ -123,6 +136,9 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     // `API_PUBLIC_URL` in production, so this cannot silently be false there.
     secureCookies: env.API_PUBLIC_URL.startsWith('https://'),
     csrfSecret: env.CSRF_SECRET,
+    // `packages/config` has already validated this string with the same parser, so a throw
+    // here means a caller that built its own bag — which is a boot failure worth having.
+    mfaSeedKeys: parseSeedKeys(env.AUTH_MFA_SEED_KEYS),
     csrfCookieName: `${env.SESSION_COOKIE_NAME}_csrf`,
     allowDevelopmentSignIn: env.NODE_ENV !== 'production',
     maxFailuresInWindow: env.AUTH_MAX_FAILURES_IN_WINDOW,

@@ -65,6 +65,9 @@ function apiEnv(databaseUrl: string, storageRoot?: string): NodeJS.ProcessEnv {
     DATABASE_MIGRATION_URL: `${databaseUrl}?connectionLimit=1`,
     SESSION_SECRET: 'local_dev_only_session_secret_for_the_e2e_stack_xxxxxx',
     CSRF_SECRET: 'local_dev_only_csrf_secret_for_the_e2e_stack_xxxxxxxxxx',
+    // D07. Required in every environment, so the stack has to carry one. Its own key, and
+    // an obviously local one: the journeys enrol real factors against it.
+    AUTH_MFA_SEED_KEYS: '1:local_dev_only_mfa_seed_key_for_the_e2e_x00',
     SESSION_COOKIE_NAME: 'tmanage_session',
     STORAGE_DRIVER: 'filesystem',
     STORAGE_BUCKET: 'e2e-local',

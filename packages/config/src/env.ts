@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseSeedKeys } from './seed-keys.js';
 
 /**
  * Environment schema for every TManage process.
@@ -207,6 +208,26 @@ export const envSchema = z
     // The issuer an authenticator application shows beside the code. A brand string, not a
     // secret; it appears in the `otpauth://` URI and therefore in the QR code.
     AUTH_TOTP_ISSUER: nonEmpty('AUTH_TOTP_ISSUER').default('TManage'),
+    /**
+     * D07. The keys TOTP seeds are encrypted with, `<version>:<base64url 32 bytes>` entries
+     * separated by `;` — `seed-keys.ts` owns the format and this validates with that same
+     * parser, so what boots is exactly what the cipher will accept.
+     *
+     * Required in **every** environment, unlike the storage signing secret's driver
+     * condition. Making it optional would mean a fallback, and the only fallbacks available
+     * are storing plaintext again or inventing a key that changes on restart — the first
+     * undoes D07 silently, the second locks every enrolled user out just as silently.
+     */
+    AUTH_MFA_SEED_KEYS: z.string().superRefine((value, ctx) => {
+      try {
+        parseSeedKeys(value);
+      } catch (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error instanceof Error ? error.message : 'is not a valid key list',
+        });
+      }
+    }),
 
     // Invitations and client access
     INVITATION_TTL_HOURS: positiveInt.default(168),
@@ -415,6 +436,10 @@ export const envSchema = z
       ['SESSION_SECRET', env.SESSION_SECRET],
       ['CSRF_SECRET', env.CSRF_SECRET],
       ['STORAGE_LOCAL_SIGNING_SECRET', env.STORAGE_LOCAL_SIGNING_SECRET],
+      // D07. The example key is a real, working 32-byte key — it has to be, or local
+      // development would not start — so nothing else would stop it encrypting production
+      // seeds. `local_dev_only` is spelled inside its base64url text for exactly this check.
+      ['AUTH_MFA_SEED_KEYS', env.AUTH_MFA_SEED_KEYS],
     ];
     for (const [key, value] of secrets) {
       if (value === undefined) continue;

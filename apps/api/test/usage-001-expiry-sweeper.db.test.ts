@@ -90,6 +90,7 @@ const CONFIG: ApiConfig = {
     SESSION_TTL_SECONDS: 900,
     REFRESH_TTL_SECONDS: 1_209_600,
     CSRF_SECRET: 'local_dev_only_csrf_secret_for_the_sweeper_suite_xxxxxx',
+    AUTH_MFA_SEED_KEYS: '1:local_dev_only_mfa_seed_key_change_me_00000',
     API_PUBLIC_URL: 'http://localhost:4000',
     AUTH_MAX_FAILURES_IN_WINDOW: 50,
     AUTH_FAILURE_WINDOW_SECONDS: 900,

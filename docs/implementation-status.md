@@ -6,7 +6,193 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-06 (Claude-only run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); D07 (TOTP seed encryption) in progress on `d07-totp-seed-encryption`. Previous run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-07 (Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; a third fix wave, the merge into `master` and the post-merge chain were all still outstanding when this line was written, so nothing of D07 is on `master` yet (see "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+
+---
+
+## D07 — TOTP seeds stored as recoverable plaintext: fixed, proved, merge pending
+
+**Finding** (production review of 2026-09-05, `CLAUDE-REVIEW-REPORT.md` §D07, P1), quoted as
+the plan carried it:
+
+> The base32 seed is passed directly to the secret column
+> (`apps/api/migrations/0004_credentials.sql:97`, `credentials.repository.ts:163`,
+> `authentication.service.ts:522`). TOTP does require a recoverable secret, but that does not
+> require plaintext storage. A database read or backup disclosure would expose the second-factor
+> seeds. The worker's database-wide SELECT grant also unnecessarily includes credential tables.
+>
+> **Fix:** encrypt MFA seeds with authenticated encryption and a versioned key outside the
+> database; scope decryption to identity processing; design rotation/backfill and recovery.
+> Reduce worker read privileges to its real table dependencies.
+>
+> **Acceptance:** a database dump contains ciphertext rather than usable seeds; altered
+> ciphertext is rejected; rotation works; the worker credential cannot read password/MFA/recovery
+> tables.
+
+**What was built** (branch `d07-totp-seed-encryption`, cut from `master` `2a15603`; five commits
+plus a merge of `master` `282f243` back into the branch at `5c94de4`):
+
+- `72c3738` — the cipher and the key format. `packages/config/src/seed-keys.ts` holds the single
+  parser, `parseSeedKeys`, for a new **required** environment variable `AUTH_MFA_SEED_KEYS`:
+  entries `<version>:<base64url 32-byte key>` separated by `;`, the **highest** version is the
+  active one and every other entry is decrypt-only. It refuses rather than repairs (empty list,
+  missing `:`, non-positive-integer version, duplicate version, a key outside the base64url
+  alphabet, a key that does not decode to exactly 32 bytes), and it checks the alphabet _before_
+  decoding, because Node's base64 decoder silently drops stray characters and a key pasted in
+  standard base64 would otherwise become a different 32-byte key with no complaint.
+  `apps/api/src/modules/identity/seed-cipher.ts` builds AES-256-GCM `encrypt` / `decrypt` /
+  `keyVersionOf` / `needsRotation` on `node:crypto` alone — no new dependency. `packages/config`
+  validates the variable at boot with the same parser, `.env.example` carries a
+  `local_dev_only` key that production refuses, and the parsed keyring reaches the API as
+  `config.mfaSeedKeys`.
+- **The stored envelope** is one string in the existing `user_mfa_factors.secret` column:
+  `mfa1.<version>.<iv>.<ciphertext>.<tag>`, all base64url, a fresh random 12-byte IV per
+  encryption and a 16-byte tag. The **additional authenticated data is the owning `user_id`**,
+  so a ciphertext copied into somebody else's row fails to authenticate. Anything that does not
+  begin with `mfa1.` is not a valid stored seed: it is refused at read time with an error naming
+  the backfill command, never quietly used.
+- `ec32140` — the worker's one database-wide `GRANT SELECT` over the whole `tmanage` schema is
+  replaced by **fourteen table-level SELECT grants** in `scripts/db/users.sql`, grouped and
+  commented by the subsystem that reads them. Every other worker grant is unchanged, and
+  `tmanage_app` is deliberately left alone (its own tests still depend on its database-wide
+  SELECT). `users-sql.test.ts` gained assertions that the worker never receives a database-wide
+  SELECT and is never granted anything on `user_passwords`, `user_mfa_factors`,
+  `user_recovery_codes` or `authentication_events`, and `least-privilege.db.test.ts` gained a
+  live worker-credential case.
+- `e45f47c` — the repository became the encryption boundary.
+  `CredentialsRepository` takes the cipher in its constructor with no default, `createFactor`
+  encrypts, and every read path that hands a seed upward decrypts using **the row's own
+  `user_id`** as the AAD rather than an id the caller passed. Nothing above the repository
+  changed: the service, `totp.ts`, `challenge-token.ts` and the controller still see the same
+  base32 seed they always did. Backfill and rotation live in
+  `apps/api/src/modules/identity/seed-backfill.repository.ts` and are driven from
+  `apps/api/src/common/database/cli.ts` as `mfa-seeds encrypt` and `mfa-seeds status`, with the
+  package scripts `mfa:encrypt-seeds` and `mfa:seeds-status`. The sweep reads every row once and
+  then writes one row at a time with the previous value in the `WHERE` clause, so a concurrent
+  enrolment is reported rather than clobbered, and a row it cannot open is counted and left
+  exactly as it is — re-encrypting a tampered row would replace the evidence with something that
+  looks correct.
+- `b5fce8b` — first review wave. Listing and removing a factor no longer decrypt anything: the
+  listing selects four named columns into its own summary type, and removal goes through a new
+  `findFactorIdentity` that reads only the id and the owner. So somebody whose seed cannot be
+  opened can still see the factor on their security screen and delete it.
+- `de22781` — second review wave. `listActiveFactors` now **partitions**: it returns the factors
+  that open and throws only when rows existed and none of them opened, so a person holding two
+  authenticators is no longer locked out by one broken row, while a person whose only row is
+  broken still fails closed (skipping unopenable rows unconditionally would be an MFA bypass for
+  anyone who could write one column). `mfa:seeds-status` now reports an `unopenable` count with
+  the offending factor ids. And `docs/runbooks/deploy.md` was written — at exactly the path
+  `scripts/db/users.sql` already pointed at — covering the deploy order, key generation and
+  custody, rotation, and operator recovery for a row that will not open.
+
+**Deployment order, which this change makes mandatory.** `AUTH_MFA_SEED_KEYS` must be set for
+every process before the deploy — the API, the worker, `verify` and `sweep` all refuse to boot
+without it, although only the API decrypts anything — and
+`pnpm --filter @tmanage/api mfa:encrypt-seeds` must be run **immediately** after the deploy.
+Between the two, every pre-existing MFA row is still bare base32, so every MFA user's sign-in
+fails, and the error text is discarded before it reaches a screen. All of this, including where
+the key is held and what to do with a row that still will not open, is in
+`docs/runbooks/deploy.md`.
+
+**Evidence** (`C:/Users/Peter/Documents/ChatGPT/TManage/d07-totp-seed-encryption-2026-09-06/`).
+Every claim below names the command and the log.
+
+- Unit and static gates at `de22781`: `pnpm --filter @tmanage/api typecheck`,
+  `pnpm --filter @tmanage/web typecheck` and `pnpm --filter @tmanage/e2e typecheck` all clean
+  (`fix2-api-typecheck.log`, `fix2-web-typecheck.log`, `fix2-e2e-typecheck.log`); eslint clean
+  over the 44 touched files (`fix2-eslint.log`); prettier `--check` clean over the same list plus
+  `docs/runbooks/deploy.md` and `apps/api/package.json` (`fix2-prettier.log`); the
+  `@tmanage/api` unit project **26 files, 390 tests, all pass** (`fix2-api-unit.log`). The
+  `@tmanage/config` package was last run one commit earlier, at `b5fce8b`, **78 tests over 2
+  files, all pass** (`fix-config-unit.log`); it did not change afterwards.
+- Identity database suites at `de22781`, under `locks/db-e2e.lock` on the embedded local database
+  (`final-db-and-reverse-proof.md`): `id-002-credentials.db.test.ts` **61 passed**,
+  `id-002-auth-http.db.test.ts` **27 passed**, `sessions.db.test.ts` **43 passed**, nothing
+  failed and nothing skipped (`final-db-id-002-credentials.log`, `final-db-id-002-auth-http.log`,
+  `final-db-sessions.log`). The D07 block inside the first of those is nine cases: the raw column
+  holds an `mfa1.` envelope and not the seed the enrolment handed back; altering one character of
+  the stored ciphertext refuses the sign-in; a ciphertext moved into another person's row is
+  refused; rotation onto a new key version does not invalidate the authenticator; a row still
+  holding a bare seed is refused with the command that fixes it; such a row can still be listed
+  and removed; a person signs in on a working factor while another of their rows will not open;
+  the sign-in is refused when none of their rows open; and the backfill encrypts the legacy row
+  while keeping the seed the person actually enrolled.
+- **Least privilege, actually executed** (`lp-proof.md`): `least-privilege.db.test.ts` ran **34
+  of 34 cases, 0 skipped, 0 failed** (`lp-least-privilege.log`) against a real server with
+  `scripts/db/users.sql` applied — `tmanage_worker` was refused with `ER_TABLEACCESS_DENIED_ERROR`,
+  errno 1142, on `user_passwords`, `user_mfa_factors`, `user_recovery_codes` **and**
+  `authentication_events`, and could still claim from the outbox, so the narrowing is not an
+  outage. Earlier runs of this file were 1 passed / 32–33 skipped for want of a credentialed
+  database URL, so this is the first time the second acceptance criterion was measured rather
+  than read off the SQL file. **Caveat, stated plainly:** it ran on a private throwaway
+  **MySQL 8.0.45** instance started from the machine's existing MySQL installation on port 13399
+  (`lp-server.log`, `lp-provision.log`; the data directory was deleted and the machine's own
+  MySQL service was left stopped, as found). That is the same engine family the local test path
+  already uses, so it closes the credential gap — it does **not** close the MySQL-versus-MariaDB
+  engine-skew gap ADR-0002 assigns to CI.
+- **Reverse proof by file copy**, never `git checkout` on a dirty file
+  (`final-db-and-reverse-proof.md`, `reverse-proof.log`). Four files —
+  `credentials.repository.ts`, `identity.module.ts`, `authentication.service.ts` and
+  `scripts/db/users.sql` — were saved and their SHA-256 recorded first (`reverse-sha.txt`), then
+  replaced with their `2a15603` content. **Nine tests failed, exactly the D07 ones**: two in
+  `users-sql.test.ts` (`reverse-users-sql.log`, the worker gets its database-wide SELECT back and
+  can reach `user_passwords`) and seven in the credentials database suite
+  (`reverse-db-id-002-credentials.log`, 7 failed / 54 passed) — the first assertion reading
+  `expected 'PEQ7YCGXFLWZDZGSBPCWLSOBZZHG5ROB' to match /^mfa1\.1\./`, which is the whole finding
+  in one line: the bare seed sitting in the column. Restoring the saved bytes matched every
+  SHA-256 and the suites went green again — **240 unit tests** and **61 database tests**
+  (`reverse-restore-unit.log`, `reverse-restore-db-id-002-credentials.log`).
+
+**Reviews.** Six independent reviews, all recorded in the same directory. Task 1 (`task1-review.md`)
+and Task 3 (`task3-review.md`) were **Approved**, with the note that the Task 1 gate logs predated
+the commit and were re-run later. Task 2 (`task2-review.md`) came back **Needs fixes**: the
+security screen was decrypting seeds it never displays, and recovery for an unopenable row was
+undecided. Those became fix wave 1, re-reviewed and approved (`fix-review.md`). The whole-branch
+review (`final-review.md`) returned **With fixes** and raised four things: no document anywhere
+told an operator that the deploy locks out every existing MFA user until a command is run; one
+unopenable row denied sign-in even to somebody holding a second working factor; `mfa:seeds-status`
+could not find the rows that lock people out; and the worker-grant acceptance criterion had never
+been proved by an executing test. The first three became fix wave 2 (`de22781`) and were confirmed
+closed (`fix2-review.md`); the fourth became the least-privilege run above. `fix2-review.md` left
+five minor points, and a **third fix wave was in progress at the time of writing**: making the
+`unopenable` count cover only rows with `disabled_at IS NULL` (so an operator who follows the
+runbook's own remedy sees the count return to zero) and correcting three sentences in
+`docs/runbooks/deploy.md`. That wave is not committed, not gated and not proved here.
+
+**Not yet done, and therefore not claimed.** The third fix wave, the database re-run that goes
+with it, the `--no-ff` merge into `master` and the post-merge chain are all outstanding; they will
+be recorded by the run that performs them. Nothing of D07 is on `master`.
+
+**Follow-ups.**
+
+1. _Pre-existing, not caused by D07 and untested by any suite run here:_ the worker's
+   `INSERT … ON DUPLICATE KEY UPDATE` on `notifications`
+   (`apps/worker/src/common/database/notifications-store.ts:153-157`) needs an UPDATE privilege
+   that `scripts/db/users.sql` does not grant; MySQL and MariaDB require it for that statement
+   form whether or not a duplicate occurs. D07 neither caused nor widened it, and fixing it means
+   editing a write grant the plan put out of scope — but the branch's own comments now point
+   straight at it.
+2. SELECT on `work_items` and `idempotency_records` was kept for the worker as a precautionary
+   pairing with its pre-existing write grants, although no worker statement names either table.
+   The new "can read every table the worker is allowed to write" test now couples the two, so the
+   read and the write grants would have to be removed together.
+3. Recovery when a person's **only** factor row is unopenable is operator-driven, per
+   `docs/runbooks/deploy.md`: the sign-in fails closed by design, and the operator identifies the
+   row, confirms with the person, disables it and has them enrol again. A set-aside unopenable row
+   during a sign-in that otherwise succeeds is **not logged anywhere** — the repository holds no
+   logger and no audit event distinguishes it, so detection depends on somebody choosing to run
+   `mfa:seeds-status`.
+4. Deployment: the API, the worker, `verify` and `sweep` all refuse to boot without
+   `AUTH_MFA_SEED_KEYS`, existing MFA users are locked out until `mfa:encrypt-seeds` runs, and the
+   keyring must be held and backed up outside the database. All of it is in
+   `docs/runbooks/deploy.md`; none of it has been exercised against a real deployment.
+5. Engine skew: the least-privilege proof ran on MySQL 8.0.45, not MariaDB. `lp-proof.md` says so
+   in as many words — it closes the credential gap and leaves the engine gap to CI, which is still
+   blocked.
+
+**Ticket accounting.** A defect closed, not a ticket: **35 of 70 tickets, 285 of 583 points
+(48.9%)** unchanged. D07, like D05, W01, W02 and D06 before it, is a review correction that closes
+no ticket.
 
 ---
 
@@ -63,9 +249,10 @@ tests kept, **the two revocation cases fail and the two "ends nothing" guards pa
 **Ticket accounting.** A defect closed, not a ticket: **35 of 70 tickets, 285 of 583 points
 (48.9%)** unchanged. Re-derived this run against the sections below: FILE-002 (13 points,
 slices A–C) closed on 2026-09-05; D05, W01, W02 and D06 are review corrections that close no
-ticket. Remaining P1 findings from the 2026-09-05 review: **D07** (TOTP seeds in plaintext),
-**D08** (password endpoint without source-based abuse control), **D09** (proxy headers,
-conditional).
+ticket. **D07** (TOTP seeds in plaintext) has since been fixed and proved on the branch
+`d07-totp-seed-encryption` and is waiting to be merged — see the D07 section above. Remaining P1
+findings from the 2026-09-05 review: **D08** (password endpoint without source-based abuse
+control), **D09** (proxy headers, conditional).
 
 ---
 

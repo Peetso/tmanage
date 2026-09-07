@@ -1,0 +1,393 @@
+import { describe, expect, it } from 'vitest';
+import { parseSeedKeys } from '@tmanage/config';
+import { createSeedCipher } from './seed-cipher.js';
+import { encryptSeeds, seedEncryptionStatus } from './seed-backfill.repository.js';
+import type { SeedStore } from './seed-backfill.repository.js';
+
+/**
+ * The backfill's decision logic, against a table that only remembers what it was told.
+ *
+ * A fake rather than a database, because what is under test here is *which* rows are
+ * rewritten and *what the write is guarded by* — and both are decidable from the
+ * statements the sweep issues. The database suite proves the same code against a real
+ * server; this one proves the parts that a real server would only agree with silently.
+ */
+
+/** Obviously fake keys: a byte repeated thirty-two times. Nothing here is a real key. */
+const key = (fill: number): string => Buffer.alloc(32, fill).toString('base64url');
+
+const V1 = createSeedCipher(parseSeedKeys(`1:${key(0x11)}`));
+/** Version 2 active, version 1 kept so rows written before the rotation still open. */
+const V1_AND_V2 = createSeedCipher(parseSeedKeys(`1:${key(0x11)};2:${key(0x22)}`));
+
+const ALICE = '0198f0aa-0000-7000-8000-000000000001';
+const BOB = '0198f0aa-0000-7000-8000-000000000002';
+
+/** A real TOTP seed shape: RFC 4648 base32, which is what the column held before D07. */
+const SEED = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+const OTHER_SEED = 'KRUGS4ZANFZSAYJANFZSAYJAKRUGS4ZA';
+
+interface FactorRow {
+  readonly id: string;
+  readonly userId: string;
+  secret: string;
+  /** The disable timestamp, `null` for a live factor. Only its nullness is ever read. */
+  readonly disabledAt?: string | null;
+}
+
+interface Statement {
+  readonly sql: string;
+  readonly values: readonly unknown[];
+}
+
+/**
+ * `user_mfa_factors`, reduced to the columns the sweep reads and the one it writes.
+ *
+ * `disabled_at` is among them because `status` partitions on it, and the column is always
+ * present in the result set — a live row carries SQL NULL rather than nothing at all, which
+ * is what the real driver hands back and what the mapping has to cope with.
+ *
+ * `beforeUpdate` is how a concurrent writer is expressed: it runs once, immediately before
+ * the first UPDATE reaches the table, which is exactly the window the compare-and-swap
+ * exists to close.
+ */
+class FakeFactorTable implements SeedStore {
+  readonly statements: Statement[] = [];
+  private beforeUpdate: (() => void) | undefined;
+
+  constructor(
+    readonly rows: FactorRow[],
+    beforeUpdate?: () => void,
+  ) {
+    this.beforeUpdate = beforeUpdate;
+  }
+
+  get updates(): readonly Statement[] {
+    return this.statements.filter((statement) => /^\s*update/i.test(statement.sql));
+  }
+
+  async query(sql: string, values?: unknown[]): Promise<[unknown, unknown]> {
+    const params = values ?? [];
+    this.statements.push({ sql, values: [...params] });
+
+    if (/^\s*select/i.test(sql)) {
+      return [
+        this.rows.map((row) => ({
+          id: row.id,
+          user_id: row.userId,
+          secret: row.secret,
+          disabled_at: row.disabledAt ?? null,
+        })),
+        [],
+      ];
+    }
+
+    if (/^\s*update/i.test(sql)) {
+      this.beforeUpdate?.();
+      this.beforeUpdate = undefined;
+      const [next, id, previous] = params as [string, string, string];
+      const row = this.rows.find((candidate) => candidate.id === id);
+      if (row === undefined || row.secret !== previous) return [{ affectedRows: 0 }, []];
+      row.secret = next;
+      return [{ affectedRows: 1 }, []];
+    }
+
+    throw new Error(`the backfill issued an unexpected statement: ${sql}`);
+  }
+}
+
+function tamper(envelope: string): string {
+  const parts = envelope.split('.');
+  const ciphertext = parts[3];
+  if (ciphertext === undefined) throw new Error(`not an envelope: ${envelope}`);
+  parts[3] = (ciphertext[0] === 'A' ? 'B' : 'A') + ciphertext.slice(1);
+  return parts.join('.');
+}
+
+describe('encryptSeeds', () => {
+  it('encrypts a row left in plaintext and counts it as such', async () => {
+    const table = new FakeFactorTable([{ id: 'f1', userId: ALICE, secret: SEED }]);
+
+    const report = await encryptSeeds(table, V1);
+
+    expect(report.plaintextEncrypted).toBe(1);
+    expect(report.rotated).toBe(0);
+    expect(report.unchanged).toBe(0);
+    expect(report.failed).toBe(0);
+    expect(table.rows[0]!.secret.startsWith('mfa1.1.')).toBe(true);
+    // The point of the sweep: the same seed, no longer readable from the column.
+    expect(V1.decrypt(table.rows[0]!.secret, { userId: ALICE })).toBe(SEED);
+  });
+
+  it('re-encrypts a row written under an older key under the active one', async () => {
+    const old = V1.encrypt(SEED, { userId: ALICE });
+    const table = new FakeFactorTable([{ id: 'f1', userId: ALICE, secret: old }]);
+
+    const report = await encryptSeeds(table, V1_AND_V2);
+
+    expect(report.rotated).toBe(1);
+    expect(report.plaintextEncrypted).toBe(0);
+    expect(table.rows[0]!.secret.startsWith('mfa1.2.')).toBe(true);
+    expect(V1_AND_V2.decrypt(table.rows[0]!.secret, { userId: ALICE })).toBe(SEED);
+  });
+
+  it('leaves a row already on the active key alone, and issues no write for it', async () => {
+    const current = V1_AND_V2.encrypt(SEED, { userId: ALICE });
+    const table = new FakeFactorTable([{ id: 'f1', userId: ALICE, secret: current }]);
+
+    const report = await encryptSeeds(table, V1_AND_V2);
+
+    expect(report.unchanged).toBe(1);
+    expect(table.updates).toHaveLength(0);
+    // Untouched, not merely equivalent: a re-encryption would have drawn a fresh IV.
+    expect(table.rows[0]!.secret).toBe(current);
+  });
+
+  /**
+   * One statement per row, each guarded by the exact value the sweep read.
+   *
+   * A single `UPDATE … WHERE secret NOT LIKE 'mfa1.%'` would be shorter and would clobber
+   * every enrolment that completed while the sweep was running. The predicate below is the
+   * whole difference: a row that changed underneath is not written.
+   */
+  it('writes each row in its own statement, guarded by the value it read', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: SEED },
+      { id: 'f2', userId: BOB, secret: OTHER_SEED },
+    ]);
+
+    await encryptSeeds(table, V1);
+
+    expect(table.updates).toHaveLength(2);
+    for (const [index, statement] of table.updates.entries()) {
+      expect(statement.sql).toMatch(/update\s+user_mfa_factors/i);
+      expect(statement.sql).toMatch(/where\s+id\s*=\s*\?\s+and\s+secret\s*=\s*\?/i);
+      expect(statement.values).toHaveLength(3);
+      expect(statement.values[1]).toBe(index === 0 ? 'f1' : 'f2');
+      expect(statement.values[2]).toBe(index === 0 ? SEED : OTHER_SEED);
+    }
+  });
+
+  it('does not clobber a row that changed between the read and the write', async () => {
+    const table = new FakeFactorTable([{ id: 'f1', userId: ALICE, secret: SEED }], () => {
+      // Someone re-enrolled while the sweep was walking the table.
+      table.rows[0]!.secret = V1.encrypt(OTHER_SEED, { userId: ALICE });
+    });
+
+    const report = await encryptSeeds(table, V1);
+
+    expect(report.failed).toBe(1);
+    expect(report.plaintextEncrypted).toBe(0);
+    expect(report.failures).toEqual([{ factorId: 'f1', reason: 'concurrently_changed' }]);
+    expect(V1.decrypt(table.rows[0]!.secret, { userId: ALICE })).toBe(OTHER_SEED);
+  });
+
+  it('reports a row it cannot open rather than overwriting it', async () => {
+    const tampered = tamper(V1.encrypt(SEED, { userId: ALICE }));
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: tampered },
+      { id: 'f2', userId: BOB, secret: 'mfa1.9' },
+    ]);
+
+    const report = await encryptSeeds(table, V1_AND_V2);
+
+    expect(report.failed).toBe(2);
+    expect(report.failures).toEqual([
+      { factorId: 'f1', reason: 'authentication_failed' },
+      { factorId: 'f2', reason: 'malformed' },
+    ]);
+    // A row nobody can decrypt is evidence. Encrypting it again would destroy it.
+    expect(table.updates).toHaveLength(0);
+    expect(table.rows[0]!.secret).toBe(tampered);
+    expect(table.rows[1]!.secret).toBe('mfa1.9');
+  });
+
+  /**
+   * The sweep is run by an operator reading its output, and its output goes into a terminal
+   * scrollback and quite possibly a ticket. Nothing it says may be a seed.
+   */
+  it('says nothing that contains a seed or a stored value', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: SEED },
+      { id: 'f2', userId: BOB, secret: tamper(V1.encrypt(OTHER_SEED, { userId: BOB })) },
+    ]);
+
+    const report = await encryptSeeds(table, V1);
+    const printed = JSON.stringify(report);
+
+    expect(printed).not.toContain(SEED);
+    expect(printed).not.toContain(OTHER_SEED);
+    expect(printed).not.toContain('mfa1.');
+  });
+
+  /**
+   * The failure an operator produces by accident: a key is dropped from
+   * `AUTH_MFA_SEED_KEYS` while rows are still written under it.
+   *
+   * `needsRotation` means "not the active version", so such a row is picked up for rewriting
+   * and then cannot be opened. It has to be counted and named — not retried forever, and not
+   * allowed to stop the sweep, because the rows after it are the ones that can still be
+   * fixed. Hence the second row: the run walks past the failure and encrypts it.
+   */
+  it('counts a row under a key the keyring no longer holds, and keeps going', async () => {
+    const underV2 = V1_AND_V2.encrypt(SEED, { userId: ALICE });
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: underV2 },
+      { id: 'f2', userId: BOB, secret: OTHER_SEED },
+    ]);
+
+    const report = await encryptSeeds(table, V1);
+
+    expect(report.failed).toBe(1);
+    expect(report.failures).toEqual([{ factorId: 'f1', reason: 'unknown_key_version' }]);
+    // Left exactly as found: a row this deployment cannot open is evidence, not scrap.
+    expect(table.rows[0]!.secret).toBe(underV2);
+    // And the run did not stop at it.
+    expect(report.plaintextEncrypted).toBe(1);
+    expect(V1.decrypt(table.rows[1]!.secret, { userId: BOB })).toBe(OTHER_SEED);
+  });
+
+  /**
+   * `status` skips disabled rows; the sweep must not. A retired factor's column still holds
+   * the seed somebody enrolled, and leaving it in plaintext because nobody signs in on it any
+   * more would leave exactly the disclosure D07 exists to close.
+   */
+  it('encrypts a disabled row too', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: SEED, disabledAt: '2026-09-06 12:00:00.000' },
+    ]);
+
+    const report = await encryptSeeds(table, V1);
+
+    expect(report.plaintextEncrypted).toBe(1);
+    expect(table.rows[0]!.secret.startsWith('mfa1.1.')).toBe(true);
+  });
+
+  it('counts an empty stored value as a failure rather than encrypting nothing', async () => {
+    const table = new FakeFactorTable([{ id: 'f1', userId: ALICE, secret: '' }]);
+
+    const report = await encryptSeeds(table, V1);
+
+    expect(report.failures).toEqual([{ factorId: 'f1', reason: 'empty' }]);
+    expect(table.updates).toHaveLength(0);
+  });
+});
+
+describe('seedEncryptionStatus', () => {
+  it('counts rows per key version, plus the plaintext and the unreadable', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: SEED },
+      { id: 'f2', userId: ALICE, secret: V1.encrypt(SEED, { userId: ALICE }) },
+      { id: 'f3', userId: BOB, secret: V1_AND_V2.encrypt(SEED, { userId: BOB }) },
+      { id: 'f4', userId: BOB, secret: V1_AND_V2.encrypt(OTHER_SEED, { userId: BOB }) },
+      { id: 'f5', userId: BOB, secret: 'mfa1.9' },
+    ]);
+
+    const status = await seedEncryptionStatus(table, V1_AND_V2);
+
+    expect(status.total).toBe(5);
+    expect(status.plaintext).toBe(1);
+    expect(status.unreadable).toBe(1);
+    expect(status.byVersion).toEqual([
+      { version: 1, rows: 1 },
+      { version: 2, rows: 2 },
+    ]);
+  });
+
+  /**
+   * The question an operator actually arrives with: which rows are refusing a sign-in?
+   *
+   * Counting by version cannot answer it. A tampered envelope and one naming a dropped key
+   * both parse, so both were counted under their version like any healthy row, and the
+   * backfill passes over the same rows without opening them. Hence one decrypt attempt per
+   * row here, and a list of ids to act on.
+   */
+  it('names the rows that will not open, with the reason each fails for', async () => {
+    const tampered = tamper(V1.encrypt(SEED, { userId: ALICE }));
+    const underV2 = V1_AND_V2.encrypt(SEED, { userId: BOB });
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: V1.encrypt(SEED, { userId: ALICE }) },
+      { id: 'f2', userId: ALICE, secret: tampered },
+      // Written under key 2, read by a process that holds only key 1.
+      { id: 'f3', userId: BOB, secret: underV2 },
+      { id: 'f4', userId: BOB, secret: 'mfa1.9' },
+      // A row the backfill has not reached. Not a fault, and not listed below.
+      { id: 'f5', userId: BOB, secret: OTHER_SEED },
+    ]);
+
+    const status = await seedEncryptionStatus(table, V1);
+
+    expect(status.unopenable).toEqual([
+      { factorId: 'f2', reason: 'authentication_failed' },
+      { factorId: 'f3', reason: 'unknown_key_version' },
+      { factorId: 'f4', reason: 'malformed' },
+    ]);
+    // The counts the command already reported are unchanged by the decrypt attempt.
+    expect(status.plaintext).toBe(1);
+    expect(status.unreadable).toBe(1);
+    expect(status.total).toBe(5);
+  });
+
+  /**
+   * The runbook's remedy for a broken factor is to disable the row and keep it. If a disabled
+   * row still counted, `unopenable` could never return to the zero the runbook calls healthy,
+   * and an operator who had done everything right would be left staring at a number with no
+   * remaining action behind it. Both rows below are broken in the same way; only the live one
+   * is refusing anybody a sign-in.
+   */
+  it('leaves a disabled row out of the list and keeps the live one in', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: tamper(V1.encrypt(SEED, { userId: ALICE })) },
+      {
+        id: 'f2',
+        userId: BOB,
+        secret: tamper(V1.encrypt(OTHER_SEED, { userId: BOB })),
+        disabledAt: '2026-09-06 12:00:00.000',
+      },
+    ]);
+
+    const status = await seedEncryptionStatus(table, V1);
+
+    expect(status.unopenable).toEqual([{ factorId: 'f1', reason: 'authentication_failed' }]);
+    // The disabled row is still a row: the counts describe the column, not who is locked out.
+    expect(status.total).toBe(2);
+    expect(status.byVersion).toEqual([{ version: 1, rows: 2 }]);
+  });
+
+  it('lists nothing when every row opens', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: V1.encrypt(SEED, { userId: ALICE }) },
+      { id: 'f2', userId: BOB, secret: V1.encrypt(OTHER_SEED, { userId: BOB }) },
+    ]);
+
+    expect((await seedEncryptionStatus(table, V1)).unopenable).toEqual([]);
+  });
+
+  /** The report is pasted into tickets, so the decrypt attempt must not leak what it opened. */
+  it('says nothing that contains a seed or a stored value', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: V1.encrypt(SEED, { userId: ALICE }) },
+      { id: 'f2', userId: BOB, secret: tamper(V1.encrypt(OTHER_SEED, { userId: BOB })) },
+    ]);
+
+    const printed = JSON.stringify(await seedEncryptionStatus(table, V1));
+
+    expect(printed).not.toContain(SEED);
+    expect(printed).not.toContain(OTHER_SEED);
+    expect(printed).not.toContain('mfa1.');
+  });
+
+  it('touches nothing', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: SEED },
+      // Including the row it now tries to open and cannot: reading is all it does.
+      { id: 'f2', userId: BOB, secret: tamper(V1.encrypt(OTHER_SEED, { userId: BOB })) },
+    ]);
+    const before = table.rows.map((row) => row.secret);
+
+    await seedEncryptionStatus(table, V1_AND_V2);
+
+    expect(table.updates).toHaveLength(0);
+    expect(table.rows.map((row) => row.secret)).toEqual(before);
+  });
+});

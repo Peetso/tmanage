@@ -1,5 +1,5 @@
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
-import { CredentialsRepository } from './credentials.repository.js';
+import type { CredentialsRepository } from './credentials.repository.js';
 import {
   CHALLENGE_TTL_SECONDS,
   signChallengeToken,
@@ -214,7 +214,13 @@ export class AuthenticationService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly options: AuthenticationOptions,
-    credentials: CredentialsRepository = new CredentialsRepository(),
+    /**
+     * Required, with no default. D07 gave the repository a cipher, and the only default this
+     * file could supply is one built from a keyring it invented — which would encrypt seeds
+     * under a key the deployment does not keep. The caller that knows where the key comes
+     * from constructs it: `identity.module.ts` in the application, the suite in a test.
+     */
+    credentials: CredentialsRepository,
     /** Injectable so a test can drive the TOTP window without waiting thirty seconds. */
     private readonly now: () => number = () => Date.now(),
     /** `D06`: the session cutoff a password replacement applies. Stateless, so the default is real. */
@@ -876,7 +882,10 @@ export class AuthenticationService {
     return this.database.identityTransaction(
       { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
       async (tx) => {
-        const factor = await this.credentials.findFactor(tx, input.factorId);
+        // Ownership only. `findFactorIdentity` does not read the seed, so a factor whose
+        // stored envelope will not open — the reason someone is most likely to be on this
+        // screen — can still be removed.
+        const factor = await this.credentials.findFactorIdentity(tx, input.factorId);
         if (!factor || factor.userId !== input.userId) return false;
 
         const disabled = await this.credentials.disableFactor(tx, factor.id);

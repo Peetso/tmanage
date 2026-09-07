@@ -22,6 +22,7 @@ const devEnv = (): NodeJS.ProcessEnv => ({
   SESSION_SECRET: 'a'.repeat(48),
   CSRF_SECRET: 'b'.repeat(48),
   STORAGE_LOCAL_SIGNING_SECRET: 'd'.repeat(48),
+  AUTH_MFA_SEED_KEYS: `1:${'k'.repeat(43)}`,
   EMAIL_FROM_ADDRESS: 'no-reply@tmanage.example',
 });
 
@@ -312,6 +313,56 @@ describe('loadEnv', () => {
       });
 
       expect(env.CORS_ALLOWED_ORIGINS).toEqual(['http://localhost:3000', 'http://localhost:3001']);
+    });
+  });
+
+  /**
+   * D07. The MFA seed keys are the one secret whose absence would be silently survivable —
+   * the API would boot and only fail when somebody enrolled a factor — so the schema demands
+   * them in every environment, and demands the same shape the cipher will demand later.
+   */
+  describe('MFA seed keys (D07)', () => {
+    const KEY = 'k'.repeat(43);
+
+    it('requires the keys in every environment, not only production', () => {
+      const dev = devEnv();
+      delete dev['AUTH_MFA_SEED_KEYS'];
+      const prod = prodEnv({ AUTH_MFA_SEED_KEYS: undefined });
+
+      expect(issuePaths(() => loadEnv(dev))).toContain('AUTH_MFA_SEED_KEYS');
+      expect(issuePaths(() => loadEnv(prod))).toContain('AUTH_MFA_SEED_KEYS');
+    });
+
+    it('accepts a list of versioned keys', () => {
+      expect(() =>
+        loadEnv({ ...devEnv(), AUTH_MFA_SEED_KEYS: `1:${KEY};2:${'m'.repeat(43)}` }),
+      ).not.toThrow();
+    });
+
+    it.each([
+      ['a key that is not 32 bytes', `1:${'k'.repeat(20)}`],
+      ['a key in standard base64', `1:${'+'.repeat(43)}`],
+      ['a duplicated version', `1:${KEY};1:${KEY}`],
+      ['a version that is not a positive integer', `0:${KEY}`],
+      ['an entry with no version', KEY],
+      ['an empty list', ''],
+    ])('refuses %s', (_label, value) => {
+      expect(issuePaths(() => loadEnv({ ...devEnv(), AUTH_MFA_SEED_KEYS: value }))).toContain(
+        'AUTH_MFA_SEED_KEYS',
+      );
+    });
+
+    /**
+     * The `.env.example` key is a working key — it has to be, or local development would not
+     * run — so nothing but this check stops it encrypting real seeds in production.
+     */
+    it('refuses the .env.example key in production', () => {
+      const placeholder = '1:local_dev_only_mfa_seed_key_change_me_00000';
+
+      expect(() => loadEnv({ ...devEnv(), AUTH_MFA_SEED_KEYS: placeholder })).not.toThrow();
+      expect(issuePaths(() => loadEnv(prodEnv({ AUTH_MFA_SEED_KEYS: placeholder })))).toContain(
+        'AUTH_MFA_SEED_KEYS',
+      );
     });
   });
 

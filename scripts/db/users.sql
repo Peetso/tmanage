@@ -29,11 +29,20 @@
 -- MySQL privileges are additive and cannot be revoked for a single table once granted
 -- database-wide. Withholding UPDATE and DELETE on `audit_events`, and INSERT on
 -- `schema_migrations`, therefore requires never granting them database-wide in the first
--- place. `SELECT` is the one exception: it is granted database-wide because a read of any
--- table is not a privilege escalation, and because a new module's tables would otherwise
--- be unreadable until someone remembered to amend this file. Writes get no such courtesy —
--- a table this file does not name cannot be written by the application at all, and that
--- failure is loud.
+-- place. `SELECT` is the one exception, and only for the application: `tmanage_app` is
+-- granted it database-wide because that process already reads most of the schema, because
+-- a read of a table it already reaches is not a privilege escalation, and because a new
+-- module's tables would otherwise be unreadable until someone remembered to amend this
+-- file. Writes get no such courtesy — a table this file does not name cannot be written by
+-- the application at all, and that failure is loud.
+--
+-- The worker gets no such courtesy either, and D07 is why. `tmanage_worker` held the same
+-- database-wide read, which made the relay's connection string a second way to dump every
+-- password hash, every TOTP seed, every recovery code and the whole sign-in log — for a
+-- process that reads a short, fixed list of tables and no credential at all. Its SELECTs
+-- are therefore table-level and named one by one below, and the cost is the one the writes
+-- already pay: a new table the relay must read arrives with the grant that lets it read
+-- it, or the relay says so the first time it tries.
 --
 -- Local development passwords only. Deployed environments provision these users from the
 -- secret store; see docs/runbooks/deploy.md. On Hostinger, apply as far as the plan permits
@@ -175,7 +184,55 @@ GRANT INSERT ON `tmanage`.`authentication_events` TO 'tmanage_app'@'%';
 -- a defective consumer cannot destroy work.
 CREATE USER IF NOT EXISTS 'tmanage_worker'@'%' IDENTIFIED BY 'local_dev_only_worker';
 
-GRANT SELECT ON `tmanage`.* TO 'tmanage_worker'@'%';
+-- The relay's reads, one table at a time — D07. The list is the tables named by statements
+-- in `apps/worker/src/common/database/` — the one directory in the worker permitted to
+-- spell SQL — plus the tables the write grants further down cannot be exercised without
+-- (see "Read where it writes"). What the list leaves out is the point: `user_passwords`,
+-- `user_mfa_factors`, `user_recovery_codes` and `authentication_events` are unreachable by
+-- this credential entirely, so a leaked relay connection string is worth the outbox and
+-- the membership rows and not one second factor.
+
+-- The outbox itself: the `FOR UPDATE SKIP LOCKED` claim, the dispatched stamp, the retry
+-- schedule and the parked-event report (`outbox-store.ts`).
+GRANT SELECT ON `tmanage`.`outbox_events`            TO 'tmanage_worker'@'%';
+
+-- PLAT-004's lifecycle rule reads the request the work item was born from and its version
+-- (`lifecycle-store.ts`); NOTIF-002's mail joins the three rows an email renders it with —
+-- who submitted it, which studio, which project (`mail-store.ts`). `users` is here for the
+-- address and locale on that join and for nothing else; the relay reads no password row,
+-- which is a different table and, since D07, a different privilege.
+GRANT SELECT ON `tmanage`.`client_requests`          TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`users`                    TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`organizations`            TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`projects`                 TO 'tmanage_worker'@'%';
+
+-- NOTIF-001's recipients. `24-EVENT-CATALOG` §6 forbids a consumer inferring authorization
+-- from event receipt, so the audience is recomputed from the *current* membership rows at
+-- delivery time — which is why these four are read grants the relay genuinely needs rather
+-- than a convenience (`notifications-store.ts`).
+GRANT SELECT ON `tmanage`.`memberships`              TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`project_memberships`      TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`client_memberships`       TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`project_clients`          TO 'tmanage_worker'@'%';
+
+-- RT-001's fan-out audience: who is in the conversation, and still in the organization
+-- (`realtime-store.ts`). The channel's messages are not read — the frame carries what the
+-- socket needs — so `messages` is named nowhere here.
+GRANT SELECT ON `tmanage`.`conversations`            TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`conversation_memberships` TO 'tmanage_worker'@'%';
+
+-- Read where it writes. MySQL reads to write: an `UPDATE … WHERE` needs SELECT on the
+-- columns it filters by, and the notification insert's `ON DUPLICATE KEY UPDATE id = id`
+-- — the dedupe that absorbs an at-least-once replay — reads the row it collided with. A
+-- write grant below without the matching read here would be a grant that cannot be used,
+-- so the two are kept together for every table the relay may write.
+GRANT SELECT ON `tmanage`.`notifications`            TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`work_items`               TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`idempotency_records`      TO 'tmanage_worker'@'%';
+
+-- `audit_events` is the one table the relay writes and cannot read, and the asymmetry is
+-- deliberate: it appends system audit rows (`lifecycle-store.ts`) and never reads one back,
+-- so SELECT would be privilege granted against no statement. `INSERT` alone, below.
 
 GRANT INSERT, UPDATE ON `tmanage`.`outbox_events`       TO 'tmanage_worker'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`idempotency_records` TO 'tmanage_worker'@'%';

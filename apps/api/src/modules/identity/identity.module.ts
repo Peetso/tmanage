@@ -12,6 +12,8 @@ import { SessionService } from './session.service.js';
 import { DevelopmentSignInController, SessionController } from './session.controller.js';
 import { AuthenticationService } from './authentication.service.js';
 import { AuthenticationController, CredentialsController } from './authentication.controller.js';
+import { CredentialsRepository } from './credentials.repository.js';
+import { createSeedCipher } from './seed-cipher.js';
 
 /**
  * ID-001's HTTP surface.
@@ -41,16 +43,23 @@ export class IdentityModule {
       provide: AUTHENTICATION_SERVICE,
       inject: [TENANT_DATABASE, API_CONFIG],
       useFactory: (database: TenantDatabase, config: ApiConfig) =>
-        new AuthenticationService(database, {
-          sessionSecret: config.sessionSecret,
-          maxFailuresInWindow: config.maxFailuresInWindow,
-          failureWindowSeconds: config.failureWindowSeconds,
-          totpIssuer: config.totpIssuer,
-          // No breached-password screen is wired. HIBP's range API is a network call to a
-          // third party and nothing here has ever made it; `password.ts` still screens
-          // against the bundled list, and the gap is recorded rather than filled with a
-          // screen that would fail open.
-        }),
+        new AuthenticationService(
+          database,
+          {
+            sessionSecret: config.sessionSecret,
+            maxFailuresInWindow: config.maxFailuresInWindow,
+            failureWindowSeconds: config.failureWindowSeconds,
+            totpIssuer: config.totpIssuer,
+            // No breached-password screen is wired. HIBP's range API is a network call to a
+            // third party and nothing here has ever made it; `password.ts` still screens
+            // against the bundled list, and the gap is recorded rather than filled with a
+            // screen that would fail open.
+          },
+          // D07. The keyring was parsed and validated at boot by `packages/config`, so a
+          // malformed `AUTH_MFA_SEED_KEYS` has already stopped the process by the time this
+          // runs — the cipher is never built from a value nobody checked.
+          new CredentialsRepository(createSeedCipher(config.mfaSeedKeys)),
+        ),
     };
 
     return {

@@ -1031,9 +1031,13 @@ export const userMfaFactors = mysqlTable(
     kind: varchar('kind', { length: 32 }).notNull(),
     label: varchar('label', { length: 190 }).notNull(),
     /**
-     * The base32 shared secret, stored recoverably because TOTP verification needs the
-     * secret itself. That is a property of the algorithm and the reason a passkey is the
-     * better credential: a WebAuthn public key is useless to whoever steals the database.
+     * The shared secret, stored recoverably because TOTP verification needs the secret
+     * itself. That is a property of the algorithm and the reason a passkey is the better
+     * credential: a WebAuthn public key is useless to whoever steals the database.
+     *
+     * Since D07 (2026-09-06) the column holds an `mfa1.` envelope — AES-256-GCM under a
+     * versioned key held outside the database — rather than the bare base32 seed, so a dump
+     * discloses nothing usable. `credentials.repository.ts` is the only place it is opened.
      */
     secret: varchar('secret', { length: 255 }).notNull(),
     /** NULL until a code has been produced from it. An unconfirmed factor authorises nothing. */

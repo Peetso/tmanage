@@ -57,6 +57,7 @@ const CONFIG: ApiConfig = apiConfigFrom({
   SESSION_TTL_SECONDS: 900,
   REFRESH_TTL_SECONDS: 1_209_600,
   CSRF_SECRET,
+  AUTH_MFA_SEED_KEYS: '1:local_dev_only_mfa_seed_key_change_me_00000',
   // Plain http, so `secureCookies` resolves false — this suite is not over TLS.
   // `packages/config` refuses a non-https public URL in production, so this cannot become the
   // production shape by accident.

@@ -14,6 +14,8 @@ import type {
   UserRecoveryCodeRow,
 } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
+import { SeedCipherError } from './seed-cipher.js';
+import type { SeedCipher } from './seed-cipher.js';
 
 /**
  * Credential storage — ID-002's persistence half.
@@ -35,13 +37,66 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  * Passwords arrive already hashed by `password.ts`; recovery codes arrive already hashed by
  * `recovery-codes.ts`. A TOTP secret is the one credential stored recoverably, because the
  * algorithm needs it back — see the note on the column in migration 0004.
+ *
+ * ## The seed is encrypted here and nowhere else — D07 (2026-09-06)
+ *
+ * "Recoverably" used to mean the base32 seed went into the column exactly as the
+ * authenticator produced it, so a dump or a backup disclosed every second factor. It now
+ * means an `mfa1.` envelope from {@link SeedCipher}, and this class is the boundary: every
+ * write encrypts, every read that hands a secret upward decrypts, and the service, `totp.ts`
+ * and the controller above continue to see the base32 seed they always saw. One boundary
+ * rather than a call at each use site, because the property that
+ * matters — nothing above this line ever holds ciphertext, nothing below it ever holds a
+ * seed — is only checkable if there is one line.
+ *
+ * A value that will not open is not swallowed. A `SeedCipherError` propagates out of the
+ * read, and every caller here already fails closed on a repository error, so a tampered row
+ * or a leftover plaintext one refuses a sign-in rather than quietly permitting it. The one
+ * refinement is {@link CredentialsRepository.listActiveFactors}, which refuses when *no* row
+ * of a person's factors opens rather than when the first one does not — the same closed door
+ * for the account whose only factor is broken, held open for the account that still has a
+ * working one.
+ *
+ * Which is why only the reads that *hand a seed upward* select the column at all. A read
+ * whose caller discards the secret does not decrypt it and does not select it — see
+ * {@link CredentialsRepository.listAllFactors} and
+ * {@link CredentialsRepository.findFactorIdentity}. Two reasons, and the second is the one
+ * that shows up in an incident: a seed is never materialised in memory for a screen that
+ * shows none, and a row that will not open — a legacy plaintext one before the backfill has
+ * run, an unknown key version, a tampered envelope — still lists and can still be removed,
+ * instead of turning the security screen and the "remove this factor" route into a 500 at
+ * exactly the moment someone needs them.
  */
+
+/**
+ * A factor as the security screen sees it: what it displays, and nothing else.
+ *
+ * A distinct type rather than `Omit<UserMfaFactorRow, 'secret'>` because it is the shape of a
+ * `SELECT`, not a row with a field hidden — the seed is never fetched, so no later edit here
+ * can accidentally start returning it.
+ */
+export type UserMfaFactorSummary = {
+  readonly id: string;
+  readonly kind: string;
+  readonly label: string;
+  readonly confirmedAt: Date | null;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Passwords
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class CredentialsRepository {
+  /**
+   * The cipher is injected rather than built here, and it has no default.
+   *
+   * A default would have to invent a keyring, and the only keyring this file could invent
+   * is one that is not the deployment's — which would encrypt seeds under a key nobody
+   * keeps, and open none of the rows already stored. Constructing this class therefore
+   * requires having decided where the key comes from; `identity.module.ts` decides.
+   */
+  constructor(private readonly seeds: SeedCipher) {}
+
   /** The password row for a user, or `null` when they have never set one. */
   async findPassword(runner: IdentityQueryRunner, userId: string): Promise<UserPasswordRow | null> {
     const rows = await tenantDrizzle(runner)
@@ -117,12 +172,32 @@ export class CredentialsRepository {
    * Unconfirmed factors are excluded deliberately. Whether MFA is *required* for a person is
    * decided by whether this list is empty, and counting a half-finished enrolment would lock
    * someone out of their own account because they opened the setup screen and closed the tab.
+   *
+   * ## One unopenable row must not cost a person their working one — D07 review
+   *
+   * Opening every row eagerly meant the first `SeedCipherError` in the list propagated, so
+   * somebody holding a phone *and* a tablet was refused sign-in because the tablet's row was
+   * left in plaintext by a backfill nobody ran. The rows that open are therefore collected
+   * and the rest set aside.
+   *
+   * Set aside, not skipped. If rows existed and *none* opened, the first refusal is rethrown,
+   * because silently returning an empty list would say "this person has no second factor" and
+   * anyone able to write one column could then corrupt the only factor and reduce the account
+   * to password-only. That is a live MFA bypass, and it is worse than the lockout. Failing
+   * closed when nothing opens, and only then, keeps both properties: MFA is still demanded
+   * whenever a factor exists, and a second working factor still signs the person in.
+   *
+   * Nothing is logged from here: this class holds no logger (it takes a query runner per call
+   * and nothing else), and reaching for `console` inside the identity path would put factor
+   * ids into a stream nobody has decided the retention of. The diagnostic that names these
+   * rows is `pnpm --filter @tmanage/api mfa:seeds-status`, which reports them by id and
+   * reason — see `docs/runbooks/deploy.md`.
    */
   async listActiveFactors(
     runner: IdentityQueryRunner,
     userId: string,
   ): Promise<readonly UserMfaFactorRow[]> {
-    return tenantDrizzle(runner)
+    const rows = await tenantDrizzle(runner)
       .select()
       .from(userMfaFactors)
       .where(
@@ -133,20 +208,68 @@ export class CredentialsRepository {
         ),
       )
       .orderBy(desc(userMfaFactors.createdAt));
+
+    const opened: UserMfaFactorRow[] = [];
+    let firstRefusal: SeedCipherError | undefined;
+    for (const row of rows) {
+      try {
+        opened.push(this.open(row));
+      } catch (error) {
+        // Only a refusal by the cipher is a set-aside row. Anything else is a fault in this
+        // process rather than in the column, and swallowing it would hide it.
+        if (!(error instanceof SeedCipherError)) throw error;
+        firstRefusal ??= error;
+      }
+    }
+    if (opened.length === 0 && firstRefusal !== undefined) throw firstRefusal;
+    return opened;
   }
 
-  /** Every factor a person holds, confirmed or not, for the security screen. */
+  /**
+   * Every factor a person holds, confirmed or not, for the security screen.
+   *
+   * The four columns the screen displays, and not `secret`. The caller
+   * (`authentication.service.ts`'s `listFactors`, "No secrets, ever") discards the seed, so
+   * selecting it would only mean decrypting every one of a person's seeds to throw them
+   * away — and making one unopenable row take the whole screen down with it. The narrower
+   * return type is the point: the field is not there to be leaked or to fail.
+   */
   async listAllFactors(
     runner: IdentityQueryRunner,
     userId: string,
-  ): Promise<readonly UserMfaFactorRow[]> {
+  ): Promise<readonly UserMfaFactorSummary[]> {
     return tenantDrizzle(runner)
-      .select()
+      .select({
+        id: userMfaFactors.id,
+        kind: userMfaFactors.kind,
+        label: userMfaFactors.label,
+        confirmedAt: userMfaFactors.confirmedAt,
+      })
       .from(userMfaFactors)
       .where(and(eq(userMfaFactors.userId, userId), isNull(userMfaFactors.disabledAt)))
       .orderBy(desc(userMfaFactors.createdAt));
   }
 
+  /**
+   * Who owns a factor, for callers that act on the row without reading it.
+   *
+   * `disableFactor` needs the ownership check and nothing else; going through
+   * {@link findFactor} for it would decrypt a seed it never looks at, and would refuse to
+   * remove precisely the broken factor a person is trying to remove.
+   */
+  async findFactorIdentity(
+    runner: IdentityQueryRunner,
+    factorId: string,
+  ): Promise<{ readonly id: string; readonly userId: string } | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: userMfaFactors.id, userId: userMfaFactors.userId })
+      .from(userMfaFactors)
+      .where(eq(userMfaFactors.id, factorId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** One factor with its seed opened, for the paths that must verify a code against it. */
   async findFactor(
     runner: IdentityQueryRunner,
     factorId: string,
@@ -156,7 +279,8 @@ export class CredentialsRepository {
       .from(userMfaFactors)
       .where(eq(userMfaFactors.id, factorId))
       .limit(1);
-    return rows[0] ?? null;
+    const row = rows[0];
+    return row === undefined ? null : this.open(row);
   }
 
   /** Begin enrolment. The row exists and authorises nothing until `confirmFactor` succeeds. */
@@ -172,10 +296,24 @@ export class CredentialsRepository {
         userId: input.userId,
         kind: input.kind,
         label: input.label,
-        secret: input.secret,
+        // The seed the caller generated goes no further than this line in the clear.
+        secret: this.seeds.encrypt(input.secret, { userId: input.userId }),
         createdAt: sql`current_timestamp(3)`,
       });
     return id;
+  }
+
+  /**
+   * Turn a stored row into the row the rest of the application expects.
+   *
+   * The row's own `user_id` is the additional authenticated data, which is what makes a
+   * ciphertext non-portable: copied into another person's row it fails here, because the id
+   * this decrypt is asked for is not the id the tag covers. Reading the id from the row
+   * rather than from the caller's argument matters — a caller that passed the wrong id would
+   * otherwise be able to make the check pass.
+   */
+  private open(row: UserMfaFactorRow): UserMfaFactorRow {
+    return { ...row, secret: this.seeds.decrypt(row.secret, { userId: row.userId }) };
   }
 
   /**
