@@ -6,11 +6,11 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-07 (Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; a third fix wave, the merge into `master` and the post-merge chain were all still outstanding when this line was written, so nothing of D07 is on `master` yet (see "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-07 (Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
-## D07 — TOTP seeds stored as recoverable plaintext: fixed, proved, merge pending
+## D07 — TOTP seeds stored as recoverable plaintext: fixed, proved, merged
 
 **Finding** (production review of 2026-09-05, `CLAUDE-REVIEW-REPORT.md` §D07, P1), quoted as
 the plan carried it:
@@ -159,9 +159,11 @@ five minor points, and a **third fix wave was in progress at the time of writing
 runbook's own remedy sees the count return to zero) and correcting three sentences in
 `docs/runbooks/deploy.md`. That wave is not committed, not gated and not proved here.
 
-**Not yet done, and therefore not claimed.** The third fix wave, the database re-run that goes
-with it, the `--no-ff` merge into `master` and the post-merge chain are all outstanding; they will
-be recorded by the run that performs them. Nothing of D07 is on `master`.
+**Merged and proved on `master`.** The third fix wave landed as `b2dbffc`, and the branch tip
+`ac6c180` was merged into `master` `--no-ff` as **`bc0bf27`** — `282f243` → `bc0bf27`, **49 files
+changed**, no conflicts and no manual resolution (`master-chain/MERGE-REPORT.md`, `merge.log`).
+The post-merge chain on `bc0bf27` was green: every step exit 0, `test:db` and `test:e2e` included
+(see "The chain on `bc0bf27`"). D07 is on `master`.
 
 **Follow-ups.**
 
@@ -253,6 +255,31 @@ ticket. **D07** (TOTP seeds in plaintext) has since been fixed and proved on the
 `d07-totp-seed-encryption` and is waiting to be merged — see the D07 section above. Remaining P1
 findings from the 2026-09-05 review: **D08** (password endpoint without source-based abuse
 control), **D09** (proxy headers, conditional).
+
+---
+
+## The chain on `bc0bf27` — green, recorded after the fact
+
+The documented chain was launched on `master` at `bc0bf27` (the D07 merge) by run
+`claude-auto-1788734539` (2026-09-07 06:56 local,
+`d07-totp-seed-encryption-2026-09-06/master-chain/chain.sh`, log `chain.log`) and finished at
+07:29 local under the same run, which read the log and the process table before recording it.
+Every step exit 0, in the `pnpm verify` order: `build:packages`, `build:worker`, `format:check`,
+`typecheck`, `lint`, `contracts:validate`, `audit:design`, then `test` — the unit projects
+**79 files, 1330 tests pass, none skipped** over two minutes (`step-test.log`; the two largest
+are `apps/web` **23 files, 445 tests** and `apps/api` **26 files, 392 tests**) — then `test:db`
+**41 files, 975 tests pass, 35 skipped** (28 minutes, `step-test-db.log`) and `test:e2e`
+**20 passed** (2.6 minutes, `step-test-e2e.log`), both serialised under `locks/db-e2e.lock`,
+which the chain released itself (`db-e2e.lock released 2026-09-07T04:29:15Z`); `CHAIN END PASS
+2026-09-07T04:29:16Z` and the process check after it reported `no mysqld left`. The same two
+untracked Codex artefacts were ignored for `format:check` and `lint` as before; the DB suites
+still ran on embedded MySQL 8.0.45, not MariaDB. Of the 35 skips, 33 are the usual
+`least-privilege.db.test.ts` (**34 tests, 33 skipped**) for want of a credentialed database URL —
+that acceptance criterion was measured separately in the D07 evidence (`lp-proof.md`), not here —
+and the other two are the single long-standing skip in each of `chat-001-conversations.db.test.ts`
+and `req-001-client-requests.db.test.ts`.
+With the chain green and recorded, `master` is pushed to `origin` by run
+`claude-auto-1788734539` after this record.
 
 ---
 
