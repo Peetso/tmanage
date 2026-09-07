@@ -6,7 +6,127 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-07 (Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-07 (**D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, tasks 1 and 2 committed as `90cbe5f` and `ea2a33c`; the static and unit gates are green and recorded, the database suites and the reverse proof are run by the orchestrator and are not claimed here, and the branch is **not merged** (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+
+---
+
+## D08 — the password endpoint had no source-based abuse control: built on a branch
+
+**Finding** (production review of 2026-09-05, `CLAUDE-REVIEW-REPORT.md` §D08, P1), quoted as
+the plan carried it:
+
+> The installed request limiter is used on the binary upload-part parser. Password sign-in has
+> per-user failure counting, but unknown accounts still incur hash verification and an
+> authentication-event write, and rotating accounts avoids the user counter. This leaves
+> credential spraying and CPU/log exhaustion uncontrolled at this boundary unless a verified
+> edge control supplies the missing protection.
+>
+> **Fix:** add bounded source/global/account-aware controls before expensive hashing and
+> writes, and test expected proxy behavior. Avoid turning one shared-office address into a
+> permanent account lockout.
+>
+> **Acceptance:** a burst across unknown and distinct synthetic accounts is constrained before
+> unbounded Argon2/log work; legitimate recovery and shared-IP traffic retain a reasonable path.
+
+**What was built** (branch `d08-password-abuse-control`, cut from `master` `cb5afd7`; two
+commits):
+
+- `90cbe5f` — `apps/api/src/modules/identity/sign-in-abuse-control.ts`, an in-process control
+  built from three `createFixedWindowLimiter` instances and nothing else: no new dependency, no
+  table, no Redis. Every applicable key is charged on every attempt, and a refusal names the
+  narrowest key that is over budget, so the recorded reason is the tightest bound that fired.
+  The account is hashed inside the module — SHA-256 from `node:crypto`, truncated to 16 hex
+  characters — so the long-lived map holds buckets rather than a list of the addresses people
+  typed. `packages/config` gained the three new tunables beside the existing one, `.env.example`
+  carries all four, and `ApiConfig` exposes them as `authAbuse*`.
+- `ea2a33c` — the control is consulted at the **top** of `signInWithPassword` (source,
+  source+account and global), of `completeMfaChallenge` and `completeWithRecoveryCode` (source
+  and global only — they are reached only with a signed challenge token, so the account key adds
+  nothing) and of `confirmReauthentication` (D05, keyed on the user id). A refused attempt
+  reaches neither the user lookup, nor the Argon2 verify, nor `record()`. `identity.module.ts`
+  builds the control from `ApiConfig`.
+
+The three keys, all charged on every attempt, refusal if any is over budget:
+
+| key            | shape                                    | tunable                          | default | what it stops                              |
+| -------------- | ---------------------------------------- | -------------------------------- | ------- | ------------------------------------------ |
+| source         | `s:<ip>`                                 | `RATE_LIMIT_AUTH_MAX_PER_SOURCE` | 30      | one address spraying many accounts         |
+| source+account | `sa:<ip>:<sha256(account) first 16 hex>` | `RATE_LIMIT_AUTH_MAX_REQUESTS`   | 10      | one address grinding one account           |
+| global         | the constant `g`                         | `RATE_LIMIT_AUTH_MAX_GLOBAL`     | 600     | a distributed spray from rotated addresses |
+
+The window is `RATE_LIMIT_AUTH_WINDOW_SECONDS`, default **300** (five minutes).
+`RATE_LIMIT_AUTH_MAX_REQUESTS` (default 10) had existed since the limiter landed and was
+consumed by nothing; D08 is what finally consumes it.
+
+**A refusal is not a lockout.** The fixed window self-heals: a shared office is refused for the
+remainder of one five-minute window and never longer, and no account is ever locked by another
+party's traffic — the source keys refuse _requests from that source_, they do not touch the
+per-user failure counting in `authentication_events`. The refusal is the 429 `rate_limited` the
+per-user lockout already produced, byte-identical for a real and an unknown address because
+nothing about the account has been looked up yet, and it writes **at most one**
+`authentication_events` row per key per window (`user_id NULL`, `outcome = 'failed'`, one of
+three new reasons — `source_throttled`, `source_account_throttled`, `global_throttled` — which
+are never serialised to a caller). Success is counted as well as failure: a caller sitting
+exactly at the boundary must not be able to keep guessing, which is why the per-source default
+is 30 rather than 5.
+
+**What this does not claim.**
+
+- **It does not fix D09.** The source key is spoofable exactly as far as the proxy
+  configuration allows; the account and global keys are what hold in the meantime, and that is
+  why the global key is not optional. One HTTP case records the behaviour as the application
+  stands: a forged `x-forwarded-for` from the same socket buys nothing, because that
+  application does not trust proxy headers. A deployment that does trust them inherits D09.
+- **It does not survive a restart or a second API process.** The windows are process memory —
+  the same trade `rate-limiter.ts` already documents, made legitimate by the same single API
+  process `50-BOOTSTRAP` §3 assumes. A restart forgets every window, and if the deployment ever
+  runs two API processes this control halves in strength and must move to the database.
+- **It does not bound the total number of throttle event rows globally** — only one per key per
+  window. The global key's own refusal is the backstop for a rotating-address spray.
+- **`POST /v1/auth/password/set` (D06) is deliberately out of scope.** It runs an Argon2 _hash_,
+  which costs more than a verify, but it requires both a live session and a fresh reauth token,
+  and `confirmReauthentication` is now bounded in front of it.
+
+**Evidence** (`C:/Users/Peter/Documents/ChatGPT/TManage/d08-password-abuse-control-2026-09-07/`).
+Every claim names its log.
+
+- Static and unit gates at `ea2a33c`: `pnpm --filter @tmanage/api typecheck`,
+  `pnpm --filter @tmanage/web typecheck` and `pnpm --filter @tmanage/e2e typecheck` all clean
+  (`task2-api-typecheck.log`, `task2-web-typecheck.log`, `task2-e2e-typecheck.log`); eslint
+  clean and prettier `--check` clean over the touched files (`task2-eslint.log`,
+  `task2-prettier.log`); the `@tmanage/api` unit project **27 files, 401 tests, all pass**
+  (`task2-api-unit.log`), nine of them the new `sign-in-abuse-control.test.ts`. `packages/config`
+  was last run one commit earlier, at `90cbe5f`, **2 files, 81 tests, all pass**
+  (`task1-config-unit.log`); it did not change afterwards.
+- Database suites: **run by the orchestrator — see the evidence directory**
+  (`final-db-id-002-credentials.log`, `final-db-id-002-auth-http.log`). No count is claimed
+  here, because this section's author did not watch them run. The cases `ea2a33c` adds are five
+  service-level ones (a spray across many accounts refused, with one row for the whole refusal;
+  a refused attempt reaching neither the user lookup nor Argon2; one address grinding one
+  account stopped ahead of the lockout without locking it; the same address admitted again once
+  the window turns; re-authentication bounded, revoking nothing) and three over real HTTP (a
+  throttled source answered exactly as a locked-out account is; 429 `rate_limited`, never a 401
+  and never a different message; each source with its own budget, and the forged
+  `x-forwarded-for` above).
+- Reverse proof: **not run here.** The plan carries the table of file-by-file reversals and the
+  failure each is expected to produce; the orchestrator runs it after the green chain.
+
+**Follow-ups.**
+
+1. **D09 (proxy headers trusted unconditionally) is still open**, and the source key's worth
+   depends on it. Until D09 is fixed, read the source key as advisory and the account and global
+   keys as the ones that hold.
+2. **If a second API process is ever run**, this control must move to the database or another
+   shared store. In-process state is only legitimate while `50-BOOTSTRAP` §3's single API
+   process holds, and a restart forgets every window in the meantime.
+3. **The throttle row bound is per key per window, not global.** A spray from rotated addresses
+   can still write one row per new source key until the global key refuses; that refusal is the
+   only thing that caps the total.
+
+**Ticket accounting.** A defect fixed on a branch, not a ticket: **35 of 70 tickets, 285 of 583
+points (48.9%)** unchanged. D08, like D05, W01, W02, D06 and D07 before it, is a review
+correction that closes no ticket. Remaining P1 findings from the 2026-09-05 review once D08 is
+merged: **D09** (proxy headers, conditional).
 
 ---
 
@@ -253,8 +373,9 @@ tests kept, **the two revocation cases fail and the two "ends nothing" guards pa
 slices A–C) closed on 2026-09-05; D05, W01, W02 and D06 are review corrections that close no
 ticket. **D07** (TOTP seeds in plaintext) has since been fixed and proved on the branch
 `d07-totp-seed-encryption` and is waiting to be merged — see the D07 section above. Remaining P1
-findings from the 2026-09-05 review: **D08** (password endpoint without source-based abuse
-control), **D09** (proxy headers, conditional).
+findings from the 2026-09-05 review, as that run left them: **D08** (password endpoint without
+source-based abuse control) — since built on `d08-password-abuse-control`, see the D08 section
+above — and **D09** (proxy headers, conditional), still open.
 
 ---
 
@@ -8205,10 +8326,21 @@ convenience.
    password. Closing it needs the notification surface.
 5. **Password recovery is not built.** `ID-05`'s four recovery states are still inert: a
    reset link needs email, which needs the notification surface.
-6. **The lockout is per user, not per source.** It stops credential stuffing against one
-   account and does nothing about one attempt each against a thousand accounts.
-   `13-ENGINEERING-EXECUTION-SPEC` §1 assumes Redis; there is none here and none on the
-   shared host.
+6. **The lockout is still per user; the source bound in front of it is in process** (D08,
+   2026-09-07). The durable lockout counts failures for one account and does nothing about one
+   attempt each against a thousand accounts. What now stands in front of it is a source,
+   source+account and global control consulted at the top of the password, MFA, recovery-code
+   and re-authentication steps, before the user lookup, before Argon2 and before the event
+   write — so the spray this gap named is refused rather than served. Tunables:
+   `RATE_LIMIT_AUTH_MAX_PER_SOURCE` (30), `RATE_LIMIT_AUTH_MAX_REQUESTS` (10, the pre-existing
+   setting, now consumed), `RATE_LIMIT_AUTH_MAX_GLOBAL` (600) and
+   `RATE_LIMIT_AUTH_WINDOW_SECONDS` (300). What is still not true: the windows are held in the
+   API process's memory, so a restart forgets every one of them and a second API process would
+   count separately and halve the control — `13-ENGINEERING-EXECUTION-SPEC` §1 assumes Redis,
+   and there is none here and none on the shared host. And the source key is only as
+   trustworthy as the proxy configuration, which **D09 has not fixed**: where forwarded headers
+   are trusted, an attacker rotates that key at will. That is why the account key and the
+   global key exist, and why the global one is not optional. See the D08 section above.
 7. **The lockout window is a counter, not a lock.** Two attempts arriving together can both
    read a count below the threshold. Closing it would need `SELECT … FOR UPDATE` on a row that
    does not exist yet; the attacker's gain from the race is one extra guess.
