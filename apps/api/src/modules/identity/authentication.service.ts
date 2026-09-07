@@ -308,10 +308,9 @@ export class AuthenticationService {
         // The crossing attempt only. The migration's own comment asks for the trace ("a burst
         // of them from one source is enumeration, and it is the only trace of it"); writing
         // every refusal would re-create the flood this finding is about.
-        await this.record(context, {
+        await this.recordRefusal(context, {
           userId: null,
           action: AUTHENTICATION_ACTIONS.passwordSignIn,
-          outcome: 'failed',
           reason: verdict.reason,
         });
       }
@@ -434,10 +433,9 @@ export class AuthenticationService {
     const verdict = this.options.abuseControl.admit({ ip: context.ip });
     if (!verdict.admitted) {
       if (verdict.firstRefusalInWindow) {
-        await this.record(context, {
+        await this.recordRefusal(context, {
           userId: null,
           action: AUTHENTICATION_ACTIONS.mfaChallenge,
-          outcome: 'failed',
           reason: verdict.reason,
         });
       }
@@ -517,10 +515,9 @@ export class AuthenticationService {
     const verdict = this.options.abuseControl.admit({ ip: context.ip });
     if (!verdict.admitted) {
       if (verdict.firstRefusalInWindow) {
-        await this.record(context, {
+        await this.recordRefusal(context, {
           userId: null,
           action: AUTHENTICATION_ACTIONS.recoveryCode,
-          outcome: 'failed',
           reason: verdict.reason,
         });
       }
@@ -620,10 +617,9 @@ export class AuthenticationService {
         // Unlike the three `@Public()` routes, the user here is already established by the
         // session guard, so the row names them — the same `userId` the `locked_out` row below
         // carries, and an operator reading the two together should not have to guess.
-        await this.record(context, {
+        await this.recordRefusal(context, {
           userId,
           action: AUTHENTICATION_ACTIONS.reauthentication,
-          outcome: 'failed',
           reason: verdict.reason,
         });
       }
@@ -1092,6 +1088,47 @@ export class AuthenticationService {
     }
 
     return replayed ? 'mfa_replayed' : 'mfa_bad_code';
+  }
+
+  /**
+   * `D08`. The one row a refusal writes — and never at the cost of the refusal itself.
+   *
+   * Everywhere else in this file a failed `record()` is allowed to propagate, and that is
+   * right: the row is the only trace of what happened, and losing it silently would be worse
+   * than a 500. On this path the priority is inverted. The **refusal is the control** — it is
+   * the thing that stops the flood — and the row is a trace of it. Letting the write decide
+   * whether the refusal is delivered would mean a database under load answers a throttled
+   * caller with a 500 instead of the 429: a more expensive response, on the path that exists
+   * to be cheap, at the moment the control is most needed. Worse, the 500 is a different
+   * answer from the one every other refused caller gets, which is the disclosure this whole
+   * design spends its effort avoiding.
+   *
+   * So the failure is reported on stderr in the idiom the rest of the API uses (the process's
+   * log is the operator's; see `invitations.service.ts` recording the same shape of loss) and
+   * the caller still gets the refusal. What is lost is one audit row, and the loss is named
+   * rather than silent.
+   */
+  private async recordRefusal(
+    context: SignInContext,
+    input: {
+      userId: string | null;
+      action: AuthenticationAction;
+      reason: AuthenticationReason;
+    },
+  ): Promise<void> {
+    try {
+      await this.record(context, {
+        userId: input.userId,
+        action: input.action,
+        outcome: 'failed',
+        reason: input.reason,
+      });
+    } catch (error) {
+      console.error(
+        `[identity] recording a refused ${input.action} (${input.reason}) failed; the refusal still stands`,
+        error,
+      );
+    }
   }
 
   /**

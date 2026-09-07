@@ -288,9 +288,14 @@ export const envSchema = z
      *
      * What that 30 actually buys: 30 charges per address per five minutes across all four
      * authentication routes together — password, MFA, recovery, reauthentication — which is
-     * roughly fifteen complete MFA sign-ins. Wherever egress is shared it is a per-office
-     * ceiling and not a per-person one. It self-heals the moment the window turns, and it is
-     * the number an operator behind NAT should expect to raise.
+     * roughly fifteen complete MFA sign-ins. The arithmetic is worth doing out loud, because
+     * "30 attempts" reads as thirty sign-ins and is not: a person with a second factor spends
+     * **two** charges to sign in once, the password post and the completion post, so 30 is
+     * 15 complete logins and not 30; changing a password on top of that spends a third on
+     * `/v1/auth/reauth`. Wherever egress is shared it is a per-office ceiling and not a
+     * per-person one — fifteen complete logins per five minutes for everything behind the
+     * address. It self-heals the moment the window turns, and it is the number an operator
+     * behind NAT should expect to raise.
      *
      * The global budget is unevadable in both directions, and that cuts against the
      * deployment as much as for it: nobody can rotate addresses past it, and anybody who

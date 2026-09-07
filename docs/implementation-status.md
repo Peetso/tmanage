@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-07 (**D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab` and `4036841`, plus two review fix waves — the second of which stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the static and unit gates are green and recorded, the database suites and the reverse proof are run by the orchestrator at the merged head and are not claimed here, and the branch is **not merged** (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-07 (**D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` and the fix-wave commits that follow them — three review fix waves in all: the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters, and the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the static and unit gates are green and recorded, the database suites and the reverse proof are run by the orchestrator at the merged head, and the merge of the branch into `master` is the commit this Last-updated paragraph names when the orchestrator makes it (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -29,8 +29,8 @@ the plan carried it:
 > unbounded Argon2/log work; legitimate recovery and shared-IP traffic retain a reasonable path.
 
 **What was built** (branch `d08-password-abuse-control`, cut from `master` `cb5afd7`; four
-commits so far — `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` — plus a second fix wave, listed as
-the last bullet, which the orchestrator commits):
+commits — `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` — and the fix-wave commits that follow
+them, listed as the last two bullets, which the orchestrator commits):
 
 - `90cbe5f` — `apps/api/src/modules/identity/sign-in-abuse-control.ts`, an in-process control
   built from three `createFixedWindowLimiter` instances and nothing else: no new dependency, no
@@ -68,6 +68,19 @@ the last bullet, which the orchestrator commits):
   length. The wave also corrects the false "the account key is not evadable that way" claim in
   all five places it was asserted, and adds five unit cases: the two halves of conditional
   charging, the clamp, the refusing-key eviction, and the limiter's own eviction caveat.
+- The **third fix wave**, over the same final review's remaining findings. **(1)** The two
+  enforcement points that had no test at any level now have one each: a database case per route
+  spends a source budget with password posts and then proves that `POST /v1/auth/mfa` and
+  `POST /v1/auth/recovery-code`, each carrying a valid challenge token, answer 429
+  `rate_limited` with the password route's body byte for byte and add exactly one
+  `authentication_events` row naming that route. **(2)** A failed audit write on a refusal path
+  no longer turns the 429 into a 500: `record()` is wrapped there, the loss is reported on
+  stderr, and the refusal is thrown regardless — the refusal is the control and the row is a
+  trace of it, so the priority between them is now the right way round. **(3)** Three
+  documentation corrections carrying no behaviour: the `sa:` key's normalisation is narrower
+  than the column's collation and is therefore best-effort (see below), the source key is the
+  literal address with no canonicalisation or IPv6 aggregation (follow-up 6), and `env.ts`
+  states the multi-charge arithmetic behind the per-source default.
 
 The three keys, consulted in this order, and the first that is over budget refuses:
 
@@ -132,6 +145,18 @@ is 30 rather than 5.
   production `request.ip` is whatever `X-Forwarded-For` says and both address-keyed budgets are
   rotatable at will until D09 is fixed.
 
+- **The `sa:` account key is a best-effort narrowing, not a guarantee.** It hashes the account
+  after `trim().toLowerCase()`, matching `findUserIdByEmail`; `users.email` is compared under
+  `utf8mb4_unicode_ci` (`migrations/0001_tenancy.sql`), which is insensitive to accents and to
+  compatibility variants as well as to case. So an accented or full-width variant of one real
+  address resolves to the **same** user in the lookup and falls into a **different** bucket
+  here, and a caller grinding one account can rotate the account key that way. The cost is
+  bounded and the other three controls are untouched: the source key, the global key and the
+  durable per-user lockout — which counts on the resolved `user_id` those variants share — all
+  hold, so the degradation is from the account budget to the source budget, ten attempts a
+  window to thirty at the defaults. Normalising harder (NFKD, strip combining marks) narrows
+  the gap; closing it would mean keying on the resolved user id, which is the lookup this
+  design exists to run after the decision rather than before it.
 - **It does not survive a restart or a second API process.** The windows are process memory —
   the same trade `rate-limiter.ts` already documents, made legitimate by the same single API
   process `50-BOOTSTRAP` §3 assumes. A restart forgets every window, and if the deployment ever
@@ -151,36 +176,42 @@ is 30 rather than 5.
 **Evidence** (`C:/Users/Peter/Documents/ChatGPT/TManage/d08-password-abuse-control-2026-09-07/`).
 Every claim names its log.
 
-- Static and unit gates at `ea2a33c`: `pnpm --filter @tmanage/api typecheck`,
+- Static and unit gates, at the third fix wave — the latest run of each, which is what the
+  numbers below name. `pnpm --filter @tmanage/api typecheck`,
   `pnpm --filter @tmanage/web typecheck` and `pnpm --filter @tmanage/e2e typecheck` all clean
-  (`task2-api-typecheck.log`, `task2-web-typecheck.log`, `task2-e2e-typecheck.log`); eslint
-  clean and prettier `--check` clean over the touched files (`task2-eslint.log`,
-  `task2-prettier.log`); the `@tmanage/api` unit project **27 files, 401 tests, all pass**
-  (`task2-api-unit.log`), nine of them the new `sign-in-abuse-control.test.ts`. `packages/config`
-  was last run one commit earlier, at `90cbe5f`, **2 files, 81 tests, all pass**
-  (`task1-config-unit.log`); it did not change afterwards. The gates were re-run at each later
-  head; the second fix wave's logs are the `fix2-*.log` files in the same directory.
+  (`fix2b-api-typecheck.log`, `fix2b-web-typecheck.log`, `fix2b-e2e-typecheck.log`); eslint
+  clean over the repository (`fix2b-eslint.log`) and prettier `--check` clean over the touched
+  files (`fix2b-prettier-touched.log`); the `@tmanage/api` unit project **27 files, 408 tests,
+  all pass** (`fix2b-api-unit.log`), of which the identity modules alone are **9 files, 243
+  tests** (`fix2b-abuse-unit.log`) and **16** are `sign-in-abuse-control.test.ts`.
+  `packages/config` is **2 files, 81 tests, all pass** (`fix2b-config-unit.log`). Earlier heads
+  have their own logs in the same directory (`task1-*`, `task2-*`, `fix1-*`, `fix2-*`); where
+  they disagree with these numbers, these are the later run.
 - **What the tests do and do not reach.** `sign-in-abuse-control.test.ts` drives the real module
   through real limiters on an injected clock, and it is the only level at which
-  `global_throttled`, the address clamp and the refusing-key eviction are exercised. The database
-  and HTTP cases cover the **password** call site only: `completeMfaChallenge` and
-  `completeWithRecoveryCode` are consulted the same way and are typechecked, but no test at any
-  level executes those two call sites, and no test asserts a `global_throttled` row. That is a
-  known coverage gap, recorded here rather than papered over — see follow-up 5.
-- Database suites: **run by the orchestrator — see the evidence directory**
-  (`final-db-id-002-credentials.log`, `final-db-id-002-auth-http.log`, then re-run at `4036841`
-  as `final2-db-id-002-credentials.log` and `final2-db-id-002-auth-http.log`, reported in
-  `final2-db-gates.md`). No count is claimed here, because this section's author did not watch
-  them run. They are run again by the orchestrator at the head that is actually merged, which is
-  the point the final review's I2 makes: the second fix wave changes the module the suites
-  exercise, so evidence from an earlier head does not carry. The cases `ea2a33c` adds are five
-  service-level ones (a spray across many accounts refused, with one row for the whole refusal;
-  a refused attempt reaching neither the user lookup nor Argon2; one address grinding one
-  account stopped ahead of the lockout without locking it; the same address admitted again once
-  the window turns; re-authentication bounded, revoking nothing) and three over real HTTP (a
-  throttled source answered exactly as a locked-out account is; 429 `rate_limited`, never a 401
-  and never a different message; each source with its own budget, and the forged
-  `x-forwarded-for` above).
+  `global_throttled`, the address clamp and the refusing-key eviction are exercised — no
+  database or HTTP case produces a `global_throttled` row (follow-up 5). All four call sites are
+  now executed by a database case: password sign-in and re-authentication in
+  `id-002-credentials.db.test.ts`, and the MFA-completion and recovery-code routes over real
+  HTTP in `id-002-auth-http.db.test.ts` since the third fix wave. Deleting any one of the four
+  `admit` calls now fails a test rather than leaving the chain green.
+- Database suites at the third fix wave, run in this worktree under the shared database lock:
+  `test/id-002-auth-http.db.test.ts` **32 tests, all pass** (`fix2b-db-id-002-auth-http.log`,
+  195 s) and `test/id-002-credentials.db.test.ts` **67 tests, all pass**
+  (`fix2b-db-id-002-credentials.log`). Earlier runs are `final-db-*` (pre-fix-wave) and
+  `final2-db-*` at `4036841` (`final2-db-gates.md`). They are run once more by the orchestrator
+  at the head that is actually merged, as `final3-db-id-002-credentials.log` and
+  `final3-db-id-002-auth-http.log` — the point the final review's I2 makes, since each fix wave
+  changes the module those suites exercise. The D08 cases are six service-level ones (a spray
+  across many accounts refused, with one row for the whole refusal; a refused attempt reaching
+  neither the user lookup nor Argon2; one address grinding one account stopped ahead of the
+  lockout without locking it; the same address admitted again once the window turns;
+  re-authentication bounded, revoking nothing; and a refusal still delivered when the row
+  recording it cannot be written) and five over real HTTP (a throttled source answered exactly
+  as a locked-out account is; 429 `rate_limited`, never a 401 and never a different message;
+  each source with its own budget, and the forged `x-forwarded-for` above; and the MFA-completion
+  and recovery-code routes each refused on a spent source budget, with the password route's body
+  byte for byte and exactly one row naming the route).
 - Reverse proof: **not run here.** The plan carries the table of file-by-file reversals and the
   failure each is expected to produce; the orchestrator runs it after the green chain.
 
@@ -200,6 +231,10 @@ Every claim names its log.
    of those attempts is admitted by its own source key, and so a single machine can exhaust the
    global budget and refuse everybody's sign-in, MFA, recovery and reauthentication until the
    window turns. Raising the global default to 3000 raises the cost of that; only D09 removes it.
+
+   **Part of the source key's weakness outlives D09, and is a separate follow-up (6).** Fixing
+   D09 makes the address _authentic_; it does not make it _scarce_.
+
 2. **If a second API process is ever run**, this control must move to the database or another
    shared store. In-process state is only legitimate while `50-BOOTSTRAP` §3's single API
    process holds, and a restart forgets every window in the meantime.
@@ -219,10 +254,18 @@ Every claim names its log.
    for the MFA or recovery-code _completion_ of a challenge the same source already paid for at
    the password step — the challenge token is signed, so that step is not the spray surface the
    finding names.
-5. **Close the coverage gap on the MFA and recovery-code call sites and on `global_throttled`.**
-   Both are twelve-line mirrors of the password path and are typechecked, but nothing executes
-   them. One database case that spends a tight source budget and then posts to `/v1/auth/mfa`
-   would close the first half cheaply.
+5. **`global_throttled` is still asserted at unit level only.** The MFA and recovery-code call
+   sites were the other half of this gap and the third fix wave closed them, with one HTTP case
+   each. No database or HTTP case produces a `global_throttled` row, because reaching the global
+   key over HTTP means admitting thousands of attempts from distinct addresses in one suite;
+   the module-level case is what stands behind that reason and the row's shape is the same
+   `record()` call the other two reasons prove.
+6. **Canonicalise the source address, and key IPv6 at /64.** The key is the address string
+   verbatim (trimmed and clamped), so `2001:DB8::1`, `2001:db8::1`, `::ffff:203.0.113.9` and
+   `203.0.113.9` are four keys for what may be one or two hosts — and a caller on a single
+   IPv6 /64 holds 2^64 of them and can rotate for free. This is **not** cured by D09: proxy
+   trust decides whether the address is authentic, not whether it is scarce. Best done in the
+   same slice as D09, since both touch how `request.ip` is read.
 
 **Ticket accounting.** A defect fixed on a branch, not a ticket: **35 of 70 tickets, 285 of 583
 points (48.9%)** unchanged. D08, like D05, W01, W02, D06 and D07 before it, is a review

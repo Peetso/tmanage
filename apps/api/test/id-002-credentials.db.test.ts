@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
 import { parseSeedKeys } from '@tmanage/config';
 import type { RowDataPacket } from 'mysql2/promise';
@@ -799,6 +799,74 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
       context: from('203.0.113.202'),
     });
     expect(outcome).toEqual({ status: 'authenticated', userId: designer().id });
+  });
+
+  /**
+   * (f) The refusal is the control; the row is a trace of it, and the trace must not be able
+   * to take the control down with it.
+   *
+   * `record()` is awaited before the rejection is thrown, so before this was fixed a database
+   * that could not take the row threw *that* error instead — and the caller got a 500 where a
+   * 429 was owed. Two things are wrong with that: the 500 costs more than the refusal it
+   * replaces, on the one path in this file that exists to be cheap; and it is a different
+   * answer from the one every other refused caller receives, which is the disclosure the rest
+   * of this design spends its effort avoiding.
+   *
+   * The seam is a repository whose one method rejects. Nothing else is stubbed, and nothing
+   * else is called: the abuse control refuses in front of the lookup, so `record()` is the
+   * only repository call this path makes. The source budget is spent on the **control**
+   * directly rather than through a sign-in, because a service holding a broken log cannot
+   * complete an admitted attempt either — this way the very first call the service makes is
+   * the refused one.
+   */
+  it('still refuses when the row recording the refusal cannot be written', async () => {
+    const SOURCE = '198.51.100.12';
+    const ACCOUNT = 'unknown-to-anyone@northstar.example';
+
+    const control = createSignInAbuseControl({
+      windowMs: ABUSE_WINDOW_MS,
+      maxPerSource: 1,
+      // Never the narrowest bound here: the source key is the one that must refuse, so the
+      // reason below names it and the case cannot pass on a different refusal.
+      maxPerSourceAccount: 100,
+      maxGlobal: 10_000,
+      now: () => clockMs,
+    });
+    expect(control.admit({ ip: SOURCE, account: ACCOUNT }).admitted).toBe(true);
+
+    const brokenLog = {
+      recordAuthenticationEvent: () =>
+        Promise.reject(new Error('the authentication log is unavailable')),
+    } as unknown as CredentialsRepository;
+
+    const withBrokenLog = new AuthenticationService(
+      tenant,
+      { ...OPTIONS, abuseControl: control },
+      brokenLog,
+      () => clockMs,
+    );
+
+    // The loss is reported rather than swallowed in silence. Asserting on it also keeps the
+    // suite's output clean, which a bare `console.error` in a passing test would not.
+    const reported = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const refused = await refusal(
+        withBrokenLog.signInWithPassword({
+          email: ACCOUNT,
+          password: PASSWORD,
+          context: from(SOURCE),
+        }),
+      );
+      expect(refused.rejection).toBe('rate_limited');
+      expect(refused.reason).toBe('source_throttled');
+      expect(reported).toHaveBeenCalledTimes(1);
+      expect(String(reported.mock.calls[0]?.[0])).toContain('password_sign_in');
+    } finally {
+      reported.mockRestore();
+    }
+
+    // And nothing reached the log, which is the premise of the case rather than its point.
+    expect(await events()).toHaveLength(0);
   });
 });
 

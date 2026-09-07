@@ -60,6 +60,17 @@ import {
  * named account. Read the two address-keyed budgets as a cost bound on honest traffic until
  * D09 lands, not as a defence against a determined attacker.
  *
+ * One part of that weakness **outlives D09**, and the paragraph above would be read too kindly
+ * without it. The source key is the address string as fastify hands it over, trimmed and
+ * clamped and otherwise verbatim: there is no canonicalisation and no aggregation. So
+ * `2001:DB8::1`, `2001:db8::1`, `::ffff:203.0.113.9` and `203.0.113.9` are four keys for what
+ * may be one or two hosts, and — the part that matters — a caller on a single IPv6 /64 holds
+ * 2^64 distinct source keys and can rotate through them for free even once proxy headers are
+ * no longer trusted. Fixing D09 makes the source key *authentic*; it does not make it
+ * *scarce*. The candidate fix is to canonicalise the address and key IPv6 at /64, which is
+ * best done alongside D09 rather than before it, and it is recorded as a follow-up in
+ * `docs/implementation-status.md` rather than left here as the only mention.
+ *
  * ## Why the account arrives as a hash
  *
  * The map is long-lived process memory and has no business holding a list of the addresses
@@ -67,6 +78,20 @@ import {
  * not a credential, and it is computed here so no caller has to remember to do it.
  * Normalisation (`trim().toLowerCase()`) happens here too, matching `findUserIdByEmail`, so
  * `Ana@Example.test` and `ana@example.test ` cannot each buy their own budget.
+ *
+ * That normalisation is **narrower than the database's**, and the `sa:` key is therefore a
+ * best-effort narrowing rather than a guarantee. `users.email` is `utf8mb4_unicode_ci`
+ * (`migrations/0001_tenancy.sql`), which compares at primary weight — insensitive to case,
+ * to accents and to compatibility variants — while this key hashes the bytes that survive
+ * `trim().toLowerCase()`. So an accented or full-width variant of one real address resolves to
+ * the *same* user in the lookup and lands in a *different* bucket here, and a caller grinding
+ * one account can rotate the `sa:` key that way. What it costs is bounded and worth stating
+ * plainly: the source key, the global key and the durable per-user lockout are all unaffected —
+ * the lockout counts on the resolved `user_id`, which those variants share — so the practical
+ * degradation is from the account budget to the source budget, ten attempts a window to thirty
+ * at the defaults. Normalising harder (NFKD, strip combining marks) would narrow the gap;
+ * closing it would mean keying on the resolved user id, which is the lookup this design exists
+ * to run *after* the decision, not before it.
  *
  * ## What in-process costs
  *

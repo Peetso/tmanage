@@ -160,6 +160,46 @@ async function proofFor(
   return response.json<{ reauthToken: string }>().reauthToken;
 }
 
+/**
+ * Enrol a confirmed factor for the owner, returning the secret and the recovery codes.
+ *
+ * The confirmation code is derived from the **previous** time step, not the current one.
+ * That is not a trick to make the test pass — it is the only way to enrol and then sign in
+ * within one test run. Confirming a factor spends its counter, and `last_accepted_counter`
+ * then refuses that counter forever; over real HTTP the server's clock cannot be moved, so
+ * confirming with the current step would leave the suite with nothing to present until the
+ * next thirty-second window opened. Confirming one step back is accepted by the RFC 6238
+ * drift window and leaves the current step free, which is exactly what a person whose phone
+ * runs slightly slow does by accident.
+ *
+ * At module scope rather than inside "the second factor over HTTP" because `D08`'s two
+ * completion-route cases need a real challenge as well, and a second copy of this reasoning
+ * is the thing most likely to drift.
+ */
+async function enrol(): Promise<{ secret: string; recoveryCodes: readonly string[] }> {
+  const session = await developmentSession(owner().id);
+  const begun = await post(
+    '/v1/auth/factors/totp',
+    { label: 'Test phone', accountName: owner().email },
+    { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+  );
+  expect(begun.statusCode).toBe(201);
+  const { factorId, secret, uri } = begun.json<{
+    factorId: string;
+    secret: string;
+    uri: string;
+  }>();
+  expect(uri.startsWith('otpauth://totp/TManage:')).toBe(true);
+
+  const confirmed = await post(
+    '/v1/auth/factors/totp/confirm',
+    { factorId, code: codeFor(secret, Date.now() - 30_000) },
+    { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+  );
+  expect(confirmed.statusCode).toBe(200);
+  return { secret, recoveryCodes: confirmed.json<{ recoveryCodes: string[] }>().recoveryCodes };
+}
+
 beforeAll(async () => {
   db = await startTestDatabase();
   app = await NestFactory.create<NestFastifyApplication>(
@@ -355,19 +395,28 @@ describe('POST /v1/auth/password', () => {
       await throttledApp?.close();
     });
 
-    /** A sign-in post from a chosen source address. `remoteAddress` is the socket's. */
+    /** A post to this application from a chosen source address. `remoteAddress` is the socket's. */
+    async function postFrom(
+      path: string,
+      payload: unknown,
+      options: { from: string; headers?: Record<string, string> },
+    ): Promise<InjectedResponse> {
+      return (await throttledApp.inject({
+        method: 'POST',
+        url: path,
+        remoteAddress: options.from,
+        headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
+        payload: payload as Record<string, unknown>,
+      })) as unknown as InjectedResponse;
+    }
+
+    /** A sign-in post from a chosen source address. */
     async function signIn(
       email: string,
       password: string,
       options: { from: string; headers?: Record<string, string> },
     ): Promise<InjectedResponse> {
-      return (await throttledApp.inject({
-        method: 'POST',
-        url: '/v1/auth/password',
-        remoteAddress: options.from,
-        headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
-        payload: { email, password },
-      })) as unknown as InjectedResponse;
+      return postFrom('/v1/auth/password', { email, password }, options);
     }
 
     /** Spend a source's whole budget on addresses no account holds. */
@@ -479,46 +528,124 @@ describe('POST /v1/auth/password', () => {
         ).statusCode,
       ).toBe(429);
     });
+
+    /** One row, read back by the action that names the route it came from. */
+    async function refusalRows(action: string): Promise<RowDataPacket[]> {
+      const [rows] = await db.admin.query<RowDataPacket[]>(
+        `select user_id, action, outcome, reason, ip from authentication_events
+          where action = ? order by occurred_at, id`,
+        [action],
+      );
+      return rows;
+    }
+
+    /**
+     * The two cases below cover the other side of the finding: `/v1/auth/password` is not the
+     * only `@Public()` password oracle behind this control. `completeMfaChallenge` and
+     * `completeWithRecoveryCode` each got their own `admit` call, and until these cases nothing
+     * exercised either at any level — deleting either call left the whole chain green.
+     *
+     * Both mint their challenge on the **outer** application, whose budget is deliberately out
+     * of reach, so the throttled source's budget is spent by `spendBudget` and by nothing else
+     * and the arithmetic stays exactly `MAX_PER_SOURCE`. A token minted there is valid here
+     * because both applications sign with the same `SESSION_SECRET`; nothing else about the
+     * two differs that this path can see. Each case uses its own source address, because the
+     * control's map outlives the truncation `beforeEach` does to the tables.
+     */
+    it('refuses the MFA completion route on a spent source budget, and records it once', async () => {
+      const SOURCE = '198.51.100.25';
+      await setPasswordFor(owner().id);
+      const { secret } = await enrol();
+
+      const challenge = await post('/v1/auth/password', {
+        email: owner().email,
+        password: PASSWORD,
+      });
+      const { challengeToken } = challenge.json<{ challengeToken: string }>();
+
+      await spendBudget(SOURCE, 'mfa-spray');
+
+      // A valid token and a code from the live time step: the source budget is the only thing
+      // that can be refusing this, which is what makes the 429 below mean what it says.
+      const refused = await postFrom(
+        '/v1/auth/mfa',
+        { challengeToken, code: codeFor(secret, Date.now()) },
+        { from: SOURCE },
+      );
+      expect(refused.statusCode).toBe(429);
+      expect(refused.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+
+      // Byte for byte the password route's refusal. A completion route that answered
+      // differently would be a second oracle, telling an attacker which of the two they hit —
+      // and the body carries no path, so this comparison across routes is a real one.
+      const onPassword = await signIn('mfa-spray-after@northstar.example', PASSWORD, {
+        from: SOURCE,
+      });
+      expect(onPassword.statusCode).toBe(429);
+      expect(withoutCorrelationId(refused)).toBe(withoutCorrelationId(onPassword));
+
+      // Exactly one row, and it names this route. The password post above is refused by the
+      // same, already-crossed source key, so it adds none of its own — the log bound holding
+      // across routes rather than only within one.
+      const rows = await refusalRows('mfa_challenge');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!['reason']).toBe('source_throttled');
+      expect(rows[0]!['outcome']).toBe('failed');
+      expect(rows[0]!['ip']).toBe(SOURCE);
+      // NULL, and deliberately: this route is `@Public()`, and the user the challenge token
+      // claims is not known until the token is verified — which a refused attempt never
+      // reaches. `confirmReauthentication` is the one of the four that names its user.
+      expect(rows[0]!['user_id']).toBeNull();
+    });
+
+    it('refuses the recovery-code route on a spent source budget, and records it once', async () => {
+      const SOURCE = '198.51.100.26';
+      await setPasswordFor(owner().id);
+      const { recoveryCodes } = await enrol();
+
+      const challenge = await post('/v1/auth/password', {
+        email: owner().email,
+        password: PASSWORD,
+      });
+      const { challengeToken } = challenge.json<{ challengeToken: string }>();
+
+      await spendBudget(SOURCE, 'recovery-spray');
+
+      // An unspent code, so the refusal cannot be the "already used" one this route also has.
+      const refused = await postFrom(
+        '/v1/auth/recovery-code',
+        { challengeToken, code: recoveryCodes[0] },
+        { from: SOURCE },
+      );
+      expect(refused.statusCode).toBe(429);
+      expect(refused.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+
+      const onPassword = await signIn('recovery-spray-after@northstar.example', PASSWORD, {
+        from: SOURCE,
+      });
+      expect(onPassword.statusCode).toBe(429);
+      expect(withoutCorrelationId(refused)).toBe(withoutCorrelationId(onPassword));
+
+      const rows = await refusalRows('recovery_code');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!['reason']).toBe('source_throttled');
+      expect(rows[0]!['outcome']).toBe('failed');
+      expect(rows[0]!['ip']).toBe(SOURCE);
+      expect(rows[0]!['user_id']).toBeNull();
+
+      // The code was never spent, because the refusal happens in front of the transaction that
+      // would have spent it. Presenting it on the outer application still works — a throttled
+      // source must not be able to burn somebody else's recovery code by attempting it.
+      const accepted = await post('/v1/auth/recovery-code', {
+        challengeToken,
+        code: recoveryCodes[0],
+      });
+      expect(accepted.statusCode).toBe(200);
+    });
   });
 });
 
 describe('the second factor over HTTP', () => {
-  /**
-   * Enrol a confirmed factor for the owner, returning the secret and the recovery codes.
-   *
-   * The confirmation code is derived from the **previous** time step, not the current one.
-   * That is not a trick to make the test pass — it is the only way to enrol and then sign in
-   * within one test run. Confirming a factor spends its counter, and `last_accepted_counter`
-   * then refuses that counter forever; over real HTTP the server's clock cannot be moved, so
-   * confirming with the current step would leave the suite with nothing to present until the
-   * next thirty-second window opened. Confirming one step back is accepted by the RFC 6238
-   * drift window and leaves the current step free, which is exactly what a person whose phone
-   * runs slightly slow does by accident.
-   */
-  async function enrol(): Promise<{ secret: string; recoveryCodes: readonly string[] }> {
-    const session = await developmentSession(owner().id);
-    const begun = await post(
-      '/v1/auth/factors/totp',
-      { label: 'Test phone', accountName: owner().email },
-      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
-    );
-    expect(begun.statusCode).toBe(201);
-    const { factorId, secret, uri } = begun.json<{
-      factorId: string;
-      secret: string;
-      uri: string;
-    }>();
-    expect(uri.startsWith('otpauth://totp/TManage:')).toBe(true);
-
-    const confirmed = await post(
-      '/v1/auth/factors/totp/confirm',
-      { factorId, code: codeFor(secret, Date.now() - 30_000) },
-      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
-    );
-    expect(confirmed.statusCode).toBe(200);
-    return { secret, recoveryCodes: confirmed.json<{ recoveryCodes: string[] }>().recoveryCodes };
-  }
-
   it('challenges instead of establishing a session', async () => {
     await setPasswordFor(owner().id);
     await enrol();
