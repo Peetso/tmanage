@@ -14,6 +14,7 @@ import { AuthenticationService } from './authentication.service.js';
 import { AuthenticationController, CredentialsController } from './authentication.controller.js';
 import { CredentialsRepository } from './credentials.repository.js';
 import { createSeedCipher } from './seed-cipher.js';
+import { createSignInAbuseControl } from './sign-in-abuse-control.js';
 
 /**
  * ID-001's HTTP surface.
@@ -54,6 +55,20 @@ export class IdentityModule {
             // third party and nothing here has ever made it; `password.ts` still screens
             // against the bundled list, and the gap is recorded rather than filled with a
             // screen that would fail open.
+            //
+            // D08. The source-based bound in front of every password oracle in the service.
+            // Built here, once, because the map *is* the state: one control per process, and
+            // the bootstrap profile runs one API process (`50-BOOTSTRAP` §3, `main.ts`) — a
+            // second one would count separately, and a restart forgets every window. The
+            // config carries the window in seconds because that is what an operator writes in
+            // an env file; the control counts in milliseconds, so it is converted here rather
+            // than leaving two units loose in the codebase.
+            abuseControl: createSignInAbuseControl({
+              windowMs: config.authAbuseWindowSeconds * 1000,
+              maxPerSource: config.authAbuseMaxPerSource,
+              maxPerSourceAccount: config.authAbuseMaxPerSourceAccount,
+              maxGlobal: config.authAbuseMaxGlobal,
+            }),
           },
           // D07. The keyring was parsed and validated at boot by `packages/config`, so a
           // malformed `AUTH_MFA_SEED_KEYS` has already stopped the process by the time this

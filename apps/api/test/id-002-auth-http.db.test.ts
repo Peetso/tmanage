@@ -8,7 +8,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
-import type { ApiConfig } from '../src/common/http/api-config.js';
+import type { ApiConfig, ApiConfigSource } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
 import { REAUTH_HEADER } from '../src/modules/identity/authentication.controller.js';
 import { base32Decode, hotpCode, totpCounterAt } from '../src/modules/identity/totp.js';
@@ -42,7 +42,11 @@ let app: NestFastifyApplication;
 const SESSION_SECRET = 'local_dev_only_session_secret_for_the_auth_http_suite';
 const CSRF_SECRET = 'local_dev_only_csrf_secret_for_the_auth_http_suite_xx';
 
-const CONFIG: ApiConfig = apiConfigFrom({
+/**
+ * The environment both applications in this file are built from. `D08`'s nested describe
+ * below builds a second one that differs from this in its abuse budgets and nothing else.
+ */
+const ENV: ApiConfigSource = {
   NODE_ENV: 'test',
   SESSION_COOKIE_NAME: 'tmanage_session',
   SESSION_SECRET,
@@ -55,7 +59,18 @@ const CONFIG: ApiConfig = apiConfigFrom({
   AUTH_FAILURE_WINDOW_SECONDS: 900,
   AUTH_TOTP_ISSUER: 'TManage',
   CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: 180,
-});
+  // `D08`, and deliberately far above anything this suite does: it posts to
+  // `/v1/auth/password` some thirty times from the one address `light-my-request` invents,
+  // and a production-sized budget here would throttle cases that are about factors, recovery
+  // codes and re-authentication. The bound itself is proved below, on an application built
+  // with a budget small enough to cross.
+  RATE_LIMIT_AUTH_WINDOW_SECONDS: 300,
+  RATE_LIMIT_AUTH_MAX_PER_SOURCE: 1000,
+  RATE_LIMIT_AUTH_MAX_REQUESTS: 1000,
+  RATE_LIMIT_AUTH_MAX_GLOBAL: 10_000,
+};
+
+const CONFIG: ApiConfig = apiConfigFrom(ENV);
 
 const PASSWORD = 'a quiet line on paper';
 
@@ -283,6 +298,170 @@ describe('POST /v1/auth/password', () => {
       password: PASSWORD,
     });
     expect(response.statusCode).toBe(200);
+  });
+
+  /**
+   * `D08` — the source bound, over HTTP.
+   *
+   * A second application, because the budget is the thing under test and the one above is
+   * deliberately unreachable. It differs from the outer application in three numbers and
+   * nothing else: same modules, same pool (the precedent is `http-pipeline.db.test.ts`, which
+   * builds a second application on `db.runtime` and closes it mid-suite), same seeded world.
+   *
+   * The control's map lives for the life of this application and is not truncated between
+   * cases the way the tables are, so each case works from its **own** source address.
+   */
+  describe('the source bound', () => {
+    /**
+     * Small enough that a handful of posts crosses it; large enough for the lockout case
+     * below, which needs `maxFailuresInWindow` failures *and* the attempt that is refused
+     * before the source budget would have refused it first.
+     */
+    const MAX_PER_SOURCE = 6;
+
+    const THROTTLED_CONFIG: ApiConfig = apiConfigFrom({
+      ...ENV,
+      RATE_LIMIT_AUTH_MAX_PER_SOURCE: MAX_PER_SOURCE,
+      // Never the narrowest bound here: every case below names distinct accounts, so the
+      // source key is the one that must fire and name itself.
+      RATE_LIMIT_AUTH_MAX_REQUESTS: 100,
+      RATE_LIMIT_AUTH_MAX_GLOBAL: 10_000,
+    });
+
+    let throttledApp: NestFastifyApplication;
+
+    beforeAll(async () => {
+      throttledApp = await NestFactory.create<NestFastifyApplication>(
+        AppModule.register({
+          config: THROTTLED_CONFIG,
+          database: DatabaseModule.forPool({ pool: db.runtime, guardMode: 'enforce' }),
+        }),
+        // Plain, with no `trustProxy`. That is not an oversight — see the proxy case below.
+        new FastifyAdapter(),
+        { logger: false, abortOnError: false },
+      );
+      await throttledApp.init();
+      await throttledApp.getHttpAdapter().getInstance().ready();
+    }, 300_000);
+
+    afterAll(async () => {
+      await throttledApp?.close();
+    });
+
+    /** A sign-in post from a chosen source address. `remoteAddress` is the socket's. */
+    async function signIn(
+      email: string,
+      password: string,
+      options: { from: string; headers?: Record<string, string> },
+    ): Promise<InjectedResponse> {
+      return (await throttledApp.inject({
+        method: 'POST',
+        url: '/v1/auth/password',
+        remoteAddress: options.from,
+        headers: { 'content-type': 'application/json', ...(options.headers ?? {}) },
+        payload: { email, password },
+      })) as unknown as InjectedResponse;
+    }
+
+    /** Spend a source's whole budget on addresses no account holds. */
+    async function spendBudget(from: string, tag: string): Promise<void> {
+      for (let attempt = 0; attempt < MAX_PER_SOURCE; attempt += 1) {
+        await signIn(`${tag}-${attempt}@northstar.example`, PASSWORD, { from });
+      }
+    }
+
+    /**
+     * The disclosure question the finding asks: a refusal must not tell an attacker whether
+     * the address they typed exists. The lockout's 429 names a real account by definition;
+     * the throttle's names nothing at all. If the two bodies differed, the difference would
+     * be the oracle.
+     */
+    it('answers a throttled source exactly as it answers a locked-out account', async () => {
+      await setPasswordFor(owner().id);
+
+      for (let attempt = 0; attempt < THROTTLED_CONFIG.maxFailuresInWindow; attempt += 1) {
+        await signIn(owner().email, 'wrong', { from: '198.51.100.20' });
+      }
+      const lockedOut = await signIn(owner().email, PASSWORD, { from: '198.51.100.20' });
+      expect(lockedOut.statusCode).toBe(429);
+      expect(lockedOut.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+
+      await spendBudget('198.51.100.21', 'sprayed');
+      const throttled = await signIn(`sprayed-${MAX_PER_SOURCE}@northstar.example`, PASSWORD, {
+        from: '198.51.100.21',
+      });
+      expect(throttled.statusCode).toBe(429);
+
+      // Byte for byte, once the per-request correlation id is masked.
+      expect(withoutCorrelationId(throttled)).toBe(withoutCorrelationId(lockedOut));
+    });
+
+    /**
+     * 429, and never 401. A throttled caller told 401 would learn nothing about the account
+     * but would learn that the password was wrong — and would keep trying, which is the cost
+     * this finding is about.
+     */
+    it('refuses with 429 rate_limited, never a 401 and never a different message', async () => {
+      const SOURCE = '198.51.100.22';
+
+      const inside: number[] = [];
+      for (let attempt = 0; attempt < MAX_PER_SOURCE; attempt += 1) {
+        const response = await signIn(`ground-${attempt}@northstar.example`, PASSWORD, {
+          from: SOURCE,
+        });
+        inside.push(response.statusCode);
+      }
+      // Inside the budget the answer is the ordinary 401 an unknown address has always got.
+      expect(inside).toEqual(Array.from({ length: MAX_PER_SOURCE }, () => 401));
+
+      const refused: string[] = [];
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const response = await signIn(`ground-over-${attempt}@northstar.example`, PASSWORD, {
+          from: SOURCE,
+        });
+        expect(response.statusCode).toBe(429);
+        expect(response.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+        refused.push(withoutCorrelationId(response));
+      }
+      // One message for every refusal, so the number of attempts already made is not itself
+      // reported back. Combined with the case above, that is also the lockout's message.
+      expect(new Set(refused).size).toBe(1);
+    });
+
+    /**
+     * The proxy behaviour the finding asks for explicitly.
+     *
+     * This suite's adapter is `new FastifyAdapter()` with **no** `trustProxy`, so
+     * `request.ip` is the socket's address and `x-forwarded-for` is a header like any other.
+     * Under `main.ts`'s `trustProxy: true` the third assertion below would flip: a caller
+     * setting that header *would* move to a fresh bucket. That is `D09` — proxy headers
+     * trusted unconditionally — and it is not D08's to fix; the account and global keys are
+     * what hold while it stands.
+     */
+    it('gives each source its own budget, and does not read x-forwarded-for', async () => {
+      const SOURCE = '198.51.100.23';
+      await spendBudget(SOURCE, 'proxied');
+
+      expect(
+        (await signIn('proxied-over@northstar.example', PASSWORD, { from: SOURCE })).statusCode,
+      ).toBe(429);
+
+      // A genuinely different socket is a different bucket, spending none of the first's.
+      expect(
+        (await signIn('elsewhere@northstar.example', PASSWORD, { from: '198.51.100.24' }))
+          .statusCode,
+      ).toBe(401);
+
+      // The same socket claiming to be somebody else buys nothing here.
+      expect(
+        (
+          await signIn('spoofed@northstar.example', PASSWORD, {
+            from: SOURCE,
+            headers: { 'x-forwarded-for': '198.51.100.99' },
+          })
+        ).statusCode,
+      ).toBe(429);
+    });
   });
 });
 

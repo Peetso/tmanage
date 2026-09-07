@@ -17,6 +17,7 @@ import { REAUTH_TTL_SECONDS, signReauthToken, verifyReauthToken } from './reauth
 import { findRecoveryCode, generateRecoveryCodes } from './recovery-codes.js';
 import { generateTotpSecret, totpUri, verifyTotp } from './totp.js';
 import { SessionsRepository } from './sessions.repository.js';
+import type { SignInAbuseControl, SignInAbuseReason } from './sign-in-abuse-control.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -57,6 +58,24 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *   proceed. The window is a counter, not a lock. Closing that would need `SELECT … FOR
  *   UPDATE` on a row that does not exist yet, and the attacker's gain from the race is one
  *   extra guess.
+ *
+ * **D08 half-closes the first of those, and it is worth being precise about which half.**
+ * `options.abuseControl` (see `sign-in-abuse-control.ts`) now bounds attempts by *where they
+ * came from* — per address, per address-and-account, and globally — in front of every path
+ * below that costs an Argon2 verify or a log row. What that does **not** buy:
+ *
+ * - It lives **in process**. The bound is memory in this Node process, not a row, so a
+ *   restart forgets every window and **a second process would count separately**; the
+ *   bootstrap profile runs **one** API process by design (`50-BOOTSTRAP` §3, `main.ts`), which
+ *   is the only reason this is honest. Scale that out and the per-source budget multiplies by
+ *   the process count.
+ * - It is **bounded by D09**, which is unfixed: `main.ts` sets `trustProxy: true`, so
+ *   `request.ip` is whatever `X-Forwarded-For` says. Anyone who can reach the origin directly,
+ *   or set that header, can rotate the source key at will. The account key is not evadable
+ *   that way and the global key is not evadable at all — read the source key as a cost bound
+ *   on honest traffic, not as a defence against a determined attacker, until D09 lands.
+ *
+ * The second limitation — the counter-not-a-lock race — is untouched.
  */
 
 /** The identity tables this service reaches. Enforced by `TenantDatabase.identity*`. */
@@ -125,7 +144,10 @@ export type AuthenticationReason =
   | 'reauth_required'
   | 'reauth_invalid'
   | 'reauth_expired'
-  | 'reauth_wrong_session';
+  | 'reauth_wrong_session'
+  // `D08`. Which source budget refused, in the abuse control's own words — reused rather
+  // than retyped, so the two lists cannot drift apart.
+  | SignInAbuseReason;
 
 /** What the caller is told. Deliberately coarse — see the note at the top of the file. */
 export type SignInRejection = 'invalid_credentials' | 'rate_limited';
@@ -141,6 +163,18 @@ export interface AuthenticationOptions {
   readonly totpIssuer: string;
   /** Optional. When absent, only the bundled list screens a new password. */
   readonly breachedPasswordScreen?: BreachedPasswordScreen;
+  /**
+   * `D08`. The source-based bound consulted in front of every password oracle in this file.
+   *
+   * **Required, and with no default**, for a reason worth stating rather than leaving to the
+   * next reader. The only default this file could honestly supply is one that admits
+   * everything — a control nobody chose, failing open, and indistinguishable at the call site
+   * from a control that is working. Making it required turns the compiler into the thing that
+   * finds every construction site: none of them can be built until someone has decided what
+   * budget it runs on. `breachedPasswordScreen` above is the precedent for a collaborator
+   * living in this interface rather than arriving as another constructor parameter.
+   */
+  readonly abuseControl: SignInAbuseControl;
 }
 
 export interface SignInContext {
@@ -247,6 +281,28 @@ export class AuthenticationService {
     context: SignInContext;
   }): Promise<SignInOutcome> {
     const { email, password, context } = input;
+
+    // `D08`, and the ordering is the whole point: this runs before the user lookup, before
+    // the Argon2 verify, and before any `record()` call, so a refused attempt costs three map
+    // lookups and nothing else — no read, no 15 ms of CPU, and at most one row per key per
+    // window rather than one row per attempt. It sits **in front of** the per-user lockout
+    // below, not instead of it: this one bounds a source, that one bounds an account, and the
+    // account bound is the durable one that survives a restart.
+    const verdict = this.options.abuseControl.admit({ ip: context.ip, account: email });
+    if (!verdict.admitted) {
+      if (verdict.firstRefusalInWindow) {
+        // The crossing attempt only. The migration's own comment asks for the trace ("a burst
+        // of them from one source is enumeration, and it is the only trace of it"); writing
+        // every refusal would re-create the flood this finding is about.
+        await this.record(context, {
+          userId: null,
+          action: AUTHENTICATION_ACTIONS.passwordSignIn,
+          outcome: 'failed',
+          reason: verdict.reason,
+        });
+      }
+      throw new AuthenticationRejectedError('rate_limited', verdict.reason);
+    }
 
     const found = await this.database.identityRead(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
@@ -357,6 +413,23 @@ export class AuthenticationService {
   }): Promise<AuthenticatedOutcome> {
     const { challengeToken, code, context } = input;
 
+    // `D08`. Ahead of the token verification, because this route is `@Public()` and writes a
+    // row for every attempt too. No `account`: the caller names no address, and the user this
+    // token claims is not known until it has been verified — so the source and global keys
+    // are the two that apply here.
+    const verdict = this.options.abuseControl.admit({ ip: context.ip });
+    if (!verdict.admitted) {
+      if (verdict.firstRefusalInWindow) {
+        await this.record(context, {
+          userId: null,
+          action: AUTHENTICATION_ACTIONS.mfaChallenge,
+          outcome: 'failed',
+          reason: verdict.reason,
+        });
+      }
+      throw new AuthenticationRejectedError('rate_limited', verdict.reason);
+    }
+
     const verified = verifyChallengeToken(challengeToken, this.options.sessionSecret, this.now());
     if (!verified.ok) {
       const reason: AuthenticationReason =
@@ -424,6 +497,21 @@ export class AuthenticationService {
     context: SignInContext;
   }): Promise<AuthenticatedOutcome> {
     const { challengeToken, code, context } = input;
+
+    // `D08`, for the same reason as `completeMfaChallenge`: `@Public()`, a row per attempt,
+    // and no account to key on until the challenge token has been verified.
+    const verdict = this.options.abuseControl.admit({ ip: context.ip });
+    if (!verdict.admitted) {
+      if (verdict.firstRefusalInWindow) {
+        await this.record(context, {
+          userId: null,
+          action: AUTHENTICATION_ACTIONS.recoveryCode,
+          outcome: 'failed',
+          reason: verdict.reason,
+        });
+      }
+      throw new AuthenticationRejectedError('rate_limited', verdict.reason);
+    }
 
     const verified = verifyChallengeToken(challengeToken, this.options.sessionSecret, this.now());
     if (!verified.ok) {
@@ -508,6 +596,25 @@ export class AuthenticationService {
     context: SignInContext;
   }): Promise<{ reauthToken: string; expiresAt: Date }> {
     const { userId, sessionId, password, code, context } = input;
+
+    // `D08`. This is the second password oracle in the file and it costs the same Argon2
+    // verify, so it gets the same bound in front of the read — the session guard narrows who
+    // can reach it, which is a reason to key it by `userId` rather than a reason to skip it.
+    const verdict = this.options.abuseControl.admit({ ip: context.ip, account: userId });
+    if (!verdict.admitted) {
+      if (verdict.firstRefusalInWindow) {
+        // Unlike the three `@Public()` routes, the user here is already established by the
+        // session guard, so the row names them — the same `userId` the `locked_out` row below
+        // carries, and an operator reading the two together should not have to guess.
+        await this.record(context, {
+          userId,
+          action: AUTHENTICATION_ACTIONS.reauthentication,
+          outcome: 'failed',
+          reason: verdict.reason,
+        });
+      }
+      throw new AuthenticationRejectedError('rate_limited', verdict.reason);
+    }
 
     const found = await this.database.identityRead(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
