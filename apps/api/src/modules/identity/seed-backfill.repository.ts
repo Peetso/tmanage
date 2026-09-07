@@ -83,6 +83,17 @@ export interface SeedVersionCount {
   readonly rows: number;
 }
 
+/**
+ * A row `status` could not turn back into a seed, and why.
+ *
+ * The reason is the cipher's own, minus `not_encrypted` — a bare seed is already reported as
+ * `plaintext`, is not a fault, and is fixed by running the backfill.
+ */
+export interface SeedUnopenableFactor {
+  readonly factorId: string;
+  readonly reason: Exclude<SeedCipherRejection, 'not_encrypted'>;
+}
+
 export interface SeedStatusReport {
   readonly total: number;
   /** Rows with no envelope at all: the D07 finding, still open, counted. */
@@ -91,6 +102,13 @@ export interface SeedStatusReport {
   readonly unreadable: number;
   /** Rows per key version, ascending. A version with no rows does not appear. */
   readonly byVersion: readonly SeedVersionCount[];
+  /**
+   * Rows that parse but do not open: an unknown key version, a failed tag, a malformed
+   * envelope. These are the rows that refuse somebody's sign-in, listed by id so an operator
+   * can act on them. A `malformed` row is counted here *and* in `unreadable`; the two answer
+   * different questions ("what shape is the column in" and "who is locked out").
+   */
+  readonly unopenable: readonly SeedUnopenableFactor[];
 }
 
 const ENVELOPE_PREFIX = 'mfa1.';
@@ -172,12 +190,23 @@ export async function encryptSeeds(
 }
 
 /**
- * Count what the table holds, without opening anything.
+ * Count what the table holds, and say which rows will not open.
  *
- * Deliberately parse-only: this is the command an operator runs to decide whether an old key
- * may be removed from `AUTH_MFA_SEED_KEYS`, and that question is answered by the version
- * each envelope names. Decrypting to answer it would put every seed in this process's memory
- * for no reason.
+ * The per-version counts are pure parsing, and they answer the question an operator asks
+ * during a rotation: may this old key be dropped from `AUTH_MFA_SEED_KEYS` yet.
+ *
+ * The `unopenable` list answers the other one, and it is the reason this command is no
+ * longer parse-only (D07 review, issue 3). A tampered envelope, or one naming a key this
+ * environment no longer holds, parses perfectly and was counted under its version like any
+ * healthy row — so the diagnostic an operator reached for during a lockout could not see the
+ * rows causing it, and `encrypt` short-circuits the same rows as `unchanged` before any
+ * decrypt. One decrypt attempt per row closes that: the seed is discarded on the same line
+ * it is produced, nothing is retained and nothing is written, and this is a command a person
+ * types deliberately rather than something on a request path.
+ *
+ * `not_encrypted` is not a failure here. It is a row the backfill has not reached, already
+ * reported as `plaintext`, and calling it unopenable would tell an operator to go looking for
+ * a key when the answer is to run `mfa:encrypt-seeds`.
  */
 export async function seedEncryptionStatus(
   store: SeedStore,
@@ -188,6 +217,7 @@ export async function seedEncryptionStatus(
   let plaintext = 0;
   let unreadable = 0;
   const perVersion = new Map<number, number>();
+  const unopenable: SeedUnopenableFactor[] = [];
 
   for (const row of rows) {
     const version = cipher.keyVersionOf(row.secret);
@@ -198,6 +228,17 @@ export async function seedEncryptionStatus(
     } else {
       plaintext += 1;
     }
+
+    try {
+      // The return value is the seed, and it goes nowhere: what is under test is whether the
+      // row opens, not what is inside it.
+      cipher.decrypt(row.secret, { userId: row.userId });
+    } catch (error) {
+      if (!(error instanceof SeedCipherError)) throw error;
+      if (error.reason !== 'not_encrypted') {
+        unopenable.push({ factorId: row.id, reason: error.reason });
+      }
+    }
   }
 
   return {
@@ -207,6 +248,7 @@ export async function seedEncryptionStatus(
     byVersion: [...perVersion.entries()]
       .map(([version, count]) => ({ version, rows: count }))
       .sort((left, right) => left.version - right.version),
+    unopenable,
   };
 }
 

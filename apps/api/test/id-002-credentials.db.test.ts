@@ -1369,7 +1369,9 @@ describe('D06 — replacing a password ends every other session', () => {
  * rather than in a unit test: the column no longer holds the seed; editing it breaks it;
  * moving it between rows breaks it; a row nobody has swept yet refuses rather than works;
  * and refusing a sign-in is *all* it refuses — the screens that list and remove a factor
- * never open the envelope, so they still work on the row that will not open.
+ * never open the envelope, so they still work on the row that will not open. Cases (g) and
+ * (h) add the sixth: a broken row costs its owner that factor and no more, unless it is the
+ * only one they have, in which case the door stays shut.
  *
  * `db.admin` is used to read and to corrupt the column directly, exactly as the cases above
  * use it to observe what actually landed — the point is what an attacker with database
@@ -1608,6 +1610,62 @@ describe('D07 — the seed is ciphertext in the column', () => {
       context: context(),
     });
     expect(outcome.status).toBe('authenticated');
+  });
+
+  /**
+   * (g) One broken row is not everybody's problem — D07 review, issue 2.
+   *
+   * Somebody with a phone and a tablet, whose tablet row was left behind by a backfill or
+   * altered in the column, used to be refused outright: the listing opened every row eagerly
+   * and the first refusal propagated. The rows that open are now collected instead, so the
+   * phone still signs them in and the tablet is simply not among the factors offered.
+   */
+  it('signs in on the working factor when another of the person’s rows will not open', async () => {
+    await givePassword(owner().id);
+    const phone = await enrolTotpFor(owner(), 'Phone');
+    const tablet = await enrolTotpFor(owner(), 'Tablet');
+
+    await setRawSecret(tablet.factorId, tamper(await rawSecret(tablet.factorId)));
+
+    clockMs += 30_000;
+    const challenge = await service.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    // Still asked for a code: the broken row did not quietly turn MFA off either.
+    if (challenge.status !== 'mfa_required') throw new Error('expected a challenge');
+    const completed = await service.completeMfaChallenge({
+      challengeToken: challenge.challengeToken,
+      code: codeFor(phone.secret, clockMs),
+      context: context(),
+    });
+    expect(completed).toEqual({ status: 'authenticated', userId: owner().id });
+  });
+
+  /**
+   * (h) The other side of (g), and the reason it is a partition rather than a skip: with no
+   * row left that opens, the refusal stands. Returning "no factors" here would let anyone
+   * able to write one column reduce an account to password-only, which is the bypass the
+   * lockout was protecting against.
+   */
+  it('refuses the sign-in when none of the person’s rows will open', async () => {
+    await givePassword(owner().id);
+    const phone = await enrolTotpFor(owner(), 'Phone');
+    const tablet = await enrolTotpFor(owner(), 'Tablet');
+
+    await setRawSecret(phone.factorId, tamper(await rawSecret(phone.factorId)));
+    await setRawSecret(tablet.factorId, tamper(await rawSecret(tablet.factorId)));
+
+    clockMs += 30_000;
+    const error = await refusal(
+      service.signInWithPassword({
+        email: owner().email,
+        password: PASSWORD,
+        context: context(),
+      }),
+    );
+    expect(error.reason).toBe('authentication_failed');
   });
 
   it('encrypts that row when the backfill is run, keeping the seed the person enrolled', async () => {

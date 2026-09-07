@@ -14,6 +14,7 @@ import type {
   UserRecoveryCodeRow,
 } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
+import { SeedCipherError } from './seed-cipher.js';
 import type { SeedCipher } from './seed-cipher.js';
 
 /**
@@ -50,7 +51,11 @@ import type { SeedCipher } from './seed-cipher.js';
  *
  * A value that will not open is not swallowed. A `SeedCipherError` propagates out of the
  * read, and every caller here already fails closed on a repository error, so a tampered row
- * or a leftover plaintext one refuses a sign-in rather than quietly permitting it.
+ * or a leftover plaintext one refuses a sign-in rather than quietly permitting it. The one
+ * refinement is {@link CredentialsRepository.listActiveFactors}, which refuses when *no* row
+ * of a person's factors opens rather than when the first one does not — the same closed door
+ * for the account whose only factor is broken, held open for the account that still has a
+ * working one.
  *
  * Which is why only the reads that *hand a seed upward* select the column at all. A read
  * whose caller discards the secret does not decrypt it and does not select it — see
@@ -167,6 +172,26 @@ export class CredentialsRepository {
    * Unconfirmed factors are excluded deliberately. Whether MFA is *required* for a person is
    * decided by whether this list is empty, and counting a half-finished enrolment would lock
    * someone out of their own account because they opened the setup screen and closed the tab.
+   *
+   * ## One unopenable row must not cost a person their working one — D07 review
+   *
+   * Opening every row eagerly meant the first `SeedCipherError` in the list propagated, so
+   * somebody holding a phone *and* a tablet was refused sign-in because the tablet's row was
+   * left in plaintext by a backfill nobody ran. The rows that open are therefore collected
+   * and the rest set aside.
+   *
+   * Set aside, not skipped. If rows existed and *none* opened, the first refusal is rethrown,
+   * because silently returning an empty list would say "this person has no second factor" and
+   * anyone able to write one column could then corrupt the only factor and reduce the account
+   * to password-only. That is a live MFA bypass, and it is worse than the lockout. Failing
+   * closed when nothing opens, and only then, keeps both properties: MFA is still demanded
+   * whenever a factor exists, and a second working factor still signs the person in.
+   *
+   * Nothing is logged from here: this class holds no logger (it takes a query runner per call
+   * and nothing else), and reaching for `console` inside the identity path would put factor
+   * ids into a stream nobody has decided the retention of. The diagnostic that names these
+   * rows is `pnpm --filter @tmanage/api mfa:seeds-status`, which reports them by id and
+   * reason — see `docs/runbooks/deploy.md`.
    */
   async listActiveFactors(
     runner: IdentityQueryRunner,
@@ -183,7 +208,21 @@ export class CredentialsRepository {
         ),
       )
       .orderBy(desc(userMfaFactors.createdAt));
-    return rows.map((row) => this.open(row));
+
+    const opened: UserMfaFactorRow[] = [];
+    let firstRefusal: SeedCipherError | undefined;
+    for (const row of rows) {
+      try {
+        opened.push(this.open(row));
+      } catch (error) {
+        // Only a refusal by the cipher is a set-aside row. Anything else is a fault in this
+        // process rather than in the column, and swallowing it would hide it.
+        if (!(error instanceof SeedCipherError)) throw error;
+        firstRefusal ??= error;
+      }
+    }
+    if (opened.length === 0 && firstRefusal !== undefined) throw firstRefusal;
+    return opened;
   }
 
   /**

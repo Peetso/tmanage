@@ -164,7 +164,26 @@ async function main(): Promise<number> {
           }
           out(`plaintext            ${status.plaintext}`);
           out(`unreadable           ${status.unreadable}`);
+          out(`unopenable           ${status.unopenable.length}`);
           out(`total                ${status.total}`);
+          if (status.unopenable.length > 0) {
+            // The rows that are refusing somebody's sign-in right now. Ids and reasons only,
+            // for the same reason the sweep prints no more than that: this output is read in
+            // a terminal and pasted into a ticket.
+            process.stderr.write('\nfactors that will not open:\n');
+            for (const factor of status.unopenable) {
+              process.stderr.write(`  ${factor.factorId}  ${factor.reason}\n`);
+            }
+            process.stderr.write(
+              '\nSee docs/runbooks/deploy.md. `unknown_key_version` means AUTH_MFA_SEED_KEYS ' +
+                'is missing a key\nthe row needs — restore it rather than re-encrypting; ' +
+                '`authentication_failed` means the stored\nvalue was altered or moved between ' +
+                'users; `malformed` means it is neither seed nor envelope.\n',
+            );
+          }
+          // Still 0: `status` reports, it does not judge. An operator asks it what the table
+          // holds, including in the middle of an incident, and a non-zero exit would make
+          // that ordinary question look like a failed command in every wrapper script.
           return 0;
         }
 

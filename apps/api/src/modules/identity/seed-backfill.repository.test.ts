@@ -267,12 +267,74 @@ describe('seedEncryptionStatus', () => {
     ]);
   });
 
+  /**
+   * The question an operator actually arrives with: which rows are refusing a sign-in?
+   *
+   * Counting by version cannot answer it. A tampered envelope and one naming a dropped key
+   * both parse, so both were counted under their version like any healthy row, and the
+   * backfill passes over the same rows without opening them. Hence one decrypt attempt per
+   * row here, and a list of ids to act on.
+   */
+  it('names the rows that will not open, with the reason each fails for', async () => {
+    const tampered = tamper(V1.encrypt(SEED, { userId: ALICE }));
+    const underV2 = V1_AND_V2.encrypt(SEED, { userId: BOB });
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: V1.encrypt(SEED, { userId: ALICE }) },
+      { id: 'f2', userId: ALICE, secret: tampered },
+      // Written under key 2, read by a process that holds only key 1.
+      { id: 'f3', userId: BOB, secret: underV2 },
+      { id: 'f4', userId: BOB, secret: 'mfa1.9' },
+      // A row the backfill has not reached. Not a fault, and not listed below.
+      { id: 'f5', userId: BOB, secret: OTHER_SEED },
+    ]);
+
+    const status = await seedEncryptionStatus(table, V1);
+
+    expect(status.unopenable).toEqual([
+      { factorId: 'f2', reason: 'authentication_failed' },
+      { factorId: 'f3', reason: 'unknown_key_version' },
+      { factorId: 'f4', reason: 'malformed' },
+    ]);
+    // The counts the command already reported are unchanged by the decrypt attempt.
+    expect(status.plaintext).toBe(1);
+    expect(status.unreadable).toBe(1);
+    expect(status.total).toBe(5);
+  });
+
+  it('lists nothing when every row opens', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: V1.encrypt(SEED, { userId: ALICE }) },
+      { id: 'f2', userId: BOB, secret: V1.encrypt(OTHER_SEED, { userId: BOB }) },
+    ]);
+
+    expect((await seedEncryptionStatus(table, V1)).unopenable).toEqual([]);
+  });
+
+  /** The report is pasted into tickets, so the decrypt attempt must not leak what it opened. */
+  it('says nothing that contains a seed or a stored value', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: V1.encrypt(SEED, { userId: ALICE }) },
+      { id: 'f2', userId: BOB, secret: tamper(V1.encrypt(OTHER_SEED, { userId: BOB })) },
+    ]);
+
+    const printed = JSON.stringify(await seedEncryptionStatus(table, V1));
+
+    expect(printed).not.toContain(SEED);
+    expect(printed).not.toContain(OTHER_SEED);
+    expect(printed).not.toContain('mfa1.');
+  });
+
   it('touches nothing', async () => {
-    const table = new FakeFactorTable([{ id: 'f1', userId: ALICE, secret: SEED }]);
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: SEED },
+      // Including the row it now tries to open and cannot: reading is all it does.
+      { id: 'f2', userId: BOB, secret: tamper(V1.encrypt(OTHER_SEED, { userId: BOB })) },
+    ]);
+    const before = table.rows.map((row) => row.secret);
 
     await seedEncryptionStatus(table, V1_AND_V2);
 
     expect(table.updates).toHaveLength(0);
-    expect(table.rows[0]!.secret).toBe(SEED);
+    expect(table.rows.map((row) => row.secret)).toEqual(before);
   });
 });
