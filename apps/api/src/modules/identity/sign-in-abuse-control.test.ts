@@ -64,6 +64,45 @@ describe('the sign-in abuse control', () => {
     });
   });
 
+  it('names the narrowest bound even when the source budget has been crossed too', () => {
+    // The discriminating case for the precedence in `admit`. One address, one account, and a
+    // source budget only one wider than the account budget, so the two cross on consecutive
+    // attempts and the fourth attempt is over *both*.
+    const admit = control({ maxPerSource: 3, maxPerSourceAccount: 2, now: () => 5_000 });
+    const attempt = () => admit.admit({ ip: '198.51.100.7', account: 'ana@example.test' });
+
+    expect([attempt().admitted, attempt().admitted]).toEqual([true, true]);
+
+    // Third: the account budget of 2 is crossed while the source is still inside its 3.
+    expect(attempt()).toEqual({
+      admitted: false,
+      reason: 'source_account_throttled',
+      firstRefusalInWindow: true,
+    });
+
+    // Fourth: both budgets are now over — the source's 3 was spent by the three attempts
+    // above, every one of which charged it. Reading the source charge first would report
+    // `source_throttled` with `firstRefusalInWindow: true`, because this is the source key's
+    // own first refusal. Narrowest-first must still say `source_account_throttled`, and the
+    // account key's flag is already spent, so both fields discriminate.
+    expect(attempt()).toEqual({
+      admitted: false,
+      reason: 'source_account_throttled',
+      firstRefusalInWindow: false,
+    });
+  });
+
+  it('keys nothing on a whitespace-only account, rather than giving every blank one bucket', () => {
+    // `maxPerSourceAccount: 1` would refuse the second attempt if whitespace produced a key;
+    // `maxPerSource: 30` is nowhere near, so the source budget cannot be what admits it.
+    const admit = control({ maxPerSource: 30, maxPerSourceAccount: 1, now: () => 5_000 });
+
+    expect([
+      admit.admit({ ip: '198.51.100.7', account: '   ' }).admitted,
+      admit.admit({ ip: '198.51.100.7', account: '   ' }).admitted,
+    ]).toEqual([true, true]);
+  });
+
   it('charges the source budget across accounts, so a spray over rotating accounts is refused by it', () => {
     const admit = control({ maxPerSource: 4, maxPerSourceAccount: 10, now: () => 5_000 });
 

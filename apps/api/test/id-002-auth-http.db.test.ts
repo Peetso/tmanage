@@ -386,6 +386,16 @@ describe('POST /v1/auth/password', () => {
       expect(lockedOut.statusCode).toBe(429);
       expect(lockedOut.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
 
+      // The 429 above must be the *lockout's*, not the throttle's, or this case would compare
+      // one throttle to another and prove nothing. The reason never reaches the caller, so it
+      // is read off the row the way the credentials suite reads it.
+      const [lockoutRows] = await db.admin.query<RowDataPacket[]>(
+        `select reason from authentication_events
+          where user_id = ? and outcome = 'failed' and reason = 'locked_out'`,
+        [owner().id],
+      );
+      expect(lockoutRows).toHaveLength(1);
+
       await spendBudget('198.51.100.21', 'sprayed');
       const throttled = await signIn(`sprayed-${MAX_PER_SOURCE}@northstar.example`, PASSWORD, {
         from: '198.51.100.21',

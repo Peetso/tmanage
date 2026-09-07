@@ -57,9 +57,12 @@ export class IdentityModule {
             // screen that would fail open.
             //
             // D08. The source-based bound in front of every password oracle in the service.
-            // Built here, once, because the map *is* the state: one control per process, and
-            // the bootstrap profile runs one API process (`50-BOOTSTRAP` §3, `main.ts`) — a
-            // second one would count separately, and a restart forgets every window. The
+            // Built here, once per application, because the map *is* the state: one control
+            // per deployment is the intent, and it holds because the bootstrap profile runs a
+            // single API process building a single application (`50-BOOTSTRAP` §3, `main.ts`).
+            // A test process that builds several applications gets several controls, which is
+            // what a suite wanting a fresh window per case relies on; in production a second
+            // API process would count separately, and a restart forgets every window. The
             // config carries the window in seconds because that is what an operator writes in
             // an env file; the control counts in milliseconds, so it is converted here rather
             // than leaving two units loose in the codebase.

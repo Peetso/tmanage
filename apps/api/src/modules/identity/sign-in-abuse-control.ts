@@ -91,7 +91,8 @@ export type SignInAbuseVerdict =
        * True only on the attempt that first crossed this key's budget in this window. It is
        * what keeps the trace the migration asks for ("a burst of them from one source is
        * enumeration, and it is the only trace of it") without re-creating the flood: one row
-       * per key per window, rather than one per refused attempt.
+       * per key per window — plus one per eviction from the refusing-key set, the caveat
+       * `createBudget` states below — rather than one per refused attempt.
        */
       readonly firstRefusalInWindow: boolean;
     };
@@ -130,7 +131,9 @@ const createBudget = (options: {
   readonly now: () => number;
 }): ((key: string) => Charge) => {
   const admit = createFixedWindowLimiter(options);
-  // Insertion order is age, as in the limiter: the first entry is the oldest refusal.
+  // Insertion order is first-refusal order, and it is FIFO rather than the limiter's LRU: a
+  // key's position here is never refreshed by a later refusal, so the first entry is the key
+  // that started refusing longest ago.
   const refusing = new Set<string>();
 
   return (key) => {

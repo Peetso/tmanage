@@ -42,9 +42,11 @@ commits):
 - `ea2a33c` — the control is consulted at the **top** of `signInWithPassword` (source,
   source+account and global), of `completeMfaChallenge` and `completeWithRecoveryCode` (source
   and global only — they are reached only with a signed challenge token, so the account key adds
-  nothing) and of `confirmReauthentication` (D05, keyed on the user id). A refused attempt
-  reaches neither the user lookup, nor the Argon2 verify, nor `record()`. `identity.module.ts`
-  builds the control from `ApiConfig`.
+  nothing) and of `confirmReauthentication` (D05), which is charged on all three keys exactly
+  as password sign-in is — source, source+account and global — with the user id standing in for
+  the email inside the hashed account key. A refused attempt reaches neither the user lookup nor
+  the Argon2 verify, and writes at most the one bounded row described below.
+  `identity.module.ts` builds the control from `ApiConfig`.
 
 The three keys, all charged on every attempt, refusal if any is over budget:
 
@@ -62,11 +64,16 @@ consumed by nothing; D08 is what finally consumes it.
 remainder of one five-minute window and never longer, and no account is ever locked by another
 party's traffic — the source keys refuse _requests from that source_, they do not touch the
 per-user failure counting in `authentication_events`. The refusal is the 429 `rate_limited` the
-per-user lockout already produced, byte-identical for a real and an unknown address because
+per-user lockout already produced, byte-identical for a real and an unknown account because
 nothing about the account has been looked up yet, and it writes **at most one**
-`authentication_events` row per key per window (`user_id NULL`, `outcome = 'failed'`, one of
-three new reasons — `source_throttled`, `source_account_throttled`, `global_throttled` — which
-are never serialised to a caller). Success is counted as well as failure: a caller sitting
+`authentication_events` row per key per window, plus one more each time a key is evicted from
+the module's refusing-key set once that set reaches `maxKeys` — the caveat the module's own
+`createBudget` header states, and the price of bounding that set at all. The row carries
+`outcome = 'failed'` and one of three new reasons — `source_throttled`,
+`source_account_throttled`, `global_throttled` — which are never serialised to a caller. Its
+`user_id` is `NULL` on the three `@Public()` routes, where nobody has been looked up yet; the
+`confirmReauthentication` row names the real user, because the session guard established who
+they are before the control was consulted. Success is counted as well as failure: a caller sitting
 exactly at the boundary must not be able to keep guessing, which is why the per-source default
 is 30 rather than 5.
 
@@ -75,8 +82,12 @@ is 30 rather than 5.
 - **It does not fix D09.** The source key is spoofable exactly as far as the proxy
   configuration allows; the account and global keys are what hold in the meantime, and that is
   why the global key is not optional. One HTTP case records the behaviour as the application
-  stands: a forged `x-forwarded-for` from the same socket buys nothing, because that
-  application does not trust proxy headers. A deployment that does trust them inherits D09.
+  stands **in the test harness**: that suite builds its own application on a plain
+  `new FastifyAdapter()` with no `trustProxy`, so a forged `x-forwarded-for` from the same
+  socket buys nothing there. The shipped API is not that application.
+  `apps/api/src/main.ts:39` sets `trustProxy: true` unconditionally, so in production
+  `request.ip` is whatever `X-Forwarded-For` says and the source key is rotatable at will
+  until D09 is fixed. The account and global keys are what hold in the meantime.
 - **It does not survive a restart or a second API process.** The windows are process memory —
   the same trade `rate-limiter.ts` already documents, made legitimate by the same single API
   process `50-BOOTSTRAP` §3 assumes. A restart forgets every window, and if the deployment ever
@@ -119,9 +130,11 @@ Every claim names its log.
 2. **If a second API process is ever run**, this control must move to the database or another
    shared store. In-process state is only legitimate while `50-BOOTSTRAP` §3's single API
    process holds, and a restart forgets every window in the meantime.
-3. **The throttle row bound is per key per window, not global.** A spray from rotated addresses
-   can still write one row per new source key until the global key refuses; that refusal is the
-   only thing that caps the total.
+3. **The throttle row bound is per key per window, not global** — and not flat even at that:
+   the set of currently refusing keys is itself capped at `maxKeys`, and each eviction from it
+   costs one extra row for the evicted key in that window, as `createBudget`'s own header says.
+   A spray from rotated addresses can still write one row per new source key until the global
+   key refuses; that refusal is the only thing that caps the total.
 
 **Ticket accounting.** A defect fixed on a branch, not a ticket: **35 of 70 tickets, 285 of 583
 points (48.9%)** unchanged. D08, like D05, W01, W02, D06 and D07 before it, is a review
@@ -8326,8 +8339,8 @@ convenience.
    password. Closing it needs the notification surface.
 5. **Password recovery is not built.** `ID-05`'s four recovery states are still inert: a
    reset link needs email, which needs the notification surface.
-6. **The lockout is still per user; the source bound in front of it is in process** (D08,
-   2026-09-07). The durable lockout counts failures for one account and does nothing about one
+6. **The lockout is still per user; the source bound in front of it is in process.** (D08,
+   2026-09-07) The durable lockout counts failures for one account and does nothing about one
    attempt each against a thousand accounts. What now stands in front of it is a source,
    source+account and global control consulted at the top of the password, MFA, recovery-code
    and re-authentication steps, before the user lookup, before Argon2 and before the event

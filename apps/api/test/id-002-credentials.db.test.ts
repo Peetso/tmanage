@@ -78,6 +78,12 @@ const OPTIONS: AuthenticationOptions = {
   // production-sized budget here would refuse cases that are about factors and recovery codes
   // and prove nothing about either. The cases that are about the bound build their own control
   // with a tight budget, below.
+  //
+  // Read the budget as file-global and never reset: this control is built once at module load
+  // and reads the same `clockMs` every case does, and `beforeEach` sets that clock *back* to
+  // the same fixed instant, which a fixed window reads as one continuous window — so these
+  // counts accumulate across every case in the file and are never cleared. That is exactly
+  // why the numbers here are far above what the whole file spends.
   abuseControl: createSignInAbuseControl({
     windowMs: ABUSE_WINDOW_MS,
     maxPerSource: 1000,

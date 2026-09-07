@@ -285,9 +285,10 @@ export class AuthenticationService {
     // `D08`, and the ordering is the whole point: this runs before the user lookup, before
     // the Argon2 verify, and before any `record()` call, so a refused attempt costs three map
     // lookups and nothing else — no read, no 15 ms of CPU, and at most one row per key per
-    // window rather than one row per attempt. It sits **in front of** the per-user lockout
-    // below, not instead of it: this one bounds a source, that one bounds an account, and the
-    // account bound is the durable one that survives a restart.
+    // window (plus one per eviction from the control's refusing-key set, which its own
+    // `createBudget` header prices) rather than one row per attempt. It sits **in front of**
+    // the per-user lockout below, not instead of it: this one bounds a source, that one bounds
+    // an account, and the account bound is the durable one that survives a restart.
     const verdict = this.options.abuseControl.admit({ ip: context.ip, account: email });
     if (!verdict.admitted) {
       if (verdict.firstRefusalInWindow) {
