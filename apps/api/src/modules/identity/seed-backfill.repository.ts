@@ -107,13 +107,26 @@ export interface SeedStatusReport {
    * envelope. These are the rows that refuse somebody's sign-in, listed by id so an operator
    * can act on them. A `malformed` row is counted here *and* in `unreadable`; the two answer
    * different questions ("what shape is the column in" and "who is locked out").
+   *
+   * Disabled rows are left out, and that is the difference between a number that can reach
+   * zero and one that cannot. The documented remedy for a broken factor is to disable it and
+   * keep it (`docs/runbooks/deploy.md`), so listing disabled rows would mean an operator who
+   * followed the runbook exactly still sees a non-zero count for ever, with nothing left to
+   * do about it. A disabled row is past `listActiveFactors` and refuses nobody's sign-in.
+   * The counts above still cover it: every stored value is somebody's seed until the column
+   * is cleared.
    */
   readonly unopenable: readonly SeedUnopenableFactor[];
 }
 
 const ENVELOPE_PREFIX = 'mfa1.';
 
-const SELECT_SECRETS = 'SELECT id, user_id, secret FROM user_mfa_factors ORDER BY id';
+/**
+ * `disabled_at` is read for `status` alone, to tell a row that can still refuse a sign-in
+ * from one an operator has already retired. The sweep ignores it on purpose: a disabled row
+ * still holds a seed, and leaving it in plaintext would defeat the point of D07.
+ */
+const SELECT_SECRETS = 'SELECT id, user_id, secret, disabled_at FROM user_mfa_factors ORDER BY id';
 
 /**
  * The compare-and-swap. `secret = ?` is the previous value, read moments ago; without it
@@ -125,6 +138,8 @@ interface StoredSecret {
   readonly id: string;
   readonly userId: string;
   readonly secret: string;
+  /** `disabled_at` is set: the factor is retired and no sign-in of anybody's reaches it. */
+  readonly disabled: boolean;
 }
 
 /**
@@ -207,6 +222,12 @@ export async function encryptSeeds(
  * `not_encrypted` is not a failure here. It is a row the backfill has not reached, already
  * reported as `plaintext`, and calling it unopenable would tell an operator to go looking for
  * a key when the answer is to run `mfa:encrypt-seeds`.
+ *
+ * A disabled row is not a failure either, for the same reason inverted: it cannot refuse a
+ * sign-in, and the runbook's own remedy for a broken factor is to disable it and keep the
+ * row. Counting it would make `unopenable` a number that never returns to zero however
+ * faithfully an operator follows the instructions. The counts are unaffected — a retired row
+ * is still a row, and still holds a value the sweep must encrypt.
  */
 export async function seedEncryptionStatus(
   store: SeedStore,
@@ -228,6 +249,11 @@ export async function seedEncryptionStatus(
     } else {
       plaintext += 1;
     }
+
+    // Retired rows are counted above and go no further: `unopenable` answers "who is locked
+    // out", and nobody signs in on a disabled factor. Not opening it is also one fewer
+    // decrypt of a seed nobody needs.
+    if (row.disabled) continue;
 
     try {
       // The return value is the seed, and it goes nowhere: what is under test is whether the
@@ -258,6 +284,8 @@ async function readSecrets(store: SeedStore): Promise<readonly StoredSecret[]> {
     id: String(row['id']),
     userId: String(row['user_id']),
     secret: String(row['secret']),
+    // Anything other than SQL NULL is a disable timestamp; the value itself is never used.
+    disabled: row['disabled_at'] !== null && row['disabled_at'] !== undefined,
   }));
 }
 

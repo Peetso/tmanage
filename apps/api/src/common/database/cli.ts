@@ -167,9 +167,10 @@ async function main(): Promise<number> {
           out(`unopenable           ${status.unopenable.length}`);
           out(`total                ${status.total}`);
           if (status.unopenable.length > 0) {
-            // The rows that are refusing somebody's sign-in right now. Ids and reasons only,
-            // for the same reason the sweep prints no more than that: this output is read in
-            // a terminal and pasted into a ticket.
+            // The rows that are refusing somebody's sign-in right now — disabled factors are
+            // not among them, so this reaches zero once the runbook's remedy has been
+            // applied. Ids and reasons only, for the same reason the sweep prints no more
+            // than that: this output is read in a terminal and pasted into a ticket.
             process.stderr.write('\nfactors that will not open:\n');
             for (const factor of status.unopenable) {
               process.stderr.write(`  ${factor.factorId}  ${factor.reason}\n`);

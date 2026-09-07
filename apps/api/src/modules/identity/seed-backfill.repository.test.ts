@@ -31,6 +31,8 @@ interface FactorRow {
   readonly id: string;
   readonly userId: string;
   secret: string;
+  /** The disable timestamp, `null` for a live factor. Only its nullness is ever read. */
+  readonly disabledAt?: string | null;
 }
 
 interface Statement {
@@ -39,7 +41,11 @@ interface Statement {
 }
 
 /**
- * `user_mfa_factors`, reduced to the three columns the sweep reads and the one it writes.
+ * `user_mfa_factors`, reduced to the columns the sweep reads and the one it writes.
+ *
+ * `disabled_at` is among them because `status` partitions on it, and the column is always
+ * present in the result set — a live row carries SQL NULL rather than nothing at all, which
+ * is what the real driver hands back and what the mapping has to cope with.
  *
  * `beforeUpdate` is how a concurrent writer is expressed: it runs once, immediately before
  * the first UPDATE reaches the table, which is exactly the window the compare-and-swap
@@ -66,7 +72,12 @@ class FakeFactorTable implements SeedStore {
 
     if (/^\s*select/i.test(sql)) {
       return [
-        this.rows.map((row) => ({ id: row.id, user_id: row.userId, secret: row.secret })),
+        this.rows.map((row) => ({
+          id: row.id,
+          user_id: row.userId,
+          secret: row.secret,
+          disabled_at: row.disabledAt ?? null,
+        })),
         [],
       ];
     }
@@ -236,6 +247,22 @@ describe('encryptSeeds', () => {
     expect(V1.decrypt(table.rows[1]!.secret, { userId: BOB })).toBe(OTHER_SEED);
   });
 
+  /**
+   * `status` skips disabled rows; the sweep must not. A retired factor's column still holds
+   * the seed somebody enrolled, and leaving it in plaintext because nobody signs in on it any
+   * more would leave exactly the disclosure D07 exists to close.
+   */
+  it('encrypts a disabled row too', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: SEED, disabledAt: '2026-09-06 12:00:00.000' },
+    ]);
+
+    const report = await encryptSeeds(table, V1);
+
+    expect(report.plaintextEncrypted).toBe(1);
+    expect(table.rows[0]!.secret.startsWith('mfa1.1.')).toBe(true);
+  });
+
   it('counts an empty stored value as a failure rather than encrypting nothing', async () => {
     const table = new FakeFactorTable([{ id: 'f1', userId: ALICE, secret: '' }]);
 
@@ -299,6 +326,32 @@ describe('seedEncryptionStatus', () => {
     expect(status.plaintext).toBe(1);
     expect(status.unreadable).toBe(1);
     expect(status.total).toBe(5);
+  });
+
+  /**
+   * The runbook's remedy for a broken factor is to disable the row and keep it. If a disabled
+   * row still counted, `unopenable` could never return to the zero the runbook calls healthy,
+   * and an operator who had done everything right would be left staring at a number with no
+   * remaining action behind it. Both rows below are broken in the same way; only the live one
+   * is refusing anybody a sign-in.
+   */
+  it('leaves a disabled row out of the list and keeps the live one in', async () => {
+    const table = new FakeFactorTable([
+      { id: 'f1', userId: ALICE, secret: tamper(V1.encrypt(SEED, { userId: ALICE })) },
+      {
+        id: 'f2',
+        userId: BOB,
+        secret: tamper(V1.encrypt(OTHER_SEED, { userId: BOB })),
+        disabledAt: '2026-09-06 12:00:00.000',
+      },
+    ]);
+
+    const status = await seedEncryptionStatus(table, V1);
+
+    expect(status.unopenable).toEqual([{ factorId: 'f1', reason: 'authentication_failed' }]);
+    // The disabled row is still a row: the counts describe the column, not who is locked out.
+    expect(status.total).toBe(2);
+    expect(status.byVersion).toEqual([{ version: 1, rows: 2 }]);
   });
 
   it('lists nothing when every row opens', async () => {

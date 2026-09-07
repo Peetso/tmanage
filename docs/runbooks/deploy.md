@@ -90,8 +90,12 @@ authenticator; a key sitting in the same backup archive as the dump gives that b
 
    It runs on the migration credential rather than the runtime one, so it needs
    `DATABASE_MIGRATION_URL` as well as the keyring. Expect `plaintext_encrypted` to equal the
-   number of confirmed factors in the system and `failed` to be `0`. It is safe to re-run: a
-   row already on the active key is counted as `unchanged` and not written.
+   number of existing factor rows and `failed` to be `0`. That is every row in
+   `user_mfa_factors`, not only the confirmed ones: the sweep walks unconfirmed and disabled
+   rows too, because their column holds a seed like any other and leaving it readable is the
+   disclosure this deploy exists to close. Do not be alarmed if the number is higher than your
+   count of working authenticators. It is safe to re-run: a row already on the active key is
+   counted as `unchanged` and not written.
 
 4. **Check the result:**
 
@@ -124,8 +128,13 @@ first — the status output names them.
 
 ### When somebody cannot sign in
 
-Run `mfa:seeds-status`. Alongside the per-version counts it lists, by factor id, every row that
-will not open and why. Match the reason:
+Run `mfa:seeds-status`. Alongside the per-version counts it lists, by factor id, the rows it
+tried to open and could not: `unknown_key_version`, `authentication_failed` and `malformed`, on
+live factors only. Two kinds of row are deliberately absent from that list. A row still in
+plaintext is reported as a count and never by id — it is not a fault and the remedy is the same
+for all of them, so a list of ids would only send you looking for a key you have not lost. A
+disabled row is absent because the list answers "who is being refused a sign-in", and nobody
+signs in on a retired factor. Match the reason:
 
 | Reason                  | What it means                                            | What to do                                                                      |
 | ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------- |
@@ -160,9 +169,16 @@ UPDATE user_mfa_factors
    AND disabled_at IS NULL;
 ```
 
-The person can then sign in with their password (and a recovery code, if they hold other
-factors) and enrol a fresh authenticator. If they had only that one factor, the password alone
-signs them in, which is why the identity check above is the part that matters.
+Disabling the row also takes it off the `unopenable` list, so a re-run of `mfa:seeds-status`
+reports `unopenable 0` once every broken factor has been disabled or repaired — the state step
+4 above calls healthy. The row still counts towards `total` and towards its key version, and
+`mfa:encrypt-seeds` still re-encrypts it, because the column holds a seed until somebody clears
+it.
+
+The person can then sign in with their password and a code from whichever factor of theirs
+still works — or a recovery code, if the one you disabled was the last that did. If it was
+their only factor, the password alone signs them in, which is why the identity check above is
+the part that matters.
 
 ### What is deliberate here
 
