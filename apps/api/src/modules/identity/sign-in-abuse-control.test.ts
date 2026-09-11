@@ -260,6 +260,108 @@ describe('the sign-in abuse control', () => {
   });
 
   /**
+   * N-1 (re-review of 2026-09-07). The other half of conditional charging: a refusal by a
+   * *wider* key must not spend a *narrower* one either.
+   *
+   * The scenario needs no attacker. An office shares one egress address; colleagues spend the
+   * source budget early in its window; the next person to try has never signed in from there
+   * and is refused by the source key. Before the two-phase charge, each of her retries charged
+   * her own `sa:` key — a budget that had refused nothing — so her account window started late,
+   * outlived the source window that had actually refused her, and left her throttled after her
+   * colleagues were signing in again. That falsified the module's own "refused for the
+   * remainder of one window and never longer".
+   */
+  it('does not charge a narrower budget for an attempt a wider one refused', () => {
+    let clock = 0;
+    const control = createControl({
+      windowMs: 300_000,
+      maxPerSource: 4,
+      maxPerSourceAccount: 3,
+      // Never the bound that fires here; this case is about the other two.
+      maxGlobal: 10_000,
+      now: () => clock,
+    });
+    const OFFICE = '203.0.113.7';
+    const alice = { ip: OFFICE, account: 'alice@example.test' };
+    const refusal = (reason: SignInAbuseReason, firstRefusalInWindow: boolean) => ({
+      admitted: false,
+      reason,
+      firstRefusalInWindow,
+    });
+
+    // t=0s. Four colleagues, four accounts, one address: the source budget is spent and no
+    // account budget is anywhere near its own.
+    for (const who of ['bo', 'cyd', 'dee', 'eli']) {
+      expect(control.admit({ ip: OFFICE, account: `${who}@example.test` }).admitted).toBe(true);
+    }
+
+    // t=200s. Alice's first attempt from this address, ever. The source key refuses it.
+    clock = 200_000;
+    expect(control.admit(alice)).toEqual(refusal('source_throttled', true));
+
+    // She retries, the way a person does when a login says to wait a few minutes. Every one of
+    // these is refused by the *source* key and must leave her account budget alone — charging
+    // it would turn the fourth retry into `source_account_throttled`, which is what the
+    // pre-fix module reported and what this assertion pins.
+    for (const at of [210_000, 220_000, 230_000]) {
+      clock = at;
+      expect(control.admit(alice)).toEqual(refusal('source_throttled', false));
+    }
+
+    // t=300s. The source window turns and the office can sign in again — and so can Alice.
+    // On the pre-fix module her own account window ran from t=200s to t=500s and was already
+    // spent, so she stayed refused for ~500 s on a 300 s window.
+    clock = 300_000;
+    expect(control.admit(alice).admitted).toBe(true);
+
+    // And her budget is whole rather than merely non-empty: the full three admitted attempts,
+    // and only then does her own key refuse and name itself.
+    expect([control.admit(alice).admitted, control.admit(alice).admitted]).toEqual([true, true]);
+    expect(control.admit(alice)).toEqual(refusal('source_account_throttled', true));
+  });
+
+  it('keeps the reason narrowest-first while a global refusal spends neither narrower budget', () => {
+    let clock = 5_000;
+    const control = createControl({
+      // Wide enough that neither address-keyed budget can be what refuses in the first half.
+      maxPerSource: 100,
+      maxPerSourceAccount: 2,
+      maxGlobal: 3,
+      now: () => clock,
+    });
+    const alice = { ip: '203.0.113.50', account: 'alice@example.test' };
+    const refusal = (reason: SignInAbuseReason, firstRefusalInWindow: boolean) => ({
+      admitted: false,
+      reason,
+      firstRefusalInWindow,
+    });
+
+    // Three distinct addresses spend the global budget, all admitted.
+    for (const octet of [1, 2, 3]) {
+      expect(control.admit({ ip: `198.51.100.${String(octet)}` }).admitted).toBe(true);
+    }
+
+    // Alice has spent nothing. The global key refuses her, and goes on refusing her under the
+    // same reason however long she retries. The pre-fix module charged her `sa:` key on each
+    // of these and reported `source_account_throttled` from the third onwards — a narrower
+    // reason for a refusal the global key made, and a budget spent on attempts nobody served.
+    expect(control.admit(alice)).toEqual(refusal('global_throttled', true));
+    for (let retry = 0; retry < 3; retry += 1) {
+      expect(control.admit(alice)).toEqual(refusal('global_throttled', false));
+    }
+
+    // The window turns. Her account budget is intact: two admitted attempts, the whole of it.
+    clock += 300_000;
+    expect([control.admit(alice).admitted, control.admit(alice).admitted]).toEqual([true, true]);
+
+    // One more admitted attempt from elsewhere crosses the global budget again, so now *both*
+    // Alice's account key and the global key are over. Precedence is unchanged by the fix:
+    // the narrowest key that is over budget is the one that names itself.
+    expect(control.admit({ ip: '198.51.100.4' }).admitted).toBe(true);
+    expect(control.admit(alice)).toEqual(refusal('source_account_throttled', true));
+  });
+
+  /**
    * I4 (final review, 2026-09-07). Under D09 `request.ip` is the leftmost `X-Forwarded-For`
    * token verbatim and fastify does not validate it as an address, so the key material is
    * attacker-chosen and unbounded in length until this clamp bounds it.

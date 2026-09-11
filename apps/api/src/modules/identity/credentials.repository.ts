@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -14,6 +14,7 @@ import type {
   UserRecoveryCodeRow,
 } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
+import { SIGN_IN_ABUSE_REASONS } from './sign-in-abuse-control.js';
 import { SeedCipherError } from './seed-cipher.js';
 import type { SeedCipher } from './seed-cipher.js';
 
@@ -532,6 +533,24 @@ export class CredentialsRepository {
    * `docs/implementation-status.md` rather than hidden: it costs a query per attempt, and it
    * counts per **user**, so it stops stuffing against one account and does not stop one
    * attempt each against a thousand.
+   *
+   * ## What a *credential* failure is — `D08`, N-2 (re-review of 2026-09-07)
+   *
+   * A `failed` row is not by itself evidence that somebody guessed wrong. The three
+   * {@link SIGN_IN_ABUSE_REASONS} are written by `sign-in-abuse-control.ts` when an attempt was
+   * refused **in front of** the password check: nothing was read, no hash was verified, and
+   * nobody guessed anything. Two of those three budgets — the per-source key and the global
+   * key — are spent by *everybody*, and `confirmReauthentication` records its refusal with the
+   * session holder's real user id. So while these rows were counted, a colleague on the same
+   * office address (or, while D09 stands, anyone at all) could write five of them against a
+   * named user across the windows that fit inside 900 s and lock that user out of their own
+   * account with traffic that was never theirs.
+   *
+   * They are therefore excluded here and nowhere else. The row is still written, still names
+   * the user and still carries its reason, so the operator trace
+   * `migrations/0004_credentials.sql` asks for is untouched; it is only this counter that stops
+   * reading it. `reason IS NULL` is kept explicitly, because `NOT IN` over a NULL is NULL and
+   * would silently drop every failure that records no reason at all.
    */
   async countRecentFailures(
     runner: IdentityQueryRunner,
@@ -545,6 +564,10 @@ export class CredentialsRepository {
         and(
           eq(authenticationEvents.userId, userId),
           eq(authenticationEvents.outcome, 'failed'),
+          or(
+            isNull(authenticationEvents.reason),
+            notInArray(authenticationEvents.reason, [...SIGN_IN_ABUSE_REASONS]),
+          ),
           gte(
             authenticationEvents.occurredAt,
             sql`date_sub(now(3), interval ${windowSeconds} second)`,

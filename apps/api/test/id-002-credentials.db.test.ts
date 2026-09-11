@@ -868,6 +868,128 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
     // And nothing reached the log, which is the premise of the case rather than its point.
     expect(await events()).toHaveLength(0);
   });
+
+  /**
+   * (g) N-2 (re-review of 2026-09-07). A throttle refusal is not a credential failure, and it
+   * must not move the user it names towards the durable lockout.
+   *
+   * `confirmReauthentication` is the one route whose refusal row carries a real `user_id` — the
+   * session guard has already established who is calling. Two of the three budgets that can
+   * produce that refusal are spent by *everybody*: the per-source key by anyone sharing the
+   * address, the global key by anyone at all. While `countRecentFailures` counted those rows,
+   * a third party could write five of them against a named user inside the 900-second lockout
+   * window — three source windows fit, and a concurrent global refusal adds more — and lock
+   * that user out of their own account with traffic that was never theirs.
+   *
+   * The fix is one predicate in the query, so the row keeps doing the job it was written for.
+   * This case pins both halves: the trace survives and still names the user, and the counter
+   * stops reading it — while a genuine wrong password still counts exactly as it did.
+   */
+  it('does not let a throttle refusal move a named user towards the durable lockout', async () => {
+    await giveOwnerAPassword();
+
+    const SOURCE = '198.51.100.13';
+    const control = createSignInAbuseControl({
+      windowMs: ABUSE_WINDOW_MS,
+      maxPerSource: 1,
+      // Never the narrowest bound: the source key — the one a third party spends — must be
+      // what refuses, or the case would prove something about the owner's own traffic.
+      maxPerSourceAccount: 100,
+      maxGlobal: 10_000,
+      now: () => clockMs,
+    });
+
+    // Somebody else's attempt from the same address spends the source budget. Nothing about it
+    // names the owner.
+    expect(control.admit({ ip: SOURCE, account: 'someone-else@northstar.example' }).admitted).toBe(
+      true,
+    );
+
+    const shared = new AuthenticationService(
+      tenant,
+      { ...OPTIONS, abuseControl: control },
+      repository,
+      () => clockMs,
+    );
+
+    const refused = await refusal(
+      shared.confirmReauthentication({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        context: from(SOURCE),
+      }),
+    );
+    expect(refused.rejection).toBe('rate_limited');
+    expect(refused.reason).toBe('source_throttled');
+
+    // Half one: the audit trail is intact. The row is written, it names the owner, and it
+    // carries the reason an operator needs. The fix must not buy the counter at its expense.
+    const named = await events(owner().id);
+    expect(named).toHaveLength(1);
+    expect(named[0]!['action']).toBe('reauthentication');
+    expect(named[0]!['outcome']).toBe('failed');
+    expect(named[0]!['reason']).toBe('source_throttled');
+
+    // Four more of the same shape — the rows the later source windows and the global key
+    // produce over 900 seconds, written through the same repository method the service uses.
+    // Five is `maxFailuresInWindow`, so this is exactly the lockout the review described.
+    await tenant.identityTransaction(identity(), async (tx) => {
+      for (const reason of [
+        'source_throttled',
+        'global_throttled',
+        'global_throttled',
+        'source_account_throttled',
+      ]) {
+        await repository.recordAuthenticationEvent(tx, {
+          userId: owner().id,
+          action: 'reauthentication',
+          outcome: 'failed',
+          reason,
+          ip: SOURCE,
+        });
+      }
+    });
+    expect(await events(owner().id)).toHaveLength(5);
+
+    // Half two: not one of them is a credential failure, so not one of them counts.
+    const counted = await tenant.identityRead(identity(), (db) =>
+      repository.countRecentFailures(db, owner().id, OPTIONS.failureWindowSeconds),
+    );
+    expect(counted).toBe(0);
+
+    // And the owner, who did none of this, signs in from their own address. Before the fix
+    // this was `locked_out` — the third-party lockout N-2 named.
+    const outcome = await service.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(outcome).toEqual({ status: 'authenticated', userId: owner().id });
+
+    // The counter still counts what it is for: five genuine wrong passwords, and the durable
+    // lockout fires exactly as it always did. Nothing was weakened to close N-2.
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      await service
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
+        .catch(() => undefined);
+    }
+    expect(
+      await tenant.identityRead(identity(), (db) =>
+        repository.countRecentFailures(db, owner().id, OPTIONS.failureWindowSeconds),
+      ),
+    ).toBe(OPTIONS.maxFailuresInWindow);
+
+    const locked = await refusal(
+      service.signInWithPassword({
+        email: owner().email,
+        password: PASSWORD,
+        context: context(),
+      }),
+    );
+    expect(locked.rejection).toBe('rate_limited');
+    expect(locked.reason).toBe('locked_out');
+  });
 });
 
 describe('the second factor', () => {

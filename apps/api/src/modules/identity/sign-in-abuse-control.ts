@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
-  createFixedWindowLimiter,
+  createTwoPhaseFixedWindowLimiter,
   FIXED_WINDOW_DEFAULT_MAX_KEYS,
 } from '../../common/http/rate-limiter.js';
 
@@ -17,7 +17,7 @@ import {
  * bounded either cost by *where the traffic came from*. This module is that bound, and it is
  * consulted before the read, before Argon2, and before the row.
  *
- * ## Three keys, narrowest first, and a refusal stops there
+ * ## Three keys, narrowest first, and nothing is charged unless all of them admit
  *
  * | key | shape | what it stops |
  * | --- | --- | --- |
@@ -25,21 +25,36 @@ import {
  * | source | `s:<ip>` | one address spraying many accounts |
  * | global | `g` | a distributed spray from rotated addresses |
  *
- * They are consulted in that order — narrowest first — and the first key that refuses ends the
- * call. An **admitted** attempt charges all three. A **refused** attempt charges nothing wider
- * than the key that refused it.
+ * The decision is **two-phase**. Every applicable budget is *asked* first, narrowest key first
+ * and stopping at the first refusal, and nothing is mutated by the asking. Only when all of
+ * them admit is any of them charged. So an **admitted** attempt charges all three, and a
+ * **refused** attempt charges nothing but the key that refused it — nothing wider, and nothing
+ * narrower.
  *
- * That asymmetry is the whole point, and getting it wrong was a defect the review of
- * 2026-09-07 found: charging the global budget on refused attempts let *one* address spend the
- * whole deployment's global budget at about two requests a second, after which nobody could
- * sign in for the rest of the window. Charging conditionally costs the global key nothing it
- * was built for — the distributed spray it exists to catch is by construction *admitted* by
- * every source key, and admitted attempts still charge it.
+ * Both halves of that were defects, found one review apart, and both were the same mistake:
+ * an attempt that was never served still spent somebody's budget.
+ *
+ * - *Wider.* Charging the global budget on refused attempts let **one** address spend the whole
+ *   deployment's global budget at about two requests a second, after which nobody could sign in
+ *   for the rest of the window (final review of 2026-09-07, C-1).
+ * - *Narrower.* Charging `sa:` before `s:` had been consulted let a person behind a shared
+ *   address burn their own account budget on attempts the *source* budget refused — so their
+ *   `sa:` window started late, ran on past the end of the source window that had actually
+ *   refused them, and left them throttled longer than the control's own window (re-review of
+ *   2026-09-07, N-1). Two-phase charging is what makes the self-healing sentence below true
+ *   rather than nearly true.
+ *
+ * Charging conditionally costs the global key nothing it was built for — the distributed spray
+ * it exists to catch is by construction *admitted* by every source key, and admitted attempts
+ * still charge it. It costs the narrower keys nothing either: the attempts they no longer see
+ * are attempts nobody was served.
  *
  * The refusal names the narrowest key that is over budget, which is the one an operator
- * reading the event row needs to see. Because a refused attempt stops at that key, a wider key
- * can no longer cross its budget silently on an attempt reported under a narrower one, so its
- * one event row per window is never lost.
+ * reading the event row needs to see. Because a refused attempt charges only that key, a wider
+ * key can no longer cross its budget silently on an attempt reported under a narrower one, so
+ * its one event row per window is never lost. The refusing key itself *is* charged, which
+ * changes no verdict — it is already over budget for the rest of the window — and is what keeps
+ * `firstRefusalInWindow` and the limiter's own recency ordering reading exactly as they did.
  *
  * Narrowest-first has one consequence an operator reading those rows will meet, so it is said
  * here rather than discovered: one address grinding a single account leaves no
@@ -112,7 +127,7 @@ import {
  * a caller a little more than the budget says, never less. The same honesty applies to the
  * refusal flag below.
  *
- * The clock is the one place the error runs the other way. `createFixedWindowLimiter` tests a
+ * The clock is the one place the error runs the other way. The limiter tests a
  * window with `at - startedAt < windowMs`, which a *negative* delta also satisfies, so a clock
  * that jumps backwards by n ms holds a spent window open n ms longer and keeps a refused key
  * refused for that much longer. It fails closed, which is the right direction for a control
@@ -122,20 +137,32 @@ import {
  * ## Not a lockout — with one exception, and it is named
  *
  * The window self-heals. A shared office is refused for the remainder of one window and never
- * longer, and on the three `@Public()` routes no account is locked by another party's traffic
- * — those refusals are recorded with `user_id` NULL, so they name nobody and the durable
- * per-user counter cannot see them. Success is not exempt from the count, so a caller sitting
- * exactly at the boundary cannot keep guessing; that is why the per-source default is 30 rather
- * than 5.
+ * longer — and that sentence is load-bearing enough to say what makes it true, because it was
+ * false until the two-phase charge above landed. A refused attempt charges only the key that
+ * refused it, so the wait a caller serves is the wait of the key that named them and of no
+ * other: the attempts the source key refuses do not start, extend or spend that caller's own
+ * `sa:` window, and cannot leave them throttled past the moment the source window turns.
  *
- * Reauthentication is the one place where a refusal *does* touch a user's failure count, and it
- * is deliberate rather than overlooked. The session guard has already established who is
- * calling, so the row names them (`confirmReauthentication`), and `countRecentFailures` filters
- * on user, outcome and window — not on action — so that row counts towards
- * `AUTH_MAX_FAILURES_IN_WINDOW` like any other failed row. Three things keep it honest: it can
- * only make the lockout stricter, never laxer; it is bounded at one row per key per window,
- * because only the attempt that first crosses the budget is recorded; and the only party who
- * can spend that budget is the holder of a live session for that same user.
+ * On the three `@Public()` routes no account is locked by another party's traffic — those
+ * refusals are recorded with `user_id` NULL, so they name nobody and the durable per-user
+ * counter cannot see them. Success is not exempt from the count, so a caller sitting exactly at
+ * the boundary cannot keep guessing; that is why the per-source default is 30 rather than 5.
+ *
+ * Reauthentication is the one route whose refusal row *names* a user, and it is deliberate
+ * rather than overlooked: the session guard has already established who is calling, so the row
+ * names them (`confirmReauthentication`) and an operator reading it beside the `locked_out` row
+ * does not have to guess. What that row does **not** do is move them towards the durable
+ * lockout. `countRecentFailures` (`credentials.repository.ts`) excludes the three
+ * {@link SIGN_IN_ABUSE_REASONS} from its count, because a throttle refusal is not a credential
+ * failure — nobody guessed anything, and the attempt never reached a password.
+ *
+ * That exclusion is a fix, not a decoration. Before it, a refusal under the `s:` or `g:` key —
+ * budgets *everybody* spends — wrote a `failed` row bearing the session holder's user id and
+ * counted towards `AUTH_MAX_FAILURES_IN_WINDOW` exactly as a wrong password did, so unrelated
+ * traffic from the same office (or, under D09, from anywhere) could drive a named user into
+ * their own 900-second lockout. The re-review of 2026-09-07 found it as N-2. The audit trail is
+ * unchanged — the row is still written, still names the user, still carries the reason — and
+ * only the counter stopped reading it.
  *
  * The **global key is the exception**, and pretending otherwise would be the dishonest version
  * of this paragraph: a global admission bound is a global refusal lever. Once its budget is
@@ -169,9 +196,20 @@ export interface SignInAbuseOptions {
   readonly now?: () => number;
 }
 
-/** Which bound fired, in the words `authentication_events.reason` records. */
-export type SignInAbuseReason =
-  'source_throttled' | 'source_account_throttled' | 'global_throttled';
+/**
+ * Which bound fired, in the words `authentication_events.reason` records.
+ *
+ * A runtime array rather than a bare union, because two places need the *values*: the type
+ * below, and `countRecentFailures`, which must exclude exactly these reasons from the durable
+ * lockout count (N-2). One list, so the query and the control cannot drift apart.
+ */
+export const SIGN_IN_ABUSE_REASONS = [
+  'source_throttled',
+  'source_account_throttled',
+  'global_throttled',
+] as const;
+
+export type SignInAbuseReason = (typeof SIGN_IN_ABUSE_REASONS)[number];
 
 export type SignInAbuseVerdict =
   | { readonly admitted: true }
@@ -201,10 +239,22 @@ const GLOBAL_KEY = 'g';
 /**
  * How much of the source address reaches a key.
  *
- * 45 is the width of `authentication_events.ip` (`migrations/0004_credentials.sql`), so the
- * key and the row that records the refusal agree on what "the address" was. Any real IPv4 or
- * IPv6 address, including an IPv4-mapped one with a zone, fits well inside it; the values that
- * do not are forged `X-Forwarded-For` tokens, which is exactly what this bound exists for.
+ * 45 is borrowed from the *width* of `authentication_events.ip`
+ * (`migrations/0004_credentials.sql`) — the widest string that column was ever meant to hold —
+ * rather than from anything about the row this refusal writes. The two are not kept in step and
+ * the comment used to claim they were: `record()` passes `context.ip` and
+ * `recordAuthenticationEvent` inserts it **untruncated**, so a forged header long enough to be
+ * clamped here is a row the database rejects or truncates on its own terms. That is D09's to
+ * settle (`docs/implementation-status.md`, "what this does not claim"), not this constant's.
+ *
+ * 45 is also the *exact* maximum length of an IPv4-mapped IPv6 literal
+ * (`0000:…:0000:255.255.255.255`), so the widest real address fits with nothing to spare, and a
+ * zone identifier (`%eth0`) on such an address is past it and would be clamped. Neither shape
+ * reaches this API in the bootstrap profile, and the cost if one did is a shared key rather
+ * than a wrong decision — but "fits well inside it" was wrong and is not worth keeping. What
+ * the bound is genuinely for is the other case: forged `X-Forwarded-For` tokens of arbitrary
+ * length, which fastify does not validate and which would otherwise grow these maps in bytes
+ * while staying inside their bound in entries.
  */
 const MAX_SOURCE_KEY_LENGTH = 45;
 
@@ -213,15 +263,27 @@ interface Charge {
   readonly firstRefusalInWindow: boolean;
 }
 
+interface Budget {
+  /** Would a charge at `at` be admitted? Reads only — nothing moves, nothing is evicted. */
+  readonly test: (key: string, at: number) => boolean;
+  /** Charge the key at `at`, folding the refusing-key memory into the answer. */
+  readonly commit: (key: string, at: number) => Charge;
+}
+
 /**
- * One budget: the limiter, plus the memory of which keys are already refusing.
+ * One budget: the two-phase limiter, plus the memory of which keys are already refusing.
  *
- * `firstRefusalInWindow` is derived rather than asked of the limiter, and it is exact without
- * reaching inside it: every call that reaches this budget charges it, and the first call of a
- * window is always admitted (`max` is at least 1), so the calls that reach a key read
- * admitted…admitted, refused…refused, admitted — and clearing the mark on any admission is
- * precisely "the window turned". `admit` stops at the first refusal, so a wider budget simply
- * sees fewer calls; within the calls it does see, the sequence is unchanged.
+ * The split exists for `admit` below, which holds three of these and must not spend any of them
+ * until all three have answered. `test` is the question and mutates nothing; `commit` is the
+ * charge. Both take the instant, so one decision samples the clock once.
+ *
+ * `firstRefusalInWindow` is derived rather than asked of the limiter, and it is still exact.
+ * Every call that *charges* a key either admits it (clearing the mark) or refuses it, and a key
+ * can only refuse after `max` admitted charges inside one window — the first of which cleared
+ * any mark left from the window before. So the charges a key sees read admitted…admitted,
+ * refused…refused, admitted, and clearing the mark on any admission is precisely "the window
+ * turned". The calls a budget is merely *asked* about and not charged for cannot disturb that,
+ * because they move nothing.
  *
  * The mark set holds only keys currently refusing, and it is bounded the same way the limiter's
  * map is — *and in addition to it*, not instead of it: each budget carries a limiter map of at
@@ -235,25 +297,28 @@ const createBudget = (options: {
   readonly max: number;
   readonly maxKeys: number;
   readonly now: () => number;
-}): ((key: string) => Charge) => {
-  const admit = createFixedWindowLimiter(options);
+}): Budget => {
+  const limiter = createTwoPhaseFixedWindowLimiter(options);
   // Insertion order is first-refusal order, and it is FIFO rather than the limiter's LRU: a
   // key's position here is never refreshed by a later refusal, so the first entry is the key
   // that started refusing longest ago.
   const refusing = new Set<string>();
 
-  return (key) => {
-    if (admit(key)) {
-      refusing.delete(key);
-      return { admitted: true, firstRefusalInWindow: false };
-    }
-    if (refusing.has(key)) return { admitted: false, firstRefusalInWindow: false };
-    if (refusing.size >= options.maxKeys) {
-      const oldest = refusing.values().next().value;
-      if (oldest !== undefined) refusing.delete(oldest);
-    }
-    refusing.add(key);
-    return { admitted: false, firstRefusalInWindow: true };
+  return {
+    test: (key, at) => limiter.test(key, at),
+    commit: (key, at) => {
+      if (limiter.commit(key, at)) {
+        refusing.delete(key);
+        return { admitted: true, firstRefusalInWindow: false };
+      }
+      if (refusing.has(key)) return { admitted: false, firstRefusalInWindow: false };
+      if (refusing.size >= options.maxKeys) {
+        const oldest = refusing.values().next().value;
+        if (oldest !== undefined) refusing.delete(oldest);
+      }
+      refusing.add(key);
+      return { admitted: false, firstRefusalInWindow: true };
+    },
   };
 };
 
@@ -280,51 +345,52 @@ export function createSignInAbuseControl(options: SignInAbuseOptions): SignInAbu
   // One key, so one window; `maxKeys` is irrelevant to it and left at the shared value.
   const globalBudget = createBudget({ ...shared, max: options.maxGlobal });
 
+  /** The refusal a budget's own charge produces, wearing that budget's reason. */
+  const refuse = (reason: SignInAbuseReason, charge: Charge): SignInAbuseVerdict => ({
+    admitted: false,
+    reason,
+    firstRefusalInWindow: charge.firstRefusalInWindow,
+  });
+
   return {
     admit({ ip, account }) {
+      // One clock sample for the whole decision, so the question and the charge cannot
+      // straddle a window boundary between them.
+      const at = shared.now();
       const trimmed = ip?.trim();
       const address =
         trimmed === undefined || trimmed === ''
           ? UNKNOWN_SOURCE
           : trimmed.slice(0, MAX_SOURCE_KEY_LENGTH);
       const bucket = account === undefined ? undefined : accountBucket(account);
+      const accountKey = bucket === undefined ? undefined : `sa:${address}:${bucket}`;
+      const sourceKey = `s:${address}`;
 
-      // Narrowest bound first, and stop at the first refusal. Two things follow, both of them
-      // deliberate. The recorded reason names the tightest key that is over budget, which is
-      // what an operator reading the event row needs. And a refused attempt charges nothing
-      // wider than the key that refused it: without that, one address over its own source
-      // budget would go on spending the deployment's global budget with attempts it is not
-      // being served, which is a total sign-in outage bought at a couple of requests a second.
-      // An admitted attempt still charges all three, so the distributed spray the global key
-      // exists to catch — admitted by every source key, by construction — still spends it.
-      if (bucket !== undefined) {
-        const accountCharge = perSourceAccount(`sa:${address}:${bucket}`);
-        if (!accountCharge.admitted) {
-          return {
-            admitted: false,
-            reason: 'source_account_throttled',
-            firstRefusalInWindow: accountCharge.firstRefusalInWindow,
-          };
-        }
+      // Phase one — ask, narrowest bound first, and stop at the first refusal. Nothing here
+      // mutates a budget, so the keys that were merely consulted are untouched. Two things
+      // follow, both deliberate. The recorded reason names the tightest key that is over
+      // budget, which is what an operator reading the event row needs. And the only budget a
+      // refused attempt spends is the one that refused it — wider keys are never reached, and
+      // narrower ones were only asked. Charging wider let one address over its own source
+      // budget spend the deployment's global budget with attempts it was not being served
+      // (C-1); charging narrower left a person behind a shared address throttled past the end
+      // of the window that actually refused them (N-1).
+      if (accountKey !== undefined && !perSourceAccount.test(accountKey, at)) {
+        return refuse('source_account_throttled', perSourceAccount.commit(accountKey, at));
+      }
+      if (!perSource.test(sourceKey, at)) {
+        return refuse('source_throttled', perSource.commit(sourceKey, at));
+      }
+      if (!globalBudget.test(GLOBAL_KEY, at)) {
+        return refuse('global_throttled', globalBudget.commit(GLOBAL_KEY, at));
       }
 
-      const sourceCharge = perSource(`s:${address}`);
-      if (!sourceCharge.admitted) {
-        return {
-          admitted: false,
-          reason: 'source_throttled',
-          firstRefusalInWindow: sourceCharge.firstRefusalInWindow,
-        };
-      }
-
-      const globalCharge = globalBudget(GLOBAL_KEY);
-      if (!globalCharge.admitted) {
-        return {
-          admitted: false,
-          reason: 'global_throttled',
-          firstRefusalInWindow: globalCharge.firstRefusalInWindow,
-        };
-      }
+      // Phase two — every applicable budget admitted, so every one of them is charged. The
+      // distributed spray the global key exists to catch is admitted by every source key by
+      // construction, so it still spends `g` exactly as it always did.
+      if (accountKey !== undefined) perSourceAccount.commit(accountKey, at);
+      perSource.commit(sourceKey, at);
+      globalBudget.commit(GLOBAL_KEY, at);
       return { admitted: true };
     },
   };

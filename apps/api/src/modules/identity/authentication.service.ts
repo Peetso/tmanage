@@ -83,7 +83,8 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  * - The **global key is a deployment-wide refusal lever**, and it is charged only by attempts
  *   that were admitted. That is what keeps it out of one address's reach: a single source is
  *   refused by its own key long before it could spend a global budget of 3000 in 300 s, and a
- *   refused attempt charges nothing wider than the key that refused it. The route that
+ *   refused attempt charges only the key that refused it — nothing wider, and, since the
+ *   two-phase charge of the third fix wave, nothing narrower either. The route that
  *   remains is, again, D09 — one attacker who can look like thousands of addresses has every
  *   attempt admitted, and can spend the global budget and refuse everybody until the window
  *   turns. `sign-in-abuse-control.ts` carries the full argument and the sizing.
@@ -257,6 +258,13 @@ export class PasswordRejectedError extends Error {
 
 export class AuthenticationService {
   private readonly credentials: CredentialsRepository;
+
+  /**
+   * How many refusal rows this process has failed to write. See {@link recordRefusal}: the
+   * only place a lost row is visible is the stderr line, and without a count every line reads
+   * like the first one.
+   */
+  private lostRefusalRows = 0;
 
   constructor(
     private readonly database: TenantDatabase,
@@ -616,7 +624,11 @@ export class AuthenticationService {
       if (verdict.firstRefusalInWindow) {
         // Unlike the three `@Public()` routes, the user here is already established by the
         // session guard, so the row names them — the same `userId` the `locked_out` row below
-        // carries, and an operator reading the two together should not have to guess.
+        // carries, and an operator reading the two together should not have to guess. Named is
+        // not counted: `countRecentFailures` excludes the three throttle reasons, so this row
+        // cannot move its subject towards the lockout below. Before it did, the per-source and
+        // global budgets — which anyone can spend — let a third party drive a named user into
+        // their own 900-second lockout (re-review of 2026-09-07, N-2).
         await this.recordRefusal(context, {
           userId,
           action: AUTHENTICATION_ACTIONS.reauthentication,
@@ -1104,9 +1116,22 @@ export class AuthenticationService {
    * design spends its effort avoiding.
    *
    * So the failure is reported on stderr in the idiom the rest of the API uses (the process's
-   * log is the operator's; see `invitations.service.ts` recording the same shape of loss) and
-   * the caller still gets the refusal. What is lost is one audit row, and the loss is named
-   * rather than silent.
+   * log is the operator's; see `invitations.service.ts` and `file-scanner.ts` recording the
+   * same shape of loss — this codebase has no structured logger, and `console.error` is what
+   * `eslint.config.js` deliberately leaves open) and the caller still gets the refusal. What
+   * is lost is one audit row, and the loss is named rather than silent.
+   *
+   * **What the line has to carry, and why** — N-5 (re-review of 2026-09-07). This write is
+   * attempted at most once per key per window, so a log that has been failing for an hour
+   * produces a handful of lines and no other symptom, while `authentication_events` quietly
+   * stops carrying the enumeration trace `migrations/0004_credentials.sql` asks for. A reader
+   * seeing one such line cannot tell it from the hundredth. So the line carries the running
+   * count of refusal rows this process has lost and the correlation id of the attempt that
+   * lost this one: a recurring failure reads as `(loss 84)` rather than as another isolated
+   * blip, and the id ties it to the request. The counter is process memory and resets with the
+   * process, exactly like the windows the control itself keeps. There is still **no other
+   * signal** — no metric, no alert — and until the deployment has something that reads one,
+   * the trace can go missing with only this line to say so.
    */
   private async recordRefusal(
     context: SignInContext,
@@ -1124,8 +1149,10 @@ export class AuthenticationService {
         reason: input.reason,
       });
     } catch (error) {
+      this.lostRefusalRows += 1;
       console.error(
-        `[identity] recording a refused ${input.action} (${input.reason}) failed; the refusal still stands`,
+        `[identity] recording a refused ${input.action} (${input.reason}) failed; the refusal still stands` +
+          ` (loss ${String(this.lostRefusalRows)} in this process, correlation ${context.correlationId})`,
         error,
       );
     }

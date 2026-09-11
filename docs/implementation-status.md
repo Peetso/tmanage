@@ -33,11 +33,12 @@ commits — `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` — and the fix-wave comm
 them, listed as the last two bullets, which the orchestrator commits):
 
 - `90cbe5f` — `apps/api/src/modules/identity/sign-in-abuse-control.ts`, an in-process control
-  built from three `createFixedWindowLimiter` instances and nothing else: no new dependency, no
+  built from three fixed-window limiters and nothing else: no new dependency, no
   table, no Redis. The keys are consulted narrowest first and the first one that refuses ends
   the call, so the recorded reason is the tightest bound that fired. An **admitted** attempt
-  charges all three; a **refused** attempt charges nothing wider than the key that refused it
-  (see the last bullet — charging every key on every attempt was a defect).
+  charges all three; a **refused** attempt charges only the key that refused it — nothing wider
+  and, since the two-phase charge of the fourth fix wave, nothing narrower either (see the last
+  two bullets — charging every key on every attempt was a defect, in both directions).
   The account is hashed inside the module — SHA-256 from `node:crypto`, truncated to 16 hex
   characters — so the long-lived map holds buckets rather than a list of the addresses people
   typed. `packages/config` gained the three new tunables beside the existing one, `.env.example`
@@ -81,8 +82,29 @@ them, listed as the last two bullets, which the orchestrator commits):
   than the column's collation and is therefore best-effort (see below), the source key is the
   literal address with no canonicalisation or IPv6 aggregation (follow-up 6), and `env.ts`
   states the multi-charge arithmetic behind the per-source default.
+- The **fourth fix wave**, over the re-review of `4036841..9ceab73`. **(1)** The charge is now
+  **two-phase**: `createTwoPhaseFixedWindowLimiter` (new in `rate-limiter.ts`, with
+  `createFixedWindowLimiter` re-expressed in terms of it and unchanged from the outside) lets
+  `admit()` ask all three budgets before spending any, so a refusal by a wider key no longer
+  spends a narrower one. That is the other half of the wave-2 fix, and it is what makes "refused
+  for the remainder of one window and never longer" true (re-review N-1). Two unit cases, both
+  proved discriminating against the pre-fix module. **(2)** `countRecentFailures` excludes the
+  three throttle reasons, so a `reauthentication` refusal can name a user without moving them
+  towards their own durable lockout — before it, a colleague on the same address could lock
+  somebody out with traffic that was never theirs (re-review N-2). One database case, proved
+  discriminating against the pre-fix repository. **(3)** Corrections carrying no behaviour: the
+  clamp constant's comment no longer claims the recorded row is truncated to match the key nor
+  that a zoned IPv4-mapped address fits inside 45 characters; the lost-refusal-row log line
+  carries a running loss count and the correlation id, because at one write per key per window a
+  persistent failure is otherwise indistinguishable from a first one; `.env.example` carries the
+  D09 caveat on the global budget and the per-source arithmetic; the per-source number is 15
+  everywhere rather than "twelve to fifteen" in one place; and the unexecuted
+  "deleting any one of the four `admit` calls fails a test" claim is reworded to what the
+  evidence supports. `PLAN.md` (outside the repository, in the evidence directory) is amended in
+  place with dated notes quoting each superseded clause.
 
-The three keys, consulted in this order, and the first that is over budget refuses:
+The three keys, asked in this order, and the first that is over budget refuses — charged only
+when all of them admit:
 
 | key            | shape                                    | tunable                          | default | what it stops                              |
 | -------------- | ---------------------------------------- | -------------------------------- | ------- | ------------------------------------------ |
@@ -101,7 +123,26 @@ consumed by nothing; D08 is what finally consumes it.
 shared office is refused for the remainder of one five-minute window and never longer, and at the
 **source and source+account keys** no account is locked by another party's traffic — those keys
 refuse _requests from that source_, they do not touch the per-user failure counting in
-`authentication_events`. The **global key is the exception**: a global admission bound is a global
+`authentication_events`.
+
+Both halves of that sentence are true only because of the **third** fix wave, and it is worth
+saying which defect each half closed.
+
+- _"…and never longer."_ The decision is now **two-phase**: every applicable budget is asked,
+  narrowest key first, before any of them is charged, and a refused attempt spends only the key
+  that refused it. Until that landed, `sa:` was charged before `s:` was consulted, so a person
+  behind a shared address burned their own account budget on attempts the source key refused —
+  their `sa:` window started late, outlived the source window that had actually refused them,
+  and left them throttled after their colleagues were signing in again (re-review N-1).
+- _"…no account is locked by another party's traffic."_ `countRecentFailures` now excludes the
+  three throttle reasons from the durable lockout count. Until it did, a `reauthentication`
+  refusal under the per-source or global key — budgets everybody spends — wrote a `failed` row
+  bearing the session holder's user id and counted towards `AUTH_MAX_FAILURES_IN_WINDOW` exactly
+  as a wrong password did, so a colleague on the same office address could drive a named user
+  into their own 900-second lockout (re-review N-2). The row is still written, still names the
+  user and still carries its reason; only the counter stopped reading it.
+
+The **global key is the exception**: a global admission bound is a global
 refusal lever, and while its budget is spent every address and every account is refused until the
 window turns. Two things make that a considered trade rather than a hole, and both are new in the
 second fix wave. It is charged **only by admitted attempts**, so one address cannot reach it — its
@@ -119,7 +160,9 @@ the module's refusing-key set once that set reaches `maxKeys` — the caveat the
 `source_account_throttled`, `global_throttled` — which are never serialised to a caller. Its
 `user_id` is `NULL` on the three `@Public()` routes, where nobody has been looked up yet; the
 `confirmReauthentication` row names the real user, because the session guard established who
-they are before the control was consulted. Success is counted as well as failure: a caller sitting
+they are before the control was consulted — and since the third fix wave that row is _named_
+without being _counted_: `countRecentFailures` excludes all three reasons, so the trace an
+operator reads is intact and the durable lockout no longer reads it. Success is counted as well as failure: a caller sitting
 exactly at the boundary must not be able to keep guessing, which is why the per-source default
 is 30 rather than 5.
 
@@ -166,7 +209,10 @@ is 30 rather than 5.
   the backstop for a rotating-address spray.
 - **The per-source default of 30 has not been checked against the real deployment's topology.**
   Four routes charge that key, so one successful MFA sign-in charges it twice: 30 per five
-  minutes is roughly twelve to fifteen complete logins for _everything behind that address_.
+  minutes is **fifteen** complete logins for _everything behind that address_ (30 ÷ 2 charges
+  per MFA login), and a password change on top of one spends a third charge on
+  `/v1/auth/reauth`. The number is 15 here, in `packages/config/src/env.ts` and in
+  `.env.example`; an earlier "twelve to fifteen" in this file hedged an exact division.
   Behind an office NAT, or behind a fronting proxy that does not set `X-Forwarded-For`, that
   address may be the whole deployment. See follow-up 4.
 - **`POST /v1/auth/password/set` (D06) is deliberately out of scope.** It runs an Argon2 _hash_,
@@ -176,38 +222,58 @@ is 30 rather than 5.
 **Evidence** (`C:/Users/Peter/Documents/ChatGPT/TManage/d08-password-abuse-control-2026-09-07/`).
 Every claim names its log.
 
-- Static and unit gates, at the third fix wave — the latest run of each, which is what the
-  numbers below name. `pnpm --filter @tmanage/api typecheck`,
-  `pnpm --filter @tmanage/web typecheck` and `pnpm --filter @tmanage/e2e typecheck` all clean
-  (`fix2b-api-typecheck.log`, `fix2b-web-typecheck.log`, `fix2b-e2e-typecheck.log`); eslint
-  clean over the repository (`fix2b-eslint.log`) and prettier `--check` clean over the touched
-  files (`fix2b-prettier-touched.log`); the `@tmanage/api` unit project **27 files, 408 tests,
-  all pass** (`fix2b-api-unit.log`), of which the identity modules alone are **9 files, 243
-  tests** (`fix2b-abuse-unit.log`) and **16** are `sign-in-abuse-control.test.ts`.
-  `packages/config` is **2 files, 81 tests, all pass** (`fix2b-config-unit.log`). Earlier heads
-  have their own logs in the same directory (`task1-*`, `task2-*`, `fix1-*`, `fix2-*`); where
-  they disagree with these numbers, these are the later run.
+- Static and unit gates, at the **fourth** fix wave (`fix3-*`) — the latest run of each, which is
+  what the numbers below name, and every one of them was run **before** the database suites of
+  the same wave. `pnpm build:packages` clean (`fix3-build-packages.log`);
+  `pnpm --filter @tmanage/api typecheck`, `pnpm --filter @tmanage/web typecheck` and
+  `pnpm --filter @tmanage/e2e typecheck` all clean (`fix3-api-typecheck.log`,
+  `fix3-web-typecheck.log`, `fix3-e2e-typecheck.log`); eslint clean over the repository
+  (`fix3-eslint.log`) and prettier `--check` clean over the touched files
+  (`fix3-prettier-touched.log`, which names every touched file except `.env.example`, for which
+  prettier infers no parser); the `@tmanage/api` unit project **27 files, 413 tests, all pass**
+  (`fix3-api-unit.log`), of which the identity modules alone are **9 files, 245 tests**
+  (`fix3-identity-unit.log`) and **18** are `sign-in-abuse-control.test.ts`.
+  `packages/config` is **2 files, 81 tests, all pass** (`fix3-config-unit.log`). Earlier heads
+  have their own logs in the same directory (`task1-*`, `task2-*`, `fix1-*`, `fix2-*`,
+  `fix2b-*`); where they disagree with these numbers, these are the later run.
+- **Both behavioural fixes of the fourth wave are proved discriminating.** The two new unit
+  cases for the two-phase charge fail against the pre-fix module — a copy of
+  `sign-in-abuse-control.ts` and `rate-limiter.ts` taken from `9ceab73`, replayed verbatim in
+  `fix3-discrimination-probe.log`, which prints the pre-fix verdict beside each assertion. The
+  new database case for the lockout exclusion fails against the pre-fix repository:
+  `fix3-discrimination-probe-db.log` is a full run of `id-002-credentials.db.test.ts` with the
+  one `countRecentFailures` predicate removed and nothing else changed — **1 failed, 67 passed**,
+  and the failure is `expected 5 to be +0`, the five throttle rows a third party wrote against a
+  named user.
 - **What the tests do and do not reach.** `sign-in-abuse-control.test.ts` drives the real module
   through real limiters on an injected clock, and it is the only level at which
   `global_throttled`, the address clamp and the refusing-key eviction are exercised — no
   database or HTTP case produces a `global_throttled` row (follow-up 5). All four call sites are
   now executed by a database case: password sign-in and re-authentication in
   `id-002-credentials.db.test.ts`, and the MFA-completion and recovery-code routes over real
-  HTTP in `id-002-auth-http.db.test.ts` since the third fix wave. Deleting any one of the four
-  `admit` calls now fails a test rather than leaving the chain green.
-- Database suites at the third fix wave, run in this worktree under the shared database lock:
-  `test/id-002-auth-http.db.test.ts` **32 tests, all pass** (`fix2b-db-id-002-auth-http.log`,
-  195 s) and `test/id-002-credentials.db.test.ts` **67 tests, all pass**
-  (`fix2b-db-id-002-credentials.log`). Earlier runs are `final-db-*` (pre-fix-wave) and
-  `final2-db-*` at `4036841` (`final2-db-gates.md`). They are run once more by the orchestrator
-  at the head that is actually merged, as `final3-db-id-002-credentials.log` and
-  `final3-db-id-002-auth-http.log` — the point the final review's I2 makes, since each fix wave
-  changes the module those suites exercise. The D08 cases are six service-level ones (a spray
+  HTTP in `id-002-auth-http.db.test.ts` since the third fix wave. **Each of the four is executed
+  by a database case** — that is what the evidence supports, and it is what this sentence now
+  says. It previously read "deleting any one of the four `admit` calls now fails a test", which
+  is true by reading each case but was never run as four deletions; no log in the evidence
+  directory records that mutation, and the file's own rule is that a claim names the log that
+  proves it.
+- Database suites at the fourth fix wave, run in this worktree under the shared database lock
+  (`locks/db-e2e.lock`, runId `claude-auto-1789145792-fix3`) and **after** every static and unit
+  gate above: `test/id-002-credentials.db.test.ts` **68 tests, all pass**
+  (`fix3-db-id-002-credentials.log`, 55 s) and `test/id-002-auth-http.db.test.ts` **32 tests,
+  all pass** (`fix3-db-id-002-auth-http.log`, 127 s). Earlier runs are `final-db-*`
+  (pre-fix-wave), `final2-db-*` at `4036841` (`final2-db-gates.md`) and `fix2b-db-*` at the
+  wave-2b tree. They are run once more by the orchestrator at the head that is actually merged,
+  as `final3-db-id-002-credentials.log` and `final3-db-id-002-auth-http.log` — the point the
+  final review's I2 makes, since each fix wave changes the module those suites exercise. The D08
+  cases are seven service-level ones (a spray
   across many accounts refused, with one row for the whole refusal; a refused attempt reaching
   neither the user lookup nor Argon2; one address grinding one account stopped ahead of the
   lockout without locking it; the same address admitted again once the window turns;
-  re-authentication bounded, revoking nothing; and a refusal still delivered when the row
-  recording it cannot be written) and five over real HTTP (a throttled source answered exactly
+  re-authentication bounded, revoking nothing; a refusal still delivered when the row
+  recording it cannot be written; and a throttle refusal that names a user without moving that
+  user towards the durable lockout, while five genuine wrong passwords still do) and five over
+  real HTTP (a throttled source answered exactly
   as a locked-out account is; 429 `rate_limited`, never a 401 and never a different message;
   each source with its own budget, and the forged `x-forwarded-for` above; and the MFA-completion
   and recovery-code routes each refused on a spent source budget, with the password route's body
@@ -247,8 +313,8 @@ Every claim names its log.
    One log line on the real host is enough: does `request.ip` vary per client, or is it one
    address for everybody? If the deployment sits behind a NAT of any size, or behind a fronting
    proxy that does not set `X-Forwarded-For`, raise `RATE_LIMIT_AUTH_MAX_PER_SOURCE`
-   deliberately and record why — 30 charges per address per five minutes is roughly twelve to
-   fifteen complete MFA logins for everything behind that address, and morning login traffic
+   deliberately and record why — 30 charges per address per five minutes is fifteen complete
+   MFA logins for everything behind that address (two charges each), and morning login traffic
    crosses it in the first window. A candidate refinement, deliberately not taken in this
    branch because it changes which call sites charge which key: do **not** charge the source key
    for the MFA or recovery-code _completion_ of a challenge the same source already paid for at
