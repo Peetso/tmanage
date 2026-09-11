@@ -74,17 +74,23 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *   bootstrap profile runs **one** API process by design (`50-BOOTSTRAP` §3, `main.ts`), which
  *   is the only reason this is honest. Scale that out and the per-source budget multiplies by
  *   the process count.
- * - It is **bounded by D09**, which is unfixed: `main.ts` sets `trustProxy: true`, so
- *   `request.ip` is whatever `X-Forwarded-For` says. Anyone who can reach the origin directly,
- *   or set that header, can rotate the source key at will — and the source+account key with
+ * - Both address-keyed budgets are worth **only as much as the address is scarce**, and D09
+ *   narrowed that rather than removing it. `main.ts` no longer sets `trustProxy: true`: trust
+ *   comes from `TRUSTED_PROXY_ADDRESSES`, and unset means trust nobody, so a caller reaching
+ *   the origin directly is counted by the socket peer and cannot rotate the source key by
+ *   writing a header. What remains evadable is a caller **behind a proxy the operator trusts
+ *   that appends to `X-Forwarded-For` rather than replacing it** — `request.ip` is then the
+ *   last untrusted entry verbatim, which that caller chooses. The source+account key goes with
  *   it, because that key is `sa:<ip>:<hash>` and *contains* the address. An earlier version of
  *   this comment claimed the account key was not evadable that way; it is, and the final
  *   review of 2026-09-07 was right to call that the wrong claim in the safe-sounding
- *   direction. While D09 stands, what holds against a caller who can set that header is the
- *   global key and the **durable per-user lockout** above (5 failures in 900 s) — and the
- *   lockout is the one that actually catches a grind against a named account. Read both
- *   address-keyed budgets as a cost bound on honest traffic, not as a defence against a
- *   determined attacker, until D09 lands.
+ *   direction. Against such a caller what holds is the global key and the **durable per-user
+ *   lockout** above (5 failures in 900 s) — the lockout being the one that actually catches a
+ *   grind against a named account, and `docs/runbooks/deploy.md` being where the operator is
+ *   told to make the proxy overwrite the header. Even where it does, abundance is untouched:
+ *   one IPv6 /64 holds 2^64 authentic addresses (`docs/implementation-status.md` follow-up 6,
+ *   open). So read both address-keyed budgets as a cost bound on honest traffic rather than as
+ *   a defence against a determined attacker.
  * - The **global key is a deployment-wide refusal lever**, and it is only ever *crossed* by
  *   attempts that were admitted. Not "charged only by" them: a refusal charges the key that
  *   refused it, so a global refusal does charge `g` — on a budget already past its limit, which
@@ -93,9 +99,10 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *   its own key long before it could spend a global budget of 3000 in 300 s, and a refused
  *   attempt charges only the key that refused it — nothing wider, and, since the two-phase
  *   charge of `7cc9c16`, nothing narrower either. The route that
- *   remains is, again, D09 — one attacker who can look like thousands of addresses has every
- *   attempt admitted, and can spend the global budget and refuse everybody until the window
- *   turns. `sign-in-abuse-control.ts` carries the full argument and the sizing.
+ *   remains is, again, address abundance — one attacker who can look like thousands of
+ *   addresses, from behind an appending trusted proxy or across an IPv6 /64, has every attempt
+ *   admitted, and can spend the global budget and refuse everybody until the window turns.
+ *   `sign-in-abuse-control.ts` carries the full argument and the sizing.
  *
  * The second limitation — the counter-not-a-lock race — is untouched.
  */

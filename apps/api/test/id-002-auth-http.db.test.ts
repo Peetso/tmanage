@@ -499,10 +499,18 @@ describe('POST /v1/auth/password', () => {
      *
      * This suite's adapter is `new FastifyAdapter()` with **no** `trustProxy`, so
      * `request.ip` is the socket's address and `x-forwarded-for` is a header like any other.
-     * Under `main.ts`'s `trustProxy: true` the third assertion below would flip: a caller
-     * setting that header *would* move to a fresh bucket. That is `D09` — proxy headers
-     * trusted unconditionally — and it is not D08's to fix; the account and global keys are
-     * what hold while it stands.
+     * Since `D09` that is the **shipped default** rather than a divergence from `main.ts`:
+     * `main.ts` passes `trustProxy: env.TRUSTED_PROXY_ADDRESSES`, which is `false` — trust
+     * nobody — until an operator names a proxy, so the third assertion below is what a
+     * deployment with no configured proxy does. It used to read the other way: under the old
+     * unconditional `trustProxy: true` that assertion would have flipped, and the account and
+     * global keys were what held.
+     *
+     * Where a proxy *is* configured, `request.ip` is the last untrusted `X-Forwarded-For`
+     * entry verbatim, so a client behind a proxy that appends rather than replaces can still
+     * choose it — a deployment concern (`docs/runbooks/deploy.md`), not this suite's. Both
+     * postures are proved at request level in
+     * `apps/api/src/common/http/trusted-proxy-requests.test.ts` (D09 task 3).
      */
     it('gives each source its own budget, and does not read x-forwarded-for', async () => {
       const SOURCE = '198.51.100.23';

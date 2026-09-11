@@ -325,11 +325,15 @@ export const envSchema = z
      * The global budget is unevadable in both directions, and that cuts against the
      * deployment as much as for it: nobody can rotate addresses past it, and anybody who
      * spends it refuses everybody — password, MFA, recovery and reauthentication alike —
-     * until the window turns. That is why it is 3000 (about ten a second) rather than 600. At
-     * 600 a twenty-source spray, trivial for as long as `trustProxy: true` stands (D09), buys
-     * a repeatable authentication outage for about two requests a second; at 3000 the same
-     * outage costs an attacker real sustained traffic, while the Argon2 and log cost the
-     * budget exists to bound is still bounded.
+     * until the window turns. That is why it is 3000 (about ten a second) rather than 600.
+     *
+     * A twenty-source spray is still cheap, and D09 did not make it expensive: it made
+     * `request.ip` *authentic* (`TRUSTED_PROXY_ADDRESSES` above), not *scarce*. A caller on a
+     * single IPv6 /64 has 2^64 real addresses to spray from, and a caller behind a trusted
+     * proxy that appends to `X-Forwarded-For` rather than replacing it still writes the value
+     * outright. At 600 that spray buys a repeatable authentication outage for about two
+     * requests a second; at 3000 the same outage costs an attacker real sustained traffic,
+     * while the Argon2 and log cost the budget exists to bound is still bounded.
      */
     RATE_LIMIT_AUTH_MAX_REQUESTS: positiveInt.default(10),
     RATE_LIMIT_AUTH_WINDOW_SECONDS: positiveInt.default(300),

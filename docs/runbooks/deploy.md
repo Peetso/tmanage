@@ -14,6 +14,84 @@ never from the passwords in that file, which exist for local development only.
 
 ---
 
+## D09 — the API only believes a proxy you have named
+
+**Read this before deploying any build from 2026-09-12 onwards.** Nothing locks anybody out and
+there is no migration to run. What changes is which address the API thinks a request came from,
+and every per-address control — the sign-in abuse budgets, the upload-part limiter, the address
+in every `authentication_events` row — follows it.
+
+### What changed
+
+The API used to pass Fastify `trustProxy: true`, which means "believe `X-Forwarded-For` from
+whoever sends it". Anyone who could reach the process could therefore choose the address it
+counted them under, simply by writing the header. It now believes forwarding headers **only from
+peers you have named**, in one new variable.
+
+### The variable
+
+`TRUSTED_PROXY_ADDRESSES` — a comma-separated list of IPv4/IPv6 addresses and CIDR ranges:
+
+```
+TRUSTED_PROXY_ADDRESSES=203.0.113.7,10.0.0.0/8,2001:db8::/32
+```
+
+**Leaving it unset or blank is the safe default, and it is the right value unless you actually
+run a reverse proxy in front of the API.** Unset, the API reads the socket peer — the address the
+connection genuinely came from — and `X-Forwarded-For` changes nothing. You do not have to
+configure anything to get that.
+
+If you do run a proxy in front of the API, set this to **the addresses or CIDR ranges of the
+proxies that actually front it, and nothing else**. Not the client networks, not "the office",
+not a range that is convenient — only the hops that terminate the connection and forward it.
+Every address in this list is a peer that is allowed to tell the API who somebody else is.
+
+A malformed value **fails the boot** and names the entry: a hostname instead of an address, a
+stray or trailing comma, `/33` on an IPv4 range. `/0` is refused by name as well — it matches
+every address, so it is the old trust-everybody setting spelled as a range. Nothing is silently
+repaired and nothing silently falls back. Only the API uses the value, but all four processes
+(API, worker, `verify`, `sweep`) load the same validated environment, so a malformed value set
+globally stops all of them.
+
+### The caveat you have to act on: your proxy must **overwrite** the header
+
+This is the part that is easy to get wrong, and getting it wrong gives back most of what the
+change bought.
+
+When a request arrives from a trusted peer, the API takes the client address from
+`X-Forwarded-For` — specifically, the last entry in that chain that is not itself one of your
+trusted peers — and it takes it **verbatim**. It does not, and cannot, check that the entry is
+honest. So:
+
+- a proxy that **replaces** `X-Forwarded-For` with the address it actually saw the connection
+  come from is telling the API the truth, and the API believes the truth;
+- a proxy that **appends** to whatever the client already sent — which is the default in several
+  common configurations — passes the client's own invented entries through. The client behind
+  your proxy then picks the address the API believes, and can rotate it freely.
+
+So configure the proxy to set the header, not add to it:
+
+- **nginx** — `proxy_set_header X-Forwarded-For $remote_addr;` (note: **not**
+  `$proxy_add_x_forwarded_for`, which is the appending form).
+- **Apache** — `RequestHeader set X-Forwarded-For "expr=%{REMOTE_ADDR}"` before `mod_proxy`
+  adds its own; `mod_proxy_http` appends by default.
+- **Caddy, Traefik and most managed edges** — check the setting explicitly; several append.
+
+If you cannot make the proxy overwrite the header, you are better off leaving
+`TRUSTED_PROXY_ADDRESSES` unset. The API will then count everybody behind the proxy as one
+address, which throttles honest shared traffic (raise `RATE_LIMIT_AUTH_MAX_PER_SOURCE`
+deliberately if it bites) but tells no lies.
+
+### Checking it after the deploy
+
+Sign in once from a client whose address you know, and read the `ip` column of the newest
+`authentication_events` row. Unset, it should be the address of whatever connects to the API
+directly. With a proxy configured, it should be the real client address — and if you then send a
+request with a forged `X-Forwarded-For` from a machine that is **not** in the list, the row must
+show that machine's own address rather than the forged one.
+
+---
+
 ## D07 — TOTP seeds are encrypted at rest
 
 **Read this before deploying any build from 2026-09-06 onwards onto an environment that has

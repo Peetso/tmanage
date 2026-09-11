@@ -6,7 +6,132 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-11 (**D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` on 2026-09-07 and the fix waves that follow them, the last two of those on 2026-09-11 — five review fix waves in all, every one of them committed (`4036841`, `ce98302`, `9ceab73`, `7cc9c16`, `b0a33e3`): the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the fourth makes the charge two-phase, so a refusal spends no narrower budget either, and stops a throttle refusal that names a user from moving that user towards their own durable lockout; and the fifth stops the durable lockout counting the `locked_out` row it writes about itself, so the lockout window ends as designed instead of renewing itself for as long as anyone keeps knocking, and strengthens three tests that asserted less than their titles claimed; the static, unit and database gates are green and recorded, the reverse proof at the branch head proved all five waves load-bearing with every file restored byte-identical, the branch was merged into `master` `--no-ff` as `066934d`, and the post-merge chain on `066934d` was green and recorded and `master` pushed (see "The chain on `066934d`") (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-12 (**D09** — the API no longer believes a forwarding header from
+whoever sends it: `main.ts` passes `trustProxy: env.TRUSTED_PROXY_ADDRESSES` instead of `true`,
+the value is a validated list of the proxies the operator actually runs, and unset — the default
+— means trust nobody and read the socket peer. Built on branch `d09-trusted-proxy` cut from
+`master` `3fed68d`: `22a8072` (the setting, the parser that refuses a malformed list at boot, and
+the adapter option that carries it), `4545e6e` (eight request-level cases driving the whole
+configured chain, all eight failing pre-fix), `0f779fb` (D08 follow-up 1 — the logged address and
+agent clamped by code point at the insert, so an over-long forged value can no longer turn a
+refused sign-in into a 500), and this documentation sweep. Static, unit and identity-database
+gates green and recorded; **not merged and not pushed**. Two things D09 deliberately does not
+buy, both written down rather than left silent: a trusted proxy that _appends_ to
+`X-Forwarded-For` instead of replacing it still lets the client behind it choose the address, so
+`docs/runbooks/deploy.md` now tells the operator to overwrite the header; and D08 **follow-up 6
+stays open** — the address is now authentic, it is still not scarce, and one IPv6 /64 holds 2^64
+of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
+`claude-auto-1789145792`: **D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` on 2026-09-07 and the fix waves that follow them, the last two of those on 2026-09-11 — five review fix waves in all, every one of them committed (`4036841`, `ce98302`, `9ceab73`, `7cc9c16`, `b0a33e3`): the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the fourth makes the charge two-phase, so a refusal spends no narrower budget either, and stops a throttle refusal that names a user from moving that user towards their own durable lockout; and the fifth stops the durable lockout counting the `locked_out` row it writes about itself, so the lockout window ends as designed instead of renewing itself for as long as anyone keeps knocking, and strengthens three tests that asserted less than their titles claimed; the static, unit and database gates are green and recorded, the reverse proof at the branch head proved all five waves load-bearing with every file restored byte-identical, the branch was merged into `master` `--no-ff` as `066934d`, and the post-merge chain on `066934d` was green and recorded and `master` pushed (see "The chain on `066934d`") (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+
+---
+
+## D09 — every proxy forwarding header was trusted: built on a branch
+
+**Finding** (production review of 2026-09-05, `CLAUDE-REVIEW-REPORT.md` §D09, P1 conditional),
+as the plan carried it:
+
+> Every proxy forwarding header is trusted. `apps/api/src/main.ts:39` passes `trustProxy: true`
+> unconditionally, and `apps/api/src/common/http/fastify-adapter.ts` forwards it to Fastify.
+> Local injection reproduced two accepted requests from one socket peer using two different
+> forwarded addresses against a one-request-per-address limiter.
+>
+> Exploitable when the origin is directly reachable, or when the edge preserves
+> attacker-controlled forwarding headers. Deployment network configuration was never inspected,
+> so this is not a proven production exploit; it is a configuration that cannot be relied on.
+
+D08 raised its priority: while the address was attacker-chosen, both address-keyed budgets of
+the sign-in abuse control rotated with it, and one host could present as any number of addresses
+and so spend the global budget and refuse everybody's sign-in, MFA, recovery and
+re-authentication until the window turned.
+
+**What was built** (branch `d09-trusted-proxy`, cut from `master` `3fed68d`; four commits).
+
+- `22a8072` — **trust is configured, not assumed.** New
+  `packages/config/src/trusted-proxies.ts`: `TRUSTED_PROXY_ADDRESSES` is a comma-separated list
+  of IPv4/IPv6 addresses and CIDR ranges, parsed into exactly the two shapes Fastify's own
+  `trustProxy` takes — `false`, or `string[]` — so there is no second notion of trust in between
+  to drift from the operator's. **Unset or blank is trust nobody**, which is the safe default and
+  needs no configuration: `request.ip` is then the socket peer and `X-Forwarded-For` is an
+  ordinary header. A malformed entry (a name, a stray comma, a `/33`) **fails the boot** naming
+  the entry rather than becoming a silent `false`; so does `/0`, by name, because it is
+  `trustProxy: true` spelled as a range and would otherwise kill boot from inside
+  `@fastify/proxy-addr` with nothing naming the variable. A hop count is deliberately not
+  offered: it asserts the shape of a topology rather than its identity. `main.ts` now passes
+  `trustProxy: env.TRUSTED_PROXY_ADDRESSES`, and `createFastifyAdapter`'s option carries
+  `TrustedProxies` rather than a boolean, defaulting to `false` — so every suite that builds its
+  own adapter gets the socket peer unless it says otherwise.
+- `4545e6e` — **the request-level proof**, `apps/api/src/common/http/trusted-proxy-requests.test.ts`,
+  eight cases, no production code touched. Each drives the whole configured chain the composition
+  root drives — a raw environment bag through `loadEnv`, into `createFastifyAdapter`, into
+  Fastify, out as `request.ip`, into a control — against the two things production actually keys
+  on the address: the part limiter inside the adapter's own octet-stream parser, and D08's
+  sign-in abuse control called exactly as `authentication.service.ts` calls it. The finding's own
+  reproduction is inverted there: two forwarded addresses from one socket peer are now **one**
+  key, the second request is refused, and a genuinely different peer is still admitted. All eight
+  fail against the pre-fix tree.
+- `0f779fb` — **the untruncated insert D08 carried here** (its follow-up 1).
+  `recordAuthenticationEvent` clamps `ip` to 45 and `userAgent` to 255 **by code point** —
+  `Array.from`, not `slice`, so the cut never lands between the halves of a surrogate pair and
+  leaves a value MySQL would refuse as invalid UTF-8 however short it was. Clamp rather than
+  reject, argued in the file: the insert is on sign-in's failure path, and an over-long value
+  under strict mode is `ER_DATA_TOO_LONG`, which loses the audit row that is the only trace of an
+  enumeration sweep and turns the refusal into a 500. Ten unit cases and six database cases; the
+  database cases failed pre-fix with `Data too long for column 'ip'` from the real engine.
+- The **documentation sweep** — this section, and the corrections listed under "What was
+  corrected" below. No behaviour, no assertion.
+
+**Gates.** `pnpm build:packages`, `pnpm --filter @tmanage/api typecheck`, `pnpm lint` green at
+each commit. The api unit project went 27 files / 419 tests at the base to **29 files / 437
+tests**; `@tmanage/config` is **3 files / 117 tests** (`trusted-proxies.test.ts` is 20 of them).
+The identity database files ran 107 tests green at `0f779fb`, against the embedded
+`mysql-memory-server` MySQL every earlier slice used — including the six cases that prove the
+column counts `VARCHAR(n)` in characters rather than bytes, which is the behaviour the clamp is
+sized against. Whole-repo `pnpm format:check` fails at the base commit for 454 files nobody in this slice
+touched (this worktree has `core.autocrlf=true` while Prettier wants LF); the files each task
+touched were checked individually and are LF in the committed blobs.
+
+**What is fixed, precisely.** Unset or blank, the API trusts nobody: a caller reaching the origin
+directly is counted by the address it connected from and cannot rotate it by writing a header.
+Where the operator names a proxy, only that peer's forwarded headers are believed.
+
+**What is not, and is stated rather than left silent.**
+
+- **An appending proxy still lets the client choose the address.** Where a proxy _is_ configured,
+  `request.ip` is the last `X-Forwarded-For` entry that is not itself trusted, taken **verbatim**:
+  `@fastify/proxy-addr` walks the chain from the right while the entries are trusted and returns
+  the first untrusted one, and it never validates the element it returns. So the address is the
+  proxy's word only where the proxy **replaces** the header. A proxy that appends to whatever the
+  client sent leaves the client behind it choosing what the API believes, and both address-keyed
+  budgets rotate with it. This is a deployment fault with a deployment fix, and the operator
+  instruction is now in `docs/runbooks/deploy.md`: the proxy must overwrite the header.
+- **D08 follow-up 6 stays open.** D09 makes the address _authentic_; it does not make it
+  _scarce_. An IPv6 /64 still holds 2^64 addresses that rotate for free, so the source key can
+  still be rotated by anybody who holds one, with no proxy involved. Canonicalising the address
+  and keying IPv6 at /64 needs a slice of its own.
+- **Not run:** e2e, the visual-regression baselines, the least-privilege suite, the rest of the
+  `database` project, and the web typecheck. Nothing in the slice reaches a rendered surface.
+
+**What was corrected in the sweep**, all of it prose: `sign-in-abuse-control.ts` and
+`authentication.service.ts` (their header comments said the budgets were evadable by anyone who
+could set a header, and that D09 was unfixed); `fastify-adapter.ts` (it said the forwarded
+address behind a configured proxy was "the proxy's word and no longer anybody's", which
+overstates it); `packages/config/src/env.ts` and `.env.example` (the `RATE_LIMIT_AUTH_MAX_GLOBAL`
+rationale rested on `trustProxy: true`; the 3000 default survives it, because the spray it is
+sized against is now paid for with authentic addresses rather than forged ones);
+`.env.example` also gains `TRUSTED_PROXY_ADDRESSES` itself, which it had been missing since
+`22a8072`; the doc comment on the D08 HTTP proxy case in `id-002-auth-http.db.test.ts` (its
+`new FastifyAdapter()` with no trust is now the shipped default, not a divergence from
+`main.ts`); and in this file, D08's follow-up 1, the "What this does not claim" bullet, the
+ID-002 named gap 6, and the two ticket-accounting lines that listed D09 as the open P1.
+Sentences that narrate a past state — the D08 fix-wave list, the probe records of earlier
+sessions — were left exactly as they stand.
+
+**Ticket accounting.** A defect fixed on a branch, not a ticket: **35 of 70 tickets, 285 of 583
+points (48.9%)** unchanged. D09, like D05 through D08 before it, is a review correction that
+closes no ticket. D09 was the last P1 finding from the 2026-09-05 review still open after D08
+merged; it is now **built and proved on a branch and waiting to be merged**, not merged. D08
+follow-up 6 and the D11 dependency advisories are not P1 findings and are not closed by this
+slice.
 
 ---
 
@@ -78,8 +203,9 @@ commit instead of an ordinal. What was built, then:
   as a denial lever; that is a hole in the plan, and this is the deliberate deviation from it.
   **(2)** `RATE_LIMIT_AUTH_MAX_GLOBAL` is **3000**, not 600, because the global key is a CPU
   bound for the deployment rather than an anomaly detector. **(3)** the source address is clamped
-  to 45 characters before it is keyed, because under D09 it is attacker-chosen text of any
-  length. The wave also corrects the false "the account key is not evadable that way" claim in
+  to 45 characters before it is keyed, because wherever a proxy is trusted the address the key is
+  built from is a forwarded token taken verbatim — text of any length rather than a validated
+  address. The wave also corrects the false "the account key is not evadable that way" claim in
   all five places it was asserted, and adds five unit cases: the two halves of conditional
   charging, the clamp, the refusing-key eviction, and the limiter's own eviction caveat.
 - The **third fix wave**, over the same final review's remaining findings. **(1)** The two
@@ -220,7 +346,7 @@ thirty attempts in, and those refusals charge `s:` and nothing wider — and it 
 **CPU bound rather than an anomaly detector**: 3000 per 300 s is about ten attempts a second, a fraction of what one core can
 Argon2-verify, so it still stops a distributed spray from saturating the host while a single
 attacker would have to sustain ten _admitted_ attempts a second to deny anybody else. The one
-remaining route to it is D09 — see "What this does not claim". The refusal is the 429 `rate_limited` the
+remaining route to it is address abundance — see "What this does not claim". The refusal is the 429 `rate_limited` the
 per-user lockout already produced, byte-identical for a real and an unknown account because
 nothing about the account has been looked up yet, and it writes **at most one**
 `authentication_events` row per key per window, plus one more each time a key is evicted from
@@ -243,21 +369,30 @@ is 30 rather than 5.
   correction the final review's I1 asked for, because the branch previously claimed the opposite
   in five places. The source+account key is `sa:<ip>:<hash>` — it _contains_ the address — so
   rotating `X-Forwarded-For` rotates the source key **and** the source+account key together. It
-  is not "not evadable that way". While D09 stands, the only bounds that hold against a caller
-  who can set that header are the **global key** and the **durable per-user lockout** in
-  `authentication_events` (`AUTH_MAX_FAILURES_IN_WINDOW`, 5 failures in 900 s) — and the lockout
-  is the one that actually catches a grind against a named account, which is the honest
-  reassurance. The trade runs both ways: D09 is also the one route by which an attacker can look
-  like thousands of addresses and so spend the global budget with admitted attempts, which is the
-  global refusal lever described above. Fixing D09 is what upgrades the two address-keyed budgets
-  from a cost bound on honest traffic to a control.
+  is not "not evadable that way". D08 shipped with that fully open: `main.ts` then set
+  `trustProxy: true` unconditionally, so anyone who could set the header could rotate both keys
+  at will, and the only bounds that held against them were the **global key** and the **durable
+  per-user lockout** in `authentication_events` (`AUTH_MAX_FAILURES_IN_WINDOW`, 5 failures in
+  900 s) — the lockout being the one that actually catches a grind against a named account,
+  which is the honest reassurance. The trade ran both ways: that was also the one route by which
+  an attacker could look like thousands of addresses and so spend the global budget with
+  admitted attempts, which is the global refusal lever described above.
 
-  One HTTP case records the behaviour as the application stands **in the test harness**: that
-  suite builds its own application on a plain `new FastifyAdapter()` with no `trustProxy`, so a
-  forged `x-forwarded-for` from the same socket buys nothing there. The shipped API is not that
-  application. `apps/api/src/main.ts:39` sets `trustProxy: true` unconditionally, so in
-  production `request.ip` is whatever `X-Forwarded-For` says and both address-keyed budgets are
-  rotatable at will until D09 is fixed.
+  **D09 has since closed the header half of this** (branch `d09-trusted-proxy`, see the D09
+  section above). `main.ts` now passes `trustProxy: env.TRUSTED_PROXY_ADDRESSES`, unset means
+  trust nobody, and a caller with no trusted proxy in front of them is counted by the socket
+  peer. What is left of the paragraph above, and what the two address-keyed budgets are still
+  worth, is stated there: a caller behind a trusted proxy that **appends** to `X-Forwarded-For`
+  still chooses the address, and address abundance (follow-up 6) is untouched by D09 for
+  everybody. Both budgets therefore remain a cost bound on honest traffic rather than a control,
+  and the global key and the lockout remain the bounds that hold.
+
+  One HTTP case records the behaviour of an application built on a plain
+  `new FastifyAdapter()` with no `trustProxy`, so a forged `x-forwarded-for` from the same
+  socket buys nothing there. When it was written that harness diverged from the shipped API;
+  since D09 it is the shipped **default**, and the request-level cases for both postures —
+  nothing configured, and a configured proxy believed — are in
+  `apps/api/src/common/http/trusted-proxy-requests.test.ts`.
 
 - **The `sa:` account key is a best-effort narrowing, not a guarantee.** It hashes the account
   after `trim().toLowerCase()`, matching `findUserIdByEmail`; `users.email` is compared under
@@ -403,23 +538,30 @@ Every claim names its log.
 
 **Follow-ups.**
 
-1. **D09 (proxy headers trusted unconditionally) is still open**, and the worth of _both_
-   address-keyed budgets depends on it: `sa:<ip>:<hash>` contains the address, so rotating
-   `X-Forwarded-For` rotates the source and source+account keys together. Until D09 is fixed,
-   read both as advisory, and the global key and the durable per-user lockout as the ones that
-   hold. Carry into the D09 slice as well: the same untruncated `request.ip` is inserted into
-   `authentication_events.ip VARCHAR(45)` with no truncation
-   (`credentials.repository.ts`, `recordAuthenticationEvent`), so under strict SQL mode a long
-   forged header turns a failed sign-in into a 500. D08 clamps its own keys at 45 characters and
-   deliberately does not change that repository. **D09's priority is raised on the back of this
-   slice**, and the reason is the global key rather than the source key: while
-   `main.ts` sets `trustProxy: true`, one host can present as any number of addresses, every one
-   of those attempts is admitted by its own source key, and so a single machine can exhaust the
-   global budget and refuse everybody's sign-in, MFA, recovery and reauthentication until the
-   window turns. Raising the global default to 3000 raises the cost of that; only D09 removes it.
+1. **D09 (proxy headers trusted unconditionally) — ADDRESSED on branch `d09-trusted-proxy`.**
+   As D08 left it: the worth of _both_ address-keyed budgets depended on it, because
+   `sa:<ip>:<hash>` contains the address, so rotating `X-Forwarded-For` rotated the source and
+   source+account keys together; both were to be read as advisory, with the global key and the
+   durable per-user lockout as the ones that held. D08 also carried a second item into the
+   slice: the same `request.ip` was inserted into `authentication_events.ip VARCHAR(45)` **with
+   no truncation** (`credentials.repository.ts`, `recordAuthenticationEvent`), so under strict
+   SQL mode a long forged header turned a failed sign-in into a 500. D08 clamped its own keys at
+   45 characters and deliberately did not change that repository.
 
-   **Part of the source key's weakness outlives D09, and is a separate follow-up (6).** Fixing
-   D09 makes the address _authentic_; it does not make it _scarce_.
+   Both are now done on `d09-trusted-proxy` (see the D09 section above). `main.ts` passes
+   `trustProxy: env.TRUSTED_PROXY_ADDRESSES` and unset means trust nobody, so a host that can
+   only reach the origin directly no longer presents as any number of addresses. And `0f779fb`
+   clamps `ip` to 45 and `userAgent` to 255 by code point at the insert, so the sentence above
+   about an untruncated insert is **no longer true**: an over-long value is truncated, the audit
+   row survives, and the refusal stays a refusal instead of becoming a 500.
+
+   **What the fix does not buy, and is not marked closed.** Where an operator does name a proxy,
+   `request.ip` is the last untrusted `X-Forwarded-For` entry verbatim, so a client behind a
+   proxy that _appends_ rather than replaces still chooses it; the operator instruction to
+   overwrite the header is in `docs/runbooks/deploy.md`. And part of the source key's weakness
+   **outlives D09 and stays open as follow-up 6**: D09 made the address _authentic_, it did not
+   make it _scarce_, and an IPv6 /64 still holds 2^64 addresses that rotate for free. Raising
+   the global default to 3000 remains what raises the cost of a spray; nothing here removes it.
 
 2. **If a second API process is ever run**, this control must move to the database or another
    shared store. In-process state is only legitimate while `50-BOOTSTRAP` §3's single API
@@ -449,14 +591,16 @@ Every claim names its log.
 6. **Canonicalise the source address, and key IPv6 at /64.** The key is the address string
    verbatim (trimmed and clamped), so `2001:DB8::1`, `2001:db8::1`, `::ffff:203.0.113.9` and
    `203.0.113.9` are four keys for what may be one or two hosts — and a caller on a single
-   IPv6 /64 holds 2^64 of them and can rotate for free. This is **not** cured by D09: proxy
-   trust decides whether the address is authentic, not whether it is scarce. Best done in the
-   same slice as D09, since both touch how `request.ip` is read.
+   IPv6 /64 holds 2^64 of them and can rotate for free. This was **not** cured by D09, and is
+   **still open**: proxy trust decides whether the address is authentic, not whether it is
+   scarce. It was expected to be done in the same slice as D09, since both touch how
+   `request.ip` is read; D09 deliberately did not take it, so it needs a slice of its own.
 
 **Ticket accounting.** A defect fixed on a branch, not a ticket: **35 of 70 tickets, 285 of 583
 points (48.9%)** unchanged. D08, like D05, W01, W02, D06 and D07 before it, is a review
 correction that closes no ticket. Remaining P1 findings from the 2026-09-05 review once D08 is
-merged: **D09** (proxy headers, conditional).
+merged: **D09** (proxy headers, conditional) — since built and proved on branch
+`d09-trusted-proxy`, see the D09 section above.
 
 ---
 
@@ -705,7 +849,8 @@ ticket. **D07** (TOTP seeds in plaintext) has since been fixed and proved on the
 `d07-totp-seed-encryption` and is waiting to be merged — see the D07 section above. Remaining P1
 findings from the 2026-09-05 review, as that run left them: **D08** (password endpoint without
 source-based abuse control) — since built on `d08-password-abuse-control`, see the D08 section
-above — and **D09** (proxy headers, conditional), still open.
+above — and **D09** (proxy headers, conditional), which that run left open and which has since
+been built and proved on the branch `d09-trusted-proxy` (see the D09 section above).
 
 ---
 
@@ -8699,11 +8844,17 @@ convenience.
    API process's memory, so a restart forgets every one of them and a second API process would
    count separately and halve the control — `13-ENGINEERING-EXECUTION-SPEC` §1 assumes Redis,
    and there is none here and none on the shared host. And **both** address-keyed budgets are
-   only as trustworthy as the proxy configuration, which **D09 has not fixed**: the
-   source+account key contains the address, so where forwarded headers are trusted an attacker
-   rotates the source key and the source+account key together. While that stands, the bounds
-   that hold are the global key and the durable per-user lockout (5 failures in 900 s) — and it
-   is the lockout that catches a grind against a named account. See the D08 section above.
+   only as trustworthy as the address is: the source+account key contains it, so wherever the
+   address can be chosen an attacker rotates the source key and the source+account key together.
+   **D09 (`d09-trusted-proxy`) narrowed that without removing it.** Forwarded headers are now
+   believed only from the peers named in `TRUSTED_PROXY_ADDRESSES`, and unset — the default —
+   means the socket peer, so a direct caller cannot choose their address at all. Two ways in
+   remain: a trusted proxy that _appends_ to `X-Forwarded-For` rather than replacing it (a
+   deployment fault, and `docs/runbooks/deploy.md` says to overwrite), and plain abundance — an
+   IPv6 /64 holds 2^64 authentic addresses (follow-up 6, open). Where either applies the bounds
+   that hold are the global key and the durable per-user lockout (5 failures in 900 s), and it
+   is the lockout that catches a grind against a named account. See the D09 and D08 sections
+   above.
 7. **The lockout window is a counter, not a lock.** Two attempts arriving together can both
    read a count below the threshold. Closing it would need `SELECT … FOR UPDATE` on a row that
    does not exist yet; the attacker's gain from the race is one extra guess.
