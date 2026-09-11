@@ -88,6 +88,71 @@ function walk(directory: string): string[] {
     .sort();
 }
 
+/** The one platform restriction that may excuse the symbolic-link case; nothing else may. */
+const SKIPPABLE_SYMLINK_CODES = new Set(['EPERM', 'EACCES']);
+
+type SymlinkSupport = { supported: true } | { supported: false; code: string };
+
+let symlinkSupportProbe: SymlinkSupport | undefined;
+
+/**
+ * Can this process create a symbolic link at all?
+ *
+ * Windows without `SeCreateSymbolicLinkPrivilege` answers EPERM (EACCES under some policies), and
+ * that is the only reason the symbolic-link case below may be skipped. Any other failure is a
+ * fixture defect and is rethrown here: swallowing it is how a security case reported passed for
+ * months without asserting anything (production review of 2026-09-05, D17).
+ *
+ * Only `symlinkSync` is watched for a skippable code. Writing the probe's target happens outside
+ * that `try` on purpose: antivirus or a locked-down temp directory can answer EPERM/EACCES to the
+ * *write*, which says nothing about symbolic links, and folding it in here would have the skip
+ * note below blame a missing symbolic-link privilege that the runner may well hold. A write that
+ * fails now throws out of this probe naming `writeFileSync`, and the case fails as the fixture
+ * defect it is.
+ */
+function symlinkSupport(): SymlinkSupport {
+  if (symlinkSupportProbe) return symlinkSupportProbe;
+  const probe = mkdtempSync(join(tmpdir(), 'tmanage-symlink-probe-'));
+  try {
+    const target = join(probe, 'target');
+    writeFileSync(target, 'probe');
+    try {
+      symlinkSync(target, join(probe, 'link'), 'file');
+      symlinkSupportProbe = { supported: true };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? '';
+      if (!SKIPPABLE_SYMLINK_CODES.has(code)) throw error;
+      symlinkSupportProbe = { supported: false, code };
+    }
+  } finally {
+    rmSync(probe, { recursive: true, force: true, maxRetries: 3 });
+  }
+  return symlinkSupportProbe;
+}
+
+/**
+ * May the symbolic-link case skip when the platform cannot build its fixture?
+ *
+ * `TMANAGE_REQUIRE_SYMLINK_CASE=1` forbids the skip: an environment that cannot create a symbolic
+ * link fails the case instead. The skip is forbidden by default everywhere except Windows, because
+ * on Linux and macOS an ordinary temp directory takes a symbolic link — so a release runner cannot
+ * let this case skip unnoticed even when nothing sets the variable. Where it cannot (a FAT or
+ * exFAT temp mount, a hardened container), that runner fails the case rather than skipping it,
+ * which is the outcome we want: the guard is unproven there and says so. `=0` permits the skip
+ * anywhere, for a deliberately unprivileged run.
+ *
+ * Any set value other than `0` means "required". Chosen over rejecting unrecognised values because
+ * the old strict `'1'`/`'0'` comparison failed silently and in the wrong direction: `=true` looked
+ * like it had made the case mandatory and quietly handed back the platform default instead. Only
+ * the explicit opt-out permits a skip; anything else errs towards proving the guard. An unset or
+ * empty variable is not a value and still falls through to the platform default.
+ */
+function symlinkCaseIsRequired(): boolean {
+  const flag = process.env['TMANAGE_REQUIRE_SYMLINK_CASE'];
+  if (flag !== undefined && flag !== '') return flag !== '0';
+  return process.platform !== 'win32';
+}
+
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'tmanage-storage-'));
   clock = 1_800_000_000_000;
@@ -676,20 +741,35 @@ describe('FilesystemObjectStore — openObject (FILE-002)', () => {
     ).rejects.toBeInstanceOf(ObjectNotFoundError);
   });
 
-  it('refuses a symbolic link left under the root, so a read can never leave the store', async () => {
+  it('refuses a symbolic link left under the root, so a read can never leave the store', async (ctx) => {
     // Something outside this driver put a link where an object should be. `lstat` sees
     // the link; `stat` would have followed it and hashed the secret.
+    //
+    // Three outcomes where there used to be one silent pass: a runner that is required to build
+    // this fixture and cannot, fails; an unprivileged runner skips in the open, naming the code;
+    // anything the probe did not predict is rethrown by the probe itself.
+    const support = symlinkSupport();
+    if (!support.supported) {
+      if (symlinkCaseIsRequired()) {
+        throw new Error(
+          `This runner must be able to create a symbolic link and cannot: symlinkSync answered ` +
+            `${support.code} on ${process.platform}. The lstat guard of openObject (FILE-002) is ` +
+            `unproven without it. Run the storage suite where symbolic links can be created, or ` +
+            `set TMANAGE_REQUIRE_SYMLINK_CASE=0 to accept the gap deliberately.`,
+        );
+      }
+      ctx.skip(
+        `${process.platform} without the symbolic-link privilege (symlinkSync: ${support.code}): ` +
+          `the fixture cannot be built here, so the lstat guard is NOT proved on this run. ` +
+          `Set TMANAGE_REQUIRE_SYMLINK_CASE=1 to turn this skip into a failure.`,
+      );
+    }
     const secret = join(root, 'secret.txt');
     writeFileSync(secret, 'not an object');
     const path = store.objectPath('quarantine', OTHER_KEY);
     mkdirSync(dirname(path), { recursive: true });
-    try {
-      symlinkSync(secret, path, 'file');
-    } catch {
-      // Windows without the symlink privilege: the case cannot be built here, and the
-      // driver's `isFile()` check is exercised by the directory case below instead.
-      return;
-    }
+    // Any error from here is a fixture defect: it fails the case. Nothing is swallowed.
+    symlinkSync(secret, path, 'file');
     // Reversal: `stat` instead of `lstat` and this resolves with the secret's thirteen bytes.
     await expect(
       store.openObject({ zone: 'quarantine', objectKey: OTHER_KEY }),
