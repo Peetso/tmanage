@@ -49,8 +49,13 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *
  * ## Lockout, and what it is not
  *
- * `countRecentFailures` counts rows in `authentication_events` within a window. Two honest
- * limitations, both recorded in `docs/implementation-status.md`:
+ * `countRecentFailures` counts rows in `authentication_events` within a window — the rows that
+ * record a credential being presented and refused, which is not every `failed` row. The three
+ * throttle reasons `sign-in-abuse-control.ts` writes in front of the password check are
+ * excluded there, and so is the `locked_out` row this file writes when the window is already
+ * full: a row the count itself caused is never an input to it, or the lockout would renew
+ * itself for as long as anyone kept knocking. `credentials.repository.ts` carries the argument
+ * for both. Two honest limitations, both recorded in `docs/implementation-status.md`:
  *
  * - It is **per user**, not per source. It stops credential stuffing against one account and
  *   does nothing about one attempt each against a thousand accounts.
@@ -80,11 +85,14 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *   lockout is the one that actually catches a grind against a named account. Read both
  *   address-keyed budgets as a cost bound on honest traffic, not as a defence against a
  *   determined attacker, until D09 lands.
- * - The **global key is a deployment-wide refusal lever**, and it is charged only by attempts
- *   that were admitted. That is what keeps it out of one address's reach: a single source is
- *   refused by its own key long before it could spend a global budget of 3000 in 300 s, and a
- *   refused attempt charges only the key that refused it — nothing wider, and, since the
- *   two-phase charge of the third fix wave, nothing narrower either. The route that
+ * - The **global key is a deployment-wide refusal lever**, and it is only ever *crossed* by
+ *   attempts that were admitted. Not "charged only by" them: a refusal charges the key that
+ *   refused it, so a global refusal does charge `g` — on a budget already past its limit, which
+ *   moves no verdict. What a refused attempt never charges is a budget it did not reach. That
+ *   is what keeps the global boundary out of one address's reach: a single source is refused by
+ *   its own key long before it could spend a global budget of 3000 in 300 s, and a refused
+ *   attempt charges only the key that refused it — nothing wider, and, since the two-phase
+ *   charge of `7cc9c16`, nothing narrower either. The route that
  *   remains is, again, D09 — one attacker who can look like thousands of addresses has every
  *   attempt admitted, and can spend the global budget and refuse everybody until the window
  *   turns. `sign-in-abuse-control.ts` carries the full argument and the sizing.

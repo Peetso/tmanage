@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-07 (**D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` and the fix-wave commits that follow them — three review fix waves in all: the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters, and the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the static and unit gates are green and recorded, the database suites and the reverse proof are run by the orchestrator at the merged head, and the merge of the branch into `master` is the commit this Last-updated paragraph names when the orchestrator makes it (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-11 (**D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` on 2026-09-07 and the fix waves that follow them, the last two of those on 2026-09-11 — five review fix waves in all, four of them committed (`4036841`, `ce98302`, `9ceab73`, `7cc9c16`) and the fifth still in the working tree: the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the fourth makes the charge two-phase, so a refusal spends no narrower budget either, and stops a throttle refusal that names a user from moving that user towards their own durable lockout; and the fifth, uncommitted, stops the durable lockout counting the `locked_out` row it writes about itself, so the lockout window ends as designed instead of renewing itself for as long as anyone keeps knocking, and strengthens three tests that asserted less than their titles claimed; the static and unit gates are green and recorded, the database suites and the reverse proof are run by the orchestrator at the merged head, and the merge of the branch into `master` is the commit this Last-updated paragraph names when the orchestrator makes it (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -29,16 +29,29 @@ the plan carried it:
 > unbounded Argon2/log work; legitimate recovery and shared-IP traffic retain a reasonable path.
 
 **What was built** (branch `d08-password-abuse-control`, cut from `master` `cb5afd7`; four
-commits — `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` — and the fix-wave commits that follow
-them, listed as the last two bullets, which the orchestrator commits):
+commits — `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841`, the last of them the first fix wave — and
+the later fix waves, one per bullet: `ce98302`, `9ceab73` and `7cc9c16` are committed, and the
+final bullet is the fifth wave, which is in the working tree and which the orchestrator
+commits).
+
+**A note on the ordinals**, because two counts are in circulation and they differ. The commit
+subjects and the fix-wave briefs number these waves without the `2b`: `9ceab73` calls itself
+"fix wave 2b", `7cc9c16` calls itself "fix wave 3", and the brief behind the last bullet is
+`fix-wave-4-findings.md`. This file has always counted `2b` as a wave in its own right, so from
+the third onwards its ordinals run one ahead — `9ceab73` is the third here, `7cc9c16` the
+fourth, and the wave the brief and the commit-subject scheme call "fix wave 4" is the fifth below. Neither count is
+wrong; they count different things. Where a sentence could be read either way it names the
+commit instead of an ordinal. What was built, then:
 
 - `90cbe5f` — `apps/api/src/modules/identity/sign-in-abuse-control.ts`, an in-process control
   built from three fixed-window limiters and nothing else: no new dependency, no
   table, no Redis. The keys are consulted narrowest first and the first one that refuses ends
   the call, so the recorded reason is the tightest bound that fired. An **admitted** attempt
   charges all three; a **refused** attempt charges only the key that refused it — nothing wider
-  and, since the two-phase charge of the fourth fix wave, nothing narrower either (see the last
-  two bullets — charging every key on every attempt was a defect, in both directions).
+  and, since the two-phase charge of the fourth fix wave (`7cc9c16`), nothing narrower either
+  (see the `ce98302` and `7cc9c16` bullets — charging every key on every attempt was a defect,
+  in both directions). The one key a refusal does charge is the key that refused it, which is
+  already over budget and moves no verdict.
   The account is hashed inside the module — SHA-256 from `node:crypto`, truncated to 16 hex
   characters — so the long-lived map holds buckets rather than a list of the addresses people
   typed. `packages/config` gained the three new tunables beside the existing one, `.env.example`
@@ -102,9 +115,43 @@ them, listed as the last two bullets, which the orchestrator commits):
   "deleting any one of the four `admit` calls fails a test" claim is reworded to what the
   evidence supports. `PLAN.md` (outside the repository, in the evidence directory) is amended in
   place with dated notes quoting each superseded clause.
+- The **fifth fix wave**, over the four-lens review of `7cc9c16`. It is in the working tree as
+  this paragraph is written and is **not yet committed**; the orchestrator commits it.
+  **(1)** `countRecentFailures` no longer counts the `locked_out` row the lockout writes about
+  itself. The three throttle reasons were excluded in the fourth wave; `locked_out` has exactly
+  their shape — written in front of the password check, naming the victim, nothing read and
+  nothing guessed — and was not excluded with them. While it was counted, every refusal pushed a
+  fresh counted row into the very window the refusal was derived from, so the lockout renewed
+  itself: at the shipped defaults (five failures in 900 s, ten requests per 300 s on the account
+  key) roughly two attempts every five minutes held an account shut indefinitely — a third party
+  who knows the address, or the victim's own retries, who are being told that waiting is the fix
+  (A-1). The exclusion list is now the named constant `NON_CREDENTIAL_FAILURE_REASONS`, and the
+  invariant it holds is that the count reads credentials that were presented and refused and
+  never a row it caused itself. The audit trail is untouched again: the row is still written,
+  still names the user and still carries `locked_out`; only the counter stopped reading it. One
+  database case, proved discriminating against the pre-fix repository. **(2)** Three tests that
+  asserted less than their titles claimed now assert it. The `reason IS NULL` half of that
+  predicate — which no row this codebase writes reaches — is exercised by a row written through
+  the repository (A-2); the charging-matrix case now spends a source budget the scenario can
+  actually cross, so "neither narrower budget" is tested for the source key and not for the
+  account key alone (A-3); and the lost-refusal-row log line is pinned by two refusals through
+  one service instance, asserting the running loss count and each attempt's own correlation id
+  (A-4). None of the three needed a production change. **(3)** Corrections carrying no
+  behaviour, this paragraph among them: the two-phase charge and the throttle exclusion are
+  credited to the fourth wave rather than the third, and the summary at the top of this file
+  counts five waves rather than three; "the global key is charged only by admitted attempts" is
+  corrected in all three places to the claim the module actually supports, that the global
+  budget is only ever _crossed_ by admitted attempts; the N-2 comments say who writes a row that
+  names a user (that user's own refused re-authentication — a third party supplies the refusal,
+  not the row); the module's stale references to `createFixedWindowLimiter` and to the wrong
+  section of this file are corrected; a database case's comment stops attributing a
+  `source_account_throttled` row to traffic that cannot produce it; and the gate paragraphs
+  below name the gate that ran after the database suites instead of claiming that none did.
+  `PLAN.md` is amended in place once more, with a dated note quoting the superseded clause.
 
-The three keys, asked in this order, and the first that is over budget refuses — charged only
-when all of them admit:
+The three keys, asked in this order, and the first that is over budget refuses. An attempt that
+all of them admit charges all of them; an attempt one of them refuses charges that key and no
+other:
 
 | key            | shape                                    | tunable                          | default | what it stops                              |
 | -------------- | ---------------------------------------- | -------------------------------- | ------- | ------------------------------------------ |
@@ -125,8 +172,8 @@ shared office is refused for the remainder of one five-minute window and never l
 refuse _requests from that source_, they do not touch the per-user failure counting in
 `authentication_events`.
 
-Both halves of that sentence are true only because of the **third** fix wave, and it is worth
-saying which defect each half closed.
+Both halves of that sentence are true only because of the **fourth** fix wave (`7cc9c16`), and
+it is worth saying which defect each half closed.
 
 - _"…and never longer."_ The decision is now **two-phase**: every applicable budget is asked,
   narrowest key first, before any of them is charged, and a refused attempt spends only the key
@@ -139,15 +186,38 @@ saying which defect each half closed.
   refusal under the per-source or global key — budgets everybody spends — wrote a `failed` row
   bearing the session holder's user id and counted towards `AUTH_MAX_FAILURES_IN_WINDOW` exactly
   as a wrong password did, so a colleague on the same office address could drive a named user
-  into their own 900-second lockout (re-review N-2). The row is still written, still names the
-  user and still carries its reason; only the counter stopped reading it.
+  into their own 900-second lockout (re-review N-2). The row naming the user is always written
+  by that user's own re-authentication being refused; what the colleague supplies is the
+  refusal, by keeping a budget everybody shares over its limit. The row is still written, still
+  names the user and still carries its reason; only the counter stopped reading it.
+
+One more window, and it is not the exception the paragraph above promises — that is the global
+key, next. The **durable lockout has a window of its own, and until the fifth fix wave that
+window did not end for as long as anyone kept knocking.** `countRecentFailures` excluded the
+three throttle reasons but not `locked_out` — the row `signInWithPassword` writes against the
+victim's own id when it finds the count already full. Every refusal therefore pushed a fresh
+counted row into the very window the refusal was derived from, and at the shipped defaults (five
+failures in 900 s, ten requests per 300 s on the account key) about two attempts every five
+minutes held an account shut — a third party who knows the address, or the victim's own retries,
+who are being told that waiting is the fix (A-1). The exclusion list is now
+`NON_CREDENTIAL_FAILURE_REASONS` and the invariant is that the count reads credentials that were
+presented and refused and never a
+row it caused itself. The database case at `apps/api/test/id-002-credentials.db.test.ts` locks
+an account, keeps attempting inside the window, asserts that the trail grows and the count does
+not, and then lets the window pass and signs in
+(`fix4-db-id-002-credentials.log`; `fix4-discrimination-probe-db.log` is the same suite against
+the pre-fix repository, failing on that case).
 
 The **global key is the exception**: a global admission bound is a global
 refusal lever, and while its budget is spent every address and every account is refused until the
 window turns. Two things make that a considered trade rather than a hole, and both are new in the
-second fix wave. It is charged **only by admitted attempts**, so one address cannot reach it — its
-own source key refuses it thirty attempts in — and it is sized as a **CPU bound rather than an
-anomaly detector**: 3000 per 300 s is about ten attempts a second, a fraction of what one core can
+second fix wave. Its budget is **only ever crossed by admitted attempts** — not "charged only by"
+them, which is what this sentence used to say and what the module's own header said beside a
+paragraph contradicting it: a global refusal does charge the global key, on a budget already past
+its limit, which moves no verdict. What a refused attempt never charges is a budget it did not
+reach. So one address cannot take the global key over its limit — its own source key refuses it
+thirty attempts in, and those refusals charge `s:` and nothing wider — and it is sized as a
+**CPU bound rather than an anomaly detector**: 3000 per 300 s is about ten attempts a second, a fraction of what one core can
 Argon2-verify, so it still stops a distributed spray from saturating the host while a single
 attacker would have to sustain ten _admitted_ attempts a second to deny anybody else. The one
 remaining route to it is D09 — see "What this does not claim". The refusal is the 429 `rate_limited` the
@@ -160,9 +230,10 @@ the module's refusing-key set once that set reaches `maxKeys` — the caveat the
 `source_account_throttled`, `global_throttled` — which are never serialised to a caller. Its
 `user_id` is `NULL` on the three `@Public()` routes, where nobody has been looked up yet; the
 `confirmReauthentication` row names the real user, because the session guard established who
-they are before the control was consulted — and since the third fix wave that row is _named_
-without being _counted_: `countRecentFailures` excludes all three reasons, so the trace an
-operator reads is intact and the durable lockout no longer reads it. Success is counted as well as failure: a caller sitting
+they are before the control was consulted — and since the fourth fix wave that row is _named_
+without being _counted_: `countRecentFailures` excludes all three reasons (and, since the fifth,
+the lockout's own `locked_out` row as well), so the trace an operator reads is intact and the
+durable lockout no longer reads it. Success is counted as well as failure: a caller sitting
 exactly at the boundary must not be able to keep guessing, which is why the per-source default
 is 30 rather than 5.
 
@@ -222,20 +293,44 @@ is 30 rather than 5.
 **Evidence** (`C:/Users/Peter/Documents/ChatGPT/TManage/d08-password-abuse-control-2026-09-07/`).
 Every claim names its log.
 
-- Static and unit gates, at the **fourth** fix wave (`fix3-*`) — the latest run of each, which is
-  what the numbers below name, and every one of them was run **before** the database suites of
-  the same wave. `pnpm build:packages` clean (`fix3-build-packages.log`);
+- Static and unit gates, at the **fifth** fix wave (`fix4-*`) — the latest run of each, which is
+  what the numbers below name. `pnpm build:packages` clean (`fix4-build-packages.log`);
   `pnpm --filter @tmanage/api typecheck`, `pnpm --filter @tmanage/web typecheck` and
-  `pnpm --filter @tmanage/e2e typecheck` all clean (`fix3-api-typecheck.log`,
-  `fix3-web-typecheck.log`, `fix3-e2e-typecheck.log`); eslint clean over the repository
-  (`fix3-eslint.log`) and prettier `--check` clean over the touched files
-  (`fix3-prettier-touched.log`, which names every touched file except `.env.example`, for which
-  prettier infers no parser); the `@tmanage/api` unit project **27 files, 413 tests, all pass**
-  (`fix3-api-unit.log`), of which the identity modules alone are **9 files, 245 tests**
-  (`fix3-identity-unit.log`) and **18** are `sign-in-abuse-control.test.ts`.
-  `packages/config` is **2 files, 81 tests, all pass** (`fix3-config-unit.log`). Earlier heads
-  have their own logs in the same directory (`task1-*`, `task2-*`, `fix1-*`, `fix2-*`,
-  `fix2b-*`); where they disagree with these numbers, these are the later run.
+  `pnpm --filter @tmanage/e2e typecheck` all clean (`fix4-api-typecheck.log`,
+  `fix4-web-typecheck.log`, `fix4-e2e-typecheck.log`); eslint clean over the repository
+  (`fix4-eslint.log`) and prettier `--check` clean over the three files that wave's part A
+  touched (`fix4-prettier-touched.log`; no `.sql` file and no `.env.example` is touched by it,
+  and prettier infers no parser for the latter in any case); the `@tmanage/api` unit project
+  **27 files, 413 tests, all pass** (`fix4-api-unit.log`), of which the identity modules alone
+  are **9 files, 245 tests** — the per-file lines of that same log, unchanged from the last
+  dedicated run of that subset, `fix3-identity-unit.log` — and **18** are
+  `sign-in-abuse-control.test.ts`. `packages/config` is **2 files, 81 tests, all pass**
+  (`fix4-config-unit.log`). Earlier heads have their own logs in the same directory (`task1-*`,
+  `task2-*`, `fix1-*`, `fix2-*`, `fix2b-*`, `fix3-*`); where they disagree with these numbers,
+  these are the later run.
+- **The ordering, and the exception each wave has.** The rule is static and unit gates first,
+  database suites last. At the fourth wave every gate but one obeyed it: `fix3-prettier-touched.log`
+  ran at 17:36:43Z, **after** both database suites (which finished at 17:33:00Z and 17:35:16Z),
+  because the only edits made after those suites were to this file and prettier checks this
+  file; that log's own header records the re-run and the reason. At the fifth wave the exception
+  runs the other way. Part A's static and unit gates ran first (18:07Z) and its database suites
+  next (18:09Z and 18:10Z); then the A-3 probe led to four refusals being reordered in
+  `sign-in-abuse-control.test.ts`, a unit test the database suites do not load, after which api
+  typecheck, api unit, eslint and prettier were re-run at 18:13–18:14Z. Those four `fix4-*` logs
+  are the re-runs and each says so in its own header; the other `fix4-*` static logs are the
+  single run that preceded the database suites. The database logs of that wave predate an edit
+  that cannot reach them and were not re-run. The pre-fix database probe is not a gate and ran
+  earlier than any of this (18:05Z), which is the point of it: it has to run against a tree that
+  does not yet carry the fix. Part B — the comments and the
+  prose, this paragraph included — is later still: the three typechecks, eslint and prettier
+  over the files it touched were re-run afterwards and logged as `fix4-prose-*.log`, and so was
+  the `@tmanage/api` unit project, `fix4-prose-api-unit.log`, at the same **27 files, 413
+  tests**. No database suite was re-run for part B, and the reason is that part B changed no
+  executable line: its edits inside `id-002-credentials.db.test.ts` are comments, and they move
+  no assertion. The prettier log of part B is the last gate of all, because this paragraph is
+  one of the things it checks; its typecheck, eslint and unit logs precede the final edits to
+  this file, which is honest rather than sloppy — none of those three gates reads a `.md` file,
+  and no `.ts` file changed after them.
 - **Both behavioural fixes of the fourth wave are proved discriminating.** The two new unit
   cases for the two-phase charge fail against the pre-fix module — a copy of
   `sign-in-abuse-control.ts` and `rate-limiter.ts` taken from `9ceab73`, replayed verbatim in
@@ -243,8 +338,26 @@ Every claim names its log.
   new database case for the lockout exclusion fails against the pre-fix repository:
   `fix3-discrimination-probe-db.log` is a full run of `id-002-credentials.db.test.ts` with the
   one `countRecentFailures` predicate removed and nothing else changed — **1 failed, 67 passed**,
-  and the failure is `expected 5 to be +0`, the five throttle rows a third party wrote against a
-  named user.
+  and the failure is `expected 5 to be +0`, the five throttle rows written against a named user
+  while a shared budget was held over its limit.
+- **The fifth wave's production fix is proved discriminating, and its strengthened unit case
+  with it.** `fix4-discrimination-probe-db.log` is a full run of `id-002-credentials.db.test.ts`
+  with `credentials.repository.ts` exactly as `7cc9c16` left it. It was written test-first, so
+  that run **is** the pre-fix state rather than a reconstruction of one: no predicate had to be
+  removed because the new one did not exist yet, the file was byte-copied to a scratchpad first,
+  and the post-fix file differs from that sha only by the new exclusion. **1 failed, 68 passed**,
+  and the failure is `expected 10 to be 5` in the new case — five refusals the lockout itself
+  produced had doubled the count that produces the lockout. One qualification, because the log
+  shows it: vitest stops a case at its first failed assertion, so that run never reached the
+  "and the window ends" half of the case, which is therefore asserted post-fix only. The
+  arithmetic behind that half is that the five `locked_out` rows are themselves
+  `AUTH_MAX_FAILURES_IN_WINDOW` and are still inside the window when the original five age out.
+  `fix4-discrimination-probe-unit.log` is the strengthened charging-matrix case against the
+  pre-two-phase module — `sign-in-abuse-control.ts` byte-copied out, `admit()`'s phase block
+  alone replaced, then restored by copy with the sha re-verified in the log — **2 failed, 16
+  passed**: the strengthened case fails on `source_throttled` where the fixed module says
+  `global_throttled`, which is exactly the half A-3 named as untested, and the second failure is
+  the fourth-wave case the probe deliberately un-fixes. Both probes exit 1, as intended.
 - **What the tests do and do not reach.** `sign-in-abuse-control.test.ts` drives the real module
   through real limiters on an injected clock, and it is the only level at which
   `global_throttled`, the address clamp and the refusing-key eviction are exercised — no
@@ -257,22 +370,29 @@ Every claim names its log.
   is true by reading each case but was never run as four deletions; no log in the evidence
   directory records that mutation, and the file's own rule is that a claim names the log that
   proves it.
-- Database suites at the fourth fix wave, run in this worktree under the shared database lock
-  (`locks/db-e2e.lock`, runId `claude-auto-1789145792-fix3`) and **after** every static and unit
-  gate above: `test/id-002-credentials.db.test.ts` **68 tests, all pass**
-  (`fix3-db-id-002-credentials.log`, 55 s) and `test/id-002-auth-http.db.test.ts` **32 tests,
-  all pass** (`fix3-db-id-002-auth-http.log`, 127 s). Earlier runs are `final-db-*`
-  (pre-fix-wave), `final2-db-*` at `4036841` (`final2-db-gates.md`) and `fix2b-db-*` at the
-  wave-2b tree. They are run once more by the orchestrator at the head that is actually merged,
-  as `final3-db-id-002-credentials.log` and `final3-db-id-002-auth-http.log` — the point the
+- Database suites at the fifth fix wave, run in this worktree under the shared database lock
+  (`locks/db-e2e.lock`, runId `claude-auto-1789145792-fix4`) and after every static and unit
+  gate of that wave's part A — with the re-run qualifications stated in the ordering
+  paragraph above: `test/id-002-credentials.db.test.ts` **69 tests, all pass**
+  (`fix4-db-id-002-credentials.log`, 70 s; case (h)'s window was later widened to eight
+  seconds for real-time headroom, re-verified in `fix4b-db-id-002-credentials.log`, 90 s)
+  and `test/id-002-auth-http.db.test.ts` **32 tests,
+  all pass** (`fix4-db-id-002-auth-http.log`, 82 s). Earlier runs are `final-db-*`
+  (pre-fix-wave), `final2-db-*` at `4036841` (`final2-db-gates.md`), `fix2b-db-*` at the
+  wave-2b tree and `fix3-db-*` at `7cc9c16`. They **will be** run once more by the orchestrator
+  at the head that is actually merged and logged as `final3-db-id-002-credentials.log` and
+  `final3-db-id-002-auth-http.log`; neither file exists yet — the point the
   final review's I2 makes, since each fix wave changes the module those suites exercise. The D08
-  cases are seven service-level ones (a spray
+  cases are eight service-level ones (a spray
   across many accounts refused, with one row for the whole refusal; a refused attempt reaching
   neither the user lookup nor Argon2; one address grinding one account stopped ahead of the
   lockout without locking it; the same address admitted again once the window turns;
   re-authentication bounded, revoking nothing; a refusal still delivered when the row
-  recording it cannot be written; and a throttle refusal that names a user without moving that
-  user towards the durable lockout, while five genuine wrong passwords still do) and five over
+  recording it cannot be written, twice through one service so the running loss count and each
+  correlation id are pinned; a throttle refusal that names a user without moving that
+  user towards the durable lockout, while five genuine wrong passwords still do and a `failed`
+  row carrying no reason at all still counts; and the lockout's own `locked_out` row not
+  renewing the lockout, so the window ends and the right password works again) and five over
   real HTTP (a throttled source answered exactly
   as a locked-out account is; 429 `rate_limited`, never a 401 and never a different message;
   each source with its own budget, and the forged `x-forwarded-for` above; and the MFA-completion

@@ -17,7 +17,7 @@ import {
  * bounded either cost by *where the traffic came from*. This module is that bound, and it is
  * consulted before the read, before Argon2, and before the row.
  *
- * ## Three keys, narrowest first, and nothing is charged unless all of them admit
+ * ## Three keys, narrowest first, and a refusal charges nothing but the key that refused
  *
  * | key | shape | what it stops |
  * | --- | --- | --- |
@@ -27,7 +27,7 @@ import {
  *
  * The decision is **two-phase**. Every applicable budget is *asked* first, narrowest key first
  * and stopping at the first refusal, and nothing is mutated by the asking. Only when all of
- * them admit is any of them charged. So an **admitted** attempt charges all three, and a
+ * them admit is any *other* one charged. So an **admitted** attempt charges all three, and a
  * **refused** attempt charges nothing but the key that refused it — nothing wider, and nothing
  * narrower.
  *
@@ -110,7 +110,8 @@ import {
  *
  * ## What in-process costs
  *
- * The store is `createFixedWindowLimiter`, in process, legitimate for the reason that file
+ * The store is `createTwoPhaseFixedWindowLimiter` (`rate-limiter.ts`, which now expresses
+ * `createFixedWindowLimiter` in terms of it), in process, legitimate for the reason that file
  * already gives: the bootstrap profile runs one API process (`50-BOOTSTRAP` §3, `main.ts`).
  * The two consequences are repeated here rather than assumed: **a restart forgets every
  * window, and a second process would count separately.** The database is deliberately not
@@ -169,9 +170,13 @@ import {
  * spent, every address and every account is refused until the window turns. Two things keep
  * that a considered trade rather than a hole.
  *
- * 1. **It is charged only by admitted attempts.** One address cannot reach it, because its own
- *    source key refuses it thirty attempts in; spending the global budget takes thousands of
- *    *admitted* attempts from distinct addresses.
+ * 1. **It is only ever *crossed* by admitted attempts.** Not "charged only by" them: when `g`
+ *    is the key that refuses, `admit()` charges it like any refusing key (see the charging
+ *    paragraph above), and that charge lands on a budget already past its limit, so it moves
+ *    no verdict. What a refused attempt never does is charge a budget it did not reach. One
+ *    address therefore cannot take `g` over its limit: its own source key refuses it thirty
+ *    attempts in, and those refusals charge `s:` and nothing wider. Crossing the global budget
+ *    takes thousands of *admitted* attempts from distinct addresses.
  * 2. **It is sized as a CPU bound, not as an anomaly detector.**
  *    `RATE_LIMIT_AUTH_MAX_GLOBAL` defaults to 3000 per 300 s — about ten attempts a second,
  *    a fraction of what a single core can Argon2-verify — so it still stops a distributed
@@ -245,7 +250,10 @@ const GLOBAL_KEY = 'g';
  * the comment used to claim they were: `record()` passes `context.ip` and
  * `recordAuthenticationEvent` inserts it **untruncated**, so a forged header long enough to be
  * clamped here is a row the database rejects or truncates on its own terms. That is D09's to
- * settle (`docs/implementation-status.md`, "what this does not claim"), not this constant's.
+ * settle, not this constant's, and it is carried into that slice as D08 **follow-up 1** in
+ * `docs/implementation-status.md`. This comment used to point at the "what this does not
+ * claim" list instead, which does not carry the claim: that list is about the rotatable
+ * address, not about the column.
  *
  * 45 is also the *exact* maximum length of an IPv4-mapped IPv6 literal
  * (`0000:…:0000:255.255.255.255`), so the widest real address fits with nothing to spare, and a

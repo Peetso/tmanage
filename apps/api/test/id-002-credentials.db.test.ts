@@ -542,6 +542,25 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
   const reasons = (rows: readonly RowDataPacket[], reason: string) =>
     rows.filter((row) => row['reason'] === reason);
 
+  /** What the durable lockout would see right now, read through the production predicate. */
+  const countedFailures = (userId: string, windowSeconds = OPTIONS.failureWindowSeconds) =>
+    tenant.identityRead(identity(), (db) =>
+      repository.countRecentFailures(db, userId, windowSeconds),
+    );
+
+  /**
+   * Real time, and the only place in this file that spends any.
+   *
+   * `countRecentFailures` expresses its window as `now(3)` on the server, deliberately (a
+   * `Date` from Node would make the lockout depend on the API instance's clock). So the one
+   * case that has to watch a lockout window *end* cannot step `clockMs` to do it — it has to
+   * let the database's own clock pass the boundary.
+   */
+  const sleepUntil = (at: number) =>
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, Math.max(0, at - Date.now()));
+    });
+
   /**
    * (a) The acceptance sentence. A spray across distinct unknown addresses is refused, and the
    * refusal costs **one** row — not one per attempt beyond the budget, which would be the same
@@ -818,9 +837,18 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
    * directly rather than through a sign-in, because a service holding a broken log cannot
    * complete an admitted attempt either — this way the very first call the service makes is
    * the refused one.
+   *
+   * The case also pins **what the line says**, which nothing asserted before (N-5's own fix was
+   * left uncovered, so deleting the counter and the correlation id kept every suite green).
+   * Two refusals are driven through the *same* service instance, from two addresses, because
+   * the counter is per process and the whole point of it is that the second line does not read
+   * like the first: `loss 2`, and the correlation id of the attempt that lost *that* row.
    */
   it('still refuses when the row recording the refusal cannot be written', async () => {
     const SOURCE = '198.51.100.12';
+    // A second address, because `recordRefusal` is reached once per key per window: the same
+    // source key refusing again writes no row and so loses none.
+    const OTHER_SOURCE = '198.51.100.14';
     const ACCOUNT = 'unknown-to-anyone@northstar.example';
 
     const control = createSignInAbuseControl({
@@ -833,6 +861,7 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
       now: () => clockMs,
     });
     expect(control.admit({ ip: SOURCE, account: ACCOUNT }).admitted).toBe(true);
+    expect(control.admit({ ip: OTHER_SOURCE, account: ACCOUNT }).admitted).toBe(true);
 
     const brokenLog = {
       recordAuthenticationEvent: () =>
@@ -850,17 +879,43 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
     // suite's output clean, which a bare `console.error` in a passing test would not.
     const reported = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
+      const first = from(SOURCE);
       const refused = await refusal(
         withBrokenLog.signInWithPassword({
           email: ACCOUNT,
           password: PASSWORD,
-          context: from(SOURCE),
+          context: first,
         }),
       );
       expect(refused.rejection).toBe('rate_limited');
       expect(refused.reason).toBe('source_throttled');
       expect(reported).toHaveBeenCalledTimes(1);
-      expect(String(reported.mock.calls[0]?.[0])).toContain('password_sign_in');
+      const firstLine = String(reported.mock.calls[0]?.[0]);
+      expect(firstLine).toContain('password_sign_in');
+      expect(firstLine).toContain('loss 1');
+      expect(firstLine).toContain(first.correlationId);
+
+      // A second refusal through the same service, from the other address. A reader of the
+      // process log has to be able to tell this line from the one above it — a log that has
+      // been failing for an hour is otherwise indistinguishable from a single blip, and the
+      // enumeration trace `migrations/0004_credentials.sql` asks for is quietly missing.
+      const second = from(OTHER_SOURCE);
+      const refusedAgain = await refusal(
+        withBrokenLog.signInWithPassword({
+          email: ACCOUNT,
+          password: PASSWORD,
+          context: second,
+        }),
+      );
+      expect(refusedAgain.reason).toBe('source_throttled');
+      expect(reported).toHaveBeenCalledTimes(2);
+      const secondLine = String(reported.mock.calls[1]?.[0]);
+      expect(secondLine).toContain('loss 2');
+      expect(secondLine).toContain(second.correlationId);
+      // The counter is the running one, not the attempt's own: the second line does not carry
+      // the first attempt's id, and the first line never claimed to be the second loss.
+      expect(secondLine).not.toContain(first.correlationId);
+      expect(firstLine).not.toContain('loss 2');
     } finally {
       reported.mockRestore();
     }
@@ -876,10 +931,12 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
    * `confirmReauthentication` is the one route whose refusal row carries a real `user_id` — the
    * session guard has already established who is calling. Two of the three budgets that can
    * produce that refusal are spent by *everybody*: the per-source key by anyone sharing the
-   * address, the global key by anyone at all. While `countRecentFailures` counted those rows,
-   * a third party could write five of them against a named user inside the 900-second lockout
-   * window — three source windows fit, and a concurrent global refusal adds more — and lock
-   * that user out of their own account with traffic that was never theirs.
+   * address, the global key by anyone at all. The row itself, though, is always written by the
+   * named user's own re-authentication being refused — a third party supplies the refusal, not
+   * the row, by keeping a shared budget spent. While `countRecentFailures` counted those rows,
+   * five of the user's own re-authentications inside the 900-second lockout window — three
+   * source windows fit, and a concurrent global refusal adds more — locked that user out of
+   * their own account on traffic that was never theirs.
    *
    * The fix is one predicate in the query, so the row keeps doing the job it was written for.
    * This case pins both halves: the trace survives and still names the user, and the counter
@@ -931,8 +988,14 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
     expect(named[0]!['outcome']).toBe('failed');
     expect(named[0]!['reason']).toBe('source_throttled');
 
-    // Four more of the same shape — the rows the later source windows and the global key
-    // produce over 900 seconds, written through the same repository method the service uses.
+    // Four more of the same shape, written through the same repository method the service uses.
+    // Three of them are what the shared budgets produce as the 900-second window runs on: the
+    // later source windows a colleague keeps spending, and the global key anyone at all can
+    // spend. The fourth is `source_account_throttled`, and it is deliberately *not* attributed
+    // to that traffic — the `sa:` key names this account, so a third party grinding somebody
+    // else cannot cross it, and only the owner's own repeated attempts from this address can.
+    // It is here because all three throttle reasons have to be shown not to count, not because
+    // a third party could write it.
     // Five is `maxFailuresInWindow`, so this is exactly the lockout the review described.
     await tenant.identityTransaction(identity(), async (tx) => {
       for (const reason of [
@@ -989,6 +1052,106 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
     );
     expect(locked.rejection).toBe('rate_limited');
     expect(locked.reason).toBe('locked_out');
+
+    // And the other half of the predicate, which no row this codebase writes reaches: a
+    // `failed` row carrying no reason at all. `NOT IN` over a NULL is NULL, so without the
+    // explicit `reason IS NULL` clause such a row would silently stop counting — a failure
+    // that no longer counts towards a lockout is the direction that fails open. Written
+    // through the repository, so it is the production insert that produces it.
+    const beforeUnnamed = await countedFailures(owner().id);
+    await tenant.identityTransaction(identity(), (tx) =>
+      repository.recordAuthenticationEvent(tx, {
+        userId: owner().id,
+        action: 'password_sign_in',
+        outcome: 'failed',
+        reason: null,
+        ip: SOURCE,
+      }),
+    );
+    expect(await countedFailures(owner().id)).toBe(beforeUnnamed + 1);
+  });
+
+  /**
+   * (h) A-1 (four-lens review of `7cc9c16`). The row the lockout writes *about itself* is not
+   * evidence that anybody guessed a password — and while the counter read it, the lockout
+   * renewed itself for as long as anyone kept knocking.
+   *
+   * When `signInWithPassword` finds the window full it records
+   * `outcome: 'failed', reason: 'locked_out'` against the victim's user id and refuses. That
+   * row has exactly the shape `7cc9c16` excluded the three throttle reasons for: written in front
+   * of the password check, carrying the victim's id, nothing guessed. It was not excluded, so
+   * every refusal pushed a fresh counted row into the very window the refusal was derived
+   * from. At the shipped defaults — five failures in 900 s, ten requests per 300 s on the
+   * account key — about two attempts every five minutes hold the count at five for ever: a
+   * third party who knows the address keeps the account shut indefinitely, and the victim's own
+   * retries do it to themselves, which is the opposite of what the lockout case above tells
+   * them ("a person being told to wait needs to know that waiting is the fix").
+   *
+   * The fix keeps the trace and cuts the feedback: the row is still written, still names the
+   * user, still carries `locked_out`, and `countRecentFailures` no longer reads it. The
+   * invariant is that **a row the counter itself caused is never an input to it** — the count
+   * is of credentials presented and refused, and the lockout row is a consequence of the count.
+   *
+   * The window here is eight seconds rather than the configured 900 because this is the one case
+   * in the file that must watch a window actually *end*, and the clock that decides it is the
+   * database's `now(3)`, which no injected clock can move.
+   */
+  it('does not let its own lockout row renew the lockout, so the window ends', async () => {
+    await giveOwnerAPassword();
+
+    const WINDOW_SECONDS = 8;
+    const briefWindow = new AuthenticationService(
+      tenant,
+      { ...OPTIONS, failureWindowSeconds: WINDOW_SECONDS },
+      repository,
+      () => clockMs,
+    );
+
+    // Five genuine wrong passwords. This is the lockout working as designed.
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      await briefWindow
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
+        .catch(() => undefined);
+    }
+    const lockedAt = Date.now();
+    expect(await countedFailures(owner().id, WINDOW_SECONDS)).toBe(OPTIONS.maxFailuresInWindow);
+
+    // The attempts that used to renew it, made partway into the window and well inside every
+    // budget the abuse control keeps — nothing here is throttled, and none of it reaches a
+    // password. Five of them, so that on the pre-fix counter they are a fresh full lockout of
+    // their own once the original five age out.
+    await sleepUntil(lockedAt + 2_000);
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      const refused = await refusal(
+        briefWindow.signInWithPassword({
+          email: owner().email,
+          password: 'wrong',
+          context: context(),
+        }),
+      );
+      expect(refused.rejection).toBe('rate_limited');
+      expect(refused.reason).toBe('locked_out');
+    }
+
+    // Half one: the audit trail still records every refusal, naming the user and the reason —
+    // ten rows, five of them `locked_out` — and the count does not grow by one of them.
+    const rows = await events(owner().id);
+    expect(rows).toHaveLength(2 * OPTIONS.maxFailuresInWindow);
+    expect(reasons(rows, 'locked_out')).toHaveLength(OPTIONS.maxFailuresInWindow);
+    expect(await countedFailures(owner().id, WINDOW_SECONDS)).toBe(OPTIONS.maxFailuresInWindow);
+
+    // Half two: the window ends, which is the whole promise of a lockout that is not a ban. The
+    // five credential failures are outside it now; the five `locked_out` rows, written two
+    // seconds later, are still well inside it — on the pre-fix counter the account stays shut.
+    await sleepUntil(lockedAt + (WINDOW_SECONDS + 1) * 1_000);
+    expect(await countedFailures(owner().id, WINDOW_SECONDS)).toBe(0);
+
+    const outcome = await briefWindow.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(outcome).toEqual({ status: 'authenticated', userId: owner().id });
   });
 });
 

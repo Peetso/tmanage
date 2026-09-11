@@ -323,13 +323,19 @@ describe('the sign-in abuse control', () => {
   it('keeps the reason narrowest-first while a global refusal spends neither narrower budget', () => {
     let clock = 5_000;
     const control = createControl({
-      // Wide enough that neither address-keyed budget can be what refuses in the first half.
-      maxPerSource: 100,
+      // Both address-keyed budgets are crossable by this scenario, and that is the point of
+      // the numbers. At `maxPerSource: 100` the source key could never be reached, so half of
+      // what this title claims — that a global refusal spends *neither* narrower budget — was
+      // asserted for the account key alone and not for the source key at all.
+      maxPerSource: 3,
       maxPerSourceAccount: 2,
       maxGlobal: 3,
       now: () => clock,
     });
-    const alice = { ip: '203.0.113.50', account: 'alice@example.test' };
+    const OFFICE = '203.0.113.50';
+    const alice = { ip: OFFICE, account: 'alice@example.test' };
+    const bo = { ip: OFFICE, account: 'bo@example.test' };
+    const cyd = { ip: OFFICE, account: 'cyd@example.test' };
     const refusal = (reason: SignInAbuseReason, firstRefusalInWindow: boolean) => ({
       admitted: false,
       reason,
@@ -341,23 +347,35 @@ describe('the sign-in abuse control', () => {
       expect(control.admit({ ip: `198.51.100.${String(octet)}` }).admitted).toBe(true);
     }
 
-    // Alice has spent nothing. The global key refuses her, and goes on refusing her under the
-    // same reason however long she retries. The pre-fix module charged her `sa:` key on each
-    // of these and reported `source_account_throttled` from the third onwards — a narrower
-    // reason for a refusal the global key made, and a budget spent on attempts nobody served.
+    // Nobody at the office has spent anything. The global key refuses every one of these and
+    // goes on naming itself however long they retry. The pre-fix module charged the narrower
+    // keys on each: the office's `s:` key crossed on the fourth of these attempts and Alice's
+    // own `sa:` key on the fifth, so the same traffic reported `source_throttled` and then
+    // `source_account_throttled` — narrower reasons for a refusal the global key made, and two
+    // budgets spent on attempts nobody was served.
     expect(control.admit(alice)).toEqual(refusal('global_throttled', true));
-    for (let retry = 0; retry < 3; retry += 1) {
-      expect(control.admit(alice)).toEqual(refusal('global_throttled', false));
+    for (const attempt of [bo, cyd, alice, alice]) {
+      expect(control.admit(attempt)).toEqual(refusal('global_throttled', false));
     }
 
-    // The window turns. Her account budget is intact: two admitted attempts, the whole of it.
+    // The window turns, and both narrower budgets are whole rather than merely non-empty. Each
+    // is spent to its own boundary to prove it. Alice's account budget first: two admitted
+    // attempts, the whole of `maxPerSourceAccount`.
     clock += 300_000;
     expect([control.admit(alice).admitted, control.admit(alice).admitted]).toEqual([true, true]);
 
-    // One more admitted attempt from elsewhere crosses the global budget again, so now *both*
-    // Alice's account key and the global key are over. Precedence is unchanged by the fix:
-    // the narrowest key that is over budget is the one that names itself.
-    expect(control.admit({ ip: '198.51.100.4' }).admitted).toBe(true);
+    // Then the office's source budget, of which those two have spent two. The third attempt
+    // from this address names a different account, so the account key cannot be what answers,
+    // and it is admitted: the full `maxPerSource` of three.
+    expect(control.admit(bo).admitted).toBe(true);
+
+    // Only now does the source key refuse, and it names itself ahead of the global key — which
+    // those same three admitted attempts have also spent. Precedence is unchanged by the fix:
+    // of the keys that are over budget, the narrowest is the one that names itself.
+    expect(control.admit(cyd)).toEqual(refusal('source_throttled', true));
+
+    // And narrower still. Alice's own account key is over too, so her next attempt is reported
+    // under it rather than under the source or global key that are equally over.
     expect(control.admit(alice)).toEqual(refusal('source_account_throttled', true));
   });
 
