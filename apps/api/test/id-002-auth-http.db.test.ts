@@ -142,16 +142,22 @@ async function setPasswordFor(userId: string, password = PASSWORD): Promise<void
 }
 
 /**
- * `D05`. Prove the person again inside `session` and return the header value the three
+ * `D05`. Prove the person again inside `session` and return the header value the
  * credential-changing routes require. The session must already hold `password`.
+ *
+ * `code` is required once the account holds a *confirmed* factor — `confirmReauthentication`
+ * asks for one whenever `listActiveFactors` returns a row, because from that moment the
+ * password alone is no longer the person. Optional here rather than always supplied, because
+ * the first enrolment happens on an account that has no confirmed factor yet.
  */
 async function proofFor(
   session: { cookie: string; csrfToken: string },
   password = PASSWORD,
+  code?: string,
 ): Promise<string> {
   const response = await post(
     '/v1/auth/reauth',
-    { password },
+    code === undefined ? { password } : { password, code },
     { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
   );
   if (response.statusCode !== 200) {
@@ -178,10 +184,13 @@ async function proofFor(
  */
 async function enrol(): Promise<{ secret: string; recoveryCodes: readonly string[] }> {
   const session = await developmentSession(owner().id);
+  // `D05` third clause: both halves of enrolment are behind fresh proof, because confirming
+  // is what replaces the recovery codes. The caller must already have set the password.
+  const proof = await proofFor(session);
   const begun = await post(
     '/v1/auth/factors/totp',
     { label: 'Test phone', accountName: owner().email },
-    { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken, [REAUTH_HEADER]: proof },
   );
   expect(begun.statusCode).toBe(201);
   const { factorId, secret, uri } = begun.json<{
@@ -194,7 +203,7 @@ async function enrol(): Promise<{ secret: string; recoveryCodes: readonly string
   const confirmed = await post(
     '/v1/auth/factors/totp/confirm',
     { factorId, code: codeFor(secret, Date.now() - 30_000) },
-    { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken, [REAUTH_HEADER]: proof },
   );
   expect(confirmed.statusCode).toBe(200);
   return { secret, recoveryCodes: confirmed.json<{ recoveryCodes: string[] }>().recoveryCodes };
@@ -771,10 +780,21 @@ describe('the enrolment routes', () => {
 
   it('list a person’s own factors and never a secret', async () => {
     const session = await developmentSession(owner().id);
+    // `D05`: beginning an enrolment needs the same fresh proof the rest of the credential
+    // surface does, so the pending factor this case lists has to be created behind it.
+    await post(
+      '/v1/auth/password/set',
+      { password: PASSWORD },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+    );
     await post(
       '/v1/auth/factors/totp',
       { label: 'Test phone' },
-      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+      {
+        cookie: session.cookie,
+        [CSRF_HEADER]: session.csrfToken,
+        [REAUTH_HEADER]: await proofFor(session),
+      },
     );
 
     const response = (await app.inject({
@@ -796,10 +816,19 @@ describe('the enrolment routes', () => {
    */
   it('answer 404 for a factor belonging to someone else', async () => {
     const ownerSession = await developmentSession(owner().id);
+    await post(
+      '/v1/auth/password/set',
+      { password: PASSWORD },
+      { cookie: ownerSession.cookie, [CSRF_HEADER]: ownerSession.csrfToken },
+    );
     const begun = await post(
       '/v1/auth/factors/totp',
       { label: 'Owner phone' },
-      { cookie: ownerSession.cookie, [CSRF_HEADER]: ownerSession.csrfToken },
+      {
+        cookie: ownerSession.cookie,
+        [CSRF_HEADER]: ownerSession.csrfToken,
+        [REAUTH_HEADER]: await proofFor(ownerSession),
+      },
     );
     const { factorId } = begun.json<{ factorId: string }>();
 
@@ -907,7 +936,7 @@ describe('the enrolment routes', () => {
 });
 
 /**
- * `D05` over HTTP. The three credential-changing routes answer **403 `reauthentication_required`**
+ * `D05` over HTTP. The five credential-changing routes answer **403 `reauthentication_required`**
  * without the `x-reauth-token` header, the session stays usable, and `POST /v1/auth/reauth`
  * is where the header's value comes from.
  */
@@ -966,7 +995,11 @@ describe('re-authentication over HTTP', () => {
     const begun = await post(
       '/v1/auth/factors/totp',
       { label: 'Owner phone' },
-      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken },
+      {
+        cookie: session.cookie,
+        [CSRF_HEADER]: session.csrfToken,
+        [REAUTH_HEADER]: await proofFor(session),
+      },
     );
     const { factorId } = begun.json<{ factorId: string }>();
 
@@ -987,6 +1020,119 @@ describe('re-authentication over HTTP', () => {
     );
     expect(codes.statusCode).toBe(403);
     expect(codes.json<{ error: { code: string } }>().error.code).toBe('reauthentication_required');
+  });
+
+  /**
+   * `D05`'s third clause, and the case the closure of the finding missed.
+   *
+   * Confirming a TOTP factor calls `replaceRecoveryCodes` and hands the new set back. Behind
+   * a live session and nothing else, that is the whole attack: somebody holding a stolen
+   * cookie destroys the account owner's recovery codes and reads the ones that replace them.
+   * The refusal is worth little on its own — what makes it a fix is the second half, that the
+   * owner's existing codes are still the codes that work afterwards.
+   */
+  it('refuses a TOTP enrolment from a live session with no proof, and leaves the recovery codes in force', async () => {
+    await setPasswordFor(owner().id);
+    const { recoveryCodes } = await enrol();
+    const [before] = await db.admin.query<RowDataPacket[]>(
+      'select code_hash from user_recovery_codes where user_id = ? order by code_hash',
+      [owner().id],
+    );
+    expect(before).toHaveLength(10);
+
+    // A live session and nothing else: the cookie an attacker would have, with no password
+    // behind it. `/v1/dev/sessions` mints exactly that.
+    const stolen = await developmentSession(owner().id);
+
+    const begun = await post(
+      '/v1/auth/factors/totp',
+      { label: 'Attacker phone' },
+      { cookie: stolen.cookie, [CSRF_HEADER]: stolen.csrfToken },
+    );
+    expect(begun.statusCode).toBe(403);
+    expect(begun.json<{ error: { code: string } }>().error.code).toBe('reauthentication_required');
+
+    // And the destructive half separately, so the confirm route is not proved only by the
+    // begin route refusing first. The id is invented: the gate answers before the ownership
+    // lookup, so this cannot be read as "no such factor" either.
+    const confirmed = await post(
+      '/v1/auth/factors/totp/confirm',
+      { factorId: uuidv7(), code: '000000' },
+      { cookie: stolen.cookie, [CSRF_HEADER]: stolen.csrfToken },
+    );
+    expect(confirmed.statusCode).toBe(403);
+    expect(confirmed.json<{ error: { code: string } }>().error.code).toBe(
+      'reauthentication_required',
+    );
+    expect(confirmed.body).not.toContain('recoveryCodes');
+
+    // Nothing was created, and the stored set is byte for byte the one the owner holds.
+    const [factors] = await db.admin.query<RowDataPacket[]>(
+      'select id from user_mfa_factors where user_id = ?',
+      [owner().id],
+    );
+    expect(factors).toHaveLength(1);
+    const [after] = await db.admin.query<RowDataPacket[]>(
+      'select code_hash from user_recovery_codes where user_id = ? order by code_hash',
+      [owner().id],
+    );
+    expect(after.map((row) => row['code_hash'])).toEqual(before.map((row) => row['code_hash']));
+
+    // The assertion that matters: the owner's own copy still opens the account.
+    const challenge = await post('/v1/auth/password', {
+      email: owner().email,
+      password: PASSWORD,
+    });
+    expect(challenge.json<{ status: string }>().status).toBe('mfa_required');
+    const { challengeToken } = challenge.json<{ challengeToken: string }>();
+    const used = await post('/v1/auth/recovery-code', {
+      challengeToken,
+      code: recoveryCodes[0],
+    });
+    expect(used.statusCode).toBe(200);
+  });
+
+  /** The other half: with the proof, the enrolment still works end to end. */
+  it('enrols a factor end to end when the proof is presented, and the codes it issues replace the old set', async () => {
+    await setPasswordFor(owner().id);
+    const { secret: first, recoveryCodes: old } = await enrol();
+
+    const session = await developmentSession(owner().id);
+    // A confirmed factor exists now, so re-authenticating costs a code as well as the
+    // password — the same discipline `POST /v1/auth/reauth` applies to every other caller.
+    const proof = await proofFor(session, PASSWORD, codeFor(first, Date.now()));
+
+    const begun = await post(
+      '/v1/auth/factors/totp',
+      { label: 'Second phone', accountName: owner().email },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken, [REAUTH_HEADER]: proof },
+    );
+    expect(begun.statusCode).toBe(201);
+    const { factorId, secret } = begun.json<{ factorId: string; secret: string }>();
+
+    const confirmed = await post(
+      '/v1/auth/factors/totp/confirm',
+      { factorId, code: codeFor(secret, Date.now() - 30_000) },
+      { cookie: session.cookie, [CSRF_HEADER]: session.csrfToken, [REAUTH_HEADER]: proof },
+    );
+    expect(confirmed.statusCode).toBe(200);
+    const { recoveryCodes } = confirmed.json<{ recoveryCodes: string[] }>();
+    expect(recoveryCodes).toHaveLength(10);
+    expect(recoveryCodes).not.toContain(old[0]);
+
+    // `ID-05`: the previous set stopped working the moment the new one was issued.
+    const challenge = await post('/v1/auth/password', {
+      email: owner().email,
+      password: PASSWORD,
+    });
+    const { challengeToken } = challenge.json<{ challengeToken: string }>();
+    const stale = await post('/v1/auth/recovery-code', { challengeToken, code: old[0] });
+    expect(stale.statusCode).toBe(401);
+    const fresh = await post('/v1/auth/recovery-code', {
+      challengeToken,
+      code: recoveryCodes[0],
+    });
+    expect(fresh.statusCode).toBe(200);
   });
 
   it('mints proof from the password, which then authorises the change in that session only', async () => {

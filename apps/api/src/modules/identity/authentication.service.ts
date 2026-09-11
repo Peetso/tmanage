@@ -859,13 +859,40 @@ export class AuthenticationService {
    * server in a readable form — the person has to be able to type it if a camera will not
    * read the QR code. The factor authorises nothing until {@link confirmTotpFactor} proves a
    * code can be produced from it.
+   *
+   * `D05`, third clause: behind fresh proof, like every other credential-changing action.
+   *
+   * The gate that *has* to be here is the one on {@link confirmTotpFactor} — that is the
+   * method which reaches `replaceRecoveryCodes`, and a gate on this method alone would close
+   * nothing, because a caller can post to `/confirm` with an id it already holds. This one is
+   * the second half of the pair, and it earns its place twice over. It refuses before a row
+   * is written, so a session that cannot prove itself never leaves a pending factor behind;
+   * and it refuses before the seed is generated and returned, so an account-bound secret is
+   * not handed to a caller who has shown nothing but a cookie. It also fails at the point a
+   * person can act on — asked for the password before the QR code, not after they have
+   * scanned it.
+   *
+   * There is no first-time exemption of the kind {@link setPassword} has. The password is the
+   * proof, and an account with no password cannot re-authenticate at all — but that is
+   * already true of {@link disableFactor} and {@link regenerateRecoveryCodes}, and a second
+   * factor guarding an account with no first one guards nothing.
    */
   async beginTotpEnrolment(input: {
     userId: string;
+    sessionId: string;
     accountName: string;
     label: string;
+    reauthToken?: string | undefined;
     context: SignInContext;
   }): Promise<{ factorId: string; secret: string; uri: string }> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.factorEnrolled,
+      context: input.context,
+    });
+
     const secret = generateTotpSecret();
 
     const factorId = await this.database.identityTransaction(
@@ -900,13 +927,35 @@ export class AuthenticationService {
    * The returned codes are shown once and never again. Nothing stores them in plaintext, so
    * there is nowhere to show them from a second time — which is what makes `ID-05`'s
    * "Regenerating invalidates the old set immediately" a fact rather than a promise.
+   *
+   * `D05`, third clause, and **this is the gate the finding was about**. Confirming issues a
+   * new set of recovery codes over the top of whatever the account already had and returns
+   * the new set to the caller, which is exactly what {@link regenerateRecoveryCodes} does and
+   * has always been gated for. Without the gate here, anybody holding a live session — a
+   * stolen cookie, an unattended browser, a shared machine — could destroy the owner's
+   * recovery codes and read the replacements, and the owner's own copies would simply stop
+   * working. A live session is not proof of the person; the password is.
+   *
+   * Checked **before** the ownership lookup, for the same reason {@link disableFactor} checks
+   * before its own: the refusal for a missing token must not differ between a real factor id
+   * and an invented one.
    */
   async confirmTotpFactor(input: {
     userId: string;
+    sessionId: string;
     factorId: string;
     code: string;
+    reauthToken?: string | undefined;
     context: SignInContext;
   }): Promise<{ recoveryCodes: readonly string[] }> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.factorEnrolled,
+      context: input.context,
+    });
+
     const generated = generateRecoveryCodes();
 
     const accepted = await this.database.identityTransaction(

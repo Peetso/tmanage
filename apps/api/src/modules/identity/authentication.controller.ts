@@ -27,7 +27,7 @@ import { describePasswordRejection } from './password.js';
  * `D05`. The header a credential-changing request carries its re-authentication token in.
  *
  * A header rather than a body field, for the same reason the CSRF token is one:
- * `DELETE /factors/:id` has no body to put it in, and one convention across the three routes
+ * `DELETE /factors/:id` has no body to put it in, and one convention across the five routes
  * is one thing for a client to get right.
  */
 export const REAUTH_HEADER = 'x-reauth-token';
@@ -292,7 +292,7 @@ export class CredentialsController {
 
   /**
    * `D05`. Re-present the password (and the code, when a factor exists) from inside a live
-   * session, and receive the short-lived token the three credential-changing routes require.
+   * session, and receive the short-lived token the five credential-changing routes require.
    *
    * The refusal is the same 401 sign-in gives, with the same discipline: whether a factor
    * exists is not disclosed by the response. The session itself is untouched either way.
@@ -403,6 +403,10 @@ export class CredentialsController {
    * The response carries the secret, which is the only time it leaves the server readable —
    * a person whose camera will not read the QR code has to be able to type it. The factor
    * authorises nothing until it is confirmed.
+   *
+   * `D05`: needs the `x-reauth-token` header, like `/confirm` below and like the other three
+   * credential-changing routes. See {@link AuthenticationService.beginTotpEnrolment} for why
+   * both halves of the enrolment carry the gate and which of the two is load-bearing.
    */
   @Post('factors/totp')
   @NoTenant()
@@ -413,21 +417,34 @@ export class CredentialsController {
     @Req() request: RequestLike,
   ): Promise<{ factorId: string; secret: string; uri: string }> {
     const state = requireRequestState(request);
-    return this.authentication.beginTotpEnrolment({
-      userId: session.userId,
-      label: typeof body?.label === 'string' && body.label !== '' ? body.label : 'Authenticator',
-      // The label an authenticator app shows. Falls back to the user id rather than to an
-      // email the session does not carry — `AuthenticatedSession` holds no address, and
-      // fetching one here to make the QR code prettier would put a user read on this path.
-      accountName:
-        typeof body?.accountName === 'string' && body.accountName !== ''
-          ? body.accountName
-          : session.userId,
-      context: { correlationId: state.correlationId },
-    });
+    try {
+      return await this.authentication.beginTotpEnrolment({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        label: typeof body?.label === 'string' && body.label !== '' ? body.label : 'Authenticator',
+        // The label an authenticator app shows. Falls back to the user id rather than to an
+        // email the session does not carry — `AuthenticatedSession` holds no address, and
+        // fetching one here to make the QR code prettier would put a user read on this path.
+        accountName:
+          typeof body?.accountName === 'string' && body.accountName !== ''
+            ? body.accountName
+            : session.userId,
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
+      });
+    } catch (error) {
+      this.translateReauth(error);
+      throw error;
+    }
   }
 
-  /** Confirm the factor with a code, and receive the recovery codes once. */
+  /**
+   * Confirm the factor with a code, and receive the recovery codes once.
+   *
+   * `D05`: needs the `x-reauth-token` header. This is the route the third clause of the
+   * finding was about — confirming replaces the account's recovery codes and hands the new
+   * set back, so a live session on its own must not be able to reach it.
+   */
   @Post('factors/totp/confirm')
   @NoTenant()
   @HttpCode(200)
@@ -449,11 +466,14 @@ export class CredentialsController {
     try {
       return await this.authentication.confirmTotpFactor({
         userId: session.userId,
+        sessionId: session.sessionId,
         factorId,
         code,
-        context: { correlationId: state.correlationId },
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
       });
     } catch (error) {
+      this.translateReauth(error);
       if (error instanceof AuthenticationRejectedError) {
         // One answer for a wrong code and for someone else's factor id, so the route cannot
         // be used to discover whether a factor exists.
