@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parseSeedKeys } from './seed-keys.js';
+import { parseTrustedProxies } from './trusted-proxies.js';
 
 /**
  * Environment schema for every TManage process.
@@ -131,6 +132,30 @@ export const envSchema = z
     API_PUBLIC_URL: z.string().url(),
     WEB_PUBLIC_URL: z.string().url(),
     CORS_ALLOWED_ORIGINS: originList,
+    /**
+     * D09. The peers whose `X-Forwarded-*` headers are believed — a comma-separated list of
+     * addresses and CIDR ranges — and nobody else's. **Unset means trust nobody**, so an
+     * origin with no proxy in front of it reads the socket peer and gets the truth without
+     * configuring anything; an operator who does run behind a proxy names it.
+     *
+     * The parsed value is handed to Fastify's `trustProxy` as it stands (`false`, or the
+     * list): see `trusted-proxies.ts` for why the shape is the two Fastify forms rather than
+     * a hop count, and why a malformed list fails here instead of quietly becoming `false`.
+     */
+    TRUSTED_PROXY_ADDRESSES: z
+      .string()
+      .default('')
+      .transform((value, ctx) => {
+        try {
+          return parseTrustedProxies(value);
+        } catch (error) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: error instanceof Error ? error.message : 'is not a valid address list',
+          });
+          return z.NEVER;
+        }
+      }),
 
     // Database — two distinct users (ADR-0001 layer 2, 25-AUTH-AND-TENANT-ISOLATION §5).
     DATABASE_URL: mysqlUrl,

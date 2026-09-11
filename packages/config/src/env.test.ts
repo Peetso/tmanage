@@ -364,6 +364,68 @@ describe('loadEnv', () => {
   });
 
   /**
+   * D09 (2026-09-11). `main.ts` passed `trustProxy: true`, so any client could name its own
+   * address, host and protocol. The replacement is an allowlist an operator writes out, and
+   * the value of the default is the whole point of the finding: nothing set means nothing
+   * trusted, and `false` is what Fastify is handed.
+   */
+  describe('trusted proxies (D09)', () => {
+    it('trusts nobody when nothing is set: the socket peer is the client address', () => {
+      expect(loadEnv(devEnv()).TRUSTED_PROXY_ADDRESSES).toBe(false);
+    });
+
+    it('trusts nobody when the variable is present but empty', () => {
+      expect(loadEnv({ ...devEnv(), TRUSTED_PROXY_ADDRESSES: '' }).TRUSTED_PROXY_ADDRESSES).toBe(
+        false,
+      );
+    });
+
+    it('reads a single operator-supplied address', () => {
+      const env = loadEnv({ ...devEnv(), TRUSTED_PROXY_ADDRESSES: '203.0.113.7' });
+
+      expect(env.TRUSTED_PROXY_ADDRESSES).toEqual(['203.0.113.7']);
+    });
+
+    it('reads several addresses, IPv4 and IPv6 together', () => {
+      const env = loadEnv({
+        ...devEnv(),
+        TRUSTED_PROXY_ADDRESSES: '203.0.113.7, 198.51.100.4, 2001:db8::1',
+      });
+
+      expect(env.TRUSTED_PROXY_ADDRESSES).toEqual(['203.0.113.7', '198.51.100.4', '2001:db8::1']);
+    });
+
+    it('reads a CIDR range, which is how a proxy fleet is named', () => {
+      const env = loadEnv({ ...devEnv(), TRUSTED_PROXY_ADDRESSES: '10.0.0.0/8,2001:db8::/32' });
+
+      expect(env.TRUSTED_PROXY_ADDRESSES).toEqual(['10.0.0.0/8', '2001:db8::/32']);
+    });
+
+    it.each([
+      ['an empty element', '203.0.113.7,,198.51.100.4'],
+      ['a trailing comma', '203.0.113.7,'],
+      ['a host name, which is not an address', 'edge.tmanage.example'],
+      ['a bare word', 'not-an-address'],
+      ['a hop count, which this setting is deliberately not', '2'],
+      ['the old boolean', 'true'],
+      ['an octet out of range', '999.1.1.1'],
+      ['a prefix length outside the family', '10.0.0.0/33'],
+      ['a slash with no prefix length', '10.0.0.0/'],
+      ['/0, which is trust-all spelled as a range and which Fastify refuses too', '0.0.0.0/0'],
+    ])('refuses %s at boot rather than falling back to trusting nobody', (_case, value) => {
+      expect(issuePaths(() => loadEnv({ ...devEnv(), TRUSTED_PROXY_ADDRESSES: value }))).toContain(
+        'TRUSTED_PROXY_ADDRESSES',
+      );
+    });
+
+    it('names the variable in the boot failure, not just the bad entry', () => {
+      expect(() => loadEnv({ ...devEnv(), TRUSTED_PROXY_ADDRESSES: 'not-an-address' })).toThrow(
+        /TRUSTED_PROXY_ADDRESSES/,
+      );
+    });
+  });
+
+  /**
    * D07. The MFA seed keys are the one secret whose absence would be silently survivable —
    * the API would boot and only fail when somebody enrolled a factor — so the schema demands
    * them in every environment, and demands the same shape the cipher will demand later.
