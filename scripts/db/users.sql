@@ -18,8 +18,8 @@
 -- migrating a schema, and the two are separate for the same reason the users are.
 --
 -- **After `pnpm db:migrate`** — `pnpm db:grants` does exactly that. Every grant
--- below is table-level, and MySQL and MariaDB both reject a table-level GRANT naming a
--- table that does not exist (`ER_NO_SUCH_TABLE`, 1146). An earlier revision of
+-- below is table-level, and MySQL rejects a table-level GRANT naming a table that does
+-- not exist (`ER_NO_SUCH_TABLE`, 1146). An earlier revision of
 -- `compose.yaml` mounted this file into `/docker-entrypoint-initdb.d/`, which runs on the
 -- server's *first boot* — necessarily before any migration. That mount could never have
 -- succeeded, and has been removed rather than worked around by loosening the grants.
@@ -254,10 +254,10 @@ GRANT INSERT         ON `tmanage`.`notifications`       TO 'tmanage_worker'@'%';
 -- collapsing the two into one credential is a validation error rather than a code review
 -- someone might skip.
 --
--- Created here as well as by `compose.yaml`'s MARIADB_USER, because this file must also
+-- Created here as well as by `compose.yaml`'s MYSQL_USER, because this file must also
 -- work against a server that was not provisioned by that compose file — a CI service
--- container, or a Hostinger database created through the panel. MySQL 8 and MariaDB 10.4+
--- both refuse `GRANT` to a user that does not exist, so the create cannot be skipped.
+-- container, or a Hostinger database created through the panel. MySQL refuses `GRANT` to
+-- a user that does not exist, so the create cannot be skipped.
 -- `IF NOT EXISTS` leaves an existing user's password untouched.
 CREATE USER IF NOT EXISTS 'tmanage_migrator'@'%' IDENTIFIED BY 'local_dev_only_migrator';
 

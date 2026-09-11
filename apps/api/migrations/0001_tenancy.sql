@@ -21,8 +21,9 @@
 -- composite foreign key still permits moving a whole row between tenants if every
 -- referenced parent moves with it.
 --
--- Conventions: InnoDB, utf8mb4/utf8mb4_unicode_ci (chosen over utf8mb4_0900_ai_ci because
--- the latter does not exist on MariaDB, which is the deployed engine), ROW_FORMAT=DYNAMIC,
+-- Conventions: InnoDB, utf8mb4/utf8mb4_unicode_ci (spelled out on every table rather than
+-- inherited, because MySQL 8's own server default is utf8mb4_0900_ai_ci and an unstated
+-- collation would follow whatever the server was started with), ROW_FORMAT=DYNAMIC,
 -- DATETIME(3) in UTC, application-generated UUIDv7 stored as canonical lowercase CHAR(36).
 -- Strict SQL mode and the UTC session time zone are set by the connection, not here.
 

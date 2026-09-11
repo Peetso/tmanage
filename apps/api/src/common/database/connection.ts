@@ -81,11 +81,12 @@ function promisify(connection: PoolConnection): Connection {
 /**
  * Apply per-connection session state.
  *
- * The statement timeout is set twice on purpose. MySQL calls it `max_execution_time`
- * (milliseconds, SELECT only); MariaDB calls it `max_statement_time` (seconds, all
- * statements). ADR-0002 records that local development runs MySQL while the deployed
- * database is MariaDB, so both are attempted and the one the server does not recognise is
- * ignored rather than failing the connection.
+ * The engine is MySQL everywhere, so the statement timeout is `max_execution_time`
+ * (milliseconds) and nothing else. Note what that does and does not cover: MySQL applies
+ * it to read-only SELECT statements only, so a runaway write is not capped here and must
+ * be bounded by the query itself. The set is tolerated failing because a managed or shared
+ * server may refuse the session variable, and a connection that cannot set a timeout is
+ * still a usable connection.
  */
 async function applySessionState(
   connection: Connection,
@@ -95,12 +96,7 @@ async function applySessionState(
   try {
     await connection.query('SET SESSION max_execution_time = ?', [statementTimeoutMs]);
   } catch {
-    // MySQL-only variable; MariaDB raises ER_UNKNOWN_SYSTEM_VARIABLE.
-  }
-  try {
-    await connection.query('SET SESSION max_statement_time = ?', [statementTimeoutMs / 1000]);
-  } catch {
-    // MariaDB-only variable; MySQL raises ER_UNKNOWN_SYSTEM_VARIABLE.
+    // A server that refuses the variable still serves queries; see the note above.
   }
 }
 

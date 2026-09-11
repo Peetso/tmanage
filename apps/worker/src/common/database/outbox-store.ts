@@ -39,9 +39,9 @@ interface OutboxRow {
 }
 
 /**
- * MySQL's JSON type hands mysql2 a parsed object; MariaDB's JSON is an alias for LONGTEXT
- * and arrives as a string. ADR-0002 records that both engines are real deployment targets,
- * so both shapes are handled rather than assumed away.
+ * MySQL's JSON type hands mysql2 a parsed object, which is what this column returns. The
+ * string branch is a tolerance for a driver or a column that hands back raw text — not an
+ * engine difference, since MySQL is the only engine this runs against.
  */
 function parsePayload(value: unknown): unknown {
   if (typeof value !== 'string') return value;
@@ -66,7 +66,7 @@ export interface ClaimOptions {
  * loop and as controlled batches" (50-BOOTSTRAP §3) safe to do concurrently. The locks
  * hold until the enclosing transaction commits, so a claimed event is either published,
  * failed forward, or — on a crash — released untouched for the next run. Supported by
- * MySQL 8.0 and MariaDB 10.6+, both inside the engines ADR-0002 names.
+ * MySQL 8.0 and later, which is every server this runs against (ADR-0002).
  */
 export async function claimDueEvents(
   tx: WorkerTransaction,

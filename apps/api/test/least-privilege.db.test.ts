@@ -455,7 +455,7 @@ withCredential('the runtime user (tmanage_app)', () => {
     // What is asserted here is that `tmanage_app` can *establish* that state, because that
     // is the part the credential owns. An earlier revision instead read the session's
     // inherited `sql_mode` on a bare connection and required STRICT_ALL_TABLES to be
-    // present already. That only ever held because `compose.yaml` launches its MariaDB with
+    // present already. That only ever held because `compose.yaml` launches its server with
     // `--sql-mode=STRICT_ALL_TABLES,...`; it was an assertion about a server's start-up
     // flags wearing a credential's clothing, and it fails on any server those flags cannot
     // be passed to — the embedded MySQL here, and Hostinger's shared MySQL in production,

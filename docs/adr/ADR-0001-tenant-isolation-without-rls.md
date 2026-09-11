@@ -9,16 +9,22 @@
 
 ## Context
 
-The database and access layer are **fixed by the planning pack**, not open decisions:
-Hostinger's MySQL-compatible MariaDB (InnoDB, strict mode, `utf8mb4`) with Drizzle ORM,
-the `mysql2` driver, and explicit SQL migrations. This is driven by `50-BOOTSTRAP` — the
-funded environment is one small Hostinger Cloud plan, whose included database is MariaDB.
-PostgreSQL is not available on it.
+The database and access layer are **fixed**, not open decisions: MySQL (InnoDB, strict
+mode, `utf8mb4`) with Drizzle ORM, the `mysql2` driver, and explicit SQL migrations. This
+is driven by `50-BOOTSTRAP` — the funded environment is the owner's Hostinger plan, whose
+included database is MySQL. PostgreSQL is not available on it.
+
+> **Correction, 2026-09-12.** Earlier revisions of this ADR named the engine "Hostinger's
+> MySQL-compatible MariaDB", following the planning pack. The owner has confirmed the
+> engine is MySQL, and the repository agrees: the driver is `mysql2` and every suite runs a
+> real MySQL server. MariaDB is used nowhere — not in development, not in test, not in
+> deployment. The planning pack still says otherwise and is immutable; the discrepancy is
+> the pack's, not the implementation's.
 
 This ADR therefore does **not** decide the engine. It decides the thing the pack names as
 a requirement but leaves to implementation: **what concretely replaces row-level security.**
 
-MySQL and MariaDB have no RLS. `04-SECURITY-PRIVACY.md` §4 is blunt about the consequence:
+MySQL has no RLS. `04-SECURITY-PRIVACY.md` §4 is blunt about the consequence:
 "no control may assume it exists." On PostgreSQL, a forgotten `WHERE organization_id = ?`
 returns zero rows. On MySQL, the same omission returns **every tenant's rows**. The failure
 mode inverts from safe to catastrophic, and it is silent — the endpoint works, the tests
@@ -130,9 +136,9 @@ limits the blast radius.
 
 ## Revisit trigger
 
-- Move from Hostinger's included database to a funded managed MySQL/MariaDB service when
-  the capacity, backup, recovery, regional, availability, or support gate in
-  `50-BOOTSTRAP` §8 is passed. The five isolation layers remain mandatory after that move.
+- Move from Hostinger's included database to a funded managed MySQL service when the
+  capacity, backup, recovery, regional, availability, or support gate in `50-BOOTSTRAP` §8
+  is passed. The five isolation layers remain mandatory after that move.
 - Revisit the guard's SQL parsing if false positives require more than a handful of
   documented escapes.
-- If MariaDB ships a usable RLS-equivalent, adopt it as a sixth layer, not a substitute.
+- If MySQL ships a usable RLS-equivalent, adopt it as a sixth layer, not a substitute.

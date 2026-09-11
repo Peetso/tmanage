@@ -234,7 +234,9 @@ async function revisionsOf(
   return send('GET', `/conversations/${conversationId}/messages/${messageId}/revisions`, session);
 }
 
-/** The stored `body_rich`, as a parsed value on both engines (MariaDB returns it as text). */
+/** The stored `body_rich`, parsed. mysql2 returns MySQL's `json` already parsed; the
+ * string branch is a tolerance for a driver that hands back raw text, not an engine
+ * difference. */
 async function storedBodyRich(messageId: string): Promise<unknown> {
   const rows = await observe('select body_rich from messages where id = ?', [messageId]);
   const raw = rows[0]?.['body_rich'];

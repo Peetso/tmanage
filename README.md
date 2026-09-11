@@ -41,8 +41,8 @@ With a container runtime:
 docker compose up -d --wait
 ```
 
-This starts MariaDB 11.4, Valkey 8.1, and MinIO — mirroring the bootstrap deployment
-profile (Hostinger MariaDB, Upstash Redis, Cloudflare R2). Then, in order:
+This starts MySQL 8.4, Valkey 8.1, and MinIO — mirroring the bootstrap deployment
+profile (Hostinger MySQL, Upstash Redis, Cloudflare R2). Then, in order:
 
 ```bash
 pnpm db:migrate
@@ -53,8 +53,8 @@ pnpm db:grants
 ```
 
 The order is not stylistic. `scripts/db/users.sql` creates the least-privilege runtime and
-worker users (ADR-0001 layer 2) with table-level grants, and both MySQL and MariaDB reject a
-table-level `GRANT` naming a table that does not exist. `db:grants` also needs an
+worker users (ADR-0001 layer 2) with table-level grants, and MySQL rejects a table-level
+`GRANT` naming a table that does not exist. `db:grants` also needs an
 administrative credential — it issues `CREATE USER` and `GRANT`, which the migration user
 deliberately cannot do — so point `DATABASE_MIGRATION_URL` at an admin user for that command
 only.
@@ -68,8 +68,8 @@ says so; CI is where it runs.
 ## Architecture
 
 pnpm TypeScript monorepo. Next.js App Router for the team app and the dedicated client
-portal; NestJS + Fastify as a modular-monolith API; Hostinger MySQL-compatible MariaDB as
-the system of record; Drizzle ORM with `mysql2` and explicit SQL migrations; a
+portal; NestJS + Fastify as a modular-monolith API; MySQL as the system of record, on
+Hostinger; Drizzle ORM with `mysql2` and explicit SQL migrations; a
 Redis-compatible service for cache, rate limits, presence, and BullMQ; S3-compatible
 private object storage.
 

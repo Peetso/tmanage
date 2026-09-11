@@ -31,7 +31,7 @@ no-container substitute is available for development and test only.
 
 | Dependency     | Canonical (`compose.yaml`) | Deployed (bootstrap) | Local substitute                                                                             | Fidelity |
 | -------------- | -------------------------- | -------------------- | -------------------------------------------------------------------------------------------- | -------- |
-| Database       | `mariadb:11.4`             | Hostinger MariaDB    | `mysql-memory-server` — downloads and runs a **real** MySQL server binary as a child process | **Full** |
+| Database       | `mysql:8.4`                | Hostinger MySQL      | `mysql-memory-server` — downloads and runs a **real** MySQL server binary as a child process | **Full** |
 | Cache/queue    | `valkey:8.1`               | Upstash Redis Free   | in-process `memory` driver                                                                   | Partial  |
 | Object storage | MinIO                      | Cloudflare R2        | `filesystem` driver                                                                          | Partial  |
 
@@ -50,11 +50,16 @@ behaviour are precisely what layer 1 of ADR-0001 relies on, and an emulator that
 the DDL without enforcing it would make the isolation suite pass while proving nothing —
 worse than not running it.
 
-**Engine note.** The substitute is MySQL; the deployed database is MariaDB. They diverge on
-features this schema deliberately avoids (no `CHECK` reliance beyond both engines' support,
-no engine-specific JSON functions in tenant-critical paths, no `RETURNING`). CI runs
-MariaDB via `compose.yaml`, so any divergence is caught there rather than only at deploy.
-This gap is recorded in `docs/implementation-status.md` against every check it affects.
+**Engine note.** One engine, everywhere: MySQL. The substitute is MySQL, `compose.yaml` is
+MySQL, and the deployed database is MySQL. There is therefore no engine skew for CI to
+close, and the containerised run earns its place on other grounds — the server start-up
+flags, the provisioned least-privilege users, and Valkey and MinIO beside the database.
+
+> **Correction, 2026-09-12.** Earlier revisions of this ADR said the substitute was MySQL
+> while the deployed database was MariaDB, and that CI was the only place the skew was
+> caught. That followed the planning pack's hosting assumption. The owner has confirmed the
+> engine is MySQL and MariaDB is used nowhere, so the gap being managed here never existed
+> as described. The claims removed were stale, not wrong when written.
 
 ### Guardrails
 
@@ -96,12 +101,11 @@ Recorded so they are never mistaken for coverage:
 
 - Two code paths per dependency, both needing maintenance. Mitigated by a shared contract
   test suite every driver of a port must pass.
-- MySQL-vs-MariaDB engine skew between local and deployed, addressed by CI as above.
 - First test run downloads a MySQL binary (cached under `.local/`).
 
 ## Revisit trigger
 
 Remove the `memory` and `filesystem` substitutes once CI and every developer machine has a
 container runtime. Keep the ports. Keep the embedded server for local runs regardless — it
-is materially faster than a container round-trip and, for MySQL-vs-MariaDB, switch it to an
-embedded MariaDB if one becomes available so local and deployed engines match exactly.
+is materially faster than a container round-trip and it is the same engine as the deployed
+database, so nothing is traded away by preferring it.

@@ -68,7 +68,7 @@ export interface SessionSummary {
   readonly expiresAt: Date;
 }
 
-/** MySQL and MariaDB both return 1/0 rather than a boolean; neither has a boolean type. */
+/** MySQL returns 1/0 rather than a boolean; it has no boolean type. */
 const expiredByServerClock = sql<number>`case when ${sessions.expiresAt} <= now(3) then 1 else 0 end`;
 
 export class SessionsRepository {

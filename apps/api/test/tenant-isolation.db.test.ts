@@ -94,33 +94,30 @@ afterAll(async () => {
 
 describe('the harness itself', () => {
   it('records which engine and which credential produced this run', () => {
-    // Not decoration. ADR-0002 records that local is MySQL and deployed is MariaDB, and
-    // that CI is the only place the skew is caught — so a result that does not say which
-    // engine it came from cannot discharge that. Likewise ADR-0001 layer 2: a corpus green
-    // under a root credential proves nothing about the privileges the application holds.
-    expect(['mysql', 'mariadb']).toContain(db.engine.name);
+    // Not decoration. MySQL is the engine everywhere (ADR-0002), and a corpus that does
+    // not say which server produced it cannot show that it ran on the engine the product
+    // uses. Likewise ADR-0001 layer 2: a corpus green under a root credential proves
+    // nothing about the privileges the application holds.
+    expect(db.engine.name, 'the engine is MySQL, everywhere').toBe('mysql');
     console.warn(
       `[isolation corpus] engine=${db.engine.name} ${db.engine.version} · ` +
         // `external` means only that TMANAGE_TEST_DATABASE_URL was supplied. It does not
         // mean a container: a long-lived embedded server started outside the per-file
         // lifecycle reaches this branch too, and labelling that run "containerised
         // (compose.yaml)" put a claim in the log that the harness had no way to check.
-        // The engine and version printed beside it are what actually distinguish CI's
-        // MariaDB from a local MySQL.
+        // The engine and version printed beside it are what the reader has instead.
         `server=${db.external ? 'external (TMANAGE_TEST_DATABASE_URL)' : 'embedded (ADR-0002)'} · ` +
         `runtime credential=${db.leastPrivilege ? 'tmanage_app (least privilege)' : 'admin'}`,
     );
 
     if (process.env['CI']) {
-      // The containerised MariaDB run and the least-privilege credential are the two things
+      // The containerised run and the least-privilege credential are the two things
       // PLAT-003 exists to convert from promise into evidence. If either is missing in CI,
       // the corpus is still green while proving less than the status document claims — so
-      // it fails here instead, loudly, rather than passing quietly.
+      // it fails here instead, loudly, rather than passing quietly. The engine is already
+      // asserted above and does not differ here: CI and local run the same MySQL.
       expect(db.external, 'CI must run the containerised stack, not the embedded server').toBe(
         true,
-      );
-      expect(db.engine.name, 'CI must run MariaDB — that is the skew ADR-0002 defers to it').toBe(
-        'mariadb',
       );
       expect(
         db.leastPrivilege,

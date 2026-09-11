@@ -218,7 +218,8 @@ function driverErrorCode(error: unknown): string | undefined {
   if (typeof unwrapped !== 'object' || unwrapped === null) return undefined;
   const candidate = unwrapped as { code?: unknown; errno?: unknown };
   if (typeof candidate.code === 'string') return candidate.code;
-  // MariaDB and MySQL agree on the numbers where they disagree on the names.
+  // mysql2's string `code` does not survive every wrapping; the server's own numeric
+  // errno does, and names the same two errors.
   if (candidate.errno === 1062) return ER_DUP_ENTRY;
   if (candidate.errno === 1452) return ER_NO_REFERENCED_ROW;
   return undefined;
