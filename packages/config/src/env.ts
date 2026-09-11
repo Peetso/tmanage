@@ -274,7 +274,42 @@ export const envSchema = z
     // Rate limiting
     RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
     RATE_LIMIT_MAX_REQUESTS: positiveInt.default(300),
+    /**
+     * D08. The sign-in abuse control's budgets, one shared window, one number per key:
+     * `RATE_LIMIT_AUTH_MAX_REQUESTS` bounds source+account (one address grinding one
+     * account), `RATE_LIMIT_AUTH_MAX_PER_SOURCE` bounds the address across every account it
+     * names, and `RATE_LIMIT_AUTH_MAX_GLOBAL` bounds every address together — the one an
+     * attacker rotating addresses cannot evade.
+     *
+     * These are ceilings for the bootstrap profile, not a traffic plan: they are set where
+     * ordinary use never reaches them, and lowering them is a deliberate act. The per-source
+     * default is 30 rather than 5 because success is not exempt from the count, so a real
+     * person retyping a password must not be able to reach it.
+     *
+     * What that 30 actually buys: 30 charges per address per five minutes across all four
+     * authentication routes together — password, MFA, recovery, reauthentication — which is
+     * roughly fifteen complete MFA sign-ins. The arithmetic is worth doing out loud, because
+     * "30 attempts" reads as thirty sign-ins and is not: a person with a second factor spends
+     * **two** charges to sign in once, the password post and the completion post, so 30 is
+     * 15 complete logins and not 30; changing a password on top of that spends a third on
+     * `/v1/auth/reauth`. Wherever egress is shared it is a per-office ceiling and not a
+     * per-person one — fifteen complete logins per five minutes for everything behind the
+     * address. It self-heals the moment the window turns, and it is the number an operator
+     * behind NAT should expect to raise.
+     *
+     * The global budget is unevadable in both directions, and that cuts against the
+     * deployment as much as for it: nobody can rotate addresses past it, and anybody who
+     * spends it refuses everybody — password, MFA, recovery and reauthentication alike —
+     * until the window turns. That is why it is 3000 (about ten a second) rather than 600. At
+     * 600 a twenty-source spray, trivial for as long as `trustProxy: true` stands (D09), buys
+     * a repeatable authentication outage for about two requests a second; at 3000 the same
+     * outage costs an attacker real sustained traffic, while the Argon2 and log cost the
+     * budget exists to bound is still bounded.
+     */
     RATE_LIMIT_AUTH_MAX_REQUESTS: positiveInt.default(10),
+    RATE_LIMIT_AUTH_WINDOW_SECONDS: positiveInt.default(300),
+    RATE_LIMIT_AUTH_MAX_PER_SOURCE: positiveInt.default(30),
+    RATE_LIMIT_AUTH_MAX_GLOBAL: positiveInt.default(3000),
 
     // Observability
     OTEL_SERVICE_NAME: nonEmpty('OTEL_SERVICE_NAME').default('tmanage-api'),

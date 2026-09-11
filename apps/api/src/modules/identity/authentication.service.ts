@@ -17,6 +17,7 @@ import { REAUTH_TTL_SECONDS, signReauthToken, verifyReauthToken } from './reauth
 import { findRecoveryCode, generateRecoveryCodes } from './recovery-codes.js';
 import { generateTotpSecret, totpUri, verifyTotp } from './totp.js';
 import { SessionsRepository } from './sessions.repository.js';
+import type { SignInAbuseControl, SignInAbuseReason } from './sign-in-abuse-control.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -48,8 +49,13 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *
  * ## Lockout, and what it is not
  *
- * `countRecentFailures` counts rows in `authentication_events` within a window. Two honest
- * limitations, both recorded in `docs/implementation-status.md`:
+ * `countRecentFailures` counts rows in `authentication_events` within a window — the rows that
+ * record a credential being presented and refused, which is not every `failed` row. The three
+ * throttle reasons `sign-in-abuse-control.ts` writes in front of the password check are
+ * excluded there, and so is the `locked_out` row this file writes when the window is already
+ * full: a row the count itself caused is never an input to it, or the lockout would renew
+ * itself for as long as anyone kept knocking. `credentials.repository.ts` carries the argument
+ * for both. Two honest limitations, both recorded in `docs/implementation-status.md`:
  *
  * - It is **per user**, not per source. It stops credential stuffing against one account and
  *   does nothing about one attempt each against a thousand accounts.
@@ -57,6 +63,41 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *   proceed. The window is a counter, not a lock. Closing that would need `SELECT … FOR
  *   UPDATE` on a row that does not exist yet, and the attacker's gain from the race is one
  *   extra guess.
+ *
+ * **D08 half-closes the first of those, and it is worth being precise about which half.**
+ * `options.abuseControl` (see `sign-in-abuse-control.ts`) now bounds attempts by *where they
+ * came from* — per address, per address-and-account, and globally — in front of every path
+ * below that costs an Argon2 verify or a log row. What that does **not** buy:
+ *
+ * - It lives **in process**. The bound is memory in this Node process, not a row, so a
+ *   restart forgets every window and **a second process would count separately**; the
+ *   bootstrap profile runs **one** API process by design (`50-BOOTSTRAP` §3, `main.ts`), which
+ *   is the only reason this is honest. Scale that out and the per-source budget multiplies by
+ *   the process count.
+ * - It is **bounded by D09**, which is unfixed: `main.ts` sets `trustProxy: true`, so
+ *   `request.ip` is whatever `X-Forwarded-For` says. Anyone who can reach the origin directly,
+ *   or set that header, can rotate the source key at will — and the source+account key with
+ *   it, because that key is `sa:<ip>:<hash>` and *contains* the address. An earlier version of
+ *   this comment claimed the account key was not evadable that way; it is, and the final
+ *   review of 2026-09-07 was right to call that the wrong claim in the safe-sounding
+ *   direction. While D09 stands, what holds against a caller who can set that header is the
+ *   global key and the **durable per-user lockout** above (5 failures in 900 s) — and the
+ *   lockout is the one that actually catches a grind against a named account. Read both
+ *   address-keyed budgets as a cost bound on honest traffic, not as a defence against a
+ *   determined attacker, until D09 lands.
+ * - The **global key is a deployment-wide refusal lever**, and it is only ever *crossed* by
+ *   attempts that were admitted. Not "charged only by" them: a refusal charges the key that
+ *   refused it, so a global refusal does charge `g` — on a budget already past its limit, which
+ *   moves no verdict. What a refused attempt never charges is a budget it did not reach. That
+ *   is what keeps the global boundary out of one address's reach: a single source is refused by
+ *   its own key long before it could spend a global budget of 3000 in 300 s, and a refused
+ *   attempt charges only the key that refused it — nothing wider, and, since the two-phase
+ *   charge of `7cc9c16`, nothing narrower either. The route that
+ *   remains is, again, D09 — one attacker who can look like thousands of addresses has every
+ *   attempt admitted, and can spend the global budget and refuse everybody until the window
+ *   turns. `sign-in-abuse-control.ts` carries the full argument and the sizing.
+ *
+ * The second limitation — the counter-not-a-lock race — is untouched.
  */
 
 /** The identity tables this service reaches. Enforced by `TenantDatabase.identity*`. */
@@ -125,7 +166,10 @@ export type AuthenticationReason =
   | 'reauth_required'
   | 'reauth_invalid'
   | 'reauth_expired'
-  | 'reauth_wrong_session';
+  | 'reauth_wrong_session'
+  // `D08`. Which source budget refused, in the abuse control's own words — reused rather
+  // than retyped, so the two lists cannot drift apart.
+  | SignInAbuseReason;
 
 /** What the caller is told. Deliberately coarse — see the note at the top of the file. */
 export type SignInRejection = 'invalid_credentials' | 'rate_limited';
@@ -141,6 +185,18 @@ export interface AuthenticationOptions {
   readonly totpIssuer: string;
   /** Optional. When absent, only the bundled list screens a new password. */
   readonly breachedPasswordScreen?: BreachedPasswordScreen;
+  /**
+   * `D08`. The source-based bound consulted in front of every password oracle in this file.
+   *
+   * **Required, and with no default**, for a reason worth stating rather than leaving to the
+   * next reader. The only default this file could honestly supply is one that admits
+   * everything — a control nobody chose, failing open, and indistinguishable at the call site
+   * from a control that is working. Making it required turns the compiler into the thing that
+   * finds every construction site: none of them can be built until someone has decided what
+   * budget it runs on. `breachedPasswordScreen` above is the precedent for a collaborator
+   * living in this interface rather than arriving as another constructor parameter.
+   */
+  readonly abuseControl: SignInAbuseControl;
 }
 
 export interface SignInContext {
@@ -211,6 +267,13 @@ export class PasswordRejectedError extends Error {
 export class AuthenticationService {
   private readonly credentials: CredentialsRepository;
 
+  /**
+   * How many refusal rows this process has failed to write. See {@link recordRefusal}: the
+   * only place a lost row is visible is the stderr line, and without a count every line reads
+   * like the first one.
+   */
+  private lostRefusalRows = 0;
+
   constructor(
     private readonly database: TenantDatabase,
     private readonly options: AuthenticationOptions,
@@ -247,6 +310,28 @@ export class AuthenticationService {
     context: SignInContext;
   }): Promise<SignInOutcome> {
     const { email, password, context } = input;
+
+    // `D08`, and the ordering is the whole point: this runs before the user lookup, before
+    // the Argon2 verify, and before any `record()` call, so a refused attempt costs three map
+    // lookups and nothing else — no read, no 15 ms of CPU, and at most one row per key per
+    // window (plus one per eviction from the control's refusing-key set, which its own
+    // `createBudget` header prices) rather than one row per attempt. It sits **in front of**
+    // the per-user lockout below, not instead of it: this one bounds a source, that one bounds
+    // an account, and the account bound is the durable one that survives a restart.
+    const verdict = this.options.abuseControl.admit({ ip: context.ip, account: email });
+    if (!verdict.admitted) {
+      if (verdict.firstRefusalInWindow) {
+        // The crossing attempt only. The migration's own comment asks for the trace ("a burst
+        // of them from one source is enumeration, and it is the only trace of it"); writing
+        // every refusal would re-create the flood this finding is about.
+        await this.recordRefusal(context, {
+          userId: null,
+          action: AUTHENTICATION_ACTIONS.passwordSignIn,
+          reason: verdict.reason,
+        });
+      }
+      throw new AuthenticationRejectedError('rate_limited', verdict.reason);
+    }
 
     const found = await this.database.identityRead(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
@@ -357,6 +442,22 @@ export class AuthenticationService {
   }): Promise<AuthenticatedOutcome> {
     const { challengeToken, code, context } = input;
 
+    // `D08`. Ahead of the token verification, because this route is `@Public()` and writes a
+    // row for every attempt too. No `account`: the caller names no address, and the user this
+    // token claims is not known until it has been verified — so the source and global keys
+    // are the two that apply here.
+    const verdict = this.options.abuseControl.admit({ ip: context.ip });
+    if (!verdict.admitted) {
+      if (verdict.firstRefusalInWindow) {
+        await this.recordRefusal(context, {
+          userId: null,
+          action: AUTHENTICATION_ACTIONS.mfaChallenge,
+          reason: verdict.reason,
+        });
+      }
+      throw new AuthenticationRejectedError('rate_limited', verdict.reason);
+    }
+
     const verified = verifyChallengeToken(challengeToken, this.options.sessionSecret, this.now());
     if (!verified.ok) {
       const reason: AuthenticationReason =
@@ -424,6 +525,20 @@ export class AuthenticationService {
     context: SignInContext;
   }): Promise<AuthenticatedOutcome> {
     const { challengeToken, code, context } = input;
+
+    // `D08`, for the same reason as `completeMfaChallenge`: `@Public()`, a row per attempt,
+    // and no account to key on until the challenge token has been verified.
+    const verdict = this.options.abuseControl.admit({ ip: context.ip });
+    if (!verdict.admitted) {
+      if (verdict.firstRefusalInWindow) {
+        await this.recordRefusal(context, {
+          userId: null,
+          action: AUTHENTICATION_ACTIONS.recoveryCode,
+          reason: verdict.reason,
+        });
+      }
+      throw new AuthenticationRejectedError('rate_limited', verdict.reason);
+    }
 
     const verified = verifyChallengeToken(challengeToken, this.options.sessionSecret, this.now());
     if (!verified.ok) {
@@ -508,6 +623,28 @@ export class AuthenticationService {
     context: SignInContext;
   }): Promise<{ reauthToken: string; expiresAt: Date }> {
     const { userId, sessionId, password, code, context } = input;
+
+    // `D08`. This is the second password oracle in the file and it costs the same Argon2
+    // verify, so it gets the same bound in front of the read — the session guard narrows who
+    // can reach it, which is a reason to key it by `userId` rather than a reason to skip it.
+    const verdict = this.options.abuseControl.admit({ ip: context.ip, account: userId });
+    if (!verdict.admitted) {
+      if (verdict.firstRefusalInWindow) {
+        // Unlike the three `@Public()` routes, the user here is already established by the
+        // session guard, so the row names them — the same `userId` the `locked_out` row below
+        // carries, and an operator reading the two together should not have to guess. Named is
+        // not counted: `countRecentFailures` excludes the three throttle reasons, so this row
+        // cannot move its subject towards the lockout below. Before it did, the per-source and
+        // global budgets — which anyone can spend — let a third party drive a named user into
+        // their own 900-second lockout (re-review of 2026-09-07, N-2).
+        await this.recordRefusal(context, {
+          userId,
+          action: AUTHENTICATION_ACTIONS.reauthentication,
+          reason: verdict.reason,
+        });
+      }
+      throw new AuthenticationRejectedError('rate_limited', verdict.reason);
+    }
 
     const found = await this.database.identityRead(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
@@ -971,6 +1108,62 @@ export class AuthenticationService {
     }
 
     return replayed ? 'mfa_replayed' : 'mfa_bad_code';
+  }
+
+  /**
+   * `D08`. The one row a refusal writes — and never at the cost of the refusal itself.
+   *
+   * Everywhere else in this file a failed `record()` is allowed to propagate, and that is
+   * right: the row is the only trace of what happened, and losing it silently would be worse
+   * than a 500. On this path the priority is inverted. The **refusal is the control** — it is
+   * the thing that stops the flood — and the row is a trace of it. Letting the write decide
+   * whether the refusal is delivered would mean a database under load answers a throttled
+   * caller with a 500 instead of the 429: a more expensive response, on the path that exists
+   * to be cheap, at the moment the control is most needed. Worse, the 500 is a different
+   * answer from the one every other refused caller gets, which is the disclosure this whole
+   * design spends its effort avoiding.
+   *
+   * So the failure is reported on stderr in the idiom the rest of the API uses (the process's
+   * log is the operator's; see `invitations.service.ts` and `file-scanner.ts` recording the
+   * same shape of loss — this codebase has no structured logger, and `console.error` is what
+   * `eslint.config.js` deliberately leaves open) and the caller still gets the refusal. What
+   * is lost is one audit row, and the loss is named rather than silent.
+   *
+   * **What the line has to carry, and why** — N-5 (re-review of 2026-09-07). This write is
+   * attempted at most once per key per window, so a log that has been failing for an hour
+   * produces a handful of lines and no other symptom, while `authentication_events` quietly
+   * stops carrying the enumeration trace `migrations/0004_credentials.sql` asks for. A reader
+   * seeing one such line cannot tell it from the hundredth. So the line carries the running
+   * count of refusal rows this process has lost and the correlation id of the attempt that
+   * lost this one: a recurring failure reads as `(loss 84)` rather than as another isolated
+   * blip, and the id ties it to the request. The counter is process memory and resets with the
+   * process, exactly like the windows the control itself keeps. There is still **no other
+   * signal** — no metric, no alert — and until the deployment has something that reads one,
+   * the trace can go missing with only this line to say so.
+   */
+  private async recordRefusal(
+    context: SignInContext,
+    input: {
+      userId: string | null;
+      action: AuthenticationAction;
+      reason: AuthenticationReason;
+    },
+  ): Promise<void> {
+    try {
+      await this.record(context, {
+        userId: input.userId,
+        action: input.action,
+        outcome: 'failed',
+        reason: input.reason,
+      });
+    } catch (error) {
+      this.lostRefusalRows += 1;
+      console.error(
+        `[identity] recording a refused ${input.action} (${input.reason}) failed; the refusal still stands` +
+          ` (loss ${String(this.lostRefusalRows)} in this process, correlation ${context.correlationId})`,
+        error,
+      );
+    }
   }
 
   /**

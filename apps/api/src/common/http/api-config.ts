@@ -84,6 +84,17 @@ export interface ApiConfig extends SessionServiceOptions {
    * an `upload_session.refused` row. The quota bounds bytes; this bounds the count.
    */
   readonly uploadMaxOpenSessionsPerUser: number;
+  /**
+   * D08. The four numbers `sign-in-abuse-control.ts` is built from: the window every budget
+   * shares, and one budget per key — the address, the address-and-account pair, and every
+   * address together. They bound the cost of an attempt *before* the user is read, which is
+   * the one thing `maxFailuresInWindow` above cannot do: that counter is per user, and a
+   * spray across accounts nobody has never reaches it.
+   */
+  readonly authAbuseWindowSeconds: number;
+  readonly authAbuseMaxPerSource: number;
+  readonly authAbuseMaxPerSourceAccount: number;
+  readonly authAbuseMaxGlobal: number;
 }
 
 export interface ApiConfigSource {
@@ -113,6 +124,11 @@ export interface ApiConfigSource {
   readonly STORAGE_UPLOAD_URL_TTL_SECONDS?: number;
   readonly UPLOAD_PART_SIZE_BYTES?: number;
   readonly UPLOAD_MAX_OPEN_SESSIONS_PER_USER?: number;
+  /** D08. Optional for the same reason as the keys above; the defaults match the env's. */
+  readonly RATE_LIMIT_AUTH_WINDOW_SECONDS?: number;
+  readonly RATE_LIMIT_AUTH_MAX_PER_SOURCE?: number;
+  readonly RATE_LIMIT_AUTH_MAX_REQUESTS?: number;
+  readonly RATE_LIMIT_AUTH_MAX_GLOBAL?: number;
 }
 
 /**
@@ -152,6 +168,10 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     uploadUrlTtlSeconds: env.STORAGE_UPLOAD_URL_TTL_SECONDS ?? 900,
     uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES ?? UPLOAD_PART_SIZE_DEFAULT_BYTES,
     uploadMaxOpenSessionsPerUser: env.UPLOAD_MAX_OPEN_SESSIONS_PER_USER ?? 20,
+    authAbuseWindowSeconds: env.RATE_LIMIT_AUTH_WINDOW_SECONDS ?? 300,
+    authAbuseMaxPerSource: env.RATE_LIMIT_AUTH_MAX_PER_SOURCE ?? 30,
+    authAbuseMaxPerSourceAccount: env.RATE_LIMIT_AUTH_MAX_REQUESTS ?? 10,
+    authAbuseMaxGlobal: env.RATE_LIMIT_AUTH_MAX_GLOBAL ?? 3000,
   };
 }
 

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
 import { parseSeedKeys } from '@tmanage/config';
 import type { RowDataPacket } from 'mysql2/promise';
@@ -11,6 +11,7 @@ import {
 } from '../src/modules/identity/authentication.service.js';
 import type { AuthenticationOptions } from '../src/modules/identity/authentication.service.js';
 import { CredentialsRepository } from '../src/modules/identity/credentials.repository.js';
+import { createSignInAbuseControl } from '../src/modules/identity/sign-in-abuse-control.js';
 import { createSeedCipher, SeedCipherError } from '../src/modules/identity/seed-cipher.js';
 import { encryptSeeds } from '../src/modules/identity/seed-backfill.repository.js';
 import { SessionsRepository } from '../src/modules/identity/sessions.repository.js';
@@ -64,11 +65,32 @@ const repository = new CredentialsRepository(seedCipher);
 
 const SECRET = 'local_dev_only_session_secret_for_the_credentials_suite';
 
+/** The window `D08`'s control runs on here, in milliseconds — the config carries seconds. */
+const ABUSE_WINDOW_MS = 300 * 1000;
+
 const OPTIONS: AuthenticationOptions = {
   sessionSecret: SECRET,
   maxFailuresInWindow: 5,
   failureWindowSeconds: 900,
   totpIssuer: 'TManage',
+  // `D08`. Deliberately far above anything this suite does: it makes some thirty-odd password
+  // sign-ins and as many re-authentications from the single address `203.0.113.9`, and a
+  // production-sized budget here would refuse cases that are about factors and recovery codes
+  // and prove nothing about either. The cases that are about the bound build their own control
+  // with a tight budget, below.
+  //
+  // Read the budget as file-global and never reset: this control is built once at module load
+  // and reads the same `clockMs` every case does, and `beforeEach` sets that clock *back* to
+  // the same fixed instant, which a fixed window reads as one continuous window — so these
+  // counts accumulate across every case in the file and are never cleared. That is exactly
+  // why the numbers here are far above what the whole file spends.
+  abuseControl: createSignInAbuseControl({
+    windowMs: ABUSE_WINDOW_MS,
+    maxPerSource: 1000,
+    maxPerSourceAccount: 1000,
+    maxGlobal: 10_000,
+    now: () => clockMs,
+  }),
 };
 
 const IDENTITY_TABLES = [
@@ -470,6 +492,666 @@ describe('the lockout window', () => {
       context: context(),
     });
     expect(outcome.status).toBe('authenticated');
+  });
+});
+
+/**
+ * `D08` — the bound the lockout above could never be.
+ *
+ * The lockout counts failures per *user*. One address trying one password against a thousand
+ * addresses it guessed passes it every time, because every attempt is a fresh user: a read, an
+ * Argon2 verify and a row, each. These cases are about the bound that counts by *source*, and
+ * they are the acceptance evidence for the finding — proved on rows, not on timings.
+ *
+ * Each case builds its **own** service on its **own** control, because the control's map *is*
+ * the state: a shared one would carry the previous case's window into the next.
+ */
+describe('D08 — bounding sign-in by where the attempt came from', () => {
+  /** A context from a chosen address; the suite's own `context()` is fixed to one. */
+  const from = (ip: string) => ({ correlationId: uuidv7(), ip, userAgent: 'vitest' });
+
+  function tightlyBounded(budgets: {
+    maxPerSource: number;
+    maxPerSourceAccount: number;
+  }): AuthenticationService {
+    return new AuthenticationService(
+      tenant,
+      {
+        ...OPTIONS,
+        abuseControl: createSignInAbuseControl({
+          windowMs: ABUSE_WINDOW_MS,
+          maxPerSource: budgets.maxPerSource,
+          maxPerSourceAccount: budgets.maxPerSourceAccount,
+          // Never the narrowest bound in these cases; a global refusal here would name a
+          // different reason and prove something else.
+          maxGlobal: 10_000,
+          now: () => clockMs,
+        }),
+      },
+      repository,
+      () => clockMs,
+    );
+  }
+
+  async function refusal(work: Promise<unknown>): Promise<AuthenticationRejectedError> {
+    const error = await work.catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(AuthenticationRejectedError);
+    return error as AuthenticationRejectedError;
+  }
+
+  const reasons = (rows: readonly RowDataPacket[], reason: string) =>
+    rows.filter((row) => row['reason'] === reason);
+
+  /** What the durable lockout would see right now, read through the production predicate. */
+  const countedFailures = (userId: string, windowSeconds = OPTIONS.failureWindowSeconds) =>
+    tenant.identityRead(identity(), (db) =>
+      repository.countRecentFailures(db, userId, windowSeconds),
+    );
+
+  /**
+   * Real time, and the only place in this file that spends any.
+   *
+   * `countRecentFailures` expresses its window as `now(3)` on the server, deliberately (a
+   * `Date` from Node would make the lockout depend on the API instance's clock). So the one
+   * case that has to watch a lockout window *end* cannot step `clockMs` to do it — it has to
+   * let the database's own clock pass the boundary.
+   */
+  const sleepUntil = (at: number) =>
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, Math.max(0, at - Date.now()));
+    });
+
+  /**
+   * (a) The acceptance sentence. A spray across distinct unknown addresses is refused, and the
+   * refusal costs **one** row — not one per attempt beyond the budget, which would be the same
+   * log flood in a different colour.
+   */
+  it('refuses a spray across many accounts and writes one row for the whole refusal', async () => {
+    const MAX_PER_SOURCE = 3;
+    const spraying = tightlyBounded({ maxPerSource: MAX_PER_SOURCE, maxPerSourceAccount: 100 });
+    const SOURCE = '198.51.100.7';
+
+    // A different unknown address every time: exactly the shape the per-user lockout cannot
+    // see, because each attempt is a fresh user and passes that counter untouched.
+    for (let attempt = 0; attempt < MAX_PER_SOURCE; attempt += 1) {
+      await spraying
+        .signInWithPassword({
+          email: `sprayed-${attempt}@northstar.example`,
+          password: PASSWORD,
+          context: from(SOURCE),
+        })
+        .catch(() => undefined);
+    }
+
+    const refused = await refusal(
+      spraying.signInWithPassword({
+        email: `sprayed-${MAX_PER_SOURCE}@northstar.example`,
+        password: PASSWORD,
+        context: from(SOURCE),
+      }),
+    );
+    expect(refused.rejection).toBe('rate_limited');
+    expect(refused.reason).toBe('source_throttled');
+
+    const rows = await events();
+    expect(rows).toHaveLength(MAX_PER_SOURCE + 1);
+    expect(reasons(rows, 'no_such_user')).toHaveLength(MAX_PER_SOURCE);
+    const throttle = reasons(rows, 'source_throttled');
+    expect(throttle).toHaveLength(1);
+    expect(throttle[0]!['user_id']).toBeNull();
+    expect(throttle[0]!['action']).toBe('password_sign_in');
+    expect(throttle[0]!['outcome']).toBe('failed');
+    expect(throttle[0]!['ip']).toBe(SOURCE);
+
+    // And the flood is bounded, which is the half a single refusal cannot show: three more
+    // refused attempts add no rows at all. One row per key per window, as the design says —
+    // bounded *per key*, so a caller that goes on to cross the source budget from a second
+    // address buys one more row there, and no more.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await spraying
+        .signInWithPassword({
+          email: `sprayed-later-${attempt}@northstar.example`,
+          password: PASSWORD,
+          context: from(SOURCE),
+        })
+        .catch(() => undefined);
+    }
+    expect(await events()).toHaveLength(MAX_PER_SOURCE + 1);
+  });
+
+  /**
+   * (b) The refusal happens in front of the read and in front of Argon2. There is no timing
+   * assertion here on purpose — a stopwatch in a test suite proves nothing repeatable. The
+   * evidence is the row that would exist if the verify had run, and does not.
+   */
+  it('reaches neither the user lookup nor Argon2 for a refused attempt', async () => {
+    await giveOwnerAPassword();
+    const MAX_PER_SOURCE = 3;
+    const grinding = tightlyBounded({ maxPerSource: MAX_PER_SOURCE, maxPerSourceAccount: 100 });
+    const SOURCE = '198.51.100.8';
+
+    for (let attempt = 0; attempt < MAX_PER_SOURCE; attempt += 1) {
+      await grinding
+        .signInWithPassword({
+          email: `filler-${attempt}@northstar.example`,
+          password: PASSWORD,
+          context: from(SOURCE),
+        })
+        .catch(() => undefined);
+    }
+    expect(await events()).toHaveLength(MAX_PER_SOURCE);
+
+    // A real account and a wrong password. Reaching the read would produce `bad_password`;
+    // reaching an unknown address would produce `no_such_user`. Neither appears.
+    const refused = await refusal(
+      grinding.signInWithPassword({
+        email: owner().email,
+        password: 'not the password',
+        context: from(SOURCE),
+      }),
+    );
+    expect(refused.reason).toBe('source_throttled');
+
+    const after = await events();
+    expect(after).toHaveLength(MAX_PER_SOURCE + 1);
+    expect(reasons(after, 'bad_password')).toHaveLength(0);
+    expect(reasons(after, 'no_such_user')).toHaveLength(MAX_PER_SOURCE);
+    expect(reasons(after, 'source_throttled')).toHaveLength(1);
+
+    // The owner's own failure count is untouched, so a refused attempt cannot be used to push
+    // a real account toward the lockout either.
+    expect(await events(owner().id)).toHaveLength(0);
+  });
+
+  /**
+   * (c) The narrower key, and the finding's shared-office warning answered on rows: an address
+   * grinding one account is stopped ahead of the lockout, and the account itself is not locked
+   * by anybody else's traffic.
+   */
+  it('stops one address grinding one account ahead of the lockout, without locking it', async () => {
+    await giveOwnerAPassword();
+    const MAX_PER_SOURCE_ACCOUNT = 3;
+    // The point of "ahead of": the address is refused while the account is still three
+    // failures into a window that wants five.
+    expect(MAX_PER_SOURCE_ACCOUNT).toBeLessThan(OPTIONS.maxFailuresInWindow);
+
+    const grinding = tightlyBounded({
+      maxPerSource: 100,
+      maxPerSourceAccount: MAX_PER_SOURCE_ACCOUNT,
+    });
+
+    for (let attempt = 0; attempt < MAX_PER_SOURCE_ACCOUNT; attempt += 1) {
+      await grinding
+        .signInWithPassword({
+          email: owner().email,
+          password: 'wrong',
+          context: from('198.51.100.9'),
+        })
+        .catch(() => undefined);
+    }
+
+    const refused = await refusal(
+      grinding.signInWithPassword({
+        email: owner().email,
+        password: 'wrong',
+        context: from('198.51.100.9'),
+      }),
+    );
+    expect(refused.rejection).toBe('rate_limited');
+    // The narrowest bound names itself: the address is nowhere near its own budget of 100.
+    expect(refused.reason).toBe('source_account_throttled');
+
+    const failures = await observe(
+      `select count(*) as n from authentication_events
+        where user_id = ? and outcome = 'failed' and reason = 'bad_password'`,
+      [owner().id],
+    );
+    expect(Number(failures[0]!['n'])).toBe(MAX_PER_SOURCE_ACCOUNT);
+
+    // No lockout by proxy. Same account, same window, a second address, the right password:
+    // admitted. The source keys refuse *requests from that source*; they do not touch the
+    // user's failure count, which is exactly what a shared office needs them not to do.
+    const outcome = await grinding.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: from('203.0.113.200'),
+    });
+    expect(outcome).toEqual({ status: 'authenticated', userId: owner().id });
+  });
+
+  /**
+   * (d) Self-healing, which is what makes this a bound and not a lockout. Every attempt below
+   * carries the *right* password: success is not exempt from the count — a caller sitting on
+   * the boundary must not be able to keep guessing — which is why the production per-source
+   * default is thirty and not five.
+   */
+  it('lets the same address back in once the window turns', async () => {
+    await giveOwnerAPassword();
+    const MAX_PER_SOURCE = 3;
+    const bounded = tightlyBounded({ maxPerSource: MAX_PER_SOURCE, maxPerSourceAccount: 100 });
+    const SOURCE = '198.51.100.10';
+
+    for (let attempt = 0; attempt < MAX_PER_SOURCE; attempt += 1) {
+      const admitted = await bounded.signInWithPassword({
+        email: owner().email,
+        password: PASSWORD,
+        context: from(SOURCE),
+      });
+      expect(admitted.status).toBe('authenticated');
+    }
+
+    const refused = await refusal(
+      bounded.signInWithPassword({
+        email: owner().email,
+        password: PASSWORD,
+        context: from(SOURCE),
+      }),
+    );
+    expect(refused.rejection).toBe('rate_limited');
+    expect(refused.reason).toBe('source_throttled');
+
+    // Nothing is unlocked by hand and no operator is involved. The window turns.
+    clockMs += ABUSE_WINDOW_MS + 1_000;
+
+    const outcome = await bounded.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: from(SOURCE),
+    });
+    expect(outcome).toEqual({ status: 'authenticated', userId: owner().id });
+  });
+
+  /**
+   * (e) `D05`'s re-authentication is the second password oracle in the file and costs the same
+   * Argon2 verify, so the same bound sits in front of it — keyed by `userId` rather than by an
+   * email, because that is what the caller names there.
+   */
+  it('bounds re-authentication too, and revokes nothing doing it', async () => {
+    await giveOwnerAPassword();
+    const designerHash = await hashPassword(PASSWORD);
+    await tenant.identityTransaction(identity(), (tx) =>
+      repository.setPassword(tx, designer().id, designerHash),
+    );
+
+    const MAX_PER_SOURCE_ACCOUNT = 2;
+    const bounded = tightlyBounded({
+      maxPerSource: 100,
+      maxPerSourceAccount: MAX_PER_SOURCE_ACCOUNT,
+    });
+
+    for (let attempt = 0; attempt < MAX_PER_SOURCE_ACCOUNT; attempt += 1) {
+      const minted = await bounded.confirmReauthentication({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        context: from('198.51.100.11'),
+      });
+      expect(minted.expiresAt.getTime()).toBe(clockMs + 300_000);
+    }
+
+    const refused = await refusal(
+      bounded.confirmReauthentication({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        context: from('198.51.100.11'),
+      }),
+    );
+    expect(refused.rejection).toBe('rate_limited');
+    expect(refused.reason).toBe('source_account_throttled');
+
+    // The session is untouched: this control refuses requests from a source, it does not
+    // revoke anything and it writes nothing to `sessions`. The same session proves itself
+    // again from a second address, inside the same window.
+    const elsewhere = await bounded.confirmReauthentication({
+      userId: owner().id,
+      sessionId: SESSION,
+      password: PASSWORD,
+      context: from('203.0.113.201'),
+    });
+    expect(elsewhere.expiresAt.getTime()).toBe(clockMs + 300_000);
+
+    // And another person, from another address, is not caught by any of it.
+    const outcome = await bounded.signInWithPassword({
+      email: designer().email,
+      password: PASSWORD,
+      context: from('203.0.113.202'),
+    });
+    expect(outcome).toEqual({ status: 'authenticated', userId: designer().id });
+  });
+
+  /**
+   * (f) The refusal is the control; the row is a trace of it, and the trace must not be able
+   * to take the control down with it.
+   *
+   * `record()` is awaited before the rejection is thrown, so before this was fixed a database
+   * that could not take the row threw *that* error instead — and the caller got a 500 where a
+   * 429 was owed. Two things are wrong with that: the 500 costs more than the refusal it
+   * replaces, on the one path in this file that exists to be cheap; and it is a different
+   * answer from the one every other refused caller receives, which is the disclosure the rest
+   * of this design spends its effort avoiding.
+   *
+   * The seam is a repository whose one method rejects. Nothing else is stubbed, and nothing
+   * else is called: the abuse control refuses in front of the lookup, so `record()` is the
+   * only repository call this path makes. The source budget is spent on the **control**
+   * directly rather than through a sign-in, because a service holding a broken log cannot
+   * complete an admitted attempt either — this way the very first call the service makes is
+   * the refused one.
+   *
+   * The case also pins **what the line says**, which nothing asserted before (N-5's own fix was
+   * left uncovered, so deleting the counter and the correlation id kept every suite green).
+   * Two refusals are driven through the *same* service instance, from two addresses, because
+   * the counter is per process and the whole point of it is that the second line does not read
+   * like the first: `loss 2`, and the correlation id of the attempt that lost *that* row.
+   */
+  it('still refuses when the row recording the refusal cannot be written', async () => {
+    const SOURCE = '198.51.100.12';
+    // A second address, because `recordRefusal` is reached once per key per window: the same
+    // source key refusing again writes no row and so loses none.
+    const OTHER_SOURCE = '198.51.100.14';
+    const ACCOUNT = 'unknown-to-anyone@northstar.example';
+
+    const control = createSignInAbuseControl({
+      windowMs: ABUSE_WINDOW_MS,
+      maxPerSource: 1,
+      // Never the narrowest bound here: the source key is the one that must refuse, so the
+      // reason below names it and the case cannot pass on a different refusal.
+      maxPerSourceAccount: 100,
+      maxGlobal: 10_000,
+      now: () => clockMs,
+    });
+    expect(control.admit({ ip: SOURCE, account: ACCOUNT }).admitted).toBe(true);
+    expect(control.admit({ ip: OTHER_SOURCE, account: ACCOUNT }).admitted).toBe(true);
+
+    const brokenLog = {
+      recordAuthenticationEvent: () =>
+        Promise.reject(new Error('the authentication log is unavailable')),
+    } as unknown as CredentialsRepository;
+
+    const withBrokenLog = new AuthenticationService(
+      tenant,
+      { ...OPTIONS, abuseControl: control },
+      brokenLog,
+      () => clockMs,
+    );
+
+    // The loss is reported rather than swallowed in silence. Asserting on it also keeps the
+    // suite's output clean, which a bare `console.error` in a passing test would not.
+    const reported = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const first = from(SOURCE);
+      const refused = await refusal(
+        withBrokenLog.signInWithPassword({
+          email: ACCOUNT,
+          password: PASSWORD,
+          context: first,
+        }),
+      );
+      expect(refused.rejection).toBe('rate_limited');
+      expect(refused.reason).toBe('source_throttled');
+      expect(reported).toHaveBeenCalledTimes(1);
+      const firstLine = String(reported.mock.calls[0]?.[0]);
+      expect(firstLine).toContain('password_sign_in');
+      expect(firstLine).toContain('loss 1');
+      expect(firstLine).toContain(first.correlationId);
+
+      // A second refusal through the same service, from the other address. A reader of the
+      // process log has to be able to tell this line from the one above it — a log that has
+      // been failing for an hour is otherwise indistinguishable from a single blip, and the
+      // enumeration trace `migrations/0004_credentials.sql` asks for is quietly missing.
+      const second = from(OTHER_SOURCE);
+      const refusedAgain = await refusal(
+        withBrokenLog.signInWithPassword({
+          email: ACCOUNT,
+          password: PASSWORD,
+          context: second,
+        }),
+      );
+      expect(refusedAgain.reason).toBe('source_throttled');
+      expect(reported).toHaveBeenCalledTimes(2);
+      const secondLine = String(reported.mock.calls[1]?.[0]);
+      expect(secondLine).toContain('loss 2');
+      expect(secondLine).toContain(second.correlationId);
+      // The counter is the running one, not the attempt's own: the second line does not carry
+      // the first attempt's id, and the first line never claimed to be the second loss.
+      expect(secondLine).not.toContain(first.correlationId);
+      expect(firstLine).not.toContain('loss 2');
+    } finally {
+      reported.mockRestore();
+    }
+
+    // And nothing reached the log, which is the premise of the case rather than its point.
+    expect(await events()).toHaveLength(0);
+  });
+
+  /**
+   * (g) N-2 (re-review of 2026-09-07). A throttle refusal is not a credential failure, and it
+   * must not move the user it names towards the durable lockout.
+   *
+   * `confirmReauthentication` is the one route whose refusal row carries a real `user_id` — the
+   * session guard has already established who is calling. Two of the three budgets that can
+   * produce that refusal are spent by *everybody*: the per-source key by anyone sharing the
+   * address, the global key by anyone at all. The row itself, though, is always written by the
+   * named user's own re-authentication being refused — a third party supplies the refusal, not
+   * the row, by keeping a shared budget spent. While `countRecentFailures` counted those rows,
+   * five of the user's own re-authentications inside the 900-second lockout window — three
+   * source windows fit, and a concurrent global refusal adds more — locked that user out of
+   * their own account on traffic that was never theirs.
+   *
+   * The fix is one predicate in the query, so the row keeps doing the job it was written for.
+   * This case pins both halves: the trace survives and still names the user, and the counter
+   * stops reading it — while a genuine wrong password still counts exactly as it did.
+   */
+  it('does not let a throttle refusal move a named user towards the durable lockout', async () => {
+    await giveOwnerAPassword();
+
+    const SOURCE = '198.51.100.13';
+    const control = createSignInAbuseControl({
+      windowMs: ABUSE_WINDOW_MS,
+      maxPerSource: 1,
+      // Never the narrowest bound: the source key — the one a third party spends — must be
+      // what refuses, or the case would prove something about the owner's own traffic.
+      maxPerSourceAccount: 100,
+      maxGlobal: 10_000,
+      now: () => clockMs,
+    });
+
+    // Somebody else's attempt from the same address spends the source budget. Nothing about it
+    // names the owner.
+    expect(control.admit({ ip: SOURCE, account: 'someone-else@northstar.example' }).admitted).toBe(
+      true,
+    );
+
+    const shared = new AuthenticationService(
+      tenant,
+      { ...OPTIONS, abuseControl: control },
+      repository,
+      () => clockMs,
+    );
+
+    const refused = await refusal(
+      shared.confirmReauthentication({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        context: from(SOURCE),
+      }),
+    );
+    expect(refused.rejection).toBe('rate_limited');
+    expect(refused.reason).toBe('source_throttled');
+
+    // Half one: the audit trail is intact. The row is written, it names the owner, and it
+    // carries the reason an operator needs. The fix must not buy the counter at its expense.
+    const named = await events(owner().id);
+    expect(named).toHaveLength(1);
+    expect(named[0]!['action']).toBe('reauthentication');
+    expect(named[0]!['outcome']).toBe('failed');
+    expect(named[0]!['reason']).toBe('source_throttled');
+
+    // Four more of the same shape, written through the same repository method the service uses.
+    // Three of them are what the shared budgets produce as the 900-second window runs on: the
+    // later source windows a colleague keeps spending, and the global key anyone at all can
+    // spend. The fourth is `source_account_throttled`, and it is deliberately *not* attributed
+    // to that traffic — the `sa:` key names this account, so a third party grinding somebody
+    // else cannot cross it, and only the owner's own repeated attempts from this address can.
+    // It is here because all three throttle reasons have to be shown not to count, not because
+    // a third party could write it.
+    // Five is `maxFailuresInWindow`, so this is exactly the lockout the review described.
+    await tenant.identityTransaction(identity(), async (tx) => {
+      for (const reason of [
+        'source_throttled',
+        'global_throttled',
+        'global_throttled',
+        'source_account_throttled',
+      ]) {
+        await repository.recordAuthenticationEvent(tx, {
+          userId: owner().id,
+          action: 'reauthentication',
+          outcome: 'failed',
+          reason,
+          ip: SOURCE,
+        });
+      }
+    });
+    expect(await events(owner().id)).toHaveLength(5);
+
+    // Half two: not one of them is a credential failure, so not one of them counts.
+    const counted = await tenant.identityRead(identity(), (db) =>
+      repository.countRecentFailures(db, owner().id, OPTIONS.failureWindowSeconds),
+    );
+    expect(counted).toBe(0);
+
+    // And the owner, who did none of this, signs in from their own address. Before the fix
+    // this was `locked_out` — the third-party lockout N-2 named.
+    const outcome = await service.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(outcome).toEqual({ status: 'authenticated', userId: owner().id });
+
+    // The counter still counts what it is for: five genuine wrong passwords, and the durable
+    // lockout fires exactly as it always did. Nothing was weakened to close N-2.
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      await service
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
+        .catch(() => undefined);
+    }
+    expect(
+      await tenant.identityRead(identity(), (db) =>
+        repository.countRecentFailures(db, owner().id, OPTIONS.failureWindowSeconds),
+      ),
+    ).toBe(OPTIONS.maxFailuresInWindow);
+
+    const locked = await refusal(
+      service.signInWithPassword({
+        email: owner().email,
+        password: PASSWORD,
+        context: context(),
+      }),
+    );
+    expect(locked.rejection).toBe('rate_limited');
+    expect(locked.reason).toBe('locked_out');
+
+    // And the other half of the predicate, which no row this codebase writes reaches: a
+    // `failed` row carrying no reason at all. `NOT IN` over a NULL is NULL, so without the
+    // explicit `reason IS NULL` clause such a row would silently stop counting — a failure
+    // that no longer counts towards a lockout is the direction that fails open. Written
+    // through the repository, so it is the production insert that produces it.
+    const beforeUnnamed = await countedFailures(owner().id);
+    await tenant.identityTransaction(identity(), (tx) =>
+      repository.recordAuthenticationEvent(tx, {
+        userId: owner().id,
+        action: 'password_sign_in',
+        outcome: 'failed',
+        reason: null,
+        ip: SOURCE,
+      }),
+    );
+    expect(await countedFailures(owner().id)).toBe(beforeUnnamed + 1);
+  });
+
+  /**
+   * (h) A-1 (four-lens review of `7cc9c16`). The row the lockout writes *about itself* is not
+   * evidence that anybody guessed a password — and while the counter read it, the lockout
+   * renewed itself for as long as anyone kept knocking.
+   *
+   * When `signInWithPassword` finds the window full it records
+   * `outcome: 'failed', reason: 'locked_out'` against the victim's user id and refuses. That
+   * row has exactly the shape `7cc9c16` excluded the three throttle reasons for: written in front
+   * of the password check, carrying the victim's id, nothing guessed. It was not excluded, so
+   * every refusal pushed a fresh counted row into the very window the refusal was derived
+   * from. At the shipped defaults — five failures in 900 s, ten requests per 300 s on the
+   * account key — about two attempts every five minutes hold the count at five for ever: a
+   * third party who knows the address keeps the account shut indefinitely, and the victim's own
+   * retries do it to themselves, which is the opposite of what the lockout case above tells
+   * them ("a person being told to wait needs to know that waiting is the fix").
+   *
+   * The fix keeps the trace and cuts the feedback: the row is still written, still names the
+   * user, still carries `locked_out`, and `countRecentFailures` no longer reads it. The
+   * invariant is that **a row the counter itself caused is never an input to it** — the count
+   * is of credentials presented and refused, and the lockout row is a consequence of the count.
+   *
+   * The window here is eight seconds rather than the configured 900 because this is the one case
+   * in the file that must watch a window actually *end*, and the clock that decides it is the
+   * database's `now(3)`, which no injected clock can move.
+   */
+  it('does not let its own lockout row renew the lockout, so the window ends', async () => {
+    await giveOwnerAPassword();
+
+    const WINDOW_SECONDS = 8;
+    const briefWindow = new AuthenticationService(
+      tenant,
+      { ...OPTIONS, failureWindowSeconds: WINDOW_SECONDS },
+      repository,
+      () => clockMs,
+    );
+
+    // Five genuine wrong passwords. This is the lockout working as designed.
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      await briefWindow
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
+        .catch(() => undefined);
+    }
+    const lockedAt = Date.now();
+    expect(await countedFailures(owner().id, WINDOW_SECONDS)).toBe(OPTIONS.maxFailuresInWindow);
+
+    // The attempts that used to renew it, made partway into the window and well inside every
+    // budget the abuse control keeps — nothing here is throttled, and none of it reaches a
+    // password. Five of them, so that on the pre-fix counter they are a fresh full lockout of
+    // their own once the original five age out.
+    await sleepUntil(lockedAt + 2_000);
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      const refused = await refusal(
+        briefWindow.signInWithPassword({
+          email: owner().email,
+          password: 'wrong',
+          context: context(),
+        }),
+      );
+      expect(refused.rejection).toBe('rate_limited');
+      expect(refused.reason).toBe('locked_out');
+    }
+
+    // Half one: the audit trail still records every refusal, naming the user and the reason —
+    // ten rows, five of them `locked_out` — and the count does not grow by one of them.
+    const rows = await events(owner().id);
+    expect(rows).toHaveLength(2 * OPTIONS.maxFailuresInWindow);
+    expect(reasons(rows, 'locked_out')).toHaveLength(OPTIONS.maxFailuresInWindow);
+    expect(await countedFailures(owner().id, WINDOW_SECONDS)).toBe(OPTIONS.maxFailuresInWindow);
+
+    // Half two: the window ends, which is the whole promise of a lockout that is not a ban. The
+    // five credential failures are outside it now; the five `locked_out` rows, written two
+    // seconds later, are still well inside it — on the pre-fix counter the account stays shut.
+    await sleepUntil(lockedAt + (WINDOW_SECONDS + 1) * 1_000);
+    expect(await countedFailures(owner().id, WINDOW_SECONDS)).toBe(0);
+
+    const outcome = await briefWindow.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(outcome).toEqual({ status: 'authenticated', userId: owner().id });
   });
 });
 

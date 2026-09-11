@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -14,6 +14,7 @@ import type {
   UserRecoveryCodeRow,
 } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
+import { SIGN_IN_ABUSE_REASONS } from './sign-in-abuse-control.js';
 import { SeedCipherError } from './seed-cipher.js';
 import type { SeedCipher } from './seed-cipher.js';
 
@@ -81,6 +82,20 @@ export type UserMfaFactorSummary = {
   readonly label: string;
   readonly confirmedAt: Date | null;
 };
+
+/**
+ * The reasons a `failed` row can carry that are **not** a credential failure.
+ *
+ * {@link CredentialsRepository.countRecentFailures} excludes exactly these, and the header there
+ * gives the argument for each. In one line: the three {@link SIGN_IN_ABUSE_REASONS} are refusals
+ * written in front of the password check (N-2), and `locked_out` is the row the lockout writes
+ * about itself (A-1) — a consequence of the count, never an input to it.
+ *
+ * `'locked_out'` is spelled here rather than imported because the union it belongs to lives in
+ * `authentication.service.ts`, which imports *this* file; the string is asserted against the
+ * service's behaviour by the database case that drives a real lockout, not by the type.
+ */
+const NON_CREDENTIAL_FAILURE_REASONS = [...SIGN_IN_ABUSE_REASONS, 'locked_out'] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Passwords
@@ -532,6 +547,47 @@ export class CredentialsRepository {
    * `docs/implementation-status.md` rather than hidden: it costs a query per attempt, and it
    * counts per **user**, so it stops stuffing against one account and does not stop one
    * attempt each against a thousand.
+   *
+   * ## What a *credential* failure is — `D08`, N-2 (re-review of 2026-09-07)
+   *
+   * A `failed` row is not by itself evidence that somebody guessed wrong. The three
+   * {@link SIGN_IN_ABUSE_REASONS} are written by `sign-in-abuse-control.ts` when an attempt was
+   * refused **in front of** the password check: nothing was read, no hash was verified, and
+   * nobody guessed anything. Two of those three budgets — the per-source key and the global
+   * key — are spent by *everybody*, and `confirmReauthentication` records its refusal with the
+   * session holder's real user id. It is worth being exact about who writes such a row, because
+   * the obvious reading is wrong: a row naming a user only ever comes from that user's own
+   * re-authentication being refused. What a third party supplies is the refusal, not the row —
+   * by keeping a shared budget spent. So while these rows were counted, a colleague on the same
+   * office address (or, while D09 stands, anyone at all) could hold the per-source or global key
+   * over budget, and five of the named user's own re-authentications across the windows that fit
+   * inside 900 s would then lock that user out of their own account on traffic that was never
+   * theirs.
+   *
+   * They are therefore excluded here and nowhere else. The row is still written, still names
+   * the user and still carries its reason, so the operator trace
+   * `migrations/0004_credentials.sql` asks for is untouched; it is only this counter that stops
+   * reading it. `reason IS NULL` is kept explicitly, because `NOT IN` over a NULL is NULL and
+   * would silently drop every failure that records no reason at all.
+   *
+   * ## The lockout's own row — `D08`, A-1 (four-lens review of `7cc9c16`, 2026-09-07)
+   *
+   * `locked_out` has exactly that shape and was not excluded with the other three. It is the row
+   * `signInWithPassword` (and `confirmReauthentication`, and the two challenge paths) writes
+   * against the victim's own user id *because* this count was already full — written in front of
+   * the password check, with nothing read and nothing guessed. While it was counted, every
+   * refusal pushed a fresh counted row into the very window the refusal was derived from, so the
+   * lockout renewed itself: at the shipped defaults (five failures in 900 s, ten requests per
+   * 300 s on the account key) roughly two attempts every five minutes hold an account shut
+   * indefinitely — from a third party who knows the address, or from the victim's own retries,
+   * who are being told that waiting is the fix.
+   *
+   * The invariant this predicate now holds is the one that was missing: **it counts credentials
+   * that were presented and refused, and never a row it caused itself.** A `locked_out` row is a
+   * consequence of the count, never an input to it — the same relation the three throttle
+   * reasons have to it, reached by a different path. The audit trail is untouched once more: the
+   * row is still written, still names the user, still carries `locked_out`, and only this
+   * counter stops reading it.
    */
   async countRecentFailures(
     runner: IdentityQueryRunner,
@@ -545,6 +601,10 @@ export class CredentialsRepository {
         and(
           eq(authenticationEvents.userId, userId),
           eq(authenticationEvents.outcome, 'failed'),
+          or(
+            isNull(authenticationEvents.reason),
+            notInArray(authenticationEvents.reason, [...NON_CREDENTIAL_FAILURE_REASONS]),
+          ),
           gte(
             authenticationEvents.occurredAt,
             sql`date_sub(now(3), interval ${windowSeconds} second)`,
