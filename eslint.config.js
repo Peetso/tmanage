@@ -24,6 +24,11 @@ export default tseslint.config(
       // Immutable source material — never linted, never rewritten.
       'docs/planning/**',
       'docs/design/source/**',
+      // Untracked leftovers of the retired Codex review process. They are not
+      // repository source, and linting them is what stops `pnpm verify` being
+      // runnable as written.
+      'CODEX-REVIEW-2026-09-05/**',
+      'CODEX_REVIEW_FOR_CLAUDE_2026-09-05.md',
     ],
   },
 
