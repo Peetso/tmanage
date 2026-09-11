@@ -7,3 +7,6 @@ storybook-static/
 # Formatting it would modify artifacts that must stay byte-identical to their source.
 docs/planning/
 docs/design/source/
+# Untracked leftovers of the retired Codex review process — not repository source.
+CODEX-REVIEW-2026-09-05/
+CODEX_REVIEW_FOR_CLAUDE_2026-09-05.md
