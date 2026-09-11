@@ -8,14 +8,23 @@ import { clampToColumnCharacters } from './credentials.repository.js';
  * being written, really coming back at 45 characters, and the insert really not raising
  * `ER_DATA_TOO_LONG`. What it cannot do cheaply is enumerate the string shapes that make the
  * *unit* of the clamp the interesting part, and those are what decide whether the clamped
- * value is still refusable by the column:
+ * value still fits the column and is still the value that arrived:
  *
  * - a BMP multi-byte character (`中`) is three bytes but **one** MySQL character;
  * - an astral-plane character (`𝔄`, `😀`) is four bytes and **one** MySQL character, but
  *   **two** UTF-16 code units, which is the direction `String.prototype.slice` gets wrong in
  *   the way that matters: slicing at 45 UTF-16 units can land *inside* a surrogate pair and
- *   leave a lone surrogate, which is not valid UTF-8 at all and which the column rejects
- *   (`ER_CANT_AGGREGATE`/`Incorrect string value`) however short it is.
+ *   leave half of one behind.
+ *
+ * That half does not produce an error, which is worth being exact about, because the comment
+ * on the implementation used to claim it did. mysql2 (3.23.3) maps this connection's
+ * `utf8mb4` charset to Node's `'utf8'` encoding and encodes parameters with
+ * `Buffer.from(value, 'utf8')`, and Node substitutes U+FFFD for an unpaired surrogate:
+ * `Buffer.from('\uD83D', 'utf8')` is `ef bf bd`. A UTF-16 slice would therefore have been
+ * accepted, having quietly written `�` over the character it cut — a substitution this table
+ * is not allowed to make, because it records what arrived — and having under-filled the
+ * column while it did. `test/id-002-credentials.db.test.ts` shows that happening against a
+ * real server; the cases here are about the string shapes that lead to it.
  *
  * So the cases below are about code points, not lengths.
  */
@@ -110,12 +119,27 @@ describe('clampToColumnCharacters', () => {
   });
 
   /**
-   * A value that already carries a lone surrogate is left as it is. It was never storable in
-   * `utf8mb4` and clamping is not what makes it so; inventing a replacement character here
-   * would be the silent normalisation the log is not allowed to do.
+   * A value that already carries a lone surrogate is carried through with it, and is still
+   * clamped by code point around it. The driver will render that surrogate U+FFFD on the way
+   * to the server (see the header), but it does so to a character the client sent; a clamp
+   * asked only to shorten must not add a substitution of its own.
+   *
+   * The second input is what makes this case discriminating. A lone high surrogate followed
+   * by astral characters is a string the two candidate clamps disagree about: 45 UTF-16 units
+   * is the surrogate plus 22 whole emoji, 45 code points is the surrogate plus 44 of them.
+   * Both expectations are written out rather than sliced, so neither can be satisfied by the
+   * implementation this suite exists to rule out.
    */
-  it('does not repair a lone surrogate it was handed', () => {
-    const broken = `\uD83D${'a'.repeat(100)}`;
-    expect(clampToColumnCharacters(broken, 45)).toBe(broken.slice(0, 45));
+  it('does not repair a lone surrogate it was handed, and still clamps by code point', () => {
+    expect(clampToColumnCharacters(`\uD83D${'a'.repeat(100)}`, 45)).toBe(`\uD83D${'a'.repeat(44)}`);
+
+    const broken = `\uD83D${'😀'.repeat(60)}`;
+    const clamped = clampToColumnCharacters(broken, 45);
+    expect(clamped).toBe(`\uD83D${'😀'.repeat(44)}`);
+    expect(Array.from(clamped!)).toHaveLength(45);
+    expect(clamped).toHaveLength(89);
+    // The clamps really do disagree on this input, which is the point of choosing it.
+    expect(broken.slice(0, 45)).not.toBe(clamped);
+    expect(broken.slice(0, 45)).toBe(`\uD83D${'😀'.repeat(22)}`);
   });
 });

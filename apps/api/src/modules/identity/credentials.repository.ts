@@ -102,15 +102,27 @@ const NON_CREDENTIAL_FAILURE_REASONS = [...SIGN_IN_ABUSE_REASONS, 'locked_out'] 
  *
  * Both are from `migrations/0004_credentials.sql`: `ip VARCHAR(45)`, `user_agent
  * VARCHAR(255)`. They are spelled here rather than derived from the Drizzle schema because
- * the schema records a type, not a bound this file can read back at runtime; the database
- * case in `test/id-002-credentials.db.test.ts` is what keeps the two in step, by writing a
- * value of each length against the real column.
+ * the schema records a type, not a bound this file can read back at runtime.
  *
- * 45 is deliberately the same number `sign-in-abuse-control.ts` clamps its source key to,
- * and for the same underlying reason — it is the width of this column, which is in turn the
- * exact length of an IPv4-mapped IPv6 literal. The two are now genuinely in step: that
- * file's comment used to claim they were while this insert wrote the value untruncated,
- * which is the D08 follow-up this closes.
+ * The database case in `test/id-002-credentials.db.test.ts` pins these numbers against the
+ * real column, but in one direction only. It writes an over-long value and reads back exactly
+ * this many characters, so narrowing either column below the number here breaks it — strict
+ * mode turns the clamped value into `ER_DATA_TOO_LONG`. Widening a column does not break it,
+ * because the clamp goes on cutting at the smaller number and the assertion goes on holding.
+ * What is pinned is therefore "this constant has not grown past its column", which is the
+ * direction that loses rows; a column that has grown past its constant only wastes width, and
+ * nothing here would notice.
+ *
+ * 45 is the same number `sign-in-abuse-control.ts` clamps its in-memory source key to, and it
+ * is that number for the same underlying reason — the width of this column, which is in turn
+ * the exact length of an IPv4-mapped IPv6 literal. It is not the same operation: that file
+ * cuts with `slice`, in UTF-16 units, so given an input carrying astral-plane characters the
+ * two produce different strings, and its result can be shorter than 45 characters. That is
+ * harmless there, because its output is a bucket key that never reaches a column and an
+ * under-filled key is still a usable key, and it is why this file does not reuse it. What the
+ * D08 follow-up recorded is closed on this side: the value that reaches the column is now
+ * bounded before the insert. The wording in that file and in `docs/implementation-status.md`
+ * still describes the state before this change and is corrected separately in this slice.
  */
 const MAX_EVENT_IP_CHARACTERS = 45;
 const MAX_EVENT_USER_AGENT_CHARACTERS = 255;
@@ -143,19 +155,29 @@ const MAX_EVENT_USER_AGENT_CHARACTERS = 255;
  * of them is harmless:
  *
  * - An astral-plane character (anything above U+FFFF) is two UTF-16 units and one MySQL
- *   character, so a `slice` under-fills the column. Safe, merely wasteful.
- * - A `slice` can land **between** the two halves of a surrogate pair, and the lone surrogate
- *   left behind is not valid UTF-8 at all. The server refuses it (`Incorrect string value`)
- *   no matter how short the value is — so the clamp meant to stop the insert failing would
- *   itself be what made it fail.
+ *   character, so a `slice` under-fills the column. Merely wasteful.
+ * - A `slice` can land **between** the two halves of a surrogate pair, and the half left
+ *   behind is not a character at all. Nothing raises: mysql2 (3.23.3) maps this connection's
+ *   `utf8mb4` charset to Node's `'utf8'` encoding and encodes every parameter with
+ *   `Buffer.from(value, 'utf8')`, and Node substitutes U+FFFD for an unpaired surrogate
+ *   before a byte leaves the process — `Buffer.from('\uD83D', 'utf8')` is `ef bf bd`. So the
+ *   server is handed a perfectly valid string in which the character the slice cut has been
+ *   replaced by `�`. That is the objection: this table records what arrived, and a clamp that
+ *   is only allowed to *shorten* would instead be quietly rewriting a character. The value
+ *   also comes out shorter than the bound, for the same reason as the case above.
  *
  * Iterating the string yields code points, never half of one, so the result is at most `max`
- * characters as the column counts them and is always valid text. Two things it deliberately
- * does not do: it does not keep grapheme clusters whole (cutting a ZWJ sequence yields a
- * shorter, still valid string, and this is a log of what arrived rather than text anyone
- * reads), and it does not repair a lone surrogate that was already in the input — that value
- * was unstorable before this function saw it, and inventing a replacement character would be
- * exactly the silent normalisation the log must not do.
+ * characters as the column counts them and every character in it is one that arrived. Two
+ * things it deliberately does not do: it does not keep grapheme clusters whole (cutting a ZWJ
+ * sequence yields a shorter, still valid string, and this is a log of what arrived rather
+ * than text anyone reads), and it does not repair a lone surrogate that was already in the
+ * input. The driver will render that one U+FFFD too, but it does so to a value the client
+ * sent; a clamp asked to shorten a string has no business introducing a second substitution
+ * of its own, and that is the silent normalisation this log must not do.
+ *
+ * The substitution is not taken on trust: a case in `test/id-002-credentials.db.test.ts`
+ * sends a UTF-16-sliced value through this very insert to the real server and reads the
+ * U+FFFD back out of the column.
  *
  * A value inside the bound is returned as it arrived, identically — no trimming, no case
  * folding, no validation of address shape. The `length` guard is the fast path and it is

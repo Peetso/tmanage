@@ -2032,8 +2032,8 @@ describe('D09 — the log row is clamped to the columns that hold it', () => {
    * code points rather than UTF-16 units. Three hundred astral-plane characters are 600
    * UTF-16 units; clamped to 255 *characters* they are 1020 bytes in a `VARCHAR(255)` that
    * the server accepts, and reading the row back yields exactly 255 of them. A UTF-16 slice
-   * would have written 255 units — and ended on a lone surrogate, which this server refuses
-   * outright however short the value is.
+   * would have written 255 units — 127 whole characters and half of a 128th — and stored
+   * something the request never sent. The case below this one shows exactly what.
    */
   it('measures the bound the way the utf8mb4 column measures it', async () => {
     const agent = '😀'.repeat(300);
@@ -2045,6 +2045,42 @@ describe('D09 — the log row is clamped to the columns that hold it', () => {
     expect(Array.from(String(row['user_agent']))).toHaveLength(255);
     expect(row['ip']).toBe('中'.repeat(45));
     expect(Array.from(String(row['ip']))).toHaveLength(45);
+  });
+
+  /**
+   * What a UTF-16 slice would actually have cost, demonstrated against the real driver and
+   * the real server rather than argued in a comment.
+   *
+   * The input here is not what the clamp produces — it is what `slice(0, 45)` produces from
+   * the same source string: two ASCII characters, 21 whole emoji, and then a lone high
+   * surrogate where the 22nd was cut in half. It is 45 UTF-16 units and short enough that
+   * `clampToColumnCharacters` returns it untouched, so what this case exercises is purely the
+   * path from a JavaScript string to a `utf8mb4` column.
+   *
+   * Nothing raises. mysql2 maps `utf8mb4` to Node's `'utf8'` encoding and encodes parameters
+   * with `Buffer.from`, which substitutes U+FFFD for an unpaired surrogate before any byte
+   * reaches the socket, so the server is handed valid text and stores it. The row that comes
+   * back is therefore both wrong and short: a replacement character the client never sent
+   * standing in for the character the slice destroyed, and 24 characters in a column the
+   * slice was aiming to fill to 45. That silent rewrite is what the code-point clamp exists
+   * to avoid — not an `Incorrect string value` this stack never produces.
+   */
+  it('would have stored U+FFFD for a character a UTF-16 slice cut in half', async () => {
+    const source = `ab${'😀'.repeat(60)}`;
+    const sliced = source.slice(0, 45);
+    expect(sliced).toBe(`ab${'😀'.repeat(21)}\uD83D`);
+    expect(sliced).toHaveLength(45);
+
+    const row = await record({ ip: sliced, userAgent: 'vitest' });
+
+    // The insert succeeded, and the boundary character came back as the replacement one.
+    expect(row['ip']).toBe(`ab${'😀'.repeat(21)}�`);
+    expect(Array.from(String(row['ip']))).toHaveLength(24);
+    // Nothing unpaired survived the trip — a plain substring search would not show this,
+    // because `\uD83D` is also the leading unit of every whole `😀` still in the value.
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(String(row['ip']))).toBe(false);
+    // The row itself is intact, so nothing about this is an insert failure.
+    expect(row['reason']).toBe('bad_password');
   });
 });
 
