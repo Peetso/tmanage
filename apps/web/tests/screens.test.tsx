@@ -261,10 +261,25 @@ describe('ID-02 MFA', () => {
   });
 });
 
+/**
+ * The four states as a component API.
+ *
+ * `41` line 36 approves all four for ID-05, so they stay, and this file is where they are
+ * exercised — `apps/web` has no stories, and standing Storybook up for it is a workstream of
+ * its own rather than part of D15. What D15 changed is that the two states which assert an
+ * outcome now say, on the screen, that no operation produced it. `recovery-states.test.tsx`
+ * holds the other half: that the `/recover` route cannot be talked into either of them.
+ */
 describe('ID-05 Recovery', () => {
   it('never confirms whether an account exists', () => {
     render(<RecoveryScreen state="sent" />);
     expect(screen.getByText(/If an account exists for that address/)).toBeInTheDocument();
+  });
+
+  it('does not let the sent state imply an email was dispatched', () => {
+    render(<RecoveryScreen state="sent" />);
+    expect(screen.getByText(/Not built yet — ID-002/)).toBeInTheDocument();
+    expect(screen.getByText(/No recovery email was sent/)).toBeInTheDocument();
   });
 
   it('refuses to extend an expired link and says why', () => {
@@ -275,6 +290,16 @@ describe('ID-05 Recovery', () => {
   it('reports that other sessions were ended once recovery completed', () => {
     render(<RecoveryScreen state="completed" />);
     expect(screen.getByText(/Your other sessions were signed out/)).toBeInTheDocument();
+  });
+
+  it('denies each claim the completed state makes while ID-002 is unbuilt', () => {
+    render(<RecoveryScreen state="completed" />);
+    expect(screen.getByText(/Not built yet — ID-002/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /No recovery has run\. No access was restored, no session was signed out and no audit row was written\./,
+      ),
+    ).toBeInTheDocument();
   });
 });
 
