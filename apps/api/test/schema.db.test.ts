@@ -46,9 +46,14 @@ let columnsByTable: Map<string, Map<string, ColumnRow>>;
  *   MySQL 8.0.19 deprecated and stopped reporting. The same holds for `int(10)`,
  *   `mediumint(8)` and `smallint(5)`.
  * - `longtext` reduces to `json`. On MySQL a `json` column reports `json`, so this does not
- *   fire; it is kept as a tolerance for a server that stores JSON as text, and it is safe
- *   because the only such columns in this schema are `audit_events.metadata_json`,
- *   `idempotency_records.response_json` and `outbox_events.payload_json`, all genuine JSON.
+ *   fire; it is kept as a tolerance for a server that stores JSON as text. What makes it
+ *   safe is a rule, not a list: **every `json` column in this schema holds genuine JSON,
+ *   and no column anywhere is declared `longtext`.** So the tolerance can only ever equate
+ *   a `json` column with itself, and it stays safe as columns are added. Stated as a rule
+ *   deliberately — until 2026-09-12 this named three columns by hand and there were
+ *   already six, `messages.body_rich` and `message_revisions.body_rich` (migration
+ *   `0008_message_rich_text.sql`) and `upload_sessions.upload_targets_json`
+ *   (`0015_file_uploads.sql`) having landed after the list was written.
  *
  * The width branch was wrong until 2026-08-25: it dropped the space as well as the width,
  * turning `bigint(20) unsigned` into `bigintunsigned`, and it tested `startsWith('int')` so

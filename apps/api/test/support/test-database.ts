@@ -40,6 +40,16 @@ import { migrate } from '../../src/common/database/migrator.js';
 
 const MIGRATIONS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../migrations');
 
+/**
+ * The statement timeout the guarded pool is built with, in milliseconds.
+ *
+ * Exported so a suite can assert the value the connection actually carries rather than
+ * repeating the number: `max_execution_time` is now the only statement-timeout mechanism
+ * in this project, so nothing else would notice if the SET stopped happening. Matches the
+ * product default for `DATABASE_STATEMENT_TIMEOUT_MS` (`packages/config/src/env.ts`).
+ */
+export const RUNTIME_STATEMENT_TIMEOUT_MS = 15_000;
+
 const EXTERNAL_URL = process.env['TMANAGE_TEST_DATABASE_URL'];
 const APP_URL = process.env['TMANAGE_TEST_APP_DATABASE_URL'];
 
@@ -230,7 +240,7 @@ export async function startTestDatabase(options: StartOptions = {}): Promise<Tes
   const runtime = createTenantPool({
     url: leastPrivilege ? (APP_URL as string) : url,
     connectionLimit: 4,
-    statementTimeoutMs: 15_000,
+    statementTimeoutMs: RUNTIME_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => connectionErrors.push(error),
   });
 

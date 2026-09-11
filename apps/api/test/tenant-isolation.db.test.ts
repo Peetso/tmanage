@@ -9,7 +9,11 @@ import {
   isTenantTable,
 } from '../src/common/database/tenant-guard.js';
 import type { TenantGuardEvent } from '../src/common/database/tenant-guard.js';
-import { startTestDatabase, truncateAll } from './support/test-database.js';
+import {
+  RUNTIME_STATEMENT_TIMEOUT_MS,
+  startTestDatabase,
+  truncateAll,
+} from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { adjacentUuid, seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
@@ -129,13 +133,21 @@ describe('the harness itself', () => {
   it('hands out connections with the session state applied', async () => {
     const rows = await tenant.read(northstar, (tx) =>
       tx.query<RowDataPacket[]>(
-        'select @@session.sql_mode as m, @@session.time_zone as tz, ? as bound',
+        'select @@session.sql_mode as m, @@session.time_zone as tz, ' +
+          '@@session.max_execution_time as timeout_ms, ? as bound',
         [northstar.organizationId],
       ),
     );
     expect(db.connectionErrors).toEqual([]);
     expect(String(rows[0]?.['m'])).toContain('STRICT_ALL_TABLES');
     expect(String(rows[0]?.['tz'])).toBe('+00:00');
+    // `max_execution_time` is now the only statement-timeout mechanism in this project:
+    // MariaDB's `max_statement_time` was removed from `applySessionState` because MySQL
+    // has never accepted it. The SET is deliberately tolerated failing there — a server
+    // that refuses the variable still serves queries — which means a silent regression
+    // would leave every connection uncapped and nothing else would notice. Asserted here,
+    // where a real connection is already being inspected.
+    expect(Number(rows[0]?.['timeout_ms'])).toBe(RUNTIME_STATEMENT_TIMEOUT_MS);
   });
 
   it('refuses a truncating write, so an over-long id cannot silently become another id', async () => {

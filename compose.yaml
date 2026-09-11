@@ -67,10 +67,20 @@ services:
       # server. `-h 127.0.0.1` forces TCP on purpose: the entrypoint's initialisation
       # server is reachable only over the socket, so the service is reported healthy only
       # once it is listening on the port the API will actually connect to.
-      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-uroot', '-plocal_dev_only_root']
+      # The password travels in MYSQL_PWD rather than as `-p...`, which needs CMD-SHELL to
+      # set it. On the command line every probe — one every 5 seconds, for the life of the
+      # container — logs "Using a password on the command line interface can be insecure".
+      # Exit status is the same either way; this only keeps the log readable.
+      test: ['CMD-SHELL', 'MYSQL_PWD=local_dev_only_root mysqladmin ping -h 127.0.0.1 -uroot']
       interval: 5s
       timeout: 5s
       retries: 20
+      # First boot on an empty volume initialises the data directory before the server
+      # listens on 3306, and mysql:8.4 is slower at it than the image this replaced. Without
+      # a grace window every probe during initialisation counts against `retries`, and
+      # 5s × 20 = 100s is the whole budget `docker compose up -d --wait mysql` has in CI.
+      # During start_period a failing probe does not count; the first success ends it.
+      start_period: 30s
 
   valkey:
     image: valkey/valkey:8.1-alpine
