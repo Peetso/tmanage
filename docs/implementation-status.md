@@ -6,7 +6,7 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
-**Last updated:** 2026-09-11 (**D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` on 2026-09-07 and the fix waves that follow them, the last two of those on 2026-09-11 — five review fix waves in all, four of them committed (`4036841`, `ce98302`, `9ceab73`, `7cc9c16`) and the fifth still in the working tree: the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the fourth makes the charge two-phase, so a refusal spends no narrower budget either, and stops a throttle refusal that names a user from moving that user towards their own durable lockout; and the fifth, uncommitted, stops the durable lockout counting the `locked_out` row it writes about itself, so the lockout window ends as designed instead of renewing itself for as long as anyone keeps knocking, and strengthens three tests that asserted less than their titles claimed; the static and unit gates are green and recorded, the database suites and the reverse proof are run by the orchestrator at the merged head, and the merge of the branch into `master` is the commit this Last-updated paragraph names when the orchestrator makes it (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+**Last updated:** 2026-09-11 (**D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` on 2026-09-07 and the fix waves that follow them, the last two of those on 2026-09-11 — five review fix waves in all, every one of them committed (`4036841`, `ce98302`, `9ceab73`, `7cc9c16`, `b0a33e3`): the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the fourth makes the charge two-phase, so a refusal spends no narrower budget either, and stops a throttle refusal that names a user from moving that user towards their own durable lockout; and the fifth stops the durable lockout counting the `locked_out` row it writes about itself, so the lockout window ends as designed instead of renewing itself for as long as anyone keeps knocking, and strengthens three tests that asserted less than their titles claimed; the static, unit and database gates are green and recorded, the reverse proof at the branch head proved all five waves load-bearing with every file restored byte-identical, the branch was merged into `master` `--no-ff` as `066934d`, and the post-merge chain on `066934d` was green and recorded and `master` pushed (see "The chain on `066934d`") (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
 
 ---
 
@@ -708,6 +708,37 @@ source-based abuse control) — since built on `d08-password-abuse-control`, see
 above — and **D09** (proxy headers, conditional), still open.
 
 ---
+
+## The chain on `066934d` — green
+
+Run by `claude-auto-1789145792` immediately after the D08 merge, detached, in the `tmanage` checkout on
+`master` `066934d` (`d08-password-abuse-control-2026-09-07/master-chain/chain.sh`, log `chain.log`,
+one `step-*.log` per step). Started 2026-09-11T19:53:51Z, **CHAIN END PASS 2026-09-11T20:28:16Z**, every
+step exit 0.
+
+| step                                                             | result                                                     |
+| ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| `build:packages`, `build:worker`                                 | rc=0                                                       |
+| `prettier --check .` (the two untracked Codex artefacts ignored) | rc=0                                                       |
+| `pnpm typecheck`                                                 | rc=0                                                       |
+| `eslint .` (same two paths ignored)                              | rc=0                                                       |
+| `contracts:validate`, `audit:design`                             | rc=0                                                       |
+| `pnpm test`                                                      | rc=0 — api 27 files / **413** tests                        |
+| `pnpm test:db`                                                   | rc=0 — 41 files, **988 passed, 35 skipped** (1023), 28 min |
+| `pnpm test:e2e`                                                  | rc=0 — **20 passed**, 2.7 min                              |
+
+`test:db` and `test:e2e` ran under `delegate-desk/2026-09-06-auto-relay/locks/db-e2e.lock`
+(runId `claude-auto-1789145792-chain`), which the chain released; no `mysqld` process was left behind.
+The 35 skips are the usual ones: the least-privilege suite without a credentialed database URL, and one
+case each in `chat-001` and `req-001`.
+
+Before the chain, the merge itself used the D07 phantom-LF remedy: 77 phantom line-ending files and both
+`git diff` forms empty beforehand; the 8 files in the intersection of merge-touched and phantom converted
+to CRLF by byte copy with `git hash-object` identical before and after; `.env.example`, already CRLF, left
+as found; `merge --no-ff` under `core.safecrlf=false` clean on the first attempt (14 files, 2925
+insertions); then 13 merge-written files normalised back to LF, all 13 hash-identical with zero CR bytes,
+returning the worktree's CRLF count to its original 4. No `git checkout`, `stash`, `reset`, `clean` or
+`restore` at any point, and the two untracked Codex artefacts were never touched.
 
 ## The chain on `bc0bf27` — green, recorded after the fact
 
