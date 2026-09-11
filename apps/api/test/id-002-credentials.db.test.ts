@@ -1934,6 +1934,121 @@ describe('the log', () => {
 });
 
 /**
+ * `D09`, task 4. What the log row is allowed to be, against the columns it actually has.
+ *
+ * `authentication_events.ip` is `VARCHAR(45)` and `user_agent` is `VARCHAR(255)`
+ * (`migrations/0004_credentials.sql`), and both values come from request headers. Since
+ * D09 tasks 1–3 the API believes a forwarded address where — and only where — the operator
+ * named a trusted proxy, and behind such a proxy `request.ip` is the last forwarded entry
+ * *verbatim*: `@fastify/proxy-addr` never validates that final element, so its length is the
+ * client's to choose. `User-Agent` has always been unbounded.
+ *
+ * Under strict mode an over-long value is `ER_DATA_TOO_LONG`, and this insert sits on the
+ * **failure** path of sign-in. So the row that a long forged header destroys is the row that
+ * is the only trace of the sweep that sent it — and the caller sees a 500 instead of the
+ * refusal it earned. The fix is a clamp at the insert rather than a rejection, for exactly
+ * that reason: a truncated trace is worth more than no trace.
+ *
+ * These cases go through the real repository against the real server, because what is being
+ * proved is what the *engine* accepts. `clampToColumnCharacters` has its own unit cases in
+ * `src/modules/identity/credentials.repository.test.ts` for the string shapes.
+ */
+describe('D09 — the log row is clamped to the columns that hold it', () => {
+  /** One row, written by the production insert, then read back unguarded. */
+  async function record(input: { ip: string | null; userAgent: string | null }) {
+    await tenant.identityTransaction(identity(), (tx) =>
+      repository.recordAuthenticationEvent(tx, {
+        userId: owner().id,
+        action: 'password_sign_in',
+        outcome: 'failed',
+        reason: 'bad_password',
+        ip: input.ip,
+        userAgent: input.userAgent,
+      }),
+    );
+    const rows = await events(owner().id);
+    expect(rows).toHaveLength(1);
+    return rows[0]!;
+  }
+
+  it('stores the leading 45 characters of a forged address, and does not throw', async () => {
+    const row = await record({ ip: 'a'.repeat(300), userAgent: 'vitest' });
+
+    expect(row['ip']).toBe('a'.repeat(45));
+    expect(String(row['ip'])).toHaveLength(45);
+    // The row survived, which is the whole point: this is the enumeration trace.
+    expect(row['reason']).toBe('bad_password');
+    expect(row['user_agent']).toBe('vitest');
+  });
+
+  it('stores the leading 255 characters of an unbounded user agent', async () => {
+    const row = await record({ ip: '203.0.113.9', userAgent: 'b'.repeat(1000) });
+
+    expect(row['user_agent']).toBe('b'.repeat(255));
+    expect(String(row['user_agent'])).toHaveLength(255);
+    expect(row['ip']).toBe('203.0.113.9');
+  });
+
+  /**
+   * The widest address the column was sized for: an IPv6 literal with an embedded IPv4
+   * suffix. Forty-five characters exactly, so it is the case a clamp off by one would break.
+   */
+  it('round-trips a full-width IPv6-with-IPv4 address unchanged', async () => {
+    const address = '0000:0000:0000:0000:0000:ffff:255.255.255.255';
+    expect(address).toHaveLength(45);
+
+    const row = await record({ ip: address, userAgent: 'Mozilla/5.0 (X11; Linux x86_64)' });
+
+    expect(row['ip']).toBe(address);
+    expect(row['user_agent']).toBe('Mozilla/5.0 (X11; Linux x86_64)');
+  });
+
+  it('keeps an explicitly null address and agent as NULL', async () => {
+    const row = await record({ ip: null, userAgent: null });
+
+    expect(row['ip']).toBeNull();
+    expect(row['user_agent']).toBeNull();
+  });
+
+  /** The other spelling of absence: the caller passes neither field at all. */
+  it('keeps an omitted address and agent as NULL', async () => {
+    await tenant.identityTransaction(identity(), (tx) =>
+      repository.recordAuthenticationEvent(tx, {
+        userId: owner().id,
+        action: 'password_sign_in',
+        outcome: 'failed',
+        reason: 'bad_password',
+      }),
+    );
+    const rows = await events(owner().id);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!['ip']).toBeNull();
+    expect(rows[0]!['user_agent']).toBeNull();
+  });
+
+  /**
+   * The engine's own opinion of what a "character" is, which is the reason the clamp counts
+   * code points rather than UTF-16 units. Three hundred astral-plane characters are 600
+   * UTF-16 units; clamped to 255 *characters* they are 1020 bytes in a `VARCHAR(255)` that
+   * the server accepts, and reading the row back yields exactly 255 of them. A UTF-16 slice
+   * would have written 255 units — and ended on a lone surrogate, which this server refuses
+   * outright however short the value is.
+   */
+  it('measures the bound the way the utf8mb4 column measures it', async () => {
+    const agent = '😀'.repeat(300);
+    expect(agent).toHaveLength(600);
+
+    const row = await record({ ip: '中'.repeat(60), userAgent: agent });
+
+    expect(row['user_agent']).toBe('😀'.repeat(255));
+    expect(Array.from(String(row['user_agent']))).toHaveLength(255);
+    expect(row['ip']).toBe('中'.repeat(45));
+    expect(Array.from(String(row['ip']))).toHaveLength(45);
+  });
+});
+
+/**
  * `D06`. A password is replaced to *recover* from a suspected compromise as often as for any
  * other reason, and a session the intruder already holds does not care that the password it
  * was opened with is gone. So replacing the password ends every other live session the person
