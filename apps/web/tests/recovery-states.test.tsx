@@ -59,7 +59,7 @@ const OUTCOME_CLAIMS: readonly RegExp[] = [
 /** The page renders `request`, and says of itself that recovery is not built. */
 function expectHonestRequestState() {
   expect(screen.getByRole('heading', { level: 1, name: 'Recover access' })).toBeInTheDocument();
-  expect(screen.getByText(/Not built yet — ID-002/)).toBeInTheDocument();
+  expect(screen.getByText(/Not available yet — ID-002/)).toBeInTheDocument();
   expect(screen.getByText(/No recovery email is sent/)).toBeInTheDocument();
 }
 

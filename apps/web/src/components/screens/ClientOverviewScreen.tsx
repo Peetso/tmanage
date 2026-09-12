@@ -186,10 +186,9 @@ export function ClientOverviewScreen({
 
       <BackendPending ticket="updates, milestones and risks — unscheduled">
         The latest update from {providerName}, the milestone timeline, and shared risks are not
-        built yet, and no ticket in 28-SPRINT-TICKETS builds them: 22-SCREEN-BY-SCREEN asks for all
-        three and the backlog schedules none. None is drawn as an empty section, because an empty
-        “Updates” heading reads as a team that has said nothing rather than a feature that does not
-        exist.
+        built yet, and none of the three is scheduled to be. None is drawn as an empty section,
+        because an empty “Updates” heading reads as a team that has said nothing rather than a
+        feature that does not exist.
       </BackendPending>
     </ClientPortalShell>
   );

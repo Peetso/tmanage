@@ -279,17 +279,16 @@ export function ProjectOverviewScreen({
           </>
         )}
         <p className="tm-field__hint">
-          This is what the client portal shows for this project. CLIENT-002 built that portal, so
+          This is what the client portal shows for this project. The portal is built and live, so
           the list is what a client member reading it right now would see — not a preview of
           something later.
         </p>
       </section>
 
       <BackendPending ticket="milestones and internal pulse — unscheduled">
-        Milestones and the latest internal pulse are not built, and no ticket in 28-SPRINT-TICKETS
-        builds them. Both are sections 22-SCREEN-BY-SCREEN asks for and neither has storage yet, so
-        neither is drawn: an empty “Milestones” heading would read as a project nobody has planned
-        rather than a feature that does not exist.
+        Milestones and the latest internal pulse are not built, and neither is scheduled to be.
+        Neither has anywhere to be stored yet, so neither is drawn: an empty “Milestones” heading
+        would read as a project nobody has planned rather than a feature that does not exist.
       </BackendPending>
     </AppShell>
   );

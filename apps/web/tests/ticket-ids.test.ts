@@ -12,8 +12,11 @@ import { describe, expect, it } from 'vitest';
  *
  * ## Why this file exists
  *
- * Screens carry a `BackendPending` notice naming the ticket that will finish them, and that
- * notice is **rendered to a person**. Over eleven sessions seven of those ids turned out to be
+ * Screens carry a `BackendPending` notice naming the ticket that will finish them. Since
+ * 2026-09-12 that id is rendered **only in a development build** — see `BackendPending` and
+ * `backend-pending-copy.test.tsx` — so the reader who follows it is a colleague rather than a
+ * customer. That makes a wrong id cheaper, not harmless: it still sends somebody into the
+ * backlog after a row that is not there. Over eleven sessions seven of those ids turned out to be
  * inventions — `MILE-001`, `PULSE-001`, `PEOPLE-001`, `MAIL-001`, `AUD-002`, `DOC-001` and
  * `INSIGHT-001` — each written because a real gap needed something to point at and a plausible
  * id was quicker than a quotation. The gaps were all real. The ids were not, and a reader
@@ -107,5 +110,100 @@ describe('ticket ids cited by apps/web', () => {
 
     // Named individually in the failure so the message says which file invented which id.
     expect(invented).toEqual([]);
+  });
+});
+
+/**
+ * **No internal identifier survives into copy a person reads.**
+ *
+ * The 2026-09-05 review, §7, "Design debt to address as the relevant slice lands"
+ * (`production-review-2026-09-05/CLAUDE-REVIEW-REPORT.md:302`):
+ *
+ * > "Remove ticket identifiers and “Is the API running?” copy from customer-facing flows. Keep
+ * > development diagnostics in an explicit development mode."
+ *
+ * `backend-pending-copy.test.tsx` renders the identity screens and proves the notice itself is
+ * clean in a production build. It cannot prove it for all nineteen screens that carry one:
+ * rendering each needs a query client, fixtures and a router, and the screens that regress are
+ * exactly the ones nobody thought to add. So this reads them instead.
+ *
+ * ## Why a source scan is sound here
+ *
+ * The two things being looked for cannot occur in code. A three-digit ticket id
+ * (`CLIENT-002`) and a planning-pack file reference (`23-ERD`) are not legal identifiers and
+ * appear in these files only inside prose. So anything left after comments are removed is
+ * text a screen renders.
+ *
+ * ## What is removed before looking, and why each is legitimate
+ *
+ * - **Comments**, block and line, which includes JSDoc and the braced block-comment form used
+ *   inside JSX. Explaining in a comment which ticket builds a thing is the point of the
+ *   comment; it reaches no reader of the product.
+ * - **The `ticket` prop of `BackendPending`**, which is the identifier's sanctioned home. It
+ *   is rendered only when `NODE_ENV` is not `production`, proved separately, and stripping it
+ *   here is what keeps this test about copy rather than about the prop.
+ *
+ * Nothing else is excluded. A screen that puts an id in a heading, a hint, a label or a
+ * sentence fails, which is how `CLIENT-002` was found in `ProjectOverviewScreen`'s portal
+ * hint after the first sweep of this slice had already passed over that file.
+ */
+const COPY_TICKET_PATTERN = /\b[A-Z][A-Z0-9]*-\d{3}(?!\d)/g;
+
+/** `28-SPRINT-TICKETS`, `23-ERD`, `41-WHOLE-APP-…` — the planning pack cited by name. */
+const PLANNING_FILE_PATTERN = /\b\d{2}-[A-Z][A-Z-]{3,}/g;
+
+/**
+ * The file with comments and the sanctioned `ticket` prop removed.
+ *
+ * The line-comment rule requires a non-`:` character before `//` so that a `https://` inside a
+ * string is not read as the start of a comment and used to delete the rest of the line.
+ */
+function copyOnly(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+    .replace(/\bticket=(?:"[^"]*"|'[^']*'|\{`[^`]*`\})/g, ' ');
+}
+
+describe('internal identifiers in copy a person reads', () => {
+  it('strips comments and the sanctioned ticket prop, and still sees a planted id', () => {
+    // Without this the scan below could pass by stripping everything.
+    const planted = copyOnly(
+      [
+        '/* CHAT-001 in a comment */',
+        '<BackendPending ticket="ID-002">',
+        'Blocked by WORK-002.',
+      ].join('\n'),
+    );
+
+    expect(planted).not.toContain('CHAT-001');
+    expect(planted).not.toContain('ID-002');
+    expect(planted).toContain('WORK-002');
+  });
+
+  it('renders no ticket id outside the notice that gates it', () => {
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles(sourceRoot)) {
+      const copy = copyOnly(readFileSync(file, 'utf8'));
+      for (const match of copy.matchAll(COPY_TICKET_PATTERN)) {
+        offenders.push(`${relative(repositoryRoot, file)}: ${match[0]}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('names no planning-pack document to a person', () => {
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles(sourceRoot)) {
+      const copy = copyOnly(readFileSync(file, 'utf8'));
+      for (const match of copy.matchAll(PLANNING_FILE_PATTERN)) {
+        offenders.push(`${relative(repositoryRoot, file)}: ${match[0]}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 });
