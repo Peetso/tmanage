@@ -255,6 +255,27 @@ describe('ID-02 MFA', () => {
     expect(screen.queryByText(/@/)).toBeNull();
   });
 
+  /*
+    The rate-limited state as a component API. `41` line 33 approves "rate limit" as an ID-02
+    state, and the claim it makes is one the application can substantiate: the API answers a
+    flooded MFA or recovery-code attempt with 429 `rate_limited` and writes the refusal to the
+    audit log before it does. So the copy stands — but only a caller holding that refusal may
+    ask for it, which is what these two cases pin. `mfa-states.test.tsx` holds the other half:
+    that `/sign-in/verify` cannot be talked into it from a URL.
+  */
+  it('claims an audit row only when a caller says an attempt was refused', () => {
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" rateLimited />);
+    expect(screen.getByText(/The attempt was recorded in the audit log/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Six-digit code/)).toBeDisabled();
+  });
+
+  it('makes no rate-limit claim of its own accord', () => {
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" />);
+    expect(screen.queryByText(/Rate limited/)).toBeNull();
+    expect(screen.queryByText(/recorded in the audit log/)).toBeNull();
+    expect(screen.getByLabelText(/Six-digit code/)).toBeEnabled();
+  });
+
   it('names the factor from the challenge as device context', () => {
     render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" factorLabel="Omar’s iPhone" />);
     expect(screen.getByText('Omar’s iPhone')).toBeInTheDocument();
