@@ -84,18 +84,47 @@ export type UserMfaFactorSummary = {
 };
 
 /**
+ * The four refusals `D05`'s gate writes when a credential-changing route is asked for without
+ * fresh proof — `AuthenticationService.requireReauth`, and nowhere else.
+ *
+ * None of them is a credential guess, which is the only question this list asks:
+ *
+ * - `reauth_required` — no token was presented at all.
+ * - `reauth_expired` — a token this server signed itself, correctly, whose TTL has passed.
+ * - `reauth_wrong_session` — an authentic token whose claims name another session.
+ * - `reauth_invalid` — malformed, or signed under another key. The only forgery of the four,
+ *   and it is a forgery of an HMAC over `SESSION_SECRET`, not a guess at the low-entropy
+ *   secret this counter exists to protect. A budget of five in 900 seconds is decisive
+ *   against a human-chosen password or a six-digit code and meaningless against an HMAC, so
+ *   the two do not belong in one.
+ */
+const REAUTH_FAILURE_REASONS = [
+  'reauth_required',
+  'reauth_invalid',
+  'reauth_expired',
+  'reauth_wrong_session',
+] as const;
+
+/**
  * The reasons a `failed` row can carry that are **not** a credential failure.
  *
  * {@link CredentialsRepository.countRecentFailures} excludes exactly these, and the header there
  * gives the argument for each. In one line: the three {@link SIGN_IN_ABUSE_REASONS} are refusals
- * written in front of the password check (N-2), and `locked_out` is the row the lockout writes
- * about itself (A-1) — a consequence of the count, never an input to it.
+ * written in front of the password check (N-2), and `locked_out` (A-1) and the four
+ * {@link REAUTH_FAILURE_REASONS} (X2) are rows this counter's own gates write — a consequence
+ * of the count, never an input to it.
  *
- * `'locked_out'` is spelled here rather than imported because the union it belongs to lives in
- * `authentication.service.ts`, which imports *this* file; the string is asserted against the
- * service's behaviour by the database case that drives a real lockout, not by the type.
+ * These strings are spelled here rather than imported because the union they belong to lives in
+ * `authentication.service.ts`, which imports *this* file; they are asserted against the
+ * service's behaviour by the database case that drives a real lockout, not by the type, and
+ * against the union's own shape by `credentials.repository.test.ts`, which fails to compile if
+ * a `reauth_*` reason is ever added without being weighed.
  */
-const NON_CREDENTIAL_FAILURE_REASONS = [...SIGN_IN_ABUSE_REASONS, 'locked_out'] as const;
+export const NON_CREDENTIAL_FAILURE_REASONS = [
+  ...SIGN_IN_ABUSE_REASONS,
+  'locked_out',
+  ...REAUTH_FAILURE_REASONS,
+] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Passwords
@@ -588,6 +617,31 @@ export class CredentialsRepository {
    * reasons have to it, reached by a different path. The audit trail is untouched once more: the
    * row is still written, still names the user, still carries `locked_out`, and only this
    * counter stops reading it.
+   *
+   * ## The gate's own rows — `D05`, X2 (2026-09-12)
+   *
+   * The four {@link REAUTH_FAILURE_REASONS} are the third instance of that shape, and the one
+   * with an attacker attached. `AuthenticationService.requireReauth` writes a `failed` row
+   * against the caller's user id every time it refuses one of the five credential-changing
+   * routes — `password/set`, the two TOTP enrolment halves, `factors/:factorId`, and
+   * `recovery-codes` — for want of fresh proof. Not one of those refusals read a credential:
+   * see the note on the constant for what each of the four actually means.
+   *
+   * Who writes them is what made counting them a denial of service rather than an inaccuracy.
+   * The refusal is reached from inside a live session, so somebody holding a stolen cookie
+   * posts five ungated requests inside the window and fills the *owner's* lockout with rows
+   * the owner never caused — and none of the five routes consults the `D08` bound, so there is
+   * no ceiling on how many they can write. What that shuts is precisely the recovery: this
+   * count is read by `signInWithPassword` **and** by `confirmReauthentication`, so the owner
+   * can neither sign in nor mint the proof that would end the intruder's session or rotate
+   * what they hold, while the intruder holds it shut for as long as they like.
+   *
+   * The invariant is unchanged and so is the remedy — the rows are still written, still name
+   * the user, still carry their reason, because an attempt on a credential-changing route is
+   * exactly the evidence an incident needs; only this counter stops reading them. What still
+   * counts, and must, is the credential `confirmReauthentication` genuinely presents: a wrong
+   * password there is `bad_password`, a wrong code `mfa_bad_code`, and both are outside this
+   * list. Re-authentication is a password oracle and its lockout is untouched.
    */
   async countRecentFailures(
     runner: IdentityQueryRunner,
