@@ -259,9 +259,10 @@ describe('ID-02 MFA', () => {
     The rate-limited state as a component API. `41` line 33 approves "rate limit" as an ID-02
     state, and the claim it makes is one the application can substantiate: the API answers a
     flooded MFA or recovery-code attempt with 429 `rate_limited` and writes the refusal to the
-    audit log before it does. So the copy stands — but only a caller holding that refusal may
-    ask for it, which is what these two cases pin. `mfa-states.test.tsx` holds the other half:
-    that `/sign-in/verify` cannot be talked into it from a URL.
+    audit log before it does — for the first refusal in each window, and for a lock-out, which
+    is the qualification `page.tsx` records. So the copy stands — but only a caller holding that
+    refusal may ask for it, which is what these two cases pin. `mfa-states.test.tsx` holds the
+    other half: that `/sign-in/verify` cannot be talked into it from a URL.
   */
   it('claims an audit row only when a caller says an attempt was refused', () => {
     render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" rateLimited />);

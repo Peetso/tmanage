@@ -23,9 +23,12 @@ import MfaPage from '../src/app/sign-in/verify/page';
  * and `completed`, this claim is one the application can actually substantiate: the API refuses
  * a flooded MFA or recovery-code attempt with 429 `rate_limited`
  * (`apps/api/src/modules/identity/authentication.controller.ts:252`) and writes the refusal to
- * the audit log first (`authentication.service.ts` `recordRefusal` / `record`). So the sentence
- * stays as approved copy, for a caller holding a real 429. What no caller may do is produce it
- * from eight characters in the address bar, and this file is where that is proved.
+ * the audit log first (`authentication.service.ts` `recordRefusal` / `record`) — narrowly: only
+ * on the first refusal in each abuse-control window, and `recordRefusal` lets a failed write
+ * stand, so the copy is a claim a caller must earn rather than one a 429 guarantees. See the
+ * qualification in `page.tsx`. So the sentence stays as approved copy, for a caller holding a
+ * real refusal. What no caller may do is produce it from eight characters in the address bar,
+ * and this file is where that is proved.
  *
  * ## Why the page is called through a cast
  *
