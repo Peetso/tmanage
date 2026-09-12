@@ -207,28 +207,25 @@ const ER_NO_REFERENCED_ROW = 'ER_NO_REFERENCED_ROW_2';
  * The driver's own error code, **unwrapped first**.
  *
  * Not defensive coding: Drizzle wraps anything thrown during execution in a
- * `DrizzleQueryError` whose `code` is its own, and `TenantDatabase` strips that only at the
- * transaction boundary. Everything in this file reacts to a driver error *inside* the
- * transaction, before that boundary is reached. `OrganizationsRepository` records the same
+ * `DrizzleQueryError`, which carries no `code` of its own and keeps the driver's error on
+ * `cause`, and `TenantDatabase` strips that wrapper only at the transaction boundary.
+ * Everything in this file reacts to a driver error *inside* the transaction, before that
+ * boundary is reached. `OrganizationsRepository` records the same
  * trap and the same fix; this file's first run reproduced it exactly — a duplicate channel
  * name reached the controller as a 500 instead of a 409.
+ *
+ * **The string `code` is the whole test**, and the numeric `errno` is not consulted. mysql2
+ * builds every server error in `Packet.asError`, which is the only place in the driver that
+ * assigns `errno` at all and which sets `code` from its `ErrorCodeToName` table in the
+ * statement immediately before. Both 1062 and 1452 have names in that table, and
+ * `unwrapQueryError` returns that same error object — it removes `sql` and nothing else — so
+ * an error reaching here with one of those numbers always carries the matching name too.
  */
 function driverErrorCode(error: unknown): string | undefined {
   const unwrapped = unwrapQueryError(error);
   if (typeof unwrapped !== 'object' || unwrapped === null) return undefined;
-  const candidate = unwrapped as { code?: unknown; errno?: unknown };
-  if (typeof candidate.code === 'string') return candidate.code;
-  // A fallback with no known reaching path — kept, not justified by a mechanism. mysql2
-  // sets `code` and `errno` together in `Packet.asError`, and both 1062 and 1452 have
-  // names in its `ErrorCodeToName` table, so a driver error that reaches here always
-  // answers on the line above. `unwrapQueryError` hands back that same mysql2 error, so
-  // there is no wrapping in between that could strip the string and leave the number. The
-  // two lines survive because the same belt-and-braces pair is written in
-  // `organizations.repository.ts` and `upload-sessions.repository.ts`, not because any
-  // wrapping is known to need them.
-  if (candidate.errno === 1062) return ER_DUP_ENTRY;
-  if (candidate.errno === 1452) return ER_NO_REFERENCED_ROW;
-  return undefined;
+  const candidate = unwrapped as { code?: unknown };
+  return typeof candidate.code === 'string' ? candidate.code : undefined;
 }
 
 /** The index a duplicate-key error names, so two unique keys are not conflated. */
