@@ -1,21 +1,33 @@
-import { RecoveryScreen, type RecoveryState } from '../../components/screens/RecoveryScreen';
-
-const STATES: readonly RecoveryState[] = ['request', 'sent', 'expired', 'completed'];
+import { RecoveryScreen } from '../../components/screens/RecoveryScreen';
 
 /**
- * **ID-05 Session and recovery** — the recovery half, in its four states.
+ * **ID-05 Session and recovery** — the recovery half.
  *
- * The state comes from `?state=`, validated against the list above. An unrecognised value
- * falls back to `request` rather than throwing: a stale or mistyped link should land a person
- * on the screen that lets them start again, not on an error page.
+ * This route renders the `request` state and only the `request` state, for every request.
+ *
+ * ## Why it no longer reads `?state=`
+ *
+ * It used to. `?state=` was validated against the four `RecoveryState` values and passed
+ * straight to the screen, which meant `/recover?state=completed` told whoever typed it that
+ * their access had been restored, that their other sessions had been signed out, and that the
+ * event had been written to the audit log. The 2026-09-05 production review recorded that as
+ * **D15 · P2 · Recovery success is controlled by a URL parameter**, and its acceptance
+ * sentence is the rule this file now keeps: changing query parameters cannot fabricate
+ * recovery, email-send, session-revocation, or audit outcomes.
+ *
+ * Nothing was bypassed by it — there is no recovery operation to bypass, which is the point. A
+ * query string is not evidence that anything happened, and this route has no server operation
+ * that could be evidence of anything. `04-SECURITY-PRIVACY` §8 makes the audit log an
+ * append-only record with a named actor and result; a page that reports a row was written when
+ * none was is a false statement about a security control, made to a person, by anyone who can
+ * construct a URL.
+ *
+ * `RecoveryScreen` keeps all four states as a component API — `41` line 36 approves them for
+ * ID-05 and the design stays reviewable — but this route deliberately passes no `state` prop,
+ * so the component's own default applies. The `sent` and `completed` branches are for a caller
+ * that has a real result to show. ID-002 will build the operation that produces one; until it
+ * does, no caller in this application has one, and this route is not pretending otherwise.
  */
-export default async function RecoverPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const requested = params['state'];
-  const state = STATES.find((candidate) => candidate === requested) ?? 'request';
-  return <RecoveryScreen state={state} />;
+export default async function RecoverPage() {
+  return <RecoveryScreen />;
 }
