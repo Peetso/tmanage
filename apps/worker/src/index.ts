@@ -15,19 +15,37 @@ export type {
 
 export {
   OutboxTransactionLostError,
-  claimDueEvents,
+  claimReservedEvents,
   listParkedEvents,
   markPublished,
+  readOutboxBacklog,
   recordFailure,
+  reserveDueEvents,
   withSavepoint,
 } from './common/database/outbox-store.js';
 export type {
   ClaimOptions,
   ClaimedOutboxEvent,
+  OutboxBacklog,
   ParkedOutboxEvent,
 } from './common/database/outbox-store.js';
 
 export { backoffDelayMs } from './outbox/backoff.js';
+// Is the relay draining? — the audit's CRITICAL-2, exported so the db suite can drive the
+// same readings the `--status` command prints.
+export {
+  backlogIsStale,
+  describeHealth,
+  evaluateOutboxHealth,
+  readHeartbeat,
+  writeHeartbeat,
+} from './outbox/health.js';
+export type {
+  OutboxHealth,
+  OutboxHealthInput,
+  OutboxHealthReason,
+  OutboxHealthThresholds,
+} from './outbox/health.js';
 export { runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
 export type {
   BatchReport,

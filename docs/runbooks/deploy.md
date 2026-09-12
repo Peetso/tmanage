@@ -190,3 +190,72 @@ Two behaviours look like bugs at 02:00 and are not:
 - **A broken row costs only itself.** Somebody with two factors still signs in on the working
   one; only when _no_ factor of theirs opens is the sign-in refused. That is the same closed
   door, held open exactly as far as it safely can be.
+
+---
+
+## Monitoring the relay — is the outbox draining?
+
+A worker with nothing to do and a worker that died on Friday night look identical from
+outside: both log nothing, and `relay:once` used to exit 0 either way. That is why a stopped
+relay was found by a person noticing — a manager wondering why the inbox was quiet, a client
+asking why they never heard back — hours on a weekday, days over a weekend.
+
+The website is unaffected either way. What stops is everything that happens _because_ of what
+people do: the notification that a request arrived, the "we've received it" and "we need more
+detail" emails, and a client request keeping step with the work behind it. Nothing is lost —
+every event is safely written down and delivered the moment the relay runs again — but until
+then nothing is delivered.
+
+### The two readings
+
+- **Backlog age** — how old the oldest undelivered event is. Near zero while the relay
+  drains, growing without bound the moment it stops, and it does not care what stopped it: a
+  crash loop, a killed process, an exhausted connection pool, a cron entry someone removed, a
+  `WORKER_DATABASE_URL` that stopped resolving.
+- **Heartbeat** — when a batch last finished. Backlog age alone cannot tell "drained and
+  idle" from "dead with an empty queue"; this can.
+
+### The commands
+
+```
+pnpm --filter @tmanage/worker relay:status
+```
+
+Delivers nothing. Prints one JSON line — `status`, `reasons`, `pending`, `parked`,
+`oldestPendingSeconds`, `lastPollAt`, `secondsSinceLastPoll` — and **exits 1** when either
+reading is past its threshold. Safe to run beside a live loop and safe to run on a schedule
+of its own. Point cron, or any uptime check that can run a command, at that exit code: its
+own failure reporting is the alarm.
+
+```
+pnpm --filter @tmanage/worker relay:once
+```
+
+The delivery batch. It now **exits 1 when the backlog is older than
+`OUTBOX_BACKLOG_MAX_AGE_SECONDS`** — the relay has work it is not getting through. A batch
+that merely failed an event still exits 0: the retry is the design, and a page per transient
+failure is a page nobody reads.
+
+### The variables
+
+| Variable                           | Default | What it is                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OUTBOX_BACKLOG_MAX_AGE_SECONDS`   | `900`   | Above this, the oldest waiting event means the relay is not draining. Several times the poll interval and comfortably more than a sensible cron period, so one slow batch is not a page. Tighten it wherever delivery latency actually matters.                                                                        |
+| `OUTBOX_HEARTBEAT_MAX_AGE_SECONDS` | `900`   | Above this, the last completed batch is too long ago for the relay to be running.                                                                                                                                                                                                                                      |
+| `OUTBOX_HEARTBEAT_FILE`            | unset   | Where a completed batch records the time, for a later `relay:status` to read. Unset keeps no heartbeat, which is honest on a host with no writable path and leaves backlog age as the only reading. Set it to a path that survives a restart but not necessarily a redeploy — for example `var/worker-heartbeat.json`. |
+
+Set them on every process that runs the relay, the cron entries included. The reading is
+taken on the worker's own credential (`tmanage_worker` already holds `SELECT` on
+`outbox_events`), so no grant in `scripts/db/users.sql` changes.
+
+### When `relay:status` says degraded
+
+1. `backlog-age` with a recent heartbeat — the relay is running and losing ground. Look at
+   `parked`: a non-zero count is poison events that will never be claimed again without an
+   operator resetting their `attempts`. Otherwise it is throughput, and the batch size or the
+   cron period is the lever.
+2. `heartbeat-stale` or `heartbeat-missing` with an empty backlog — the relay is not running
+   at all, and there happens to be nothing waiting. Check the process, then the cron entry,
+   then `WORKER_DATABASE_URL`.
+3. Both — the relay is not running and work is piling up. The queue is durable, so there is
+   nothing to recover: start the relay and it drains.

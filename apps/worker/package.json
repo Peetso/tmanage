@@ -18,7 +18,8 @@
     "test:unit": "vitest run",
     "dev": "tsx src/main.ts",
     "start": "node dist/main.js",
-    "relay:once": "node dist/main.js --once"
+    "relay:once": "node dist/main.js --once",
+    "relay:status": "node dist/main.js --status"
   },
   "dependencies": {
     "@tmanage/config": "workspace:*",

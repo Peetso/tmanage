@@ -1,13 +1,19 @@
 import type { WorkerDatabase, WorkerTransaction } from '../common/database/worker-database.js';
 import {
   OutboxTransactionLostError,
-  claimDueEvents,
+  claimReservedEvents,
   listParkedEvents,
   markPublished,
+  readOutboxBacklog,
   recordFailure,
+  reserveDueEvents,
   withSavepoint,
 } from '../common/database/outbox-store.js';
-import type { ClaimedOutboxEvent, ParkedOutboxEvent } from '../common/database/outbox-store.js';
+import type {
+  ClaimedOutboxEvent,
+  OutboxBacklog,
+  ParkedOutboxEvent,
+} from '../common/database/outbox-store.js';
 import { backoffDelayMs } from './backoff.js';
 
 /**
@@ -15,14 +21,25 @@ import { backoffDelayMs } from './backoff.js';
  *
  * ## The delivery loop, in one paragraph
  *
- * One batch is one transaction: claim the oldest due, unpublished, unparked events with
- * `FOR UPDATE SKIP LOCKED`, run each type's handler inside a savepoint, stamp
- * `published_at` on success, and on failure roll the handler's writes back and record
- * `attempts + 1`, the error, and a backed-off `available_at`. Commit releases the locks.
+ * One batch is two transactions. The first **reserves**: it takes the oldest due,
+ * unpublished, unparked ids with `FOR UPDATE SKIP LOCKED`, increments `attempts` on each,
+ * and commits — so the attempt is durable *before* any handler runs. The second is the batch
+ * proper: re-claim those ids under their own locks, run each type's handler inside a
+ * savepoint, stamp `published_at` on success, and on failure roll the handler's writes back
+ * and record the error and a backed-off `available_at`. Commit releases the locks.
  * At-least-once falls out of the ordering — a crash after a handler's side effect but
  * before commit rolls *everything* back, so the event is redelivered and the handler must
  * be idempotent, which is the contract §2 states and the db suite enforces on the one
  * consumer that exists.
+ *
+ * ## Why the reservation is separate
+ *
+ * Because the failure the relay could not previously survive is a handler that kills the
+ * **process** rather than throwing: nothing rolls back to, the transaction dies with it, and
+ * a single increment inside that transaction would die with it too. Committing the count
+ * first is what turns "the same poison row re-claimed first at every restart, stalling every
+ * notification and email org-wide" into "a row that parks after `OUTBOX_MAX_ATTEMPTS`
+ * restarts like any other failure". See {@link reserveDueEvents} for the trade it makes.
  *
  * ## Two shapes, one function
  *
@@ -120,7 +137,7 @@ export interface EventFailure {
   readonly type: string;
   /** `error.message` — never a payload, which the producer already keeps content-free. */
   readonly error: string;
-  /** The attempt count after this failure. Equal to `maxAttempts` means parked. */
+  /** The attempt count including this one. Equal to `maxAttempts` means parked. */
   readonly attempts: number;
 }
 
@@ -134,6 +151,12 @@ export interface BatchReport {
   readonly failures: readonly EventFailure[];
   /** Every parked event visible at the end of the batch, this batch's casualties included. */
   readonly parked: readonly ParkedOutboxEvent[];
+  /**
+   * The queue as it stands at the end of the batch — CRITICAL-2's measurement, taken in the
+   * batch's own transaction because it costs one aggregate read and answers the only
+   * question an operator has: is anything waiting, and for how long.
+   */
+  readonly backlog: OutboxBacklog;
   /** After-commit effects attempted once the batch committed — not necessarily successful. */
   readonly effects: number;
   /** Of those, the ones that threw. Unretryable by construction — see the module doc. */
@@ -157,14 +180,18 @@ export async function runOutboxBatch(
   }
   let committedEffects: StagedEffect[] = [];
 
+  // Phase one, in a transaction of its own and committed before any handler runs: the
+  // attempt is counted on durable storage, so a handler that kills the process costs its row
+  // an attempt instead of costing it nothing. See `reserveDueEvents`.
+  const reserved = await database.transaction((tx) =>
+    reserveDueEvents(tx, { limit: options.batchSize, maxAttempts: options.maxAttempts }),
+  );
+
   const report = await database.transaction(async (tx) => {
     // Reset per attempt: should `transaction` ever re-run its callback, effects staged by an
     // attempt that did not commit must not survive into the one that did.
     committedEffects = [];
-    const events = await claimDueEvents(tx, {
-      limit: options.batchSize,
-      maxAttempts: options.maxAttempts,
-    });
+    const events = await claimReservedEvents(tx, reserved);
 
     let published = 0;
     let unhandled = 0;
@@ -202,7 +229,8 @@ export async function runOutboxBatch(
         // already destroyed. Rethrowing discards every staged effect with them, and the
         // batch is retried from the claim.
         if (error instanceof OutboxTransactionLostError) throw error;
-        const attempts = event.attempts + 1;
+        // Already incremented by the reservation — `attempts` counts this delivery.
+        const attempts = event.attempts;
         const delay = backoffDelayMs(attempts, options.backoffBaseMs, options.backoffCapMs);
         await recordFailure(tx, event.id, messageOf(error), new Date(Date.now() + delay));
         failures.push({ eventId: event.id, type: event.type, error: messageOf(error), attempts });
@@ -212,6 +240,7 @@ export async function runOutboxBatch(
     // Reported from inside the same transaction, so the batch's own casualties are already
     // visible. The limit keeps a pathological backlog from turning a report into a dump.
     const parked = await listParkedEvents(tx, options.maxAttempts, 100);
+    const backlog = await readOutboxBacklog(tx, options.maxAttempts);
 
     return {
       claimed: events.length,
@@ -220,6 +249,7 @@ export async function runOutboxBatch(
       failed: failures.length,
       failures,
       parked,
+      backlog,
     };
   });
 

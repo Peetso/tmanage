@@ -253,6 +253,30 @@ export const envSchema = z
     OUTBOX_BACKOFF_BASE_MS: positiveInt.default(1_000),
     OUTBOX_BACKOFF_CAP_MS: positiveInt.default(900_000),
 
+    // Is the relay draining? — the worker/outbox audit's CRITICAL-2.
+    //
+    // A healthy idle worker and a dead one produce the same logs (none) and the same
+    // `relay:once` exit code (0). What separates them is how old the oldest undelivered
+    // event is, and how long ago a batch last finished. Both are thresholds rather than
+    // alarms: the worker reports the numbers, and cron's or a monitor's own failure
+    // reporting is the alarm.
+    //
+    // 900 s is deliberately several times the loop's poll interval *and* comfortably more
+    // than a sensible cron period, so a single slow batch or a skipped tick is not a page.
+    // Tighten it wherever delivery latency actually matters.
+    OUTBOX_BACKLOG_MAX_AGE_SECONDS: positiveInt.default(900),
+    OUTBOX_HEARTBEAT_MAX_AGE_SECONDS: positiveInt.default(900),
+    // Where a completed batch records the time, for a later `relay:status` — or any monitor
+    // that can stat a file — to read. Absent means no heartbeat is kept, which is honest on
+    // a host with no writable path and leaves backlog age as the only reading.
+    // Empty means "keep no heartbeat", the same shape `OTEL_EXPORTER_OTLP_ENDPOINT` uses for
+    // "exporter off" — normalised to `undefined` so the worker has one absence to test.
+    OUTBOX_HEARTBEAT_FILE: z
+      .string()
+      .trim()
+      .transform((value) => (value === '' ? undefined : value))
+      .optional(),
+
     // Realtime — RT-001, 13-ENGINEERING §6.
     //
     // 0 means the socket server does not start, which is the correct default on a host

@@ -19,8 +19,13 @@ interface FakeEvent {
 const OPTIONS = { batchSize: 10, maxAttempts: 5, backoffBaseMs: 1000, backoffCapMs: 60_000 };
 
 /**
- * A transaction that answers the dispatcher's four statements and records the order of
- * everything it was asked to do, so a test can say "the commit happened first".
+ * A transaction that answers the dispatcher's statements and records the order of everything
+ * it was asked to do, so a test can say "the commit happened first".
+ *
+ * Two of them are newer than this suite: the reservation's `SELECT id` and its
+ * `attempts = attempts + 1` (CRITICAL-1's claim-time bookkeeping, `outbox-store.ts`). They
+ * are logged under their own names so `fail` keeps meaning exactly what it meant when these
+ * tests were written — `recordFailure` ran — and every assertion below still says what it said.
  */
 function fakeDatabase(
   events: readonly FakeEvent[],
@@ -40,13 +45,26 @@ function fakeDatabase(
           Object.assign(new Error('SAVEPOINT outbox_event does not exist'), { errno: 1305 }),
         );
       }
+      if (
+        text.startsWith('SELECT') &&
+        text.includes('FOR UPDATE') &&
+        !text.includes('PAYLOAD_JSON')
+      ) {
+        log.push('reserve-select');
+        return Promise.resolve(events.map((event) => ({ id: event.id })));
+      }
+      if (text.startsWith('UPDATE') && text.includes('ATTEMPTS = ATTEMPTS + 1')) {
+        log.push('reserve-attempt');
+        return Promise.resolve({ affectedRows: events.length });
+      }
       if (text.startsWith('SELECT') && text.includes('FOR UPDATE')) {
         log.push('claim');
         return Promise.resolve(
           events.map((event) => ({
             id: event.id,
             type: event.type,
-            attempts: event.attempts,
+            // As the reservation left it: the attempt is counted before the handler runs.
+            attempts: event.attempts + 1,
             organization_id: 'org-1',
             schema_version: 1,
             aggregate_type: 'client_request',
@@ -68,14 +86,19 @@ function fakeDatabase(
     },
   } as unknown as WorkerTransaction;
 
+  // One batch is two transactions now — the reservation, then the batch proper. Only the
+  // second one's commit is the one these tests mean by "the commit".
+  let transactions = 0;
   return {
     transaction: async <T>(run: (tx: WorkerTransaction) => Promise<T>): Promise<T> => {
+      transactions += 1;
+      const isBatch = transactions > 1;
       const result = await run(tx);
-      if (options.failCommit === true) {
+      if (isBatch && options.failCommit === true) {
         log.push('commit-failed');
         throw new Error('lost connection at COMMIT');
       }
-      log.push('commit');
+      if (isBatch) log.push('commit');
       return result;
     },
   } as unknown as WorkerDatabase;
