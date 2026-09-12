@@ -9,7 +9,11 @@ import {
   isTenantTable,
 } from '../src/common/database/tenant-guard.js';
 import type { TenantGuardEvent } from '../src/common/database/tenant-guard.js';
-import { startTestDatabase, truncateAll } from './support/test-database.js';
+import {
+  RUNTIME_STATEMENT_TIMEOUT_MS,
+  startTestDatabase,
+  truncateAll,
+} from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { adjacentUuid, seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
@@ -94,33 +98,30 @@ afterAll(async () => {
 
 describe('the harness itself', () => {
   it('records which engine and which credential produced this run', () => {
-    // Not decoration. ADR-0002 records that local is MySQL and deployed is MariaDB, and
-    // that CI is the only place the skew is caught — so a result that does not say which
-    // engine it came from cannot discharge that. Likewise ADR-0001 layer 2: a corpus green
-    // under a root credential proves nothing about the privileges the application holds.
-    expect(['mysql', 'mariadb']).toContain(db.engine.name);
+    // Not decoration. MySQL is the engine everywhere (ADR-0002), and a corpus that does
+    // not say which server produced it cannot show that it ran on the engine the product
+    // uses. Likewise ADR-0001 layer 2: a corpus green under a root credential proves
+    // nothing about the privileges the application holds.
+    expect(db.engine.name, 'the engine is MySQL, everywhere').toBe('mysql');
     console.warn(
       `[isolation corpus] engine=${db.engine.name} ${db.engine.version} · ` +
         // `external` means only that TMANAGE_TEST_DATABASE_URL was supplied. It does not
         // mean a container: a long-lived embedded server started outside the per-file
         // lifecycle reaches this branch too, and labelling that run "containerised
         // (compose.yaml)" put a claim in the log that the harness had no way to check.
-        // The engine and version printed beside it are what actually distinguish CI's
-        // MariaDB from a local MySQL.
+        // The engine and version printed beside it are what the reader has instead.
         `server=${db.external ? 'external (TMANAGE_TEST_DATABASE_URL)' : 'embedded (ADR-0002)'} · ` +
         `runtime credential=${db.leastPrivilege ? 'tmanage_app (least privilege)' : 'admin'}`,
     );
 
     if (process.env['CI']) {
-      // The containerised MariaDB run and the least-privilege credential are the two things
+      // The containerised run and the least-privilege credential are the two things
       // PLAT-003 exists to convert from promise into evidence. If either is missing in CI,
       // the corpus is still green while proving less than the status document claims — so
-      // it fails here instead, loudly, rather than passing quietly.
+      // it fails here instead, loudly, rather than passing quietly. The engine is already
+      // asserted above and does not differ here: CI and local run the same MySQL.
       expect(db.external, 'CI must run the containerised stack, not the embedded server').toBe(
         true,
-      );
-      expect(db.engine.name, 'CI must run MariaDB — that is the skew ADR-0002 defers to it').toBe(
-        'mariadb',
       );
       expect(
         db.leastPrivilege,
@@ -132,13 +133,21 @@ describe('the harness itself', () => {
   it('hands out connections with the session state applied', async () => {
     const rows = await tenant.read(northstar, (tx) =>
       tx.query<RowDataPacket[]>(
-        'select @@session.sql_mode as m, @@session.time_zone as tz, ? as bound',
+        'select @@session.sql_mode as m, @@session.time_zone as tz, ' +
+          '@@session.max_execution_time as timeout_ms, ? as bound',
         [northstar.organizationId],
       ),
     );
     expect(db.connectionErrors).toEqual([]);
     expect(String(rows[0]?.['m'])).toContain('STRICT_ALL_TABLES');
     expect(String(rows[0]?.['tz'])).toBe('+00:00');
+    // `max_execution_time` is now the only statement-timeout mechanism in this project:
+    // MariaDB's `max_statement_time` was removed from `applySessionState` because MySQL
+    // has never accepted it. The SET is deliberately tolerated failing there — a server
+    // that refuses the variable still serves queries — which means a silent regression
+    // would leave every connection uncapped and nothing else would notice. Asserted here,
+    // where a real connection is already being inspected.
+    expect(Number(rows[0]?.['timeout_ms'])).toBe(RUNTIME_STATEMENT_TIMEOUT_MS);
   });
 
   it('refuses a truncating write, so an over-long id cannot silently become another id', async () => {

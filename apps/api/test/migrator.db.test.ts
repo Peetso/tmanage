@@ -32,7 +32,7 @@ let connection: Connection;
 beforeAll(async () => {
   // `scratch` because this suite drops every table between cases. Against the embedded
   // server that is harmless — each suite owns its own server. Against the shared CI
-  // MariaDB it would destroy the schema the isolation corpus and the least-privilege suite
+  // server it would destroy the schema the isolation corpus and the least-privilege suite
   // run on, so this suite gets a database of its own there.
   db = await startTestDatabase({ applyMigrations: false, scratch: true });
   connection = await createMigrationConnection(db.url);

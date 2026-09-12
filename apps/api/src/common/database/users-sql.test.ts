@@ -13,7 +13,7 @@ import { splitStatements } from './migrator.js';
  * is table-level and therefore needs its table to already exist. Nothing in the repository
  * could notice, because nothing compared the two files.
  *
- * The containerised CI job now runs the real thing against a real MariaDB, which is the
+ * The containerised CI job now runs the real thing against a real MySQL server, which is the
  * evidence that matters. These assertions are the cheap check that runs on every commit and
  * fails in a second rather than after a container boot — and, more usefully, the thing that
  * makes a *new* table a decision rather than an omission. A migration that adds a tenant
@@ -89,8 +89,8 @@ describe('scripts/db/users.sql — the grants parse and are well formed', () => 
         .filter((match): match is RegExpExecArray => match !== null)
         .map((match) => match[1] as string),
     );
-    // MySQL 8 and MariaDB 10.4+ both refuse GRANT to an unknown user, so a grant without a
-    // matching create is not a style problem — it aborts the script.
+    // MySQL refuses GRANT to an unknown user, so a grant without a matching create is not
+    // a style problem — it aborts the script.
     for (const grant of grants) {
       expect(created.has(grant.user), `no CREATE USER for '${grant.user}'`).toBe(true);
     }

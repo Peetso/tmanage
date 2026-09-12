@@ -34,28 +34,31 @@ interface ColumnRow extends RowDataPacket {
 let columnsByTable: Map<string, Map<string, ColumnRow>>;
 
 /**
- * Reduce a Drizzle SQL type and a MySQL/MariaDB `COLUMN_TYPE` to a comparable form.
+ * Reduce a Drizzle SQL type and a MySQL `COLUMN_TYPE` to a comparable form.
  *
- * The equivalences below are real engine facts, each one deliberate rather than a way to
- * make a comparison pass:
+ * The equivalences below are real facts, each one deliberate rather than a way to make a
+ * comparison pass:
  *
- * - Drizzle's `boolean()` emits `boolean`, which both MySQL and MariaDB store as
- *   `tinyint(1)`. There is no separate boolean type in either engine. The `(1)` is kept,
- *   because for `tinyint` the width is how both engines spell a boolean rather than noise.
+ * - Drizzle's `boolean()` emits `boolean`, which MySQL stores as `tinyint(1)`. There is no
+ *   separate boolean type. The `(1)` is kept, because for `tinyint` the width is how a
+ *   boolean is spelled rather than noise.
  * - `bigint unsigned` and `bigint(20) unsigned` differ only by the display width, which
- *   MySQL 8.0.19 deprecated and stopped reporting and MariaDB 11.4 still reports. The same
- *   holds for `int(10)`, `mediumint(8)` and `smallint(5)`.
- * - MariaDB implements `json` as `longtext` with an automatic `CHECK (json_valid(...))`
- *   constraint, so `COLUMN_TYPE` reads `longtext` there and `json` on MySQL. Both accept
- *   and validate JSON; the difference is how the engine spells it. Verified against
- *   MariaDB 11.4.5 on 2026-08-25: the only `longtext` columns in this schema are
- *   `audit_events.metadata_json`, `idempotency_records.response_json` and
- *   `outbox_events.payload_json`, all of them genuine JSON columns.
+ *   MySQL 8.0.19 deprecated and stopped reporting. The same holds for `int(10)`,
+ *   `mediumint(8)` and `smallint(5)`.
+ * - `longtext` reduces to `json`. On MySQL a `json` column reports `json`, so this does not
+ *   fire; it is kept as a tolerance for a server that stores JSON as text. What makes it
+ *   safe is a rule, not a list: **every `json` column in this schema holds genuine JSON,
+ *   and no column anywhere is declared `longtext`.** So the tolerance can only ever equate
+ *   a `json` column with itself, and it stays safe as columns are added. Stated as a rule
+ *   deliberately — until 2026-09-12 this named three columns by hand and there were
+ *   already six, `messages.body_rich` and `message_revisions.body_rich` (migration
+ *   `0008_message_rich_text.sql`) and `upload_sessions.upload_targets_json`
+ *   (`0015_file_uploads.sql`) having landed after the list was written.
  *
- * This function had never run against MariaDB before 2026-08-25, and the width branch was
- * wrong: it dropped the space as well as the width, turning `bigint(20) unsigned` into
- * `bigintunsigned`, and it tested `startsWith('int')` so `smallint` and `mediumint` were
- * missed entirely. MySQL never reports a display width, so the branch had never executed.
+ * The width branch was wrong until 2026-08-25: it dropped the space as well as the width,
+ * turning `bigint(20) unsigned` into `bigintunsigned`, and it tested `startsWith('int')` so
+ * `smallint` and `mediumint` were missed entirely. MySQL never reports a display width, so
+ * on the engine this project actually runs the branch does not execute at all.
  */
 function normaliseType(type: string): string {
   const lowered = type.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -64,7 +67,7 @@ function normaliseType(type: string): string {
   return lowered.replace(/^(bigint|mediumint|smallint|int)\(\d+\)/, '$1');
 }
 
-/** Types where the two engines and Drizzle genuinely agree once width noise is removed. */
+/** Types where MySQL and Drizzle genuinely agree once width noise is removed. */
 function typesAgree(drizzleType: string, columnType: string): boolean {
   // No width-stripping fallback. An earlier revision compared the two forms again with
   // every `(N)` removed, which made `smallint(5) unsigned` agree with `smallint unsigned`

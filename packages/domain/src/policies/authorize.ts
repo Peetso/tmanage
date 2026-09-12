@@ -26,7 +26,7 @@ import { isClientReadableAudience, type Audience } from './audience.js';
  * 5. Composite `(organization_id, id)` foreign keys — make a cross-tenant row reference
  *    structurally impossible at the storage layer.
  *
- * The database engine is MySQL/MariaDB, which has **no row-level security**
+ * The database engine is MySQL, which has **no row-level security**
  * (`04-SECURITY-PRIVACY` §4: "no control may assume it exists"). Layers 3–5 are what
  * replace it, and none of them knows about project relation, audience, reviewer
  * authority, or object state — those live here, and only here. Conversely this evaluator

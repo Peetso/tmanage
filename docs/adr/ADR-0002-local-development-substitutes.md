@@ -29,11 +29,11 @@ product cannot get wrong.
 A driver port per infrastructure dependency. The containerised service is the default; a
 no-container substitute is available for development and test only.
 
-| Dependency     | Canonical (`compose.yaml`) | Deployed (bootstrap) | Local substitute                                                                             | Fidelity |
-| -------------- | -------------------------- | -------------------- | -------------------------------------------------------------------------------------------- | -------- |
-| Database       | `mariadb:11.4`             | Hostinger MariaDB    | `mysql-memory-server` — downloads and runs a **real** MySQL server binary as a child process | **Full** |
-| Cache/queue    | `valkey:8.1`               | Upstash Redis Free   | in-process `memory` driver                                                                   | Partial  |
-| Object storage | MinIO                      | Cloudflare R2        | `filesystem` driver                                                                          | Partial  |
+| Dependency     | Canonical (`compose.yaml`) | Deployed (bootstrap) | Local substitute                                                                             | Fidelity                                                |
+| -------------- | -------------------------- | -------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Database       | `mysql:8.4.11`             | Hostinger MySQL      | `mysql-memory-server` — downloads and runs a **real** MySQL server binary as a child process | **Full engine**, unpinned version — see the engine note |
+| Cache/queue    | `valkey:8.1`               | Upstash Redis Free   | in-process `memory` driver                                                                   | Partial                                                 |
+| Object storage | MinIO                      | Cloudflare R2        | `filesystem` driver                                                                          | Partial                                                 |
 
 Selection is by environment variable (`QUEUE_DRIVER`, `CACHE_DRIVER`, `STORAGE_DRIVER`),
 validated by `packages/config`.
@@ -50,11 +50,27 @@ behaviour are precisely what layer 1 of ADR-0001 relies on, and an emulator that
 the DDL without enforcing it would make the isolation suite pass while proving nothing —
 worse than not running it.
 
-**Engine note.** The substitute is MySQL; the deployed database is MariaDB. They diverge on
-features this schema deliberately avoids (no `CHECK` reliance beyond both engines' support,
-no engine-specific JSON functions in tenant-critical paths, no `RETURNING`). CI runs
-MariaDB via `compose.yaml`, so any divergence is caught there rather than only at deploy.
-This gap is recorded in `docs/implementation-status.md` against every check it affects.
+**Engine note.** One engine, everywhere: MySQL. The substitute is MySQL, `compose.yaml` is
+MySQL, and the deployed database is MySQL. There is therefore no _engine_ skew for CI to
+close, and the containerised run earns its place on other grounds — the server start-up
+flags, the provisioned least-privilege users, and Valkey and MinIO beside the database.
+
+**Version skew remains, and is not zero.** `compose.yaml` pins `mysql:8.4.11`; the embedded
+substitute (`apps/api/test/support/test-database.ts`) pins no version at all, so it runs
+whatever `mysql-memory-server` selects on the machine — MySQL 8.0.45 on the implementation
+machine as of 2026-09-12, because that server is installed here. Across the 8.0 → 8.4
+boundary the default authentication plugin, the optimiser's plan choices, and parts of
+`information_schema` all differ; `apps/api/test/test-002-performance.db.test.ts` already
+records the optimiser half in its own docstring. Fidelity of the substitute is therefore
+full at the level of the engine and its semantics, not at the level of the release series.
+
+> **Correction, 2026-09-12.** Earlier revisions of this ADR said the substitute was MySQL
+> while the deployed database was MariaDB, and that CI was the only place that skew was
+> caught. Those claims were wrong as written, not merely overtaken: they restated the
+> planning pack's hosting assumption instead of the stack, and no MariaDB was ever used by
+> this project. The owner has confirmed MySQL is the only engine. What survives the
+> correction is the version-skew note above, which is a real limit and replaces the
+> engine-skew caveat this revision removed.
 
 ### Guardrails
 
@@ -96,12 +112,16 @@ Recorded so they are never mistaken for coverage:
 
 - Two code paths per dependency, both needing maintenance. Mitigated by a shared contract
   test suite every driver of a port must pass.
-- MySQL-vs-MariaDB engine skew between local and deployed, addressed by CI as above.
+- MySQL **release-series** skew between the embedded substitute and `compose.yaml`, because
+  the substitute pins no version — see the engine note above. Closed by pinning the
+  embedded server to the compose version, which needs a full database-suite run to land.
 - First test run downloads a MySQL binary (cached under `.local/`).
 
 ## Revisit trigger
 
 Remove the `memory` and `filesystem` substitutes once CI and every developer machine has a
 container runtime. Keep the ports. Keep the embedded server for local runs regardless — it
-is materially faster than a container round-trip and, for MySQL-vs-MariaDB, switch it to an
-embedded MariaDB if one becomes available so local and deployed engines match exactly.
+is materially faster than a container round-trip and it is the same engine as the deployed
+database, so what is traded away by preferring it is the release series, not the engine.
+Pin its version to the one `compose.yaml` runs when a full database-suite run is available
+to prove the pin, and that last gap closes too.

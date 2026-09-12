@@ -83,7 +83,7 @@ describe('loadEnv', () => {
     expect(env.DATABASE_POOL_MAX).toBe(5);
   });
 
-  it('rejects a PostgreSQL connection string — the engine is MySQL/MariaDB', () => {
+  it('rejects a PostgreSQL connection string — the engine is MySQL', () => {
     // Guards against a regression to the pre-2026-08-16 pack revision.
     expect(
       issuePaths(() =>
@@ -92,7 +92,9 @@ describe('loadEnv', () => {
     ).toContain('DATABASE_URL');
   });
 
-  it('accepts a mariadb:// scheme as well as mysql://', () => {
+  // A spelling, not a second engine: both schemes reach the same MySQL server through
+  // mysql2. See the note on `mysqlUrl` in env.ts.
+  it('accepts a mariadb:// spelling as well as mysql://', () => {
     expect(() =>
       loadEnv({
         ...devEnv(),

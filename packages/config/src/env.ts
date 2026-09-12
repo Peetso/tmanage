@@ -43,10 +43,13 @@ export const UPLOAD_PART_SIZE_MAX_BYTES = 67_108_864;
 export const UPLOAD_MAX_PART_NUMBER = 99_999;
 
 /**
- * MySQL/MariaDB connection strings must be explicit about scheme so a typo cannot
- * silently work. The deployed database is Hostinger's MySQL-compatible MariaDB
- * (03-TECHNICAL-ARCHITECTURE §2); local development uses MariaDB via compose or an
- * embedded MySQL server (ADR-0002).
+ * Connection strings must be explicit about scheme so a typo cannot silently work — the
+ * check exists to refuse a leftover `postgres://` URL at boot rather than at first query.
+ *
+ * The engine is MySQL: locally via `compose.yaml` or the embedded server (ADR-0002), and
+ * deployed on Hostinger. `mariadb://` is still accepted as a spelling, not as a second
+ * engine — a string written that way is handed to `mysql2` unchanged and connects to the
+ * same MySQL server, so rejecting it would break a boot for no gain.
  */
 /**
  * The user a connection string names, for the checks that are about *who* connects.

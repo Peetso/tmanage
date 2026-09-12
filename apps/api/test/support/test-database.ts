@@ -22,11 +22,12 @@ import { migrate } from '../../src/common/database/migrator.js';
  * accept the DDL without enforcing it and the suite would pass while proving nothing,
  * which ADR-0002 calls out as worse than not running it at all.
  *
- * **CI.** `TMANAGE_TEST_DATABASE_URL` points at the MariaDB from `compose.yaml`. ADR-0002
- * records that CI is the *only* place the MySQL-vs-MariaDB engine skew is caught, so the
- * containerised run is not an alternative to the embedded one — it is the one that closes
- * a stated gap. `engine` below is reported by every suite so no result is ambiguous about
- * which server produced it.
+ * **CI.** `TMANAGE_TEST_DATABASE_URL` points at the MySQL server from `compose.yaml`. Both
+ * paths are MySQL — there is no second engine anywhere in this project — so what the
+ * containerised run adds is not fidelity of engine but the server start-up flags and the
+ * provisioned least-privilege users, neither of which the embedded server has. `engine`
+ * below is reported by every suite so no result is ambiguous about which server produced
+ * it, and the corpus asserts it really is MySQL rather than trusting the label.
  *
  * ## The runtime credential
  *
@@ -39,11 +40,27 @@ import { migrate } from '../../src/common/database/migrator.js';
 
 const MIGRATIONS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../migrations');
 
+/**
+ * The statement timeout the guarded pool is built with, in milliseconds.
+ *
+ * Exported so a suite can assert the value the connection actually carries rather than
+ * repeating the number: `max_execution_time` is now the only statement-timeout mechanism
+ * in this project, so nothing else would notice if the SET stopped happening. Matches the
+ * product default for `DATABASE_STATEMENT_TIMEOUT_MS` (`packages/config/src/env.ts`).
+ */
+export const RUNTIME_STATEMENT_TIMEOUT_MS = 15_000;
+
 const EXTERNAL_URL = process.env['TMANAGE_TEST_DATABASE_URL'];
 const APP_URL = process.env['TMANAGE_TEST_APP_DATABASE_URL'];
 
 export interface DatabaseEngine {
-  /** `mariadb` or `mysql`, decided by the server's own version string. */
+  /**
+   * What the server says it is, decided by its own version string.
+   *
+   * Only `mysql` is expected — that is the engine this project uses everywhere — and the
+   * isolation corpus asserts it. `mariadb` remains a reachable value so an unexpected
+   * server is *reported* rather than quietly relabelled.
+   */
   readonly name: 'mariadb' | 'mysql';
   readonly version: string;
 }
@@ -77,7 +94,7 @@ export interface StartOptions {
    * Give this suite a database of its own.
    *
    * Required by any suite that drops tables. Against the embedded server every suite
-   * already gets a private server, but against the shared CI MariaDB a `resetDatabase`
+   * already gets a private server, but against the shared CI server a `resetDatabase`
    * would otherwise destroy the schema — and the grants — that the isolation corpus and
    * the least-privilege suite depend on.
    */
@@ -106,7 +123,7 @@ export function leastPrivilegeDatabaseUrl(): string {
   return APP_URL;
 }
 
-/** MariaDB reports e.g. `11.4.5-MariaDB`; MySQL reports e.g. `8.4.3`. */
+/** MySQL reports e.g. `8.4.3`; anything spelling itself MariaDB is not what we run on. */
 async function readEngine(pool: Pool): Promise<DatabaseEngine> {
   const [rows] = await pool.query<RowDataPacket[]>('select version() as v');
   const version = String(rows[0]?.['v'] ?? 'unknown');
@@ -223,7 +240,7 @@ export async function startTestDatabase(options: StartOptions = {}): Promise<Tes
   const runtime = createTenantPool({
     url: leastPrivilege ? (APP_URL as string) : url,
     connectionLimit: 4,
-    statementTimeoutMs: 15_000,
+    statementTimeoutMs: RUNTIME_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => connectionErrors.push(error),
   });
 

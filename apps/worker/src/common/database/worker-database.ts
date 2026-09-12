@@ -26,8 +26,9 @@ import type { Connection, Pool, PoolConnection, PoolOptions } from 'mysql2/promi
  *
  * The same settings as the API's pool, for the same reasons: `STRICT_ALL_TABLES` so a
  * truncated CHAR(36) is an error rather than a different UUID, UTC so `DATETIME(3)`
- * comparisons agree with the application clock, and the statement timeout set both ways
- * because local development runs MySQL while the deployed database is MariaDB (ADR-0002).
+ * comparisons agree with the application clock, and MySQL's `max_execution_time` as the
+ * statement timeout — which caps reads only, so a runaway write must be bounded by the
+ * query itself. See `connection.ts` for the full note.
  */
 
 const SESSION_SQL_MODE =
@@ -62,12 +63,7 @@ async function applySessionState(
   try {
     await connection.query('SET SESSION max_execution_time = ?', [statementTimeoutMs]);
   } catch {
-    // MySQL-only variable; MariaDB raises ER_UNKNOWN_SYSTEM_VARIABLE.
-  }
-  try {
-    await connection.query('SET SESSION max_statement_time = ?', [statementTimeoutMs / 1000]);
-  } catch {
-    // MariaDB-only variable; MySQL raises ER_UNKNOWN_SYSTEM_VARIABLE.
+    // A server that refuses the variable still serves queries; see `connection.ts`.
   }
 }
 

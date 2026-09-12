@@ -218,7 +218,14 @@ function driverErrorCode(error: unknown): string | undefined {
   if (typeof unwrapped !== 'object' || unwrapped === null) return undefined;
   const candidate = unwrapped as { code?: unknown; errno?: unknown };
   if (typeof candidate.code === 'string') return candidate.code;
-  // MariaDB and MySQL agree on the numbers where they disagree on the names.
+  // A fallback with no known reaching path — kept, not justified by a mechanism. mysql2
+  // sets `code` and `errno` together in `Packet.asError`, and both 1062 and 1452 have
+  // names in its `ErrorCodeToName` table, so a driver error that reaches here always
+  // answers on the line above. `unwrapQueryError` hands back that same mysql2 error, so
+  // there is no wrapping in between that could strip the string and leave the number. The
+  // two lines survive because the same belt-and-braces pair is written in
+  // `organizations.repository.ts` and `upload-sessions.repository.ts`, not because any
+  // wrapping is known to need them.
   if (candidate.errno === 1062) return ER_DUP_ENTRY;
   if (candidate.errno === 1452) return ER_NO_REFERENCED_ROW;
   return undefined;

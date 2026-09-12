@@ -21,8 +21,8 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * 1. **The plan.** At two thousand rows, the hot work-item reads must be index walks, not
  *    table scans — `EXPLAIN`'s `type` must not be `ALL`, and the index `07-DATA-MODEL` §9
  *    planned for the read must be among the candidates the optimiser saw. Which candidate
- *    an engine finally picks can differ between MySQL and MariaDB; *whether it scans* does
- *    not, and the scan is the regression this fixture exists to catch.
+ *    the optimiser finally picks can differ between servers and versions; *whether it
+ *    scans* does not, and the scan is the regression this fixture exists to catch.
  * 2. **Correctness at volume.** The page cap holds at 200 exactly; a cursor walk over two
  *    thousand rows returns every row exactly once, in order; and the adversarial twin's
  *    five hundred rows are invisible at volume exactly as they are at three — the

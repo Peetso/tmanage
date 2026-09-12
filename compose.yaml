@@ -1,40 +1,46 @@
 # TManage — one-command local stack.
 #
-#   docker compose up -d          start MariaDB, Valkey, MinIO
+#   docker compose up -d          start MySQL, Valkey, MinIO
 #   pnpm db:migrate               create the schema (migration credential)
 #   pnpm db:grants                apply scripts/db/users.sql — least-privilege users
 #   pnpm dev                      run api + web + worker
 #
 # The migrate-then-grant order is mandatory, not stylistic: every grant in users.sql is
-# table-level, and both MySQL and MariaDB reject a table-level GRANT for a table that does
-# not exist. See the note on the mariadb service below.
+# table-level, and MySQL rejects a table-level GRANT for a table that does not exist. See
+# the note on the mysql service below.
 #
-# This mirrors the BOOTSTRAP deployment profile (50-BOOTSTRAP-DEPLOYMENT §4): MariaDB
-# stands in for the Hostinger-included database, Valkey for Upstash Redis, MinIO for
-# Cloudflare R2. Local development never contacts those free-tier accounts (§9).
+# This mirrors the BOOTSTRAP deployment profile (50-BOOTSTRAP-DEPLOYMENT §4): MySQL stands
+# in for the Hostinger-included database, Valkey for Upstash Redis, MinIO for Cloudflare
+# R2. Local development never contacts those free-tier accounts (§9).
 #
 # If no container runtime is available, `pnpm test:db` falls back to an embedded MySQL
-# server and the filesystem/in-memory drivers — see ADR-0002, including the recorded
-# MySQL-vs-MariaDB engine gap that CI closes by running this stack.
+# server and the filesystem/in-memory drivers — see ADR-0002. That fallback is the same
+# engine as this service, so what the container adds is the least-privilege users, the
+# server start-up flags below, and Valkey/MinIO alongside — not a second engine.
 #
 # Credentials below are local-development placeholders and must never appear deployed.
 
 name: tmanage
 
 services:
-  mariadb:
-    # MariaDB, not MySQL: this is what Hostinger Cloud provides (50-BOOTSTRAP §10).
-    image: mariadb:11.4.5-noble
+  mysql:
+    # MySQL is the engine everywhere in this project — development, test, and deployment.
+    # The driver is `mysql2` and the test suites run a real MySQL server (ADR-0002). 8.4 is
+    # the LTS series, and the one the planning pack's reference manual cites.
+    image: mysql:8.4.11
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: local_dev_only_root
-      MARIADB_DATABASE: tmanage
+      MYSQL_ROOT_PASSWORD: local_dev_only_root
+      MYSQL_DATABASE: tmanage
       # The MIGRATION user. Owns the schema. scripts/db/users.sql then creates the
       # runtime user with DML privileges only (25-AUTH-AND-TENANT-ISOLATION §5).
-      MARIADB_USER: tmanage_migrator
-      MARIADB_PASSWORD: local_dev_only_migrator
+      MYSQL_USER: tmanage_migrator
+      MYSQL_PASSWORD: local_dev_only_migrator
     command:
       - --character-set-server=utf8mb4
+      # Spelled out rather than left to the server: MySQL 8's own default is
+      # `utf8mb4_0900_ai_ci`, and the schema is created and compared against
+      # `utf8mb4_unicode_ci` (migration 0001).
       - --collation-server=utf8mb4_unicode_ci
       # Strict mode is required by §5. Without it MySQL silently truncates and coerces,
       # which would turn a constraint violation into corrupted tenant data.
@@ -48,18 +54,33 @@ services:
     ports:
       - '3306:3306'
     volumes:
-      - mariadb-data:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
       # scripts/db/users.sql is deliberately NOT mounted into /docker-entrypoint-initdb.d/.
       # That directory runs on the server's first boot, before any migration has run, and
-      # every grant in that file is table-level — MariaDB would abort with
-      # ER_NO_SUCH_TABLE (1146) on the first `GRANT ... ON tmanage.organizations`. The file
-      # is applied by `pnpm db:grants` after `pnpm db:migrate` instead, which is also how
-      # CI applies it and how a deployed environment must.
+      # every grant in that file is table-level — MySQL would abort with ER_NO_SUCH_TABLE
+      # (1146) on the first `GRANT ... ON tmanage.organizations`. The file is applied by
+      # `pnpm db:grants` after `pnpm db:migrate` instead, which is also how CI applies it
+      # and how a deployed environment must.
     healthcheck:
-      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      # The mysql image ships no healthcheck script — that is a MariaDB-image feature — but
+      # it does ship `mysqladmin`, which its own entrypoint uses to stop the temporary
+      # server. `-h 127.0.0.1` forces TCP on purpose: the entrypoint's initialisation
+      # server is reachable only over the socket, so the service is reported healthy only
+      # once it is listening on the port the API will actually connect to.
+      # The password travels in MYSQL_PWD rather than as `-p...`, which needs CMD-SHELL to
+      # set it. On the command line every probe — one every 5 seconds, for the life of the
+      # container — logs "Using a password on the command line interface can be insecure".
+      # Exit status is the same either way; this only keeps the log readable.
+      test: ['CMD-SHELL', 'MYSQL_PWD=local_dev_only_root mysqladmin ping -h 127.0.0.1 -uroot']
       interval: 5s
       timeout: 5s
       retries: 20
+      # First boot on an empty volume initialises the data directory before the server
+      # listens on 3306, and mysql:8.4 is slower at it than the image this replaced. Without
+      # a grace window every probe during initialisation counts against `retries`, and
+      # 5s × 20 = 100s is the whole budget `docker compose up -d --wait mysql` has in CI.
+      # During start_period a failing probe does not count; the first success ends it.
+      start_period: 30s
 
   valkey:
     image: valkey/valkey:8.1-alpine
@@ -115,6 +136,6 @@ services:
     restart: 'no'
 
 volumes:
-  mariadb-data:
+  mysql-data:
   valkey-data:
   minio-data:
