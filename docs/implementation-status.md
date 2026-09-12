@@ -14,11 +14,16 @@ the value is a validated list of the proxies the operator actually runs, and uns
 the adapter option that carries it), `4545e6e` (eight request-level cases driving the whole
 configured chain, all eight failing pre-fix), `0f779fb` (D08 follow-up 1 — the logged address and
 agent clamped by code point at the insert, so an over-long forged value can no longer turn a
-refused sign-in into a 500), and this documentation sweep. Static, unit and identity-database
+refused sign-in into a 500), `9101e60` (the reason for that clamp corrected — the invalid-UTF-8
+argument was false in this stack — and a database case added that proves the real mechanism), and
+this documentation sweep. Static, unit and identity-database
 gates green and recorded; **not merged and not pushed**. Two things D09 deliberately does not
-buy, both written down rather than left silent: a trusted proxy that _appends_ to
-`X-Forwarded-For` instead of replacing it still lets the client behind it choose the address, so
-`docs/runbooks/deploy.md` now tells the operator to overwrite the header; and D08 **follow-up 6
+buy, both written down rather than left silent: a **misconfigured** trusted proxy still lets the
+client behind it choose the address — a proxy that forwards their `X-Forwarded-For` untouched,
+one that prepends its own observation rather than appending it, or a trusted range broad enough
+to contain real clients — so `docs/runbooks/deploy.md` now carries the measured table and the
+three shapes (an _appending_ proxy is the safe form; the branch said the reverse until this
+sweep); and D08 **follow-up 6
 stays open** — the address is now authentic, it is still not scarce, and one IPv6 /64 holds 2^64
 of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 `claude-auto-1789145792`: **D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` on 2026-09-07 and the fix waves that follow them, the last two of those on 2026-09-11 — five review fix waves in all, every one of them committed (`4036841`, `ce98302`, `9ceab73`, `7cc9c16`, `b0a33e3`): the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the fourth makes the charge two-phase, so a refusal spends no narrower budget either, and stops a throttle refusal that names a user from moving that user towards their own durable lockout; and the fifth stops the durable lockout counting the `locked_out` row it writes about itself, so the lockout window ends as designed instead of renewing itself for as long as anyone keeps knocking, and strengthens three tests that asserted less than their titles claimed; the static, unit and database gates are green and recorded, the reverse proof at the branch head proved all five waves load-bearing with every file restored byte-identical, the branch was merged into `master` `--no-ff` as `066934d`, and the post-merge chain on `066934d` was green and recorded and `master` pushed (see "The chain on `066934d`") (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
@@ -44,7 +49,7 @@ the sign-in abuse control rotated with it, and one host could present as any num
 and so spend the global budget and refuse everybody's sign-in, MFA, recovery and
 re-authentication until the window turned.
 
-**What was built** (branch `d09-trusted-proxy`, cut from `master` `3fed68d`; four commits).
+**What was built** (branch `d09-trusted-proxy`, cut from `master` `3fed68d`; five commits).
 
 - `22a8072` — **trust is configured, not assumed.** New
   `packages/config/src/trusted-proxies.ts`: `TRUSTED_PROXY_ADDRESSES` is a comma-separated list
@@ -71,22 +76,40 @@ re-authentication until the window turned.
   fail against the pre-fix tree.
 - `0f779fb` — **the untruncated insert D08 carried here** (its follow-up 1).
   `recordAuthenticationEvent` clamps `ip` to 45 and `userAgent` to 255 **by code point** —
-  `Array.from`, not `slice`, so the cut never lands between the halves of a surrogate pair and
-  leaves a value MySQL would refuse as invalid UTF-8 however short it was. Clamp rather than
+  `Array.from`, not `slice`. Clamp rather than
   reject, argued in the file: the insert is on sign-in's failure path, and an over-long value
   under strict mode is `ER_DATA_TOO_LONG`, which loses the audit row that is the only trace of an
-  enumeration sweep and turns the refusal into a 500. Ten unit cases and six database cases; the
-  database cases failed pre-fix with `Data too long for column 'ip'` from the real engine.
+  enumeration sweep and turns the refusal into a 500. The database cases failed pre-fix with
+  `Data too long for column 'ip'` from the real engine.
+- `9101e60` — **the reason for the code-point clamp corrected.** `0f779fb` had argued that a
+  UTF-16 `slice` could leave an unpaired surrogate MySQL would refuse as invalid UTF-8 however
+  short the value was, so the clamp meant to prevent a failed insert would itself have caused
+  one. That is false in this stack, and the branch's own database case now proves it: mysql2
+  (3.23.3) maps this connection's `utf8mb4` charset to Node's `'utf8'` encoder, which substitutes
+  U+FFFD for an unpaired surrogate before a byte leaves the process, and the server accepts the
+  row. The real reasons the clamp counts code points are that the substitution is a
+  **normalisation this log is forbidden to make** — the table records what arrived — and that a
+  UTF-16 slice also **under-fills the column**, since an astral character is two units and one
+  MySQL character. The clamp itself is unchanged; only its justification is, in the source, in
+  the unit file's header and in the database docstring that echoed it. Three smaller corrections
+  ride along: the lone-surrogate unit case no longer states its expectation as the very `slice`
+  the suite argues against, the column-width constants no longer claim the database case keeps
+  them in step with the migration in both directions, and `ER_CANT_AGGREGATE` is gone from the
+  unit header, where it had been named as if it were an invalid-string error. The final tree has
+  **ten unit cases and seven database cases** for the clamp — `0f779fb` had ten and six.
 - The **documentation sweep** — this section, and the corrections listed under "What was
   corrected" below. No behaviour, no assertion.
 
 **Gates.** `pnpm build:packages`, `pnpm --filter @tmanage/api typecheck`, `pnpm lint` green at
 each commit. The api unit project went 27 files / 419 tests at the base to **29 files / 437
 tests**; `@tmanage/config` is **3 files / 117 tests** (`trusted-proxies.test.ts` is 20 of them).
-The identity database files ran 107 tests green at `0f779fb`, against the embedded
-`mysql-memory-server` MySQL every earlier slice used — including the six cases that prove the
-column counts `VARCHAR(n)` in characters rather than bytes, which is the behaviour the clamp is
-sized against. Whole-repo `pnpm format:check` fails at the base commit for 454 files nobody in this slice
+The identity database files ran **2 files / 107 tests** green at `0f779fb`
+(`d09-t4-db-identity.log`), against the embedded `mysql-memory-server` MySQL every earlier slice
+used. `9101e60` added a seventh clamp case, so that count is superseded: the re-run after it
+covered the one file the commit touched, `id-002-credentials.db.test.ts`, at **1 file / 76 tests**
+green (`d09-t4-fix-db.log`). Between them the seven cases prove that the column counts
+`VARCHAR(n)` in characters rather than bytes — the behaviour the clamp is sized against — and
+that a UTF-16-sliced value reaches the server as a substituted U+FFFD rather than an error. Whole-repo `pnpm format:check` fails at the base commit for 454 files nobody in this slice
 touched (this worktree has `core.autocrlf=true` while Prettier wants LF); the files each task
 touched were checked individually and are LF in the committed blobs.
 
@@ -96,14 +119,22 @@ Where the operator names a proxy, only that peer's forwarded headers are believe
 
 **What is not, and is stated rather than left silent.**
 
-- **An appending proxy still lets the client choose the address.** Where a proxy _is_ configured,
-  `request.ip` is the last `X-Forwarded-For` entry that is not itself trusted, taken **verbatim**:
-  `@fastify/proxy-addr` walks the chain from the right while the entries are trusted and returns
-  the first untrusted one, and it never validates the element it returns. So the address is the
-  proxy's word only where the proxy **replaces** the header. A proxy that appends to whatever the
-  client sent leaves the client behind it choosing what the API believes, and both address-keyed
-  budgets rotate with it. This is a deployment fault with a deployment fix, and the operator
-  instruction is now in `docs/runbooks/deploy.md`: the proxy must overwrite the header.
+- **A _misconfigured_ proxy still lets the client choose the address.** Where a proxy _is_
+  configured, `request.ip` is the **right-most** `X-Forwarded-For` entry that is not itself
+  trusted, taken **verbatim**: `@fastify/proxy-addr` builds `[socket peer, ...X-Forwarded-For
+reversed]`, walks it while the entries are trusted, returns the first untrusted one, and never
+  validates the element it returns. A proxy that **appends** its own observation therefore ends
+  the walk on that observation — the client's entries sit to its left and are never reached — so
+  **appending is the safe form**. Until this sweep every statement of this on the branch, the
+  runbook included, said the opposite, and the runbook's nginx directive
+  (`X-Forwarded-For $remote_addr`) would have collapsed every client behind a CDN into one
+  address and applied `RATE_LIMIT_AUTH_MAX_PER_SOURCE` to the whole world at once. The three
+  shapes that genuinely hand the address to the client — a proxy that forwards their header
+  untouched, one that prepends its observation, and a trusted range broad enough to contain real
+  clients — are now in `docs/runbooks/deploy.md` with the table they were measured from
+  (`fastify@5.11.3`, inject and real sockets, `d09-fix-xff-probe.log`). Under any of them both
+  address-keyed budgets rotate with the address. It remains a deployment fault with a deployment
+  fix; what changed is which deployments have it.
 - **D08 follow-up 6 stays open.** D09 makes the address _authentic_; it does not make it
   _scarce_. An IPv6 /64 still holds 2^64 addresses that rotate for free, so the source key can
   still be rotated by anybody who holds one, with no proxy involved. Canonicalising the address
@@ -125,6 +156,37 @@ sized against is now paid for with authentic addresses rather than forged ones);
 ID-002 named gap 6, and the two ticket-accounting lines that listed D09 as the open P1.
 Sentences that narrate a past state — the D08 fix-wave list, the probe records of earlier
 sessions — were left exactly as they stand.
+
+**What the whole-branch review then corrected**, also all prose, and the reason the sweep above
+cannot be read as final. The reviewer measured `request.ip` against this branch's own
+`fastify@5.11.3` and found the branch's central operator-facing caveat **backwards**: an
+appending proxy is the safe shape, not the dangerous one, because its own observation is the
+right-most entry and therefore the first untrusted one the walk reaches. The table was
+re-measured here before anything was rewritten — six header shapes through `inject` with a
+claimed peer of `203.0.113.7`, the same five again over real TCP sockets with a real peer, the
+broad-range hazard, an untrusted peer, and the two-hop CDN case (`d09-fix-xff-probe.log`) — and
+it reproduces exactly. Corrected: `docs/runbooks/deploy.md` (the caveat section replaced by the
+mechanism, the measured table and the three real hazards; the nginx directive restored to
+`$proxy_add_x_forwarded_for`, the Apache, Caddy and Traefik entries re-checked against the
+vendors' own documentation, Traefik's append order marked **unverified**, and a second
+post-deploy check added that distinguishes a pass-through or prepending proxy from a correct
+one); `fastify-adapter.ts`, `sign-in-abuse-control.ts` (four places), `authentication.service.ts`
+(two), `packages/config/src/env.ts`, `.env.example` (two), and the doc comments in
+`id-002-auth-http.db.test.ts` and `sign-in-abuse-control.test.ts` — the last of which had also
+called `request.ip` the _leftmost_ forwarded token. Where a comment reasoned _from_ the false
+caveat to justify a clamp, the reasoning was rewritten and the clamp left standing: it is
+justified by the three real hazards and by proxy-addr never validating the element it returns.
+In this file: the head summary, the commit list, D08's follow-up 1 and named gap 6, the D09
+"what is not" bullet, the clamp's stated reason, the case counts, and the engine assertions
+listed under "Engine wording" below. No behaviour and no assertion was touched in either sweep.
+
+**Engine wording.** Two present-tense assertions in this file that treated MariaDB as the
+project's engine of record were corrected: the D07 "engine skew" item and the least-privilege
+"not closed" note. MySQL is the only engine this project runs. Dated narration — the chain
+records that say the DB suites "still ran on embedded MySQL 8.0, not MariaDB", and the
+2026-08-13 spec-change table that records what the planning set said at the time — was left as
+history. A separate branch is correcting engine claims across the repository and does not touch
+this file.
 
 **Ticket accounting.** A defect fixed on a branch, not a ticket: **35 of 70 tickets, 285 of 583
 points (48.9%)** unchanged. D09, like D05 through D08 before it, is a review correction that
@@ -235,8 +297,12 @@ commit instead of an ordinal. What was built, then:
   clamp constant's comment no longer claims the recorded row is truncated to match the key nor
   that a zoned IPv4-mapped address fits inside 45 characters; the lost-refusal-row log line
   carries a running loss count and the correlation id, because at one write per key per window a
-  persistent failure is otherwise indistinguishable from a first one; `.env.example` carries the
-  D09 caveat on the global budget and the per-source arithmetic; the per-source number is 15
+  persistent failure is otherwise indistinguishable from a first one; `.env.example` records how
+  much the global budget and the per-source arithmetic depend on D09 (what it says there has been
+  rewritten twice since — by D09's own sweep, then by the whole-branch review that found the
+  caveat backwards; today it says the address believed is the right-most `X-Forwarded-For` entry
+  no trusted peer wrote, that an **appending** proxy is therefore the safe shape, and which three
+  shapes are not); the per-source number is 15
   everywhere rather than "twelve to fifteen" in one place; and the unexecuted
   "deleting any one of the four `admit` calls fails a test" claim is reworded to what the
   evidence supports. `PLAN.md` (outside the repository, in the evidence directory) is amended in
@@ -382,8 +448,10 @@ is 30 rather than 5.
   section above). `main.ts` now passes `trustProxy: env.TRUSTED_PROXY_ADDRESSES`, unset means
   trust nobody, and a caller with no trusted proxy in front of them is counted by the socket
   peer. What is left of the paragraph above, and what the two address-keyed budgets are still
-  worth, is stated there: a caller behind a trusted proxy that **appends** to `X-Forwarded-For`
-  still chooses the address, and address abundance (follow-up 6) is untouched by D09 for
+  worth, is stated there: a caller behind a **misconfigured** trusted proxy still chooses the
+  address — a proxy that forwards their `X-Forwarded-For` untouched, one that prepends its own
+  observation rather than appending it, or a trusted range broad enough to contain them — and
+  address abundance (follow-up 6) is untouched by D09 for
   everybody. Both budgets therefore remain a cost bound on honest traffic rather than a control,
   and the global key and the lockout remain the bounds that hold.
 
@@ -556,9 +624,11 @@ Every claim names its log.
    row survives, and the refusal stays a refusal instead of becoming a 500.
 
    **What the fix does not buy, and is not marked closed.** Where an operator does name a proxy,
-   `request.ip` is the last untrusted `X-Forwarded-For` entry verbatim, so a client behind a
-   proxy that _appends_ rather than replaces still chooses it; the operator instruction to
-   overwrite the header is in `docs/runbooks/deploy.md`. And part of the source key's weakness
+   `request.ip` is the **right-most** untrusted `X-Forwarded-For` entry verbatim, so a client
+   behind a _misconfigured_ proxy still chooses it: one that forwards their header untouched, one
+   that prepends its own observation, or a trusted range wide enough to contain them. An
+   _appending_ proxy is the safe shape, not one of those. The three, the measured table and the
+   per-server directives are in `docs/runbooks/deploy.md`. And part of the source key's weakness
    **outlives D09 and stays open as follow-up 6**: D09 made the address _authentic_, it did not
    make it _scarce_, and an IPv6 /64 still holds 2^64 addresses that rotate for free. Raising
    the global default to 3000 remains what raises the cost of a spray; nothing here removes it.
@@ -782,9 +852,9 @@ The post-merge chain on `bc0bf27` was green: every step exit 0, `test:db` and `t
    `AUTH_MFA_SEED_KEYS`, existing MFA users are locked out until `mfa:encrypt-seeds` runs, and the
    keyring must be held and backed up outside the database. All of it is in
    `docs/runbooks/deploy.md`; none of it has been exercised against a real deployment.
-5. Engine skew: the least-privilege proof ran on MySQL 8.0.45, not MariaDB. `lp-proof.md` says so
-   in as many words — it closes the credential gap and leaves the engine gap to CI, which is still
-   blocked.
+5. Engine coverage: the least-privilege proof ran on MySQL 8.0.45, provisioned locally rather
+   than in CI. `lp-proof.md` says so in as many words — it closes the credential gap and leaves
+   the CI gap open, and CI is still blocked. MySQL is the engine this project runs.
 
 **Ticket accounting.** A defect closed, not a ticket: **35 of 70 tickets, 285 of 583 points
 (48.9%)** unchanged. D07, like D05, W01, W02 and D06 before it, is a review correction that closes
@@ -8849,8 +8919,10 @@ convenience.
    **D09 (`d09-trusted-proxy`) narrowed that without removing it.** Forwarded headers are now
    believed only from the peers named in `TRUSTED_PROXY_ADDRESSES`, and unset — the default —
    means the socket peer, so a direct caller cannot choose their address at all. Two ways in
-   remain: a trusted proxy that _appends_ to `X-Forwarded-For` rather than replacing it (a
-   deployment fault, and `docs/runbooks/deploy.md` says to overwrite), and plain abundance — an
+   remain: a _misconfigured_ trusted proxy — one that forwards the client's `X-Forwarded-For`
+   untouched, one that prepends its own observation instead of appending it, or a trusted range
+   broad enough to contain real clients (a deployment fault; `docs/runbooks/deploy.md` measures
+   all three) — and plain abundance — an
    IPv6 /64 holds 2^64 authentic addresses (follow-up 6, open). Where either applies the bounds
    that hold are the global key and the durable per-user lockout (5 failures in 900 s), and it
    is the lockout that catches a grind against a named account. See the D09 and D08 sections
@@ -9429,8 +9501,8 @@ The run reported its own provenance, repeated here rather than paraphrased:
 3. ADR-0001 layer 2 is proven dynamically rather than only statically. The runtime
    credential was measured, not asserted.
 
-**Not closed:** the engine is still MySQL. MariaDB remains untested, the MySQL-vs-MariaDB
-skew is still deferred to CI, and CI has still never run. Nothing here was containerised.
+**Not closed:** the proof ran on a locally provisioned MySQL, not in CI, and CI has still
+never run. Nothing here was containerised.
 
 ### Four defects the first real run found
 

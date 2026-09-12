@@ -149,7 +149,7 @@ const MAX_EVENT_USER_AGENT_CHARACTERS = 255;
  *
  * ## Why code points and not `slice`
  *
- * These are `utf8mb4` columns, and MySQL and MariaDB both count `VARCHAR(n)` in *characters*
+ * These are `utf8mb4` columns, and MySQL counts `VARCHAR(n)` in *characters*
  * — one Unicode code point each, whether it encodes to one byte or four. JavaScript's
  * `String.prototype.slice` counts UTF-16 code units, which differs in two ways and only one
  * of them is harmless:
@@ -667,8 +667,9 @@ export class CredentialsRepository {
    * the obvious reading is wrong: a row naming a user only ever comes from that user's own
    * re-authentication being refused. What a third party supplies is the refusal, not the row —
    * by keeping a shared budget spent. So while these rows were counted, a colleague on the same
-   * office address (or, while D09 stands, anyone at all) could hold the per-source or global key
-   * over budget, and five of the named user's own re-authentications across the windows that fit
+   * office address — or, while D09 stood, anyone at all, and since D09 anyone behind a
+   * misconfigured trusted proxy (`docs/runbooks/deploy.md`) — could hold the per-source or global
+   * key over budget, and five of the named user's own re-authentications across the windows that fit
    * inside 900 s would then lock that user out of their own account on traffic that was never
    * theirs.
    *
