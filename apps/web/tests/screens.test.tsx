@@ -276,7 +276,14 @@ describe('ID-05 Recovery', () => {
     expect(screen.getByText(/If an account exists for that address/)).toBeInTheDocument();
   });
 
-  it('does not let the sent state imply an email was dispatched', () => {
+  /*
+    Named for what it checks, not for what it would be nice to have checked. The sent state's
+    approved copy still says "A link may be on its way" — `41` line 36 approves it and D15 did not
+    touch a word of it — so there is no absence to assert here. What D15 added is the denial that
+    now sits above it. The guarantee that nobody reaches this state from a URL is a route-level
+    one, and `recovery-states.test.tsx` is where it is proved.
+  */
+  it('denies that an email was dispatched, beside the sent state that implies one', () => {
     render(<RecoveryScreen state="sent" />);
     expect(screen.getByText(/Not built yet — ID-002/)).toBeInTheDocument();
     expect(screen.getByText(/No recovery email was sent/)).toBeInTheDocument();

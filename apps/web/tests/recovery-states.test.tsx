@@ -44,8 +44,10 @@ async function renderRoute(query: Record<string, string | string[] | undefined>)
 }
 
 /**
- * The three sentences D15 is about, each one a claim about a security control that only a real
- * server operation could substantiate.
+ * Every sentence the route must not produce, each one a claim only a real server operation could
+ * substantiate: D15's three — access restored, other sessions signed out, an audit row written —
+ * and, from the `sent` state, that a recovery link is on its way. Four, because the route must not
+ * reach `sent` either; D15 names the first three because those are what `?state=completed` said.
  */
 const OUTCOME_CLAIMS: readonly RegExp[] = [
   /Access restored/,

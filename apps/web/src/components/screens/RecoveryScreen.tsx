@@ -120,6 +120,13 @@ export function RecoveryScreen({ state = 'request' }: RecoveryScreenProps) {
         </>
       ) : null}
 
+      {/*
+        The last branch that makes a claim with no caveat beside it: "That link has expired" is a
+        statement about a link this application never issued. It is not part of D15 — the route
+        cannot reach it, so nobody is told it — and it is left alone rather than papered over.
+        When ID-002 lands, this is the branch to decide about: either a real expiry substantiates
+        it, or it needs the same `BackendPending` notice `sent` and `completed` now carry.
+      */}
       {state === 'expired' ? (
         <>
           <div className="tm-stack tm-stack--tight">

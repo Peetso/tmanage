@@ -77,11 +77,19 @@ ticket that will close it — see `src/components/screens/BackendPending.tsx`.
 | ID-03 Invitation acceptance | `/invitations/[token]`     | Nothing. TEN-003                                                            |
 | ID-04 Organization selector | `/organizations`           | Nothing. TEN-001's unbuilt half                                             |
 | ID-05 Sessions and devices  | `/sessions`                | **Real.** `GET /v1/sessions/current/devices`, `DELETE /v1/sessions/current` |
-| ID-05 Recovery, four states | `/recover?state=`          | Nothing. ID-002                                                             |
+| ID-05 Recovery              | `/recover`                 | Nothing. ID-002. Request state only — see below                             |
 | ON-01 Create organization   | `/onboarding/organization` | Nothing. TEN-001                                                            |
 | ON-02 Operating template    | `/onboarding/template`     | Nothing. TEN-001                                                            |
 | ON-03 First project         | `/onboarding/project`      | Nothing. PROJ-001                                                           |
 | ON-04 Invite team           | `/onboarding/team`         | Nothing. TEN-003                                                            |
+
+`/recover` takes no query parameters. Every URL renders the request state; there is no
+`?state=` to set. `RecoveryScreen` still holds all four states as a component API —
+`41-WHOLE-APP-SCREEN-AND-STATE-MATRIX.md` line 36 approves them for ID-05, and the design
+has to stay reviewable — but `sent` and `completed` assert that an email went out, that
+other sessions were ended and that an audit row was written, so no URL may select them: a
+query string is not a result (D15). Only a caller holding a real one may ask for those
+states, and there is no such caller until ID-002 builds the operation that produces one.
 
 The screen ids are the **specification's**. The design export numbers its onboarding
 artboards differently — it opens with a "what do you deliver" step and inserts a milestones
