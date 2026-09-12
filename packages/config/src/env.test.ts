@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT,
+  AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT,
   EnvironmentValidationError,
   loadEnv,
   UPLOAD_MAX_PART_NUMBER,
@@ -312,7 +314,7 @@ describe('loadEnv', () => {
 
       expect(env.RATE_LIMIT_AUTH_WINDOW_SECONDS).toBe(300);
       expect(env.RATE_LIMIT_AUTH_MAX_PER_SOURCE).toBe(30);
-      expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBe(10);
+      expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBe(4);
       expect(env.RATE_LIMIT_AUTH_MAX_GLOBAL).toBe(3000);
     });
 
@@ -345,6 +347,98 @@ describe('loadEnv', () => {
           ).toContain(variable);
         }
       }
+    });
+  });
+
+  /**
+   * Security audit 2026-09-12, C-1 — the lockout denial of service.
+   *
+   * Every assertion below is made of the configuration the product **ships**: nothing here
+   * picks its own numbers. `id-002-credentials.db.test.ts:677` asserts the same inequality
+   * of two literals it chose itself (`MAX_PER_SOURCE_ACCOUNT = 3`), which is why it stayed
+   * green for as long as the shipped defaults inverted it (10 > 5). These fail instead.
+   */
+  describe('lockout denial of service (audit C-1)', () => {
+    it('ships a per-source-account budget strictly below the lockout threshold', () => {
+      const env = loadEnv(devEnv());
+
+      // The property, on the real defaults: an address runs out of budget *before* it can
+      // spend the fifth failure that locks the account. Read the failure if you are here
+      // after changing a default — this is not a style rule, it is the difference between
+      // a lockout that protects an account and one anybody can aim at one.
+      expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBeLessThan(env.AUTH_MAX_FAILURES_IN_WINDOW);
+    });
+
+    it('exports those two defaults as the constants the schema actually applies', () => {
+      // `apps/api`'s `apiConfigFrom` falls back to the exported constant when a caller
+      // builds its own source bag, so a constant that drifted from the schema default would
+      // reintroduce C-1 on exactly the path the schema never validates.
+      const env = loadEnv(devEnv());
+
+      expect(AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT).toBe(env.RATE_LIMIT_AUTH_MAX_REQUESTS);
+      expect(AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT).toBe(env.AUTH_MAX_FAILURES_IN_WINDOW);
+      expect(AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT).toBeLessThan(
+        AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT,
+      );
+    });
+
+    it('refuses to boot when the budget is at or above the lockout threshold', () => {
+      // Equality is refused too: a budget exactly equal to the threshold is spent on the
+      // very attempt that trips the lockout, so the address is never turned away first.
+      for (const budget of [
+        String(AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT),
+        String(AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT + 1),
+        '10',
+      ]) {
+        expect(
+          issuePaths(() => loadEnv({ ...devEnv(), RATE_LIMIT_AUTH_MAX_REQUESTS: budget })),
+          `RATE_LIMIT_AUTH_MAX_REQUESTS=${budget}`,
+        ).toContain('RATE_LIMIT_AUTH_MAX_REQUESTS');
+      }
+    });
+
+    it('refuses the same inversion reached by lowering the lockout threshold instead', () => {
+      // The relation is between two variables, so an operator can invert it from either
+      // side. Raising the budget and lowering the threshold are the same misconfiguration.
+      expect(
+        issuePaths(() =>
+          loadEnv({
+            ...devEnv(),
+            AUTH_MAX_FAILURES_IN_WINDOW: String(AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT),
+          }),
+        ),
+      ).toContain('RATE_LIMIT_AUTH_MAX_REQUESTS');
+    });
+
+    it('names both variables in the refusal, so the operator can act on it', () => {
+      try {
+        loadEnv({ ...devEnv(), RATE_LIMIT_AUTH_MAX_REQUESTS: '10' });
+        expect.unreachable('an inverted budget must not load');
+      } catch (error) {
+        expect(error).toBeInstanceOf(EnvironmentValidationError);
+        const message = (error as EnvironmentValidationError).message;
+        expect(message).toContain('RATE_LIMIT_AUTH_MAX_REQUESTS');
+        expect(message).toContain('AUTH_MAX_FAILURES_IN_WINDOW');
+      }
+    });
+
+    it('still admits a deliberately tightened budget', () => {
+      // The refinement is a floor under the *lockout relation*, not a floor under the
+      // budget: an operator who wants a narrower one must stay free to set it.
+      const env = loadEnv({ ...devEnv(), RATE_LIMIT_AUTH_MAX_REQUESTS: '2' });
+
+      expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBe(2);
+      expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBeLessThan(env.AUTH_MAX_FAILURES_IN_WINDOW);
+    });
+
+    it('admits a raised budget when the lockout threshold is raised to match', () => {
+      const env = loadEnv({
+        ...devEnv(),
+        RATE_LIMIT_AUTH_MAX_REQUESTS: '10',
+        AUTH_MAX_FAILURES_IN_WINDOW: '11',
+      });
+
+      expect(env.RATE_LIMIT_AUTH_MAX_REQUESTS).toBeLessThan(env.AUTH_MAX_FAILURES_IN_WINDOW);
     });
   });
 

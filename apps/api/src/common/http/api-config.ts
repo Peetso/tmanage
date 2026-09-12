@@ -1,6 +1,10 @@
 import { Global, Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { parseSeedKeys, UPLOAD_PART_SIZE_DEFAULT_BYTES } from '@tmanage/config';
+import {
+  AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT,
+  parseSeedKeys,
+  UPLOAD_PART_SIZE_DEFAULT_BYTES,
+} from '@tmanage/config';
 import type { SeedKeyring } from '@tmanage/config';
 import { API_CONFIG } from './tokens.js';
 import type { SessionServiceOptions } from '../../modules/identity/session.service.js';
@@ -170,7 +174,12 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     uploadMaxOpenSessionsPerUser: env.UPLOAD_MAX_OPEN_SESSIONS_PER_USER ?? 20,
     authAbuseWindowSeconds: env.RATE_LIMIT_AUTH_WINDOW_SECONDS ?? 300,
     authAbuseMaxPerSource: env.RATE_LIMIT_AUTH_MAX_PER_SOURCE ?? 30,
-    authAbuseMaxPerSourceAccount: env.RATE_LIMIT_AUTH_MAX_REQUESTS ?? 10,
+    // Audit C-1: the fallback reads `packages/config`'s constant rather than repeating the
+    // number, because a literal here could drift back above `AUTH_MAX_FAILURES_IN_WINDOW`
+    // without the schema's refinement ever seeing it — this branch is taken exactly when a
+    // caller builds its own source bag and the schema never ran.
+    authAbuseMaxPerSourceAccount:
+      env.RATE_LIMIT_AUTH_MAX_REQUESTS ?? AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT,
     authAbuseMaxGlobal: env.RATE_LIMIT_AUTH_MAX_GLOBAL ?? 3000,
   };
 }

@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
-import { parseSeedKeys } from '@tmanage/config';
+import {
+  AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT,
+  AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT,
+  parseSeedKeys,
+} from '@tmanage/config';
 import type { RowDataPacket } from 'mysql2/promise';
 import { IdentityScopeViolation, TenantDatabase } from '../src/common/database/tenant-context.js';
 import {
@@ -680,6 +684,17 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
     // The point of "ahead of": the address is refused while the account is still three
     // failures into a window that wants five.
     expect(MAX_PER_SOURCE_ACCOUNT).toBeLessThan(OPTIONS.maxFailuresInWindow);
+
+    // Audit C-1. The two lines above are a property of literals this file chose, and that is
+    // exactly why this test stayed green while the product shipped 10 against 5. The harness
+    // must at least not lie about the threshold it is modelling, and the shipped pair must
+    // hold the same relation the mechanism below demonstrates. The binding assertions live
+    // in `packages/config/src/env.test.ts` and `src/common/http/api-config.test.ts`, which
+    // run without a database; these two keep this file honest about what it is a model of.
+    expect(OPTIONS.maxFailuresInWindow).toBe(AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT);
+    expect(AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT).toBeLessThan(
+      AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT,
+    );
 
     const grinding = tightlyBounded({
       maxPerSource: 100,
