@@ -1107,6 +1107,40 @@ export const authenticationEvents = mysqlTable(
 );
 
 /**
+ * `D05d`. The queue that tells an account holder their own credentials changed.
+ *
+ * The transactional outbox, with the tenant column removed — same columns as
+ * {@link outboxEvents}, same meaning for each, same claim index. It exists separately
+ * because a credential is not tenant-owned and the identity path may not touch a tenant
+ * table at all; `0020_credential_change_notices.sql` carries the whole argument, and
+ * repeating it here would be the second place it could drift.
+ *
+ * A row is written by the transaction that changed the credential and by nothing else —
+ * {@link CredentialsRepository.recordCredentialChange} writes the log row and this one
+ * together, so "the change was recorded but nobody was told" is not a state a caller can
+ * reach by forgetting a step.
+ */
+export const credentialChangeNotices = mysqlTable(
+  'credential_change_notices',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    /** One of `CREDENTIAL_CHANGE_ACTIONS` — the four actions that change a credential. */
+    action: varchar('action', { length: 64 }).notNull(),
+    correlationId: char('correlation_id', { length: 36 }),
+    occurredAt: datetime('occurred_at', { mode: 'date', fsp: 3 }).notNull(),
+    availableAt: datetime('available_at', { mode: 'date', fsp: 3 }).notNull(),
+    publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }),
+    attempts: int('attempts', { unsigned: true }).notNull().default(0),
+    lastError: varchar('last_error', { length: 1000 }),
+  },
+  (table) => [
+    index('ix_credential_change_notices_unpublished').on(table.publishedAt, table.availableAt),
+    index('ix_credential_change_notices_user').on(table.userId, table.occurredAt),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -1146,6 +1180,7 @@ export const TABLES = {
   user_mfa_factors: userMfaFactors,
   user_recovery_codes: userRecoveryCodes,
   authentication_events: authenticationEvents,
+  credential_change_notices: credentialChangeNotices,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -1180,3 +1215,4 @@ export type UserPasswordRow = typeof userPasswords.$inferSelect;
 export type UserMfaFactorRow = typeof userMfaFactors.$inferSelect;
 export type UserRecoveryCodeRow = typeof userRecoveryCodes.$inferSelect;
 export type AuthenticationEventRow = typeof authenticationEvents.$inferSelect;
+export type CredentialChangeNoticeRow = typeof credentialChangeNotices.$inferSelect;

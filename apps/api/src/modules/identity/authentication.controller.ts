@@ -522,6 +522,39 @@ export class CredentialsController {
     };
   }
 
+  /**
+   * `D05d`. What has been done to this account's credentials, newest first — `ID-05`'s
+   * "security event receipt", and the answer to "were my recovery codes replaced, and when".
+   *
+   * `@NoTenant()` like the rest of this controller: credentials are not tenant-owned, so
+   * neither is their history. The session's own `userId` and no parameter — there is no shape
+   * of this request that names somebody else.
+   *
+   * Not behind `x-reauth-token`, unlike every route above that *changes* something. The
+   * service header carries the argument: this is what a worried person opens, and it tells a
+   * session holder only about actions that session holder performed.
+   */
+  @Get('security-activity')
+  @NoTenant()
+  async listCredentialChanges(
+    @CurrentSession() session: AuthenticatedSession,
+    @Req() request: RequestLike,
+  ): Promise<{ changes: readonly { id: string; action: string; occurredAt: string }[] }> {
+    const state = requireRequestState(request);
+    const changes = await this.authentication.listCredentialChanges({
+      userId: session.userId,
+      correlationId: state.correlationId,
+    });
+
+    return {
+      changes: changes.map((change) => ({
+        id: change.id,
+        action: change.action,
+        occurredAt: change.occurredAt.toISOString(),
+      })),
+    };
+  }
+
   /** Remove a factor. Soft-disabled, so the removal stays answerable. */
   @Delete('factors/:factorId')
   @NoTenant()

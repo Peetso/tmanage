@@ -1,8 +1,9 @@
-import { and, desc, eq, gte, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   authenticationEvents,
+  credentialChangeNotices,
   userMfaFactors,
   userPasswords,
   userRecoveryCodes,
@@ -535,6 +536,70 @@ export class CredentialsRepository {
   }
 
   /**
+   * `D05d`. Record a credential change **and** queue the notice that tells its owner —
+   * one method, one unit of work, because the two must not be separable.
+   *
+   * ## Why this is not two calls at the call site
+   *
+   * It was, in the first draft, and that draft is the shape this repository has already been
+   * burned by: a notification whose writer is a dependency the caller can hold or not hold
+   * (`private readonly outbox?: OutboxEventsRepository` — see `work-items.service.ts:222`
+   * and `conversations.service.ts:296`) is a notification that is silently absent wherever
+   * somebody built the service without it, and that is an incident this repository has
+   * actually had. The same failure in slower motion is a success path that records the
+   * change and forgets the notice, because recording is the line that looks like the
+   * important one.
+   *
+   * So there is no optional collaborator and no second call to forget. A caller that writes
+   * the log row for a *change* writes the notice with it, or writes neither. Refusals keep
+   * {@link recordAuthenticationEvent}: a refused attempt changed nothing, has nothing to
+   * tell the owner about, and is written in a transaction of its own precisely because it
+   * has no change to join.
+   *
+   * ## Both rows, and the change, commit together
+   *
+   * Like every method here this takes the caller's runner and cannot open a transaction of
+   * its own — `24-EVENT-CATALOG` §2's producer rule, and the property that makes the notice
+   * trustworthy in both directions. A notice that survived a rolled-back change would tell
+   * the owner their password changed when it did not, which is a worse lie than silence; a
+   * change that committed without its notice is the silence `D05d` is about.
+   *
+   * `occurred_at` and `available_at` are the server's clock, not this process's, for
+   * `OutboxEventsRepository.append`'s reason: a notice stamped by a skewed application clock
+   * could be born minutes in the future and sit undelivered while looking deliverable.
+   */
+  async recordCredentialChange(
+    runner: IdentityQueryRunner,
+    input: {
+      userId: string;
+      action: string;
+      ip?: string | null;
+      userAgent?: string | null;
+      correlationId?: string | null;
+    },
+  ): Promise<void> {
+    await this.recordAuthenticationEvent(runner, {
+      userId: input.userId,
+      action: input.action,
+      outcome: 'succeeded',
+      ip: input.ip ?? null,
+      userAgent: input.userAgent ?? null,
+      correlationId: input.correlationId ?? null,
+    });
+
+    await tenantDrizzle(runner)
+      .insert(credentialChangeNotices)
+      .values({
+        id: uuidv7(),
+        userId: input.userId,
+        action: input.action,
+        correlationId: input.correlationId ?? null,
+        occurredAt: sql`current_timestamp(3)`,
+        availableAt: sql`current_timestamp(3)`,
+      });
+  }
+
+  /**
    * How many failures this user has accumulated inside the window.
    *
    * The window is expressed in the predicate as `occurred_at >= now(3) - INTERVAL n SECOND`,
@@ -589,6 +654,64 @@ export class CredentialsRepository {
    * row is still written, still names the user, still carries `locked_out`, and only this
    * counter stops reading it.
    */
+  /**
+   * The credential changes this person's account has actually undergone — `D05d`.
+   *
+   * The second reader this table has ever had, and it is the one the account owner is behind.
+   * Until now `authentication_events` was written by every credential route and read only by
+   * {@link CredentialsRepository.countRecentFailures}, which means the answer to "did somebody
+   * change my recovery codes" was already recorded and could not be asked. `ID-05` in
+   * `22-SCREEN-BY-SCREEN-SPEC` asks for a "security event receipt"; this is the query behind
+   * it.
+   *
+   * ## What it will not return
+   *
+   * `reason` is not selected. Migration 0004 is explicit — "Recorded here and NEVER returned
+   * to the caller" — and a `SELECT` that never names the column cannot be edited later into
+   * one that leaks it by way of a spread.
+   *
+   * `outcome` is fixed to `succeeded` rather than exposed. A refused attempt is a different
+   * fact from a change, it is written by the refusal path in a transaction of its own, and
+   * showing "recovery codes replaced" for something that was refused would raise an alarm
+   * about nothing. The failures are still in the table for an operator.
+   *
+   * `actions` is a closed list supplied by the caller, for the reason
+   * {@link NON_CREDENTIAL_FAILURE_REASONS} is spelled here rather than imported: the
+   * vocabulary lives in `authentication.service.ts`, which imports this file. A sign-in, a
+   * challenge and a re-authentication are not credential changes and cannot arrive through
+   * this read even by mistake.
+   *
+   * `limit` is required and has no default. The index is
+   * `ix_authentication_events_user (user_id, occurred_at)`, so the descending scan is cheap —
+   * but a security screen is not a reason to hand back an unbounded history, and a default
+   * would be this file inventing a page size for a screen it cannot see.
+   */
+  async listCredentialChanges(
+    runner: IdentityQueryRunner,
+    userId: string,
+    actions: readonly string[],
+    limit: number,
+  ): Promise<readonly { id: string; action: string; occurredAt: Date }[]> {
+    if (actions.length === 0) return [];
+
+    return tenantDrizzle(runner)
+      .select({
+        id: authenticationEvents.id,
+        action: authenticationEvents.action,
+        occurredAt: authenticationEvents.occurredAt,
+      })
+      .from(authenticationEvents)
+      .where(
+        and(
+          eq(authenticationEvents.userId, userId),
+          eq(authenticationEvents.outcome, 'succeeded'),
+          inArray(authenticationEvents.action, [...actions]),
+        ),
+      )
+      .orderBy(desc(authenticationEvents.occurredAt), desc(authenticationEvents.id))
+      .limit(limit);
+  }
+
   async countRecentFailures(
     runner: IdentityQueryRunner,
     userId: string,
