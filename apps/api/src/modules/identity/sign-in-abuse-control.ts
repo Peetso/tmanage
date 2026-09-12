@@ -73,15 +73,19 @@ import {
  * rotate the source key by writing one.
  *
  * What survives that fix is narrower, and saying so here is the point of this paragraph. Where
- * the operator *has* named a proxy, `request.ip` is the last forwarded entry that is not itself
- * trusted, taken **verbatim** and never validated as an address. So a caller behind a trusted
- * proxy that *appends* to `X-Forwarded-For` rather than replacing it still chooses the value,
- * and both address-keyed budgets rotate together for them: `sa:<ip>:<hash>` *contains* the
- * address. Against such a caller the bounds that hold are the global key and the durable
- * per-user lockout in `authentication_events` (`AUTH_MAX_FAILURES_IN_WINDOW`, 5 failures in
- * 900 s) — and the lockout is the one that actually catches a grind against a named account.
- * The remedy is deployment-side and is written down for the operator in
- * `docs/runbooks/deploy.md`: the proxy must overwrite the header, not add to it.
+ * the operator *has* named a proxy, `request.ip` is the **right-most** forwarded entry that is
+ * not itself trusted, taken **verbatim** and never validated as an address. A proxy that
+ * *appends* its own observation ends the walk on that observation, so the client's entries —
+ * which sit to its left — are never reached: appending is the safe form, and an earlier version
+ * of this paragraph had that backwards. Three deployment shapes do still hand the value to the
+ * caller: a proxy that forwards the client's `X-Forwarded-For` through untouched, a proxy that
+ * prepends its own observation rather than appending it, and a trusted range wide enough to
+ * contain real clients. Under any of them both address-keyed budgets rotate together for that
+ * caller, because `sa:<ip>:<hash>` *contains* the address, and the bounds that hold are the
+ * global key and the durable per-user lockout in `authentication_events`
+ * (`AUTH_MAX_FAILURES_IN_WINDOW`, 5 failures in 900 s) — the lockout being the one that actually
+ * catches a grind against a named account. The remedy is deployment-side and is written down for
+ * the operator, with the measured table behind it, in `docs/runbooks/deploy.md`.
  *
  * One part of that weakness **outlives D09**, and the paragraphs above would be read too kindly
  * without it. The source key is the address string as fastify hands it over, trimmed and
@@ -131,8 +135,9 @@ import {
  * source address is clamped to `MAX_SOURCE_KEY_LENGTH` before anything is keyed on it. The
  * length bound is not decoration — wherever a proxy is trusted, `request.ip` is a forwarded
  * token taken verbatim, which nothing on the way here validates as an address, so without the
- * clamp a caller behind an appending proxy rotating kilobyte-long values would grow these maps
- * in bytes while staying inside their bound in entries. An evicted key comes back with a fresh
+ * clamp a caller who can put a value into that position and rotate kilobyte-long strings through
+ * it would grow these maps in bytes while staying inside their bound in entries. An evicted key
+ * comes back with a fresh
  * window: at worst that admits a caller a little more than the budget says, never less. The
  * same honesty applies to the refusal flag below.
  *
@@ -193,13 +198,15 @@ import {
  *    admitted attempts a second to deny anybody else.
  *
  * What is left is deployment-shaped rather than code-shaped, and D09 is what made it so. One
- * attacker can still look like thousands of addresses — from behind a trusted proxy that
- * appends to `X-Forwarded-For` instead of replacing it, or across an IPv6 /64 they genuinely
- * hold (follow-up 6) — and every one of those attempts is admitted by its own source key. That
- * is the one route to the global refusal. A caller with no trusted proxy in front of them no
- * longer has it: their address is the socket peer, and their own source key refuses them
- * thirty attempts in. Configuring the proxy to overwrite the header
- * (`docs/runbooks/deploy.md`) closes the first half; nothing here closes the second.
+ * attacker can still look like thousands of addresses — from behind a misconfigured trusted
+ * proxy (one that forwards the client's `X-Forwarded-For` untouched, one that prepends its own
+ * observation instead of appending it, or a trusted range broad enough to contain real clients),
+ * or across an IPv6 /64 they genuinely hold (follow-up 6) — and every one of those attempts is
+ * admitted by its own source key. That is the one route to the global refusal. A caller with no
+ * trusted proxy in front of them no longer has it: their address is the socket peer, and their
+ * own source key refuses them thirty attempts in. Configuring the proxy into one of the shapes
+ * `docs/runbooks/deploy.md` measures — an appending proxy, over a trusted list naming only the
+ * hops — closes the first half; nothing here closes the second.
  */
 
 export interface SignInAbuseOptions {
@@ -279,10 +286,12 @@ const GLOBAL_KEY = 'g';
  * What the bound is genuinely for is the other case: a forwarded token of arbitrary length.
  * Since D09 that can only arrive through a proxy the operator trusts, which is a narrower
  * opening than "anyone who can set a header" — but it is not closed, because `request.ip` is
- * then the last untrusted entry *verbatim* and no layer between the socket and this module
- * checks that it is an address at all. A caller behind an appending proxy can still rotate
- * kilobyte-long values, and without this clamp those would grow these maps in bytes while
- * staying inside their bound in entries.
+ * then the right-most untrusted entry *verbatim* and no layer between the socket and this module
+ * checks that it is an address at all. Wherever a caller can reach that position — the three
+ * misconfigurations `docs/runbooks/deploy.md` measures, and equally a trusted proxy that simply
+ * forwards a long value it was handed — they can rotate kilobyte-long strings through it, and
+ * without this clamp those would grow these maps in bytes while staying inside their bound in
+ * entries.
  */
 const MAX_SOURCE_KEY_LENGTH = 45;
 

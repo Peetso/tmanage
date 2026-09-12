@@ -43,12 +43,17 @@ import type { RequestAdmission } from './rate-limiter.js';
  * is what `trustProxy` says it is, and since D09 that is the socket peer unless the peer
  * is one the operator named in `TRUSTED_PROXY_ADDRESSES`: a caller who reaches the process
  * directly is counted by the address it actually connected from and cannot rotate it by
- * writing a header. Behind a configured proxy it is the last `X-Forwarded-For` entry that is
- * not itself a trusted peer, taken **verbatim**: `@fastify/proxy-addr` walks the chain from
- * the right while the entries are trusted and returns the first one that is not, and it never
- * validates the element it returns. So it is the proxy's word only where the proxy *replaces*
- * the header — a proxy that appends to whatever the client sent still lets that client choose
- * the value, which is why `docs/runbooks/deploy.md` requires the header to be overwritten.
+ * writing a header. Behind a configured proxy it is the **right-most** `X-Forwarded-For` entry
+ * that is not itself a trusted peer, taken **verbatim**: `@fastify/proxy-addr` walks the chain
+ * from the right while the entries are trusted and returns the first one that is not, and it
+ * never validates the element it returns. A proxy that *appends* its own observation therefore
+ * ends that walk on the observation itself — the client's entries sit to its left and are never
+ * reached — so appending is the safe form and not, as this comment once said, the dangerous one.
+ * What does let the client choose the value is a proxy that forwards the client's header through
+ * untouched, one that prepends its own observation, or a trusted range wide enough to contain
+ * real clients; `docs/runbooks/deploy.md` states all three, measured. In every case the returned
+ * element is an unvalidated token rather than a checked address, which is why what is keyed on it
+ * is bounded rather than trusted.
  *
  * `main.ts` registers the parser for every driver, including `s3`, where the part route is
  * bound to no sink and answers 404; the parser then costs a URL check per octet-stream

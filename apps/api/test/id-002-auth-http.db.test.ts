@@ -506,9 +506,11 @@ describe('POST /v1/auth/password', () => {
      * unconditional `trustProxy: true` that assertion would have flipped, and the account and
      * global keys were what held.
      *
-     * Where a proxy *is* configured, `request.ip` is the last untrusted `X-Forwarded-For`
-     * entry verbatim, so a client behind a proxy that appends rather than replaces can still
-     * choose it — a deployment concern (`docs/runbooks/deploy.md`), not this suite's. Both
+     * Where a proxy *is* configured, `request.ip` is the **right-most** untrusted
+     * `X-Forwarded-For` entry verbatim, so a client behind a *misconfigured* proxy — one that
+     * forwards their header untouched, one that prepends its own observation, or a trusted range
+     * that contains them — can still choose it. An appending proxy is the safe shape and not one
+     * of those. A deployment concern (`docs/runbooks/deploy.md`), not this suite's. Both
      * postures are proved at request level in
      * `apps/api/src/common/http/trusted-proxy-requests.test.ts` (D09 task 3).
      */

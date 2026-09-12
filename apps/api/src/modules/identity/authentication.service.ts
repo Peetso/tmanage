@@ -78,16 +78,21 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *   narrowed that rather than removing it. `main.ts` no longer sets `trustProxy: true`: trust
  *   comes from `TRUSTED_PROXY_ADDRESSES`, and unset means trust nobody, so a caller reaching
  *   the origin directly is counted by the socket peer and cannot rotate the source key by
- *   writing a header. What remains evadable is a caller **behind a proxy the operator trusts
- *   that appends to `X-Forwarded-For` rather than replacing it** — `request.ip` is then the
- *   last untrusted entry verbatim, which that caller chooses. The source+account key goes with
- *   it, because that key is `sa:<ip>:<hash>` and *contains* the address. An earlier version of
- *   this comment claimed the account key was not evadable that way; it is, and the final
- *   review of 2026-09-07 was right to call that the wrong claim in the safe-sounding
- *   direction. Against such a caller what holds is the global key and the **durable per-user
- *   lockout** above (5 failures in 900 s) — the lockout being the one that actually catches a
- *   grind against a named account, and `docs/runbooks/deploy.md` being where the operator is
- *   told to make the proxy overwrite the header. Even where it does, abundance is untouched:
+ *   writing a header. What remains evadable is a caller behind a **misconfigured** trusted
+ *   proxy: `request.ip` is the right-most untrusted `X-Forwarded-For` entry verbatim, so that
+ *   caller chooses it wherever the proxy forwards the client's header untouched, prepends its
+ *   own observation rather than appending it, or is named through a trusted range broad enough
+ *   to contain real clients. An **appending** proxy is not one of those cases — its own
+ *   observation lands at the right-hand end and ends the walk there — and an earlier version of
+ *   this comment had that exactly backwards. The source+account key goes with the source key
+ *   wherever the address is chosen, because that key is `sa:<ip>:<hash>` and *contains* the
+ *   address. An earlier version of this comment also claimed the account key was not evadable
+ *   that way; it is, and the final review of 2026-09-07 was right to call that the wrong claim
+ *   in the safe-sounding direction. Against such a caller what holds is the global key and the
+ *   **durable per-user lockout** above (5 failures in 900 s) — the lockout being the one that
+ *   actually catches a grind against a named account, and `docs/runbooks/deploy.md` being where
+ *   the operator is given the measured table and the three shapes to avoid. Even in a correctly
+ *   configured deployment, abundance is untouched:
  *   one IPv6 /64 holds 2^64 authentic addresses (`docs/implementation-status.md` follow-up 6,
  *   open). So read both address-keyed budgets as a cost bound on honest traffic rather than as
  *   a defence against a determined attacker.
@@ -100,8 +105,9 @@ import type { IdentityQueryRunner } from '../../common/database/tenant-context.j
  *   attempt charges only the key that refused it — nothing wider, and, since the two-phase
  *   charge of `7cc9c16`, nothing narrower either. The route that
  *   remains is, again, address abundance — one attacker who can look like thousands of
- *   addresses, from behind an appending trusted proxy or across an IPv6 /64, has every attempt
- *   admitted, and can spend the global budget and refuse everybody until the window turns.
+ *   addresses, from behind a misconfigured trusted proxy or across an IPv6 /64, has every
+ *   attempt admitted, and can spend the global budget and refuse everybody until the window
+ *   turns.
  *   `sign-in-abuse-control.ts` carries the full argument and the sizing.
  *
  * The second limitation — the counter-not-a-lock race — is untouched.

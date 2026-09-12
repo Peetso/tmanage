@@ -329,9 +329,12 @@ export const envSchema = z
      *
      * A twenty-source spray is still cheap, and D09 did not make it expensive: it made
      * `request.ip` *authentic* (`TRUSTED_PROXY_ADDRESSES` above), not *scarce*. A caller on a
-     * single IPv6 /64 has 2^64 real addresses to spray from, and a caller behind a trusted
-     * proxy that appends to `X-Forwarded-For` rather than replacing it still writes the value
-     * outright. At 600 that spray buys a repeatable authentication outage for about two
+     * single IPv6 /64 has 2^64 real addresses to spray from, and a caller behind a **badly
+     * configured** trusted proxy still writes the value outright — one that forwards their
+     * `X-Forwarded-For` untouched, one that prepends its own observation instead of appending
+     * it, or a trusted range wide enough to contain them. (An *appending* proxy is the safe
+     * shape, not the dangerous one; `docs/runbooks/deploy.md` has the measured table.) At 600
+     * that spray buys a repeatable authentication outage for about two
      * requests a second; at 3000 the same outage costs an attacker real sustained traffic,
      * while the Argon2 and log cost the budget exists to bound is still bounded.
      */
