@@ -97,6 +97,109 @@ export type UserMfaFactorSummary = {
  */
 const NON_CREDENTIAL_FAILURE_REASONS = [...SIGN_IN_ABUSE_REASONS, 'locked_out'] as const;
 
+/**
+ * The widths of the two `authentication_events` columns a request header can reach.
+ *
+ * Both are from `migrations/0004_credentials.sql`: `ip VARCHAR(45)`, `user_agent
+ * VARCHAR(255)`. They are spelled here rather than derived from the Drizzle schema because
+ * the schema records a type, not a bound this file can read back at runtime.
+ *
+ * The database case in `test/id-002-credentials.db.test.ts` pins these numbers against the
+ * real column, but in one direction only. It writes an over-long value and reads back exactly
+ * this many characters, so narrowing either column below the number here breaks it — strict
+ * mode turns the clamped value into `ER_DATA_TOO_LONG`. Widening a column does not break it,
+ * because the clamp goes on cutting at the smaller number and the assertion goes on holding.
+ * What is pinned is therefore "this constant has not grown past its column", which is the
+ * direction that loses rows; a column that has grown past its constant only wastes width, and
+ * nothing here would notice.
+ *
+ * 45 is the same number `sign-in-abuse-control.ts` clamps its in-memory source key to, and it
+ * is that number for the same underlying reason — the width of this column, which is in turn
+ * the exact length of an IPv4-mapped IPv6 literal. It is not the same operation: that file
+ * cuts with `slice`, in UTF-16 units, so given an input carrying astral-plane characters the
+ * two produce different strings, and its result can be shorter than 45 characters. That is
+ * harmless there, because its output is a bucket key that never reaches a column and an
+ * under-filled key is still a usable key, and it is why this file does not reuse it. What the
+ * D08 follow-up recorded is closed on this side: the value that reaches the column is now
+ * bounded before the insert. The wording in that file and in `docs/implementation-status.md`
+ * still describes the state before this change and is corrected separately in this slice.
+ */
+const MAX_EVENT_IP_CHARACTERS = 45;
+const MAX_EVENT_USER_AGENT_CHARACTERS = 255;
+
+/**
+ * Cut a header-derived value down to what its column will hold — in the unit the column
+ * counts, which is not the unit JavaScript counts.
+ *
+ * ## Why clamp rather than reject
+ *
+ * Both values this is applied to arrive in request headers, and since `D09` both are
+ * attacker-chosen in length: `User-Agent` always was, and behind a *configured* trusted proxy
+ * `request.ip` is the last forwarded entry verbatim — `@fastify/proxy-addr` validates the
+ * final element not at all. Under the strict mode this project runs, an over-long value is
+ * `ER_DATA_TOO_LONG` and the whole `INSERT` fails. That insert is on the **failure** path of
+ * sign-in, so the row destroyed is the one row that records a refused attempt: an enumeration
+ * sweep could erase its own trace, one long header at a time, and turn each refusal into a
+ * 500 while it did. A clamp keeps the row. Rejecting the value, or throwing a friendlier
+ * error, keeps nothing — it loses the same row for a better-worded reason.
+ *
+ * Applied here, at the insert, rather than at each call site: there are a dozen callers on
+ * three paths and the property wanted is "no value that reaches this table is over-long",
+ * which is only checkable if there is one place it can be checked.
+ *
+ * ## Why code points and not `slice`
+ *
+ * These are `utf8mb4` columns, and MySQL counts `VARCHAR(n)` in *characters*
+ * — one Unicode code point each, whether it encodes to one byte or four. JavaScript's
+ * `String.prototype.slice` counts UTF-16 code units, which differs in two ways and only one
+ * of them is harmless:
+ *
+ * - An astral-plane character (anything above U+FFFF) is two UTF-16 units and one MySQL
+ *   character, so a `slice` under-fills the column. Merely wasteful.
+ * - A `slice` can land **between** the two halves of a surrogate pair, and the half left
+ *   behind is not a character at all. Nothing raises: mysql2 (3.23.3) maps this connection's
+ *   `utf8mb4` charset to Node's `'utf8'` encoding and encodes every parameter with
+ *   `Buffer.from(value, 'utf8')`, and Node substitutes U+FFFD for an unpaired surrogate
+ *   before a byte leaves the process — `Buffer.from('\uD83D', 'utf8')` is `ef bf bd`. So the
+ *   server is handed a perfectly valid string in which the character the slice cut has been
+ *   replaced by `�`. That is the objection: this table records what arrived, and a clamp that
+ *   is only allowed to *shorten* would instead be quietly rewriting a character. The value
+ *   also comes out shorter than the bound, for the same reason as the case above.
+ *
+ * Iterating the string yields code points, never half of one, so the result is at most `max`
+ * characters as the column counts them and every character in it is one that arrived. Two
+ * things it deliberately does not do: it does not keep grapheme clusters whole (cutting a ZWJ
+ * sequence yields a shorter, still valid string, and this is a log of what arrived rather
+ * than text anyone reads), and it does not repair a lone surrogate that was already in the
+ * input. The driver will render that one U+FFFD too, but it does so to a value the client
+ * sent; a clamp asked to shorten a string has no business introducing a second substitution
+ * of its own, and that is the silent normalisation this log must not do.
+ *
+ * The substitution is not taken on trust: a case in `test/id-002-credentials.db.test.ts`
+ * sends a UTF-16-sliced value through this very insert to the real server and reads the
+ * U+FFFD back out of the column.
+ *
+ * A value inside the bound is returned as it arrived, identically — no trimming, no case
+ * folding, no validation of address shape. The `length` guard is the fast path and it is
+ * exact in the direction that matters: a string's UTF-16 length is never *less* than its code
+ * point count, so anything that passes it is certainly within the bound.
+ *
+ * Exported for its unit cases in `credentials.repository.test.ts`; nothing else calls it.
+ */
+export function clampToColumnCharacters(
+  value: string | null | undefined,
+  max: number,
+): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (value.length <= max) {
+    return value;
+  }
+  const characters = Array.from(value);
+  return characters.length <= max ? value : characters.slice(0, max).join('');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Passwords
 // ─────────────────────────────────────────────────────────────────────────────
@@ -506,6 +609,11 @@ export class CredentialsRepository {
    * `userId` is nullable and is `null` when the attempt named an address no account holds.
    * That row is the only trace an enumeration sweep leaves, so it is written rather than
    * skipped.
+   *
+   * `ip` and `userAgent` come from request headers and are clamped to their columns here —
+   * see {@link clampToColumnCharacters} for why the row is kept rather than the write
+   * refused, and why the count is in code points. Nothing else about either value is
+   * touched: the log records what arrived.
    */
   async recordAuthenticationEvent(
     runner: IdentityQueryRunner,
@@ -527,8 +635,8 @@ export class CredentialsRepository {
         action: input.action,
         outcome: input.outcome,
         reason: input.reason ?? null,
-        ip: input.ip ?? null,
-        userAgent: input.userAgent ?? null,
+        ip: clampToColumnCharacters(input.ip, MAX_EVENT_IP_CHARACTERS),
+        userAgent: clampToColumnCharacters(input.userAgent, MAX_EVENT_USER_AGENT_CHARACTERS),
         correlationId: input.correlationId ?? null,
         occurredAt: sql`current_timestamp(3)`,
       });
@@ -559,8 +667,9 @@ export class CredentialsRepository {
    * the obvious reading is wrong: a row naming a user only ever comes from that user's own
    * re-authentication being refused. What a third party supplies is the refusal, not the row —
    * by keeping a shared budget spent. So while these rows were counted, a colleague on the same
-   * office address (or, while D09 stands, anyone at all) could hold the per-source or global key
-   * over budget, and five of the named user's own re-authentications across the windows that fit
+   * office address — or, while D09 stood, anyone at all, and since D09 anyone behind a
+   * misconfigured trusted proxy (`docs/runbooks/deploy.md`) — could hold the per-source or global
+   * key over budget, and five of the named user's own re-authentications across the windows that fit
    * inside 900 s would then lock that user out of their own account on traffic that was never
    * theirs.
    *
