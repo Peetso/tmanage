@@ -9,13 +9,8 @@ import {
   seedEncryptionStatus,
 } from '../../modules/identity/seed-backfill.repository.js';
 import { createMigrationConnection } from './connection.js';
-import {
-  migrate,
-  migrationStatus,
-  resetDatabase,
-  splitStatements,
-  MigrationError,
-} from './migrator.js';
+import { applyGrants, GrantApplicationError } from './grants.js';
+import { migrate, migrationStatus, resetDatabase, MigrationError } from './migrator.js';
 
 /**
  * `pnpm db:migrate` / `db:status` / `db:reset` / `db:grants`, and D07's
@@ -82,32 +77,51 @@ async function main(): Promise<number> {
         // installed.
         //
         // Deliberately *not* wrapped in the migration ledger: grants are environment state,
-        // not schema state. Re-running is safe and expected — every statement is
-        // `CREATE USER IF NOT EXISTS` or an idempotent `GRANT`.
-        const statements = splitStatements(await readFile(USERS_SQL, 'utf8'));
-        for (const [index, statement] of statements.entries()) {
-          try {
-            await connection.query(statement);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            process.stderr.write(
-              `scripts/db/users.sql failed at statement ${index + 1}/${statements.length}:\n` +
-                `  ${statement.split('\n')[0]}\n  ${message}\n` +
-                (/doesn.t exist/i.test(message)
-                  ? '\nEvery grant in this file is table-level, and a table-level GRANT ' +
-                    'requires its table to exist.\nRun `pnpm db:migrate` first.\n'
-                  : '') +
-                (/access denied|CREATE USER|GRANT OPTION/i.test(message)
-                  ? '\nThis file provisions credentials, so DATABASE_MIGRATION_URL must ' +
-                    'name an administrative user\nfor this command — the migration user ' +
-                    'holds no CREATE USER privilege and no GRANT OPTION.\n'
-                  : ''),
+        // not schema state. Re-running is safe and expected — and since R10 it is also
+        // *corrective*: each principal's privileges are revoked and rebuilt, so a server
+        // provisioned by an older revision of the file ends this command holding what the
+        // file says rather than the union of every revision it has ever seen.
+        //
+        // The loop itself lives in `grants.ts` so that the verification in
+        // `apps/api/test/grant-reconciliation.db.test.ts` measures this code path rather
+        // than a second one written to resemble it.
+        try {
+          const report = await applyGrants(connection, await readFile(USERS_SQL, 'utf8'));
+          out(`applied ${report.statements.length} statement(s) from scripts/db/users.sql`);
+          if (report.noOpRevokes > 0) {
+            // Worth printing rather than swallowing: on a fresh server this is every
+            // revoke in the file, and an operator who sees it on a server they believed
+            // was already provisioned is looking at a different server than they think.
+            out(
+              `${report.noOpRevokes} revoke(s) had nothing to remove — ` +
+                'expected on a database provisioned for the first time',
             );
-            return 1;
           }
+          return 0;
+        } catch (error) {
+          if (!(error instanceof GrantApplicationError)) throw error;
+          const message = error.message;
+          process.stderr.write(
+            `scripts/db/users.sql failed at statement ${error.index}/${error.total}:\n` +
+              `  ${error.statement.split('\n')[0]}\n  ${message}\n` +
+              (/doesn.t exist/i.test(message)
+                ? '\nEvery grant in this file is table-level, and a table-level GRANT ' +
+                  'requires its table to exist.\nRun `pnpm db:migrate` first.\n'
+                : '') +
+              (/access denied|CREATE USER|GRANT OPTION/i.test(message)
+                ? '\nThis file provisions credentials, so DATABASE_MIGRATION_URL must ' +
+                  'name an administrative user\nfor this command — the migration user ' +
+                  'holds no CREATE USER privilege and no GRANT OPTION.\n'
+                : '') +
+              (/^REVOKE\b/i.test(error.statement)
+                ? '\nThis file revokes each account down to nothing before rebuilding its ' +
+                  'grants (R10), so a\nfailure here can leave a principal with fewer ' +
+                  'privileges than it needs. Fix the cause and\nre-run `pnpm db:grants`: ' +
+                  'the command is idempotent and will rebuild the whole set.\n'
+                : ''),
+          );
+          return 1;
         }
-        out(`applied ${statements.length} statement(s) from scripts/db/users.sql`);
-        return 0;
       }
 
       case 'reset': {
