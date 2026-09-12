@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -151,6 +152,35 @@ function symlinkCaseIsRequired(): boolean {
   const flag = process.env['TMANAGE_REQUIRE_SYMLINK_CASE'];
   if (flag !== undefined && flag !== '') return flag !== '0';
   return process.platform !== 'win32';
+}
+
+/**
+ * The preamble every symbolic-link case shares: return once the fixture can be built, and
+ * otherwise fail or skip saying so. Two guards stand on `lstat` — `openObject`'s and
+ * `withdraw`'s — and each has a case here; neither may quietly report passed on a runner that
+ * could not build the link, which is exactly what the `openObject` case did for months (D17).
+ *
+ * `guard` names what the calling case would have proved, so two skipped lines cannot be told
+ * apart only by their line number. Three outcomes and no fourth: anything the probe did not
+ * predict it rethrows itself, a runner required to build the fixture and unable to fails, and an
+ * unprivileged one skips in the open naming the platform and the code.
+ */
+function requireSymlinkFixture(ctx: { skip: (note: string) => void }, guard: string): void {
+  const support = symlinkSupport();
+  if (support.supported) return;
+  if (symlinkCaseIsRequired()) {
+    throw new Error(
+      `This runner must be able to create a symbolic link and cannot: symlinkSync answered ` +
+        `${support.code} on ${process.platform}. The lstat guard of ${guard} is ` +
+        `unproven without it. Run the storage suite where symbolic links can be created, or ` +
+        `set TMANAGE_REQUIRE_SYMLINK_CASE=0 to accept the gap deliberately.`,
+    );
+  }
+  ctx.skip(
+    `${process.platform} without the symbolic-link privilege (symlinkSync: ${support.code}): ` +
+      `the fixture cannot be built here, so the lstat guard of ${guard} is NOT proved on this ` +
+      `run. Set TMANAGE_REQUIRE_SYMLINK_CASE=1 to turn this skip into a failure.`,
+  );
 }
 
 beforeEach(() => {
@@ -748,22 +778,7 @@ describe('FilesystemObjectStore — openObject (FILE-002)', () => {
     // Three outcomes where there used to be one silent pass: a runner that is required to build
     // this fixture and cannot, fails; an unprivileged runner skips in the open, naming the code;
     // anything the probe did not predict is rethrown by the probe itself.
-    const support = symlinkSupport();
-    if (!support.supported) {
-      if (symlinkCaseIsRequired()) {
-        throw new Error(
-          `This runner must be able to create a symbolic link and cannot: symlinkSync answered ` +
-            `${support.code} on ${process.platform}. The lstat guard of openObject (FILE-002) is ` +
-            `unproven without it. Run the storage suite where symbolic links can be created, or ` +
-            `set TMANAGE_REQUIRE_SYMLINK_CASE=0 to accept the gap deliberately.`,
-        );
-      }
-      ctx.skip(
-        `${process.platform} without the symbolic-link privilege (symlinkSync: ${support.code}): ` +
-          `the fixture cannot be built here, so the lstat guard is NOT proved on this run. ` +
-          `Set TMANAGE_REQUIRE_SYMLINK_CASE=1 to turn this skip into a failure.`,
-      );
-    }
+    requireSymlinkFixture(ctx, 'openObject (FILE-002)');
     const secret = join(root, 'secret.txt');
     writeFileSync(secret, 'not an object');
     const path = store.objectPath('quarantine', OTHER_KEY);
@@ -914,6 +929,32 @@ describe('FilesystemObjectStore — promote and withdraw (FILE-002 slice B)', ()
       ObjectNotFoundError,
     );
     expect(existsSync(store.objectPath('private', OTHER_KEY))).toBe(true);
+  });
+
+  it('withdraw refuses a symbolic link at the private path, so a deletion never leaves the store', async (ctx) => {
+    // The same fixture as openObject's symbolic-link case, one operation later, and not the
+    // same danger. A read that followed the link would have disclosed the bytes it names;
+    // `rm` does not follow one — it unlinks the link and leaves the target whole — so what an
+    // absent guard would cost here is not the secret's bytes but the truth of the answer:
+    // `withdraw` would consume a path this driver never wrote and return, telling its caller
+    // the private object was destroyed when nothing of the store's was. Erasure is the one
+    // thing `withdraw` is trusted for, and a withdrawal it did not make is the failure.
+    requireSymlinkFixture(ctx, 'withdraw (FILE-002 slice B)');
+    const secret = join(root, 'secret.txt');
+    writeFileSync(secret, 'not an object');
+    const path = store.objectPath('private', OTHER_KEY);
+    mkdirSync(dirname(path), { recursive: true });
+    // Any error from here is a fixture defect: it fails the case. Nothing is swallowed.
+    symlinkSync(secret, path, 'file');
+    // Reversal: `stat` instead of `lstat` and this resolves undefined, having unlinked the
+    // link — a withdrawal reported for an object the store never held.
+    await expect(store.withdraw({ objectKey: OTHER_KEY })).rejects.toBeInstanceOf(
+      ObjectNotFoundError,
+    );
+    // Refused, not tidied away: the link is left exactly where it was, as the directory case
+    // above leaves its directory, and the file it names is untouched down to its bytes.
+    expect(lstatSync(path).isSymbolicLink()).toBe(true);
+    expect(readFileSync(secret, 'utf8')).toBe('not an object');
   });
 
   it('checks the key before it touches the disk', async () => {
