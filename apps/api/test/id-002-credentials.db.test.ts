@@ -146,17 +146,23 @@ async function giveOwnerAPassword(password = PASSWORD): Promise<void> {
 
 /** Enrol and confirm a TOTP factor, returning the secret so a test can produce codes. */
 async function enrolOwnerTotp(): Promise<string> {
+  // `D05` third clause: both halves of the enrolment are behind fresh proof, because
+  // confirming replaces the recovery codes and hands the new set back.
   const begun = await service.beginTotpEnrolment({
     userId: owner().id,
+    sessionId: SESSION,
     accountName: owner().email,
     label: 'Test phone',
+    reauthToken: proofFor(owner().id),
     context: context(),
   });
   const code = codeFor(begun.secret, clockMs);
   await service.confirmTotpFactor({
     userId: owner().id,
+    sessionId: SESSION,
     factorId: begun.factorId,
     code,
+    reauthToken: proofFor(owner().id),
     context: context(),
   });
   return begun.secret;
@@ -1179,8 +1185,10 @@ describe('the second factor', () => {
     await giveOwnerAPassword();
     await service.beginTotpEnrolment({
       userId: owner().id,
+      sessionId: SESSION,
       accountName: owner().email,
       label: 'Half-finished',
+      reauthToken: proofFor(owner().id),
       context: context(),
     });
 
@@ -1333,18 +1341,23 @@ describe('the second factor', () => {
   it('refuses to confirm someone else’s pending factor', async () => {
     const begun = await service.beginTotpEnrolment({
       userId: owner().id,
+      sessionId: SESSION,
       accountName: owner().email,
       label: 'Owner phone',
+      reauthToken: proofFor(owner().id),
       context: context(),
     });
 
     const error = await service
       .confirmTotpFactor({
         // The designer, presenting the owner's factor id and a code they can compute because
-        // the enrolment response handed them the secret.
+        // the enrolment response handed them the secret. `D05`: their own proof is valid, so
+        // the refusal below is the ownership answer and not the re-authentication one.
         userId: designer().id,
+        sessionId: SESSION,
         factorId: begun.factorId,
         code: codeFor(begun.secret, clockMs),
+        reauthToken: proofFor(designer().id),
         context: context(),
       })
       .catch((thrown: unknown) => thrown);
@@ -2077,14 +2090,18 @@ describe('D07 — the seed is ciphertext in the column', () => {
   ): Promise<{ factorId: string; secret: string }> {
     const begun = await service.beginTotpEnrolment({
       userId: user.id,
+      sessionId: SESSION,
       accountName: user.email,
       label,
+      reauthToken: proofFor(user.id),
       context: context(),
     });
     await service.confirmTotpFactor({
       userId: user.id,
+      sessionId: SESSION,
       factorId: begun.factorId,
       code: codeFor(begun.secret, clockMs),
+      reauthToken: proofFor(user.id),
       context: context(),
     });
     return { factorId: begun.factorId, secret: begun.secret };
@@ -2119,8 +2136,10 @@ describe('D07 — the seed is ciphertext in the column', () => {
   it('writes an envelope, not the seed the enrolment handed back', async () => {
     const begun = await service.beginTotpEnrolment({
       userId: owner().id,
+      sessionId: SESSION,
       accountName: owner().email,
       label: 'Test phone',
+      reauthToken: proofFor(owner().id),
       context: context(),
     });
 

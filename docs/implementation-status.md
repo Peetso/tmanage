@@ -458,6 +458,12 @@ points (48.9%)** unchanged. D08, like D05, W01, W02, D06 and D07 before it, is a
 correction that closes no ticket. Remaining P1 findings from the 2026-09-05 review once D08 is
 merged: **D09** (proxy headers, conditional).
 
+> **Corrected 2026-09-12.** That last sentence was wrong, and being wrong is how it did damage:
+> it read as "D05 is closed", and the third clause of D05 was not. `POST /v1/auth/factors/totp`
+> and `/confirm` were still reachable on a live session alone, and confirming replaces the
+> account's recovery codes. See **D05c** below. The remaining-P1 list at the time should have
+> read **D09 and the third clause of D05**.
+
 ---
 
 ## D07 — TOTP seeds stored as recoverable plaintext: fixed, proved, merged
@@ -875,14 +881,92 @@ corrected bytes restored by copy re-pass, SHA-256 verified before and after
   security-notification mailer exists; building one means new DI wiring in
   `identity.module.ts`, a second `Mailer` consumer beside `InvitationMailer`, and templates.
   Real scope of its own; not started.
-- `confirmTotpEnrolment` (adding a further factor while one is confirmed) is outside the
-  review's cited lines and was left as it was.
+- ~~`confirmTotpEnrolment` (adding a further factor while one is confirmed) is outside the
+  review's cited lines and was left as it was.~~ **This was the hole, and the sentence
+  understated it.** Confirming a factor calls `replaceRecoveryCodes` and returns the new set,
+  so leaving it ungated left the destruction and disclosure of recovery credentials reachable
+  from a live session — the very thing D05 exists to prevent — whether or not a factor was
+  already confirmed. Closed 2026-09-12; see **D05c** below.
 - The web client helpers `setPassword`, `disableFactor` and `regenerateRecoveryCodes` in
   `apps/web/src/lib/api/auth.ts` do not yet send the header and there is no `reauthenticate`
   helper; nothing in `apps/web/src` calls them today, so no screen regressed, but the first
   screen to use them needs the header and a password prompt on `reauthentication_required`.
 - Acceptance, integration onto `master` and the full chain remain Codex's (the parallel
   arrangement of 2026-09-05); this slice ran the two identity DB suites, not `pnpm test:db`.
+
+---
+
+## D05c — TOTP enrolment could still destroy and reveal the recovery codes: fixed on a branch
+
+**Finding** (re-review of 2026-09-12). D05's third clause was never enforced.
+`POST /v1/auth/factors/totp` and `POST /v1/auth/factors/totp/confirm` called neither
+`reauthTokenOf` nor anything equivalent, and `AuthenticationService.confirmTotpFactor` carried
+no `requireReauth`. Confirming a factor calls `CredentialsRepository.replaceRecoveryCodes` and
+returns the new set to the caller — which is precisely what `regenerateRecoveryCodes` does and
+has been gated for since D05.
+
+**What an attacker with only a live session could do.** Holding a stolen or fixated cookie, a
+session left open on a shared machine, an unattended browser: post to `/v1/auth/factors/totp`,
+post the code back to `/confirm`, and walk away with a fresh set of recovery codes. The
+account owner's own codes — the ones written down at enrolment — stopped working at that
+moment, and the codes that did work were the attacker's. No password was ever presented. The
+record made this harder to see twice over: the D05 deferral described it as "adding a further
+factor while one is confirmed", which understates it, and the D08 accounting then listed D09
+as the only remaining P1. Both sentences are corrected above.
+
+**The fix.** `beginTotpEnrolment` and `confirmTotpFactor` each take `sessionId` and an
+optional `reauthToken` and open with the existing `requireReauth`, in the same shape as
+`disableFactor` and `regenerateRecoveryCodes` — no second mechanism was invented. Both
+controller routes read `x-reauth-token` through `reauthTokenOf`, pass the full
+`contextOf(...)` so the refusal row carries an address, and map the refusal through the
+existing `translateReauth` to **403 `reauthentication_required`**. The happy path is
+unchanged.
+
+**Which of the two carries the gate, and why both do.** The gate that _has_ to exist is on
+`confirmTotpFactor`: that is the method which reaches `replaceRecoveryCodes`, and a gate on
+`beginTotpEnrolment` alone would close nothing, because a caller can post straight to
+`/confirm` with an id it already holds. The gate on `beginTotpEnrolment` is the second half of
+the pair and earns its place twice: it refuses before a pending factor row is written, and
+before an account-bound TOTP seed is generated and returned to a caller who has shown nothing
+but a cookie. It also fails at a point a person can act on — the password is asked for before
+the QR code rather than after it has been scanned. Both are checked **before** the ownership
+lookup, so the refusal for a missing token does not differ between a real factor id and an
+invented one. There is no first-password exemption of the kind `setPassword` has: an account
+with no password cannot re-authenticate, but that is already true of `disableFactor` and
+`regenerateRecoveryCodes`, and a second factor guarding an account with no first one guards
+nothing.
+
+**Tests, written before the fix.**
+
+- `id-002-auth-http.db.test.ts`, under `re-authentication over HTTP`: with a live session and
+  no proof, both routes answer 403, no factor row appears, the stored `code_hash` set is
+  unchanged, and — the assertion that matters — the owner's own recovery code still completes
+  a sign-in afterwards. A second case runs the enrolment end to end with the proof presented
+  and shows the new set replacing the old one.
+- `authentication.enrolment-reauth.test.ts` (new, unit): the service against a repository that
+  fails the case if `createFactor`, `findFactor` or `replaceRecoveryCodes` is reached at all.
+  That is a statement about _order_ the HTTP suite cannot make — a gate placed after the
+  ownership lookup would answer 403 and still be wrong.
+- No existing assertion was weakened or deleted. Four existing call sites reached the
+  enrolment routes without proof as a _precondition_ (the `enrol()` helper, the factor-listing
+  case, the someone-else's-factor 404, and the D05 remove-and-reissue case) and were rethreaded
+  with a token; the service-level suite's enrolment helpers took `sessionId` and a minted
+  token the same way D05 rethreaded the rest.
+
+**Evidence** (`C:/Users/Peter/Documents/ChatGPT/TManage/d05c-recovery-reauth-2026-09-12/`):
+probe logs from before the fix (`probe-unit-before-fix.log`, `probe-db-before-fix.log`),
+`typecheck-api.log`, `test-api-unit.log`, `test-db-identity.log`, `lint.log`, prettier on the
+touched files, and the reverse proof by file copy with SHA-256 verified before and after
+(`pre-fix-hashes.txt`, `post-fix-hashes.txt`, `reverse-*.log`, `hashes-after-restore.txt`).
+The database engine is MySQL, started by `mysql-memory-server`.
+
+**Left alone, deliberately:** the web client helpers in `apps/web/src/lib/api/auth.ts` send no
+`x-reauth-token` for _any_ gated route — not for `setPassword`, `disableFactor` or
+`regenerateRecoveryCodes` either — and nothing in `apps/web/src` calls them yet. The two
+enrolment helpers now sit in exactly the same position as the other three, so the first screen
+to use any of them needs the header and a password prompt on `reauthentication_required`, as
+D05 already recorded. Adding the header to two of the five and not the others would have been
+a second convention.
 
 ---
 
