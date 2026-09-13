@@ -26,7 +26,183 @@ three shapes (an _appending_ proxy is the safe form; the branch said the reverse
 sweep); and D08 **follow-up 6
 stays open** — the address is now authentic, it is still not scarce, and one IPv6 /64 holds 2^64
 of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
-`claude-auto-1789145792`: **D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` on 2026-09-07 and the fix waves that follow them, the last two of those on 2026-09-11 — five review fix waves in all, every one of them committed (`4036841`, `ce98302`, `9ceab73`, `7cc9c16`, `b0a33e3`): the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the fourth makes the charge two-phase, so a refusal spends no narrower budget either, and stops a throttle refusal that names a user from moving that user towards their own durable lockout; and the fifth stops the durable lockout counting the `locked_out` row it writes about itself, so the lockout window ends as designed instead of renewing itself for as long as anyone keeps knocking, and strengthens three tests that asserted less than their titles claimed; the static, unit and database gates are green and recorded, the reverse proof at the branch head proved all five waves load-bearing with every file restored byte-identical, the branch was merged into `master` `--no-ff` as `066934d`, and the post-merge chain on `066934d` was green and recorded and `master` pushed (see "The chain on `066934d`") (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's database-wide read grant is narrowed to fourteen named tables — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+`claude-auto-1789145792`: **D08** — the password, MFA, recovery-code and re-authentication steps now have a source, source+account and global bound in front of them, consulted before the user lookup, before Argon2 and before the event write — built on branch `d08-password-abuse-control` cut from `master` `cb5afd7`, committed as `90cbe5f`, `ea2a33c`, `2c65fab`, `4036841` on 2026-09-07 and the fix waves that follow them, the last two of those on 2026-09-11 — five review fix waves in all, every one of them committed (`4036841`, `ce98302`, `9ceab73`, `7cc9c16`, `b0a33e3`): the second stops a refused attempt from charging any wider budget, raises the global default from 600 to 3000 and clamps the source address at 45 characters; the third adds the two database cases the MFA-completion and recovery-code enforcement points had been missing and stops a failed audit write turning a refusal into a 500; the fourth makes the charge two-phase, so a refusal spends no narrower budget either, and stops a throttle refusal that names a user from moving that user towards their own durable lockout; and the fifth stops the durable lockout counting the `locked_out` row it writes about itself, so the lockout window ends as designed instead of renewing itself for as long as anyone keeps knocking, and strengthens three tests that asserted less than their titles claimed; the static, unit and database gates are green and recorded, the reverse proof at the branch head proved all five waves load-bearing with every file restored byte-identical, the branch was merged into `master` `--no-ff` as `066934d`, and the post-merge chain on `066934d` was green and recorded and `master` pushed (see "The chain on `066934d`") (see "D08 — the password endpoint had no source-based abuse control"). Earlier, Claude-only run `claude-auto-1788734539`: **D07** — the TOTP seed is now AES-256-GCM ciphertext in the column, and the worker's grant, **for a newly created account**, is fourteen named tables instead of a database-wide `SELECT` (the script carried no `REVOKE` and created the account with `CREATE USER IF NOT EXISTS`, so re-applying it against an installation provisioned under the older script left the wide `SELECT` in force — `code-review-2026-09-12/REVIEW.md` R10, P1, since closed on branch `x13-grant-revokes`, **not merged**; see the x13 fold in the 2026-09-13 sweep below) — built, reviewed six times and proved on the local database on branch `d07-totp-seed-encryption`; the third fix wave landed, the branch was merged into `master` `--no-ff` as `bc0bf27`, and the post-merge chain on `master` `bc0bf27` was green and recorded and `master` pushed (see "The chain on `bc0bf27`" and "D07 — TOTP seeds stored as recoverable plaintext"). Earlier run `claude-auto-1788721119`: the post-merge chain on `master` `2a15603` (D06) was green and recorded and `master` pushed (see "The chain on `2a15603`"); that run also cut `d07-totp-seed-encryption` and built its first two pieces. Earlier run `claude-auto-1788718770`: **D06** — replacing a password now ends every other session — built, proved on the local database and merged into `master` from `d06-password-session-cutoff`; the post-merge chain on `master` `9129b5b` was green and recorded and `master` pushed (see "The chain on `9129b5b`"); Codex has no review role since 2026-09-06 17:44, so "awaiting Codex" wording in older sections is historical) · **Deployment profile:** `bootstrap` (50-BOOTSTRAP)
+
+---
+
+## 2026-09-13 — status-record truth sweep (slice x22)
+
+Documentation-only. This sweep applied every replacement in
+`resume-2026-09-12-1212/STATUS-RECORD-AUDIT.md` (the overstated lines O1–O8 and the stale lines
+S1–S6, in place at their anchors above and below) and folded in the status wording proposed by nine
+sibling slice reports, recorded here newest-first. **No source was changed by this slice.**
+
+Two rules hold for every fold below, because every one of these slices is unintegrated:
+
+- **Each slice sits on its own branch and is _not yet merged_.** Its work is dirty in its worktree
+  for the orchestrator to integrate; nothing here has reached `master`.
+- **Every database (`*.db.test.ts`) suite these slices add is _written but unexecuted_.** The
+  database/e2e lock was held for the whole session, so no `mysqld` was started. Where a fold says a
+  property is proved, it is proved by _executed_ unit tests only; the database file that would prove
+  it on a real server is named, runnable and unrun, and no fold claims such a file passes.
+
+### x3 — dead `errno` branches removed (branch `x3-dead-errno-branches`, not merged)
+
+The two unreachable `errno` mapping branches the 2026-09-12 review named, plus a third identical
+`code || errno` pair the review did not, are removed from
+`conversations.repository.ts`, `tenancy/organizations.repository.ts` and
+`files/upload-sessions.repository.ts`. For the two codes the branches tested (1062, 1452) mysql2
+3.23.3 always sets a string `code` beside the number, and no wrapper on any path strips it, so the
+first branch always won; the comments in two files that claimed `DrizzleQueryError` carries
+`code`/`errno` were corrected (it carries neither). Ten new unit cases pin the mappings through a
+stubbed driver error and were **executed** (part of the api unit project, 429/429). No database
+case was added, so nothing is left unexecuted by that restriction. The proof is version-pinned to
+mysql2 3.23.3 / drizzle-orm 0.45.2.
+
+### x4 — line endings decided by `.gitattributes`, not `core.autocrlf` (branch `x4-gitattributes-lf`, not merged)
+
+Folded from the former `docs/x4-status-entry.md`, now deleted. Every checkout here carries
+`core.autocrlf=true` while `.prettierrc.json` sets `"endOfLine": "lf"`, and nothing reconciled the
+two: a clean `git merge` wrote merged files back as CRLF so `pnpm format:check` failed on files
+nobody edited; a fresh `git worktree add` came out with 671 tracked text files CRLF, reddening the
+format gate before any work; the main checkout showed ~84 phantom-dirty files byte-identical to the
+index; and reports had acquired a standing "format:check fails at base" exception that hides a real
+failure when one appears. The fix is a root `.gitattributes` with baseline `* text=auto eol=lf`,
+every tracked binary format enumerated from `git ls-files` and marked with Git's `binary` macro
+(108 `.png`, 24 `.ttf`, 12 each `.woff2`/`.woff`/`.eot`, 10 `.otf`, 3 each `.webp`/`.jpg`, and
+`docs/design/source/project/.thumbnail`), `*.bat`/`*.cmd` pinned `eol=crlf` and `*.sh`/`*.bash`,
+`pnpm-lock.yaml` and `*.sql` pinned LF for stated forward-looking reasons. A `.gitattributes` does
+not renormalise an existing working tree: each checkout's owner runs, once, on a clean tree,
+`git add --renormalize .` (stages nothing — every text blob is already LF), then
+`git rm --cached -r -q . && git reset --hard`, then confirms with `git ls-files --eol` and
+`pnpm format:check`; no `git config` change is needed because `eol=lf` overrides `core.autocrlf`.
+Verified in `next-slices-2026-09-12/` (before: 671 `i/lf w/crlf`; `git add --renormalize` staged
+nothing; a scratch clone at this branch came out LF and passed prettier, the same clone at `master`
+came out CRLF and failed). **This worktree already carries that `.gitattributes`**, so
+`docs/implementation-status.md` is LF here and this sweep's edits stay LF; no database suite is
+involved.
+
+### x7 — role-matrix _prohibitions_, the independent transcription (branch `x7-role-matrix-prohibitions`, not merged)
+
+D18. `test-001-role-matrix.db.test.ts` derives its expected answer from `hasCapability`, the
+product's own ceiling, so it tests what each role _may_ do and moves with the implementation;
+nothing tested what each role _must not_ do. `apps/api/test/sec-002-role-prohibitions.db.test.ts`
+(new, 679 lines) adds the second, independent transcription of `12-PERMISSION-MATRIX.md` §2 — 83
+hand-written `false` cells each carrying its §2 row, 15 never-external capabilities across the four
+client roles, 9 HTTP-403 rows with an exact audit count, per-row cell counts and an explicit
+eleven-role roster — importing `hasCapability` only as the subject under test, never as a source of
+truth. `docs/security/permission-test-map.md` gains the written-out prohibition grid. Typecheck and
+lint pass (the file is in the api typecheck program, confirmed by `--listFiles`); a static check
+against the built domain confirms all 83 prohibitions hold today. **The suite is a `.db.test.ts`
+and is written but unexecuted**; run it with
+`pnpm --filter @tmanage/api test -- --project database sec-002-role-prohibitions`.
+
+### x9 — Storybook for `apps/web` (branch `x9-web-stories`, not merged)
+
+Retires "apps/web has no stories, and that remains open." `apps/web` now runs Storybook 10 on
+`@storybook/react-vite`, the same tool and version as `packages/ui`: nine screens, 15 stories,
+including all four presentation-only `ID-05 Recovery` states the 2026-09-05 review's D15 remedy
+asked to be given a story home. They are **not** under visual regression — the VR harness is scoped
+to `packages/ui` and the **108** baselines are unchanged (the dispatch's "109" should be reconciled
+against the tracked 108) — and no suite executes them; they are compiled by `typecheck` and built
+by `pnpm --filter @tmanage/web build:storybook`. The remaining 16 of 25 screens are unstoried,
+which remains open. Two bundler defects were fixed to make the build render rather than merely
+compile (`node:crypto` in the browser bundle; the classic JSX runtime from `jsx: "preserve"`).
+Typecheck, web unit (454/454), lint and the Storybook build pass; no database suite is involved.
+
+### x11 — the permission-matrix fixture (branch `x11-permission-matrix-fixture`, not merged)
+
+C1/C2/C3 of the test-honesty sweep: three sites each asserted the ceiling against the function that
+produced it (`hasCapability`/`capabilitiesFor`), so a widening of the ceiling stayed green. One
+hand transcription of `12-PERMISSION-MATRIX.md` §2 —
+`packages/test-kit/src/permission-matrix.ts` (new, all 11 roles × 28 capabilities = 308 cells,
+both `granted` and `denied` written out, types-only import) — now backs all three, guarded by
+`permission-matrix-fixture.test.ts` (new, 30 cases) which set-equals `capabilitiesFor(role)` to the
+transcription per role and caps a finite `ACCEPTED_CEILING_DIVERGENCES` register (four cells today).
+Two widenings taken from the sweep were **executed** against C2 and the guard and failed as
+predicted (member gaining `client_request.triage`; `capabilitiesFor` returning everything). C1
+(`test-001-role-matrix.db.test.ts`) and C3 (`membership-resolver.db.test.ts`) are `.db.test.ts` and
+their edits, and the reasoning that they now fail under the same widenings, are **written but
+unexecuted** (`pnpm --filter @tmanage/api test:db -- test/test-001-role-matrix.db.test.ts
+test/membership-resolver.db.test.ts`). Reconcile with x7 on integration: `sec-002` should import
+`PERMISSION_MATRIX[role].denied` rather than keep a second hand list. `pnpm-lock.yaml` gained the
+worker's `@tmanage/test-kit` dev-dependency (one change, must land with the package.json edit).
+
+### x12 — an honest contracts gate, D10 (branch `x12-contracts-shape-check`, not merged)
+
+`packages/contracts` was never authored, so `contracts:validate` filtered on `@tmanage/contracts`,
+matched no package, printed `No projects matched the filters` and exited 0 for the whole life of the
+repository — every recorded chain ran that step vacuously (the chain rows above are annotated
+accordingly; they are **not** re-validated by the replacement). Replaced by `pnpm contracts:check`
+(`scripts/contracts-check.mjs`): it enumerates all 24 `export interface …View` projections under
+`apps/api/src/modules/**/*.service.ts` and fails unless each is paired against its `apps/web`
+counterpart in `e2e/contracts/api-web-shapes.ts` or carried in a named exemption, then compiles the
+pairings — 15 paired (12 exact, 3 narrowing), 9 exempt for want of a web consumer. Demonstrated by
+SHA-256-verified revert: a renamed API field, a `string` retyped to `number`, and a new unpaired
+view each fail with a message naming the drift and revert to green. **Open, surfaced by the
+reconciliation:** three API projections are looser than the endpoint can return and `apps/web`
+declares the correct union — `WorkItemView.state`, `ClientRequestView.state`,
+`InvitationView.status` should be their unions (asserted with `Narrows`, not papered over); and 48
+of `apps/web`'s 63 response shapes have no API `…View` behind them. `CONTRACT-001` (generating
+`packages/contracts`) is **not** closed; the false signal is. Typecheck (api/web/e2e),
+`contracts:check` and lint pass; no database suite is involved.
+
+### x13 — the grant script narrows on re-apply, R10 (branch `x13-grant-revokes`, not merged)
+
+Folded into the header and the D07 body above. `scripts/db/users.sql` now issues
+`REVOKE ALL PRIVILEGES, GRANT OPTION` against each of `tmanage_app`, `tmanage_worker` and
+`tmanage_migrator`, between that principal's `CREATE USER` and its first `GRANT`, and enumerates
+each principal's intended set in the file, so `pnpm db:grants` is corrective as well as additive and
+idempotent in the strong sense — closing R10 (P1), which reported that the script carried no
+`REVOKE` and so left an older installation's database-wide `SELECT`, including over the credential
+tables, in force. The upgrade path is proved by **executed** unit tests (`grants.test.ts` 14 cases,
+`users-sql.test.ts` amended; api unit 458/458). **The reconciliation that reads the privileges
+actually in force on a server and fails on any excess,
+`apps/api/test/grant-reconciliation.db.test.ts`, is written but unexecuted** — it needs
+`TMANAGE_TEST_GRANT_ADMIN_DATABASE_URL` pointed at a provisioned server, and this machine's
+database suite runs as an administrative user, where a missing grant is invisible. Hostinger still
+defeats ADR-0001 layer 2 regardless (hPanel grants each MySQL user full privileges while `env.ts`
+compares only usernames); `docs/runbooks/deploy.md` was not updated for the re-apply window and
+should be.
+
+### x14 — the lockout denial of service, C-1 (branch `x14-lockout-dos-defaults`, not merged)
+
+`IDENTITY-SECURITY-AUDIT.md` C-1: the shipped defaults had the per-source-account budget (10) above
+the per-user lockout threshold (5), so one address could drive any known account into a 900 s
+lockout it could not clear. `RATE_LIMIT_AUTH_MAX_REQUESTS` now defaults to `4` (a named constant
+beside `AUTH_MAX_FAILURES_IN_WINDOW`), and `env.ts` refuses at boot, in every environment, any
+configuration where the budget is at or above the lockout threshold, with a message naming both
+variables. Tests now bind the _shipped_ defaults, not their own literals (config `env.test.ts` +6,
+new `api-config.test.ts`; both **executed**, and three SHA-256-verified reverts proved them
+load-bearing, including `expected 10 to be less than 5` on the pre-fix defaults). **Honest limit,
+recorded here and in `env.ts`:** because the two windows differ (300 s budget vs 900 s lockout) one
+address still gets 12 admitted failures per lockout window, so sustained single-address lockout
+remains possible; the durable fix (verify-first, throttle only the failing path) is a behaviour
+change needing the database lock and is the next item. The added assertions in
+`apps/api/test/id-002-credentials.db.test.ts` are type-checked but **written and unexecuted**
+(`pnpm --filter @tmanage/api test -- --project database id-002-credentials`). I-1 (no session-revoke
+route) and I-3/I-4 (source-key rotation) remain open and multiply what is left of C-1.
+
+### worker / outbox — the two Critical findings (branch `x8-worker-outbox-critical`, not merged)
+
+Folded into the PLAT-004 row below. CRITICAL-1: a handler that _killed the process_ never reached
+`recordFailure`, so `attempts` never moved and a poison row could never park — it blocked the whole
+queue across restarts. The audit's own smallest fix was one statement short (its extra `UPDATE`
+lands inside the batch transaction a crash destroys), so one batch is now two transactions — a
+committed **reservation** that increments `attempts` before the handler runs, then the batch —
+`recordFailure` no longer touches `attempts`, and the backoff arithmetic is byte-identical.
+CRITICAL-2: a dead relay and an idle relay were indistinguishable; `readOutboxBacklog` (oldest
+pending age, parked kept out of the age) plus a heartbeat file are exposed as `relay:status` (exit 1
+past threshold) and a non-zero `relay:once`, read on the worker's own credential so **no grant
+changed**. Proved by **executed** worker unit tests (`claim-attempts.test.ts` 7 cases,
+`health.test.ts` 17 cases; worker 71/71) with existing tests unweakened. **The database case that
+confirms the reservation commits and the aggregate reads what MySQL stores,
+`apps/api/test/plat-004-claim-attempts.db.test.ts` (8 cases), is written but unexecuted**
+(`pnpm test:db`), and the existing `plat-004-relay.db.test.ts` under the new `attempts` semantics is
+likewise unrun and should be run first. The accepted trade (a crash costs an attempt to every
+reserved batch-mate, bounded by `OUTBOX_BATCH_SIZE`) is pinned by a test; IMPORTANT-1..6 and the
+Minor findings are untouched. The branch is misnamed `x8-web-shell-findings` in its worktree and
+should be renamed for the worker/outbox fix when committed.
 
 ---
 
@@ -670,7 +846,17 @@ Every claim names its log.
 points (48.9%)** unchanged. D08, like D05, W01, W02, D06 and D07 before it, is a review
 correction that closes no ticket. Remaining P1 findings from the 2026-09-05 review once D08 is
 merged: **D09** (proxy headers, conditional) — since built and proved on branch
-`d09-trusted-proxy`, see the D09 section above.
+`d09-trusted-proxy`, see the D09 section above — and the third clause of **D05** (closed
+2026-09-12 — see **D05c**). **Separately, the review of 2026-09-12
+(`code-review-2026-09-12/REVIEW.md`) raised ten further findings, five of them P1: R01
+(work-item health discloses inaccessible predecessor titles), R02 (= D05c, closed), R03 (message
+idempotency replays content from a revoked channel), R06 (the scanner deadline does not stop a
+silently stalled input stream) and R10 (re-applying the grant script does not remove the worker's
+old privileges). Eight of the ten were reproduced against real application code. R02 is recorded
+as D05c; R10 is closed on branch `x13-grant-revokes` (not merged; see the 2026-09-13 sweep below);
+the remaining findings (R01, R03, R04, R05, R06, R07, R08, R09) are open and, apart from the folds
+in the 2026-09-13 sweep, unrecorded — a reader should not treat the roll-ups above as the whole of
+what is outstanding.**
 
 > **Corrected 2026-09-12.** That last sentence was wrong, and being wrong is how it did damage:
 > it read as "D05 is closed", and the third clause of D05 was not. `POST /v1/auth/factors/totp`
@@ -723,12 +909,26 @@ plus a merge of `master` `282f243` back into the branch at `5c94de4`):
   the backfill command, never quietly used.
 - `ec32140` — the worker's one database-wide `GRANT SELECT` over the whole `tmanage` schema is
   replaced by **fourteen table-level SELECT grants** in `scripts/db/users.sql`, grouped and
-  commented by the subsystem that reads them. Every other worker grant is unchanged, and
-  `tmanage_app` is deliberately left alone (its own tests still depend on its database-wide
-  SELECT). `users-sql.test.ts` gained assertions that the worker never receives a database-wide
-  SELECT and is never granted anything on `user_passwords`, `user_mfa_factors`,
-  `user_recovery_codes` or `authentication_events`, and `least-privilege.db.test.ts` gained a
-  live worker-credential case.
+  commented by the subsystem that reads them. As originally written the replacement held only for
+  **accounts created by the script from then on**: the file performed no `REVOKE` and created the
+  user with `CREATE USER IF NOT EXISTS`, so an account provisioned under the previous script kept
+  its database-wide SELECT when `db:grants` was re-applied, and `users-sql.test.ts` could not see
+  it because it asserts the _script's_ grants (`code-review-2026-09-12/REVIEW.md` R10, P1). Every
+  other worker grant is unchanged, and `tmanage_app` is deliberately left alone (its own tests
+  still depend on its database-wide SELECT). `users-sql.test.ts` gained assertions that the worker
+  never receives a database-wide SELECT and is never granted anything on `user_passwords`,
+  `user_mfa_factors`, `user_recovery_codes` or `authentication_events`, and
+  `least-privilege.db.test.ts` gained a live worker-credential case.
+  **Closed on branch `x13-grant-revokes` (not merged):** the script now issues
+  `REVOKE ALL PRIVILEGES, GRANT OPTION` against each of `tmanage_app`, `tmanage_worker` and
+  `tmanage_migrator`, between that principal's `CREATE USER` and its first `GRANT`, and enumerates
+  each principal's intended privilege set in the file itself, so `pnpm db:grants` is corrective as
+  well as additive and idempotent in the strong sense. The upgrade path is proved statically by
+  `apps/api/src/common/database/grants.test.ts` and `users-sql.test.ts` (executed); the check that
+  reads the privileges **actually in force** on a server and fails on any excess is
+  `apps/api/test/grant-reconciliation.db.test.ts`, which is **written and not executed** — it needs
+  `TMANAGE_TEST_GRANT_ADMIN_DATABASE_URL` pointed at a provisioned server, and this machine's
+  database suite runs as an administrative user, where a missing grant is invisible.
 - `e45f47c` — the repository became the encryption boundary.
   `CredentialsRepository` takes the cipher in its constructor with no default, `createFactor`
   encrypts, and every read path that hands a seed upward decrypts using **the row's own
@@ -937,16 +1137,17 @@ Run by `claude-auto-1789145792` immediately after the D08 merge, detached, in th
 one `step-*.log` per step). Started 2026-09-11T19:53:51Z, **CHAIN END PASS 2026-09-11T20:28:16Z**, every
 step exit 0.
 
-| step                                                             | result                                                     |
-| ---------------------------------------------------------------- | ---------------------------------------------------------- |
-| `build:packages`, `build:worker`                                 | rc=0                                                       |
-| `prettier --check .` (the two untracked Codex artefacts ignored) | rc=0                                                       |
-| `pnpm typecheck`                                                 | rc=0                                                       |
-| `eslint .` (same two paths ignored)                              | rc=0                                                       |
-| `contracts:validate`, `audit:design`                             | rc=0                                                       |
-| `pnpm test`                                                      | rc=0 — api 27 files / **413** tests                        |
-| `pnpm test:db`                                                   | rc=0 — 41 files, **988 passed, 35 skipped** (1023), 28 min |
-| `pnpm test:e2e`                                                  | rc=0 — **20 passed**, 2.7 min                              |
+| step                                                             | result                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build:packages`, `build:worker`                                 | rc=0                                                                                                                                                                                                                                                                                                              |
+| `prettier --check .` (the two untracked Codex artefacts ignored) | rc=0                                                                                                                                                                                                                                                                                                              |
+| `pnpm typecheck`                                                 | rc=0                                                                                                                                                                                                                                                                                                              |
+| `eslint .` (same two paths ignored)                              | rc=0                                                                                                                                                                                                                                                                                                              |
+| `contracts:validate`                                             | rc=0 — **and validated nothing**: `packages/contracts/` does not exist, so the pnpm filter matched no package and exited 0 (review finding **D10**). Do not read this row as coverage. Replaced 2026-09-12 by `pnpm contracts:check` on branch `x12-contracts-shape-check` (not merged; see the 2026-09-13 sweep) |
+| `audit:design`                                                   | rc=0                                                                                                                                                                                                                                                                                                              |
+| `pnpm test`                                                      | rc=0 — api 27 files / **413** tests                                                                                                                                                                                                                                                                               |
+| `pnpm test:db`                                                   | rc=0 — 41 files, **988 passed, 35 skipped** (1023), 28 min                                                                                                                                                                                                                                                        |
+| `pnpm test:e2e`                                                  | rc=0 — **20 passed**, 2.7 min                                                                                                                                                                                                                                                                                     |
 
 `test:db` and `test:e2e` ran under `delegate-desk/2026-09-06-auto-relay/locks/db-e2e.lock`
 (runId `claude-auto-1789145792-chain`), which the chain released; no `mysqld` process was left behind.
@@ -968,7 +1169,8 @@ The documented chain was launched on `master` at `bc0bf27` (the D07 merge) by ru
 `d07-totp-seed-encryption-2026-09-06/master-chain/chain.sh`, log `chain.log`) and finished at
 07:29 local under the same run, which read the log and the process table before recording it.
 Every step exit 0, in the `pnpm verify` order: `build:packages`, `build:worker`, `format:check`,
-`typecheck`, `lint`, `contracts:validate`, `audit:design`, then `test` — the unit projects
+`typecheck`, `lint`, `contracts:validate` (**vacuous — validated nothing, D10; see the
+2026-09-13 sweep**), `audit:design`, then `test` — the unit projects
 **79 files, 1330 tests pass, none skipped** over two minutes (`step-test.log`; the two largest
 are `apps/web` **23 files, 445 tests** and `apps/api` **26 files, 392 tests**) — then `test:db`
 **41 files, 975 tests pass, 35 skipped** (28 minutes, `step-test-db.log`) and `test:e2e`
@@ -993,7 +1195,8 @@ The documented chain was launched on `master` at `2a15603` (the D06 merge) by ru
 `d06-password-cutoff-2026-09-06/master-chain/chain.sh`, log `chain.log`) and finished at
 22:13 local under the next run, `claude-auto-1788721119`, which read the log and the process
 table before recording it. Every step exit 0, in the `pnpm verify` order: `build:packages`,
-`build:worker`, `format:check`, `typecheck`, `lint`, `contracts:validate`, `audit:design`,
+`build:worker`, `format:check`, `typecheck`, `lint`, `contracts:validate` (**vacuous —
+validated nothing, D10; see the 2026-09-13 sweep**), `audit:design`,
 `test` (unit, every package), then `test:db` **41 files, 966 tests pass, 29 skipped** (28
 minutes, `step-test-db.log`) and `test:e2e` **20 passed** (2.9 minutes, `step-test-e2e.log`),
 both serialised under `locks/db-e2e.lock`, which the chain released itself; `CHAIN END PASS
@@ -1011,7 +1214,8 @@ The documented chain was launched on `master` at `9129b5b` by run `claude-auto-1
 the W02 merge, and finished at 21:25 local under the next run, `claude-auto-1788718770`, which
 read the log and the process table before recording it. Every step exit 0, in the `pnpm verify`
 order: `build:packages`, `build:worker`, `format:check`, `typecheck`, `lint`,
-`contracts:validate`, `audit:design`, `test` (unit, every package), then `test:db` **41 files,
+`contracts:validate` (**vacuous — validated nothing, D10; see the 2026-09-13 sweep**),
+`audit:design`, `test` (unit, every package), then `test:db` **41 files,
 all pass** (31 minutes, `step-test-db.log`) and `test:e2e` **20 passed** (3.1 minutes,
 `step-test-e2e.log`), both serialised under `locks/db-e2e.lock`; `CHAIN END PASS
 2026-09-06T18:25:19Z` and no `mysqld`, `vitest` or `playwright` process left behind. Two
@@ -1081,7 +1285,8 @@ code or any fresher proof than the session cookie.
 `pnpm typecheck` for `@tmanage/api` and `@tmanage/web` clean; eslint on the eight touched
 files clean; prettier clean after LF normalisation; `@tmanage/api` unit project **22 files,
 328 tests, all pass**; `id-002-credentials.db.test.ts` + `id-002-auth-http.db.test.ts` on the
-local MariaDB, serialised under `locks/db-e2e.lock`, **2 files, 75 tests, all pass** (12 new
+local database started by `mysql-memory-server` — **MySQL**, per the machine table below and the
+correction in `c61f7ea` — serialised under `locks/db-e2e.lock`, **2 files, 75 tests, all pass** (12 new
 service-level cases under `D05 — re-authentication before a credential changes`, 6 new HTTP
 cases under `re-authentication over HTTP`, and the pre-existing cases re-threaded with a
 session id and proof). Reverse proof by file copy, never `git checkout`: with the `HEAD`
@@ -1316,10 +1521,10 @@ under `locks/db-e2e.lock`): 15 of 15 pass, 89 s. Evidence, logs and both file co
 **Not re-opened here:** the disclosed unbounded source-stall risk (a quarantine read that
 hangs without failing) remains an open, separately carried risk, not part of this P1.
 
-**Where it lives:** same branch and worktree as the W01 fix above, three dirty files
-(`file-scanner.ts`, `file-scanner.test.ts`, this document), not committed, not pushed.
-Handoff is `awaiting_codex_review` via `cycle-state.json` (`claude` lane), run
-`claude-w01-1788701585`.
+**Where it lives:** the same branch as the W01 fix above, **since committed, merged into `master`
+and pushed**. The `awaiting_codex_review` handoff recorded here (via `cycle-state.json`, `claude`
+lane, run `claude-w01-1788701585`) belonged to the parallel arrangement that ended 2026-09-06
+17:44; no Codex review gate exists.
 
 ---
 
@@ -1411,7 +1616,9 @@ holds. (3) The loopback-http allowance for the proxy target is a policy call; th
 (no TLS on the intra-machine hop) is the one `50-BOOTSTRAP` §3's single host already makes
 for the database.
 
-**Where it lives:** the same branch and worktree; still uncommitted and unpushed on purpose.
+**Where it lives:** branch `w02-session-browser`, **merged into `master` (`3fed68d`, 2026-09-11)
+and pushed** (`next-slices-2026-09-12/UNVERIFIED-FIXES-AUDIT.md`); `master` has since advanced to
+`9122b09`. The paragraph that said it was "uncommitted and unpushed on purpose" is historical.
 The patch is regenerated as `w02-proof/w02-branch.patch` (its figures and SHA-256 are in
 the desk's `result.md`, since a file cannot carry its own hash); per-file hashes in
 `w02-proof/fixed-sha256.txt`. The dependency-file flag of the previous entry stands. No
@@ -1547,8 +1754,10 @@ acceptance list; a timer is an optimisation); a client-side link to the sessions
 is reachable only by URL — D12's family).
 
 **Where it lives:** branch `w02-session-browser`, worktree `tmanage-w02`, cut from
-`1d89a04`; uncommitted and unpushed on purpose (the parallel arrangement of 2026-09-05 makes
-Codex the reviewer and default integrator). The patch (`w02-branch.patch`, 24 files, +1,899
+`1d89a04`, **since merged into `master` (`3fed68d`, 2026-09-11) and pushed**. The paragraph that
+stood here described it as "uncommitted and unpushed on purpose" under the 2026-09-05 parallel
+arrangement, in which Codex was reviewer and default integrator; that arrangement ended on
+2026-09-06 17:44 and the sentence is historical. The patch (`w02-branch.patch`, 24 files, +1,899
 −49), hashes, logs, probe output and the two failure traces are under
 `C:/Users/Peter/Documents/ChatGPT/TManage/w02-proof/`. The branch touches
 `apps/web/package.json` and `pnpm-lock.yaml` (a dev-dependency on `@tmanage/config` for one
@@ -2352,14 +2561,21 @@ Handoff: `C:/Users/Peter/Documents/ChatGPT/TManage/CLAUDE-NEXT-PROMPT.md`.
 
 ---
 
-## FILE-002 slice C — the download gate and the views, built and proved
+## FILE-002 slice C — the download gate and the views, built and proved against the filesystem driver
 
 Built in the same session as slice B's completion, on a green chain (`631e092`). A read-only
 fleet of seventeen (run `wf_1aca4f71-dcb`: twelve readers over the domain predicate, the
 views, the repository, the contracts, the e2e stack, the planning documents and the HTTP
 conventions; four adversarial lenses; one synthesizer) mapped the slice before a line was
 written. Peter raised the agent cap to 30 for that fleet and put it back to 10 the same
-evening; the cap is 10. **FILE-002 closes with this slice.**
+evening; the cap is 10. **FILE-002 closes with this slice, and the loop it closes cannot run in
+production.** Every gate below was executed with `STORAGE_DRIVER=filesystem`.
+`storage.module.ts` wires `UnavailableObjectStore` for `s3` — every method rejects with
+`ObjectStoreUnavailableError` — and `packages/config` refuses `filesystem` under
+`NODE_ENV=production`. There is therefore **no working object store in any production
+configuration**, and upload, version, approval and download are inoperable there until
+**FILE-003** builds the R2 driver. The refusal is deliberate and honest; the consequence is that
+this slice's proof is a proof about development and e2e, not about the product a user would touch.
 
 ### What the fleet found, and what changed because of it
 
@@ -5653,16 +5869,29 @@ injectable factory — the `ApiClient` seam's shape — and the suite drives a f
 subscribe, live delivery via the read path, the null-`socketUrl` quiet settling, and a
 drop that reconnects on a fresh mint.
 
-### Named gaps — RT-001 closed, with edges stated
+### Named gaps — RT-001 closed, with edges stated; two more found on 2026-09-12
 
 1. **Presence and typing** — not in the scope row, not built, still named on the screen.
 2. **Conversations are the only subscription family.** Work, requests and notifications
    would each need their own authorized-subscribe rule.
 3. **Single-process fan-out** — the first half's scaling boundary stands: one persistent
    worker, in-process hub, no shared bus on the target.
-4. **Live updates depend on deployment.** `REALTIME_PORT` on the worker and
-   `REALTIME_PUBLIC_URL` on the API must both be set; either absent degrades honestly to
-   reload.
+4. **Live updates depend on deployment, and the degradation is not lossless.** `REALTIME_PORT`
+   on the worker and `REALTIME_PUBLIC_URL` on the API must both be set. With either absent the
+   **browser** degrades honestly to reload — the mint answers `socketUrl: null` and
+   `use-channel-live-feed.ts` settles without connecting. The **events** do not: the
+   `message.created.v1` handler is registered only in loop mode with a port
+   (`apps/worker/src/main.ts:128–140`), and the dispatcher marks any unhandled event published
+   (`dispatcher.ts:176–181`). In the `--once` batch shape — the one the deployment target actually
+   uses — every message event drains as "unhandled, published" and is not replayable if realtime
+   is switched on later. Recorded as an open gap, not a solved one (`WORKER-OUTBOX-AUDIT.md`
+   IMPORTANT-5).
+5. **An existing subscription survives revocation of the permission behind it** (R04, P2,
+   reproduced). Publishing performs no permission re-read, so a subscriber who loses membership
+   keeps receiving events on the socket they already hold until it closes.
+6. **A socket closed during subscription authorization leaks its listener** (R05, P2,
+   reproduced). The subscription is installed after the close because the database check was still
+   pending; the hub retains the listener.
 
 ---
 
@@ -10755,16 +10984,16 @@ win over the tokens, and it is settled on a ground §1 does not speak to.
 
 ## Sprint 0 (`28-SPRINT-TICKETS` §3)
 
-| Ticket    | Scope                                              | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| --------- | -------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PLAT-001  | pnpm monorepo, shared config, ownership boundaries | `implemented` | Workspace builds; boundary rules encoded as lint errors in `eslint.config.js`, and the `db` boundary is proven to fire                                                                                                                                                                                                                                                                                                                                                            |
-| PLAT-002  | one-command local stack                            | `implemented` | `compose.yaml` (MariaDB 11.4 · Valkey 8.1 · MinIO). One defect fixed this session (the `users.sql` init-mount could never have succeeded). **Still never started** — no container runtime here; the CI `database` job is what will verify it                                                                                                                                                                                                                                      |
-| PLAT-003  | CI gates, secret/dependency scans                  | `implemented` | `.github/workflows/ci.yml` + `.gitleaks.toml` + `db:grants` + the least-privilege suite. **Not `tested`: the workflow has never run.** Artifact signing deferred (nothing to sign yet); branch protection is an owner action                                                                                                                                                                                                                                                      |
-| OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                                                                                                                                                                                                                                                                |
-| AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                                                                                                                                                                                                                                                         |
-| PLAT-004  | transactional outbox + idempotency                 | `tested`      | Tables, append-only audit and per-tenant idempotency, and — since 2026-08-30 — the relay itself: five producers, the `apps/worker` dispatcher (claim/backoff/park, loop and controlled-batch modes) and the lifecycle consumer, proved by 14 database cases driving the dispatcher from `@tmanage/worker` plus 10 worker unit cases                                                                                                                                               |
-| UI-001    | tokens, primitives, Storybook, visual harness      | `tested`      | 106 cases in `packages/ui`: 33 contrast, 14 token drift, 59 component/theme including axe over the whole primitive surface in light, dark, high contrast and Arabic RTL. Storybook builds and was driven through three stories. **The visual-regression harness is built (2026-08-30)**: 108 committed baselines over every story in light, dark and RTL, verified stable and proven able to go red. **The eight specified primitives landed 2026-08-30 and the ticket is whole** |
+| Ticket    | Scope                                              | Status        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------- | -------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PLAT-001  | pnpm monorepo, shared config, ownership boundaries | `implemented` | Workspace builds; boundary rules encoded as lint errors in `eslint.config.js`, and the `db` boundary is proven to fire                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| PLAT-002  | one-command local stack                            | `implemented` | `compose.yaml` (MariaDB 11.4 · Valkey 8.1 · MinIO). One defect fixed this session (the `users.sql` init-mount could never have succeeded). **Still never started** — no container runtime here; the CI `database` job is what will verify it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| PLAT-003  | CI gates, secret/dependency scans                  | `implemented` | `.github/workflows/ci.yml` + `.gitleaks.toml` + `db:grants` + the least-privilege suite. **Not `tested`: the workflow has never run.** Artifact signing deferred (nothing to sign yet); branch protection is an owner action                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| OBS-001   | OpenTelemetry correlation + log redaction          | `not_started` | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| DATA-001  | migration framework, UUIDv7, app/migration users   | `tested`      | Migrator: 15 database tests + 9 splitter tests. **Exception:** `scripts/db/users.sql` is now covered by 12 static assertions and by a CI suite that has not run; it has still never been executed against a server                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| AUTHZ-001 | tenant context + isolation foundation              | `tested`      | 44-case isolation corpus against real MySQL + 45 guard-analyser unit tests + 29 evaluator tests. Under the **admin** credential; the least-privilege re-run is pending CI                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| PLAT-004  | transactional outbox + idempotency                 | `tested`      | Tables, append-only audit and per-tenant idempotency, and — since 2026-08-30 — the relay itself: five producers, the `apps/worker` dispatcher (claim/backoff/park, loop and controlled-batch modes) and the lifecycle consumer, proved by 14 database cases driving the dispatcher from `@tmanage/worker` plus 10 worker unit cases. **Three properties are not covered by that status** (`next-slices-2026-09-12/WORKER-OUTBOX-AUDIT.md`): a handler that _kills the process_ never reached `recordFailure`, so `attempts` never moved and a poison row could never park — it blocked the whole queue across restarts (CRITICAL-1); nothing reported a stalled backlog, so a dead relay and an idle relay looked identical from outside (CRITICAL-2); and in `--once` mode, the deployment target's actual shape, `message.created.v1` drains with no consumer (IMPORTANT-5). CRITICAL-1 and CRITICAL-2 are **implemented on branch `x8-worker-outbox-critical` (not merged)** — claim-time attempt counting via a committed reservation transaction, and a backlog/heartbeat health reading exposed as `relay:status` and a non-zero `relay:once` exit — proved by executed worker unit tests (`claim-attempts.test.ts` 7 cases, `health.test.ts` 17 cases); the database case that confirms the reservation commits and the aggregate reads what MySQL stores, `apps/api/test/plat-004-claim-attempts.db.test.ts` (8 cases), is **written and not executed** (`pnpm test:db`), and the existing `plat-004-relay.db.test.ts` under the new `attempts` semantics is likewise unrun. The mechanism is proved; the operational guarantee is not |
+| UI-001    | tokens, primitives, Storybook, visual harness      | `tested`      | 106 cases in `packages/ui`: 33 contrast, 14 token drift, 59 component/theme including axe over the whole primitive surface in light, dark, high contrast and Arabic RTL. Storybook builds and was driven through three stories. **The visual-regression harness is built (2026-08-30)**: 108 committed baselines over every story in light, dark and RTL, verified stable and proven able to go red. **The eight specified primitives landed 2026-08-30 and the ticket is whole**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ## Sprint 1 (`28-SPRINT-TICKETS` §4)
 
@@ -11023,10 +11252,15 @@ divergence is recorded here and belongs in an ADR when a deploy is actually atte
   is not served out of `public_html`, and the plan is unlikely to host three separate
   long-running processes. `apps/worker` is the probable casualty, and §3 already anticipates
   that — "otherwise run controlled worker batches and document the limitation".
-- `apps/web` now exists and builds (`next build`, twelve routes). `apps/worker` is still
-  an empty directory. There is still nothing to deploy that a person could use, because
-  nothing authenticates anybody — but the shape of the eventual deploy is now two
-  processes rather than three, which is closer to what this plan can host.
+- As of 2026-09-12 `apps/web` serves **26** App Router screens and `apps/worker` is a built
+  outbox relay with loop and `--once` modes. Sign-in, MFA, re-authentication, tenancy, projects,
+  work, client requests, chat, notifications and audit all exist and are proved. The eventual
+  deploy is **not** two processes: it is **two supervised Node applications on two hostnames** (web
+  and API — one slot is not enough, and pointing the browser at a sibling subdomain re-opens D03)
+  **plus three cron entries** — `relay:once`, `sweep:once`, `verify:once` — and `REALTIME_PORT=0`.
+  See `next-slices-2026-09-12/DEPLOYMENT-READINESS.md` §2. The divergence from `50-BOOTSTRAP` §3 is
+  larger than "three became two" and still belongs in an ADR. (This section's older sibling bullet
+  above, "unlikely to host three separate long-running processes", predates that count.)
 - `compose.yaml` is no more usable there than it is here.
 
 ### A correction to ticket names — opened at the end of the SEC-001 session, **closed here**
