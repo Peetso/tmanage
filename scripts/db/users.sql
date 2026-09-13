@@ -44,6 +44,90 @@
 -- already pay: a new table the relay must read arrives with the grant that lets it read
 -- it, or the relay says so the first time it tries.
 --
+-- ## Re-running this file removes privileges as well as adding them — R10
+--
+-- Until 2026-09-12 this file contained no `REVOKE` at all and created every account with
+-- `CREATE USER IF NOT EXISTS`. Both halves are deliberate and both are kept. What was
+-- missing is the consequence: MySQL privileges are **additive**, so on a server that had
+-- been provisioned by an earlier revision of this file, re-applying it *added* the narrow
+-- grants and *left the old wide ones exactly where they were*. The worker's former
+-- database-wide `SELECT` survived every re-run, and with it the relay's read of
+-- `user_passwords`, `user_mfa_factors`, `user_recovery_codes` and `authentication_events`
+-- — the four tables the D07 narrowing exists to take away. The narrowing was a property of
+-- freshly created accounts and of nothing else. That is `code-review-2026-09-12/REVIEW.md`
+-- **R10 · P1**.
+--
+-- The fix is one statement per principal, placed immediately after its `CREATE USER` and
+-- before its first `GRANT`:
+--
+--     REVOKE ALL PRIVILEGES, GRANT OPTION FROM '<user>'@'%';
+--
+-- which strips every global, schema, table, column and routine privilege the account holds,
+-- whatever granted it and whenever, leaving the account existing with `USAGE` and nothing
+-- more. The grants below then rebuild exactly the intended set. The file is therefore
+-- idempotent in the strong sense: **after it runs, each principal holds precisely the
+-- privileges enumerated below, and no others** — whether the account was created by this
+-- run, by an older revision of this file, or by a hosting panel.
+--
+-- Three consequences, stated rather than discovered:
+--
+-- 1. **On a fresh account there is nothing to revoke.** MySQL accepts that silently;
+--    MariaDB can answer `ER_REVOKE_GRANTS` (1269) and some servers `ER_NONEXISTING_GRANT`
+--    (1141). `apps/api/src/common/database/grants.ts` treats those two errors on a `REVOKE`
+--    as the no-op they are and reports them, and fails on anything else. A `REVOKE` here
+--    can only address a user the statement directly above it has just created, so neither
+--    error can mean "unknown user".
+-- 2. **There is a window.** Between the `REVOKE` and the `GRANT`s that follow it, a running
+--    application or relay on this credential is refused. It is short — a handful of
+--    statements on one connection — but it is real, and `db:grants` is therefore a
+--    maintenance action, not a background one. It is safe to re-run; it is not safe to
+--    re-run without expecting a few seconds of denied statements.
+-- 3. **The applying credential must not be one of these three.** It never was — the section
+--    above requires an administrative credential, and `tmanage_migrator` is refused by the
+--    very first `CREATE USER` — but the `REVOKE` raises the cost of ignoring that from "the
+--    script fails" to "the script would disarm the credential running it". It cannot reach
+--    that point: the `CREATE USER` at the top aborts the run first.
+--
+-- ## What each principal is allowed to hold, in full
+--
+-- This is the list the verification reads back from the server. A principal holding
+-- anything not on its list is a failure, not a variation.
+--
+-- **`tmanage_app`** — the API process.
+--   · `SELECT` on `tmanage`.* (database-wide, and only SELECT; the reason is above)
+--   · `INSERT, UPDATE, DELETE` on: organizations, users, sessions, memberships, workspaces,
+--     projects, project_memberships, client_organizations, client_memberships,
+--     project_clients, work_items, conversation_memberships, outbox_events,
+--     idempotency_records
+--   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
+--     notifications, work_blockers, usage_counters, file_assets, file_versions,
+--     upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
+--   · `INSERT, DELETE` on: work_item_dependencies
+--   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
+--     authentication_events
+--   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
+--     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
+--     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
+--
+-- **`tmanage_worker`** — the outbox relay.
+--   · `SELECT` on exactly fourteen tables: outbox_events, client_requests, users,
+--     organizations, projects, memberships, project_memberships, client_memberships,
+--     project_clients, conversations, conversation_memberships, notifications, work_items,
+--     idempotency_records — and on **no** others, which is the whole of D07
+--   · `INSERT, UPDATE` on: outbox_events, idempotency_records
+--   · `UPDATE` on: work_items, client_requests
+--   · `INSERT` on: audit_events, notifications
+--   · `DELETE` nowhere, no database-wide grant of any kind, and nothing whatever on
+--     `user_passwords`, `user_mfa_factors`, `user_recovery_codes` or
+--     `authentication_events`.
+--
+-- **`tmanage_migrator`** — owns the schema, used only by the migrator.
+--   · `ALL PRIVILEGES` on `tmanage`.* and on nothing else
+--   · **no** global privilege — in particular no `CREATE USER`, no `GRANT OPTION` at the
+--     server level, no `FILE`, `SUPER`, `PROCESS` or `RELOAD` — so it can own one database
+--     and cannot provision credentials or reach a neighbouring environment. This is why it
+--     cannot apply this file, and the refusal is the control rather than an inconvenience.
+--
 -- Local development passwords only. Deployed environments provision these users from the
 -- secret store; see docs/runbooks/deploy.md. On Hostinger, apply as far as the plan permits
 -- and record any shortfall in the environment runbook (50-BOOTSTRAP §4).
@@ -52,6 +136,12 @@
 -- Runtime user
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE USER IF NOT EXISTS 'tmanage_app'@'%' IDENTIFIED BY 'local_dev_only_app';
+
+-- R10. Everything this account holds is taken away here and rebuilt below, so that what it
+-- ends up with is what this file says and not the union of this file with every revision
+-- that preceded it. `IF NOT EXISTS` above leaves an existing account's password alone; this
+-- leaves none of its privileges alone.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_app'@'%';
 
 -- Deliberately NOT granted: CREATE, ALTER, DROP, INDEX, REFERENCES, GRANT OPTION,
 -- CREATE USER, FILE, SUPER, PROCESS, LOCK TABLES, CREATE TEMPORARY TABLES. The application
@@ -184,6 +274,14 @@ GRANT INSERT ON `tmanage`.`authentication_events` TO 'tmanage_app'@'%';
 -- a defective consumer cannot destroy work.
 CREATE USER IF NOT EXISTS 'tmanage_worker'@'%' IDENTIFIED BY 'local_dev_only_worker';
 
+-- R10, and this is the account the finding was about. Before this statement existed, an
+-- installation provisioned under the pre-D07 revision kept a database-wide GRANT SELECT
+-- through every re-run of `db:grants`, so the fourteen named grants below were added on top
+-- of a database-wide read that already covered them — and covered the four credential
+-- tables they deliberately omit. The narrowing only became true of such an installation
+-- when this line was added.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_worker'@'%';
+
 -- The relay's reads, one table at a time — D07. The list is the tables named by statements
 -- in `apps/worker/src/common/database/` — the one directory in the worker permitted to
 -- spell SQL — plus the tables the write grants further down cannot be exercised without
@@ -260,6 +358,16 @@ GRANT INSERT         ON `tmanage`.`notifications`       TO 'tmanage_worker'@'%';
 -- a user that does not exist, so the create cannot be skipped.
 -- `IF NOT EXISTS` leaves an existing user's password untouched.
 CREATE USER IF NOT EXISTS 'tmanage_migrator'@'%' IDENTIFIED BY 'local_dev_only_migrator';
+
+-- R10, and least obviously needed of the three, which is why it is here. `ALL PRIVILEGES ON
+-- `tmanage`.*` is a superset of anything an older revision of this file granted at the
+-- schema level, so re-applying without a revoke leaves this account *looking* correct. What
+-- it does not cover is a **global** privilege — `GRANT ALL ON *.*`, or the `CREATE USER` a
+-- panel or a well-meaning operator may have added so that the migrator could "just run the
+-- grants file". That is precisely the privilege this account must not have, because its
+-- absence is what makes provisioning credentials a separate administrative act. A schema
+-- grant below can never take a global privilege away; this line does.
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_migrator'@'%';
 
 GRANT ALL PRIVILEGES ON `tmanage`.* TO 'tmanage_migrator'@'%';
 

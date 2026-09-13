@@ -78,7 +78,7 @@ describe('scripts/db/users.sql — the grants parse and are well formed', () => 
   it('contains only statements the server can execute, and no stray prose', () => {
     expect(statements.length).toBeGreaterThan(0);
     for (const statement of statements) {
-      expect(statement, statement).toMatch(/^(CREATE USER|GRANT|FLUSH PRIVILEGES)\b/i);
+      expect(statement, statement).toMatch(/^(CREATE USER|REVOKE|GRANT|FLUSH PRIVILEGES)\b/i);
     }
   });
 
@@ -93,6 +93,58 @@ describe('scripts/db/users.sql — the grants parse and are well formed', () => 
     // a style problem — it aborts the script.
     for (const grant of grants) {
       expect(created.has(grant.user), `no CREATE USER for '${grant.user}'`).toBe(true);
+    }
+  });
+
+  it('revokes everything from each user before it grants anything to it — R10', () => {
+    // The defect this assertion exists for, stated as an ordering rule over the file.
+    //
+    // MySQL privileges are additive, and this script creates its accounts with
+    // `CREATE USER IF NOT EXISTS`, so on a server provisioned by an older revision every
+    // grant that revision issued survives a re-run. The worker's pre-D07 database-wide
+    // SELECT survived exactly that way, which meant the fourteen narrow grants below it
+    // narrowed nothing on any existing installation — the only installations that matter.
+    // A `REVOKE ALL PRIVILEGES, GRANT OPTION` per principal, after its create and before
+    // its first grant, is what makes re-applying this file *reduce* privilege rather than
+    // only ever add it.
+    //
+    // Positional, not merely present: a revoke that ran after the grants would leave the
+    // principal with nothing at all, which is an outage rather than a leak but is no more
+    // correct.
+    const seenCreate = new Map<string, number>();
+    const seenRevoke = new Map<string, number>();
+    const firstGrant = new Map<string, number>();
+
+    statements.forEach((statement, index) => {
+      const created = /^CREATE USER IF NOT EXISTS '([a-z_]+)'@/i.exec(statement);
+      if (created) seenCreate.set(created[1] as string, index);
+
+      const revoked = /^REVOKE\s+ALL\s+PRIVILEGES\s*,\s*GRANT\s+OPTION\s+FROM\s+'([a-z_]+)'@/i.exec(
+        statement.replace(/\s+/g, ' '),
+      );
+      if (revoked) seenRevoke.set(revoked[1] as string, index);
+
+      const granted = /^GRANT\s+.+?\s+TO\s+'([a-z_]+)'@/is.exec(statement);
+      if (granted && !firstGrant.has(granted[1] as string)) {
+        firstGrant.set(granted[1] as string, index);
+      }
+    });
+
+    for (const [user, createdAt] of seenCreate) {
+      const revokedAt = seenRevoke.get(user);
+      expect(revokedAt, `no REVOKE ALL PRIVILEGES for '${user}'`).toBeDefined();
+      expect(
+        (revokedAt as number) > createdAt,
+        `'${user}' is revoked before it is created — MySQL refuses a REVOKE for an ` +
+          'unknown user',
+      ).toBe(true);
+      const grantedAt = firstGrant.get(user);
+      if (grantedAt !== undefined) {
+        expect(
+          (revokedAt as number) < grantedAt,
+          `'${user}' is revoked after it is granted, which leaves it with no privileges`,
+        ).toBe(true);
+      }
     }
   });
 

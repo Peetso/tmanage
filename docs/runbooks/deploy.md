@@ -14,6 +14,86 @@ never from the passwords in that file, which exist for local development only.
 
 ---
 
+## D10 — `pnpm db:grants` now narrows, so it has a window
+
+**Read this before re-running `pnpm db:grants` against any environment from 2026-09-12 onwards.**
+There is no new variable and no migration. What changed is that the command is now **corrective
+as well as additive**, and that gives it an outage window it never used to have.
+
+### What changed
+
+`scripts/db/users.sql` now issues `REVOKE ALL PRIVILEGES, GRANT OPTION` against each of
+`tmanage_app`, `tmanage_worker` and `tmanage_migrator` — between that principal's `CREATE USER`
+and its first `GRANT` — before the roughly fifty grants below rebuild the intended set. This is
+the R10 fix: on an installation provisioned by an older revision of the file, the worker kept a
+database-wide `SELECT` (over the credential tables among everything else) because the script only
+ever added grants and never took the old one away. It now leaves each account holding exactly the
+set the file enumerates and nothing carried over.
+
+Before this change a re-run was purely additive and therefore harmless. It no longer is.
+
+### The window, and why it is a real outage
+
+`GRANT` and `REVOKE` are **not transactional**. The command runs statement by statement, so for
+each principal there is a window between its `REVOKE` (which drops it to `USAGE` — no privileges)
+and the grants that rebuild it. During that window:
+
+- **A run that is interrupted leaves the credential on `USAGE` only.** If `db:grants` is killed —
+  a dropped connection, a `Ctrl-C`, a failed statement partway down — after a principal's revoke
+  but before its rebuild finishes, that principal can do nothing until the command is run again to
+  completion. For `tmanage_app` that is a hard API outage that did not exist before this change.
+- **Live connections are refused _during_ the window, not merely on reconnect.** MySQL applies a
+  table-level revoke to an already-pooled connection at its next request, so an API or worker
+  process holding a connection on that credential starts getting access-denied errors the moment
+  the revoke lands, without reconnecting.
+
+`db:grants` is therefore a **maintenance action, not a background one**. Do not run it against a
+live environment casually or on a timer.
+
+### Running it safely
+
+Run it on the **administrative / migration credential** (`DATABASE_MIGRATION_URL`), never as one
+of the three principals — the first `CREATE USER` aborts for a non-administrative credential, but
+were it reached, the command would disarm the very credential running it. It must run **after
+`pnpm db:migrate`**, because the table-level grants name tables that must already exist.
+
+1. **Stop or drain** the processes that connect as the credentials being rebuilt — at minimum the
+   API and the worker. A short maintenance window is the honest way to take this; the revoke will
+   otherwise refuse live traffic mid-request.
+2. **Apply:**
+
+   ```
+   DATABASE_MIGRATION_URL=... pnpm --filter @tmanage/api db:grants
+   ```
+
+   Let it run to completion. The command reports how many revokes found nothing to remove (every
+   one, on a first provisioning) and names statement _n_ of _m_ if any statement fails.
+
+3. **Verify** before restarting. Where a provisioned server is available, the reconciliation check
+   reads the privileges actually in force and fails on any excess or shortfall:
+
+   ```
+   TMANAGE_TEST_GRANT_ADMIN_DATABASE_URL=... \
+     pnpm --filter @tmanage/api test -- --project database --run test/grant-reconciliation.db.test.ts
+   ```
+
+4. **Restart** the drained processes.
+
+### Recovery — an interrupted run
+
+The fix is simply to **run `db:grants` again to completion**. The command is idempotent in the
+strong sense: the revoke against an account that already holds nothing is a no-op (tolerated on
+both the MySQL and MariaDB error codes for "nothing to revoke"), and the grants rebuild the full
+set regardless of how far the previous run got. A principal left on `USAGE` by an interrupted run
+is restored by the next complete one. There is nothing to undo first.
+
+If the re-run itself fails on a `REVOKE` with **access denied** rather than a nothing-to-revoke
+no-op, stop: that is the one case the command refuses to swallow, because a revoke that did not
+happen leaves the old wide grant in place (R10 again, behind a green command). Fix the credential
+so it holds `CREATE USER`, `GRANT OPTION` and the privileges being managed, then re-run.
+
+---
+
 ## D09 — the API only believes a proxy you have named
 
 **Read this before deploying any build from 2026-09-12 onwards.** Nothing locks anybody out and
