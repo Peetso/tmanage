@@ -626,15 +626,26 @@ export class ConversationsRepository {
   }
 
   /**
-   * Find a message this author already sent under the same client-generated id.
+   * Find a message this author already sent under the same client-generated id **in this
+   * conversation**.
    *
    * The dedupe read, run before {@link appendMessage} so an honest retry returns the original
    * message rather than an error. The unique key is what actually guarantees it; this only
    * decides whether the caller sees a 201 or the message they already sent.
+   *
+   * The `conversationId` predicate is load-bearing, not decorative. `uq_messages_client_generated`
+   * is `(organization_id, author_user_id, client_generated_id)` and does **not** include the
+   * conversation, so an author's key is unique across every channel they can write to. Without
+   * this predicate a caller could replay a key from a message they posted to one channel — even
+   * one they have since lost access to — through a different channel and read the old body back.
+   * Scoping the read to the destination means a key that belongs to another conversation misses
+   * here, falls through to {@link appendMessage}, and collides with the unique key there, which
+   * the caller sees as a 409 rather than as a silent hit against the wrong room.
    */
   async findByClientGeneratedId(
     runner: TenantQueryRunner,
     context: TenantContext,
+    conversationId: string,
     authorUserId: string,
     clientGeneratedId: string,
   ): Promise<MessageRow | null> {
@@ -644,6 +655,7 @@ export class ConversationsRepository {
       .where(
         and(
           eq(messages.organizationId, context.organizationId),
+          eq(messages.conversationId, conversationId),
           eq(messages.authorUserId, authorUserId),
           eq(messages.clientGeneratedId, clientGeneratedId),
         ),

@@ -545,10 +545,16 @@ export class ConversationsService {
     }
 
     if (command.clientGeneratedId) {
+      // The dedupe read is bound to the *destination* conversation, not to the author alone.
+      // `uq_messages_client_generated` does not include the conversation, so a key the author
+      // used in another channel is not a hit here: it misses, the append below collides with
+      // the unique key, and the caller sees a 409 rather than the body of a message they sent
+      // to a room they may no longer be in.
       const existing = await this.database.read(context, (runner) =>
         this.conversations.findByClientGeneratedId(
           runner,
           context,
+          conversationId,
           context.userId,
           command.clientGeneratedId as string,
         ),
