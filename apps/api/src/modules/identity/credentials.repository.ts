@@ -98,6 +98,49 @@ export type UserMfaFactorSummary = {
  */
 const NON_CREDENTIAL_FAILURE_REASONS = [...SIGN_IN_ABUSE_REASONS, 'locked_out'] as const;
 
+/**
+ * The four actions that mean a credential *changed* — `D05d`, I1.
+ *
+ * Spelled here rather than imported from `authentication.service.ts` for the reason
+ * {@link NON_CREDENTIAL_FAILURE_REASONS} is: the vocabulary's home is that file, and that file
+ * imports this one, so importing it back would be a cycle. `authentication.service.ts` exports
+ * `CREDENTIAL_CHANGE_ACTIONS` as the caller-facing list, and a unit case in
+ * `authentication.credential-change-record.test.ts` asserts the two are identical set-for-set,
+ * so this copy cannot drift from it unnoticed.
+ *
+ * It is used by {@link CredentialsRepository.recordAuthenticationEvent} to refuse a *succeeded*
+ * row for any of these actions. Such a row is itself a credential change, and one written this
+ * way would carry no notice — the exact shape `D05d` exists to forbid. The only writer of a
+ * succeeded credential-change row is {@link CredentialsRepository.recordCredentialChange}, which
+ * writes the log row and the notice together.
+ */
+const CREDENTIAL_CHANGE_ACTIONS: readonly string[] = [
+  'password_set',
+  'mfa_factor_enrolled',
+  'mfa_factor_disabled',
+  'recovery_codes_issued',
+];
+
+/**
+ * Thrown when a *succeeded* credential-change row is asked of
+ * {@link CredentialsRepository.recordAuthenticationEvent} directly — `D05d`, I1.
+ *
+ * The atomicity of "a change is recorded and its owner is notified" was a convention: every
+ * caller happened to reach for {@link CredentialsRepository.recordCredentialChange}. A
+ * convention is the shape that caused the incident this slice is about, so the guard turns it
+ * into a construction — the write that records a credential change with no notice beside it is
+ * not a write this repository will perform.
+ */
+export class CredentialChangeNoticeRequiredError extends Error {
+  constructor(action: string) {
+    super(
+      `a succeeded '${action}' is a credential change and must be recorded through ` +
+        `recordCredentialChange, so the owner's notice is written in the same unit of work`,
+    );
+    this.name = 'CredentialChangeNoticeRequiredError';
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Passwords
 // ─────────────────────────────────────────────────────────────────────────────
@@ -507,8 +550,48 @@ export class CredentialsRepository {
    * `userId` is nullable and is `null` when the attempt named an address no account holds.
    * That row is the only trace an enumeration sweep leaves, so it is written rather than
    * skipped.
+   *
+   * ## A succeeded credential change may not be written here — `D05d`, I1
+   *
+   * This method refuses a `succeeded` row whose action is one of
+   * {@link CREDENTIAL_CHANGE_ACTIONS}. Such a row *is* a credential change, and recording one
+   * without the notice beside it is the failure `D05d` exists to prevent — previously avoided
+   * only because every caller happened to reach for {@link recordCredentialChange}. The refusal
+   * makes atomicity a property of the type of write rather than of the author's memory: the one
+   * way to record a succeeded credential change is {@link recordCredentialChange}, which writes
+   * the log row (through {@link insertAuthenticationEvent}, below this guard) and the notice as
+   * one unit. Failures are untouched — a refused attempt is not a change and carries no notice —
+   * and so are the non-credential successes (`password_sign_in`, `mfa_challenge`, `recovery_code`,
+   * `reauthentication`).
    */
   async recordAuthenticationEvent(
+    runner: IdentityQueryRunner,
+    input: {
+      userId?: string | null;
+      action: string;
+      outcome: string;
+      reason?: string | null;
+      ip?: string | null;
+      userAgent?: string | null;
+      correlationId?: string | null;
+    },
+  ): Promise<void> {
+    if (input.outcome === 'succeeded' && CREDENTIAL_CHANGE_ACTIONS.includes(input.action)) {
+      throw new CredentialChangeNoticeRequiredError(input.action);
+    }
+    await this.insertAuthenticationEvent(runner, input);
+  }
+
+  /**
+   * The raw append, below the {@link recordAuthenticationEvent} guard.
+   *
+   * Private on purpose: the guard is the point. The sole legitimate writer of a `succeeded`
+   * credential-change row — {@link recordCredentialChange} — reaches the insert here directly,
+   * paired with the notice; nothing outside this file can. A refusal row still flows through
+   * the public method, which lets any `failed` row (and any non-credential success) straight
+   * through to here.
+   */
+  private async insertAuthenticationEvent(
     runner: IdentityQueryRunner,
     input: {
       userId?: string | null;
@@ -578,7 +661,10 @@ export class CredentialsRepository {
       correlationId?: string | null;
     },
   ): Promise<void> {
-    await this.recordAuthenticationEvent(runner, {
+    // The private insert, not the public {@link recordAuthenticationEvent}: this *is* the one
+    // sanctioned writer of a succeeded credential-change row, and it pairs that row with the
+    // notice below. Going through the public method would trip its own guard.
+    await this.insertAuthenticationEvent(runner, {
       userId: input.userId,
       action: input.action,
       outcome: 'succeeded',
@@ -654,6 +740,31 @@ export class CredentialsRepository {
    * row is still written, still names the user, still carries `locked_out`, and only this
    * counter stops reading it.
    */
+  async countRecentFailures(
+    runner: IdentityQueryRunner,
+    userId: string,
+    windowSeconds: number,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ failures: sql<number>`count(*)` })
+      .from(authenticationEvents)
+      .where(
+        and(
+          eq(authenticationEvents.userId, userId),
+          eq(authenticationEvents.outcome, 'failed'),
+          or(
+            isNull(authenticationEvents.reason),
+            notInArray(authenticationEvents.reason, [...NON_CREDENTIAL_FAILURE_REASONS]),
+          ),
+          gte(
+            authenticationEvents.occurredAt,
+            sql`date_sub(now(3), interval ${windowSeconds} second)`,
+          ),
+        ),
+      );
+    return Number(rows[0]?.failures ?? 0);
+  }
+
   /**
    * The credential changes this person's account has actually undergone — `D05d`.
    *
@@ -710,30 +821,5 @@ export class CredentialsRepository {
       )
       .orderBy(desc(authenticationEvents.occurredAt), desc(authenticationEvents.id))
       .limit(limit);
-  }
-
-  async countRecentFailures(
-    runner: IdentityQueryRunner,
-    userId: string,
-    windowSeconds: number,
-  ): Promise<number> {
-    const rows = await tenantDrizzle(runner)
-      .select({ failures: sql<number>`count(*)` })
-      .from(authenticationEvents)
-      .where(
-        and(
-          eq(authenticationEvents.userId, userId),
-          eq(authenticationEvents.outcome, 'failed'),
-          or(
-            isNull(authenticationEvents.reason),
-            notInArray(authenticationEvents.reason, [...NON_CREDENTIAL_FAILURE_REASONS]),
-          ),
-          gte(
-            authenticationEvents.occurredAt,
-            sql`date_sub(now(3), interval ${windowSeconds} second)`,
-          ),
-        ),
-      );
-    return Number(rows[0]?.failures ?? 0);
   }
 }

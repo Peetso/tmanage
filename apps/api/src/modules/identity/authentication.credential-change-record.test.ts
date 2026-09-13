@@ -4,8 +4,12 @@ import {
   AUTHENTICATION_ACTIONS,
   AuthenticationService,
   CREDENTIAL_CHANGE_ACTIONS,
+  CREDENTIAL_CHANGE_LIMIT,
 } from './authentication.service.js';
-import { CredentialsRepository } from './credentials.repository.js';
+import {
+  CredentialChangeNoticeRequiredError,
+  CredentialsRepository,
+} from './credentials.repository.js';
 import { createSeedCipher } from './seed-cipher.js';
 import { createSignInAbuseControl } from './sign-in-abuse-control.js';
 import { REAUTH_TTL_SECONDS, signReauthToken } from './reauth-token.js';
@@ -65,6 +69,21 @@ import type { IdentityQueryRunner, TenantDatabase } from '../../common/database/
  * `authentication.enrolment-reauth.test.ts` gives: what is under test is decidable from which
  * calls are issued, and on which handle. The database suite states the same properties
  * against a real server and real triggers.
+ *
+ * ## The record and the notice are the *real* repository code — C2
+ *
+ * The change primitives a route calls (`setPassword`, `confirmFactor`, `replaceRecoveryCodes`,
+ * …) are still faked as markers, because the SQL of a password upsert is not what these tests
+ * decide. But {@link CredentialsRepository.recordAuthenticationEvent},
+ * {@link CredentialsRepository.recordCredentialChange} and the notice insert inside it are
+ * **not** overridden here: they run, reach drizzle, and issue their statements through
+ * {@link FakeUnitOfWork.query}, which turns each into the `record:`/`notice:` marker the
+ * assertions read. So the notice is proved by the production write, not by a re-implementation
+ * of it in the fake: delete the `.insert(credentialChangeNotices)` block in
+ * `credentials.repository.ts` and no `notice:` marker is ever produced, and the notice cases
+ * below fail — which the first draft of this file, an override that emitted the marker itself,
+ * did not catch. {@link describe} `the notice is the production write` states that directly,
+ * against the real repository with a statement-capturing runner.
  */
 
 const SESSION_SECRET = 'local_dev_only_session_secret_for_the_credential_change_record_test';
@@ -90,9 +109,38 @@ const NEW_PASSWORD = 'correct-horse-battery-staple-42';
 // A unit of work that can be rolled back
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** One transaction's buffered writes. Nothing here is durable until the commit says so. */
+/**
+ * One transaction's buffered writes. Nothing here is durable until the commit says so.
+ *
+ * It is also the query runner the *real* repository writes through. The faked change methods
+ * push readable markers with {@link noteOn}; the real `recordAuthenticationEvent` /
+ * `recordCredentialChange` reach drizzle, which calls {@link FakeUnitOfWork.query} — and that
+ * turns the one statement each issues into the same kind of marker, in the same buffer, so
+ * commit order stays legible. The notice row is therefore genuinely built and issued here, not
+ * re-implemented by the fake: remove the production insert and no `notice:` marker appears.
+ */
 class FakeUnitOfWork {
   readonly writes: string[] = [];
+
+  /**
+   * The proxy-driver entry point `tenantDrizzle` calls. It recognises exactly the two inserts
+   * the credential path issues and records each as a marker; an insert returns the
+   * `ResultSetHeader` shape drizzle's proxy dialect expects. Anything unrecognised throws
+   * rather than passing silently, so a new statement on this path cannot slip through untested.
+   */
+  async query(
+    statement: string,
+    params: readonly unknown[],
+  ): Promise<{ affectedRows: number; insertId: number }> {
+    if (statement.includes('`credential_change_notices`')) {
+      this.writes.push(`notice:${String(params[2])}`);
+    } else if (statement.includes('`authentication_events`')) {
+      this.writes.push(`record:${String(params[2])}:${String(params[3])}`);
+    } else {
+      throw new Error(`an unrecognised statement reached the fake unit of work: ${statement}`);
+    }
+    return { affectedRows: 1, insertId: 0 };
+  }
 }
 
 function noteOn(runner: IdentityQueryRunner, entry: string): void {
@@ -213,26 +261,9 @@ class RecordingCredentials extends CredentialsRepository {
     return FACTOR;
   }
 
-  override async recordAuthenticationEvent(
-    runner: IdentityQueryRunner,
-    input: { action: string; outcome: string },
-  ): Promise<void> {
-    noteOn(runner, `record:${input.action}:${input.outcome}`);
-  }
-
-  /**
-   * Overridden together with the method it calls, and shaped like the real one: the log row
-   * first, the notice second, both on the runner it was handed. The real body would reach
-   * drizzle for the notice insert, which a buffer is not; what is under test is which unit
-   * of work each write is issued on, and that is exactly what this preserves.
-   */
-  override async recordCredentialChange(
-    runner: IdentityQueryRunner,
-    input: { userId: string; action: string },
-  ): Promise<void> {
-    await this.recordAuthenticationEvent(runner, { action: input.action, outcome: 'succeeded' });
-    noteOn(runner, `notice:${input.action}`);
-  }
+  // `recordAuthenticationEvent` and `recordCredentialChange` are deliberately NOT overridden —
+  // see the file header, C2. They run as the real repository code and issue their statements
+  // through {@link FakeUnitOfWork.query}, so the notice is proved by the production write.
 
   override async listCredentialChanges(
     _runner: IdentityQueryRunner,
@@ -677,7 +708,12 @@ describe('the owner is told, from the transaction that changed the credential', 
 });
 
 describe('the owner can read what happened to their own credentials', () => {
-  it('asks for the credential-changing actions alone, newest first, bounded', async () => {
+  // The title claims only what a fake can decide. "Newest first" is `desc(occurred_at),
+  // desc(id)` in the repository SQL and is proved by the DB file, not here — the fake returns
+  // whatever array it is handed, so asserting an order would only be asserting the fake. What
+  // *is* decidable at this layer is that the read asks for the closed credential-change
+  // vocabulary and for the specific bound the module declares, so both are asserted exactly.
+  it('asks for the credential-changing actions alone, bounded to CREDENTIAL_CHANGE_LIMIT', async () => {
     const { service, credentials } = build();
     credentials.changes = [
       { action: AUTHENTICATION_ACTIONS.recoveryCodesIssued, occurredAt: new Date(NOW) },
@@ -691,7 +727,9 @@ describe('the owner can read what happened to their own credentials', () => {
 
     expect(credentials.listedFor?.userId).toBe(USER);
     expect(credentials.listedFor?.actions).toEqual([...CREDENTIAL_CHANGE_ACTIONS]);
-    expect(credentials.listedFor?.limit).toBeGreaterThan(0);
+    expect(credentials.listedFor?.limit).toBe(CREDENTIAL_CHANGE_LIMIT);
+    // A pass-through check, not an ordering one: the service hands back exactly the rows the
+    // repository returned, in the order it returned them.
     expect(changes.map((change) => change.action)).toEqual([
       'recovery_codes_issued',
       'password_set',
@@ -738,5 +776,114 @@ describe('the owner can read what happened to their own credentials', () => {
     });
 
     expect(database.units).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The record and the notice as the real repository code, against a runner that
+// captures the statements drizzle actually issues.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A runner that records every statement the real repository issues through drizzle. */
+function captureRunner(): {
+  statements: { sql: string; params: readonly unknown[] }[];
+  runner: IdentityQueryRunner;
+} {
+  const statements: { sql: string; params: readonly unknown[] }[] = [];
+  const runner = {
+    async query(sql: string, params?: readonly unknown[]) {
+      statements.push({ sql, params: params ?? [] });
+      return { affectedRows: 1, insertId: 0 } as never;
+    },
+  } as unknown as IdentityQueryRunner;
+  return { statements, runner };
+}
+
+/**
+ * C2, stated against the real repository directly. The service-level cases above already fail
+ * if the production insert is removed (their `notice:` markers come from
+ * {@link FakeUnitOfWork.query} running the real code), but this pins the write on its own,
+ * without a service in the way: two statements, and the second is the notice.
+ */
+describe('the notice is the production write', () => {
+  it('records the change and then queues a notice on credential_change_notices', async () => {
+    const repo = new CredentialsRepository(CIPHER);
+    const { statements, runner } = captureRunner();
+
+    await repo.recordCredentialChange(runner, {
+      userId: USER,
+      action: AUTHENTICATION_ACTIONS.passwordSet,
+      ip: CONTEXT.ip,
+      userAgent: CONTEXT.userAgent,
+      correlationId: CONTEXT.correlationId,
+    });
+
+    // If `.insert(credentialChangeNotices)` is deleted this drops to one statement and both of
+    // the last two expectations fail — the revert-proof C2 asks for.
+    expect(statements).toHaveLength(2);
+    expect(statements[0]!.sql).toContain('`authentication_events`');
+    expect(statements[1]!.sql).toContain('`credential_change_notices`');
+    expect(statements[1]!.params).toContain(USER);
+    expect(statements[1]!.params).toContain(AUTHENTICATION_ACTIONS.passwordSet);
+  });
+});
+
+/**
+ * I1, by construction. The atomicity of "recorded and notified" is now a property of the type
+ * of write: `recordAuthenticationEvent` refuses a *succeeded* row for any credential-change
+ * action, so the only way to record one is `recordCredentialChange`, which writes the notice
+ * with it. Failures and non-credential successes are untouched.
+ */
+describe('a succeeded credential change cannot be recorded without its notice', () => {
+  it('refuses a succeeded row from recordAuthenticationEvent, for every change action', async () => {
+    const repo = new CredentialsRepository(CIPHER);
+
+    // Iterating the service's exported list is the anti-drift check: if the repository's own
+    // copy dropped one of these, that action's succeeded row would not throw and this fails.
+    for (const action of CREDENTIAL_CHANGE_ACTIONS) {
+      const { statements, runner } = captureRunner();
+      await expect(
+        repo.recordAuthenticationEvent(runner, {
+          userId: USER,
+          action,
+          outcome: 'succeeded',
+          correlationId: CONTEXT.correlationId,
+        }),
+        action,
+      ).rejects.toBeInstanceOf(CredentialChangeNoticeRequiredError);
+      // The refusal is before the insert: no half-recorded change is left behind.
+      expect(statements, action).toEqual([]);
+    }
+  });
+
+  it('still records a refused (failed) credential-change attempt', async () => {
+    const repo = new CredentialsRepository(CIPHER);
+    const { statements, runner } = captureRunner();
+
+    await repo.recordAuthenticationEvent(runner, {
+      userId: USER,
+      action: AUTHENTICATION_ACTIONS.recoveryCodesIssued,
+      outcome: 'failed',
+      reason: 'mfa_bad_code',
+      correlationId: CONTEXT.correlationId,
+    });
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]!.sql).toContain('`authentication_events`');
+  });
+
+  it('still records a succeeded non-credential event, so the guard is not over-broad', async () => {
+    const repo = new CredentialsRepository(CIPHER);
+    const { statements, runner } = captureRunner();
+
+    await repo.recordAuthenticationEvent(runner, {
+      userId: USER,
+      action: AUTHENTICATION_ACTIONS.passwordSignIn,
+      outcome: 'succeeded',
+      correlationId: CONTEXT.correlationId,
+    });
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]!.sql).toContain('`authentication_events`');
   });
 });
