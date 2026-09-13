@@ -295,7 +295,7 @@ describe('ON-03 create the first project', () => {
     await screen.findByLabelText(/Project name/);
     expect(
       screen.getByText(
-        /Not built yet — this screen's client link · a people directory, unscheduled/,
+        /Not available yet — this screen's client link · a people directory, unscheduled/,
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/The owner will be you/)).toBeInTheDocument();

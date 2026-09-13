@@ -133,9 +133,9 @@ export function FirstProjectScreen({
     >
       <BackendPending ticket="this screen's client link · a people directory, unscheduled">
         The project itself is created. Choosing a client and choosing an owner are not saved yet. A
-        project is shared with a client by linking it to a client organization, which CLIENT-001
-        built and this onboarding step does not yet call; and there is no endpoint that lists the
-        people in this organization, which no ticket schedules. The owner will be you.
+        project is shared with a client by linking it to a client organization, and this step does
+        not do that linking yet; nothing in this system lists the people in your organization
+        either, so there is nobody else to choose. The owner will be you.
       </BackendPending>
 
       {workspaces.isError ? (
@@ -225,7 +225,7 @@ export function FirstProjectScreen({
             <StateCapsule state="future">
               {audience === 'client' ? 'For a client' : 'Internal'}
             </StateCapsule>
-            <span className="tm-prose">Not saved yet — CLIENT-001</span>
+            <span className="tm-prose">Not saved yet</span>
           </div>
           <div className="tm-row">
             <StateCapsule state="future">Target</StateCapsule>

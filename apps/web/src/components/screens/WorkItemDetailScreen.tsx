@@ -525,10 +525,10 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
 
       <BackendPending ticket="WORK-002 · WORK-003 · CHAT-001 · FILE-001 · decisions, unscheduled">
         Description, checklist, dependencies, the source this item came from, discussion, files,
-        decisions and the activity trail are each their own object. Most are named tickets;
-        decisions and docs are not scheduled by 28-SPRINT-TICKETS at all. They are named here rather
-        than drawn as empty sections, because an empty “Files” heading reads as a project with no
-        files rather than a feature that does not exist yet.
+        decisions and the activity trail are each their own object. Most are planned; decisions and
+        documents are not scheduled at all. They are named here rather than drawn as empty sections,
+        because an empty “Files” heading reads as a project with no files rather than a feature that
+        does not exist yet.
       </BackendPending>
     </div>
   );
