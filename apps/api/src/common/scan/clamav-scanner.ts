@@ -99,6 +99,12 @@ export class ClamavScanner implements MalwareScanner {
     const deadline = setTimeout(() => {
       timedOut = true;
       socket.destroy(new ScanError('timeout'));
+      // The deadline bounds the whole object, source included: a store stream that never
+      // emits and never ends would hold the `for await` open forever, and destroying only
+      // the socket would leave the scan pending past its bound with the object still held.
+      // Abort the input with the same failure so the loop throws and the pass sees a
+      // `timeout` scan failure — the deadline stops the source, not just the engine.
+      abort(input.stream, new ScanError('timeout'));
     }, this.options.timeoutMs);
     try {
       const replied = readReply(socket, this.options.timeoutMs);
@@ -204,4 +210,15 @@ function write(socket: Socket, bytes: Buffer): Promise<void> {
 function destroyQuietly(stream: NodeJS.ReadableStream): void {
   const candidate = stream as { destroy?: () => void; destroyed?: boolean };
   if (typeof candidate.destroy === 'function' && !candidate.destroyed) candidate.destroy();
+}
+
+/**
+ * The deadline's cancellation reaching the source: destroy the input stream with the scan
+ * failure so a pending `for await` rejects with it rather than stalling past the bound. A
+ * source with no `destroy` (a bare async iterable) cannot be cancelled this way; the pass
+ * feeds a `node:stream` Readable, which can.
+ */
+function abort(stream: NodeJS.ReadableStream, error: ScanError): void {
+  const candidate = stream as { destroy?: (error?: Error) => void; destroyed?: boolean };
+  if (typeof candidate.destroy === 'function' && !candidate.destroyed) candidate.destroy(error);
 }
