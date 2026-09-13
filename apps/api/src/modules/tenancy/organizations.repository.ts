@@ -221,22 +221,29 @@ export class OrganizationsRepository {
  * Whether a driver error is the slug unique key.
  *
  * **Unwrapped first**, and that is not defensive coding — it is required. Drizzle wraps
- * anything thrown during execution in a `DrizzleQueryError` whose `code` and `errno` are its
- * own, and `unwrapQueryError` normally strips that at the transaction boundary in
- * `TenantDatabase`. This is the first place in the codebase that has to react to a driver
- * error *inside* the transaction, before that boundary is reached, so the unwrapping happens
- * here too. The first run of `ten-001-provisioning.db.test.ts` failed on exactly this: a
+ * anything thrown during execution in a `DrizzleQueryError`, which carries neither `code` nor
+ * `errno` and keeps the driver's error on `cause`, and `unwrapQueryError` normally strips
+ * that wrapper at the transaction boundary in `TenantDatabase`. This is the first place in
+ * the codebase that has to react to a driver error *inside* the transaction, before that
+ * boundary is reached, so the unwrapping happens here too. The first run of `ten-001-provisioning.db.test.ts` failed on exactly this: a
  * genuine duplicate-slug error reached the controller as a 500.
  *
  * Matched on the constraint **name** as well as the error code, because `organizations` has
  * exactly one other unique key — the primary key — and a duplicate id would mean the caller
  * generated a colliding UUIDv7, which is not a slug problem and must not be reported as one.
+ *
+ * The code is matched as the string `ER_DUP_ENTRY`, and the numeric `errno` is not consulted.
+ * mysql2 builds every server error in `Packet.asError`, the only place in the driver that
+ * assigns `errno`, and it sets `code` from its `ErrorCodeToName` table in the statement
+ * immediately before; 1062 has a name in that table, and `unwrapQueryError` returns that same
+ * error object — it removes `sql` and nothing else. A duplicate key therefore always arrives
+ * with the string.
  */
 function isDuplicateSlug(error: unknown): boolean {
   const unwrapped = unwrapQueryError(error);
   if (typeof unwrapped !== 'object' || unwrapped === null) return false;
-  const candidate = unwrapped as { code?: unknown; errno?: unknown; message?: unknown };
-  const duplicate = candidate.code === 'ER_DUP_ENTRY' || candidate.errno === 1062;
+  const candidate = unwrapped as { code?: unknown; message?: unknown };
+  const duplicate = candidate.code === 'ER_DUP_ENTRY';
   const message = typeof candidate.message === 'string' ? candidate.message : '';
   return duplicate && message.includes('uq_organizations_slug');
 }
