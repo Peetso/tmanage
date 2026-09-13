@@ -89,7 +89,15 @@ test.describe.serial('the notification journeys', () => {
   test('E2E-07a: a submission reaches the studio inbox once the relay has run; mark read syncs across devices', async ({
     browser,
   }) => {
-    // The client asks.
+    // The client asks. This is the run's first exercise of `/portal/requests/new` and its
+    // first request submission: the specs sort `inbox-journeys` before `request-journeys`,
+    // so E2E-01a's identical submission — the one that proves this copy and this flow — runs
+    // later, warm. Here the route compiles under a cold `next dev`, the projects query is the
+    // browser's first authenticated read on that context, and the insert is the first write to
+    // `client_requests` on a freshly booted embedded MySQL. The confirmation still has to say
+    // exactly this sentence — the assertion is unchanged — but the cold path deserves the same
+    // generous budget this config already grants a cold navigation, rather than the 15 s
+    // default `expect` timeout that a warm E2E-01a never comes near.
     const client = await openAs(browser, world().atlas.admin.id);
     await client.page.goto('/northstar-studio/portal/requests/new');
     await client.page.getByLabel('What do you need?').fill(TITLE);
@@ -97,7 +105,9 @@ test.describe.serial('the notification journeys', () => {
       .getByLabel('Why it matters')
       .fill('Half of our spa guests read Arabic first.');
     await client.page.getByRole('button', { name: 'Send request' }).click();
-    await expect(client.page.getByText('Your request is with the studio')).toBeVisible();
+    await expect(client.page.getByText('Your request is with the studio')).toBeVisible({
+      timeout: 60_000,
+    });
     await client.context.close();
 
     // Before the relay runs, the studio's inbox has nothing about it: the event is in the
