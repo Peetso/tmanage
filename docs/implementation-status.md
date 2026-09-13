@@ -374,7 +374,10 @@ constants it declares itself.
 **What that does not fix, stated plainly.** The two windows are different lengths — the budget is
 per 300 s, the lockout counts over 900 s — so one address still gets 4 × 3 = 12 admitted failures
 inside one lockout window, which is more than 5. Arming the lockout now costs a first window
-instead of landing on the fifth request, and sustaining it is still possible. No value of the
+instead of landing on the fifth request, and sustaining it is still possible. And the budget is
+per address, not per account: the key is `sa:<ip>:<sha256(account)>`, so an attacker with any
+address diversity — one IPv6 /64 is 2^64 keys — gets a fresh 4-request budget on each address and
+reaches the fifth failure immediately, exactly as before this change. No value of the
 budget closes that (the relation that would, `budget × ceil(900/300) < 5`, forces it to 1, which
 refuses a real person their second try, and success is not exempt from the count). The durable
 fix is the audit's own direction: stop letting a _wrong_ password deny a _right_ one — verify
@@ -9016,8 +9019,8 @@ convenience.
    source+account and global control consulted at the top of the password, MFA, recovery-code
    and re-authentication steps, before the user lookup, before Argon2 and before the event
    write — so the spray this gap named is refused rather than served. Tunables:
-   `RATE_LIMIT_AUTH_MAX_PER_SOURCE` (30), `RATE_LIMIT_AUTH_MAX_REQUESTS` (10, the pre-existing
-   setting, now consumed), `RATE_LIMIT_AUTH_MAX_GLOBAL` (3000) and
+   `RATE_LIMIT_AUTH_MAX_PER_SOURCE` (30), `RATE_LIMIT_AUTH_MAX_REQUESTS` (4, the pre-existing
+   setting, now consumed and held below the lockout threshold — see C-1), `RATE_LIMIT_AUTH_MAX_GLOBAL` (3000) and
    `RATE_LIMIT_AUTH_WINDOW_SECONDS` (300). What is still not true: the windows are held in the
    API process's memory, so a restart forgets every one of them and a second API process would
    count separately and halve the control — `13-ENGINEERING-EXECUTION-SPEC` §1 assumes Redis,
