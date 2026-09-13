@@ -385,4 +385,74 @@ describe('the health signal', () => {
     expect(health.status).toBe('at_risk');
     expect(health.signals[0]?.kind).toBe('predecessor_blocked');
   });
+
+  /**
+   * R01 (12 September code review) / F3 (tenant-isolation audit): a predecessor can be linked
+   * across projects — only an org-wide principal can make the edge, but access can also be
+   * revoked after it exists — and the health signal disclosed the predecessor's title, id and
+   * due date to anyone who could read the *dependent* item. Here the dependent item is on the
+   * Atlas project, where the designer is a member; the late predecessor is on the Brand
+   * Refresh project, where seed-two-tenants deliberately leaves her out (the §11 grid case).
+   */
+  it('redacts a predecessor in a project the caller cannot read, per caller', async () => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const successor = (
+      await work.create(ownerCtx, owner, {
+        projectId: world.northstar.projectId,
+        title: 'Assemble the Atlas launch kit',
+      })
+    ).id;
+    const hidden = (
+      await work.create(ownerCtx, owner, {
+        projectId: world.northstar.otherProjectId,
+        title: 'CONFIDENTIAL OTHER PROJECT',
+        dueAt: yesterday,
+      })
+    ).id;
+    // Only an org-wide principal can link across projects; the owner makes the edge.
+    await work.addDependency(ownerCtx, owner, successor, hidden);
+
+    const designerCtx = createTenantContext({
+      organizationId: world.northstar.organizationId,
+      userId: world.northstar.designer.id,
+      membershipId: world.northstar.designer.membershipId,
+      principalKind: 'internal',
+      capabilities: capabilitiesFor('member'),
+      policyVersion: '2026-08-30',
+      correlationId: uuidv7(),
+    });
+    const designer: Principal = {
+      userId: world.northstar.designer.id,
+      organizationId: world.northstar.organizationId,
+      kind: 'internal',
+      role: 'member',
+      membershipId: world.northstar.designer.membershipId,
+      membershipStatus: 'active',
+      clientOrganizationId: null,
+      projectIds: [world.northstar.projectId],
+      hasOrgWideScope: false,
+    };
+
+    // The designer can read the dependent item, so she learns it is at risk — but nothing
+    // that identifies the blocking work in the project she cannot read.
+    const forDesigner = await work.healthOf(designerCtx, designer, successor);
+    expect(forDesigner.status).toBe('at_risk');
+    expect(forDesigner.signals).toEqual([{ kind: 'predecessor_redacted' }]);
+    const serialized = JSON.stringify(forDesigner);
+    expect(serialized).not.toContain('CONFIDENTIAL OTHER PROJECT');
+    expect(serialized).not.toContain(hidden);
+    expect(serialized).not.toContain(yesterday.toISOString());
+
+    // The owner may read both projects, so the same call still names the predecessor in full:
+    // the redaction is decided per caller, not stripped from the signal for everyone.
+    const forOwner = await work.healthOf(ownerCtx, owner, successor);
+    expect(forOwner.signals).toEqual([
+      {
+        kind: 'predecessor_late',
+        workItemId: hidden,
+        title: 'CONFIDENTIAL OTHER PROJECT',
+        dueAt: yesterday.toISOString(),
+      },
+    ]);
+  });
 });

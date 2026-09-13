@@ -26,6 +26,7 @@ import {
   WorkGraphRepository,
   WorkItemAlreadyBlockedError,
 } from './work-graph.repository.js';
+import type { PredecessorHealthRow } from './work-graph.repository.js';
 
 /**
  * WORK-001's application service — spec §3 steps 5 to 7 for the work aggregate.
@@ -167,7 +168,15 @@ export type WorkItemHealthSignal =
       readonly workItemId: string;
       readonly title: string;
       readonly dueAt: string;
-    };
+    }
+  /**
+   * A predecessor the caller may not read is putting this item at risk. Nothing about the
+   * blocking work is named — no id, no title, no due date — because a dependency can cross a
+   * project boundary (linked by an org-wide admin, or read access revoked after the link),
+   * and the caller has no relation to the predecessor's project. The caller still learns
+   * their own item is at risk; whose work is holding it stays hidden. R01 / audit F3.
+   */
+  | { readonly kind: 'predecessor_redacted' };
 
 export interface WorkItemHealthView {
   readonly status: 'blocked' | 'at_risk' | 'on_track';
@@ -727,13 +736,28 @@ export class WorkItemsService {
       if (predecessor.deletedAt !== null) continue;
       const landed = predecessor.state === 'done' || predecessor.state === 'archived';
       if (landed) continue;
-      if (predecessor.state === 'blocked') {
+
+      const isBlocked = predecessor.state === 'blocked';
+      const isLate = predecessor.dueAt !== null && predecessor.dueAt < now;
+      if (!isBlocked && !isLate) continue;
+
+      // A predecessor can live in a project the caller has no relation to — linked across
+      // projects by an org-wide admin, or the caller's access revoked after the edge was
+      // made. Authorize each one against its *own* project and audience before disclosing
+      // its title, id or due date. When the caller may not read it, surface the risk as a
+      // redacted signal that names nothing about the blocking work. R01 / audit F3.
+      if (!this.mayReadPredecessor(context, principal, predecessor)) {
+        signals.push({ kind: 'predecessor_redacted' });
+        continue;
+      }
+
+      if (isBlocked) {
         signals.push({
           kind: 'predecessor_blocked',
           workItemId: predecessor.workItemId,
           title: predecessor.title,
         });
-      } else if (predecessor.dueAt !== null && predecessor.dueAt < now) {
+      } else if (predecessor.dueAt !== null) {
         signals.push({
           kind: 'predecessor_late',
           workItemId: predecessor.workItemId,
@@ -931,6 +955,33 @@ export class WorkItemsService {
       principal,
       capability: 'work.read',
       resource: this.resourceOf(row),
+    }).allowed;
+  }
+
+  /**
+   * Whether this principal may read a predecessor, judged against the predecessor's own
+   * project and audience rather than the dependent item's. The health signal calls this
+   * before it discloses a predecessor's identifying details; a `false` here means the caller
+   * has no relation to that predecessor's project and must see only a redacted signal.
+   *
+   * The predecessor is already past the deleted and landed (done/archived) filters by the
+   * time this runs, so its lifecycle is `active` — the same value {@link resourceOf} would
+   * derive for it.
+   */
+  private mayReadPredecessor(
+    context: TenantContext,
+    principal: Principal,
+    predecessor: PredecessorHealthRow,
+  ): boolean {
+    return authorize({
+      principal,
+      capability: 'work.read',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: predecessor.projectId,
+        audience: predecessor.audience,
+        lifecycle: 'active',
+      },
     }).allowed;
   }
 

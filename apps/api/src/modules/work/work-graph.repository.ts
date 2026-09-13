@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import type { Audience } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   memberships,
@@ -79,10 +80,20 @@ function isSignalled(error: unknown, fragment: string): boolean {
   return cause instanceof Error && cause.message.includes(fragment);
 }
 
-/** A predecessor with the three facts the health signal reads. */
+/**
+ * A predecessor with the facts the health signal reads.
+ *
+ * `projectId` and `audience` carry each predecessor's own authorization inputs, because a
+ * dependency can be linked across projects (an org-wide admin can, and access can be revoked
+ * after the edge is made). The health service authorizes each predecessor against these
+ * before it discloses the identifying `title`, `workItemId` or `dueAt` — R01 in the
+ * 12 September code review, F3 in the tenant-isolation audit.
+ */
 export interface PredecessorHealthRow {
   readonly dependencyId: string;
   readonly workItemId: string;
+  readonly projectId: string;
+  readonly audience: Audience;
   readonly title: string;
   readonly state: string;
   readonly dueAt: Date | null;
@@ -207,6 +218,8 @@ export class WorkGraphRepository {
       .select({
         dependencyId: workItemDependencies.id,
         workItemId: workItems.id,
+        projectId: workItems.projectId,
+        audience: workItems.audience,
         title: workItems.title,
         state: workItems.state,
         dueAt: workItems.dueAt,
