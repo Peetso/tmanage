@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { createPartAdmission, derivePartSigningKey, mintPartToken } from '@tmanage/storage';
+import type { TrustedProxies } from '@tmanage/config';
 import { PART_CONTENT_TYPE, createFastifyAdapter } from './fastify-adapter.js';
 import { createFixedWindowLimiter } from './rate-limiter.js';
 
@@ -98,5 +102,118 @@ describe('the part parser reads a body only behind a token that verifies', () =>
       PART_SIZE + 1_024 + 1,
     );
     expect(response.statusCode).toBe(413);
+  });
+});
+
+/**
+ * D09 — what the adapter hands Fastify as `trustProxy`.
+ *
+ * Until this slice `main.ts` passed `trustProxy: true`, so every `X-Forwarded-*` header was
+ * believed no matter who sent it: any client that could reach the process could name the
+ * address every address-keyed control counts against, rotate it per request, and spend D08's
+ * global sign-in budget on its own. The option now carries the operator's configured list
+ * (`TRUSTED_PROXY_ADDRESSES`, parsed and refused in `packages/config`) and nothing else.
+ *
+ * Each case asserts the option through Fastify rather than reading it back off the adapter:
+ * an injected request carries forwarded headers from a chosen socket peer, and `request.ip`
+ * — the key the limiter and the abuse control use — says whose word Fastify took. Reading the
+ * option back would prove it was stored; this proves it was obeyed.
+ */
+
+/** One forged set of forwarded headers, reused: only the socket peer changes per case. */
+const FORWARDED = {
+  'x-forwarded-for': '198.51.100.99',
+  'x-forwarded-host': 'forged.example',
+  'x-forwarded-proto': 'https',
+};
+
+interface WhoAmI {
+  readonly ip: string;
+  readonly hostname: string;
+  readonly protocol: string;
+}
+
+async function trusting(trustProxy: TrustedProxies | undefined) {
+  const adapter = createFastifyAdapter({ trustProxy, uploadPartSizeBytes: PART_SIZE });
+  const app = adapter.getInstance();
+  app.get('/whoami', async (request) => ({
+    ip: request.ip,
+    hostname: request.hostname,
+    protocol: request.protocol,
+  }));
+  await app.ready();
+  return app;
+}
+
+async function whoami(
+  app: Awaited<ReturnType<typeof trusting>>,
+  remoteAddress: string,
+): Promise<WhoAmI> {
+  const response = await app.inject({
+    method: 'GET',
+    url: '/whoami',
+    remoteAddress,
+    headers: FORWARDED,
+  });
+  return response.json<WhoAmI>();
+}
+
+describe('the adapter trusts exactly the peers the operator configured', () => {
+  it('trusts nobody when nothing is configured: the socket peer is the client, headers and all', async () => {
+    const app = await trusting(undefined);
+
+    const seen = await whoami(app, '203.0.113.7');
+
+    // Reversal: `trustProxy: true` here — what `main.ts` passed — and all three flip to the
+    // forged values, which is finding D09 exactly.
+    expect(seen.ip).toBe('203.0.113.7');
+    expect(seen.hostname).not.toBe('forged.example');
+    expect(seen.protocol).toBe('http');
+  });
+
+  it('believes one configured proxy, and refuses the same header from any other peer', async () => {
+    const app = await trusting(['203.0.113.7']);
+
+    expect((await whoami(app, '203.0.113.7')).ip).toBe('198.51.100.99');
+    // The neighbouring address is not the proxy, and saying so does not make it one.
+    expect((await whoami(app, '203.0.113.8')).ip).toBe('203.0.113.8');
+  });
+
+  it('believes several configured proxies, IPv4 and IPv6 together', async () => {
+    const app = await trusting(['203.0.113.7', '198.51.100.4', '2001:db8::1']);
+
+    for (const proxy of ['203.0.113.7', '198.51.100.4', '2001:db8::1']) {
+      expect((await whoami(app, proxy)).ip, proxy).toBe('198.51.100.99');
+    }
+    expect((await whoami(app, '192.0.2.5')).ip).toBe('192.0.2.5');
+  });
+
+  it('believes a CIDR range, which is how a proxy fleet is named', async () => {
+    const app = await trusting(['10.0.0.0/8']);
+
+    expect((await whoami(app, '10.4.5.6')).ip).toBe('198.51.100.99');
+    // One bit outside the range is outside it.
+    expect((await whoami(app, '11.4.5.6')).ip).toBe('11.4.5.6');
+  });
+});
+
+/**
+ * The composition root, statically. The adapter can only trust what it is handed, so the
+ * literal `true` in `main.ts` was the whole of D09 — and a literal is exactly what no
+ * behavioural test in this file can see. `users-sql.test.ts` reads a file for the same
+ * reason: what is not compared is what silently comes back.
+ */
+const MAIN_TS = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../main.ts'),
+  'utf8',
+);
+
+describe('the composition root hands the adapter the configured trust', () => {
+  it('passes the validated setting, not a literal', () => {
+    expect(MAIN_TS).toMatch(/trustProxy:\s*env\.TRUSTED_PROXY_ADDRESSES\b/);
+  });
+
+  it('never trusts every peer unconditionally', () => {
+    expect(MAIN_TS).not.toMatch(/trustProxy:\s*(?:true|\d)/);
   });
 });

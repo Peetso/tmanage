@@ -11,3 +11,5 @@ export {
 export type { Env } from './env.js';
 export { parseSeedKeys } from './seed-keys.js';
 export type { SeedKey, SeedKeyring } from './seed-keys.js';
+export { parseTrustedProxies } from './trusted-proxies.js';
+export type { TrustedProxies } from './trusted-proxies.js';

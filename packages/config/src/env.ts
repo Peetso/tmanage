@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parseSeedKeys } from './seed-keys.js';
+import { parseTrustedProxies } from './trusted-proxies.js';
 
 /**
  * Environment schema for every TManage process.
@@ -134,6 +135,30 @@ export const envSchema = z
     API_PUBLIC_URL: z.string().url(),
     WEB_PUBLIC_URL: z.string().url(),
     CORS_ALLOWED_ORIGINS: originList,
+    /**
+     * D09. The peers whose `X-Forwarded-*` headers are believed — a comma-separated list of
+     * addresses and CIDR ranges — and nobody else's. **Unset means trust nobody**, so an
+     * origin with no proxy in front of it reads the socket peer and gets the truth without
+     * configuring anything; an operator who does run behind a proxy names it.
+     *
+     * The parsed value is handed to Fastify's `trustProxy` as it stands (`false`, or the
+     * list): see `trusted-proxies.ts` for why the shape is the two Fastify forms rather than
+     * a hop count, and why a malformed list fails here instead of quietly becoming `false`.
+     */
+    TRUSTED_PROXY_ADDRESSES: z
+      .string()
+      .default('')
+      .transform((value, ctx) => {
+        try {
+          return parseTrustedProxies(value);
+        } catch (error) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: error instanceof Error ? error.message : 'is not a valid address list',
+          });
+          return z.NEVER;
+        }
+      }),
 
     // Database — two distinct users (ADR-0001 layer 2, 25-AUTH-AND-TENANT-ISOLATION §5).
     DATABASE_URL: mysqlUrl,
@@ -303,11 +328,18 @@ export const envSchema = z
      * The global budget is unevadable in both directions, and that cuts against the
      * deployment as much as for it: nobody can rotate addresses past it, and anybody who
      * spends it refuses everybody — password, MFA, recovery and reauthentication alike —
-     * until the window turns. That is why it is 3000 (about ten a second) rather than 600. At
-     * 600 a twenty-source spray, trivial for as long as `trustProxy: true` stands (D09), buys
-     * a repeatable authentication outage for about two requests a second; at 3000 the same
-     * outage costs an attacker real sustained traffic, while the Argon2 and log cost the
-     * budget exists to bound is still bounded.
+     * until the window turns. That is why it is 3000 (about ten a second) rather than 600.
+     *
+     * A twenty-source spray is still cheap, and D09 did not make it expensive: it made
+     * `request.ip` *authentic* (`TRUSTED_PROXY_ADDRESSES` above), not *scarce*. A caller on a
+     * single IPv6 /64 has 2^64 real addresses to spray from, and a caller behind a **badly
+     * configured** trusted proxy still writes the value outright — one that forwards their
+     * `X-Forwarded-For` untouched, one that prepends its own observation instead of appending
+     * it, or a trusted range wide enough to contain them. (An *appending* proxy is the safe
+     * shape, not the dangerous one; `docs/runbooks/deploy.md` has the measured table.) At 600
+     * that spray buys a repeatable authentication outage for about two
+     * requests a second; at 3000 the same outage costs an attacker real sustained traffic,
+     * while the Argon2 and log cost the budget exists to bound is still bounded.
      */
     RATE_LIMIT_AUTH_MAX_REQUESTS: positiveInt.default(10),
     RATE_LIMIT_AUTH_WINDOW_SECONDS: positiveInt.default(300),

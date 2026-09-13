@@ -19,9 +19,11 @@ import type { OutboxHandler } from '../outbox/dispatcher.js';
  * - **A request is submitted** → the people who can answer it: every internal member whose
  *   role ceiling includes `client_request.triage` *and* who can reach the project — org-wide
  *   scope, or a project membership. That is `mayTriage`'s rule from the API restated from
- *   the same source rather than copied: the capability half is asked of `capabilitiesFor`,
+ *   the same source rather than copied: the capability half is asked of `hasCapability`,
  *   the domain's own ceiling table, and the relation half mirrors `authorize()`'s
- *   internal-relation rule (org-wide scope or a project relation).
+ *   internal-relation rule (org-wide scope or a project relation). (The line above used to
+ *   say `capabilitiesFor`; it never called it. Corrected with finding C2, whose subject was
+ *   the test that repeated the same claim.)
  * - **A request transitions** → the person who asked: `submitted_by_user_id`. The answer to
  *   a request is the one thing its submitter is always owed — except `withdrawn`, which is
  *   the submitter's own act (the only client-performed transition §6 of `23-ERD` has), and

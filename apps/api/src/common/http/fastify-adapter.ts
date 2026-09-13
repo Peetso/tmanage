@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { PartAdmission } from '@tmanage/storage';
+import type { TrustedProxies } from '@tmanage/config';
 import type { IncomingMessage } from 'node:http';
 import type { RequestAdmission } from './rate-limiter.js';
 
@@ -39,10 +40,20 @@ import type { RequestAdmission } from './rate-limiter.js';
  * has used their window costs one map lookup and a 429 — not a signature verification per
  * request, and never a byte of body. `03-TECHNICAL-ARCHITECTURE` §8: "rate limits apply
  * by IP before authentication", and this is the API's one route with no session. The key
- * is what `trustProxy` says it is: behind the bootstrap profile's proxy it is the
- * forwarded client address, and a caller who could reach the process directly could
- * rotate it — which the limiter's bounded map turns into a memory ceiling, never into
- * admitting fewer requests than the window says.
+ * is what `trustProxy` says it is, and since D09 that is the socket peer unless the peer
+ * is one the operator named in `TRUSTED_PROXY_ADDRESSES`: a caller who reaches the process
+ * directly is counted by the address it actually connected from and cannot rotate it by
+ * writing a header. Behind a configured proxy it is the **right-most** `X-Forwarded-For` entry
+ * that is not itself a trusted peer, taken **verbatim**: `@fastify/proxy-addr` walks the chain
+ * from the right while the entries are trusted and returns the first one that is not, and it
+ * never validates the element it returns. A proxy that *appends* its own observation therefore
+ * ends that walk on the observation itself — the client's entries sit to its left and are never
+ * reached — so appending is the safe form and not, as this comment once said, the dangerous one.
+ * What does let the client choose the value is a proxy that forwards the client's header through
+ * untouched, one that prepends its own observation, or a trusted range wide enough to contain
+ * real clients; `docs/runbooks/deploy.md` states all three, measured. In every case the returned
+ * element is an unvalidated token rather than a checked address, which is why what is keyed on it
+ * is bounded rather than trusted.
  *
  * `main.ts` registers the parser for every driver, including `s3`, where the part route is
  * bound to no sink and answers 404; the parser then costs a URL check per octet-stream
@@ -67,7 +78,24 @@ export function isPartRoute(url: string): boolean {
 }
 
 export interface FastifyAdapterOptions {
-  readonly trustProxy?: boolean;
+  /**
+   * Whose `X-Forwarded-*` headers Fastify believes — `TRUSTED_PROXY_ADDRESSES`, already
+   * parsed and already refused if it was nonsense (`packages/config/src/trusted-proxies.ts`).
+   * `false` is trust nobody; a list is the addresses and CIDR ranges of the peers that may
+   * speak for somebody else.
+   *
+   * This carries the configured shape rather than a boolean on purpose (D09). The boolean it
+   * replaced had one true value — trust everybody — which `main.ts` passed unconditionally,
+   * so any client that could reach the process could name the address every address-keyed
+   * control counts against: the part limiter below, and both of D08's sign-in budgets.
+   * Fastify's own option takes exactly this union, so the operator's list is handed on as it
+   * stands with no second notion of trust in between to drift from it.
+   *
+   * **Absent means `false`**, and that is the safe direction: an origin with no proxy in
+   * front of it reads the socket peer, which is the truth and costs no configuration. Every
+   * suite that builds its own adapter therefore gets the socket peer unless it says otherwise.
+   */
+  readonly trustProxy?: TrustedProxies | undefined;
   /** `ApiConfig.uploadPartSizeBytes` — the same number the driver refuses above. */
   readonly uploadPartSizeBytes: number;
   /**

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RowDataPacket } from 'mysql2/promise';
-import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
+import { uuidv7 } from '@tmanage/domain';
+import { expectedCeilingFor } from '@tmanage/test-kit';
 import { TenantDatabase } from '../src/common/database/tenant-context.js';
 import { BootstrapScopeViolation } from '../src/common/database/tenant-context.js';
 import type { TenantGuardEvent } from '../src/common/database/tenant-guard.js';
@@ -80,7 +81,13 @@ describe('an active membership resolves into a trusted context', () => {
     expect(resolved.context.userId).toBe(world.northstar.owner.id);
     expect(resolved.context.membershipId).toBe(world.northstar.owner.membershipId);
     expect(resolved.context.principalKind).toBe('internal');
-    expect(resolved.context.capabilities).toEqual(capabilitiesFor('owner'));
+    // C3: this line used to read `toEqual(capabilitiesFor('owner'))`, which is the exact
+    // expression `membership-resolver.repository.ts` uses to build the set — an assertion of
+    // the form `capabilitiesFor(role) === capabilitiesFor(role)`, green for any ceiling
+    // whatsoever, including one that returned every capability to every role. The expected
+    // set now comes from `@tmanage/test-kit`'s hand-written transcription of
+    // `12-PERMISSION-MATRIX.md` §2, which cannot see the ceiling.
+    expect([...resolved.context.capabilities].sort()).toEqual([...expectedCeilingFor('owner')]);
     expect(resolved.context.correlationId).toBe(correlationId);
     expect(resolved.role).toBe('owner');
     expect(resolved.clientOrganizationId).toBeNull();
@@ -123,7 +130,9 @@ describe('an active membership resolves into a trusted context', () => {
     expect(resolved.role).toBe('client_reviewer');
     expect(resolved.clientOrganizationId).toBe(world.atlas.clientOrganizationId);
     expect(resolved.hasOrgWideScope).toBe(false);
-    expect(resolved.context.capabilities).toEqual(capabilitiesFor('client_reviewer'));
+    expect([...resolved.context.capabilities].sort()).toEqual([
+      ...expectedCeilingFor('client_reviewer'),
+    ]);
   });
 
   it('changes the policy version when the role changes', async () => {
@@ -140,7 +149,7 @@ describe('an active membership resolves into a trusted context', () => {
 
     expect(after.role).toBe('moderator');
     expect(after.context.policyVersion).not.toBe(before.context.policyVersion);
-    expect(after.context.capabilities).toEqual(capabilitiesFor('moderator'));
+    expect([...after.context.capabilities].sort()).toEqual([...expectedCeilingFor('moderator')]);
 
     await db.admin.execute('update memberships set role = ? where id = ?', [
       'member',
