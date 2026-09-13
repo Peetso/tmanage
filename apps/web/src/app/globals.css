@@ -301,11 +301,20 @@ body {
   color: var(--ink-950);
 }
 
+/*
+ * The footer sits inside `.tm-identity__card`, which is `--paper-150` — it is *not* on the
+ * inverted backdrop that `.tm-identity` paints. `--tm-inverted-muted` is the muted ink for
+ * the inverted surfaces only; on the card it resolved to `--line-300` over `--paper-150`,
+ * which is 1.40:1 in the shipped light theme and illegible. Secondary text on paper in this
+ * file is `--ink-650` throughout (see the header comment) and reads 6.74:1 here; the dark
+ * theme is unchanged at 8.03:1, because `--ink-650` is what `--tm-inverted-muted` already
+ * resolved to there. The privacy and support links inherit this colour below.
+ */
 .tm-identity__footer {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s4);
-  color: var(--tm-inverted-muted);
+  color: var(--ink-650);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
 }
@@ -892,9 +901,53 @@ body {
     display: none;
   }
 
+  /*
+   * The dock has to fit 320px, which is the width 1.4.10 Reflow specifies.
+   *
+   * As a column the eight orbs are 48px each and a flex item's default `min-width: auto`
+   * forbids it shrinking below min-content, so laid out as a row they summed to roughly
+   * 444px of unshrinkable content — about 124px wider than the viewport, on every internal
+   * screen, because the dock is in `AppShell`. `.tm-app` collapses its grid track willingly
+   * (`minmax(0, 1fr)` above) but the content did not, so the overflow landed on the
+   * document as horizontal scroll.
+   *
+   * Three declarations make the row shrinkable rather than capping the destination list:
+   * `min-inline-size: 0` releases the min-content floor, `flex: 1 1 0` gives every
+   * destination an equal share, and the orb steps down to `--orb-compact`. At 320px that
+   * is (320 − 7 × 4px of gap) ÷ 8 = 36.5px per item around a 32px orb — it fits, and the
+   * item stays far above the 24px that 2.5.8 asks for. Every destination stays reachable,
+   * which a "More" disclosure would not have managed without inventing a menu.
+   *
+   * The label truncates with an ellipsis rather than wrapping ("Calendar" is the widest at
+   * roughly 52px). `text-overflow` does not touch the text node, so the accessible name is
+   * still the full word and 2.5.3 Label in Name holds.
+   */
   .tm-rail__list {
     flex-direction: row;
     justify-content: space-around;
+    gap: var(--s1);
+  }
+
+  .tm-rail__list > li {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  .tm-rail__item {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  .tm-rail__orb {
+    inline-size: var(--orb-compact);
+    block-size: var(--orb-compact);
+  }
+
+  .tm-rail__label {
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .tm-app__columns {
