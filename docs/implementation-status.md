@@ -10071,6 +10071,30 @@ connection to show it would have returned three tenants' rows.
    data. `query-error.ts` unwraps at `TenantDatabase.transaction()`/`read()`, the one
    boundary every repository call returns through.
 
+**Dead `errno` branches removed from the three driver-error helpers (2026-09-12).** The
+duplicate-key and foreign-key checks in `conversations.repository.ts`,
+`organizations.repository.ts` (under `modules/tenancy/`) and `upload-sessions.repository.ts`
+(under `modules/files/`) each matched mysql2's string `code` and then fell back to the numeric
+`errno` — 1062 for a duplicate key, 1452 for a refused foreign key. The fallback could never
+run. `Packet.asError` in mysql2 3.23.3 is the only place in the driver that assigns `errno` at
+all, and it sets `code` from its `ErrorCodeToName` table in the statement immediately before;
+both 1062 and 1452 have names in that table. Every call site catches the error from a Drizzle
+statement, so the error is either the raw driver error or a `DrizzleQueryError` wrapping it on
+`cause`, and `DrizzleQueryError` carries neither property itself; `unwrapQueryError` returns
+the wrapped error object unchanged apart from deleting `sql`. No wrapper on any path strips the
+string and leaves the number. The three fallbacks are gone, the comments now describe how the
+error is actually identified, and ten new unit cases in
+`conversations.repository.test.ts`, `organizations.repository.test.ts` and
+`upload-sessions.repository.test.ts` pin the mappings that the fallbacks were written to
+protect — duplicate channel name, duplicate name on rename, refused thread parent, replayed
+client-generated id, second work link on one message, taken slug (and a colliding id that must
+_not_ be reported as a taken slug), replayed idempotency key, and an unrelated driver failure
+passing through untranslated at two of the sites. They run without a server: a fake
+`TenantQueryRunner` throws an error shaped exactly as `Packet.asError` builds one, and the real
+Drizzle proxy session wraps it, so the unwrap-then-match path under test is the production one.
+The database suites were not run in this slice — another agent holds the shared lock — but no
+database case was added or changed.
+
 ### The schema is described, not defined — and the drift is tested
 
 `schema.ts` describes the tables; `migrations/*.sql` create them. That is the reverse of the
