@@ -110,6 +110,14 @@ jobs:
       DATABASE_MIGRATION_URL: mysql://tmanage_migrator:local_dev_only_migrator@127.0.0.1:3306/tmanage
       TMANAGE_TEST_DATABASE_URL: mysql://root:local_dev_only_root@127.0.0.1:3306/tmanage
       TMANAGE_TEST_APP_DATABASE_URL: mysql://tmanage_app:local_dev_only_app@127.0.0.1:3306/tmanage
+      # R10's reconciliation (apps/api/test/grant-reconciliation.db.test.ts) reads
+      # information_schema for *other* accounts and creates renamed probe users, so it needs
+      # CREATE USER + GRANT OPTION + SELECT on `mysql` — root, not TMANAGE_TEST_DATABASE_URL,
+      # which may legitimately own one database and nothing else. Spelled out rather than
+      # reusing MYSQL_ROOT_URL because an `env:` entry cannot reference another in its own
+      # block. Without this variable every case in that file skips, and the file's own CI
+      # guard fails deliberately rather than letting R10 go unverified behind a green suite.
+      TMANAGE_TEST_GRANT_ADMIN_DATABASE_URL: mysql://root:local_dev_only_root@127.0.0.1:3306/tmanage
     steps:
       - uses: actions/checkout@v4
 

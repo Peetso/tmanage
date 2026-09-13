@@ -131,10 +131,42 @@ export interface PrincipalIntent {
   readonly revokedFirst: boolean;
 }
 
-const GRANT_RE =
-  /^GRANT\s+(.+?)\s+ON\s+(?:`?([a-z_]+)`?|\*)\.(?:`?([a-z_]+)`?|\*)\s+TO\s+'([a-z_]+)'@'([^']+)'/i;
-const REVOKE_RE = /^REVOKE\s+ALL\s+PRIVILEGES\s*,\s*GRANT\s+OPTION\s+FROM\s+'([a-z_]+)'@'([^']+)'/i;
-const CREATE_RE = /^CREATE USER(?: IF NOT EXISTS)?\s+'([a-z_]+)'@'([^']+)'/i;
+/**
+ * The characters an identifier may contain, here.
+ *
+ * Deliberately not `[a-z_]`. A MySQL account name legitimately carries digits — and the
+ * verification in `apps/api/test/grant-reconciliation.db.test.ts` relies on that, because it
+ * applies this script to *renamed probe accounts* whose suffix is the process id, so that
+ * revoking and rebuilding does not disarm a live `tmanage_app`. With a letters-only class
+ * those names matched nothing, and since this parser **throws** on a statement it does not
+ * recognise (that strictness is deliberate; see `parseGrantScript`), the mismatch was not a
+ * skipped statement but an exception at suite-collection time — which Vitest raises even for
+ * a `describe.skipIf` that is skipped, because the factory is still evaluated. The whole
+ * upgrade proof was therefore unreachable, and `pnpm test:db` could redden on it.
+ *
+ * The class is widened rather than the probe names narrowed because the narrow one was simply
+ * wrong about MySQL: `$`, `.` and `-` are also ordinary in account names, and this function's
+ * answer is the *expected* side of a security assertion — it must not fail to describe a
+ * principal that really exists.
+ */
+/** A schema or table name. No `.`: the dot between the two scopes has to stay a separator. */
+const OBJECT_IDENT = String.raw`[A-Za-z0-9_$]+`;
+/** An account name, always quoted here, so `.` and `-` are unambiguous inside it. */
+const ACCOUNT_IDENT = String.raw`[A-Za-z0-9_$.-]+`;
+
+const GRANT_RE = new RegExp(
+  String.raw`^GRANT\s+(.+?)\s+ON\s+(?:\`?(${OBJECT_IDENT})\`?|\*)\.(?:\`?(${OBJECT_IDENT})\`?|\*)` +
+    String.raw`\s+TO\s+'(${ACCOUNT_IDENT})'@'([^']+)'`,
+  'i',
+);
+const REVOKE_RE = new RegExp(
+  String.raw`^REVOKE\s+ALL\s+PRIVILEGES\s*,\s*GRANT\s+OPTION\s+FROM\s+'(${ACCOUNT_IDENT})'@'([^']+)'`,
+  'i',
+);
+const CREATE_RE = new RegExp(
+  String.raw`^CREATE USER(?: IF NOT EXISTS)?\s+'(${ACCOUNT_IDENT})'@'([^']+)'`,
+  'i',
+);
 
 /**
  * What `scripts/db/users.sql` says each principal should end up holding.

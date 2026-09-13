@@ -201,3 +201,79 @@ describe('excessOf / missingOf — the comparison the verification makes', () =>
     expect(missingOf(worker, [])).toContain('tmanage.outbox_events:SELECT');
   });
 });
+
+describe('parseGrantScript — account names that contain digits', () => {
+  /**
+   * The exact rename `apps/api/test/grant-reconciliation.db.test.ts` performs.
+   *
+   * That file cannot revoke and rebuild `tmanage_app` on a shared server, so it substitutes
+   * probe names carrying the process id — digits — and parses the result. Until the parser's
+   * identifier class was widened, every one of its statements matched nothing, and because
+   * `parseGrantScript` throws on an unrecognised statement, the throw landed while Vitest was
+   * *collecting* the suite (the `describe.skipIf` factory is evaluated even when skipped).
+   * The upgrade proof — the old-wide-grant reconstruction and the 1142 denial on
+   * `user_passwords` — could not run at all, and `pnpm test:db` could go red on a machine
+   * with no admin URL.
+   *
+   * This case is that file's precondition, asserted where it runs on every commit.
+   */
+  const PROBE_SUFFIX = `r10_${process.pid}`;
+  const PROBE_NAMES: ReadonlyArray<readonly [string, string]> = [
+    ['tmanage_app', `tm_app_${PROBE_SUFFIX}`],
+    ['tmanage_worker', `tm_wrk_${PROBE_SUFFIX}`],
+    ['tmanage_migrator', `tm_mig_${PROBE_SUFFIX}`],
+  ];
+  const probeScript = PROBE_NAMES.reduce(
+    (sql, [real, probe]) => sql.split(`'${real}'@'%'`).join(`'${probe}'@'%'`),
+    usersSql,
+  );
+
+  it('parses the renamed probe script without throwing', () => {
+    // Against the previous `'([a-z_]+)'` this throws on the first CREATE USER, which is what
+    // made the database file uncollectable.
+    const intents = parseGrantScript(probeScript);
+    expect([...intents.keys()].sort()).toEqual(
+      PROBE_NAMES.map(([, probe]) => `'${probe}'@'%'`).sort(),
+    );
+  });
+
+  it('gives each digit-bearing principal the same intent as the name it replaced', () => {
+    // Not merely "does not throw": the substitution must be a pure rename, or §2 of the
+    // database file would be reconciling against a different expected set than §1.
+    const real = parseGrantScript(usersSql);
+    const probes = parseGrantScript(probeScript);
+    for (const [realName, probe] of PROBE_NAMES) {
+      const expected = real.get(`'${realName}'@'%'`);
+      const actual = probes.get(`'${probe}'@'%'`);
+      expect(actual, `probe script does not define '${probe}'`).toBeDefined();
+      expect(actual?.revokedFirst, `no REVOKE for '${probe}'`).toBe(true);
+      expect([...(actual?.privileges ?? [])].sort()).toEqual(
+        [...(expected?.privileges ?? [])].sort(),
+      );
+    }
+  });
+
+  it('reads a digit-bearing account out of each of the three statement forms', () => {
+    // One statement per regex, so a future narrowing of any single pattern fails here with
+    // the pattern named rather than as a collection-time throw somewhere else.
+    const intents = parseGrantScript(
+      [
+        "CREATE USER IF NOT EXISTS 'tm_wrk_r10_12345'@'%' IDENTIFIED BY 'x';",
+        "REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tm_wrk_r10_12345'@'%';",
+        "GRANT SELECT ON `tmanage`.`outbox_events` TO 'tm_wrk_r10_12345'@'%';",
+      ].join('\n'),
+    );
+    const intent = intents.get("'tm_wrk_r10_12345'@'%'");
+    expect(intent?.user).toBe('tm_wrk_r10_12345');
+    expect(intent?.revokedFirst).toBe(true);
+    expect([...(intent?.privileges ?? [])]).toEqual(['tmanage.outbox_events:SELECT']);
+  });
+
+  it('still refuses a statement it does not understand', () => {
+    // The widening must not have turned the parser permissive: its strictness is why its
+    // answer can be the expected side of a security assertion.
+    expect(() => parseGrantScript("SET PASSWORD FOR 'tm_wrk_r10_12345'@'%' = 'x';")).toThrow(
+      /does not understand this statement/,
+    );
+  });
+});
