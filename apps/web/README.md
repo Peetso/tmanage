@@ -91,6 +91,19 @@ other sessions were ended and that an audit row was written, so no URL may selec
 query string is not a result (D15). Only a caller holding a real one may ask for those
 states, and there is no such caller until ID-002 builds the operation that produces one.
 
+`/sign-in/verify` takes no query parameters either, for the same reason. It used to read
+`?state=rate-limited` and pass it to `MfaChallengeScreen`, which says "The attempt was recorded
+in the audit log" — a URL cannot refuse an attempt or append a row. `41` line 33 approves "rate
+limit" as an ID-02 state so the `rateLimited` prop stays, and unlike ID-05's outcome states the
+claim is one the API can substantiate: `POST /v1/auth/mfa` answers a flooded attempt with 429
+`rate_limited`, and the refusal behind it is written to the audit log before the throw. Read the
+copy narrowly, though — `authentication.service.ts:451` writes that row only for the **first**
+refusal in each abuse-control window, and `recordRefusal` (`:1193`) counts a failed write rather
+than failing the request, so a 429 is not on its own proof that a row exists. A `locked_out`
+refusal (`:501`) is recorded unconditionally. Only a caller holding that 429 may ask for the
+state; the screen does not yet turn a 429 into one, which is sign-in work, and whoever does that
+wiring owns the question of which 429s may truthfully carry the audit-log sentence.
+
 The screen ids are the **specification's**. The design export numbers its onboarding
 artboards differently — it opens with a "what do you deliver" step and inserts a milestones
 step, so its `ON-04` is the specification's `ON-03`. `docs/implementation-status.md` carries
