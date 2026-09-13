@@ -197,6 +197,9 @@ importers:
         specifier: ^8.18.0
         version: 8.21.3
     devDependencies:
+      '@tmanage/test-kit':
+        specifier: workspace:*
+        version: link:../../packages/test-kit
       '@types/ws':
         specifier: ^8.5.12
         version: 8.18.1

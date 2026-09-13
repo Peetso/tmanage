@@ -4,8 +4,9 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
-import { INTERNAL_ROLES, hasCapability, uuidv7 } from '@tmanage/domain';
+import { INTERNAL_ROLES, uuidv7 } from '@tmanage/domain';
 import type { Capability, InternalRole } from '@tmanage/domain';
+import { expectedCeilingGrants } from '@tmanage/test-kit';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
@@ -28,19 +29,30 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *
  * Three properties make this a harness rather than a list of examples:
  *
- * 1. **The expectation is derived, not restated.** Each cell's verdict comes from
- *    `hasCapability(role, capability)` — the domain's own ceiling table — so a deliberate
- *    matrix change moves the harness with it, and an accidental one fails it. The same
- *    stance as SEC-001's grid and NOTIF-001's recipient test.
+ * 1. **The expectation is restated, not derived.** Each cell's verdict comes from
+ *    `expectedCeilingGrants(role, capability)` — `@tmanage/test-kit`'s hand-written
+ *    transcription of `12-PERMISSION-MATRIX.md` §2, which imports no value from the domain
+ *    and cannot see `CAPABILITY_CEILING`.
+ *
+ *    It used to come from `hasCapability(role, capability)`, the domain's own ceiling table,
+ *    on the argument that a deliberate matrix change should move the harness with it. That
+ *    was finding D18, restated as C1 by the 2026-09-12 test-honesty sweep: both sides of the
+ *    comparison moved together, so the grid proved the HTTP layer agrees with the table and
+ *    nothing at all about whether the table is right. Adding a capability to a role's ceiling
+ *    widened the grid's own expectation and it stayed green. Now the same edit fails this
+ *    file — the widened role reaches a route the transcription says it must be refused — and
+ *    fails `permission-matrix-fixture.test.ts` in the unit project, which is the loud signal
+ *    that a person has to decide which side is wrong.
  * 2. **Every refusal must leave the audit row.** The guard's contract is that a denied
  *    sensitive attempt is a security event; the suite counts
  *    `security.capability_denied` rows and requires exactly one per refused cell, no
  *    more, no fewer.
  * 3. **The route list is asserted against the controllers it mirrors.** Each row's
  *    capability is what `@RequireCapability` declares on that route; if a route's
- *    declaration changes, the allowed/refused split changes with `hasCapability` and the
- *    grid keeps passing — but a route that *vanishes* fails loudly as a 404, which is a
- *    row nobody deleted on purpose.
+ *    declaration changes, the allowed/refused split for that row changes with it while the
+ *    transcription does not — so a route re-gated behind a capability its callers do not
+ *    hold fails here. A route that *vanishes* fails loudly as a 404, which is a row nobody
+ *    deleted on purpose.
  */
 
 let db: TestDatabase;
@@ -192,7 +204,7 @@ describe('§11 role grid, internal side', () => {
     it(`'${role}' is allowed exactly the cells its ceiling grants`, async () => {
       const session = await signIn(roleUsers.get(role) as string);
       for (const cell of GRID) {
-        const expected = hasCapability(role, cell.capability);
+        const expected = expectedCeilingGrants(role, cell.capability);
         const response = await get(cell.path, session);
         if (expected) {
           expect(
@@ -219,7 +231,7 @@ describe('§11 role grid, internal side', () => {
     let refusals = 0;
     for (const role of INTERNAL_ROLES) {
       for (const cell of GRID) {
-        if (!hasCapability(role, cell.capability)) refusals += 1;
+        if (!expectedCeilingGrants(role, cell.capability)) refusals += 1;
       }
     }
     expect(refusals).toBeGreaterThan(0);
