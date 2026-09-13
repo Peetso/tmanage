@@ -347,7 +347,7 @@ other:
 
 | key            | shape                                    | tunable                          | default | what it stops                              |
 | -------------- | ---------------------------------------- | -------------------------------- | ------- | ------------------------------------------ |
-| source+account | `sa:<ip>:<sha256(account) first 16 hex>` | `RATE_LIMIT_AUTH_MAX_REQUESTS`   | 10      | one address grinding one account           |
+| source+account | `sa:<ip>:<sha256(account) first 16 hex>` | `RATE_LIMIT_AUTH_MAX_REQUESTS`   | 4       | one address grinding one account           |
 | source         | `s:<ip>`                                 | `RATE_LIMIT_AUTH_MAX_PER_SOURCE` | 30      | one address spraying many accounts         |
 | global         | the constant `g`                         | `RATE_LIMIT_AUTH_MAX_GLOBAL`     | 3000    | a distributed spray from rotated addresses |
 
@@ -355,8 +355,32 @@ The source address is clamped to 45 characters — the width of `authentication_
 before anything is keyed on it, so the keys are bounded in length as well as in count.
 
 The window is `RATE_LIMIT_AUTH_WINDOW_SECONDS`, default **300** (five minutes).
-`RATE_LIMIT_AUTH_MAX_REQUESTS` (default 10) had existed since the limiter landed and was
+`RATE_LIMIT_AUTH_MAX_REQUESTS` had existed since the limiter landed and was
 consumed by nothing; D08 is what finally consumes it.
+
+**The source+account budget is not free to choose (security audit 2026-09-12, C-1).** It shipped
+at 10 against an `AUTH_MAX_FAILURES_IN_WINDOW` of 5, and ten is larger than five — so five wrong
+passwords from one address sat inside the budget and drove any _known_ account into the
+900-second lockout, renewably, for five requests a quarter-hour from one IP. Worse, the victim
+could not clear it: `confirmReauthentication` reads the same `countRecentFailures` window and
+re-authentication is the only gate to `setPassword`, so a locked-out person cannot change their
+password to escape. The default is now **4**, and `packages/config` **refuses to boot** any
+configuration where `RATE_LIMIT_AUTH_MAX_REQUESTS >= AUTH_MAX_FAILURES_IN_WINDOW`, naming both
+variables. Bound on the shipped defaults by `packages/config/src/env.test.ts` and
+`apps/api/src/common/http/api-config.test.ts` — deliberately not by literals of their own, which
+is why `id-002-credentials.db.test.ts:677` passed throughout: it asserts the same inequality of
+constants it declares itself.
+
+**What that does not fix, stated plainly.** The two windows are different lengths — the budget is
+per 300 s, the lockout counts over 900 s — so one address still gets 4 × 3 = 12 admitted failures
+inside one lockout window, which is more than 5. Arming the lockout now costs a first window
+instead of landing on the fifth request, and sustaining it is still possible. No value of the
+budget closes that (the relation that would, `budget × ceil(900/300) < 5`, forces it to 1, which
+refuses a real person their second try, and success is not exempt from the count). The durable
+fix is the audit's own direction: stop letting a _wrong_ password deny a _right_ one — verify
+first, and apply the durable window only to the failing path, so `locked_out` throttles guessing
+instead of refusing the legitimate holder. That is a behaviour change in
+`authentication.service.ts`, not a number, and is the next item.
 
 **A refusal is not a lockout — with one exception, named below.** The fixed window self-heals: a
 shared office is refused for the remainder of one five-minute window and never longer, and at the
