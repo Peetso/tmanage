@@ -50,7 +50,18 @@ export interface RealtimeServerOptions {
   readonly port: number;
   /** Injected clock, so a suite can expire a ticket without waiting. */
   readonly now?: () => Date;
+  /**
+   * How often an open connection re-checks its subscriptions against current rows and its
+   * ticket against the clock. The ticket authorizes only the handshake and a subscribe is
+   * checked once — so without a recheck a revoked membership keeps delivering and a socket
+   * outlives its ticket TTL indefinitely (R04). The natural period is the ticket TTL;
+   * a suite injects a small value to observe a revocation without waiting.
+   */
+  readonly revalidateIntervalMs?: number;
 }
+
+/** The ticket's intended TTL is seconds, so a minute is a bounded, low-cost recheck period. */
+const DEFAULT_REVALIDATE_INTERVAL_MS = 60_000;
 
 export interface RealtimeServer {
   readonly hub: RealtimeHub;
@@ -63,6 +74,7 @@ export async function createRealtimeServer(
 ): Promise<RealtimeServer> {
   const hub = new RealtimeHub();
   const now = options.now ?? (() => new Date());
+  const revalidateIntervalMs = options.revalidateIntervalMs ?? DEFAULT_REVALIDATE_INTERVAL_MS;
   const wss = new WebSocketServer({ port: options.port });
 
   await new Promise<void>((resolve, reject) => {
@@ -82,7 +94,62 @@ export async function createRealtimeServer(
       return;
     }
 
-    const unsubscribers: (() => void)[] = [];
+    // Active subscriptions keyed by conversation, so a second subscribe to the same channel
+    // is an idempotent ack rather than a second listener (R05's dedup half). The value is
+    // the hub's own unsubscribe.
+    const subscriptions = new Map<string, () => void>();
+    // Set the instant the socket closes. Two async paths outlive a close — a subscription
+    // check still resolving (R05) and a revalidation tick already in flight — and both
+    // consult this before touching the hub, so a closed socket never gains or keeps a
+    // listener.
+    let disposed = false;
+
+    const dropSubscription = (conversationId: string): void => {
+      const unsubscribe = subscriptions.get(conversationId);
+      if (unsubscribe === undefined) return;
+      unsubscribe();
+      subscriptions.delete(conversationId);
+    };
+
+    // The handshake ticket is verified once and a subscribe checks current rows once — so
+    // without this, a membership suspended (or a role capability withdrawn, or a channel
+    // membership removed) after the subscribe keeps delivering for the socket's whole life,
+    // and the connection outlives its ticket TTL forever (R04 / F1). On a bounded interval
+    // we re-run the same current-rows check for every open subscription and drop the ones
+    // that no longer verify, and we close the whole socket once its ticket has expired —
+    // the recheck the stateless handshake ticket cannot perform for itself.
+    const revalidate = (): void => {
+      if (disposed) return;
+      if (now().getTime() >= claims.expiresAt) {
+        socket.close(4401);
+        return;
+      }
+      for (const conversationId of [...subscriptions.keys()]) {
+        void options.database
+          .read((tx) =>
+            checkConversationSubscription(tx, {
+              organizationId: claims.organizationId,
+              userId: claims.userId,
+              conversationId,
+            }),
+          )
+          .then((verdict) => {
+            if (disposed || !subscriptions.has(conversationId)) return;
+            if (!verdict.allowed) {
+              dropSubscription(conversationId);
+              socket.send(JSON.stringify({ type: 'revoked', conversationId }));
+            }
+          })
+          .catch(() => {
+            // A database hiccup leaves the subscription in place and the next tick retries;
+            // dropping a live subscriber on a transient read error would be its own defect.
+          });
+      }
+    };
+
+    const timer = setInterval(revalidate, revalidateIntervalMs);
+    // The revalidation loop must never be the reason the process stays alive.
+    timer.unref();
 
     socket.on('message', (raw) => {
       const frame = parseFrame(raw);
@@ -100,15 +167,22 @@ export async function createRealtimeServer(
           }),
         )
         .then((verdict) => {
+          // The socket may have closed while this check was in flight: registering now would
+          // install a hub listener capturing a dead socket that nothing ever removes (R05).
+          // Refuse late completions.
+          if (disposed) return;
           if (!verdict.allowed) {
             socket.send(JSON.stringify({ type: 'refused', conversationId: frame.conversationId }));
             return;
           }
-          unsubscribers.push(
-            hub.subscribe(claims.organizationId, frame.conversationId, (event) => {
-              socket.send(JSON.stringify(event));
-            }),
-          );
+          if (!subscriptions.has(frame.conversationId)) {
+            subscriptions.set(
+              frame.conversationId,
+              hub.subscribe(claims.organizationId, frame.conversationId, (event) => {
+                socket.send(JSON.stringify(event));
+              }),
+            );
+          }
           socket.send(
             JSON.stringify({
               type: 'subscribed',
@@ -125,7 +199,10 @@ export async function createRealtimeServer(
     });
 
     socket.on('close', () => {
-      for (const unsubscribe of unsubscribers) unsubscribe();
+      disposed = true;
+      clearInterval(timer);
+      for (const unsubscribe of subscriptions.values()) unsubscribe();
+      subscriptions.clear();
     });
   });
 
