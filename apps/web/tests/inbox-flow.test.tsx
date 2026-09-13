@@ -337,6 +337,6 @@ describe('TM-04 the inbox', () => {
     render(withQuery(<InboxScreen {...NAMES} client={client} />));
 
     expect(await screen.findByText('Nothing has happened yet')).toBeInTheDocument();
-    expect(screen.getByText('Not built yet — INBOX-001')).toBeInTheDocument();
+    expect(screen.getByText('Not available yet — INBOX-001')).toBeInTheDocument();
   });
 });

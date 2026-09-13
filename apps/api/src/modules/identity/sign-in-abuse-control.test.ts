@@ -380,9 +380,10 @@ describe('the sign-in abuse control', () => {
   });
 
   /**
-   * I4 (final review, 2026-09-07). Under D09 `request.ip` is the leftmost `X-Forwarded-For`
-   * token verbatim and fastify does not validate it as an address, so the key material is
-   * attacker-chosen and unbounded in length until this clamp bounds it.
+   * I4 (final review, 2026-09-07). Under D09, where a proxy is trusted, `request.ip` is the
+   * right-most `X-Forwarded-For` token no trusted peer wrote, taken verbatim, and fastify does
+   * not validate it as an address — so wherever a caller can reach that position the key
+   * material is attacker-chosen and unbounded in length until this clamp bounds it.
    */
   it('clamps the source address to 45 characters, so a forged header cannot grow the keys by bytes', () => {
     const control = createControl({ maxPerSource: 1, now: () => 5_000 });

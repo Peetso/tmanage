@@ -431,7 +431,7 @@ function TriageActions({
         </h2>
         <p className="tm-prose">
           Opening it tells the client somebody is looking. It also means they can no longer withdraw
-          it themselves — <code>23-ERD</code> §6 draws no way out of triage for them.
+          it themselves — once triage has started, only somebody here can close it.
         </p>
         <div className="tm-row">
           <Button

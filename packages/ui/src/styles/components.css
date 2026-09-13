@@ -284,10 +284,17 @@
   margin-inline-start: var(--s1);
 }
 
+/*
+ * The border is `--ink-500`, not `--line-300`. See the note above `.tm-checkbox` below:
+ * `--line-300` is the decorative rule token and reads 1.71:1 on `--paper-0`, where 1.4.11
+ * requires 3:1 of a control's visual boundary. `.tm-select__control` and
+ * `.tm-combobox__control` carry this class too, so all three text-entry surfaces move
+ * together.
+ */
 .tm-field__control {
   min-block-size: var(--control);
   padding-inline: var(--s4);
-  border: var(--b-quiet) solid var(--line-300);
+  border: var(--b-quiet) solid var(--ink-500);
   border-radius: var(--r-control);
   background: var(--paper-0);
   color: var(--ink-800);
@@ -644,6 +651,23 @@
   color: var(--danger-600);
 }
 
+/*
+ * A control's boundary is not a decorative rule, and it does not get the decorative token.
+ *
+ * `--line-300` is the panel/row-separator colour. WCAG 1.4.11 exempts decoration but
+ * requires 3:1 of the visual boundary of a user-interface component, and on an unchecked
+ * box the border *is* the control — there is nothing else to see. `--line-300` gives
+ * 1.71:1 on `--paper-0` in light and 1.55:1 in dark; both fail, and dark fails harder.
+ *
+ * `--ink-500` is the fix and needs no new value in the design export, which matters because
+ * `tests/tokens.drift.test.ts` pins the property list. It reads 4.51:1 on `--paper-0` in
+ * light, and in the dark theme `--ink-500` and `--ink-650` are both `#a7aca0`, so one
+ * declaration lands the 7.32:1 the dark palette needs without a second rule.
+ *
+ * This is deliberately scoped to the controls — checkbox, radio, switch, text input,
+ * select. The panel borders and table row separators that also use `--line-300` are
+ * decoration and stay as they are.
+ */
 .tm-checkbox,
 .tm-radio {
   appearance: none;
@@ -653,7 +677,7 @@
   place-content: center;
   inline-size: var(--s5);
   block-size: var(--s5);
-  border: var(--b-structural) solid var(--line-300);
+  border: var(--b-structural) solid var(--ink-500);
   background: var(--paper-0);
   cursor: pointer;
   transition:
@@ -762,7 +786,8 @@
   inline-size: var(--orb-comfortable);
   block-size: var(--s6);
   border-radius: var(--r-capsule);
-  border: var(--b-structural) solid var(--line-300);
+  /* 1.4.11, as on the checkbox above: 4.51:1 on `--paper-0` rather than 1.71:1. */
+  border: var(--b-structural) solid var(--ink-500);
   background: var(--paper-250);
   cursor: pointer;
   transition:
@@ -780,7 +805,12 @@
   block-size: var(--s4);
   border-radius: var(--r-capsule);
   background: var(--paper-0);
-  border: var(--b-quiet) solid var(--line-300);
+  /*
+   * The thumb is what tells a person which way the switch is thrown, so its edge is a
+   * boundary under 1.4.11 too: 4.51:1 against its own `--paper-0` fill and 3.08:1 against
+   * the `--paper-250` track it travels over, where `--line-300` gave 1.71:1 and 1.17:1.
+   */
+  border: var(--b-quiet) solid var(--ink-500);
   transition: inset-inline-start var(--t-micro) var(--ease);
 }
 

@@ -36,7 +36,11 @@ async function bootstrap(): Promise<void> {
     // The octet-stream parser for the part route rides on the adapter, with its own body
     // limit — see `fastify-adapter.ts` on why the global limit stays at Fastify's default.
     createFastifyAdapter({
-      trustProxy: true,
+      // D09. Whose forwarded headers this process believes: the operator's list, validated
+      // at boot, and `false` — the socket peer — when nothing is configured. It was `true`,
+      // which believed every peer, so any client that could reach the process could name the
+      // address the limiter below and both sign-in budgets count against.
+      trustProxy: env.TRUSTED_PROXY_ADDRESSES,
       uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES,
       // The same secret the filesystem driver signs with; with no local transport there is
       // no admission and the part route reads no body at all.

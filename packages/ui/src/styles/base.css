@@ -61,6 +61,36 @@ pre,
   border-radius: inherit;
 }
 
+/*
+ * The same appearance, re-expressed in the one property forced colours keeps.
+ *
+ * `forced-colors: active` (Windows High Contrast and its relatives) discards author
+ * `box-shadow` entirely. The rule above is therefore self-cancelling in that mode: it
+ * removes the user agent's own outline with `outline: none` and replaces it with the one
+ * property the mode throws away, leaving **no** visible focus indicator anywhere in the
+ * product — not on a link, not on a button, not on the skip link below, which is styled
+ * through the same `:where()` rule. That is 2.4.7 Focus Visible, and it is Level A.
+ *
+ * `outline` is repainted rather than dropped, and `CanvasText` is the system's own
+ * foreground, so the ring is guaranteed to contrast with whatever ground the user chose —
+ * which no author colour can promise. The geometry matches the shadow: 3px of ring held
+ * 2px clear of the control, so the indicator is the same shape a sighted keyboard user
+ * learns everywhere else. The shadow declaration is left in place above and simply has no
+ * effect here.
+ *
+ * Untested by the suite in the sense that matters: jsdom neither evaluates this media
+ * query nor paints, and the visual-regression harness runs light, dark and RTL only. The
+ * accompanying assertion in `apps/web/tests/contrast.test.ts` checks that this block exists
+ * and does not re-suppress the outline; only a browser in forced-colours mode can confirm
+ * it is painted.
+ */
+@media (forced-colors: active) {
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 2px;
+  }
+}
+
 .tm-visually-hidden {
   position: absolute;
   width: 1px;

@@ -194,7 +194,7 @@ describe('ID-01 Sign in', () => {
 
     expect(screen.getByRole('button', { name: /passkey/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /company SSO/i })).toBeDisabled();
-    expect(screen.getByText(/Not built yet — ID-002 · passkeys and SSO/)).toBeInTheDocument();
+    expect(screen.getByText(/Not available yet — ID-002 · passkeys and SSO/)).toBeInTheDocument();
   });
 
   it('does not render the development panel when the API would not accept it', () => {
@@ -255,6 +255,28 @@ describe('ID-02 MFA', () => {
     expect(screen.queryByText(/@/)).toBeNull();
   });
 
+  /*
+    The rate-limited state as a component API. `41` line 33 approves "rate limit" as an ID-02
+    state, and the claim it makes is one the application can substantiate: the API answers a
+    flooded MFA or recovery-code attempt with 429 `rate_limited` and writes the refusal to the
+    audit log before it does — for the first refusal in each window, and for a lock-out, which
+    is the qualification `page.tsx` records. So the copy stands — but only a caller holding that
+    refusal may ask for it, which is what these two cases pin. `mfa-states.test.tsx` holds the
+    other half: that `/sign-in/verify` cannot be talked into it from a URL.
+  */
+  it('claims an audit row only when a caller says an attempt was refused', () => {
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" rateLimited />);
+    expect(screen.getByText(/The attempt was recorded in the audit log/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Six-digit code/)).toBeDisabled();
+  });
+
+  it('makes no rate-limit claim of its own accord', () => {
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" />);
+    expect(screen.queryByText(/Rate limited/)).toBeNull();
+    expect(screen.queryByText(/recorded in the audit log/)).toBeNull();
+    expect(screen.getByLabelText(/Six-digit code/)).toBeEnabled();
+  });
+
   it('names the factor from the challenge as device context', () => {
     render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" factorLabel="Omar’s iPhone" />);
     expect(screen.getByText('Omar’s iPhone')).toBeInTheDocument();
@@ -285,7 +307,7 @@ describe('ID-05 Recovery', () => {
   */
   it('denies that an email was dispatched, beside the sent state that implies one', () => {
     render(<RecoveryScreen state="sent" />);
-    expect(screen.getByText(/Not built yet — ID-002/)).toBeInTheDocument();
+    expect(screen.getByText(/Not available yet — ID-002/)).toBeInTheDocument();
     expect(screen.getByText(/No recovery email was sent/)).toBeInTheDocument();
   });
 
@@ -301,7 +323,7 @@ describe('ID-05 Recovery', () => {
 
   it('denies each claim the completed state makes while ID-002 is unbuilt', () => {
     render(<RecoveryScreen state="completed" />);
-    expect(screen.getByText(/Not built yet — ID-002/)).toBeInTheDocument();
+    expect(screen.getByText(/Not available yet — ID-002/)).toBeInTheDocument();
     expect(
       screen.getByText(
         /No recovery has run\. No access was restored, no session was signed out and no audit row was written\./,
@@ -352,7 +374,7 @@ describe('ON-01 Create organization', () => {
   it('can be submitted now that TEN-001 has landed', () => {
     render(<CreateOrganizationScreen signedInAs={SIGNED_IN_AS} />);
     expect(screen.getByRole('button', { name: 'Create organization' })).toBeEnabled();
-    expect(screen.queryByText(/Not built yet/)).toBeNull();
+    expect(screen.queryByText(/Not available yet/)).toBeNull();
   });
 
   it('bounds the name field at the width of the column behind it', () => {

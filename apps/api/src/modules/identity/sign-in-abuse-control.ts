@@ -65,26 +65,38 @@ import {
  * many accounts, is unaffected: there the account keys admit and the source key is the one
  * that refuses and names itself.
  *
- * **D09 — proxy headers trusted unconditionally — is a separate, unfixed slice**, so anyone who
- * can reach the origin directly or set `X-Forwarded-For` can rotate the source key at will.
- * Both address-keyed budgets rotate with it: `sa:<ip>:<hash>` *contains* the address, so
- * rotating the header rotates the source key and the source+account key together. While D09
- * stands the only bounds that hold against a caller who can set that header are the global key
- * and the durable per-user lockout in `authentication_events` (`AUTH_MAX_FAILURES_IN_WINDOW`,
- * 5 failures in 900 s) — and the lockout is the one that actually catches a grind against a
- * named account. Read the two address-keyed budgets as a cost bound on honest traffic until
- * D09 lands, not as a defence against a determined attacker.
+ * **D09 is fixed** (branch `d09-trusted-proxy`). `main.ts` no longer passes
+ * `trustProxy: true`; trust comes from `TRUSTED_PROXY_ADDRESSES`
+ * (`packages/config/src/trusted-proxies.ts`), parsed and validated at boot, and **unset or
+ * blank means trust nobody**. `request.ip` is then the socket peer and `X-Forwarded-For` is an
+ * ordinary header that changes nothing, so a caller reaching the origin directly can no longer
+ * rotate the source key by writing one.
  *
- * One part of that weakness **outlives D09**, and the paragraph above would be read too kindly
+ * What survives that fix is narrower, and saying so here is the point of this paragraph. Where
+ * the operator *has* named a proxy, `request.ip` is the **right-most** forwarded entry that is
+ * not itself trusted, taken **verbatim** and never validated as an address. A proxy that
+ * *appends* its own observation ends the walk on that observation, so the client's entries —
+ * which sit to its left — are never reached: appending is the safe form, and an earlier version
+ * of this paragraph had that backwards. Three deployment shapes do still hand the value to the
+ * caller: a proxy that forwards the client's `X-Forwarded-For` through untouched, a proxy that
+ * prepends its own observation rather than appending it, and a trusted range wide enough to
+ * contain real clients. Under any of them both address-keyed budgets rotate together for that
+ * caller, because `sa:<ip>:<hash>` *contains* the address, and the bounds that hold are the
+ * global key and the durable per-user lockout in `authentication_events`
+ * (`AUTH_MAX_FAILURES_IN_WINDOW`, 5 failures in 900 s) — the lockout being the one that actually
+ * catches a grind against a named account. The remedy is deployment-side and is written down for
+ * the operator, with the measured table behind it, in `docs/runbooks/deploy.md`.
+ *
+ * One part of that weakness **outlives D09**, and the paragraphs above would be read too kindly
  * without it. The source key is the address string as fastify hands it over, trimmed and
  * clamped and otherwise verbatim: there is no canonicalisation and no aggregation. So
  * `2001:DB8::1`, `2001:db8::1`, `::ffff:203.0.113.9` and `203.0.113.9` are four keys for what
  * may be one or two hosts, and — the part that matters — a caller on a single IPv6 /64 holds
- * 2^64 distinct source keys and can rotate through them for free even once proxy headers are
- * no longer trusted. Fixing D09 makes the source key *authentic*; it does not make it
- * *scarce*. The candidate fix is to canonicalise the address and key IPv6 at /64, which is
- * best done alongside D09 rather than before it, and it is recorded as a follow-up in
- * `docs/implementation-status.md` rather than left here as the only mention.
+ * 2^64 distinct source keys and can rotate through them for free now that proxy headers are no
+ * longer believed. D09 made the source key *authentic*; it did not make it *scarce*. The
+ * candidate fix is to canonicalise the address and key IPv6 at /64. It is **still open**, and
+ * it is recorded as follow-up 6 in `docs/implementation-status.md` rather than left here as
+ * the only mention.
  *
  * ## Why the account arrives as a hash
  *
@@ -121,12 +133,13 @@ import {
  * Memory is bounded in two directions, and it is worth saying which: in **key count**, because
  * at `maxKeys` the least recently seen window is dropped, and in **key length**, because the
  * source address is clamped to `MAX_SOURCE_KEY_LENGTH` before anything is keyed on it. The
- * length bound is not decoration — under D09 `request.ip` is the leftmost `X-Forwarded-For`
- * token verbatim, which fastify does not validate as an address, so without the clamp a caller
- * rotating kilobyte-long forged headers would grow these maps in bytes while staying inside
- * their bound in entries. An evicted key comes back with a fresh window: at worst that admits
- * a caller a little more than the budget says, never less. The same honesty applies to the
- * refusal flag below.
+ * length bound is not decoration — wherever a proxy is trusted, `request.ip` is a forwarded
+ * token taken verbatim, which nothing on the way here validates as an address, so without the
+ * clamp a caller who can put a value into that position and rotate kilobyte-long strings through
+ * it would grow these maps in bytes while staying inside their bound in entries. An evicted key
+ * comes back with a fresh
+ * window: at worst that admits a caller a little more than the budget says, never less. The
+ * same honesty applies to the refusal flag below.
  *
  * The clock is the one place the error runs the other way. The limiter tests a
  * window with `at - startedAt < windowMs`, which a *negative* delta also satisfies, so a clock
@@ -160,8 +173,9 @@ import {
  * That exclusion is a fix, not a decoration. Before it, a refusal under the `s:` or `g:` key —
  * budgets *everybody* spends — wrote a `failed` row bearing the session holder's user id and
  * counted towards `AUTH_MAX_FAILURES_IN_WINDOW` exactly as a wrong password did, so unrelated
- * traffic from the same office (or, under D09, from anywhere) could drive a named user into
- * their own 900-second lockout. The re-review of 2026-09-07 found it as N-2. The audit trail is
+ * traffic from the same office — or, wherever the address can be chosen, from anywhere — could
+ * drive a named user into their own 900-second lockout. The re-review of 2026-09-07 found it
+ * as N-2. The audit trail is
  * unchanged — the row is still written, still names the user, still carries the reason — and
  * only the counter stopped reading it.
  *
@@ -183,9 +197,16 @@ import {
  *    spray from saturating the host, while a single attacker would have to sustain ten
  *    admitted attempts a second to deny anybody else.
  *
- * What is left is D09: while `main.ts` sets `trustProxy: true`, one attacker can look like
- * thousands of addresses, and every one of those attempts is admitted by its own source key.
- * That is the one route to the global refusal, and it is a reason to fix D09.
+ * What is left is deployment-shaped rather than code-shaped, and D09 is what made it so. One
+ * attacker can still look like thousands of addresses — from behind a misconfigured trusted
+ * proxy (one that forwards the client's `X-Forwarded-For` untouched, one that prepends its own
+ * observation instead of appending it, or a trusted range broad enough to contain real clients),
+ * or across an IPv6 /64 they genuinely hold (follow-up 6) — and every one of those attempts is
+ * admitted by its own source key. That is the one route to the global refusal. A caller with no
+ * trusted proxy in front of them no longer has it: their address is the socket peer, and their
+ * own source key refuses them thirty attempts in. Configuring the proxy into one of the shapes
+ * `docs/runbooks/deploy.md` measures — an appending proxy, over a trusted list naming only the
+ * hops — closes the first half; nothing here closes the second.
  */
 
 export interface SignInAbuseOptions {
@@ -246,23 +267,31 @@ const GLOBAL_KEY = 'g';
  *
  * 45 is borrowed from the *width* of `authentication_events.ip`
  * (`migrations/0004_credentials.sql`) — the widest string that column was ever meant to hold —
- * rather than from anything about the row this refusal writes. The two are not kept in step and
- * the comment used to claim they were: `record()` passes `context.ip` and
- * `recordAuthenticationEvent` inserts it **untruncated**, so a forged header long enough to be
- * clamped here is a row the database rejects or truncates on its own terms. That is D09's to
- * settle, not this constant's, and it is carried into that slice as D08 **follow-up 1** in
- * `docs/implementation-status.md`. This comment used to point at the "what this does not
- * claim" list instead, which does not carry the claim: that list is about the rotatable
- * address, not about the column.
+ * rather than from anything about the row this refusal writes. The two used to drift, and this
+ * comment used to say so: `record()` passes `context.ip` and `recordAuthenticationEvent`
+ * inserted it **untruncated**, so a value long enough to be clamped here was a row the database
+ * rejected on its own terms — D08 **follow-up 1**. D09 closed that in `0f779fb`: the repository
+ * now clamps `ip` to 45 and `userAgent` to 255 **by code point** at the insert, so the key and
+ * the row are bounded the same way and an over-long value can no longer turn a refused sign-in
+ * into a 500. They are still two clamps rather than one derived from the other — nothing here
+ * reads the column's width back at runtime — and the database cases in
+ * `test/id-002-credentials.db.test.ts` are what keep them in step.
  *
  * 45 is also the *exact* maximum length of an IPv4-mapped IPv6 literal
  * (`0000:…:0000:255.255.255.255`), so the widest real address fits with nothing to spare, and a
  * zone identifier (`%eth0`) on such an address is past it and would be clamped. Neither shape
  * reaches this API in the bootstrap profile, and the cost if one did is a shared key rather
- * than a wrong decision — but "fits well inside it" was wrong and is not worth keeping. What
- * the bound is genuinely for is the other case: forged `X-Forwarded-For` tokens of arbitrary
- * length, which fastify does not validate and which would otherwise grow these maps in bytes
- * while staying inside their bound in entries.
+ * than a wrong decision — but "fits well inside it" was wrong and is not worth keeping.
+ *
+ * What the bound is genuinely for is the other case: a forwarded token of arbitrary length.
+ * Since D09 that can only arrive through a proxy the operator trusts, which is a narrower
+ * opening than "anyone who can set a header" — but it is not closed, because `request.ip` is
+ * then the right-most untrusted entry *verbatim* and no layer between the socket and this module
+ * checks that it is an address at all. Wherever a caller can reach that position — the three
+ * misconfigurations `docs/runbooks/deploy.md` measures, and equally a trusted proxy that simply
+ * forwards a long value it was handed — they can rotate kilobyte-long strings through it, and
+ * without this clamp those would grow these maps in bytes while staying inside their bound in
+ * entries.
  */
 const MAX_SOURCE_KEY_LENGTH = 45;
 

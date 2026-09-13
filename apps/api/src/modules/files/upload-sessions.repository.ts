@@ -81,11 +81,24 @@ const MAX_PAGE_SIZE = 200;
 /** The statuses under which a session still holds its bytes and its provider upload. */
 export const OPEN_STATUSES: readonly UploadSessionStatus[] = ['reserved', 'completing'];
 
+/**
+ * Whether a driver error is a duplicate-key violation.
+ *
+ * **Unwrapped first.** Drizzle wraps anything thrown during execution in a
+ * `DrizzleQueryError`, which carries no `code` of its own and keeps the driver's error on
+ * `cause`; `TenantDatabase` strips that wrapper only at the transaction boundary, and this
+ * runs inside the transaction, before that boundary is reached.
+ *
+ * Identified by the string `code` alone. mysql2 builds every server error in
+ * `Packet.asError`, the only place in the driver that assigns `errno`, and it sets `code`
+ * from its `ErrorCodeToName` table in the statement immediately before; 1062 has a name in
+ * that table, and `unwrapQueryError` returns that same error object — it removes `sql` and
+ * nothing else. A duplicate key therefore always arrives with the string.
+ */
 function isDuplicateKey(error: unknown): boolean {
   const unwrapped = unwrapQueryError(error);
   if (typeof unwrapped !== 'object' || unwrapped === null) return false;
-  const candidate = unwrapped as { code?: unknown; errno?: unknown };
-  return candidate.code === 'ER_DUP_ENTRY' || candidate.errno === 1062;
+  return (unwrapped as { code?: unknown }).code === 'ER_DUP_ENTRY';
 }
 
 export class UploadSessionsRepository {

@@ -159,7 +159,10 @@ export default tseslint.config(
             {
               group: ['@tmanage/api', '@tmanage/api/*', '**/apps/api/**'],
               message:
-                'Feature UI may depend on @tmanage/ui and generated @tmanage/contracts, never on API internals (18-REPOSITORY-STRUCTURE).',
+                'Feature UI may depend on @tmanage/ui, never on API internals (18-REPOSITORY-STRUCTURE). ' +
+                '@tmanage/contracts was named here and in package.json from the initial commit and never authored, ' +
+                'so it is not the alternative this message used to offer. The API and web response shapes are held ' +
+                'in step instead by e2e/contracts/api-web-shapes.ts, checked by `pnpm contracts:check` (D10).',
             },
             {
               group: [

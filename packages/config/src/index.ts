@@ -2,6 +2,8 @@ export {
   envSchema,
   loadEnv,
   EnvironmentValidationError,
+  AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT,
+  AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT,
   SESSION_COOKIE_NAME_DEFAULT,
   UPLOAD_MAX_PART_NUMBER,
   UPLOAD_PART_SIZE_DEFAULT_BYTES,
@@ -11,3 +13,5 @@ export {
 export type { Env } from './env.js';
 export { parseSeedKeys } from './seed-keys.js';
 export type { SeedKey, SeedKeyring } from './seed-keys.js';
+export { parseTrustedProxies } from './trusted-proxies.js';
+export type { TrustedProxies } from './trusted-proxies.js';

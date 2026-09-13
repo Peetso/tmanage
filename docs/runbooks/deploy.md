@@ -14,6 +14,155 @@ never from the passwords in that file, which exist for local development only.
 
 ---
 
+## D09 — the API only believes a proxy you have named
+
+**Read this before deploying any build from 2026-09-12 onwards.** Nothing locks anybody out and
+there is no migration to run. What changes is which address the API thinks a request came from,
+and every per-address control — the sign-in abuse budgets, the upload-part limiter, the address
+in every `authentication_events` row — follows it.
+
+### What changed
+
+The API used to pass Fastify `trustProxy: true`, which means "believe `X-Forwarded-For` from
+whoever sends it". Anyone who could reach the process could therefore choose the address it
+counted them under, simply by writing the header. It now believes forwarding headers **only from
+peers you have named**, in one new variable.
+
+### The variable
+
+`TRUSTED_PROXY_ADDRESSES` — a comma-separated list of IPv4/IPv6 addresses and CIDR ranges:
+
+```
+TRUSTED_PROXY_ADDRESSES=203.0.113.7,10.0.0.0/8,2001:db8::/32
+```
+
+**Leaving it unset or blank is the safe default, and it is the right value unless you actually
+run a reverse proxy in front of the API.** Unset, the API reads the socket peer — the address the
+connection genuinely came from — and `X-Forwarded-For` changes nothing. You do not have to
+configure anything to get that.
+
+If you do run a proxy in front of the API, set this to **the addresses or CIDR ranges of the
+proxies that actually front it, and nothing else**. Not the client networks, not "the office",
+not a range that is convenient — only the hops that terminate the connection and forward it.
+Every address in this list is a peer that is allowed to tell the API who somebody else is.
+
+A malformed value **fails the boot** and names the entry: a hostname instead of an address, a
+stray or trailing comma, `/33` on an IPv4 range. `/0` is refused by name as well — it matches
+every address, so it is the old trust-everybody setting spelled as a range. Nothing is silently
+repaired and nothing silently falls back. Only the API uses the value, but all four processes
+(API, worker, `verify`, `sweep`) load the same validated environment, so a malformed value set
+globally stops all of them.
+
+### How the address is picked, and the three ways it goes wrong
+
+This is the part that is easy to get wrong, and getting it wrong quietly gives back most of what
+the change bought — so the mechanism comes before the advice.
+
+When a request arrives from a trusted peer, `@fastify/proxy-addr` builds the list
+`[socket peer, ...X-Forwarded-For reversed]` and walks it from the socket peer inwards while
+each entry is one of your trusted peers. `request.ip` is the first entry it reaches that is
+**not** trusted, and it is taken **verbatim** — nothing between the socket and the API's controls
+checks that the entry is honest, or even that it is an address.
+
+Walking from the socket peer inwards means walking the header **from the right**. The address the
+API believes is therefore the **right-most entry your trusted peers did not write**. Measured
+against this branch's own `fastify@5.11.3`, with `TRUSTED_PROXY_ADDRESSES=203.0.113.7` and the
+connection arriving from `203.0.113.7`:
+
+| `X-Forwarded-For` the API receives | `request.ip`   |
+| ---------------------------------- | -------------- |
+| `198.51.100.9`                     | `198.51.100.9` |
+| `9.9.9.9, 198.51.100.9`            | `198.51.100.9` |
+| `1.1.1.1, 2.2.2.2, 198.51.100.9`   | `198.51.100.9` |
+| `9.9.9.9`                          | `9.9.9.9`      |
+| `198.51.100.9, 9.9.9.9`            | `9.9.9.9`      |
+| (header absent)                    | `203.0.113.7`  |
+
+Rows two and three are the ones to read twice. A proxy that **appends** its own observation puts
+that observation at the right-hand end, which is the first untrusted entry reached walking from
+the right — so the client's invented entries, which sit to its **left**, are never looked at.
+**Appending is the safe form**, and in most of the servers below it is the default or the
+recommended setting. Earlier revisions of this section said the reverse and told you to make the
+proxy overwrite the header; that was wrong, and the nginx directive it recommended is actively
+harmful (see below).
+
+Three shapes do break it, and these are what to check for:
+
+**(a) The proxy forwards the client's `X-Forwarded-For` through untouched** — row four. Nothing
+trusted is added to the right, so the first untrusted entry is whatever the client wrote, and the
+client picks the address every per-address control counts them under.
+
+**(b) The proxy puts its own observation _before_ the client's value** — row five. The proxy's
+honest entry is to the left of the client's invented one, so the walk stops on the client's.
+
+**(c) The trusted list is broad enough to contain real clients.** With
+`TRUSTED_PROXY_ADDRESSES=10.0.0.0/8`, a connection from `10.0.0.1` and a header of
+`9.9.9.9, 10.5.5.5`, `request.ip` is `9.9.9.9`: the walk trusts `10.5.5.5` because it is inside
+the range, steps past it, and lands on the client's entry. Every address in the list must be a
+hop that terminates connections and forwards them, and nothing else.
+
+### What to configure
+
+- **nginx** — `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`. nginx sends no
+  `X-Forwarded-For` of its own unless you ask it to, and the nginx documentation defines this
+  variable as the client's `X-Forwarded-For` "with the `$remote_addr` variable appended to it,
+  separated by a comma" — nginx's own observation goes last, which is exactly the shape above.
+  Do **not** use `proxy_set_header X-Forwarded-For $remote_addr;`. In the CDN → nginx → API
+  topology this runbook contemplates, `$remote_addr` at nginx is the **CDN**, so every client in
+  the deployment collapses into one address and `RATE_LIMIT_AUTH_MAX_PER_SOURCE` (30 charges per
+  five minutes, about fifteen complete MFA sign-ins) applies to all of them at once — a sign-in
+  outage produced by configuration alone.
+- **Apache** — leave `ProxyAddHeaders` at its default of `On` and add nothing in front of it.
+  The Apache documentation says the header "will contain more than one (comma-separated) value if
+  the original request already contained one", with the client address appended — the safe form,
+  already correct out of the box. Do not add a `RequestHeader set X-Forwarded-For` before
+  `mod_proxy`: it discards the chain a CDN in front of you wrote, with the same collapsing effect
+  as the nginx case above.
+- **Caddy** — `reverse_proxy` "sets or augments" `X-Forwarded-For`, and the Caddy documentation
+  states that for the `X-Forwarded-*` headers "by default, the proxy will ignore their values
+  from incoming requests, to prevent spoofing". That default is safe. If a real proxy or CDN sits
+  in front of Caddy, set `trusted_proxies` — the documentation recommends the global
+  `servers > trusted_proxies` option — so Caddy keeps the upstream chain instead of discarding it.
+- **Traefik** — on the entrypoint, set `forwardedHeaders.trustedIPs` to the addresses or ranges of
+  whatever sits in front of Traefik; Traefik then trusts `X-Forwarded-*` only from those sources.
+  Do not use `forwardedHeaders.insecure`, which trusts everyone and which the documentation
+  recommends "only for tests purposes, not in production". **Unverified:** Traefik's own
+  documentation does not state whether it appends its observation to the right of an existing
+  chain or replaces the chain, so which of the shapes above it produces has not been confirmed
+  here. Establish it with the check below before relying on it.
+- **Any other edge, and any CDN in front of any of the above** — unverified here. Nothing in this
+  list was tested against a live deployment; the vendor statements above are quoted from the
+  vendors' own documentation, and the fastify table above was measured. Run the check below.
+
+**With more than one hop in front of the API, name them all.** In a CDN → nginx → API topology
+with nginx appending correctly, the header the API sees is `<client>, <CDN>` and the socket peer
+is nginx. If `TRUSTED_PROXY_ADDRESSES` names only nginx, the walk stops on the CDN's address and
+every client collapses into it — the same outage as the `$remote_addr` mistake, reached from the
+other direction. Naming both nginx and the CDN's egress ranges yields the client. This is the one
+legitimate reason the list is ever longer than one entry, and it does not license hazard (c):
+those ranges must be the CDN's egress, never a network that carries clients.
+
+If you cannot establish which shape your proxy produces, leave `TRUSTED_PROXY_ADDRESSES` unset.
+The API will then count everybody behind the proxy as one address, which throttles honest shared
+traffic (raise `RATE_LIMIT_AUTH_MAX_PER_SOURCE` deliberately if it bites) but tells no lies.
+
+### Checking it after the deploy
+
+Sign in once from a client whose address you know, and read the `ip` column of the newest
+`authentication_events` row. Unset, it should be the address of whatever connects to the API
+directly. With a proxy configured, it should be the real client address — and if you then send a
+request with a forged `X-Forwarded-For` from a machine that is **not** in the list, the row must
+show that machine's own address rather than the forged one.
+
+Then check for hazards (a) and (b), which the test above does not distinguish from a correct
+setup. From a client whose address you know, sign in once sending a header of your own:
+`X-Forwarded-For: 192.0.2.111`. The `ip` column must show your **real** client address. If it
+shows `192.0.2.111`, your proxy is either passing the header through untouched or prepending its
+own observation, and until that is fixed anyone can choose the address they are counted under —
+unset `TRUSTED_PROXY_ADDRESSES` in the meantime.
+
+---
+
 ## D07 — TOTP seeds are encrypted at rest
 
 **Read this before deploying any build from 2026-09-06 onwards onto an environment that has

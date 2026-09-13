@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parseSeedKeys } from './seed-keys.js';
+import { parseTrustedProxies } from './trusted-proxies.js';
 
 /**
  * Environment schema for every TManage process.
@@ -41,6 +42,49 @@ export const UPLOAD_PART_SIZE_MAX_BYTES = 67_108_864;
  * is never minted a target the route would refuse.
  */
 export const UPLOAD_MAX_PART_NUMBER = 99_999;
+
+/**
+ * ID-002's durable, per-**user** lockout threshold: this many `bad_password` rows inside
+ * `AUTH_FAILURE_WINDOW_SECONDS` and the account is `locked_out`.
+ *
+ * Exported because `AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT` below is only meaningful
+ * relative to it, and two literals free to drift apart is exactly the failure the
+ * refinement at the bottom of this file exists to refuse.
+ */
+export const AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT = 5;
+/**
+ * Security audit 2026-09-12, finding C-1. The in-process budget for one source address
+ * grinding one account (`RATE_LIMIT_AUTH_MAX_REQUESTS`), which **must stay strictly below**
+ * `AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT`.
+ *
+ * It shipped at 10 against a lockout threshold of 5, and ten is larger than five. That
+ * inverted the whole point of the narrow key: five wrong passwords from one address sat
+ * comfortably inside the budget and drove any *known* account into a 900-second
+ * `locked_out`, renewably, for the price of five requests a quarter-hour from one IP. The
+ * victim had no way out either — `confirmReauthentication` reads the *same*
+ * `countRecentFailures` window, and re-authentication is the only gate to `setPassword`, so
+ * a locked-out person could not change their password to escape.
+ *
+ * Four, not five: the relation has to be strict, or the budget is spent on the very attempt
+ * that trips the lockout. Four is also comfortably above ordinary use — the source+account
+ * key is the *narrow* one, and a person retyping their own password four times in five
+ * minutes against one account is already unusual; the per-address ceiling they actually
+ * live under is `RATE_LIMIT_AUTH_MAX_PER_SOURCE` (30).
+ *
+ * **What this does not fix, stated here so nobody reads it as solved.** The two windows are
+ * different lengths — this budget is per `RATE_LIMIT_AUTH_WINDOW_SECONDS` (300 s) while the
+ * lockout counts over `AUTH_FAILURE_WINDOW_SECONDS` (900 s) — so one address still gets
+ * 4 × 3 = 12 admitted failures inside one lockout window, which is more than 5. The
+ * single-address lockout is therefore made slower and noisier, **not impossible**: it now
+ * costs a first window to arm instead of landing on the fifth request. Closing it properly
+ * means not letting a *wrong* password deny a *right* one — verify first, and apply the
+ * durable window only to the failing path — which is a behaviour change to
+ * `authentication.service.ts`, not a number, and is recorded as the next item rather than
+ * smuggled in here. No value of this constant closes it: the relation that would
+ * (`budget × ceil(900/300) < 5`) forces it to 1, which refuses a real person their second
+ * try, and success is not exempt from the count.
+ */
+export const AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT = 4;
 
 /**
  * Connection strings must be explicit about scheme so a typo cannot silently work — the
@@ -134,6 +178,30 @@ export const envSchema = z
     API_PUBLIC_URL: z.string().url(),
     WEB_PUBLIC_URL: z.string().url(),
     CORS_ALLOWED_ORIGINS: originList,
+    /**
+     * D09. The peers whose `X-Forwarded-*` headers are believed — a comma-separated list of
+     * addresses and CIDR ranges — and nobody else's. **Unset means trust nobody**, so an
+     * origin with no proxy in front of it reads the socket peer and gets the truth without
+     * configuring anything; an operator who does run behind a proxy names it.
+     *
+     * The parsed value is handed to Fastify's `trustProxy` as it stands (`false`, or the
+     * list): see `trusted-proxies.ts` for why the shape is the two Fastify forms rather than
+     * a hop count, and why a malformed list fails here instead of quietly becoming `false`.
+     */
+    TRUSTED_PROXY_ADDRESSES: z
+      .string()
+      .default('')
+      .transform((value, ctx) => {
+        try {
+          return parseTrustedProxies(value);
+        } catch (error) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: error instanceof Error ? error.message : 'is not a valid address list',
+          });
+          return z.NEVER;
+        }
+      }),
 
     // Database — two distinct users (ADR-0001 layer 2, 25-AUTH-AND-TENANT-ISOLATION §5).
     DATABASE_URL: mysqlUrl,
@@ -206,7 +274,7 @@ export const envSchema = z
     // limits; there is none on the shared host `50-BOOTSTRAP` targets, so this is counted
     // from `authentication_events`. Both values are per **user**, which is the limitation
     // recorded in `docs/implementation-status.md` rather than smoothed over here.
-    AUTH_MAX_FAILURES_IN_WINDOW: positiveInt.default(5),
+    AUTH_MAX_FAILURES_IN_WINDOW: positiveInt.default(AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT),
     AUTH_FAILURE_WINDOW_SECONDS: positiveInt.default(900),
     // The issuer an authenticator application shows beside the code. A brand string, not a
     // secret; it appears in the `otpauth://` URI and therefore in the QR code.
@@ -284,6 +352,12 @@ export const envSchema = z
      * names, and `RATE_LIMIT_AUTH_MAX_GLOBAL` bounds every address together — the one an
      * attacker rotating addresses cannot evade.
      *
+     * `RATE_LIMIT_AUTH_MAX_REQUESTS` is the one of the four that is **not** free to choose:
+     * it must stay strictly below `AUTH_MAX_FAILURES_IN_WINDOW`, and the refinement at the
+     * bottom of this file refuses to boot a configuration where it is not. See
+     * `AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT` at the top of this file for why (audit
+     * C-1), including what the relation still does not buy.
+     *
      * These are ceilings for the bootstrap profile, not a traffic plan: they are set where
      * ordinary use never reaches them, and lowering them is a deliberate act. The per-source
      * default is 30 rather than 5 because success is not exempt from the count, so a real
@@ -303,13 +377,20 @@ export const envSchema = z
      * The global budget is unevadable in both directions, and that cuts against the
      * deployment as much as for it: nobody can rotate addresses past it, and anybody who
      * spends it refuses everybody — password, MFA, recovery and reauthentication alike —
-     * until the window turns. That is why it is 3000 (about ten a second) rather than 600. At
-     * 600 a twenty-source spray, trivial for as long as `trustProxy: true` stands (D09), buys
-     * a repeatable authentication outage for about two requests a second; at 3000 the same
-     * outage costs an attacker real sustained traffic, while the Argon2 and log cost the
-     * budget exists to bound is still bounded.
+     * until the window turns. That is why it is 3000 (about ten a second) rather than 600.
+     *
+     * A twenty-source spray is still cheap, and D09 did not make it expensive: it made
+     * `request.ip` *authentic* (`TRUSTED_PROXY_ADDRESSES` above), not *scarce*. A caller on a
+     * single IPv6 /64 has 2^64 real addresses to spray from, and a caller behind a **badly
+     * configured** trusted proxy still writes the value outright — one that forwards their
+     * `X-Forwarded-For` untouched, one that prepends its own observation instead of appending
+     * it, or a trusted range wide enough to contain them. (An *appending* proxy is the safe
+     * shape, not the dangerous one; `docs/runbooks/deploy.md` has the measured table.) At 600
+     * that spray buys a repeatable authentication outage for about two
+     * requests a second; at 3000 the same outage costs an attacker real sustained traffic,
+     * while the Argon2 and log cost the budget exists to bound is still bounded.
      */
-    RATE_LIMIT_AUTH_MAX_REQUESTS: positiveInt.default(10),
+    RATE_LIMIT_AUTH_MAX_REQUESTS: positiveInt.default(AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT),
     RATE_LIMIT_AUTH_WINDOW_SECONDS: positiveInt.default(300),
     RATE_LIMIT_AUTH_MAX_PER_SOURCE: positiveInt.default(30),
     RATE_LIMIT_AUTH_MAX_GLOBAL: positiveInt.default(3000),
@@ -415,6 +496,23 @@ export const envSchema = z
     }
     if (env.SMTP_PASSWORD !== undefined && env.SMTP_USERNAME === undefined) {
       fail('SMTP_USERNAME', 'required when SMTP_PASSWORD is set');
+    }
+
+    // Security audit 2026-09-12, C-1. The narrow abuse budget must stop one address
+    // *before* that address can reach the durable per-user lockout, or the lockout stops
+    // being a protection and becomes a remotely triggered outage the account holder cannot
+    // clear: `confirmReauthentication` reads the same counter, so a locked-out person
+    // cannot even change their password to escape it.
+    //
+    // Checked in every environment, not only production. A development or test deployment
+    // with the inverted relation is where the inversion gets copied from, and this is the
+    // relation `id-002-credentials.db.test.ts` already asserts of its own literals — here it
+    // is asserted of the configuration that actually boots.
+    if (env.RATE_LIMIT_AUTH_MAX_REQUESTS >= env.AUTH_MAX_FAILURES_IN_WINDOW) {
+      fail(
+        'RATE_LIMIT_AUTH_MAX_REQUESTS',
+        `must be strictly below AUTH_MAX_FAILURES_IN_WINDOW (${env.RATE_LIMIT_AUTH_MAX_REQUESTS} >= ${env.AUTH_MAX_FAILURES_IN_WINDOW}): one address could then drive any known account into the ${env.AUTH_FAILURE_WINDOW_SECONDS}s lockout, which the account holder cannot clear`,
+      );
     }
 
     // The runtime and migration users must be distinct. MySQL has no row-level security,

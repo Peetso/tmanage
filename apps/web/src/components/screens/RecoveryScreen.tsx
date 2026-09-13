@@ -50,10 +50,19 @@ export interface RecoveryScreenProps {
  * The two asserting branches survive because `41` line 36 approves all four states for ID-05 and
  * the design must stay reviewable. They are reachable only from a caller holding a real result,
  * and there is no such caller yet: ID-002 owns the operation that would produce one. So while it
- * is unbuilt both branches carry the same `BackendPending` notice `request` does, naming ID-002
- * and denying each claim in turn. The approved copy is untouched; what changed is that it can no
- * longer be read as a report of something that happened. When ID-002 lands, the notice comes off
- * the state its operation substantiates — and not before.
+ * is unbuilt every branch carries the same `BackendPending` notice `request` does, denying each
+ * claim in turn. The approved copy is untouched; what changed is that it can no longer be read as
+ * a report of something that happened. When ID-002 lands, the notice comes off the state its
+ * operation substantiates — and not before.
+ *
+ * ## What each notice now says, and to whom
+ *
+ * The ticket id is rendered only in a development build — see `BackendPending`. A person locked
+ * out of their account cannot act on `ID-002`, and on this screen of all screens the notice used
+ * to end without telling them anything they could do. Every state now names the one route back
+ * in that exists today: whoever administers their workspace can reset the password for them. No
+ * support address, no phone number and no turnaround are given, because this application has
+ * none of the three and inventing one would be the same defect in a friendlier voice.
  */
 export function RecoveryScreen({ state = 'request' }: RecoveryScreenProps) {
   const [email, setEmail] = useState('');
@@ -74,7 +83,9 @@ export function RecoveryScreen({ state = 'request' }: RecoveryScreenProps) {
           </div>
 
           <BackendPending ticket="ID-002">
-            No recovery email is sent. The form below does not submit anywhere.
+            You cannot reset your own password here yet. No recovery email is sent, and the form
+            below does not submit. To get back into your account, ask whoever administers your
+            TManage workspace to reset your password for you.
           </BackendPending>
 
           <form className="tm-stack" onSubmit={(event) => event.preventDefault()}>
@@ -105,8 +116,9 @@ export function RecoveryScreen({ state = 'request' }: RecoveryScreenProps) {
           </div>
 
           <BackendPending ticket="ID-002">
-            No recovery email was sent. Nothing in this application dispatches one yet, so the
-            wording below is the designed state and not a report of a delivery.
+            No recovery email was sent. Nothing in this application sends one yet, so the wording
+            below is the designed state and not a report of a delivery. To get back into your
+            account, ask whoever administers your TManage workspace to reset your password for you.
           </BackendPending>
 
           <InlineAlert tone="neutral" title="A link may be on its way">
@@ -121,17 +133,26 @@ export function RecoveryScreen({ state = 'request' }: RecoveryScreenProps) {
       ) : null}
 
       {/*
-        The last branch that makes a claim with no caveat beside it: "That link has expired" is a
-        statement about a link this application never issued. It is not part of D15 — the route
-        cannot reach it, so nobody is told it — and it is left alone rather than papered over.
-        When ID-002 lands, this is the branch to decide about: either a real expiry substantiates
-        it, or it needs the same `BackendPending` notice `sent` and `completed` now carry.
+        "That link has expired" is a statement about a link this application never issued, and
+        the control it offers instead — "Request a new link" — is disabled. Until 2026-09-12 the
+        branch was left alone on the grounds that the route cannot reach it, so nobody is told
+        it. That reasoning covered the claim; it did not cover the dead end. Whoever does reach
+        this state, from a caller that does not exist yet, would be looking at a locked account,
+        a disabled button and no way forward. So it now carries the same notice the other three
+        do, with the same next step. When ID-002 lands, a real expiry substantiates the heading
+        and the notice comes off.
       */}
       {state === 'expired' ? (
         <>
           <div className="tm-stack tm-stack--tight">
             <h1 className="tm-identity__title">That link has expired</h1>
           </div>
+
+          <BackendPending ticket="ID-002">
+            No recovery link was issued, so there is nothing here to renew. To get back into your
+            account, ask whoever administers your TManage workspace to reset your password for you.
+          </BackendPending>
+
           <InlineAlert tone="warning" title="Recovery links are never extended">
             For safety we do not extend recovery links. Request a new one — it takes a few seconds.
           </InlineAlert>
@@ -151,7 +172,9 @@ export function RecoveryScreen({ state = 'request' }: RecoveryScreenProps) {
 
           <BackendPending ticket="ID-002">
             No recovery has run. No access was restored, no session was signed out and no audit row
-            was written. This is the designed state, drawn for review — not a result.
+            was written. This is the designed state, drawn for review — not a result. If you are
+            locked out, ask whoever administers your TManage workspace to reset your password for
+            you.
           </BackendPending>
 
           <InlineAlert tone="success" title="Your other sessions were signed out">

@@ -28,10 +28,9 @@
     "db:grants": "pnpm --filter @tmanage/api db:grants",
     "db:reset": "pnpm --filter @tmanage/api db:reset",
     "db:seed": "pnpm --filter @tmanage/api db:seed",
-    "contracts:validate": "pnpm --filter @tmanage/contracts validate",
-    "contracts:generate": "pnpm --filter @tmanage/contracts generate",
+    "contracts:check": "node scripts/contracts-check.mjs",
     "dev": "pnpm --parallel --filter @tmanage/api --filter @tmanage/web --filter @tmanage/worker dev",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm contracts:validate && pnpm audit:design && pnpm test",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm contracts:check && pnpm audit:design && pnpm test",
     "test:e2e": "pnpm --filter @tmanage/e2e test:e2e",
     "test:vr": "pnpm --filter @tmanage/ui test:vr",
     "test:vr:update": "pnpm --filter @tmanage/ui test:vr:update"

@@ -1,11 +1,23 @@
 {
-  // Typecheck covers `tests/` as well as `src/`, for the reason `packages/ui` gives: a
-  // test that no longer compiles against a component's props is the first evidence that
-  // the component's contract moved, and evidence that is never compiled is not evidence.
+  // Typecheck covers `tests/`, `stories/` and `.storybook/` as well as `src/`, for the reason
+  // `packages/ui` gives: a test or a story that no longer compiles against a component's props
+  // is the first evidence that the component's contract moved, and evidence that is never
+  // compiled is not evidence. A story is the weaker of the two — nothing asserts on it — so
+  // compiling it is the only check it gets.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.config.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "stories/**/*.ts",
+    "stories/**/*.tsx",
+    ".storybook/**/*.ts",
+    ".storybook/**/*.tsx",
+    "vitest.config.ts"
+  ],
   "exclude": ["node_modules", ".next"]
 }

@@ -9,7 +9,9 @@
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "vitest run",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "storybook": "storybook dev -p 6008 --no-open",
+    "build:storybook": "storybook build -o storybook-static"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.4",
@@ -20,16 +22,19 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@storybook/react-vite": "^10.5.10",
     "@testing-library/jest-dom": "^7.0.1",
-    "@tmanage/config": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.6",
+    "@tmanage/config": "workspace:*",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^5.1.0",
     "axe-core": "^4.13.0",
     "jsdom": "^30.0.1",
+    "storybook": "^10.5.10",
     "typescript": "^5.9.2",
+    "vite": "^7.3.6",
     "vitest": "^3.2.4"
   }
 }

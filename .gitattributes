@@ -1,0 +1,143 @@
+# Line endings are decided here, not by whatever core.autocrlf a checkout has.
+#
+# Why this file exists
+# --------------------
+# Every checkout of this repository on the Windows development machine carries
+# core.autocrlf=true, while .prettierrc.json sets "endOfLine": "lf". The two
+# disagree, and the disagreement has cost real time:
+#   * a clean `git merge` writes its merged files back out as CRLF, so
+#     `pnpm format:check` fails straight afterwards on files nobody edited, and
+#     each merge had to be repaired by hand with `git show :<path> > <path>`;
+#   * a fresh `git worktree add` off master comes out with every tracked text
+#     file CRLF in the working tree (671 of them on 2026-09-12), so the format
+#     gate is red before a single line of work is done;
+#   * a checkout in that state reports files as modified whose content is
+#     byte-identical to the index, and `git diff` prints nothing to explain it,
+#     which leaves `git status` with almost no signal;
+#   * reports acquired a standing "format:check fails at base, not my doing"
+#     exception, which is exactly the note that hides a real failure later.
+#
+# Attributes act at check-in and checkout. They do NOT renormalise a working
+# tree that already exists: an existing checkout still needs the
+# one-time `git add --renormalize` sequence recorded in the branch report
+# (x4-report.md) and in the implementation-status entry for this change.
+
+# ---------------------------------------------------------------------------
+# Baseline
+# ---------------------------------------------------------------------------
+# `text=auto` leaves text-vs-binary to Git's content heuristic (binary if a NUL
+# byte appears in the first 8000 bytes); `eol=lf` then pins the working-tree
+# ending for everything judged text, overriding core.autocrlf and core.eol.
+# Since Git 2.10 `eol` no longer defeats that detection, so binaries survive
+# this line — but a heuristic is still a heuristic, so every binary format
+# actually present here is named explicitly below rather than trusted to it.
+#
+# What this line does not do: it does not renormalise history or an existing
+# working tree, does not add a missing final newline, does not touch trailing
+# whitespace, and says nothing about diff/merge treatment of binaries.
+* text=auto eol=lf
+
+# ---------------------------------------------------------------------------
+# Text, named explicitly
+# ---------------------------------------------------------------------------
+# Everything Prettier, ESLint or tsc reads. These are redundant with the
+# baseline while detection behaves; they exist so that a file which happens to
+# contain an early NUL byte (a fixture, a generated blob) cannot silently be
+# reclassified and checked out with CRLF.
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.svg   text eol=lf
+*.toml  text eol=lf
+*.txt   text eol=lf
+*.dbml  text eol=lf
+.env.example text eol=lf
+
+# Dot-files that would otherwise fall through to the baseline's content check.
+.gitattributes  text eol=lf
+.gitignore      text eol=lf
+.gitmodules     text eol=lf
+.prettierignore text eol=lf
+.editorconfig   text eol=lf
+.npmrc          text eol=lf
+.nvmrc          text eol=lf
+
+# SQL migrations. apps/api/src/common/database/migrator.ts already collapses
+# \r\n to \n before hashing, so pinning LF cannot invalidate a checksum already
+# recorded in schema_migrations. The rule is here to stop an editor committing a
+# CRLF blob that then reads as a change to an applied migration.
+*.sql text eol=lf
+
+# pnpm writes the lockfile with LF and rewrites it wholesale when it finds CRLF.
+# The lockfile is listed in .prettierignore, so the format gate would never
+# catch that churn — this is the only place it can be pinned.
+pnpm-lock.yaml text eol=lf
+
+# Shell scripts must be LF: with CRLF the kernel reads the shebang as
+# `/usr/bin/env bash\r` and fails with "bad interpreter". None are tracked today
+# (checked 2026-09-12); the rule is here so the first one added is correct.
+*.sh   text eol=lf
+*.bash text eol=lf
+
+# ---------------------------------------------------------------------------
+# Text that genuinely needs CRLF
+# ---------------------------------------------------------------------------
+# cmd.exe mis-parses labels and GOTO in a batch file with bare LF endings, so
+# these are the one exception to the LF rule. Checked on 2026-09-12: this
+# repository tracks no .bat and no .cmd, so these lines change nothing today and
+# protect the first one committed.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# ---------------------------------------------------------------------------
+# Binary — never converted, never diffed, never merged
+# ---------------------------------------------------------------------------
+# `binary` is Git's built-in macro for `-text -diff -merge`. Enumerated from
+# `git ls-files` on 2026-09-12 rather than left to detection: 108 .png (largely
+# the Storybook visual-regression baselines, where a single converted byte would
+# fail every VR shot), 24 .ttf, 12 .woff2, 12 .woff, 12 .eot, 10 .otf, 3 .webp,
+# 3 .jpg, and one WebP file whose name is nothing but an extension.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.eot   binary
+docs/design/source/project/.thumbnail binary
+
+# Not tracked today (checked 2026-09-12), listed because each is a format a
+# single CRLF substitution corrupts and none should ever wait on someone
+# noticing after the fact.
+*.ico   binary
+*.gif   binary
+*.avif  binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.tgz   binary
+*.7z    binary
+*.mp4   binary
+*.mp3   binary
+*.wav   binary
+*.wasm  binary
+*.node  binary
+*.xlsx  binary
+*.docx  binary
+*.pptx  binary
+
+# Patch files carry their own line endings as payload; converting them makes
+# `git apply` reject the hunk. Not tracked today, but they are produced by hand
+# during merges here.
+*.patch -text
+*.diff  -text

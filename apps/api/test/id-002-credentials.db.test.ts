@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
-import { parseSeedKeys } from '@tmanage/config';
+import {
+  AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT,
+  AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT,
+  parseSeedKeys,
+} from '@tmanage/config';
 import type { RowDataPacket } from 'mysql2/promise';
 import { IdentityScopeViolation, TenantDatabase } from '../src/common/database/tenant-context.js';
 import {
@@ -680,6 +684,17 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
     // The point of "ahead of": the address is refused while the account is still three
     // failures into a window that wants five.
     expect(MAX_PER_SOURCE_ACCOUNT).toBeLessThan(OPTIONS.maxFailuresInWindow);
+
+    // Audit C-1. The two lines above are a property of literals this file chose, and that is
+    // exactly why this test stayed green while the product shipped 10 against 5. The harness
+    // must at least not lie about the threshold it is modelling, and the shipped pair must
+    // hold the same relation the mechanism below demonstrates. The binding assertions live
+    // in `packages/config/src/env.test.ts` and `src/common/http/api-config.test.ts`, which
+    // run without a database; these two keep this file honest about what it is a model of.
+    expect(OPTIONS.maxFailuresInWindow).toBe(AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT);
+    expect(AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT).toBeLessThan(
+      AUTH_MAX_FAILURES_IN_WINDOW_DEFAULT,
+    );
 
     const grinding = tightlyBounded({
       maxPerSource: 100,
@@ -2148,6 +2163,157 @@ describe('the log', () => {
         await db.query('select id from projects limit 1', []);
       }),
     ).rejects.toBeInstanceOf(IdentityScopeViolation);
+  });
+});
+
+/**
+ * `D09`, task 4. What the log row is allowed to be, against the columns it actually has.
+ *
+ * `authentication_events.ip` is `VARCHAR(45)` and `user_agent` is `VARCHAR(255)`
+ * (`migrations/0004_credentials.sql`), and both values come from request headers. Since
+ * D09 tasks 1–3 the API believes a forwarded address where — and only where — the operator
+ * named a trusted proxy, and behind such a proxy `request.ip` is the last forwarded entry
+ * *verbatim*: `@fastify/proxy-addr` never validates that final element, so its length is the
+ * client's to choose. `User-Agent` has always been unbounded.
+ *
+ * Under strict mode an over-long value is `ER_DATA_TOO_LONG`, and this insert sits on the
+ * **failure** path of sign-in. So the row that a long forged header destroys is the row that
+ * is the only trace of the sweep that sent it — and the caller sees a 500 instead of the
+ * refusal it earned. The fix is a clamp at the insert rather than a rejection, for exactly
+ * that reason: a truncated trace is worth more than no trace.
+ *
+ * These cases go through the real repository against the real server, because what is being
+ * proved is what the *engine* accepts. `clampToColumnCharacters` has its own unit cases in
+ * `src/modules/identity/credentials.repository.test.ts` for the string shapes.
+ */
+describe('D09 — the log row is clamped to the columns that hold it', () => {
+  /** One row, written by the production insert, then read back unguarded. */
+  async function record(input: { ip: string | null; userAgent: string | null }) {
+    await tenant.identityTransaction(identity(), (tx) =>
+      repository.recordAuthenticationEvent(tx, {
+        userId: owner().id,
+        action: 'password_sign_in',
+        outcome: 'failed',
+        reason: 'bad_password',
+        ip: input.ip,
+        userAgent: input.userAgent,
+      }),
+    );
+    const rows = await events(owner().id);
+    expect(rows).toHaveLength(1);
+    return rows[0]!;
+  }
+
+  it('stores the leading 45 characters of a forged address, and does not throw', async () => {
+    const row = await record({ ip: 'a'.repeat(300), userAgent: 'vitest' });
+
+    expect(row['ip']).toBe('a'.repeat(45));
+    expect(String(row['ip'])).toHaveLength(45);
+    // The row survived, which is the whole point: this is the enumeration trace.
+    expect(row['reason']).toBe('bad_password');
+    expect(row['user_agent']).toBe('vitest');
+  });
+
+  it('stores the leading 255 characters of an unbounded user agent', async () => {
+    const row = await record({ ip: '203.0.113.9', userAgent: 'b'.repeat(1000) });
+
+    expect(row['user_agent']).toBe('b'.repeat(255));
+    expect(String(row['user_agent'])).toHaveLength(255);
+    expect(row['ip']).toBe('203.0.113.9');
+  });
+
+  /**
+   * The widest address the column was sized for: an IPv6 literal with an embedded IPv4
+   * suffix. Forty-five characters exactly, so it is the case a clamp off by one would break.
+   */
+  it('round-trips a full-width IPv6-with-IPv4 address unchanged', async () => {
+    const address = '0000:0000:0000:0000:0000:ffff:255.255.255.255';
+    expect(address).toHaveLength(45);
+
+    const row = await record({ ip: address, userAgent: 'Mozilla/5.0 (X11; Linux x86_64)' });
+
+    expect(row['ip']).toBe(address);
+    expect(row['user_agent']).toBe('Mozilla/5.0 (X11; Linux x86_64)');
+  });
+
+  it('keeps an explicitly null address and agent as NULL', async () => {
+    const row = await record({ ip: null, userAgent: null });
+
+    expect(row['ip']).toBeNull();
+    expect(row['user_agent']).toBeNull();
+  });
+
+  /** The other spelling of absence: the caller passes neither field at all. */
+  it('keeps an omitted address and agent as NULL', async () => {
+    await tenant.identityTransaction(identity(), (tx) =>
+      repository.recordAuthenticationEvent(tx, {
+        userId: owner().id,
+        action: 'password_sign_in',
+        outcome: 'failed',
+        reason: 'bad_password',
+      }),
+    );
+    const rows = await events(owner().id);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!['ip']).toBeNull();
+    expect(rows[0]!['user_agent']).toBeNull();
+  });
+
+  /**
+   * The engine's own opinion of what a "character" is, which is the reason the clamp counts
+   * code points rather than UTF-16 units. Three hundred astral-plane characters are 600
+   * UTF-16 units; clamped to 255 *characters* they are 1020 bytes in a `VARCHAR(255)` that
+   * the server accepts, and reading the row back yields exactly 255 of them. A UTF-16 slice
+   * would have written 255 units — 127 whole characters and half of a 128th — and stored
+   * something the request never sent. The case below this one shows exactly what.
+   */
+  it('measures the bound the way the utf8mb4 column measures it', async () => {
+    const agent = '😀'.repeat(300);
+    expect(agent).toHaveLength(600);
+
+    const row = await record({ ip: '中'.repeat(60), userAgent: agent });
+
+    expect(row['user_agent']).toBe('😀'.repeat(255));
+    expect(Array.from(String(row['user_agent']))).toHaveLength(255);
+    expect(row['ip']).toBe('中'.repeat(45));
+    expect(Array.from(String(row['ip']))).toHaveLength(45);
+  });
+
+  /**
+   * What a UTF-16 slice would actually have cost, demonstrated against the real driver and
+   * the real server rather than argued in a comment.
+   *
+   * The input here is not what the clamp produces — it is what `slice(0, 45)` produces from
+   * the same source string: two ASCII characters, 21 whole emoji, and then a lone high
+   * surrogate where the 22nd was cut in half. It is 45 UTF-16 units and short enough that
+   * `clampToColumnCharacters` returns it untouched, so what this case exercises is purely the
+   * path from a JavaScript string to a `utf8mb4` column.
+   *
+   * Nothing raises. mysql2 maps `utf8mb4` to Node's `'utf8'` encoding and encodes parameters
+   * with `Buffer.from`, which substitutes U+FFFD for an unpaired surrogate before any byte
+   * reaches the socket, so the server is handed valid text and stores it. The row that comes
+   * back is therefore both wrong and short: a replacement character the client never sent
+   * standing in for the character the slice destroyed, and 24 characters in a column the
+   * slice was aiming to fill to 45. That silent rewrite is what the code-point clamp exists
+   * to avoid — not an `Incorrect string value` this stack never produces.
+   */
+  it('would have stored U+FFFD for a character a UTF-16 slice cut in half', async () => {
+    const source = `ab${'😀'.repeat(60)}`;
+    const sliced = source.slice(0, 45);
+    expect(sliced).toBe(`ab${'😀'.repeat(21)}\uD83D`);
+    expect(sliced).toHaveLength(45);
+
+    const row = await record({ ip: sliced, userAgent: 'vitest' });
+
+    // The insert succeeded, and the boundary character came back as the replacement one.
+    expect(row['ip']).toBe(`ab${'😀'.repeat(21)}�`);
+    expect(Array.from(String(row['ip']))).toHaveLength(24);
+    // Nothing unpaired survived the trip — a plain substring search would not show this,
+    // because `\uD83D` is also the leading unit of every whole `😀` still in the value.
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(String(row['ip']))).toBe(false);
+    // The row itself is intact, so nothing about this is an insert failure.
+    expect(row['reason']).toBe('bad_password');
   });
 });
 

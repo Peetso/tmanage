@@ -214,9 +214,10 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
       ) : null}
 
       <BackendPending ticket="INBOX-001">
-        Quiet hours, digests and channel preferences are not built: the contract draws no
-        preferences table yet. The bundle detail screen (TM-05) is not built either, so a row links
-        straight to its object. Marking read is permanent &mdash; there is no undo interval.
+        Quiet hours, digests and channel preferences are not built: there is nowhere to store a
+        preference yet. There is no screen for a group of related events either, so a row links
+        straight to the thing it is about. Marking read is permanent &mdash; there is no undo
+        interval.
       </BackendPending>
     </AppShell>
   );
