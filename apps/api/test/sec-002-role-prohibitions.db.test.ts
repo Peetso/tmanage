@@ -6,6 +6,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { CLIENT_ROLES, INTERNAL_ROLES, hasCapability, uuidv7 } from '@tmanage/domain';
 import type { Capability, InternalRole, Role } from '@tmanage/domain';
+import { ACCEPTED_CEILING_DIVERGENCES, PERMISSION_MATRIX } from '@tmanage/test-kit';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
@@ -68,6 +69,26 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * permission change a coordinated edit across matrix, threat model, API policy, repository
  * rules and isolation tests. See `MATRIX_DIVERGENCES` below and
  * `docs/security/permission-test-map.md`.
+ *
+ * ## Reconciliation with the canonical §2 transcription (`@tmanage/test-kit`)
+ *
+ * `packages/test-kit/src/permission-matrix.ts` (slice x11) is the repository's *single*
+ * hand-written transcription of §2's allow/deny truth, guarded once against the shipped
+ * ceiling by `permission-matrix-fixture.test.ts`. This suite is deliberately not a second
+ * competing transcription of that truth: the `describe('reconciliation …')` block below
+ * asserts that every cell this suite chooses to prove as a hard prohibition is also denied in
+ * that canonical fixture, so the two can never drift into contradiction. What stays uniquely
+ * this suite's is the *scope choice* — which (role, capability) pairs are worth proving as
+ * hard prohibitions, restricted to §2's literal `No`/`Never` cells — and the layers x11 does
+ * not have: the product-behaviour check (`hasCapability` returns `false`), the HTTP-403s, and
+ * the `security.capability_denied` audit count.
+ *
+ * The one place §2's prose is read two ways is guest's `Own only` / `Explicit`. x11 reads
+ * those as denials (`guest.denied` holds `conversation.write`, `work.create`,
+ * `work.transition`); this suite reads them as scope narrowings and excludes them from
+ * `FORBIDDEN`. That is not a contradiction — `FORBIDDEN` is a subset of x11's `denied`, so
+ * both readings coexist — and it is resolved explicitly, and machine-checked, in the
+ * reconciliation block's "guest reading" case rather than left to prose.
  */
 
 let db: TestDatabase;
@@ -675,5 +696,93 @@ describe('the prohibition holds over HTTP, with its security event', () => {
       [world.northstar.organizationId],
     );
     expect(Number(rows[0]?.['n'])).toBe(EXPECTED_DENIAL_EVENTS);
+  });
+});
+
+// ── Reconciliation · one transcription of §2's values, sourced from x11 ────────
+
+/**
+ * The review of x11+x7 asked for one canonical transcription of §2's allow/deny truth, not
+ * two that will drift. x11 owns that transcription (`PERMISSION_MATRIX`, guarded against the
+ * ceiling by `permission-matrix-fixture.test.ts`); this suite sources its truth from it.
+ *
+ * These cases assert a *relationship* between this suite's scope choice and the canonical
+ * fixture, so neither re-derives the other's answer: `FORBIDDEN` and `NEVER_EXTERNAL` remain
+ * this suite's own list of which cells are worth proving as hard prohibitions, and every one
+ * of those cells must also be denied in `PERMISSION_MATRIX`. If a future edit to §2 moves a
+ * cell from denied to granted in the canonical fixture and forgets this suite, the mismatch
+ * fails here rather than leaving two documents quietly disagreeing.
+ *
+ * They are pure set-membership checks over hand-written literals — no database, no product
+ * evaluator — but they live in this file so they travel with the prohibitions they reconcile.
+ */
+describe('reconciliation with the canonical §2 transcription (@tmanage/test-kit)', () => {
+  it('every hand-picked prohibition is also denied in the canonical fixture', () => {
+    for (const { role, capability, matrixRow } of FORBIDDEN) {
+      expect(
+        PERMISSION_MATRIX[role].denied.includes(capability),
+        `${role} × ${capability} ("${matrixRow}") is proved here as a hard prohibition but ` +
+          `is not in PERMISSION_MATRIX[${role}].denied — the two transcriptions of §2 disagree`,
+      ).toBe(true);
+    }
+  });
+
+  it('every never-external capability is denied for all four client roles in the fixture', () => {
+    for (const role of CLIENT_ROLES) {
+      for (const capability of NEVER_EXTERNAL) {
+        expect(
+          PERMISSION_MATRIX[role].denied.includes(capability),
+          `${role} × ${capability} is asserted never-external here but is not denied for ` +
+            `${role} in the canonical fixture`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('the recorded divergences match x11 register of accepted ceiling divergences', () => {
+    // Owner and Org Admin's `client_request.submit` is a cell where §2 says No but the ceiling
+    // grants it. This suite records it in MATRIX_DIVERGENCES; x11 records the same two cells in
+    // ACCEPTED_CEILING_DIVERGENCES with `ceiling: 'grants'`. Tie the two registers together so
+    // neither can drop the finding without the other noticing.
+    const acceptedGrants = new Set(
+      ACCEPTED_CEILING_DIVERGENCES.filter((d) => d.ceiling === 'grants').map(
+        (d) => `${d.role}:${d.capability}`,
+      ),
+    );
+    for (const { role, capability } of MATRIX_DIVERGENCES) {
+      expect(
+        acceptedGrants.has(`${role}:${capability}`),
+        `${role} × ${capability} is held as a divergence here but x11 does not accept it as a ` +
+          `ceiling-grants divergence`,
+      ).toBe(true);
+    }
+  });
+
+  it('resolves the guest "Own only"/"Explicit" reading as an intentional, subset asymmetry', () => {
+    // The single cell §2's prose is read two ways. x11 reads guest's `Own only`
+    // (`conversation.write`) and `Explicit` (`work.create`, `work.transition`) as denials; this
+    // suite reads them as scope narrowings and does not assert them as hard prohibitions. Both
+    // readings coexist because FORBIDDEN ⊆ denied: x11 owns the stricter reading in its guard,
+    // and this suite abstains rather than over-claiming what §2 states. Asserted, not just
+    // described, so a later edit that quietly adopts one reading everywhere trips here.
+    const guestInterpretiveDenials: readonly Capability[] = [
+      'conversation.write', // §2 "Moderate messages": Own only
+      'work.create', // §2 "Create/edit work": Explicit — originate
+      'work.transition', // §2 "Create/edit work": Explicit — state is the project's
+    ];
+    const forbiddenGuestCells = new Set(
+      FORBIDDEN.filter((entry) => entry.role === 'guest').map((entry) => entry.capability),
+    );
+    for (const capability of guestInterpretiveDenials) {
+      expect(
+        PERMISSION_MATRIX.guest.denied.includes(capability),
+        `x11 no longer denies guest ${capability}; the reading conflict has changed shape`,
+      ).toBe(true);
+      expect(
+        forbiddenGuestCells.has(capability),
+        `guest ${capability} is now asserted as a hard prohibition here — that adopts x11 ` +
+          `reading and must be a deliberate, documented decision`,
+      ).toBe(false);
+    }
   });
 });

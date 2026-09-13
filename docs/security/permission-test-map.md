@@ -31,9 +31,16 @@ cannot notice the ceiling widening — that was finding D18 — so the prohibiti
 
 This is the half of `12-PERMISSION-MATRIX.md` §2 that this project had never restated: only the
 cells reading `No` or `Never`. It is transcribed by hand from §2 and it matches, cell for cell, the
-`FORBIDDEN` table in `apps/api/test/sec-002-role-prohibitions.db.test.ts`. Two hand transcriptions
-of the same document, kept side by side on purpose — read this grid against §2 with your eyes, and
-the suite checks the product against the other copy.
+`FORBIDDEN` table in `apps/api/test/sec-002-role-prohibitions.db.test.ts` — read this grid against
+§2 with your eyes, and the suite checks the product against it.
+
+`FORBIDDEN` is not a competing transcription of §2's allow/deny _truth_. That truth lives once, in
+`packages/test-kit/src/permission-matrix.ts` (`PERMISSION_MATRIX`), guarded against the shipped
+ceiling by `apps/api/src/common/http/guards/permission-matrix-fixture.test.ts`. `FORBIDDEN` is this
+suite's _scope choice_ — which of §2's `No`/`Never` cells are worth proving as hard prohibitions —
+and the suite's `reconciliation` block asserts every `FORBIDDEN` cell is also in
+`PERMISSION_MATRIX[role].denied`, so the two can never drift into contradiction. What stays unique
+to this suite is the product-behaviour check, the HTTP-403s and the audit count.
 
 `·` means the cell is **not** a prohibition: `Full`, `Yes`, `Policy`, `Scope`, `Project`, `Member`,
 `Limited`, `Optional`, `Explicit`, `Own only`, `Assigned`, `If reviewer` and the rest are ceilings
@@ -103,6 +110,14 @@ repository rules and isolation tests together.
    client role outright. The hand transcription follows §2 and asserts only the three client roles
    whose cells read `No`. `search.use` appears in the domain list but has no §2 row at all, so it is
    not transcribed.
+4. **Guest's `Own only`/`Explicit` cells are read two ways.** The canonical fixture
+   (`PERMISSION_MATRIX`, slice x11) reads guest's `Own only` (`conversation.write`) and `Explicit`
+   (`work.create`, `work.transition`) as denials; this suite reads them as scope narrowings and does
+   not assert them as hard prohibitions. This is resolved rather than left open: `FORBIDDEN` is a
+   subset of x11's `denied`, so both readings coexist without contradiction, and the suite's
+   `reconciliation` block machine-checks that these three guest cells stay in x11's `denied` and out
+   of `FORBIDDEN`. x11 owns the stricter reading in its ceiling guard; this suite abstains rather
+   than over-claiming what §2 states.
 
 ## Coverage
 
