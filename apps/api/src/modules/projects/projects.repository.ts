@@ -102,6 +102,16 @@ export interface ListProjectsOptions {
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
 
+/**
+ * The page size a caller's request actually resolves to, clamped the way {@link
+ * ProjectsRepository.list} clamps it. Exported so a service walking pages to fill a page of
+ * *readable* rows (see `PortalService`) asks for exactly the size the repository will return,
+ * and can therefore tell a short final page from a full one.
+ */
+export function effectivePageSize(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+}
+
 export class ProjectsRepository {
   /**
    * List one tenant's projects.
@@ -116,7 +126,7 @@ export class ProjectsRepository {
     context: TenantContext,
     options: ListProjectsOptions = {},
   ): Promise<readonly ProjectRow[]> {
-    const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+    const limit = effectivePageSize(options.limit);
     const db = tenantDrizzle(runner);
 
     const predicates = [eq(projects.organizationId, context.organizationId)];

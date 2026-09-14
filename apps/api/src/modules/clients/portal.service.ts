@@ -2,9 +2,27 @@ import { authorize } from '@tmanage/domain';
 import type { Audience, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import { ProjectsRepository } from '../projects/projects.repository.js';
-import { WorkItemsRepository } from '../work/work-items.repository.js';
+import {
+  ProjectsRepository,
+  effectivePageSize as projectPageSize,
+} from '../projects/projects.repository.js';
+import {
+  WorkItemsRepository,
+  effectivePageSize as workItemPageSize,
+} from '../work/work-items.repository.js';
 import type { ProjectRow, WorkItemRow } from '../../common/database/schema.js';
+
+/**
+ * How many repository pages one portal list may walk while filling a page of readable rows.
+ *
+ * Mirrors `WorkItemsService`: the relation check is `authorize()`'s rule, not a column, so it
+ * runs per row *after* the query and can shorten a page. At the largest page size this budget
+ * examines 5,000 rows per request — past any tenant this deployment profile serves, and a hard
+ * stop on a client who can read almost nothing in a tenant with very many projects. Past the
+ * budget the page is returned short; every id walked past still sorts before an unfetched row,
+ * so the keyset cursor a caller would page on stays valid.
+ */
+const LIST_PAGE_BUDGET = 25;
 
 /**
  * The client portal's read surface — CLIENT-002.
@@ -126,16 +144,42 @@ export class PortalService {
    * `authorize()` rule 10 refuses anything outside it. For an internal principal it is the
    * projects they are related to, which is how anybody at the agency checks what a client can
    * see without asking the client.
+   *
+   * ## A page is `limit` *readable* projects, not one repository page minus the unreadable ones
+   *
+   * `mayRead` is `authorize()`'s relation rule, not a column, so it cannot be pushed into the
+   * SQL `WHERE` and runs per row after the query. Filtering a single 50-row page afterwards
+   * (R07) let the page limit hide accessible projects: a client whose only shared project was
+   * the tenant's 51st received an empty list, because the first page held 50 projects none of
+   * which were theirs. The query is now asked for the next page, keyset by the last id seen,
+   * until either a full page of readable projects is in hand or the table runs short — the same
+   * walk `WorkItemsService.list` uses, bounded by {@link LIST_PAGE_BUDGET}.
    */
   async projectsFor(
     context: TenantContext,
     principal: Principal,
   ): Promise<readonly PortalProjectView[]> {
-    const rows = await this.database.read(context, (runner) =>
-      this.projects.list(runner, context, {}),
-    );
+    const limit = projectPageSize(undefined);
 
-    return rows.filter((row) => this.mayRead(principal, row.id)).map(toProjectView);
+    const readable = await this.database.read(context, async (runner) => {
+      const collected: ProjectRow[] = [];
+      let after: string | undefined;
+      for (let pages = 0; pages < LIST_PAGE_BUDGET; pages += 1) {
+        const page = await this.projects.list(runner, context, {
+          ...(after === undefined ? {} : { after }),
+          limit,
+        });
+        for (const row of page) {
+          if (this.mayRead(principal, row.id)) collected.push(row);
+        }
+        const last = page[page.length - 1];
+        if (page.length < limit || collected.length >= limit || last === undefined) break;
+        after = last.id;
+      }
+      return collected.slice(0, limit);
+    });
+
+    return readable.map(toProjectView);
   }
 
   /**
@@ -144,6 +188,14 @@ export class PortalService {
    * The audience filter is a **query predicate**, not a `.filter()` afterwards. An internal row
    * is never selected, so there is no moment at which this process holds one and has to
    * remember not to return it.
+   *
+   * The **relation** filter is the part that cannot go in the query — `mayRead` is
+   * `authorize()`'s rule about a principal, not a column — so it runs per row, and the walk
+   * below keeps asking for the next page until it has a full page of readable rows or the table
+   * runs short. Filtering a single page afterwards (R07) let client-visible work in projects the
+   * client cannot read fill the page limit and hide the work in projects they can, even when the
+   * client had fewer than 50 items of their own. The keyset cursor stays valid across the walk;
+   * it is bounded by {@link LIST_PAGE_BUDGET}.
    */
   async workItemsFor(
     context: TenantContext,
@@ -155,14 +207,29 @@ export class PortalService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
 
-    const rows = await this.database.read(context, (runner) =>
-      this.workItems.list(runner, context, {
-        audiences: CLIENT_AUDIENCES,
-        ...(options.projectId ? { projectId: options.projectId } : {}),
-      }),
-    );
+    const limit = workItemPageSize(undefined);
 
-    return rows.filter((row) => this.mayRead(principal, row.projectId)).map(toWorkItemView);
+    const readable = await this.database.read(context, async (runner) => {
+      const collected: WorkItemRow[] = [];
+      let after: string | undefined;
+      for (let pages = 0; pages < LIST_PAGE_BUDGET; pages += 1) {
+        const page = await this.workItems.list(runner, context, {
+          audiences: CLIENT_AUDIENCES,
+          ...(options.projectId ? { projectId: options.projectId } : {}),
+          ...(after === undefined ? {} : { after }),
+          limit,
+        });
+        for (const row of page) {
+          if (this.mayRead(principal, row.projectId)) collected.push(row);
+        }
+        const last = page[page.length - 1];
+        if (page.length < limit || collected.length >= limit || last === undefined) break;
+        after = last.id;
+      }
+      return collected.slice(0, limit);
+    });
+
+    return readable.map(toWorkItemView);
   }
 
   /**
