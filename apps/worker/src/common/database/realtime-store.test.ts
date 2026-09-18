@@ -6,8 +6,9 @@ import type { WorkerTransaction } from './worker-database.js';
  * The project gate added for slice x33 (REVIEW R04 "align the initial check with the HTTP
  * project's access rules as well"). A channel-membership row is not on its own a licence to
  * the channel's project; the subscribe check must also see a current project relation, the
- * same one `authorize()` enforces over HTTP. These pin the denied path without a database —
- * the row-computed `may_reach_project` flag stands in for the SQL the db suite exercises.
+ * same one `authorize()` enforces over HTTP. These pin the JS gate without a database; the
+ * SQL that computes `may_reach_project` is exercised against real rows by
+ * `apps/api/test/rt-001-realtime.db.test.ts`.
  */
 
 interface FakeRow {
@@ -17,12 +18,9 @@ interface FakeRow {
   readonly may_reach_project: number;
 }
 
-function txReturning(row: FakeRow, sink: { sql?: string }): WorkerTransaction {
+function txReturning(row: FakeRow): WorkerTransaction {
   return {
-    query: async <T>(sql: string): Promise<T> => {
-      sink.sql = sql;
-      return [row] as unknown as T;
-    },
+    query: async <T>(): Promise<T> => [row] as unknown as T,
   };
 }
 
@@ -30,26 +28,25 @@ const INPUT = { organizationId: 'org-1', userId: 'user-1', conversationId: 'conv
 
 describe('checkConversationSubscription — project gate', () => {
   it('refuses a channel whose project the subscriber can no longer reach', async () => {
-    const sink: { sql?: string } = {};
-    const tx = txReturning(
-      { role: 'member', next_sequence_no: 8, is_member: 1, may_reach_project: 0 },
-      sink,
-    );
+    const tx = txReturning({
+      role: 'member',
+      next_sequence_no: 8,
+      is_member: 1,
+      may_reach_project: 0,
+    });
 
     const verdict = await checkConversationSubscription(tx, INPUT);
 
     expect(verdict.allowed).toBe(false);
-    // The gate must be computed in SQL, so dropping it cannot pass silently.
-    expect(sink.sql).toContain('project_memberships');
-    expect(sink.sql).toContain('has_org_wide_scope');
   });
 
   it('allows a member who reaches the project and holds the channel row', async () => {
-    const sink: { sql?: string } = {};
-    const tx = txReturning(
-      { role: 'member', next_sequence_no: 8, is_member: 1, may_reach_project: 1 },
-      sink,
-    );
+    const tx = txReturning({
+      role: 'member',
+      next_sequence_no: 8,
+      is_member: 1,
+      may_reach_project: 1,
+    });
 
     const verdict = await checkConversationSubscription(tx, INPUT);
 
