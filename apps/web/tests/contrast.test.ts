@@ -225,24 +225,19 @@ describe('the pairings globals.css actually paints', () => {
   });
 
   /**
-   * ⚠️ DISCLOSED KNOWN GAP — D14. This is an expected failure recorded with its measured
-   * ratio, not a pass: `.tm-identity__footer` (`globals.css:304-311`) paints
-   * `--tm-inverted-muted` — a label colour chosen to sit on the *inverted* ground, where it
-   * reads at 8.04:1 — on `--paper-150`, the card it is actually inside. In the light theme
-   * that is `#c5c7c0` on `#e9e9e5`: **1.40:1**, far below the 4.5:1 AA floor. The links in
-   * that footer (`22-SCREEN-BY-SCREEN` §3: privacy, support) are effectively invisible.
-   *
-   * It is disclosed here rather than fixed because the fix is a CSS change (the footer should
-   * take `--ink-650`, 6.74:1 on `--paper-150`) and this slice is not allowed to touch CSS.
-   * Carried forward as an open defect for a separate slice. When D14 is fixed, this case must
-   * be deleted and the footer folded into the AA assertions — it will go red at that point,
-   * which is the intended signal, the same way `verify:gaps` discloses the gates it skipped
-   * instead of letting a green run read as "everything checked".
+   * D14, fixed. This case used to be an expected failure: `.tm-identity__footer` painted
+   * `--tm-inverted-muted` — a label colour chosen for the *inverted* ground, where it reads
+   * at 8.04:1 — on `--paper-150`, the card the footer is actually inside. In the light theme
+   * that was `#c5c7c0` on `#e9e9e5`, **1.40:1**, far below the 4.5:1 AA floor (WCAG 1.4.3),
+   * which made the footer's privacy and support links (`22-SCREEN-BY-SCREEN` §3) effectively
+   * invisible. The footer now takes `--ink-650`, this file's muted secondary text, which is
+   * `#4d5049` on `#e9e9e5`: **6.74:1**. The assertion below is a normal AA assertion, so the
+   * defect cannot come back by anyone reaching for an inverted token here again.
    */
-  it('DISCLOSED D14: the identity footer fails AA in the light theme at 1.40:1', () => {
+  it('paints the identity footer at AA in the light theme (6.74:1)', () => {
     const { foreground, background } = paintedPairing(IDENTITY_FOOTER, 'light');
-    expect(ratio(foreground, background)).toBe(1.4);
-    expect(ratio(foreground, background)).toBeLessThan(AA_NORMAL_TEXT);
+    expect(ratio(foreground, background)).toBe(6.74);
+    expect(ratio(foreground, background)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 
   it('paints the identity footer at AA in the dark theme (8.03:1)', () => {
