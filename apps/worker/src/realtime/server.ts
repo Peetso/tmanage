@@ -54,8 +54,9 @@ export interface RealtimeServerOptions {
    * How often an open connection re-checks its subscriptions against current rows and its
    * ticket against the clock. The ticket authorizes only the handshake and a subscribe is
    * checked once — so without a recheck a revoked membership keeps delivering and a socket
-   * outlives its ticket TTL indefinitely (R04). The natural period is the ticket TTL;
-   * a suite injects a small value to observe a revocation without waiting.
+   * outlives its ticket TTL indefinitely (R04). This is an upper bound: the effective period
+   * is also capped at half of the ticket's remaining life, so the re-check always runs before
+   * the expiry close. A suite injects a small value to observe a revocation without waiting.
    */
   readonly revalidateIntervalMs?: number;
 }
@@ -147,7 +148,18 @@ export async function createRealtimeServer(
       }
     };
 
-    const timer = setInterval(revalidate, revalidateIntervalMs);
+    // A tick does two things and the expiry check returns first, so a period as long as the
+    // ticket's remaining life spends its first tick closing 4401 and never re-checks a single
+    // subscription. The shipped defaults are exactly that shape — a 60 s ticket TTL
+    // (`REALTIME_TICKET_TTL_SECONDS`) and a 60 s period — so in a default deployment a
+    // withdrawn authority surfaced as a close, the browser re-minted on its still-valid
+    // session, was answered `refused`, and the channel never came back: the `revoked` frame
+    // this loop exists to send was unreachable. So the period is also bounded by half of
+    // what is left of the ticket: whatever TTL a deployment configures, at least one
+    // subscription re-check lands while the connection is still authorized.
+    const remainingTicketMs = claims.expiresAt - now().getTime();
+    const period = Math.max(1, Math.min(revalidateIntervalMs, Math.floor(remainingTicketMs / 2)));
+    const timer = setInterval(revalidate, period);
     // The revalidation loop must never be the reason the process stays alive.
     timer.unref();
 
