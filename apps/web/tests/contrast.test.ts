@@ -48,11 +48,18 @@ const GLOBALS_CSS = readFileSync(join(HERE, '../src/app/globals.css'), 'utf8');
  */
 const TOKENS_CSS = readFileSync(join(HERE, '../../../packages/ui/src/styles/tokens.css'), 'utf8');
 
+/** The shell that decides which ground the identity footer is painted on. See `paintedPairing`. */
+const IDENTITY_SHELL = readFileSync(
+  join(HERE, '../src/components/shell/IdentityShell.tsx'),
+  'utf8',
+);
+
 /**
- * The declarations of one top-level block, `--name -> value`. The token and application sheets
- * declare their `:root` and `[data-theme='dark']` blocks flat (no nested rules), so the first
- * match of the selector is the unconditional block and a brace-free body is exact for it. A
- * nested `:root` inside an `@media` (reduced-motion) is never the first match and is ignored.
+ * The declarations of one top-level block, `name -> value`. The token and application sheets
+ * declare their `:root`, `[data-theme='dark']` and class blocks flat (no nested rules), so the
+ * first match of the selector is the unconditional block and a brace-free body is exact for it.
+ * A nested `:root` inside an `@media` (reduced-motion), and the `.tm-identity__card` override
+ * inside the narrow breakpoint, are never the first match and are ignored.
  */
 function blockDeclarations(css: string, selector: string): Map<string, string> {
   const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -62,8 +69,7 @@ function blockDeclarations(css: string, selector: string): Map<string, string> {
   for (const line of match?.[1]?.split(';') ?? []) {
     const at = line.indexOf(':');
     if (at === -1) continue;
-    const name = line.slice(0, at).trim();
-    if (name.startsWith('--')) declarations.set(name, line.slice(at + 1).trim());
+    declarations.set(line.slice(0, at).trim(), line.slice(at + 1).trim());
   }
   return declarations;
 }
@@ -76,26 +82,63 @@ function blockDeclarations(css: string, selector: string): Map<string, string> {
  * measure are now the pairs the stylesheet composes, not a hand-transcribed comment. Re-point
  * `--tm-inverted-muted` at a failing colour in `globals.css` and the ratio below moves with it.
  */
-function invertedSurfaces(theme: 'light' | 'dark') {
-  const selector = theme === 'light' ? ':root' : "[data-theme='dark']";
-  const invertedDefs = blockDeclarations(GLOBALS_CSS, selector);
+function resolveValue(value: string, theme: 'light' | 'dark'): string {
+  const themeSelector = theme === 'light' ? ':root' : "[data-theme='dark']";
   const rootTokens = blockDeclarations(TOKENS_CSS, ':root');
-  const themeTokens = theme === 'light' ? rootTokens : blockDeclarations(TOKENS_CSS, selector);
-  const resolve = (property: string): string => {
-    const base = invertedDefs.get(property)?.match(/var\(\s*(--[\w-]+)\s*\)/)?.[1];
-    const hex = base ? (themeTokens.get(base) ?? rootTokens.get(base)) : undefined;
-    if (!hex) {
-      throw new Error(
-        `could not resolve ${property} in the ${theme} theme through the stylesheets`,
-      );
+  const lookups = [
+    blockDeclarations(GLOBALS_CSS, themeSelector),
+    theme === 'light' ? rootTokens : blockDeclarations(TOKENS_CSS, themeSelector),
+    rootTokens,
+  ];
+  let current = value;
+  // Two hops today (`--tm-inverted-muted` -> `--line-300` -> `#c5c7c0`); the cap only stops a
+  // future cycle from hanging the suite. Running out of hops is an error, never a silent pass.
+  for (let hop = 0; hop < 4; hop += 1) {
+    const token = current.match(/var\(\s*(--[\w-]+)\s*\)/)?.[1];
+    if (!token) return current;
+    const next = lookups.map((table) => table.get(token)).find((found) => found !== undefined);
+    if (next === undefined) {
+      throw new Error(`could not resolve ${token} in the ${theme} theme through the stylesheets`);
     }
-    return hex;
-  };
+    current = next;
+  }
+  throw new Error(`var() chain from ${value} does not bottom out in the ${theme} theme`);
+}
+
+function invertedSurfaces(theme: 'light' | 'dark') {
   return {
-    invertedGround: resolve('--tm-inverted-ground'),
-    invertedInk: resolve('--tm-inverted-ink'),
-    invertedMuted: resolve('--tm-inverted-muted'),
+    invertedGround: resolveValue('var(--tm-inverted-ground)', theme),
+    invertedInk: resolveValue('var(--tm-inverted-ink)', theme),
+    invertedMuted: resolveValue('var(--tm-inverted-muted)', theme),
   };
+}
+
+/**
+ * The pairing a *rule* paints, rather than a pairing this file chose.
+ *
+ * `chain` is the DOM ancestry, outermost first. The foreground is the innermost rule in it
+ * that sets a `color`, the ground the innermost that sets a `background` — both taken out of
+ * `globals.css` and resolved through the token sheet. This is the second half of I3: until now
+ * every assertion below paired `--tm-inverted-muted` with `--tm-inverted-ground` because a
+ * human wrote that pair down, and nothing asked which ground the rule using it actually sits
+ * on. Change the `background` on `.tm-identity__card` and the measured number here moves.
+ */
+function paintedPairing(chain: readonly string[], theme: 'light' | 'dark') {
+  let foreground: string | undefined;
+  let background: string | undefined;
+  for (const selector of chain) {
+    const rule = blockDeclarations(GLOBALS_CSS, selector);
+    const color = rule.get('color');
+    const ground = rule.get('background') ?? rule.get('background-color');
+    if (color !== undefined && color !== 'inherit') foreground = resolveValue(color, theme);
+    if (ground !== undefined) background = resolveValue(ground, theme);
+  }
+  if (foreground === undefined || background === undefined) {
+    throw new Error(
+      `${chain[chain.length - 1]} has no painted ${foreground === undefined ? 'colour' : 'ground'} in the ${theme} theme`,
+    );
+  }
+  return { foreground, background };
 }
 
 const lightInverted = invertedSurfaces('light');
@@ -161,6 +204,51 @@ describe('the inverted surfaces', () => {
   it('would have been unreadable had the rail used --line-700 directly in dark mode', () => {
     const naive = ratio(colorDark.ink, colorDark.ink);
     expect(naive).toBeLessThan(AA_NORMAL_TEXT);
+  });
+});
+
+/**
+ * I3, second half. The cases above pair `--tm-inverted-muted` with `--tm-inverted-ground`
+ * because that is the pair a person wrote down; these read the pair out of the rules.
+ */
+describe('the pairings globals.css actually paints', () => {
+  const IDENTITY_FOOTER = ['.tm-identity', '.tm-identity__card', '.tm-identity__footer'] as const;
+
+  it('paints the identity footer inside the card, not on the inverted shell', () => {
+    // The chain measured below is a claim about the DOM, so it is checked against the DOM:
+    // the footer opens after the card and before any `</div>` closes it.
+    const cardAt = IDENTITY_SHELL.indexOf('className="tm-identity__card"');
+    const footerAt = IDENTITY_SHELL.indexOf('className="tm-identity__footer"');
+    expect(cardAt).toBeGreaterThan(-1);
+    expect(footerAt).toBeGreaterThan(cardAt);
+    expect(IDENTITY_SHELL.slice(cardAt, footerAt)).not.toContain('</div>');
+  });
+
+  /**
+   * ⚠️ DISCLOSED KNOWN GAP — D14. This is an expected failure recorded with its measured
+   * ratio, not a pass: `.tm-identity__footer` (`globals.css:304-311`) paints
+   * `--tm-inverted-muted` — a label colour chosen to sit on the *inverted* ground, where it
+   * reads at 8.04:1 — on `--paper-150`, the card it is actually inside. In the light theme
+   * that is `#c5c7c0` on `#e9e9e5`: **1.40:1**, far below the 4.5:1 AA floor. The links in
+   * that footer (`22-SCREEN-BY-SCREEN` §3: privacy, support) are effectively invisible.
+   *
+   * It is disclosed here rather than fixed because the fix is a CSS change (the footer should
+   * take `--ink-650`, 6.74:1 on `--paper-150`) and this slice is not allowed to touch CSS.
+   * Carried forward as an open defect for a separate slice. When D14 is fixed, this case must
+   * be deleted and the footer folded into the AA assertions — it will go red at that point,
+   * which is the intended signal, the same way `verify:gaps` discloses the gates it skipped
+   * instead of letting a green run read as "everything checked".
+   */
+  it('DISCLOSED D14: the identity footer fails AA in the light theme at 1.40:1', () => {
+    const { foreground, background } = paintedPairing(IDENTITY_FOOTER, 'light');
+    expect(ratio(foreground, background)).toBe(1.4);
+    expect(ratio(foreground, background)).toBeLessThan(AA_NORMAL_TEXT);
+  });
+
+  it('paints the identity footer at AA in the dark theme (8.03:1)', () => {
+    const { foreground, background } = paintedPairing(IDENTITY_FOOTER, 'dark');
+    expect(ratio(foreground, background)).toBe(8.03);
+    expect(ratio(foreground, background)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 });
 

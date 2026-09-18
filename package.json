@@ -31,7 +31,7 @@
     "contracts:validate": "pnpm --filter @tmanage/contracts validate",
     "contracts:generate": "pnpm --filter @tmanage/contracts generate",
     "dev": "pnpm --parallel --filter @tmanage/api --filter @tmanage/web --filter @tmanage/worker dev",
-    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm contracts:validate && pnpm audit:design && pnpm test && pnpm verify:gaps",
+    "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm contracts:check && pnpm audit:design && pnpm test && pnpm verify:gaps",
     "verify:gaps": "node scripts/verify-gaps.mjs",
     "verify:full": "pnpm verify && pnpm test:db && pnpm test:e2e && pnpm test:vr",
     "test:e2e": "pnpm --filter @tmanage/e2e test:e2e",

@@ -33,7 +33,20 @@ const SLOW_GATES = ['test:db', 'test:e2e', 'test:vr'] as const;
 
 describe('the verify gate is honest about what it skips (I1)', () => {
   it('verify runs its own disclosure line as its last step', () => {
-    expect(scripts['verify']).toContain('pnpm verify:gaps');
+    // `toContain` would be satisfied by a `verify:gaps` buried in the middle of the chain,
+    // where a later failing step hides the disclosure behind a red build — the closing line
+    // has to actually close. So this asserts the position the title claims, not presence.
+    expect(scripts['verify']?.trim()).toMatch(/&&\s*pnpm verify:gaps$/);
+  });
+
+  /**
+   * D10 (the vacuous `contracts:validate` gate) is fixed on master by the x12 slice (b6be028):
+   * `verify` runs `pnpm contracts:check`, a real `scripts/contracts-check.mjs` shape check, and
+   * `contracts:validate` is gone. Nothing anywhere pinned that, so a merge resolution that kept
+   * this branch's older `contracts:validate` line would reopen D10 in silence. This is the pin.
+   */
+  it('verify still runs the real contract gate (D10 must not be reopened by a merge)', () => {
+    expect(scripts['verify']).toContain('pnpm contracts:check');
   });
 
   it('verify does not silently grow a slow gate into itself', () => {
@@ -62,4 +75,5 @@ describe('the verify gate is honest about what it skips (I1)', () => {
 
 // I2 / D10 (the vacuous `contracts:validate` gate) is fixed on master by the x12 slice
 // (b6be028): `verify` now runs `pnpm contracts:check` (a real `scripts/contracts-check.mjs`
-// shape check), and `contracts:validate` is gone. This slice does not duplicate that fix.
+// shape check), and `contracts:validate` is gone. This slice does not duplicate that fix — it
+// only pins it above, so the `package.json` merge cannot quietly resolve it away.
