@@ -195,6 +195,7 @@ export class SessionController {
     @CurrentSession() session: AuthenticatedSession,
     @Param('sessionId') sessionId: string,
     @Req() request: RequestLike,
+    @Res({ passthrough: true }) reply: ReplyLike,
   ): Promise<void> {
     const state = requireRequestState(request);
     let removed: boolean;
@@ -211,6 +212,12 @@ export class SessionController {
       throw error;
     }
     if (!removed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    // Revoking your own current session from the device list is signing out of it: clear the
+    // credentials the same way `DELETE current` does (same helper, one source of the cookie
+    // attributes), so the browser stops believing it is signed in. Any other device: no cookies.
+    if (sessionId === session.sessionId) {
+      reply.header('set-cookie', this.sessions.clearedCookies());
+    }
   }
 
   /** The `x-reauth-token` header, if one was sent. Absence is the service's decision to make. */
