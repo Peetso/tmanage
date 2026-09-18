@@ -139,6 +139,12 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   'user_mfa_factors',
   'user_recovery_codes',
   'authentication_events',
+  // D05d. The notice queue that tells an account holder their credentials changed. Global
+  // for the same reason the credentials are: the change it describes is not a fact about
+  // one tenant, and it is written on the identity path, before any tenant exists. It is
+  // deliberately NOT `outbox_events` — that table's `organization_id` is NOT NULL and this
+  // path has no organization to put in it. `0020_credential_change_notices.sql` explains.
+  'credential_change_notices',
 ]);
 
 export function isTenantTable(name: string): boolean {

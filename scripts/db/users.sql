@@ -262,6 +262,19 @@ GRANT INSERT ON `tmanage`.`session_refresh_tokens` TO 'tmanage_app'@'%';
 -- credential; withholding the privilege means this one cannot make the attempt.
 GRANT INSERT ON `tmanage`.`authentication_events` TO 'tmanage_app'@'%';
 
+-- `credential_change_notices` (D05d) gets INSERT, and for once that is not an append-only
+-- argument: the queue's rows *are* updated, by the relay, when a notice is delivered. The
+-- runtime user is the producer and only the producer — it appends the notice inside the
+-- transaction that changed the credential and has no business stamping one delivered, so
+-- the UPDATE it would need for that is withheld. `SELECT` it already holds database-wide
+-- (line 60), which is what `GET /v1/auth/security-activity` reads through.
+--
+-- The relay's side of this table is deliberately absent from the worker block below: the
+-- consumer that drains it is not built yet, and this file's own rule is that a grant names
+-- a statement that exists. Adding the drain means adding SELECT and UPDATE there, and
+-- `least-privilege.db.test.ts` will need the pair asserted the way the outbox's are.
+GRANT INSERT ON `tmanage`.`credential_change_notices` TO 'tmanage_app'@'%';
+
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it
 -- applied, which is the property `pnpm db:status` depends on to be trustworthy.

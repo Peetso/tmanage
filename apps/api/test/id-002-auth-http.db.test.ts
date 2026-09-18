@@ -1273,3 +1273,56 @@ describe('replacing a password over HTTP ends the other devices', () => {
     expect(rows.map((row) => row['revoked_reason'])).toEqual(['password_changed']);
   });
 });
+
+/**
+ * `D05d`, I2 — the security-event receipt over HTTP.
+ *
+ * The service is proved against a real server in `id-002-credential-change-record.db.test.ts`;
+ * what only the HTTP surface can get wrong lives here. The route takes no parameter, so there
+ * is no id to tamper with — the whole of "only your own history" is that the session's own
+ * `userId` is the single id the read is given. Two people each change a credential, and the
+ * owner's receipt must carry the owner's row and not the other person's. `@NoTenant()` is
+ * exercised implicitly: the request names no organization and the global tenant guard would
+ * refuse it with a 400 if the route were not exempt.
+ */
+describe('GET /v1/auth/security-activity', () => {
+  async function securityActivity(cookie: string) {
+    return (await app.inject({
+      method: 'GET',
+      url: '/v1/auth/security-activity',
+      headers: { cookie },
+    })) as unknown as InjectedResponse;
+  }
+
+  it('returns the session holder’s own credential changes, and no one else’s', async () => {
+    // Two accounts each undergo one credential change: a first password set.
+    await setPasswordFor(owner().id);
+    await setPasswordFor(designer().id);
+
+    const session = await developmentSession(owner().id);
+    const response = await securityActivity(session.cookie);
+
+    expect(response.statusCode).toBe(200);
+    const { changes } = response.json<{
+      changes: readonly { id: string; action: string; occurredAt: string }[];
+    }>();
+
+    // Exactly the owner's own change — the designer's identical action must not appear.
+    expect(changes).toHaveLength(1);
+    expect(changes[0]!.action).toBe('password_set');
+    // Serialised as an ISO-8601 string, not a Date: `occurredAt.toISOString()` in the
+    // controller. Round-tripping it must recover the same instant.
+    expect(typeof changes[0]!.occurredAt).toBe('string');
+    expect(new Date(changes[0]!.occurredAt).toISOString()).toBe(changes[0]!.occurredAt);
+    // The read never names `reason` (0004: "NEVER returned to the caller").
+    expect(Object.keys(changes[0]!).sort()).toEqual(['action', 'id', 'occurredAt']);
+  });
+
+  it('requires a session — the global guard covers it despite @NoTenant()', async () => {
+    await setPasswordFor(owner().id);
+
+    const response = await securityActivity('');
+
+    expect(response.statusCode).toBe(401);
+  });
+});

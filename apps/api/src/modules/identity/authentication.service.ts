@@ -120,6 +120,10 @@ const IDENTITY_TABLES = [
   'user_mfa_factors',
   'user_recovery_codes',
   'authentication_events',
+  // `D05d`. The notice queue. Declared on every identity unit of work rather than only on
+  // the four that write it, because the alternative is a second list to keep in step with
+  // the first, and a missing declaration fails at run time rather than at compile time.
+  'credential_change_notices',
 ] as const;
 
 /**
@@ -155,6 +159,38 @@ export const AUTHENTICATION_ACTIONS = {
 
 export type AuthenticationAction =
   (typeof AUTHENTICATION_ACTIONS)[keyof typeof AUTHENTICATION_ACTIONS];
+
+/**
+ * `D05d`. The actions that mean **somebody changed the credentials on this account** — the
+ * four the owner has to be able to find out about, and the whole of what
+ * {@link AuthenticationService.listCredentialChanges} asks the table for.
+ *
+ * The four that are absent are absent for a reason each. `passwordSignIn`, `mfaChallenge` and
+ * `recoveryCode` are uses of a credential, not changes to one: a sign-in history is a
+ * different screen with a different privacy question, and this list is not the place to start
+ * one. `reauthentication` is the proof demanded *before* a change, so it is either redundant
+ * with the row beside it or, when refused, a failure — and failures are excluded by outcome.
+ *
+ * A `const` beside the vocabulary rather than a filter at the call site, so that adding a
+ * fifth credential-changing action puts the question "does the owner need to know?" in front
+ * of whoever adds it.
+ */
+export const CREDENTIAL_CHANGE_ACTIONS = [
+  AUTHENTICATION_ACTIONS.passwordSet,
+  AUTHENTICATION_ACTIONS.factorEnrolled,
+  AUTHENTICATION_ACTIONS.factorDisabled,
+  AUTHENTICATION_ACTIONS.recoveryCodesIssued,
+] as const;
+
+/** One entry on `ID-05`'s security event receipt. No reason, no address, no device. */
+export interface CredentialChange {
+  readonly id: string;
+  readonly action: AuthenticationAction;
+  readonly occurredAt: Date;
+}
+
+/** How much history the receipt carries. Bounded here rather than by the caller. */
+export const CREDENTIAL_CHANGE_LIMIT = 50;
 
 /**
  * The precise cause, written to `authentication_events.reason` and never returned.
@@ -860,10 +896,9 @@ export class AuthenticationService {
             PASSWORD_CHANGE_REVOCATION_REASON,
           );
         }
-        await this.credentials.recordAuthenticationEvent(tx, {
+        await this.credentials.recordCredentialChange(tx, {
           userId: input.userId,
           action: AUTHENTICATION_ACTIONS.passwordSet,
-          outcome: 'succeeded',
           correlationId: input.context.correlationId,
           ip: input.context.ip ?? null,
           userAgent: input.context.userAgent ?? null,
@@ -999,10 +1034,27 @@ export class AuthenticationService {
         if (!confirmed) return false;
 
         await this.credentials.replaceRecoveryCodes(tx, input.userId, generated.hashes);
-        await this.credentials.recordAuthenticationEvent(tx, {
+        await this.credentials.recordCredentialChange(tx, {
           userId: input.userId,
           action: AUTHENTICATION_ACTIONS.factorEnrolled,
-          outcome: 'succeeded',
+          correlationId: input.context.correlationId,
+          ip: input.context.ip ?? null,
+          userAgent: input.context.userAgent ?? null,
+        });
+        // `D05d`. Two rows for one confirmation, because two different things happened and
+        // the owner needs to be able to find out about the second one by name. The line above
+        // records the enrolment; this one records that the recovery codes the person wrote
+        // down at their last enrolment stopped working at this instant. Without it, the one
+        // question `D05c`'s attack makes urgent — "when were my recovery codes last
+        // replaced?" — is answered by the route that did the replacing with silence, because
+        // `regenerateRecoveryCodes` was the only writer of `recovery_codes_issued` and this is
+        // the other one. Same transaction as the `replaceRecoveryCodes` above it, so the
+        // record and the destruction it describes cannot come apart — and, since `D05d`'s
+        // second half, the notice too: this is the one route the attack takes, so it is the
+        // one route where the owner's mail must not depend on anybody remembering.
+        await this.credentials.recordCredentialChange(tx, {
+          userId: input.userId,
+          action: AUTHENTICATION_ACTIONS.recoveryCodesIssued,
           correlationId: input.context.correlationId,
           ip: input.context.ip ?? null,
           userAgent: input.context.userAgent ?? null,
@@ -1050,10 +1102,9 @@ export class AuthenticationService {
       { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES] },
       async (tx) => {
         await this.credentials.replaceRecoveryCodes(tx, input.userId, generated.hashes);
-        await this.credentials.recordAuthenticationEvent(tx, {
+        await this.credentials.recordCredentialChange(tx, {
           userId: input.userId,
           action: AUTHENTICATION_ACTIONS.recoveryCodesIssued,
-          outcome: 'succeeded',
           correlationId: input.context.correlationId,
           ip: input.context.ip ?? null,
           userAgent: input.context.userAgent ?? null,
@@ -1097,10 +1148,9 @@ export class AuthenticationService {
         const disabled = await this.credentials.disableFactor(tx, factor.id);
         if (!disabled) return false;
 
-        await this.credentials.recordAuthenticationEvent(tx, {
+        await this.credentials.recordCredentialChange(tx, {
           userId: input.userId,
           action: AUTHENTICATION_ACTIONS.factorDisabled,
-          outcome: 'succeeded',
           correlationId: input.context.correlationId,
           ip: input.context.ip ?? null,
           userAgent: input.context.userAgent ?? null,
@@ -1124,6 +1174,56 @@ export class AuthenticationService {
       kind: row.kind,
       label: row.label,
       confirmedAt: row.confirmedAt,
+    }));
+  }
+
+  /**
+   * `D05d`. What has been done to this person's credentials, newest first — `ID-05`'s
+   * "security event receipt".
+   *
+   * This is the whole of the answer to the gap: the record was always written, in the same
+   * transaction as the change, and nothing could read it. An owner whose recovery codes were
+   * replaced by somebody holding their session learned about it when their own codes stopped
+   * working; now the date is on their own security screen.
+   *
+   * ## Not behind fresh proof, deliberately
+   *
+   * Every *change* on this surface is behind `D05`'s re-authentication. This read is not, and
+   * the asymmetry is the point: it is what a worried person opens, and a screen that demands
+   * a password before it will say whether the password was changed is a screen that is harder
+   * to reach than the attack it reports. It also gives away nothing an attacker holding the
+   * session does not have — the actions it lists are ones they performed.
+   *
+   * ## What it hands back
+   *
+   * The action and the time, and nothing else. Not `reason`, which migration 0004 forbids
+   * returning. Not `ip` or `user_agent`, and that omission is a judgement rather than an
+   * oversight: this read is reachable from any live session, including the stolen one `D05`
+   * exists to bound, and the addresses and devices the *owner* signs in from are not
+   * something to hand that holder. What raises the alarm is "your recovery codes were
+   * replaced on the 12th" when the owner did no such thing; the address is not needed to
+   * raise it, and an operator investigating afterwards reads the table.
+   */
+  async listCredentialChanges(input: {
+    userId: string;
+    correlationId: string;
+  }): Promise<readonly CredentialChange[]> {
+    const rows = await this.database.identityRead(
+      { correlationId: input.correlationId, tables: [...IDENTITY_TABLES] },
+      (db) =>
+        this.credentials.listCredentialChanges(
+          db,
+          input.userId,
+          CREDENTIAL_CHANGE_ACTIONS,
+          CREDENTIAL_CHANGE_LIMIT,
+        ),
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      // The read asked for exactly this closed list, so the column cannot hold anything else.
+      action: row.action as AuthenticationAction,
+      occurredAt: row.occurredAt,
     }));
   }
 
