@@ -21,7 +21,15 @@ export interface ClaimedOutboxEvent {
   readonly payload: unknown;
   readonly correlationId: string | null;
   readonly occurredAt: Date;
-  /** Failed deliveries so far — 0 on a row nothing has tried. */
+  /**
+   * **Deliveries started, including this one** — never below 1 on a claimed row.
+   *
+   * The meaning changed deliberately (see {@link reserveDueEvents}): it used to be "failed
+   * deliveries so far", counted only when a handler threw, which is exactly why a handler
+   * that killed the process cost the row nothing and the queue stalled behind it forever.
+   * The backoff arithmetic is unaffected — `backoffDelayMs` was always given the count
+   * *after* the delivery being scheduled, and that is what this is.
+   */
   readonly attempts: number;
 }
 
@@ -59,22 +67,39 @@ export interface ClaimOptions {
 }
 
 /**
- * Claim the due, unpublished, unparked events — oldest first by `(available_at, id)`.
+ * **Phase one of the claim: reserve the next events and count the attempt, durably.**
  *
- * `FOR UPDATE SKIP LOCKED`: a second dispatcher running the same statement receives the
- * *next* batch rather than blocking on this one, which is what makes "runnable both as a
- * loop and as controlled batches" (50-BOOTSTRAP §3) safe to do concurrently. The locks
- * hold until the enclosing transaction commits, so a claimed event is either published,
- * failed forward, or — on a crash — released untouched for the next run. Supported by
- * MySQL 8.0 and later, which is every server this runs against (ADR-0002).
+ * Selects the due, unpublished, unparked events — oldest first by `(available_at, id)` —
+ * with `FOR UPDATE SKIP LOCKED`, and increments `attempts` on every one of them before any
+ * handler has run. It is meant to be called in a **transaction of its own**, committed
+ * before the batch transaction opens, and that separation is the entire point.
+ *
+ * ## Why a second transaction rather than one extra statement
+ *
+ * `attempts` used to move only in {@link recordFailure}, which runs when a handler *throws*.
+ * A handler that instead kills the process — OOM on a large payload, the host's OOM killer,
+ * a `SIGKILL` mid-batch — never reaches that line. The server rolls the batch transaction
+ * back, releases the locks, and the row returns with `attempts` unchanged: re-claimed first
+ * on every restart, unable to ever reach the cap that parks it, with the whole queue behind
+ * it. Incrementing inside the batch transaction fixes nothing, because a crash rolls that
+ * increment back with everything else. The count has to be **committed before the handler
+ * runs**, and that requires its own transaction.
+ *
+ * What that costs is stated plainly: `attempts` is now *deliveries started*, not deliveries
+ * failed, so a crash between this commit and the batch's own — or a connection lost in
+ * between — spends one attempt on a row nothing tried. With `OUTBOX_MAX_ATTEMPTS` at 8 that
+ * is a cheap trade for a poison row that parks instead of stalling delivery org-wide.
+ *
+ * What it does not cost is delivery: `FOR UPDATE SKIP LOCKED` still keeps two relays off one
+ * row here, and phase two re-checks `published_at IS NULL` under its own locks, so a row a
+ * second relay published in the gap is simply not claimed rather than delivered twice.
  */
-export async function claimDueEvents(
+export async function reserveDueEvents(
   tx: WorkerTransaction,
   options: ClaimOptions,
-): Promise<readonly ClaimedOutboxEvent[]> {
-  const rows = await tx.query<readonly OutboxRow[]>(
-    `SELECT id, organization_id, type, schema_version, aggregate_type, aggregate_id,
-            payload_json, correlation_id, occurred_at, attempts
+): Promise<readonly string[]> {
+  const rows = await tx.query<readonly { readonly id: string }[]>(
+    `SELECT id
        FROM outbox_events
       WHERE published_at IS NULL
         AND available_at <= NOW(3)
@@ -83,6 +108,91 @@ export async function claimDueEvents(
       LIMIT ?
       FOR UPDATE SKIP LOCKED`,
     [options.maxAttempts, options.limit],
+  );
+
+  const ids = rows.map((row) => row.id);
+  if (ids.length === 0) return ids;
+
+  // No `last_error` and no `available_at` here: this records that a delivery *began*, and
+  // the diagnosis belongs to whichever outcome follows. A row whose process dies keeps the
+  // previous error and stays due, so the next start retries it immediately — one attempt
+  // poorer each time, and parked once the cap is reached.
+  await tx.query(
+    `UPDATE outbox_events SET attempts = attempts + 1 WHERE id IN (${placeholders(ids.length)})`,
+    ids,
+  );
+  return ids;
+}
+
+/** `?, ?, ?` for an `IN` list. Never interpolates a value — only the count of them. */
+function placeholders(count: number): string {
+  return new Array(count).fill('?').join(', ');
+}
+
+/**
+ * **Refund a reservation's attempt — CRITICAL-B's compensation.**
+ *
+ * {@link reserveDueEvents} commits `attempts + 1` before the batch runs, so a handler that
+ * *kills the process* still costs its row an attempt (CRITICAL-1). But a batch that fails as a
+ * whole for a recoverable reason — a deadlock, a lost transaction, a statement timeout, a
+ * dropped connection — delivered nothing and did **not** kill the process, and before this
+ * slice such a failure cost the rows nothing. Left uncompensated, the reservation's increment
+ * would stand and a recurring deadlock would march a whole batch of never-delivered events
+ * into parking at poll rate.
+ *
+ * So on a recoverable failure the dispatcher runs this in a transaction of its own: one
+ * `attempts - 1` over the reserved ids that are still unpublished, restoring the pre-slice
+ * cost of an ordinary deadlock — nothing — while a real process kill, which never reaches this
+ * code, keeps its count. `attempts > 0` guards against ever going negative; `published_at IS
+ * NULL` leaves a row a second relay drained in the gap alone.
+ *
+ * **It refunds only the ids it is handed, and the dispatcher withholds one.** The row whose own
+ * handler raised the lost-transaction error is left out of the list (see the catch in
+ * `dispatcher.ts`), so a deterministically deadlocking handler still spends its attempt and
+ * still parks. This function stays deliberately dumb about that: blame belongs to the
+ * dispatcher, the only place that knows which handler was running when the transaction died.
+ */
+export async function releaseReservedAttempts(
+  tx: WorkerTransaction,
+  ids: readonly string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  await tx.query(
+    `UPDATE outbox_events
+        SET attempts = attempts - 1
+      WHERE id IN (${placeholders(ids.length)})
+        AND published_at IS NULL
+        AND attempts > 0`,
+    [...ids],
+  );
+}
+
+/**
+ * **Phase two of the claim: take the reserved rows into the batch transaction.**
+ *
+ * The locks this statement takes hold until the batch commits, so a claimed event is either
+ * published, failed forward, or — on a crash — released for the next run, now one attempt
+ * poorer. `published_at IS NULL` is re-checked because phase one's locks were released at
+ * its own commit; a row another relay drained in that gap is skipped rather than redelivered.
+ *
+ * There is deliberately **no `attempts < maxAttempts` predicate**. Phase one has already
+ * incremented, so the row that just reached the cap would be filtered out here and would
+ * never get the delivery its final attempt was counted for.
+ */
+export async function claimReservedEvents(
+  tx: WorkerTransaction,
+  ids: readonly string[],
+): Promise<readonly ClaimedOutboxEvent[]> {
+  if (ids.length === 0) return [];
+  const rows = await tx.query<readonly OutboxRow[]>(
+    `SELECT id, organization_id, type, schema_version, aggregate_type, aggregate_id,
+            payload_json, correlation_id, occurred_at, attempts
+       FROM outbox_events
+      WHERE id IN (${placeholders(ids.length)})
+        AND published_at IS NULL
+      ORDER BY available_at, id
+      FOR UPDATE SKIP LOCKED`,
+    [...ids],
   );
 
   return rows.map((row) => ({
@@ -105,10 +215,13 @@ export async function markPublished(tx: WorkerTransaction, eventId: string): Pro
 }
 
 /**
- * Delivery failed: count the attempt, keep the shortest useful diagnosis, and push
- * `available_at` out so the retry backs off. When the incremented count reaches the cap
- * the row is parked by arithmetic — `claimDueEvents` filters `attempts < cap` — with no
- * flag column to keep in sync.
+ * Delivery failed: keep the shortest useful diagnosis and push `available_at` out so the
+ * retry backs off.
+ *
+ * It no longer touches `attempts` — {@link reserveDueEvents} counted the attempt before the
+ * handler ran, which is what makes a process-killing handler cost the row something. Parking
+ * is still arithmetic: once the reserved count reaches the cap the claim's `attempts < cap`
+ * excludes the row, with no flag column to keep in sync.
  */
 export async function recordFailure(
   tx: WorkerTransaction,
@@ -118,11 +231,75 @@ export async function recordFailure(
 ): Promise<void> {
   await tx.query(
     `UPDATE outbox_events
-        SET attempts = attempts + 1, last_error = ?, available_at = ?
+        SET last_error = ?, available_at = ?
       WHERE id = ?`,
     // The column is VARCHAR(1000); truncated deliberately rather than by the driver.
     [error.slice(0, 1000), nextAvailableAt, eventId],
   );
+}
+
+/**
+ * The one measurement that tells a stopped relay from an idle one — CRITICAL-2's fix.
+ *
+ * A healthy worker with nothing to do and a worker that died three days ago produce exactly
+ * the same logs (none), the same exit code from `relay:once` (0), and the same everything
+ * else. What separates them is **how old the oldest undelivered event is**: a number that
+ * stays near zero while the relay drains and grows without bound the moment it stops,
+ * whatever the reason — a crash loop, a killed process, an exhausted pool, a cron entry
+ * someone removed, a `WORKER_DATABASE_URL` that stopped resolving.
+ *
+ * Read on the **worker's** credential rather than the API's on purpose: `tmanage_worker`
+ * already holds SELECT on `outbox_events` (`scripts/db/users.sql`), so this needs no new
+ * grant, and the process being measured is the one that answers for it.
+ *
+ * Parked rows are counted but excluded from the age: they are a separate, already-reported
+ * condition, and letting one park permanently would otherwise pin the age at "growing
+ * forever" and drown the signal this exists to give.
+ */
+export interface OutboxBacklog {
+  /** Unpublished and not parked — the work the relay still owes. */
+  readonly pending: number;
+  /** Unpublished and at or past the attempt cap — never claimed again without an operator. */
+  readonly parked: number;
+  /**
+   * Seconds between now and the oldest pending row's `available_at`, floored at 0.
+   * `null` when nothing is pending, which is the drained state and not a missing reading.
+   */
+  readonly oldestPendingSeconds: number | null;
+}
+
+export async function readOutboxBacklog(
+  tx: WorkerTransaction,
+  maxAttempts: number,
+): Promise<OutboxBacklog> {
+  interface BacklogRow {
+    readonly pending: unknown;
+    readonly parked: unknown;
+    readonly oldest_pending_seconds: unknown;
+  }
+  const rows = await tx.query<readonly BacklogRow[]>(
+    `SELECT SUM(CASE WHEN attempts <  ? THEN 1 ELSE 0 END) AS pending,
+            SUM(CASE WHEN attempts >= ? THEN 1 ELSE 0 END) AS parked,
+            TIMESTAMPDIFF(
+              SECOND,
+              MIN(CASE WHEN attempts < ? THEN available_at END),
+              NOW(3)
+            ) AS oldest_pending_seconds
+       FROM outbox_events
+      WHERE published_at IS NULL`,
+    [maxAttempts, maxAttempts, maxAttempts],
+  );
+
+  const row = rows[0];
+  const oldest = row === undefined ? null : row.oldest_pending_seconds;
+  return {
+    pending: row === undefined ? 0 : Number(row.pending ?? 0),
+    parked: row === undefined ? 0 : Number(row.parked ?? 0),
+    // A pending row backed off into the future reads negative; 0 is the honest answer for
+    // "nothing is overdue", and the `null` above is reserved for "nothing is pending".
+    oldestPendingSeconds:
+      oldest === null || oldest === undefined ? null : Math.max(0, Number(oldest)),
+  };
 }
 
 export interface ParkedOutboxEvent {
@@ -134,9 +311,10 @@ export interface ParkedOutboxEvent {
 }
 
 /**
- * The poison events — §2's dead-letter set, reported rather than silently skipped. An
- * operator replays one by resetting its `attempts`; nothing in the relay does that for
- * them, because a poison event that un-parks itself is a retry loop with extra steps.
+ * The poison events — §2's dead-letter set, reported rather than silently skipped. Nothing in
+ * the relay un-parks one on its own, because a poison event that un-parks itself is a retry
+ * loop with extra steps; an operator replays it deliberately with {@link unparkEvents}
+ * (`relay:unpark`).
  */
 export async function listParkedEvents(
   tx: WorkerTransaction,
@@ -158,6 +336,74 @@ export async function listParkedEvents(
       LIMIT ?`,
     [maxAttempts, limit],
   );
+  return rows.map((row) => ({
+    id: row.id,
+    organizationId: row.organization_id,
+    type: row.type,
+    attempts: Number(row.attempts),
+    lastError: row.last_error,
+  }));
+}
+
+/**
+ * **Replay a parked event — the way out of parking (x8 review IMPORTANT-2).**
+ *
+ * Parking is permanent by design: the row is never claimed again, so `relay:status` and
+ * `relay:once` exit 1 on *every* invocation until somebody intervenes. Without a command to
+ * intervene with, the only remedy was an operator editing `attempts` by hand with a SQL client,
+ * and an alarm whose only stand-down is hand-written SQL is an alarm that gets ignored — the
+ * same alarm-fatigue shape CRITICAL-A was condemned for, only about something real.
+ *
+ * This resets the parked rows to pending: `attempts` back to zero, `available_at` to now so the
+ * next batch takes them, and `last_error` cleared because a pending row carrying the diagnosis
+ * of a delivery that is about to be retried is a lie. The rows are selected `FOR UPDATE` first
+ * and returned, so the caller logs exactly what it replayed before the change lands.
+ *
+ * `eventId === null` means every parked row; an id means that one and only if it is genuinely
+ * parked — `published_at IS NULL AND attempts >= maxAttempts` is re-applied either way, so this
+ * can never resurrect a delivered event or reset the counter of one that is merely retrying.
+ *
+ * ## Tenancy
+ *
+ * There is no `organization_id` parameter and no way to pass one. The relay is org-blind by
+ * construction (see the file header) — delivery order is global and the worker runs as
+ * `tmanage_worker`, a system role rather than a tenant's — so "a tenant it should not touch"
+ * has no representation here to get wrong. The selector is the primary key or nothing, both of
+ * which an operator on the worker's own credential could already reach with a SQL client; what
+ * changes is that the action is now named, predicate-guarded and logged. The organization of
+ * every replayed row is returned and printed for exactly that audit trail.
+ */
+export async function unparkEvents(
+  tx: WorkerTransaction,
+  maxAttempts: number,
+  eventId: string | null,
+): Promise<readonly ParkedOutboxEvent[]> {
+  interface ParkedRow {
+    readonly id: string;
+    readonly organization_id: string;
+    readonly type: string;
+    readonly attempts: number;
+    readonly last_error: string | null;
+  }
+  const rows = await tx.query<readonly ParkedRow[]>(
+    `SELECT id, organization_id, type, attempts, last_error
+       FROM outbox_events
+      WHERE published_at IS NULL
+        AND attempts >= ?${eventId === null ? '' : '\n        AND id = ?'}
+      ORDER BY id
+      FOR UPDATE`,
+    eventId === null ? [maxAttempts] : [maxAttempts, eventId],
+  );
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((row) => row.id);
+  await tx.query(
+    `UPDATE outbox_events
+        SET attempts = 0, available_at = NOW(3), last_error = NULL
+      WHERE id IN (${placeholders(ids.length)})`,
+    ids,
+  );
+
   return rows.map((row) => ({
     id: row.id,
     organizationId: row.organization_id,
@@ -203,6 +449,59 @@ function isDeadlock(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const code = (error as { errno?: unknown }).errno;
   return code === ER_LOCK_DEADLOCK;
+}
+
+/**
+ * MySQL error numbers that mean "this batch failed for an infrastructure reason, not because a
+ * handler decided to fail one event" — and, crucially, that the *process is still alive* to do
+ * something about it. See {@link isRecoverableBatchError}.
+ */
+const RECOVERABLE_ERRNOS = new Set<number>([
+  1205, // ER_LOCK_WAIT_TIMEOUT — the statement's lock wait was exceeded
+  ER_LOCK_DEADLOCK, // 1213 — whole-transaction rollback (also arrives wrapped, below)
+  3024, // ER_QUERY_TIMEOUT — a `max_execution_time` kill, the statement-timeout case
+]);
+
+/** mysql2 connection-level failures: the transaction is gone with the socket. */
+const RECOVERABLE_CODES = new Set<string>([
+  'PROTOCOL_CONNECTION_LOST',
+  'PROTOCOL_SEQUENCE_TIMEOUT',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EPIPE',
+  'ECONNREFUSED',
+]);
+
+/**
+ * **The CRITICAL-B classifier: is this whole-batch failure one whose reserved attempts should
+ * be refunded?**
+ *
+ * `true` for the recoverable infrastructure faults the reservation's increment must not
+ * punish a row for — a deadlock / lost transaction ({@link OutboxTransactionLostError}), a
+ * lock-wait or statement timeout, a dropped connection. `false` for everything else, and that
+ * default is deliberate: an *unrecognised* failure might be the process-killing handler
+ * CRITICAL-1 exists for, and keeping the attempt (so the poison row still parks) is the safe
+ * direction. A real process kill never reaches the caller's catch at all — the process is
+ * gone — so it is refunded by nobody, exactly as CRITICAL-1 requires.
+ *
+ * `true` here is **not** "refund every reserved row". A recoverable verdict says the *batch*
+ * may be retried without cost; it says nothing about which row caused it. One row can: a
+ * handler that deadlocks against the API raises `ER_LOCK_DEADLOCK` inside `withSavepoint`,
+ * which becomes an `OutboxTransactionLostError` classified recoverable here. Refunding that row
+ * too made it immortal — never at the cap, never parked, the queue stalled behind it, which is
+ * CRITICAL-1's failure shape surviving for the deadlock class (x8 review IMPORTANT-1). The
+ * dispatcher therefore withholds the culprit from the refund list; this classifier keeps its
+ * single job, which is the error, not the blame.
+ */
+export function isRecoverableBatchError(error: unknown): boolean {
+  if (error instanceof OutboxTransactionLostError) return true;
+  if (typeof error !== 'object' || error === null) return false;
+  const candidate = error as { errno?: unknown; code?: unknown; fatal?: unknown };
+  if (typeof candidate.errno === 'number' && RECOVERABLE_ERRNOS.has(candidate.errno)) return true;
+  if (typeof candidate.code === 'string' && RECOVERABLE_CODES.has(candidate.code)) return true;
+  // mysql2 flags a connection-fatal error here even when the numeric code is one we did not
+  // enumerate; a dead connection means an undelivered, uncommitted batch either way.
+  return candidate.fatal === true;
 }
 
 /**

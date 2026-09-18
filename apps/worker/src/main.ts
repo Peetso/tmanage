@@ -3,8 +3,18 @@ import type { Env } from '@tmanage/config';
 import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { createWorkerDatabase } from './common/database/worker-database.js';
+import { readOutboxBacklog, unparkEvents } from './common/database/outbox-store.js';
 import { runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
 import type { BatchReport } from './outbox/dispatcher.js';
+import {
+  backlogIsStale,
+  describeHealth,
+  evaluateOutboxHealth,
+  onceIsUnhealthy,
+  readHeartbeatState,
+  writeHeartbeat,
+} from './outbox/health.js';
+import type { OutboxHealthThresholds } from './outbox/health.js';
 import { createWorkerOutboxHandlers } from './consumers/registry.js';
 import { ClientRequestMailer } from './notifications/client-request-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
@@ -13,12 +23,25 @@ import { createMessageFanOut } from './realtime/fan-out.js';
 /**
  * The worker process entry point.
  *
- * Two modes, per `50-BOOTSTRAP` §3's deployment reality:
+ * Three modes, per `50-BOOTSTRAP` §3's deployment reality:
  *
  * - **`--once`** runs a single controlled batch and exits with its report — the shape for
  *   a host that cannot keep a third Node process alive reliably. A scheduler (cron, a
  *   deploy hook, a hand) invokes `pnpm --filter @tmanage/worker relay:once` as often as
- *   delivery latency needs to be short.
+ *   delivery latency needs to be short. **It exits 1 when the oldest undelivered event is
+ *   older than `OUTBOX_BACKLOG_MAX_AGE_SECONDS`**, so cron's own failure reporting becomes
+ *   the alarm the audit found missing (CRITICAL-2). A batch that merely fails an event
+ *   still exits 0 — the retry is the design, and a page per transient failure is a page
+ *   nobody reads.
+ * - **`--status`** delivers nothing and reports: backlog age, parked count, and how long
+ *   ago a batch last finished, as one JSON line, exiting 1 when any of those is past its
+ *   threshold. The monitoring surface for a host that has no spare port for the worker to
+ *   answer on — `pnpm --filter @tmanage/worker relay:status`, from cron or an uptime check.
+ * - **`--unpark <event-id>`**, or **`--unpark --all`**, replays parked events: `attempts`
+ *   back to zero and due immediately, so the next batch delivers them. It is the way *out* of
+ *   parking, which until now was hand-written SQL — and an alarm whose only stand-down is
+ *   hand-written SQL is an alarm somebody silences instead (x8 review IMPORTANT-2). It
+ *   delivers nothing itself and names every row it replayed on stderr.
  * - **No flag** runs the polling loop until SIGINT/SIGTERM, finishing the in-flight batch
  *   before leaving — the standalone-worker shape for a host that supports one.
  *
@@ -41,9 +64,14 @@ function describe(report: BatchReport): string {
       ? `, ${report.effects} after-commit effect(s)` +
         (report.effectFailures.length > 0 ? ` of which ${report.effectFailures.length} failed` : '')
       : '';
+  // Backlog age on every line, not only when something was claimed: the whole point of
+  // CRITICAL-2 is that "nothing was claimed" and "nothing is running" must stop looking alike.
+  const oldest = report.backlog.oldestPendingSeconds;
+  const backlog =
+    `, backlog ${report.backlog.pending} pending` + (oldest === null ? '' : `, oldest ${oldest}s`);
   return (
     `claimed ${report.claimed}, published ${report.published} ` +
-    `(${report.unhandled} with no consumer), failed ${report.failed}${parked}${effects}`
+    `(${report.unhandled} with no consumer), failed ${report.failed}${parked}${effects}${backlog}`
   );
 }
 
@@ -69,9 +97,38 @@ function mailerFrom(env: Env): Mailer | null {
   });
 }
 
+/**
+ * Record that a batch finished, if a path was configured.
+ *
+ * Failure to write is logged and swallowed on purpose: the relay's job is delivery, and a
+ * heartbeat it could not write goes stale on its own — which a monitor reads as unhealthy,
+ * correctly, since a worker whose disk refuses writes is not well.
+ */
+async function beat(path: string | undefined, at: Date): Promise<void> {
+  if (path === undefined) return;
+  try {
+    await writeHeartbeat(path, at);
+  } catch (error) {
+    console.error('[worker] could not write heartbeat', error);
+  }
+}
+
 async function main(): Promise<void> {
   const env = loadEnv();
   const once = process.argv.includes('--once');
+  const status = process.argv.includes('--status');
+  const unparkIndex = process.argv.indexOf('--unpark');
+  const unparkAll = process.argv.includes('--all');
+  // The first argument after `--unpark` that is not itself a flag. An event id is a UUID, so
+  // nothing an operator can type here is ambiguous with `--all`.
+  const unparkId =
+    unparkIndex === -1
+      ? undefined
+      : process.argv.slice(unparkIndex + 1).find((argument) => !argument.startsWith('--'));
+  const thresholds: OutboxHealthThresholds = {
+    backlogMaxAgeSeconds: env.OUTBOX_BACKLOG_MAX_AGE_SECONDS,
+    heartbeatMaxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS,
+  };
 
   // The relay's own least-privilege credential when it is set; the API's otherwise, named
   // on stderr so nobody reads a development fallback as the production shape.
@@ -86,6 +143,80 @@ async function main(): Promise<void> {
       console.error('[worker] connection rejected during session setup', error);
     },
   });
+
+  // Replay and leave: no handlers are built and nothing is delivered here — the rows are made
+  // claimable again and the next batch, loop or cron, does the delivering.
+  //
+  // Tenant safety: there is no organization selector, by construction. `unparkEvents` takes a
+  // primary key or nothing at all, the relay is org-blind throughout (delivery order is global
+  // across every tenant), and the process runs as `tmanage_worker`, a system role rather than
+  // any tenant's. So there is no tenant to pass wrongly — the worst a typo does is name an id
+  // that is not parked, which the predicate refuses and the exit code reports. The one broad
+  // form, `--all`, has to be asked for by name: a bare `--unpark` refuses rather than guessing.
+  if (unparkIndex !== -1) {
+    try {
+      if (unparkAll === (unparkId !== undefined)) {
+        console.error(
+          '[worker] relay:unpark needs exactly one of: an event id, or --all for every parked event',
+        );
+        process.exitCode = 2;
+        return;
+      }
+      const replayed = await database.transaction((tx) =>
+        unparkEvents(tx, env.OUTBOX_MAX_ATTEMPTS, unparkAll ? null : (unparkId ?? null)),
+      );
+      // Named one per line, organization included: this is an operator overriding the relay's
+      // own verdict, and it is the only record that it happened. No `last_error` and no
+      // payload — the diagnosis is the operator's to read from `relay:status`, and a driver
+      // message can quote a recipient.
+      for (const event of replayed) {
+        console.warn(
+          `[worker] unparked event ${event.id} (${event.type}, organization ${event.organizationId}) ` +
+            `after ${String(event.attempts)} attempts — due now`,
+        );
+      }
+      console.warn(`[worker] relay:unpark replayed ${String(replayed.length)} parked event(s)`);
+      // A named id that matched nothing was not replayed, and the operator must hear that from
+      // the exit code, not only from a count. `--all` finding nothing parked is a no-op success.
+      if (replayed.length === 0 && !unparkAll) {
+        console.error('[worker] no parked event with that id — nothing was changed');
+        process.exitCode = 1;
+      }
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
+  // Report and leave: no handlers are built, nothing is claimed, and the only statement is
+  // the aggregate read. Safe to run from cron beside a live loop, and safe to run on a
+  // schedule of its own on a host where the relay is cron-driven batches.
+  if (status) {
+    try {
+      const backlog = await database.read((tx) => readOutboxBacklog(tx, env.OUTBOX_MAX_ATTEMPTS));
+      // CRITICAL-A: "no heartbeat file configured" must not read as "heartbeat missing". A host
+      // with no writable path keeps none, and its absence is honest, not degraded.
+      const { configured, lastPollAt } = await readHeartbeatState(env.OUTBOX_HEARTBEAT_FILE);
+      const health = evaluateOutboxHealth({
+        backlog,
+        heartbeatConfigured: configured,
+        lastPollAt,
+        now: new Date(),
+        thresholds,
+      });
+      // One JSON line on stdout for a machine, one sentence on stderr for a person. Written
+      // directly rather than through `console` because stdout here is a data channel — a
+      // caller pipes it to `jq` — and the workspace's `no-console` rule reserves `console`
+      // for the operator's log, which is stderr. The exit code is the contract: 0 draining,
+      // 1 not. Nothing in the line names an organization, a recipient or a payload.
+      process.stdout.write(`${JSON.stringify(health)}\n`);
+      console.warn(`[worker] outbox ${describeHealth(health)}`);
+      if (health.status !== 'ok') process.exitCode = 1;
+    } finally {
+      await database.end();
+    }
+    return;
+  }
 
   // The relay's own producer. The console driver counts as a transport — printing the
   // composed message is its whole job, and the bootstrap profile is where a developer reads
@@ -104,11 +235,27 @@ async function main(): Promise<void> {
   if (once) {
     try {
       const report = await runOutboxBatch(database, handlers, options);
+      await beat(env.OUTBOX_HEARTBEAT_FILE, new Date());
       console.warn(`[worker] batch: ${describe(report)}`);
       for (const parked of report.parked) {
         console.error(
           `[worker] parked event ${parked.id} (${parked.type}) after ${parked.attempts} attempts`,
         );
+      }
+      // The alarm, in the one place a cron-driven deployment can hear it. Two conditions, both
+      // things an operator must know about and neither of which a batch deployment can surface
+      // any other way: the backlog is older than the threshold (the relay is not draining,
+      // whatever the cause), or at least one event has parked (CRITICAL-C — permanent, silent
+      // non-delivery until someone resets its attempts). An event that merely *failed* this
+      // batch is due to be retried and is not yet a problem, so it is deliberately not here.
+      if (backlogIsStale(report.backlog, thresholds.backlogMaxAgeSeconds)) {
+        console.error(
+          `[worker] outbox backlog is ${String(report.backlog.oldestPendingSeconds)}s old, ` +
+            `over the ${String(thresholds.backlogMaxAgeSeconds)}s threshold — the relay is not draining`,
+        );
+      }
+      if (onceIsUnhealthy(report.backlog, thresholds.backlogMaxAgeSeconds)) {
+        process.exitCode = 1;
       }
     } finally {
       await database.end();
@@ -145,8 +292,18 @@ async function main(): Promise<void> {
       pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
       signal: controller.signal,
       onBatch: (report) => {
+        // The heartbeat is the loop's half of CRITICAL-2: a batch that completed is the
+        // only evidence this process is alive, and it must be recorded whether or not the
+        // batch had anything to do. Fire-and-forget — `beat` swallows its own failures and
+        // the loop must not wait on a disk to keep delivering.
+        void beat(env.OUTBOX_HEARTBEAT_FILE, new Date());
         if (report.claimed > 0 || report.parked.length > 0) {
           console.warn(`[worker] batch: ${describe(report)}`);
+        } else if (backlogIsStale(report.backlog, thresholds.backlogMaxAgeSeconds)) {
+          // Claimed nothing, yet something has been waiting past the threshold: rows exist
+          // that this relay cannot take — parked, or locked by another process that is not
+          // draining them. Silence here is what the audit found; this is the line.
+          console.error(`[worker] outbox not draining: ${describe(report)}`);
         }
       },
       onError: (error) => {

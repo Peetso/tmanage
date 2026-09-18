@@ -419,3 +419,115 @@ Two behaviours look like bugs at 02:00 and are not:
 - **A broken row costs only itself.** Somebody with two factors still signs in on the working
   one; only when _no_ factor of theirs opens is the sign-in refused. That is the same closed
   door, held open exactly as far as it safely can be.
+
+---
+
+## Monitoring the relay — is the outbox draining?
+
+A worker with nothing to do and a worker that died on Friday night look identical from
+outside: both log nothing, and `relay:once` used to exit 0 either way. That is why a stopped
+relay was found by a person noticing — a manager wondering why the inbox was quiet, a client
+asking why they never heard back — hours on a weekday, days over a weekend.
+
+The website is unaffected either way. What stops is everything that happens _because_ of what
+people do: the notification that a request arrived, the "we've received it" and "we need more
+detail" emails, and a client request keeping step with the work behind it. Nothing is lost —
+every event is safely written down and delivered the moment the relay runs again — but until
+then nothing is delivered.
+
+### The two readings
+
+- **Backlog age** — how old the oldest undelivered event is. Near zero while the relay
+  drains, growing without bound the moment it stops, and it does not care what stopped it: a
+  crash loop, a killed process, an exhausted connection pool, a cron entry someone removed, a
+  `WORKER_DATABASE_URL` that stopped resolving.
+- **Heartbeat** — when a batch last finished. Backlog age alone cannot tell "drained and
+  idle" from "dead with an empty queue"; this can.
+
+### The commands
+
+```
+pnpm --filter @tmanage/worker relay:status
+```
+
+Delivers nothing. Prints one JSON line — `status`, `reasons`, `pending`, `parked`,
+`oldestPendingSeconds`, `lastPollAt`, `secondsSinceLastPoll` — and **exits 1** when the
+backlog is too old, the heartbeat is stale, **or any event has parked**. Safe to run beside a
+live loop and safe to run on a schedule of its own. Point cron, or any uptime check that can
+run a command, at that exit code: its own failure reporting is the alarm.
+
+When no heartbeat file is configured (`OUTBOX_HEARTBEAT_FILE` cleared), its absence is **not**
+counted against health — the verdict rests on backlog age and parked count alone. Only a
+heartbeat that was configured and then went missing or stale is a fault. `.env.example` ships
+the key set, so that narrowing is an opt-out for a host with no writable path, not the shape
+you get by doing nothing.
+
+```
+pnpm --filter @tmanage/worker relay:once
+```
+
+The delivery batch. It **exits 1 when the backlog is older than
+`OUTBOX_BACKLOG_MAX_AGE_SECONDS`** — the relay has work it is not getting through — **or when
+any event has parked**, which is permanent, silent non-delivery until an operator resets it
+and the one thing a cron-driven deployment could not otherwise surface. A batch that merely
+failed an event still exits 0: the retry is the design, and a page per transient failure is a
+page nobody reads.
+
+```
+pnpm --filter @tmanage/worker relay:unpark -- <event-id>
+pnpm --filter @tmanage/worker relay:unpark -- --all
+```
+
+The way **out** of parking. A parked event is never claimed again, so until somebody
+intervenes `relay:status` and `relay:once` exit 1 on every single run — and an alarm that
+fires for ever with no stand-down is an alarm somebody switches off. This is the stand-down:
+it resets the named event (or every parked event, with `--all`) to `attempts = 0`, due
+immediately, so the next batch delivers it. It delivers nothing itself.
+
+It prints one line per replayed event — id, type, organization, the attempt count it had —
+so there is a record that an operator overrode the relay's verdict. Exit codes: `0` replayed,
+`1` the named id was not parked and nothing changed, `2` the arguments were wrong. A bare
+`relay:unpark` with neither an id nor `--all` refuses rather than guessing.
+
+Fix the cause first. Un-parking an event whose handler still fails just spends
+`OUTBOX_MAX_ATTEMPTS` attempts and parks it again — read `last_error` from the `parked` rows
+before you replay them, because replaying clears it.
+
+There is no tenant to get wrong here: the relay is organization-blind throughout (delivery
+order is global, across every tenant), the command takes a primary key or nothing at all, and
+the process runs as `tmanage_worker` — a system role, not any tenant's. The predicate
+`published_at IS NULL AND attempts >= OUTBOX_MAX_ATTEMPTS` is re-applied inside the
+transaction, so a mistyped id can never resurrect a delivered event or reset one that is
+merely retrying.
+
+### The variables
+
+| Variable                           | Default                                                                                | What it is                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OUTBOX_BACKLOG_MAX_AGE_SECONDS`   | `900`                                                                                  | Above this, the oldest waiting event means the relay is not draining. Several times the poll interval and comfortably more than a sensible cron period, so one slow batch is not a page. Tighten it wherever delivery latency actually matters.                                                                                                                                                                                                                                                            |
+| `OUTBOX_HEARTBEAT_MAX_AGE_SECONDS` | `900`                                                                                  | Above this, the last completed batch is too long ago for the relay to be running.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `OUTBOX_HEARTBEAT_FILE`            | `var/worker-heartbeat.json` (from `.env.example`; the schema itself defaults to unset) | Where a completed batch records the time, for a later `relay:status` to read. **Keep it set.** It is the only reading that separates "drained and idle" from "dead with an empty queue", so a deployment without it lets a relay that died on Friday with a drained queue report ok all weekend. Clear it only on a host with no writable path: unset keeps no heartbeat, which is honest there and leaves backlog age as the only reading. The path should survive a restart, not necessarily a redeploy. |
+
+Set them on every process that runs the relay, the cron entries included — including the
+heartbeat path, which is worthless if the loop writes one place and `relay:status` reads
+another. The reading is
+taken on the worker's own credential (`tmanage_worker` already holds `SELECT` on
+`outbox_events`), so no grant in `scripts/db/users.sql` changes.
+
+### When `relay:status` says degraded
+
+1. `parked` — one or more poison events have reached `OUTBOX_MAX_ATTEMPTS` and will never be
+   claimed again on their own. The `parked` count says how many. This is its own reason now,
+   not a footnote to `backlog-age`: a relay can be draining perfectly and still be degraded
+   because a handful of events can never be delivered. Read their `last_error`, fix the cause,
+   then replay them with `relay:unpark` — that is what clears this reason, and until it is
+   cleared every `relay:status` and every `relay:once` exits 1.
+2. `backlog-age` with a recent heartbeat — the relay is running and losing ground. If `parked`
+   is zero it is throughput, and the batch size or the cron period is the lever.
+3. `heartbeat-stale` or `heartbeat-missing` with an empty backlog — the relay is not running
+   at all, and there happens to be nothing waiting. Check the process, then the cron entry,
+   then `WORKER_DATABASE_URL`. (`heartbeat-missing` only appears when `OUTBOX_HEARTBEAT_FILE`
+   is set; an unset file is not a fault.)
+4. Several at once — the relay is not running, or not keeping up, and work is piling up. The
+   queue is durable, so there is nothing to recover: start the relay and it drains; replay any
+   parked rows separately with `relay:unpark`.

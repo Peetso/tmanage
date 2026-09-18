@@ -21,6 +21,10 @@ out/
 storage-local/
 pgdata/
 
+# Relay runtime state — `.env.example` points OUTBOX_HEARTBEAT_FILE here, and a heartbeat is
+# a fact about one running process, never something to commit.
+var/
+
 # Editor / OS
 .DS_Store
 Thumbs.db

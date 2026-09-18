@@ -667,4 +667,51 @@ describe('loadEnv', () => {
       ).not.toThrow();
     });
   });
+
+  describe('outbox relay monitoring (PLAT-004, worker/outbox audit CRITICAL-2)', () => {
+    it('applies the documented defaults for the two age thresholds', () => {
+      const env = loadEnv(devEnv());
+      expect(env.OUTBOX_BACKLOG_MAX_AGE_SECONDS).toBe(900);
+      expect(env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS).toBe(900);
+    });
+
+    it('leaves OUTBOX_HEARTBEAT_FILE unset by default', () => {
+      expect(loadEnv(devEnv()).OUTBOX_HEARTBEAT_FILE).toBeUndefined();
+    });
+
+    it('normalises an empty OUTBOX_HEARTBEAT_FILE to undefined — the mechanism CRITICAL-A turns on', () => {
+      // A host with no writable path clears this key; the worker must then read "no heartbeat
+      // configured", not an empty path. A regression here re-opens CRITICAL-A: `relay:status`
+      // degraded for ever. (`.env.example` itself now ships a real path — see `env.ts`.)
+      expect(
+        loadEnv({ ...devEnv(), OUTBOX_HEARTBEAT_FILE: '' }).OUTBOX_HEARTBEAT_FILE,
+      ).toBeUndefined();
+      expect(
+        loadEnv({ ...devEnv(), OUTBOX_HEARTBEAT_FILE: '   ' }).OUTBOX_HEARTBEAT_FILE,
+      ).toBeUndefined();
+    });
+
+    it('keeps and trims a configured heartbeat path', () => {
+      expect(
+        loadEnv({ ...devEnv(), OUTBOX_HEARTBEAT_FILE: '  var/worker-heartbeat.json  ' })
+          .OUTBOX_HEARTBEAT_FILE,
+      ).toBe('var/worker-heartbeat.json');
+    });
+
+    it('accepts overrides for the age thresholds', () => {
+      const env = loadEnv({
+        ...devEnv(),
+        OUTBOX_BACKLOG_MAX_AGE_SECONDS: '120',
+        OUTBOX_HEARTBEAT_MAX_AGE_SECONDS: '300',
+      });
+      expect(env.OUTBOX_BACKLOG_MAX_AGE_SECONDS).toBe(120);
+      expect(env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS).toBe(300);
+    });
+
+    it('rejects a non-positive backlog threshold rather than defaulting silently', () => {
+      expect(
+        issuePaths(() => loadEnv({ ...devEnv(), OUTBOX_BACKLOG_MAX_AGE_SECONDS: '0' })),
+      ).toContain('OUTBOX_BACKLOG_MAX_AGE_SECONDS');
+    });
+  });
 });
