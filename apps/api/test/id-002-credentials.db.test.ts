@@ -1914,6 +1914,211 @@ describe('D05 — re-authentication before a credential changes', () => {
       expect((locked as AuthenticationRejectedError).reason).toBe('locked_out');
     });
   });
+
+  /**
+   * The lockout class, reached through `D05`'s own gate.
+   *
+   * `requireReauth` writes a `failed` row against the caller's user id every time it refuses,
+   * and `countRecentFailures` counted it. Five refusals inside `AUTH_FAILURE_WINDOW_SECONDS`
+   * are therefore a full lockout of the account that was refused — and the party who can
+   * produce them is not the owner. Somebody holding a stolen session cookie posts five
+   * ungated requests at the five gated routes; every one of them is refused for want of
+   * proof, and every refusal counts against the person whose cookie it is.
+   *
+   * What that shuts is precisely the recovery. The lockout is read by `signInWithPassword`
+   * *and* by `confirmReauthentication`, so the owner can neither sign in nor mint the proof
+   * that would end the intruder's session or rotate what they hold — and the intruder, who
+   * needs no proof to keep writing rows, can hold it shut for as long as they like. None of
+   * the five routes consults the `D08` bound, so the row-writing itself has no ceiling.
+   *
+   * None of the four `reauth_*` reasons is a credential guess. `reauth_required` is no token
+   * at all; `reauth_expired` is a token this server itself signed, correctly, whose TTL has
+   * passed; `reauth_wrong_session` is an authentic token whose claims name another session.
+   * The one worth arguing is `reauth_invalid` — a malformed or badly signed token — and it is
+   * an attempt to forge an HMAC over `SESSION_SECRET`, not to guess the low-entropy secret
+   * this counter was built to protect. A five-in-900-seconds budget is meaningless against
+   * the first and decisive against the second. All four are excluded.
+   *
+   * The relation is `locked_out`'s, reached by a different path: a `reauth_*` refusal is a
+   * *consequence* of the counter's own gate, never an input to it. The rows are still
+   * written, still name the user, still carry the reason — the evidence of an attempt on a
+   * credential-changing route is the reason they exist — and only the counter stops reading
+   * them.
+   */
+  describe('a refused re-authentication does not spend the owner’s lockout', () => {
+    /** Not the owner's address. Every attempt below is the intruder's traffic. */
+    const intruder = () => ({
+      correlationId: uuidv7(),
+      ip: '198.51.100.77',
+      userAgent: 'a stolen cookie',
+    });
+
+    /** What the durable lockout would see right now, read through the production predicate. */
+    const countedFailures = () =>
+      tenant.identityRead(identity(), (db) =>
+        repository.countRecentFailures(db, owner().id, OPTIONS.failureWindowSeconds),
+      );
+
+    /** Correctly signed, for this person and this session, and already past its expiry. */
+    const expiredProof = () =>
+      signReauthToken(
+        { userId: owner().id, sessionId: SESSION, expiresAt: new Date(clockMs - 1) },
+        SECRET,
+      );
+
+    /** The right shape under the wrong key — the only one of the four that is a forgery. */
+    const forgedProof = () =>
+      signReauthToken(
+        { userId: owner().id, sessionId: SESSION, expiresAt: new Date(clockMs + 60_000) },
+        'not the session secret',
+      );
+
+    it('keeps the rows, stops counting them, and still locks out a real bad password', async () => {
+      await giveOwnerAPassword();
+
+      // One entry per gated route, twice over for three of them, so that all five routes and
+      // all four causes are represented. The gate is the first statement in four of the five
+      // and runs before any id is read, so a factor need not exist for the two that name one.
+      const attempts: readonly (() => Promise<unknown>)[] = [
+        // POST /v1/auth/password/set — take the account outright. No proof offered at all.
+        () =>
+          service.setPassword({
+            userId: owner().id,
+            sessionId: SESSION,
+            password: 'a line the owner never wrote',
+            context: intruder(),
+          }),
+        () =>
+          service.setPassword({
+            userId: owner().id,
+            sessionId: SESSION,
+            password: 'a line the owner never wrote',
+            reauthToken: expiredProof(),
+            context: intruder(),
+          }),
+        // POST /v1/auth/factors/totp — add a second factor of the intruder's own.
+        () =>
+          service.beginTotpEnrolment({
+            userId: owner().id,
+            sessionId: SESSION,
+            accountName: owner().email,
+            label: 'a phone the owner has never held',
+            context: intruder(),
+          }),
+        () =>
+          service.beginTotpEnrolment({
+            userId: owner().id,
+            sessionId: SESSION,
+            accountName: owner().email,
+            label: 'a phone the owner has never held',
+            reauthToken: forgedProof(),
+            context: intruder(),
+          }),
+        // POST /v1/auth/factors/totp/confirm — proof for a session they hold, not this one.
+        () =>
+          service.confirmTotpFactor({
+            userId: owner().id,
+            sessionId: SESSION,
+            factorId: uuidv7(),
+            code: '000000',
+            reauthToken: proofFor(owner().id, '0198f0aa-0000-7000-8000-00000000cccc'),
+            context: intruder(),
+          }),
+        // DELETE /v1/auth/factors/:factorId — strip the owner's second factor.
+        () =>
+          service.disableFactor({
+            userId: owner().id,
+            sessionId: SESSION,
+            factorId: uuidv7(),
+            context: intruder(),
+          }),
+        // POST /v1/auth/recovery-codes — reissue, and read, a printable set.
+        () =>
+          service.regenerateRecoveryCodes({
+            userId: owner().id,
+            sessionId: SESSION,
+            reauthToken: forgedProof(),
+            context: intruder(),
+          }),
+        () =>
+          service.regenerateRecoveryCodes({
+            userId: owner().id,
+            sessionId: SESSION,
+            reauthToken: expiredProof(),
+            context: intruder(),
+          }),
+      ];
+
+      // Comfortably above the threshold: eight refusals where five is a lockout.
+      expect(attempts.length).toBeGreaterThan(OPTIONS.maxFailuresInWindow);
+      for (const attempt of attempts) {
+        await reject(attempt());
+      }
+
+      // Half one: the evidence survives whole. Eight `failed` rows, every one naming the
+      // owner, spread across the four gate reasons and the four actions the five routes
+      // write under. The counter must not be bought at the audit trail's expense.
+      const rows = await events(owner().id);
+      expect(rows).toHaveLength(attempts.length);
+      expect(rows.map((row) => row['outcome'])).toEqual(attempts.map(() => 'failed'));
+      expect(new Set(rows.map((row) => row['reason']))).toEqual(
+        new Set(['reauth_required', 'reauth_expired', 'reauth_invalid', 'reauth_wrong_session']),
+      );
+      expect(new Set(rows.map((row) => row['action']))).toEqual(
+        new Set([
+          'password_set',
+          'mfa_factor_enrolled',
+          'mfa_factor_disabled',
+          'recovery_codes_issued',
+        ]),
+      );
+
+      // Half two: not one of them is a credential presented and refused, so not one counts.
+      expect(await countedFailures()).toBe(0);
+
+      // The consequence that made this a denial of service rather than noise in the log. The
+      // owner, who did none of the above, signs in.
+      expect(
+        await service.signInWithPassword({
+          email: owner().email,
+          password: PASSWORD,
+          context: context(),
+        }),
+      ).toEqual({ status: 'authenticated', userId: owner().id });
+
+      // And re-authenticates — the route that mints the proof to end the intruder's session
+      // and rotate what they hold. Closing this one was the whole of the attack.
+      const minted = await service.confirmReauthentication({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        context: context(),
+      });
+      const reissued = await service.regenerateRecoveryCodes({
+        userId: owner().id,
+        sessionId: SESSION,
+        reauthToken: minted.reauthToken,
+        context: context(),
+      });
+      expect(reissued.recoveryCodes).toHaveLength(10);
+
+      // Nothing was weakened to get there. Five genuine wrong passwords still count, and the
+      // durable lockout fires exactly as it always did.
+      for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+        await service
+          .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
+          .catch(() => undefined);
+      }
+      expect(await countedFailures()).toBe(OPTIONS.maxFailuresInWindow);
+
+      const locked = await service
+        .signInWithPassword({ email: owner().email, password: PASSWORD, context: context() })
+        .catch((thrown: unknown) => thrown);
+      expect(locked).toBeInstanceOf(AuthenticationRejectedError);
+      expect((locked as AuthenticationRejectedError).rejection).toBe('rate_limited');
+      expect((locked as AuthenticationRejectedError).reason).toBe('locked_out');
+    });
+  });
 });
 
 describe('the log', () => {

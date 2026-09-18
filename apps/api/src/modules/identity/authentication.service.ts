@@ -738,6 +738,13 @@ export class AuthenticationService {
    * *and* session. A token minted for another session — even the same person's — is refused
    * with its own reason, so an incident reviewer can tell "no proof" from "someone else's
    * proof". Nothing is written on refusal beyond the log row; the caller has changed nothing.
+   *
+   * That row is written and never counted. `countRecentFailures` excludes all four `reauth_*`
+   * reasons — the argument is in its header under "the gate's own rows" — because the party
+   * who can produce them at will is whoever holds the session, not whoever knows the password.
+   * While they counted, five refusals here locked the *owner* out of both `signInWithPassword`
+   * and {@link AuthenticationService.confirmReauthentication}, which is to say out of every
+   * means of ending the session that was writing them.
    */
   private async requireReauth(input: {
     userId: string;
