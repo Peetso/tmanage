@@ -1,8 +1,8 @@
-import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, like, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { InternalRole } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { type MEMBERSHIP_STATUS, memberships } from '../../common/database/schema.js';
+import { type MEMBERSHIP_STATUS, memberships, users } from '../../common/database/schema.js';
 import type { MembershipRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { defaultOrgWideScope } from './principal.repository.js';
@@ -94,6 +94,55 @@ export interface ListMembershipsOptions {
   readonly statuses?: readonly MembershipStatus[];
 }
 
+/**
+ * `listWithNames`' options: the membership list's, plus the directory's own search term.
+ *
+ * Separate from `ListMembershipsOptions` because only the directory has a name to search: the
+ * plain membership list projects no `display_name` and joins no `users`, so a `q` on it would
+ * be a field nothing could honour.
+ */
+export interface MemberDirectoryOptions extends ListMembershipsOptions {
+  /**
+   * A fragment of the name to look for, matched as a contains.
+   *
+   * This is what makes an organization larger than one page usable at all: without it a picker
+   * reads the first 50 rows and the fifty-first member can never be assigned anything, because
+   * nothing on the client can ask for somebody it has not already been sent. The search belongs
+   * on the server for the same reason — a client that paged the whole roster into memory to
+   * filter it would be downloading the staff list to answer one keystroke.
+   *
+   * Blank or whitespace-only is the same as absent: an empty search box asks for everybody.
+   */
+  readonly q?: string;
+}
+
+/**
+ * Make a person's typed text safe to put inside a `LIKE` pattern.
+ *
+ * `%` and `_` are `LIKE`'s own wildcards and `\` its escape character. This is **not** injection
+ * defence — the pattern below is a bound parameter either way, and the guard in
+ * `tenant-guard.ts` would reject it if it were not. It is about the pattern meaning what was
+ * typed: a colleague whose name contains `_` should find themselves rather than match every
+ * name of the same length, and a caller typing `%` should get no rows rather than the roster.
+ */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+/**
+ * One row of the member directory: the membership, plus the name the person is known by.
+ *
+ * `userId` is kept because it is what every work action stores — D16's fix is that a person
+ * never has to *type* it, not that it stops existing. `membershipId` is the keyset cursor.
+ */
+export interface MemberDirectoryEntry {
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly displayName: string;
+  readonly role: string;
+  readonly status: MembershipStatus;
+}
+
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
 
@@ -115,6 +164,69 @@ export class MembershipsRepository {
     return tenantDrizzle(runner)
       .select()
       .from(memberships)
+      .where(and(...predicates))
+      .orderBy(asc(memberships.id))
+      .limit(limit);
+  }
+
+  /**
+   * The same list, with the name each row belongs to — D16.
+   *
+   * `list()` returns `user_id` and nothing a person can read, which is why every screen that
+   * needed a member asked somebody to paste a UUID. The name lives on `users.display_name`,
+   * so the read is a join, and the join is the reason this is a separate method rather than
+   * an option on `list()`: `list()` answers "what are the membership rows", which several
+   * internal callers want as rows, and widening its result type would put a second table in
+   * every one of their statements for a column they do not read.
+   *
+   * **Why joining `users` is legitimate.** `users` carries no `organization_id` and is absent
+   * from the guard's `TENANT_TABLES` — it is global identity, not tenant data. Only the
+   * `memberships` side has a tenant key, and it is anchored to the active context with a
+   * bound `organization_id = ?` exactly as `list()` is. The rows a caller can reach are
+   * therefore the memberships of their own organization and the user records those rows name,
+   * never another tenant's roster: an adjacent tenant's member is unreachable because their
+   * membership row is filtered out before the join has anything to attach to.
+   *
+   * The projection is explicit and deliberately narrow. `users.email` is not in it: a member
+   * directory exists so that work can be assigned by name, and an address list is a different
+   * decision with different consequences (it is what makes a roster worth exfiltrating). A
+   * column added to `users` later is invisible here until somebody chooses to add it.
+   *
+   * **`q` searches the name, and is still the tenant's search.** The fragment narrows the same
+   * statement rather than replacing it: `organization_id = ?` and the status filter are both
+   * still there, so a search can only ever reach further into this organization's own roster.
+   * The comparison is case-insensitive because `users.display_name` is `utf8mb4_unicode_ci`
+   * (spelled out on the table in `0001_tenancy.sql`, not inherited) — a `LOWER()` wrapped round
+   * the column would say the same thing while forbidding every index on it.
+   */
+  async listWithNames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: MemberDirectoryOptions = {},
+  ): Promise<readonly MemberDirectoryEntry[]> {
+    const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+    const statuses = options.statuses ?? (['active'] as const);
+    const search = options.q?.trim() ?? '';
+
+    const predicates = [
+      eq(memberships.organizationId, context.organizationId),
+      inArray(memberships.status, [...statuses]),
+    ];
+    if (options.after) predicates.push(gt(memberships.id, options.after));
+    if (search !== '') {
+      predicates.push(like(users.displayName, `%${escapeLikePattern(search)}%`));
+    }
+
+    return tenantDrizzle(runner)
+      .select({
+        membershipId: memberships.id,
+        userId: memberships.userId,
+        displayName: users.displayName,
+        role: memberships.role,
+        status: memberships.status,
+      })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
       .where(and(...predicates))
       .orderBy(asc(memberships.id))
       .limit(limit);
