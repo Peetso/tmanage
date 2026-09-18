@@ -236,7 +236,7 @@ test.describe.serial('the work-delivery journeys', () => {
     // The owner opens filled with the item's current owner — the seed gives it to the
     // designer — and the time with now. Neither has to be typed; the time is corrected here to
     // when the work was actually finished, which is the point of asking.
-    const ownerField = maker.page.getByLabel('Who owned this to completion');
+    const ownerField = maker.page.getByRole('combobox', { name: 'Who owned this to completion' });
     await expect(ownerField).toHaveValue(world().northstar.designer.id);
     const completedField = maker.page.getByLabel('When it was completed');
     await expect(completedField).not.toHaveValue('');
