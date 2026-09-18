@@ -6,7 +6,10 @@ import {
   backlogIsStale,
   describeHealth,
   evaluateOutboxHealth,
+  heartbeatTempPath,
+  onceIsUnhealthy,
   readHeartbeat,
+  readHeartbeatState,
   writeHeartbeat,
 } from './health.js';
 import type { OutboxHealthThresholds } from './health.js';
@@ -50,6 +53,7 @@ describe('outbox health verdict', () => {
   it('is ok when the queue is drained and a batch finished recently', () => {
     const health = evaluateOutboxHealth({
       backlog: { pending: 0, parked: 0, oldestPendingSeconds: null },
+      heartbeatConfigured: true,
       lastPollAt: secondsAgo(5),
       now: NOW,
       thresholds: THRESHOLDS,
@@ -61,9 +65,28 @@ describe('outbox health verdict', () => {
     expect(health.secondsSinceLastPoll).toBe(5);
   });
 
+  it('is ok when no heartbeat file is configured and the queue is drained (CRITICAL-A)', () => {
+    // The shipped default ships `OUTBOX_HEARTBEAT_FILE` empty, normalised to undefined. Before
+    // this fix that reported `heartbeat-missing` and exited 1 on a healthy, fully drained queue
+    // on every invocation, for ever — an alarm silenced in week one. Absence of a *configured*
+    // heartbeat is not a fault; it narrows the readings to backlog age, exactly as the runbook
+    // and env.ts already promised.
+    const health = evaluateOutboxHealth({
+      backlog: { pending: 0, parked: 0, oldestPendingSeconds: null },
+      heartbeatConfigured: false,
+      lastPollAt: null,
+      now: NOW,
+      thresholds: THRESHOLDS,
+    });
+
+    expect(health.status).toBe('ok');
+    expect(health.reasons).toEqual([]);
+  });
+
   it('is ok with a busy but fresh queue — a backlog is not by itself a fault', () => {
     const health = evaluateOutboxHealth({
       backlog: { pending: 400, parked: 0, oldestPendingSeconds: 30 },
+      heartbeatConfigured: true,
       lastPollAt: secondsAgo(2),
       now: NOW,
       thresholds: THRESHOLDS,
@@ -78,6 +101,7 @@ describe('outbox health verdict', () => {
     // killed process, an exhausted pool, a cron entry someone removed.
     const health = evaluateOutboxHealth({
       backlog: { pending: 3, parked: 0, oldestPendingSeconds: 901 },
+      heartbeatConfigured: true,
       lastPollAt: secondsAgo(1),
       now: NOW,
       thresholds: THRESHOLDS,
@@ -87,11 +111,29 @@ describe('outbox health verdict', () => {
     expect(health.reasons).toEqual(['backlog-age']);
   });
 
+  it('is degraded when a row has parked, even on an otherwise healthy relay (CRITICAL-C)', () => {
+    // Parking is the *success* condition of claim-time counting, and it was invisible to every
+    // signal the same slice added: `relay:status` said ok with a queue full of parked events.
+    // A parked row is permanent, silent non-delivery — it must make the verdict degraded.
+    const health = evaluateOutboxHealth({
+      backlog: { pending: 0, parked: 3, oldestPendingSeconds: null },
+      heartbeatConfigured: true,
+      lastPollAt: secondsAgo(5),
+      now: NOW,
+      thresholds: THRESHOLDS,
+    });
+
+    expect(health.status).toBe('degraded');
+    expect(health.reasons).toEqual(['parked']);
+    expect(health.parked).toBe(3);
+  });
+
   it('is degraded when no batch has finished for longer than the threshold', () => {
     // The reading backlog age cannot give: a dead relay on a quiet weekend, with nothing
     // produced to be late. Drained and dead look identical until the heartbeat goes stale.
     const health = evaluateOutboxHealth({
       backlog: { pending: 0, parked: 0, oldestPendingSeconds: null },
+      heartbeatConfigured: true,
       lastPollAt: secondsAgo(3600),
       now: NOW,
       thresholds: THRESHOLDS,
@@ -102,15 +144,16 @@ describe('outbox health verdict', () => {
     expect(health.secondsSinceLastPoll).toBe(3600);
   });
 
-  it('names both reasons when both readings are bad', () => {
+  it('names every reason when all readings are bad', () => {
     const health = evaluateOutboxHealth({
       backlog: { pending: 12, parked: 2, oldestPendingSeconds: 86_400 },
+      heartbeatConfigured: true,
       lastPollAt: null,
       now: NOW,
       thresholds: THRESHOLDS,
     });
 
-    expect(health.reasons).toEqual(['backlog-age', 'heartbeat-missing']);
+    expect(health.reasons).toEqual(['backlog-age', 'parked', 'heartbeat-missing']);
     expect(health.lastPollAt).toBeNull();
     expect(health.secondsSinceLastPoll).toBeNull();
   });
@@ -118,6 +161,7 @@ describe('outbox health verdict', () => {
   it('does not fire on the threshold itself, only past it', () => {
     const atThreshold = evaluateOutboxHealth({
       backlog: { pending: 1, parked: 0, oldestPendingSeconds: 900 },
+      heartbeatConfigured: true,
       lastPollAt: secondsAgo(900),
       now: NOW,
       thresholds: THRESHOLDS,
@@ -128,6 +172,7 @@ describe('outbox health verdict', () => {
   it('reads a heartbeat from the future as age zero rather than as a negative', () => {
     const health = evaluateOutboxHealth({
       backlog: { pending: 0, parked: 0, oldestPendingSeconds: null },
+      heartbeatConfigured: true,
       lastPollAt: new Date(NOW.getTime() + 60_000),
       now: NOW,
       thresholds: THRESHOLDS,
@@ -140,6 +185,7 @@ describe('outbox health verdict', () => {
     const line = describeHealth(
       evaluateOutboxHealth({
         backlog: { pending: 3, parked: 1, oldestPendingSeconds: 4000 },
+        heartbeatConfigured: true,
         lastPollAt: secondsAgo(120),
         now: NOW,
         thresholds: THRESHOLDS,
@@ -153,18 +199,50 @@ describe('outbox health verdict', () => {
 });
 
 describe('the --once exit-code condition', () => {
-  it('is false while nothing is waiting, however many parked rows there are', () => {
-    expect(backlogIsStale({ pending: 0, parked: 9, oldestPendingSeconds: null }, 900)).toBe(false);
+  it('is false while nothing is waiting and nothing has parked', () => {
+    expect(onceIsUnhealthy({ pending: 0, parked: 0, oldestPendingSeconds: null }, 900)).toBe(false);
   });
 
   it('is false for a queue that is merely busy', () => {
-    expect(backlogIsStale({ pending: 50, parked: 0, oldestPendingSeconds: 12 }, 900)).toBe(false);
+    expect(onceIsUnhealthy({ pending: 50, parked: 0, oldestPendingSeconds: 12 }, 900)).toBe(false);
   });
 
   it('is true once the oldest waiting event is past the threshold', () => {
     // `main.ts` turns this into `process.exitCode = 1`, which is what makes cron's own
     // failure reporting the alarm the audit found missing.
-    expect(backlogIsStale({ pending: 1, parked: 0, oldestPendingSeconds: 901 }, 900)).toBe(true);
+    expect(onceIsUnhealthy({ pending: 1, parked: 0, oldestPendingSeconds: 901 }, 900)).toBe(true);
+  });
+
+  it('is true whenever a row has parked, even with a drained pending set (CRITICAL-C)', () => {
+    // A cron `relay:once` exiting 0 on a queue full of parked events is exactly the silence
+    // CRITICAL-C describes. Parking must make cron's own alarm fire.
+    expect(onceIsUnhealthy({ pending: 0, parked: 4, oldestPendingSeconds: null }, 900)).toBe(true);
+  });
+
+  it('the age-only reading still ignores parked rows — that is backlogIsStale, unchanged', () => {
+    expect(backlogIsStale({ pending: 0, parked: 9, oldestPendingSeconds: null }, 900)).toBe(false);
+  });
+});
+
+describe('readHeartbeatState — the CRITICAL-A wiring decision', () => {
+  it('reports not-configured for an undefined path, without touching the disk', async () => {
+    await expect(readHeartbeatState(undefined)).resolves.toEqual({
+      configured: false,
+      lastPollAt: null,
+    });
+  });
+
+  it('reports configured with the recorded time for a written file', async () => {
+    const path = join(directory, 'state-present.json');
+    await writeHeartbeat(path, NOW);
+    await expect(readHeartbeatState(path)).resolves.toEqual({ configured: true, lastPollAt: NOW });
+  });
+
+  it('reports configured-but-missing for a path that was set but never written', async () => {
+    await expect(readHeartbeatState(join(directory, 'state-absent.json'))).resolves.toEqual({
+      configured: true,
+      lastPollAt: null,
+    });
   });
 });
 
@@ -188,6 +266,27 @@ describe('the heartbeat file', () => {
     await expect(readHeartbeat(path)).resolves.toEqual(NOW);
   });
 
+  it('gives each write a unique, per-process temp path (IMPORTANT-F)', () => {
+    // A fixed `${path}.tmp` lets two concurrent writers — the loop's fire-and-forget beat, a
+    // `relay:once` beside it, a second relay — interleave into one temp file and rename garbage
+    // into place, which reads back as a false `heartbeat-missing`. Each write needs its own.
+    const a = heartbeatTempPath('/var/beat.json');
+    const b = heartbeatTempPath('/var/beat.json');
+    expect(a).not.toBe(b);
+    expect(a).toContain(String(process.pid));
+    expect(a.endsWith('.tmp')).toBe(true);
+  });
+
+  it('survives concurrent writes to one path, reading back one whole beat', async () => {
+    const path = join(directory, 'concurrent.json');
+    const first = secondsAgo(10);
+    await Promise.all([writeHeartbeat(path, first), writeHeartbeat(path, NOW)]);
+    // Whichever landed last, it is a *complete* heartbeat, never a half-written one read as null.
+    const read = await readHeartbeat(path);
+    expect(read).not.toBeNull();
+    expect([first.getTime(), NOW.getTime()]).toContain(read?.getTime());
+  });
+
   it('reads a missing file as no heartbeat, not as an error', async () => {
     await expect(readHeartbeat(join(directory, 'never-written.json'))).resolves.toBeNull();
   });
@@ -206,10 +305,11 @@ describe('the heartbeat file', () => {
     await expect(readHeartbeat(nonsenseDate)).resolves.toBeNull();
   });
 
-  it('turns an unreadable heartbeat into a degraded verdict, not a crash', async () => {
-    const lastPollAt = await readHeartbeat(join(directory, 'absent.json'));
+  it('turns a configured-but-unreadable heartbeat into a degraded verdict, not a crash', async () => {
+    const { configured, lastPollAt } = await readHeartbeatState(join(directory, 'absent.json'));
     const health = evaluateOutboxHealth({
       backlog: { pending: 0, parked: 0, oldestPendingSeconds: null },
+      heartbeatConfigured: configured,
       lastPollAt,
       now: NOW,
       thresholds: THRESHOLDS,

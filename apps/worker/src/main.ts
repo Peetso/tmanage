@@ -10,7 +10,8 @@ import {
   backlogIsStale,
   describeHealth,
   evaluateOutboxHealth,
-  readHeartbeat,
+  onceIsUnhealthy,
+  readHeartbeatState,
   writeHeartbeat,
 } from './outbox/health.js';
 import type { OutboxHealthThresholds } from './outbox/health.js';
@@ -136,12 +137,12 @@ async function main(): Promise<void> {
   if (status) {
     try {
       const backlog = await database.read((tx) => readOutboxBacklog(tx, env.OUTBOX_MAX_ATTEMPTS));
-      const lastPollAt =
-        env.OUTBOX_HEARTBEAT_FILE === undefined
-          ? null
-          : await readHeartbeat(env.OUTBOX_HEARTBEAT_FILE);
+      // CRITICAL-A: "no heartbeat file configured" must not read as "heartbeat missing". A host
+      // with no writable path keeps none, and its absence is honest, not degraded.
+      const { configured, lastPollAt } = await readHeartbeatState(env.OUTBOX_HEARTBEAT_FILE);
       const health = evaluateOutboxHealth({
         backlog,
+        heartbeatConfigured: configured,
         lastPollAt,
         now: new Date(),
         thresholds,
@@ -184,14 +185,19 @@ async function main(): Promise<void> {
           `[worker] parked event ${parked.id} (${parked.type}) after ${parked.attempts} attempts`,
         );
       }
-      // The alarm, in the one place a cron-driven deployment can hear it. Backlog age only:
-      // an event that failed this batch is due to be retried and is not yet a problem, but
-      // an event nobody has delivered for longer than the threshold is, whatever the cause.
+      // The alarm, in the one place a cron-driven deployment can hear it. Two conditions, both
+      // things an operator must know about and neither of which a batch deployment can surface
+      // any other way: the backlog is older than the threshold (the relay is not draining,
+      // whatever the cause), or at least one event has parked (CRITICAL-C — permanent, silent
+      // non-delivery until someone resets its attempts). An event that merely *failed* this
+      // batch is due to be retried and is not yet a problem, so it is deliberately not here.
       if (backlogIsStale(report.backlog, thresholds.backlogMaxAgeSeconds)) {
         console.error(
           `[worker] outbox backlog is ${String(report.backlog.oldestPendingSeconds)}s old, ` +
             `over the ${String(thresholds.backlogMaxAgeSeconds)}s threshold — the relay is not draining`,
         );
+      }
+      if (onceIsUnhealthy(report.backlog, thresholds.backlogMaxAgeSeconds)) {
         process.exitCode = 1;
       }
     } finally {

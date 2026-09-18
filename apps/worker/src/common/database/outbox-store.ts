@@ -130,6 +130,38 @@ function placeholders(count: number): string {
 }
 
 /**
+ * **Refund a reservation's attempt — CRITICAL-B's compensation.**
+ *
+ * {@link reserveDueEvents} commits `attempts + 1` before the batch runs, so a handler that
+ * *kills the process* still costs its row an attempt (CRITICAL-1). But a batch that fails as a
+ * whole for a recoverable reason — a deadlock, a lost transaction, a statement timeout, a
+ * dropped connection — delivered nothing and did **not** kill the process, and before this
+ * slice such a failure cost the rows nothing. Left uncompensated, the reservation's increment
+ * would stand and a recurring deadlock would march a whole batch of never-delivered events
+ * into parking at poll rate.
+ *
+ * So on a recoverable failure the dispatcher runs this in a transaction of its own: one
+ * `attempts - 1` over the reserved ids that are still unpublished, restoring the pre-slice
+ * cost of an ordinary deadlock — nothing — while a real process kill, which never reaches this
+ * code, keeps its count. `attempts > 0` guards against ever going negative; `published_at IS
+ * NULL` leaves a row a second relay drained in the gap alone.
+ */
+export async function releaseReservedAttempts(
+  tx: WorkerTransaction,
+  ids: readonly string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  await tx.query(
+    `UPDATE outbox_events
+        SET attempts = attempts - 1
+      WHERE id IN (${placeholders(ids.length)})
+        AND published_at IS NULL
+        AND attempts > 0`,
+    [...ids],
+  );
+}
+
+/**
  * **Phase two of the claim: take the reserved rows into the batch transaction.**
  *
  * The locks this statement takes hold until the batch commits, so a claimed event is either
@@ -342,6 +374,50 @@ function isDeadlock(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const code = (error as { errno?: unknown }).errno;
   return code === ER_LOCK_DEADLOCK;
+}
+
+/**
+ * MySQL error numbers that mean "this batch failed for an infrastructure reason, not because a
+ * handler decided to fail one event" — and, crucially, that the *process is still alive* to do
+ * something about it. See {@link isRecoverableBatchError}.
+ */
+const RECOVERABLE_ERRNOS = new Set<number>([
+  1205, // ER_LOCK_WAIT_TIMEOUT — the statement's lock wait was exceeded
+  ER_LOCK_DEADLOCK, // 1213 — whole-transaction rollback (also arrives wrapped, below)
+  3024, // ER_QUERY_TIMEOUT — a `max_execution_time` kill, the statement-timeout case
+]);
+
+/** mysql2 connection-level failures: the transaction is gone with the socket. */
+const RECOVERABLE_CODES = new Set<string>([
+  'PROTOCOL_CONNECTION_LOST',
+  'PROTOCOL_SEQUENCE_TIMEOUT',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EPIPE',
+  'ECONNREFUSED',
+]);
+
+/**
+ * **The CRITICAL-B classifier: is this whole-batch failure one whose reserved attempts should
+ * be refunded?**
+ *
+ * `true` for the recoverable infrastructure faults the reservation's increment must not
+ * punish a row for — a deadlock / lost transaction ({@link OutboxTransactionLostError}), a
+ * lock-wait or statement timeout, a dropped connection. `false` for everything else, and that
+ * default is deliberate: an *unrecognised* failure might be the process-killing handler
+ * CRITICAL-1 exists for, and keeping the attempt (so the poison row still parks) is the safe
+ * direction. A real process kill never reaches the caller's catch at all — the process is
+ * gone — so it is refunded by nobody, exactly as CRITICAL-1 requires.
+ */
+export function isRecoverableBatchError(error: unknown): boolean {
+  if (error instanceof OutboxTransactionLostError) return true;
+  if (typeof error !== 'object' || error === null) return false;
+  const candidate = error as { errno?: unknown; code?: unknown; fatal?: unknown };
+  if (typeof candidate.errno === 'number' && RECOVERABLE_ERRNOS.has(candidate.errno)) return true;
+  if (typeof candidate.code === 'string' && RECOVERABLE_CODES.has(candidate.code)) return true;
+  // mysql2 flags a connection-fatal error here even when the numeric code is one we did not
+  // enumerate; a dead connection means an undelivered, uncommitted batch either way.
+  return candidate.fatal === true;
 }
 
 /**

@@ -57,6 +57,13 @@ function fakeDatabase(
         log.push('reserve-attempt');
         return Promise.resolve({ affectedRows: events.length });
       }
+      // CRITICAL-B's compensation: a recoverable whole-batch failure refunds the reserved
+      // attempt in a transaction of its own. Logged under its own name so `fail` still means
+      // only `recordFailure` — the invariant the deadlock and savepoint-lost tests rest on.
+      if (text.startsWith('UPDATE') && text.includes('ATTEMPTS = ATTEMPTS - 1')) {
+        log.push('reserve-release');
+        return Promise.resolve({ affectedRows: params?.length ?? 0 });
+      }
       if (text.startsWith('SELECT') && text.includes('FOR UPDATE')) {
         log.push('claim');
         return Promise.resolve(
@@ -87,12 +94,13 @@ function fakeDatabase(
   } as unknown as WorkerTransaction;
 
   // One batch is two transactions now — the reservation, then the batch proper. Only the
-  // second one's commit is the one these tests mean by "the commit".
+  // second one's commit is the one these tests mean by "the commit". A third transaction may
+  // follow on a recoverable failure: CRITICAL-B's attempt refund.
   let transactions = 0;
   return {
     transaction: async <T>(run: (tx: WorkerTransaction) => Promise<T>): Promise<T> => {
       transactions += 1;
-      const isBatch = transactions > 1;
+      const isBatch = transactions === 2;
       const result = await run(tx);
       if (isBatch && options.failCommit === true) {
         log.push('commit-failed');
@@ -101,6 +109,8 @@ function fakeDatabase(
       if (isBatch) log.push('commit');
       return result;
     },
+    // IMPORTANT-D: the backlog aggregate is read here, outside the batch transaction.
+    read: <T>(run: (tx: WorkerTransaction) => Promise<T>): Promise<T> => run(tx),
   } as unknown as WorkerDatabase;
 }
 

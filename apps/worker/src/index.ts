@@ -16,10 +16,12 @@ export type {
 export {
   OutboxTransactionLostError,
   claimReservedEvents,
+  isRecoverableBatchError,
   listParkedEvents,
   markPublished,
   readOutboxBacklog,
   recordFailure,
+  releaseReservedAttempts,
   reserveDueEvents,
   withSavepoint,
 } from './common/database/outbox-store.js';
@@ -37,7 +39,10 @@ export {
   backlogIsStale,
   describeHealth,
   evaluateOutboxHealth,
+  heartbeatTempPath,
+  onceIsUnhealthy,
   readHeartbeat,
+  readHeartbeatState,
   writeHeartbeat,
 } from './outbox/health.js';
 export type {
@@ -46,7 +51,7 @@ export type {
   OutboxHealthReason,
   OutboxHealthThresholds,
 } from './outbox/health.js';
-export { runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
+export { loopErrorDelayMs, runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
 export type {
   BatchReport,
   DispatcherOptions,

@@ -4,6 +4,7 @@ import { uuidv7 } from '@tmanage/domain';
 import {
   createWorkerDatabase,
   readOutboxBacklog,
+  releaseReservedAttempts,
   reserveDueEvents,
   runOutboxBatch,
 } from '@tmanage/worker';
@@ -159,6 +160,49 @@ describe('CRITICAL-1 — the attempt is committed before the handler runs', () =
       [poison, behind],
     );
     expect(published).toHaveLength(2);
+  });
+
+  it('refunds a reserved attempt on a recoverable whole-batch failure (CRITICAL-B)', async () => {
+    // The reservation commits `attempts + 1`; a batch that then fails as a whole for a
+    // recoverable reason (a deadlock, a lost connection) must give it back, so an ordinary
+    // deadlock costs the row nothing as it did before claim-time counting. A real process kill
+    // never reaches the compensation and keeps its attempt — that is the CRITICAL-1 case above.
+    const id = await insertEvent('unconsumed.critical1.v1');
+
+    const reserved = await workerDb.transaction((tx) =>
+      reserveDueEvents(tx, { limit: OPTIONS.batchSize, maxAttempts: OPTIONS.maxAttempts }),
+    );
+    expect(reserved).toContain(id);
+    expect(await attemptsOf(id)).toBe(1);
+
+    await workerDb.transaction((tx) => releaseReservedAttempts(tx, reserved));
+    expect(await attemptsOf(id)).toBe(0);
+
+    // Still due and unpublished — refunded, not delivered.
+    const rows = await observe(
+      `select published_at, (available_at <= utc_timestamp(3)) as due
+         from outbox_events where id = ?`,
+      [id],
+    );
+    expect(rows[0]?.['published_at']).toBeNull();
+    expect(Number(rows[0]?.['due'])).toBe(1);
+  });
+
+  it('never drives an attempt below zero and leaves a published row alone', async () => {
+    // The refund's guards: `attempts > 0` and `published_at IS NULL`. A row that was published
+    // in the gap, or one never reserved, must not be decremented.
+    const published = await insertEvent('unconsumed.critical1.v1');
+    await db.admin.execute(
+      'update outbox_events set published_at = utc_timestamp(3) where id = ?',
+      [published],
+    );
+    const untouched = await insertEvent('unconsumed.critical1.v1');
+
+    await workerDb.transaction((tx) => releaseReservedAttempts(tx, [published, untouched]));
+
+    expect(await attemptsOf(untouched)).toBe(0);
+    const stamp = await observe('select published_at from outbox_events where id = ?', [published]);
+    expect(stamp[0]?.['published_at']).not.toBeNull();
   });
 
   it('spends exactly one attempt on an ordinary throwing handler', async () => {

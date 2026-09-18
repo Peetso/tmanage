@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { runOutboxBatch } from './dispatcher.js';
+import { loopErrorDelayMs, runOutboxBatch } from './dispatcher.js';
 import type { OutboxHandlers } from './dispatcher.js';
+import { OutboxTransactionLostError } from '../common/database/outbox-store.js';
 import type { WorkerDatabase, WorkerTransaction } from '../common/database/worker-database.js';
 
 /**
@@ -108,6 +109,16 @@ class FakeQueue {
         return Promise.resolve({ affectedRows: params.length } as T);
       }
 
+      // CRITICAL-B's compensation: refund the reserved attempt on a recoverable whole-batch
+      // failure, but only on a row still unpublished and never below zero.
+      if (text.startsWith('UPDATE') && text.includes('ATTEMPTS = ATTEMPTS - 1')) {
+        for (const id of params) {
+          const row = this.row(String(id));
+          if (row.publishedAt === null && row.attempts > 0) row.attempts -= 1;
+        }
+        return Promise.resolve({ affectedRows: params.length } as T);
+      }
+
       if (text.startsWith('UPDATE') && text.includes('PUBLISHED_AT')) {
         this.row(String(params[0])).publishedAt = new Date();
         return Promise.resolve({ affectedRows: 1 } as T);
@@ -173,6 +184,24 @@ class FakeQueue {
         call += 1;
         if (call === 1) return this.database.transaction(work);
         return Promise.reject(new Error('[simulated] process killed mid-batch'));
+      },
+    };
+  }
+
+  /**
+   * The reservation (transaction 1) commits, the **batch** (transaction 2) rejects with the
+   * given error, and any later transaction — CRITICAL-B's compensation — runs normally against
+   * the queue. This is the process-*survived* failure: a deadlock, a lost connection, a
+   * statement timeout, unlike {@link killedDuringBatch} where nothing after the kill can run.
+   */
+  rejectedBatch(error: unknown): WorkerDatabase {
+    let call = 0;
+    return {
+      ...this.database,
+      transaction: <T>(work: (tx: WorkerTransaction) => Promise<T>): Promise<T> => {
+        call += 1;
+        if (call === 2) return Promise.reject(error);
+        return this.database.transaction(work);
       },
     };
   }
@@ -303,5 +332,117 @@ describe('claim-time attempt bookkeeping (CRITICAL-1)', () => {
     expect(report.claimed).toBe(0);
     expect(report.backlog.pending).toBe(1);
     expect(report.backlog.oldestPendingSeconds).toBeGreaterThanOrEqual(3_599);
+  });
+});
+
+describe('whole-batch failure compensation (CRITICAL-B)', () => {
+  it('refunds the reserved attempt when the batch fails for a recoverable reason', async () => {
+    // A deadlock / lost transaction is caught, not a process kill: the process survives to
+    // refund. Before this fix the reservation`s `attempts + 1` stood, and a recurring deadlock
+    // marched a whole batch of never-delivered rows into parking at poll rate.
+    const queue = new FakeQueue();
+    queue.add('a', 'plain.v1', 60);
+    queue.add('b', 'plain.v1', 30);
+
+    const database = queue.rejectedBatch(
+      new OutboxTransactionLostError(new Error('deadlock 1213')),
+    );
+    await expect(runOutboxBatch(database, {}, OPTIONS)).rejects.toBeInstanceOf(
+      OutboxTransactionLostError,
+    );
+
+    // Reserved (attempts → 1), then refunded (→ 0): an ordinary deadlock costs the rows
+    // nothing, exactly as it did before claim-time counting.
+    expect(queue.row('a').attempts).toBe(0);
+    expect(queue.row('b').attempts).toBe(0);
+  });
+
+  it('refunds on a driver statement-timeout / connection error too', async () => {
+    const queue = new FakeQueue();
+    queue.add('a', 'plain.v1', 60);
+
+    const timeout = Object.assign(new Error('query execution was interrupted'), { errno: 3024 });
+    await expect(runOutboxBatch(queue.rejectedBatch(timeout), {}, OPTIONS)).rejects.toThrow(
+      'interrupted',
+    );
+    expect(queue.row('a').attempts).toBe(0);
+  });
+
+  it('does NOT refund an unrecognised failure — a process kill keeps its attempt (CRITICAL-1)', async () => {
+    // The safe direction: an error we do not recognise might be the process-killing handler
+    // CRITICAL-1 exists for, so the row keeps the attempt and still parks. `killedDuringBatch`
+    // rejects with a plain Error, which the classifier treats as unrecoverable.
+    const queue = new FakeQueue();
+    queue.add('poison', 'poison.v1');
+
+    await expect(runOutboxBatch(queue.killedDuringBatch(), {}, OPTIONS)).rejects.toThrow(
+      'process killed mid-batch',
+    );
+    expect(queue.row('poison').attempts).toBe(1);
+  });
+});
+
+describe('loop error backoff (CRITICAL-B, second half)', () => {
+  const noJitter = (): number => 0;
+
+  it('is the poll interval on the first error and grows exponentially, capped', () => {
+    expect(loopErrorDelayMs(1, 5000, 900_000, noJitter)).toBe(5000);
+    expect(loopErrorDelayMs(2, 5000, 900_000, noJitter)).toBe(10_000);
+    expect(loopErrorDelayMs(3, 5000, 900_000, noJitter)).toBe(20_000);
+    // Capped rather than doubling to infinity.
+    expect(loopErrorDelayMs(50, 5000, 900_000, noJitter)).toBe(900_000);
+  });
+
+  it('adds bounded jitter so relays that failed together do not retry in lockstep', () => {
+    const full = loopErrorDelayMs(1, 5000, 900_000, () => 1);
+    expect(full).toBeGreaterThan(5000);
+    expect(full).toBeLessThanOrEqual(6250); // base + 25%
+  });
+
+  it('is zero before the first error', () => {
+    expect(loopErrorDelayMs(0, 5000, 900_000, noJitter)).toBe(0);
+  });
+});
+
+/**
+ * IMPORTANT-D: the backlog aggregate must be read on `database.read`, outside the batch
+ * transaction, not inside it. This spy answers each channel separately and records which one
+ * the aggregate was issued on.
+ */
+describe('the backlog aggregate is read outside the batch transaction (IMPORTANT-D)', () => {
+  class ChannelSpy {
+    readonly viaTransaction: string[] = [];
+    readonly viaRead: string[] = [];
+
+    private make(sink: string[]): WorkerTransaction {
+      return {
+        query: <T>(sql: string): Promise<T> => {
+          const text = sql.trim().toUpperCase();
+          sink.push(text);
+          if (text.includes('OLDEST_PENDING_SECONDS')) {
+            return Promise.resolve([{ pending: 0, parked: 0, oldest_pending_seconds: null }] as T);
+          }
+          // Everything else (reserve select, claim, parked list) returns no rows.
+          return Promise.resolve([] as T);
+        },
+      };
+    }
+
+    readonly database: WorkerDatabase = {
+      transaction: <T>(work: (tx: WorkerTransaction) => Promise<T>): Promise<T> =>
+        work(this.make(this.viaTransaction)),
+      read: <T>(work: (tx: WorkerTransaction) => Promise<T>): Promise<T> =>
+        work(this.make(this.viaRead)),
+      end: () => Promise.resolve(),
+    };
+  }
+
+  it('issues the aggregate through read(), never inside a transaction', async () => {
+    const spy = new ChannelSpy();
+    await runOutboxBatch(spy.database, {}, OPTIONS);
+
+    const isAggregate = (text: string): boolean => text.includes('OLDEST_PENDING_SECONDS');
+    expect(spy.viaRead.some(isAggregate)).toBe(true);
+    expect(spy.viaTransaction.some(isAggregate)).toBe(false);
   });
 });

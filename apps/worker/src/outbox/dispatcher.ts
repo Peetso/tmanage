@@ -2,10 +2,12 @@ import type { WorkerDatabase, WorkerTransaction } from '../common/database/worke
 import {
   OutboxTransactionLostError,
   claimReservedEvents,
+  isRecoverableBatchError,
   listParkedEvents,
   markPublished,
   readOutboxBacklog,
   recordFailure,
+  releaseReservedAttempts,
   reserveDueEvents,
   withSavepoint,
 } from '../common/database/outbox-store.js';
@@ -152,9 +154,10 @@ export interface BatchReport {
   /** Every parked event visible at the end of the batch, this batch's casualties included. */
   readonly parked: readonly ParkedOutboxEvent[];
   /**
-   * The queue as it stands at the end of the batch — CRITICAL-2's measurement, taken in the
-   * batch's own transaction because it costs one aggregate read and answers the only
-   * question an operator has: is anything waiting, and for how long.
+   * The queue as it stands just after the batch committed — CRITICAL-2's measurement. Taken on
+   * `database.read`, outside the batch transaction (IMPORTANT-D), so its full scan holds no row
+   * locks and a timeout on it cannot abort the batch. It answers the only question an operator
+   * has: is anything waiting, and for how long.
    */
   readonly backlog: OutboxBacklog;
   /** After-commit effects attempted once the batch committed — not necessarily successful. */
@@ -187,71 +190,96 @@ export async function runOutboxBatch(
     reserveDueEvents(tx, { limit: options.batchSize, maxAttempts: options.maxAttempts }),
   );
 
-  const report = await database.transaction(async (tx) => {
-    // Reset per attempt: should `transaction` ever re-run its callback, effects staged by an
-    // attempt that did not commit must not survive into the one that did.
-    committedEffects = [];
-    const events = await claimReservedEvents(tx, reserved);
+  let batchResult: Omit<BatchReport, 'backlog' | 'effects' | 'effectFailures'>;
+  try {
+    batchResult = await database.transaction(async (tx) => {
+      // Reset per attempt: should `transaction` ever re-run its callback, effects staged by an
+      // attempt that did not commit must not survive into the one that did.
+      committedEffects = [];
+      const events = await claimReservedEvents(tx, reserved);
 
-    let published = 0;
-    let unhandled = 0;
-    const failures: EventFailure[] = [];
+      let published = 0;
+      let unhandled = 0;
+      const failures: EventFailure[] = [];
 
-    for (const event of events) {
-      const handler = handlers[event.type];
+      for (const event of events) {
+        const handler = handlers[event.type];
 
-      if (!handler) {
-        await markPublished(tx, event.id);
-        published += 1;
-        unhandled += 1;
-        continue;
+        if (!handler) {
+          await markPublished(tx, event.id);
+          published += 1;
+          unhandled += 1;
+          continue;
+        }
+
+        // Staged per event and promoted only once the savepoint has held: an effect belonging
+        // to a handler whose writes were rolled back must not run.
+        const staged: OutboxEffect[] = [];
+        const effects: OutboxEffects = {
+          afterCommit: (effect) => {
+            staged.push(effect);
+          },
+        };
+
+        try {
+          await withSavepoint(tx, () => handler(event, tx, effects));
+          await markPublished(tx, event.id);
+          published += 1;
+          for (const run of staged) {
+            committedEffects.push({ eventId: event.id, type: event.type, run });
+          }
+        } catch (error) {
+          // Not this event's failure — the whole transaction is gone, so `recordFailure` would
+          // write into a fresh implicit one and the earlier events' `published_at` stamps are
+          // already destroyed. Rethrowing discards every staged effect with them, and the
+          // batch is retried from the claim.
+          if (error instanceof OutboxTransactionLostError) throw error;
+          // Already incremented by the reservation — `attempts` counts this delivery.
+          const attempts = event.attempts;
+          const delay = backoffDelayMs(attempts, options.backoffBaseMs, options.backoffCapMs);
+          await recordFailure(tx, event.id, messageOf(error), new Date(Date.now() + delay));
+          failures.push({
+            eventId: event.id,
+            type: event.type,
+            error: messageOf(error),
+            attempts,
+          });
+        }
       }
 
-      // Staged per event and promoted only once the savepoint has held: an effect belonging
-      // to a handler whose writes were rolled back must not run.
-      const staged: OutboxEffect[] = [];
-      const effects: OutboxEffects = {
-        afterCommit: (effect) => {
-          staged.push(effect);
-        },
-      };
+      // Reported from inside the same transaction, so the batch's own casualties are already
+      // visible. The limit keeps a pathological backlog from turning a report into a dump.
+      const parked = await listParkedEvents(tx, options.maxAttempts, 100);
 
+      return {
+        claimed: events.length,
+        published,
+        unhandled,
+        failed: failures.length,
+        failures,
+        parked,
+      };
+    });
+  } catch (error) {
+    // CRITICAL-B. The reservation already committed `attempts + 1` for `reserved`. A batch that
+    // failed as a whole for a recoverable infrastructure fault — a deadlock, a lost
+    // transaction, a statement timeout, a dropped connection — delivered nothing and did not
+    // kill the process, so refund the speculative attempt: an ordinary deadlock then costs the
+    // rows nothing, as it did before claim-time counting, instead of parking a whole batch of
+    // never-delivered events at poll rate. A real process kill never reaches this catch, so its
+    // rows keep the attempt CRITICAL-1 counted; an unrecognised error keeps it too, erring
+    // toward parking a possible poison row rather than retrying it forever.
+    if (reserved.length > 0 && isRecoverableBatchError(error)) {
       try {
-        await withSavepoint(tx, () => handler(event, tx, effects));
-        await markPublished(tx, event.id);
-        published += 1;
-        for (const run of staged) {
-          committedEffects.push({ eventId: event.id, type: event.type, run });
-        }
-      } catch (error) {
-        // Not this event's failure — the whole transaction is gone, so `recordFailure` would
-        // write into a fresh implicit one and the earlier events' `published_at` stamps are
-        // already destroyed. Rethrowing discards every staged effect with them, and the
-        // batch is retried from the claim.
-        if (error instanceof OutboxTransactionLostError) throw error;
-        // Already incremented by the reservation — `attempts` counts this delivery.
-        const attempts = event.attempts;
-        const delay = backoffDelayMs(attempts, options.backoffBaseMs, options.backoffCapMs);
-        await recordFailure(tx, event.id, messageOf(error), new Date(Date.now() + delay));
-        failures.push({ eventId: event.id, type: event.type, error: messageOf(error), attempts });
+        await database.transaction((tx) => releaseReservedAttempts(tx, reserved));
+      } catch {
+        // Best effort. If even the refund cannot run, the rows keep an extra attempt, which is
+        // the safe direction — they park rather than retry for ever. The original failure is
+        // what the caller must see, so it is what we rethrow.
       }
     }
-
-    // Reported from inside the same transaction, so the batch's own casualties are already
-    // visible. The limit keeps a pathological backlog from turning a report into a dump.
-    const parked = await listParkedEvents(tx, options.maxAttempts, 100);
-    const backlog = await readOutboxBacklog(tx, options.maxAttempts);
-
-    return {
-      claimed: events.length,
-      published,
-      unhandled,
-      failed: failures.length,
-      failures,
-      parked,
-      backlog,
-    };
-  });
+    throw error;
+  }
 
   // Past this line the batch has committed and every `published_at` is durable. Nothing here
   // can un-publish an event, so nothing here throws: an effect's failure becomes data in the
@@ -265,7 +293,15 @@ export async function runOutboxBatch(
     }
   }
 
-  return { ...report, effects: committedEffects.length, effectFailures };
+  // IMPORTANT-D: the backlog aggregate is read here, on `database.read` and outside the batch
+  // transaction, rather than inside it. The aggregate is a full scan of the unpublished tail
+  // whose `CASE` defeats the claim index; taken inside the batch it held the batch's own
+  // `FOR UPDATE` row locks for its whole duration and, worse, a `max_execution_time` kill on it
+  // aborted the entire batch — feeding CRITICAL-B exactly when a backlog made the scan slowest.
+  // A plain `SELECT` is a consistent non-locking read, so `--status` already reads it this way.
+  const backlog = await database.read((tx) => readOutboxBacklog(tx, options.maxAttempts));
+
+  return { ...batchResult, backlog, effects: committedEffects.length, effectFailures };
 }
 
 export interface LoopOptions extends DispatcherOptions {
@@ -291,27 +327,62 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /**
+ * How long the loop waits after a **whole-batch** failure — CRITICAL-B's second half.
+ *
+ * A batch that throws whole (a deadlock, a lost connection, a pool exhausted) used to sleep
+ * exactly one poll interval and try again, so a database that is down for a minute is hammered
+ * twelve times a minute by every relay at once. This backs the retry off exponentially from the
+ * poll interval, capped, with up to 25% jitter so relays that failed together do not retry in
+ * lockstep. `consecutiveErrors` resets to 0 on the first batch that does not throw, so an
+ * ordinary drained tick is unaffected — this only lengthens the gap while the failure persists.
+ */
+export function loopErrorDelayMs(
+  consecutiveErrors: number,
+  baseMs: number,
+  capMs: number,
+  random: () => number = Math.random,
+): number {
+  if (consecutiveErrors < 1) return 0;
+  const exponent = Math.min(consecutiveErrors - 1, 30);
+  const capped = Math.min(capMs, baseMs * 2 ** exponent);
+  // Up to 25% jitter so relays that failed together do not retry in lockstep.
+  return Math.round(capped * (1 + 0.25 * random()));
+}
+
+/**
  * The standalone-process shape: the batch above, repeated. An empty claim sleeps the full
  * interval; a full batch runs again immediately, so a backlog drains at transaction speed
- * rather than at poll speed.
+ * rather than at poll speed. A batch that throws whole backs off — see {@link loopErrorDelayMs}.
  */
 export async function runOutboxLoop(
   database: WorkerDatabase,
   handlers: OutboxHandlers,
   options: LoopOptions,
 ): Promise<void> {
+  let consecutiveErrors = 0;
   while (!options.signal?.aborted) {
     let claimed = 0;
+    let errored = false;
     try {
       const report = await runOutboxBatch(database, handlers, options);
       claimed = report.claimed;
+      consecutiveErrors = 0;
       options.onBatch?.(report);
     } catch (error) {
+      errored = true;
+      consecutiveErrors += 1;
       options.onError?.(error);
     }
 
     if (options.signal?.aborted) return;
-    if (claimed < options.batchSize) {
+    if (errored) {
+      // Back off the broken case rather than retrying at poll rate. The base is the poll
+      // interval and the cap is the failure backoff cap, so no new knob is introduced.
+      await sleep(
+        loopErrorDelayMs(consecutiveErrors, options.pollIntervalMs, options.backoffCapMs),
+        options.signal,
+      );
+    } else if (claimed < options.batchSize) {
       await sleep(options.pollIntervalMs, options.signal);
     }
   }

@@ -222,19 +222,25 @@ pnpm --filter @tmanage/worker relay:status
 ```
 
 Delivers nothing. Prints one JSON line — `status`, `reasons`, `pending`, `parked`,
-`oldestPendingSeconds`, `lastPollAt`, `secondsSinceLastPoll` — and **exits 1** when either
-reading is past its threshold. Safe to run beside a live loop and safe to run on a schedule
-of its own. Point cron, or any uptime check that can run a command, at that exit code: its
-own failure reporting is the alarm.
+`oldestPendingSeconds`, `lastPollAt`, `secondsSinceLastPoll` — and **exits 1** when the
+backlog is too old, the heartbeat is stale, **or any event has parked**. Safe to run beside a
+live loop and safe to run on a schedule of its own. Point cron, or any uptime check that can
+run a command, at that exit code: its own failure reporting is the alarm.
+
+When no heartbeat file is configured (`OUTBOX_HEARTBEAT_FILE` unset), its absence is **not**
+counted against health — the verdict rests on backlog age and parked count alone. Only a
+heartbeat that was configured and then went missing or stale is a fault.
 
 ```
 pnpm --filter @tmanage/worker relay:once
 ```
 
-The delivery batch. It now **exits 1 when the backlog is older than
-`OUTBOX_BACKLOG_MAX_AGE_SECONDS`** — the relay has work it is not getting through. A batch
-that merely failed an event still exits 0: the retry is the design, and a page per transient
-failure is a page nobody reads.
+The delivery batch. It **exits 1 when the backlog is older than
+`OUTBOX_BACKLOG_MAX_AGE_SECONDS`** — the relay has work it is not getting through — **or when
+any event has parked**, which is permanent, silent non-delivery until an operator resets it
+and the one thing a cron-driven deployment could not otherwise surface. A batch that merely
+failed an event still exits 0: the retry is the design, and a page per transient failure is a
+page nobody reads.
 
 ### The variables
 
@@ -250,12 +256,16 @@ taken on the worker's own credential (`tmanage_worker` already holds `SELECT` on
 
 ### When `relay:status` says degraded
 
-1. `backlog-age` with a recent heartbeat — the relay is running and losing ground. Look at
-   `parked`: a non-zero count is poison events that will never be claimed again without an
-   operator resetting their `attempts`. Otherwise it is throughput, and the batch size or the
-   cron period is the lever.
-2. `heartbeat-stale` or `heartbeat-missing` with an empty backlog — the relay is not running
+1. `parked` — one or more poison events have reached `OUTBOX_MAX_ATTEMPTS` and will never be
+   claimed again without an operator resetting their `attempts`. The `parked` count says how
+   many. This is its own reason now, not a footnote to `backlog-age`: a relay can be draining
+   perfectly and still be degraded because a handful of events can never be delivered.
+2. `backlog-age` with a recent heartbeat — the relay is running and losing ground. If `parked`
+   is zero it is throughput, and the batch size or the cron period is the lever.
+3. `heartbeat-stale` or `heartbeat-missing` with an empty backlog — the relay is not running
    at all, and there happens to be nothing waiting. Check the process, then the cron entry,
-   then `WORKER_DATABASE_URL`.
-3. Both — the relay is not running and work is piling up. The queue is durable, so there is
-   nothing to recover: start the relay and it drains.
+   then `WORKER_DATABASE_URL`. (`heartbeat-missing` only appears when `OUTBOX_HEARTBEAT_FILE`
+   is set; an unset file is not a fault.)
+4. Several at once — the relay is not running, or not keeping up, and work is piling up. The
+   queue is durable, so there is nothing to recover: start the relay and it drains; reset any
+   parked rows separately.

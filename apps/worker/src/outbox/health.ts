@@ -1,4 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { OutboxBacklog } from '../common/database/outbox-store.js';
 
@@ -46,7 +47,7 @@ export interface OutboxHealthThresholds {
 }
 
 /** Why health is not `ok`. Stable strings — a monitor may match on them. */
-export type OutboxHealthReason = 'backlog-age' | 'heartbeat-missing' | 'heartbeat-stale';
+export type OutboxHealthReason = 'backlog-age' | 'parked' | 'heartbeat-missing' | 'heartbeat-stale';
 
 export interface OutboxHealth {
   readonly status: 'ok' | 'degraded';
@@ -64,6 +65,14 @@ export interface OutboxHealth {
 
 export interface OutboxHealthInput {
   readonly backlog: OutboxBacklog;
+  /**
+   * Whether a heartbeat file is configured at all. When `false`, a `null` {@link lastPollAt}
+   * is *not* a fault — it is a host that keeps no heartbeat, a supported shape (see
+   * `OUTBOX_HEARTBEAT_FILE`). When `true`, a `null` reading means the beat is configured but
+   * missing, which is `heartbeat-missing`. Conflating the two is CRITICAL-A: it made the
+   * shipped empty-default report `degraded` on a healthy drained queue, always.
+   */
+  readonly heartbeatConfigured: boolean;
   readonly lastPollAt: Date | null;
   readonly now: Date;
   readonly thresholds: OutboxHealthThresholds;
@@ -81,9 +90,22 @@ export function evaluateOutboxHealth(input: OutboxHealthInput): OutboxHealth {
     reasons.push('backlog-age');
   }
 
+  // CRITICAL-C: a parked row is permanent, silent non-delivery until an operator resets it.
+  // Parking is the *success* condition of the claim-time counting this slice added, so it
+  // must be a verdict of its own — not merely a number beside an `ok`. Any parked row is a
+  // page; the count is reported for triage, the threshold is zero.
+  if (input.backlog.parked > 0) {
+    reasons.push('parked');
+  }
+
   let secondsSinceLastPoll: number | null = null;
   if (input.lastPollAt === null) {
-    reasons.push('heartbeat-missing');
+    // CRITICAL-A: absence is only a fault when a heartbeat was actually configured. A host
+    // with no writable path keeps none, and that is honest, not degraded — so `heartbeat-missing`
+    // is pushed only when a path was configured and its beat could not be read.
+    if (input.heartbeatConfigured) {
+      reasons.push('heartbeat-missing');
+    }
   } else {
     // Floored at 0: a heartbeat from the near future is a clock skew, not negative age.
     secondsSinceLastPoll = Math.max(
@@ -107,10 +129,38 @@ export function evaluateOutboxHealth(input: OutboxHealthInput): OutboxHealth {
   };
 }
 
-/** `true` when the backlog alone is past its threshold — the `--once` exit-code condition. */
+/** `true` when the backlog alone is past its threshold — the loop's `not draining` condition. */
 export function backlogIsStale(backlog: OutboxBacklog, maxAgeSeconds: number): boolean {
   const oldest = backlog.oldestPendingSeconds;
   return oldest !== null && oldest > maxAgeSeconds;
+}
+
+/**
+ * The `--once` process exit-code condition: the backlog is past its age threshold, **or** at
+ * least one event has parked (CRITICAL-C).
+ *
+ * A merely-failed event — retry pending — is deliberately not included: the retry is the
+ * design and a page per transient failure is a page nobody reads. A *parked* event is
+ * different: it is never claimed again without an operator, and cron's exit-code alarm is the
+ * only place a batch-driven deployment can hear about it, since `--once` has no live process
+ * to log to afterwards.
+ */
+export function onceIsUnhealthy(backlog: OutboxBacklog, maxAgeSeconds: number): boolean {
+  return backlogIsStale(backlog, maxAgeSeconds) || backlog.parked > 0;
+}
+
+/**
+ * Resolve what to feed {@link evaluateOutboxHealth} for the heartbeat, keeping "no file
+ * configured" distinct from "configured but unreadable" — the distinction CRITICAL-A turned on.
+ *
+ * `undefined` path → not configured, and its absence is not a fault. A configured path →
+ * `configured: true`, and {@link readHeartbeat} decides whether the beat is there.
+ */
+export async function readHeartbeatState(
+  path: string | undefined,
+): Promise<{ configured: boolean; lastPollAt: Date | null }> {
+  if (path === undefined) return { configured: false, lastPollAt: null };
+  return { configured: true, lastPollAt: await readHeartbeat(path) };
 }
 
 interface HeartbeatFile {
@@ -131,10 +181,57 @@ interface HeartbeatFile {
  */
 export async function writeHeartbeat(path: string, at: Date): Promise<void> {
   const body: HeartbeatFile = { lastPollAt: at.toISOString() };
-  const temporary = `${path}.tmp`;
+  const temporary = heartbeatTempPath(path);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(temporary, `${JSON.stringify(body)}\n`, 'utf8');
-  await rename(temporary, path);
+  try {
+    await renameWithRetry(temporary, path);
+  } catch (error) {
+    // The rename could not land. Leave no orphan scratch file behind — every write uses its
+    // own name (IMPORTANT-F), so an abandoned temp is pure litter — then surface the failure
+    // to the caller, which logs and swallows it: a relay that cannot beat still delivers, and
+    // the reading goes stale on its own.
+    await unlink(temporary).catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * `rename` the beat into place, retrying a transient Windows race.
+ *
+ * Each writer renames its own unique temp file onto the one shared destination. On POSIX that
+ * overwrite is atomic and never contends; on Windows two renames landing on the same existing
+ * target at once raise a transient `EPERM`/`EACCES` while the other rename holds the target
+ * briefly. It is not a real permission fault — a short bounded retry lets the loser land once
+ * the winner's rename has completed. Anything else, or an exhausted budget, is rethrown.
+ */
+async function renameWithRetry(from: string, to: string, attempts = 5): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await rename(from, to);
+      return;
+    } catch (error) {
+      const code = (error as { code?: unknown }).code;
+      const transient = code === 'EPERM' || code === 'EACCES';
+      if (!transient || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 5 * attempt));
+    }
+  }
+}
+
+/**
+ * The scratch path a single {@link writeHeartbeat} renames from — unique per process **and**
+ * per call (IMPORTANT-F).
+ *
+ * A fixed `${path}.tmp` is safe for the reader (rename is atomic) but not for two concurrent
+ * *writers* sharing it: the loop fires `beat` and-forget, `relay:once` and `relay:status` run
+ * beside a live loop, and two relays are unenforced — any two writing at once would interleave
+ * their bytes into one temp file and rename garbage into place, which `readHeartbeat` then
+ * reads as `null` and the verdict as a false `heartbeat-missing`. A pid-and-UUID suffix gives
+ * every write its own scratch file, so the only shared operation is the atomic rename.
+ */
+export function heartbeatTempPath(path: string): string {
+  return `${path}.${String(process.pid)}.${randomUUID()}.tmp`;
 }
 
 /**
