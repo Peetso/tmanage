@@ -384,6 +384,33 @@ describe('TM-08 the thread pane', () => {
       expect(reply).toBeDefined();
     });
   });
+
+  it('moves focus into the pane on every open, not only the first (WCAG 2.4.3)', async () => {
+    const { client, calls } = clientOver(channelHandler());
+    renderChannel(client);
+
+    const list = await screen.findByRole('list', { name: 'Messages, oldest first' });
+    const items = within(list).getAllByRole('listitem');
+    const openA = within(items[0] as HTMLElement).getByRole('button', { name: 'Reply in thread' });
+    const openB = within(items[1] as HTMLElement).getByRole('button', { name: 'Reply in thread' });
+
+    await userEvent.click(openA);
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('parentMessageId=msg-1'))).toBe(true);
+    });
+    const headingA = await screen.findByRole('heading', { name: 'Thread' });
+    expect(headingA).toHaveFocus();
+
+    // Opening B while A's pane is open: the click puts focus back on the trigger, so if the pane
+    // were only re-rendered (no remount) focus would stay there and nothing would announce.
+    await userEvent.click(openB);
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('parentMessageId=msg-2'))).toBe(true);
+    });
+    const headingB = await screen.findByRole('heading', { name: 'Thread' });
+    expect(headingB).toHaveFocus();
+    expect(headingB).not.toBe(headingA); // a fresh mount, not the same pane re-rendered
+  });
 });
 
 describe('TM-09 the convert dialog', () => {

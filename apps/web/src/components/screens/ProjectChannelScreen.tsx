@@ -215,6 +215,14 @@ export function ProjectChannelScreen({
       lens={
         threadRoot ? (
           <ThreadPane
+            /*
+             * WCAG 2.2 2.4.3, second half. Without a key, opening thread B while thread A's pane
+             * is open re-renders the *same* ThreadPane instance: the mount effect that moves focus
+             * to the heading never re-runs, so focus stays on "Reply in thread" and nothing tells
+             * the person the pane now holds a different thread. Keying on the root id makes each
+             * open a fresh mount, so the focus move happens on every open, not only the first.
+             */
+            key={threadRoot.id}
             api={api}
             organizationSlug={organizationSlug}
             conversationId={conversationId}
