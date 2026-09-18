@@ -96,6 +96,33 @@ export interface WorkerTransaction {
   query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<T>;
 }
 
+/** Which shape the relay process is running as — see {@link workerConnectionLimit}. */
+export type WorkerMode = 'loop' | 'batch';
+
+/**
+ * How many connections the relay's pool may open, by mode.
+ *
+ * The cap exists because the relay shares one MySQL server with the API on a host that has
+ * far fewer connections to give than `DATABASE_POOL_MAX` suggests, so the worker takes the
+ * smaller of the two rather than the configured maximum.
+ *
+ * **Two is no longer the right number in loop mode.** It was chosen when the process ran one
+ * dispatcher loop beside the realtime server. Since x31 there are *three* borrowers — the
+ * outbox loop, the notice loop and RT-001's subscription reads — and a subscription check
+ * arriving while both loops are mid-batch waits for one of them to finish. No deadlock is
+ * reachable (nothing here acquires a second connection while holding one: each loop runs its
+ * reservation transaction, its batch transaction and its backlog read strictly in sequence,
+ * and after-commit effects, SMTP included, hold no connection at all), so the cost is latency
+ * on a socket handshake rather than a stall — but it is a cost with no reason, and one
+ * connection per borrower removes it.
+ *
+ * Batch mode keeps two: `--once`, `--status` and `--unpark` all run their queues sequentially
+ * in a single process that exits, and a controlled batch has no third borrower.
+ */
+export function workerConnectionLimit(poolMax: number, mode: WorkerMode): number {
+  return Math.min(poolMax, mode === 'loop' ? 3 : 2);
+}
+
 export interface WorkerDatabaseOptions {
   /** `mysql://user:pass@host:port/db` — `tmanage_worker`'s URL, validated by the caller. */
   readonly url: string;

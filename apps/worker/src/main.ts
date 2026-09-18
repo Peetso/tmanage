@@ -2,7 +2,8 @@ import { loadEnv } from '@tmanage/config';
 import type { Env } from '@tmanage/config';
 import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
-import { createWorkerDatabase } from './common/database/worker-database.js';
+import { createWorkerDatabase, workerConnectionLimit } from './common/database/worker-database.js';
+import type { WorkerMode } from './common/database/worker-database.js';
 import { readOutboxBacklog, unparkEvents } from './common/database/outbox-store.js';
 import {
   CREDENTIAL_NOTICE_QUEUE,
@@ -136,6 +137,10 @@ async function main(): Promise<void> {
     backlogMaxAgeSeconds: env.OUTBOX_BACKLOG_MAX_AGE_SECONDS,
     heartbeatMaxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS,
   };
+  // Every flagged mode delivers from a single sequential pass and exits; only the no-flag
+  // shape holds two loops and the realtime server open at once, and only it needs the third
+  // connection. See `workerConnectionLimit`.
+  const mode: WorkerMode = once || status || unparkIndex !== -1 ? 'batch' : 'loop';
 
   // The relay's own least-privilege credential when it is set; the API's otherwise, named
   // on stderr so nobody reads a development fallback as the production shape.
@@ -144,7 +149,7 @@ async function main(): Promise<void> {
   );
   const database = createWorkerDatabase({
     url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
-    connectionLimit: Math.min(env.DATABASE_POOL_MAX, 2),
+    connectionLimit: workerConnectionLimit(env.DATABASE_POOL_MAX, mode),
     statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => {
       console.error('[worker] connection rejected during session setup', error);
@@ -206,8 +211,9 @@ async function main(): Promise<void> {
   // schedule of its own on a host where the relay is cron-driven batches.
   if (status) {
     try {
-      // Both queues, one verdict (x31) — see `mergeBacklogs`. The JSON line keeps the shape
-      // a monitor already parses; the per-queue split goes to the operator's line below.
+      // Both queues, one verdict (x31) — see `mergeBacklogs`. The JSON line keeps every key
+      // a monitor already parses, with the same summed meaning, and gains a `queues` object
+      // carrying the same three numbers per queue.
       const outboxBacklog = await database.read((tx) =>
         readOutboxBacklog(tx, env.OUTBOX_MAX_ATTEMPTS),
       );
@@ -215,11 +221,16 @@ async function main(): Promise<void> {
         readNoticeBacklog(tx, env.OUTBOX_MAX_ATTEMPTS),
       );
       const backlog = mergeBacklogs(outboxBacklog, noticeBacklog);
+      const queues = { outbox: outboxBacklog, notices: noticeBacklog };
       // CRITICAL-A: "no heartbeat file configured" must not read as "heartbeat missing". A host
       // with no writable path keeps none, and its absence is honest, not degraded.
       const { configured, lastPollAt } = await readHeartbeatState(env.OUTBOX_HEARTBEAT_FILE);
       const health = evaluateOutboxHealth({
         backlog,
+        // The per-queue split, in the JSON line rather than only on stderr: a summed
+        // `parked: 1` does not say which table is stuck, and a monitor cannot read the
+        // operator's stream to find out.
+        queues,
         heartbeatConfigured: configured,
         lastPollAt,
         now: new Date(),
@@ -232,9 +243,12 @@ async function main(): Promise<void> {
       // 1 not. Nothing in the line names an organization, a recipient or a payload.
       process.stdout.write(`${JSON.stringify(health)}\n`);
       console.warn(`[worker] queues ${describeHealth(health)}`);
+      // The same split the JSON's `queues` carries, in the operator's words. Both queues are
+      // named rather than only the notices: "of which notices" made the reader subtract.
       console.warn(
-        `[worker] of which notices: pending ${String(noticeBacklog.pending)}, ` +
-          `parked ${String(noticeBacklog.parked)}`,
+        `[worker] of which outbox: pending ${String(outboxBacklog.pending)}, ` +
+          `parked ${String(outboxBacklog.parked)}; notices: pending ` +
+          `${String(noticeBacklog.pending)}, parked ${String(noticeBacklog.parked)}`,
       );
       if (health.status !== 'ok') process.exitCode = 1;
     } finally {

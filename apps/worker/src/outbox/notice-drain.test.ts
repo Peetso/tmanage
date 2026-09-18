@@ -180,6 +180,10 @@ describe('the credential-change notice drain', () => {
     expect(sent[0]?.subject).toMatch(/password was changed/iu);
     // No link, no address, no secret — a security receipt must not carry the phishing shape.
     expect(sent[0]?.text).not.toMatch(/https?:\/\//u);
+    // The route back in must be one that still works after an intruder has changed the
+    // password, so it is the workspace administrator rather than "sign in and change it".
+    expect(sent[0]?.text).toMatch(/administers your TManage workspace to reset your password/u);
+    expect(sent[0]?.text).not.toMatch(/sign in, change your password/u);
   });
 
   it('drains and stamps without sending when no transport is configured', async () => {
@@ -204,7 +208,11 @@ describe('the credential-change notice drain', () => {
     expect(log).not.toContain('recipient');
   });
 
-  it('is silent about a user who is gone, and records a failure when the read throws', async () => {
+  // Only the missing-user branch is exercised here, and the title says so. A recipient read
+  // that *throws* fails the item and backs it off, which is the dispatcher's own path and is
+  // proven on this queue by the parking case below — re-proving it through a throwing read
+  // would be a second suite for the same behaviour.
+  it('is silent about a user who is gone', async () => {
     const missing: string[] = [];
     const gone = await runQueueBatch(
       fakeDatabase([{ id: 'n1', userId: 'u1', action: 'password_set', attempts: 0 }], missing, {

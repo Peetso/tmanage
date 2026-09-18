@@ -24,6 +24,24 @@ import type { CredentialNoticeRecipient } from '../common/database/notice-store.
  * - **No unsubscribe.** §7 exempts transactional mail, and a security receipt the owner
  *   could switch off is a control an attacker switches off first.
  *
+ * ## The route back in has to be one that works while locked out
+ *
+ * The closing sentence used to read "sign in, change your password, and contact your studio
+ * administrator". It was unusable in the case the mail exists for: the likeliest reason a
+ * `password_set` receipt is unexpected is that somebody else has just set the password, in
+ * which case the recipient *cannot* sign in — and the recipient of a credential receipt is
+ * often the studio owner, for whom "your studio administrator" is nobody.
+ *
+ * So it names the one route back in this product actually has today, in the same words the
+ * application itself uses: `RecoveryScreen` (`ID-05`) tells a locked-out person to ask
+ * whoever administers their workspace to reset the password for them, because self-service
+ * recovery is `ID-002` and has not been built — `/recover` renders a form that does not
+ * submit and sends no email. Naming that page here would send a locked-out person to a dead
+ * end, and recovery codes are not the answer either: they are consumed at the *second* factor,
+ * after the password has already been accepted, so they open nothing once it has changed. No
+ * support address and no turnaround are given for `RecoveryScreen`'s reason — this
+ * application has neither, and inventing one would be the same defect in a friendlier voice.
+ *
  * ## An unknown action is not mailed
  *
  * {@link composeCredentialChangeEmail} returns `null` for an `action` outside the four
@@ -87,8 +105,9 @@ export function composeCredentialChangeEmail(
       `${changed} This happened at ${utcMinute(facts.occurredAt)}.`,
       `You are receiving this because the change was made to the TManage account that uses ` +
         `this address. If it was you, nothing further is needed. If it was not, your account ` +
-        `may be compromised: sign in, change your password, and contact your studio ` +
-        `administrator immediately.`,
+        `may be compromised, and you may no longer be able to sign in to put it right ` +
+        `yourself: ask whoever administers your TManage workspace to reset your password for ` +
+        `you, as soon as you can.`,
     ].join('\n\n'),
   };
 }
