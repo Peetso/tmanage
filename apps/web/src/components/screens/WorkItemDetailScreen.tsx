@@ -5,7 +5,15 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workItemStateMachine } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
-import { Badge, Button, Field, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import {
+  Badge,
+  Button,
+  Field,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+  StateCapsule,
+} from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -156,11 +164,10 @@ export function WorkItemDetailScreen({
       }
     >
       {item.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading this work item.</span>
+        <LoadingRegion label="Loading this work item.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {item.isError ? (

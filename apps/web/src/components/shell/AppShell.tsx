@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Badge, SkipLink } from '@tmanage/ui';
+import { Badge, LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { INTERNAL_NAVIGATION } from './navigation';
 
@@ -64,66 +64,68 @@ export function AppShell({
   lens,
 }: AppShellProps) {
   return (
-    <div className="tm-app">
-      <SkipLink targetId="tm-main" />
+    <LiveAnnouncer>
+      <div className="tm-app">
+        <SkipLink targetId="tm-main" />
 
-      <nav className="tm-rail" aria-label="Primary">
-        <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
-          <Wordmark variant="icon" label="TManage home" />
-        </Link>
+        <nav className="tm-rail" aria-label="Primary">
+          <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
+            <Wordmark variant="icon" label="TManage home" />
+          </Link>
 
-        <ul className="tm-rail__list">
-          {INTERNAL_NAVIGATION.map((item) => {
-            const current = item.id === activeNavigationId;
-            return (
-              <li key={item.id}>
-                <Link
-                  href={`/${organizationSlug}${item.href}`}
-                  className="tm-rail__item"
-                  {...(current ? { 'aria-current': 'page' as const } : {})}
-                >
-                  <span className="tm-rail__orb" aria-hidden="true">
-                    {item.glyph}
-                  </span>
-                  <span className="tm-rail__label">{item.label}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+          <ul className="tm-rail__list">
+            {INTERNAL_NAVIGATION.map((item) => {
+              const current = item.id === activeNavigationId;
+              return (
+                <li key={item.id}>
+                  <Link
+                    href={`/${organizationSlug}${item.href}`}
+                    className="tm-rail__item"
+                    {...(current ? { 'aria-current': 'page' as const } : {})}
+                  >
+                    <span className="tm-rail__orb" aria-hidden="true">
+                      {item.glyph}
+                    </span>
+                    <span className="tm-rail__label">{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-      <div className="tm-app__body">
-        <header className="tm-canvas-header">
-          <div className="tm-canvas-header__context">
-            <Badge mono>{organizationName}</Badge>
-            <Badge mono>Internal</Badge>
+        <div className="tm-app__body">
+          <header className="tm-canvas-header">
+            <div className="tm-canvas-header__context">
+              <Badge mono>{organizationName}</Badge>
+              <Badge mono>Internal</Badge>
+            </div>
+            <div className="tm-canvas-header__titles">
+              <h1 className="tm-canvas-header__title">{title}</h1>
+              {description ? <p className="tm-canvas-header__description">{description}</p> : null}
+            </div>
+            {actions ? <div className="tm-canvas-header__actions">{actions}</div> : null}
+          </header>
+
+          <div className="tm-app__columns">
+            {contextRail ? (
+              <nav className="tm-context-rail" aria-label="Within this section">
+                {contextRail}
+              </nav>
+            ) : null}
+
+            <main id="tm-main" className="tm-canvas" tabIndex={-1}>
+              {children}
+            </main>
+
+            {lens ? (
+              <aside className="tm-lens" aria-label="Details">
+                {lens}
+              </aside>
+            ) : null}
           </div>
-          <div className="tm-canvas-header__titles">
-            <h1 className="tm-canvas-header__title">{title}</h1>
-            {description ? <p className="tm-canvas-header__description">{description}</p> : null}
-          </div>
-          {actions ? <div className="tm-canvas-header__actions">{actions}</div> : null}
-        </header>
-
-        <div className="tm-app__columns">
-          {contextRail ? (
-            <nav className="tm-context-rail" aria-label="Within this section">
-              {contextRail}
-            </nav>
-          ) : null}
-
-          <main id="tm-main" className="tm-canvas" tabIndex={-1}>
-            {children}
-          </main>
-
-          {lens ? (
-            <aside className="tm-lens" aria-label="Details">
-              {lens}
-            </aside>
-          ) : null}
         </div>
       </div>
-    </div>
+    </LiveAnnouncer>
   );
 }

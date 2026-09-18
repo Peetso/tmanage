@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -135,11 +135,10 @@ export function ClientInboxScreen({
       </section>
 
       {inbox.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading your notifications.</span>
+        <LoadingRegion label="Loading your notifications.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {/* "Nothing" only once the API has said it: a page can be short while a cursor remains. */}
@@ -203,6 +202,18 @@ export function ClientInboxScreen({
           </Button>
         </div>
       ) : null}
+
+      {/*
+        WCAG 2.2 4.1.3: announce the running total when "Load more" adds notifications, so a
+        screen-reader user is told the press landed instead of listening to silence.
+      */}
+      <Announce
+        message={
+          (inbox.data?.pages.length ?? 0) > 1 && !inbox.isFetchingNextPage
+            ? `${bundles.length} ${bundles.length === 1 ? 'notification' : 'notifications'} loaded in total.`
+            : ''
+        }
+      />
     </ClientPortalShell>
   );
 }

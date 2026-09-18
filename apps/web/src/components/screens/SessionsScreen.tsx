@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, InlineAlert, Skeleton, StatusDot } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton, StatusDot } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -78,12 +78,11 @@ export function SessionsScreen({
       </div>
 
       {devices.isPending ? (
-        <div className="tm-stack tm-stack--tight" aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading your sessions.</span>
+        <LoadingRegion label="Loading your sessions." className="tm-stack tm-stack--tight">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {devices.isError ? (

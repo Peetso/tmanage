@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listClientRequests, listPortalProjects } from '../../lib/api/portal';
@@ -86,11 +86,10 @@ export function ClientRequestsScreen({
       ) : null}
 
       {requests.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading your requests.</span>
+        <LoadingRegion label="Loading your requests.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       <div className="tm-row">

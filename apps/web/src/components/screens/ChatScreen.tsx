@@ -3,7 +3,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, InlineAlert, Skeleton } from '@tmanage/ui';
+import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -140,11 +140,10 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
       ) : null}
 
       {conversations.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading the channels.</span>
+        <LoadingRegion label="Loading the channels.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {!conversations.isPending && !conversations.isError && rows.length === 0 ? (

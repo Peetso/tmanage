@@ -48,3 +48,14 @@ export { Skeleton, type SkeletonProps } from './Skeleton.js';
 export { SkipLink, type SkipLinkProps } from './SkipLink.js';
 export { ThemeProvider, type ThemeProviderProps } from './ThemeProvider.js';
 export { VisuallyHidden, type VisuallyHiddenProps } from './VisuallyHidden.js';
+export {
+  LiveAnnouncer,
+  LoadingRegion,
+  Announce,
+  useAnnounce,
+  type LiveAnnouncerProps,
+  type LoadingRegionProps,
+  type AnnounceProps,
+  type AnnounceFn,
+  type AnnouncePoliteness,
+} from './LiveAnnouncer.js';

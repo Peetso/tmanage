@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { SkipLink } from '@tmanage/ui';
+import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 
 export interface IdentityShellProps {
@@ -27,23 +27,25 @@ export interface IdentityShellProps {
  */
 export function IdentityShell({ screenId, eyebrow, children, footer }: IdentityShellProps) {
   return (
-    <div className="tm-identity">
-      <SkipLink targetId="tm-main" />
+    <LiveAnnouncer>
+      <div className="tm-identity">
+        <SkipLink targetId="tm-main" />
 
-      <div className="tm-identity__card">
-        <header className="tm-identity__brand">
-          <Wordmark />
-          <p className="tm-identity__eyebrow tm-mono">
-            {screenId} · {eyebrow}
-          </p>
-        </header>
+        <div className="tm-identity__card">
+          <header className="tm-identity__brand">
+            <Wordmark />
+            <p className="tm-identity__eyebrow tm-mono">
+              {screenId} · {eyebrow}
+            </p>
+          </header>
 
-        <main id="tm-main" className="tm-identity__body" tabIndex={-1}>
-          {children}
-        </main>
+          <main id="tm-main" className="tm-identity__body" tabIndex={-1}>
+            {children}
+          </main>
 
-        {footer ? <footer className="tm-identity__footer">{footer}</footer> : null}
+          {footer ? <footer className="tm-identity__footer">{footer}</footer> : null}
+        </div>
       </div>
-    </div>
+    </LiveAnnouncer>
   );
 }

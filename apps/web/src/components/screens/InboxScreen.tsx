@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CLIENT_REQUEST_STATES, WORK_ITEM_STATES } from '@tmanage/domain';
 import type { ClientRequestState, WorkItemState } from '@tmanage/domain';
-import { Button, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
@@ -121,11 +121,10 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
       </section>
 
       {inbox.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading the inbox.</span>
+        <LoadingRegion label="Loading the inbox.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {/*
@@ -144,7 +143,15 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
       ) : null}
 
       {bundles.length > 0 ? (
-        <div className="tm-table-scroll">
+        <div
+          className="tm-table-scroll"
+          // A scrollable region must be focusable or a keyboard cannot reach its overflow
+          // columns (WCAG 2.2 2.1.1); the .tm-table-scroll CSS comment states the same.
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          role="region"
+          aria-label="Notification bundles"
+        >
           <table className="tm-table">
             <caption className="tm-visually-hidden">
               Notification bundles, most recently touched first. One row per object; each links to
@@ -212,6 +219,19 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
           </Button>
         </div>
       ) : null}
+
+      {/*
+        WCAG 2.2 4.1.3: "Load more" appends rows to a table that is in no live region, so a
+        screen-reader user hears nothing when a page arrives. Announcing the running total into
+        the shell's live region tells them the press did something.
+      */}
+      <Announce
+        message={
+          (inbox.data?.pages.length ?? 0) > 1 && !inbox.isFetchingNextPage
+            ? `${bundles.length} ${bundles.length === 1 ? 'notification' : 'notifications'} loaded in total.`
+            : ''
+        }
+      />
 
       <BackendPending ticket="INBOX-001">
         Quiet hours, digests and channel preferences are not built: there is nowhere to store a

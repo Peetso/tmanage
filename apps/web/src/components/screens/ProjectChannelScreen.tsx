@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
-import { Badge, Button, InlineAlert, Skeleton } from '@tmanage/ui';
+import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { RichTextBody } from '../RichTextBody';
@@ -100,6 +100,24 @@ export function ProjectChannelScreen({
   const [historyMessageId, setHistoryMessageId] = useState<string | undefined>(undefined);
   const [removeTargetId, setRemoveTargetId] = useState<string | undefined>(undefined);
 
+  /*
+   * WCAG 2.2 2.4.3. The thread pane is an <aside> rendered after <main>, so opening it leaves
+   * focus on the trigger and closing it (the close button unmounts) would drop focus to <body>.
+   * We remember the control that opened the pane and restore focus to it on close; the pane
+   * itself takes focus on open (see ThreadPane).
+   */
+  const threadReturnFocusRef = useRef<HTMLElement | null>(null);
+  const openThread = (messageId: string, trigger: HTMLElement) => {
+    threadReturnFocusRef.current = trigger;
+    setThreadRootId(messageId);
+  };
+  const closeThread = () => {
+    setThreadRootId(undefined);
+    const trigger = threadReturnFocusRef.current;
+    threadReturnFocusRef.current = null;
+    trigger?.focus();
+  };
+
   const conversation = useQuery({
     queryKey: ['conversation', organizationSlug, conversationId],
     queryFn: () => getConversation(api, organizationSlug, conversationId),
@@ -181,29 +199,47 @@ export function ProjectChannelScreen({
           <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
           {project.data ? <> · {project.data.name}</> : null}
           {archived ? <> · Archived</> : null}
-          {liveStatus === 'live' ? (
-            <>
-              {' '}
-              · <span aria-label="Live updates connected">Live</span>
-            </>
-          ) : null}
-          {liveStatus === 'retrying' ? (
-            <>
-              {' '}
-              · <span aria-label="Reconnecting to live updates">Reconnecting…</span>
-            </>
-          ) : null}
+          {liveStatus === 'off' ? null : ' · '}
+          {/*
+           * WCAG 2.2 4.1.3 and 4.1.2. This region is mounted from the first render — empty while
+           * the socket is off — so a later flip (a dropped connection, above all) is a text
+           * mutation of a region that already exists, which is what assistive technology
+           * announces; the old chip was mounted together with its text and so was routinely not
+           * announced, and a person whose channel had silently stopped updating was told nothing.
+           * `role="status"` also *permits* the accessible name that a bare <span> (implicit role
+           * `generic`) prohibits, so the fuller sentence is honoured rather than silently dropped.
+           */}
+          <span
+            role="status"
+            aria-label={
+              liveStatus === 'live'
+                ? 'Live updates connected'
+                : liveStatus === 'retrying'
+                  ? 'Reconnecting to live updates'
+                  : undefined
+            }
+          >
+            {liveStatus === 'live' ? 'Live' : liveStatus === 'retrying' ? 'Reconnecting…' : null}
+          </span>
         </>
       }
       lens={
         threadRoot ? (
           <ThreadPane
+            /*
+             * WCAG 2.2 2.4.3, second half. Without a key, opening thread B while thread A's pane
+             * is open re-renders the *same* ThreadPane instance: the mount effect that moves focus
+             * to the heading never re-runs, so focus stays on "Reply in thread" and nothing tells
+             * the person the pane now holds a different thread. Keying on the root id makes each
+             * open a fresh mount, so the focus move happens on every open, not only the first.
+             */
+            key={threadRoot.id}
             api={api}
             organizationSlug={organizationSlug}
             conversationId={conversationId}
             root={threadRoot}
             archived={archived}
-            onClose={() => setThreadRootId(undefined)}
+            onClose={closeThread}
           />
         ) : undefined
       }
@@ -231,12 +267,11 @@ export function ProjectChannelScreen({
       ) : null}
 
       {messages.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading the conversation.</span>
+        <LoadingRegion label="Loading the conversation.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {messages.isError ? (
@@ -260,14 +295,23 @@ export function ProjectChannelScreen({
       ) : null}
 
       {rows.length > 0 && !channelRevoked ? (
-        <ol className="tm-list tm-stack" aria-label="Messages, oldest first">
+        <ol
+          className="tm-list tm-stack"
+          aria-label="Messages, oldest first"
+          aria-live="polite"
+          aria-relevant="additions"
+        >
           {rows.map((message) => (
             <li key={message.id} className="tm-panel tm-stack tm-stack--tight">
               <MessageHeader message={message} />
               <MessageBody message={message} />
 
               <div className="tm-row tm-row--wrap">
-                <Button tone="outline" size="compact" onClick={() => setThreadRootId(message.id)}>
+                <Button
+                  tone="outline"
+                  size="compact"
+                  onClick={(event) => openThread(message.id, event.currentTarget)}
+                >
                   Reply in thread
                 </Button>
                 {message.deletedAt === null ? (
@@ -717,10 +761,20 @@ function ThreadPane({
 
   const replyRows = useMemo(() => replies.data?.pages.flat() ?? [], [replies.data]);
 
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    // WCAG 2.2 2.4.3: move focus into the pane when it opens, rather than leaving the keyboard
+    // user on the trigger with the pane rendered after <main> and reachable only by tabbing the
+    // whole transcript. Focusing the heading also announces the pane to a screen reader.
+    headingRef.current?.focus();
+  }, []);
+
   return (
     <div className="tm-stack">
       <div className="tm-row">
-        <h2 className="tm-eyebrow">Thread</h2>
+        <h2 className="tm-eyebrow" tabIndex={-1} ref={headingRef}>
+          Thread
+        </h2>
         <span className="tm-push-end">
           <Button tone="outline" size="compact" onClick={onClose}>
             Close thread
@@ -734,10 +788,9 @@ function ThreadPane({
       </div>
 
       {replies.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading the replies.</span>
+        <LoadingRegion label="Loading the replies.">
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {replies.isError ? (
@@ -749,7 +802,12 @@ function ThreadPane({
       {replies.data && replyRows.length === 0 ? <p className="tm-prose">No replies yet.</p> : null}
 
       {replyRows.length > 0 ? (
-        <ol className="tm-list tm-stack" aria-label="Replies, oldest first">
+        <ol
+          className="tm-list tm-stack"
+          aria-label="Replies, oldest first"
+          aria-live="polite"
+          aria-relevant="additions"
+        >
           {replyRows.map((reply) => (
             <li key={reply.id} className="tm-panel tm-stack tm-stack--tight">
               <MessageHeader message={reply} />
@@ -804,10 +862,9 @@ function RevisionHistory({
 
   if (revisions.isPending) {
     return (
-      <div aria-busy="true" aria-live="polite">
-        <span className="tm-visually-hidden">Loading the edit history.</span>
+      <LoadingRegion label="Loading the edit history.">
         <Skeleton height="var(--row)" />
-      </div>
+      </LoadingRegion>
     );
   }
   if (revisions.isError) {
