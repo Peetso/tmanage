@@ -129,6 +129,15 @@ const IDENTITY_TABLES = [
 export const PASSWORD_CHANGE_REVOCATION_REASON = 'password_changed';
 
 /**
+ * `I-1`. Recorded on `sessions.revoked_reason` for a session a person ends themselves from the
+ * device/session list — whether one named device or every other one. A lifecycle reason, and
+ * a deliberate one: distinct from `password_changed` (a cutoff that is a side effect of a
+ * credential change) and from `refresh_reuse_detected` (a security finding the person did not
+ * choose). It says the holder pressed the lever.
+ */
+export const USER_SESSION_REVOCATION_REASON = 'user_revoked';
+
+/**
  * A real Argon2id hash of a value nobody knows, used to keep the unknown-user path as
  * expensive as the wrong-password path.
  *
@@ -151,6 +160,8 @@ export const AUTHENTICATION_ACTIONS = {
   recoveryCodesIssued: 'recovery_codes_issued',
   /** `D05`: the fresh proof asked for before a credential-changing action. */
   reauthentication: 'reauthentication',
+  /** `I-1`: a session a person ended themselves from the device/session list. */
+  sessionRevoked: 'session_revoked',
 } as const;
 
 export type AuthenticationAction =
@@ -1099,6 +1110,125 @@ export class AuthenticationService {
           userAgent: input.context.userAgent ?? null,
         });
         return true;
+      },
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Session revocation — I-1
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * `I-1`. End one of this person's sessions, named by id — a device from the list, or the one
+   * making the request.
+   *
+   * Behind fresh proof (`requireReauth`), checked **before** the ownership lookup exactly as
+   * `disableFactor` is: a stolen access cookie must not be enough to evict the legitimate
+   * holder's devices, and a missing token refuses the same whether or not the id names a real
+   * session. Ownership is then checked inside the transaction that revokes, so the read and
+   * the write see one consistent row; a session that is not this person's — or does not exist
+   * — is answered the same way (`false` ⇒ 404), so the route cannot be used to probe session
+   * ids.
+   *
+   * Revoking the session row ends its refresh credential with it, and nothing has to be done
+   * to the tokens separately — the same reason `D06` gives for the password-change cutoff.
+   * `SessionService.refresh` refuses a revoked session before it rotates, and `authenticate`
+   * re-reads the row on every request, so the stateless access token dies with the same
+   * revoke rather than living out its window.
+   *
+   * @returns `false` when nothing was revoked: the id is not this person's, does not exist, or
+   * the session was already ended (a second click, or a concurrent password change).
+   */
+  async revokeSession(input: {
+    userId: string;
+    sessionId: string;
+    targetSessionId: string;
+    reauthToken?: string | undefined;
+    context: SignInContext;
+  }): Promise<boolean> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.sessionRevoked,
+      context: input.context,
+    });
+
+    return this.database.identityTransaction(
+      { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES, 'sessions'] },
+      async (tx) => {
+        const target = await this.sessions.findById(tx, input.targetSessionId);
+        // One answer for someone else's session and for one that does not exist.
+        if (!target || target.session.userId !== input.userId) return false;
+
+        const revoked = await this.sessions.revoke(
+          tx,
+          input.targetSessionId,
+          USER_SESSION_REVOCATION_REASON,
+        );
+        // Idempotent: an already-revoked session records nothing a second time.
+        if (!revoked) return false;
+
+        await this.credentials.recordAuthenticationEvent(tx, {
+          userId: input.userId,
+          action: AUTHENTICATION_ACTIONS.sessionRevoked,
+          outcome: 'succeeded',
+          correlationId: input.context.correlationId,
+          ip: input.context.ip ?? null,
+          userAgent: input.context.userAgent ?? null,
+        });
+        return true;
+      },
+    );
+  }
+
+  /**
+   * `I-1`. End every *other* live session this person holds, keeping the one that just proved
+   * itself — `22-SCREEN-BY-SCREEN` §3's "revoke all", and the lever a locked-out or
+   * compromised holder needs when a stolen refresh cookie is being rotated against them.
+   *
+   * The same statement `D06` uses when a password is replaced (`revokeOthersForUser`), reached
+   * here on purpose rather than as the side effect of changing a credential, and behind the
+   * same fresh proof. The kept session is the one carrying that proof — the device the person
+   * is holding. Refresh credentials end with each session row, so nothing is done to them
+   * separately.
+   *
+   * @returns how many other sessions were ended; `0` is a legitimate outcome (there were none)
+   * and is still recorded, because pressing the lever is itself worth a row in the log.
+   */
+  async revokeOtherSessions(input: {
+    userId: string;
+    sessionId: string;
+    reauthToken?: string | undefined;
+    context: SignInContext;
+  }): Promise<number> {
+    await this.requireReauth({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      reauthToken: input.reauthToken,
+      action: AUTHENTICATION_ACTIONS.sessionRevoked,
+      context: input.context,
+    });
+
+    return this.database.identityTransaction(
+      { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES, 'sessions'] },
+      async (tx) => {
+        const ended = await this.sessions.revokeOthersForUser(
+          tx,
+          input.userId,
+          input.sessionId,
+          USER_SESSION_REVOCATION_REASON,
+        );
+
+        await this.credentials.recordAuthenticationEvent(tx, {
+          userId: input.userId,
+          action: AUTHENTICATION_ACTIONS.sessionRevoked,
+          outcome: 'succeeded',
+          correlationId: input.context.correlationId,
+          ip: input.context.ip ?? null,
+          userAgent: input.context.userAgent ?? null,
+        });
+        return ended;
       },
     );
   }
