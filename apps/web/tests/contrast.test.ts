@@ -37,16 +37,75 @@ import { describe, expect, it } from 'vitest';
  * rejects an instance of it with "The URL must be of scheme file" even when the href is
  * exactly that.
  */
-const GLOBALS_CSS = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '../src/app/globals.css'),
-  'utf8',
-);
+const HERE = dirname(fileURLToPath(import.meta.url));
+const GLOBALS_CSS = readFileSync(join(HERE, '../src/app/globals.css'), 'utf8');
 
-/** Light-theme values, as `tokens.css` declares them under `:root`. */
+/**
+ * The design system's token sheet. `packages/ui/tests/tokens.drift.test.ts` proves every value
+ * here against the immutable design export, in both directions — so, once we have read which
+ * base token a `--tm-inverted-*` property resolves to, this file is the honest source of that
+ * token's hex per theme.
+ */
+const TOKENS_CSS = readFileSync(join(HERE, '../../../packages/ui/src/styles/tokens.css'), 'utf8');
+
+/**
+ * The declarations of one top-level block, `--name -> value`. The token and application sheets
+ * declare their `:root` and `[data-theme='dark']` blocks flat (no nested rules), so the first
+ * match of the selector is the unconditional block and a brace-free body is exact for it. A
+ * nested `:root` inside an `@media` (reduced-motion) is never the first match and is ignored.
+ */
+function blockDeclarations(css: string, selector: string): Map<string, string> {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = withoutComments.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+  const declarations = new Map<string, string>();
+  for (const line of match?.[1]?.split(';') ?? []) {
+    const at = line.indexOf(':');
+    if (at === -1) continue;
+    const name = line.slice(0, at).trim();
+    if (name.startsWith('--')) declarations.set(name, line.slice(at + 1).trim());
+  }
+  return declarations;
+}
+
+/**
+ * Resolve a `--tm-inverted-*` property to the hex it paints in a theme, entirely through the
+ * stylesheets: `globals.css` maps the property to a base token for this theme, `tokens.css`
+ * maps that base token to a hex for this theme (a token the dark block does not redefine
+ * inherits its `:root` value). This is I3 of the test-honesty sweep: the pairs these assertions
+ * measure are now the pairs the stylesheet composes, not a hand-transcribed comment. Re-point
+ * `--tm-inverted-muted` at a failing colour in `globals.css` and the ratio below moves with it.
+ */
+function invertedSurfaces(theme: 'light' | 'dark') {
+  const selector = theme === 'light' ? ':root' : "[data-theme='dark']";
+  const invertedDefs = blockDeclarations(GLOBALS_CSS, selector);
+  const rootTokens = blockDeclarations(TOKENS_CSS, ':root');
+  const themeTokens = theme === 'light' ? rootTokens : blockDeclarations(TOKENS_CSS, selector);
+  const resolve = (property: string): string => {
+    const base = invertedDefs.get(property)?.match(/var\(\s*(--[\w-]+)\s*\)/)?.[1];
+    const hex = base ? (themeTokens.get(base) ?? rootTokens.get(base)) : undefined;
+    if (!hex) {
+      throw new Error(
+        `could not resolve ${property} in the ${theme} theme through the stylesheets`,
+      );
+    }
+    return hex;
+  };
+  return {
+    invertedGround: resolve('--tm-inverted-ground'),
+    invertedInk: resolve('--tm-inverted-ink'),
+    invertedMuted: resolve('--tm-inverted-muted'),
+  };
+}
+
+const lightInverted = invertedSurfaces('light');
+const darkInverted = invertedSurfaces('dark');
+
+/** Light-theme values. The inverted surfaces are resolved from the stylesheets (see above). */
 const LIGHT = {
-  invertedGround: colorLight.line['700'], // --tm-inverted-ground = --line-700
-  invertedInk: colorLight.paper['50'], // --tm-inverted-ink     = --paper-50
-  invertedMuted: colorLight.line['300'], // --tm-inverted-muted   = --line-300
+  invertedGround: lightInverted.invertedGround, // globals.css --tm-inverted-ground, light
+  invertedInk: lightInverted.invertedInk, // globals.css --tm-inverted-ink, light
+  invertedMuted: lightInverted.invertedMuted, // globals.css --tm-inverted-muted, light
   ink950: colorLight.ink['950'],
   ink800: colorLight.ink['800'],
   ink650: colorLight.ink['650'],
@@ -58,11 +117,11 @@ const LIGHT = {
   client500: colorLight.client['500'],
 } as const;
 
-/** Dark-theme values, as `tokens.css` declares them under `[data-theme='dark']`. */
+/** Dark-theme values. The inverted surfaces are resolved from the stylesheets (see above). */
 const DARK = {
-  invertedGround: colorDark.rail, // --tm-inverted-ground = --paper-350 = #171814
-  invertedInk: colorDark.ink, // --tm-inverted-ink     = --ink-950  = #F5F6F0
-  invertedMuted: colorDark.muted, // --tm-inverted-muted   = --ink-650  = #A7ACA0
+  invertedGround: darkInverted.invertedGround, // globals.css --tm-inverted-ground, dark
+  invertedInk: darkInverted.invertedInk, // globals.css --tm-inverted-ink, dark
+  invertedMuted: darkInverted.invertedMuted, // globals.css --tm-inverted-muted, dark
   surface: colorDark.surface1,
   canvas: colorDark.canvas,
   limePlane: colorDark.limePlane,

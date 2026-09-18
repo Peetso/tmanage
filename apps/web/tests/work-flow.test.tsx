@@ -32,7 +32,10 @@ interface Call {
   readonly body: unknown;
 }
 
-function clientOver(handler: (call: Call) => Response): { client: ApiClient; calls: Call[] } {
+function clientOver(handler: (call: Call) => Response | Promise<Response>): {
+  client: ApiClient;
+  calls: Call[];
+} {
   const calls: Call[] = [];
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -884,10 +887,37 @@ describe('TM-03 the project overview', () => {
     expect(within(shared).queryByText('Private thing')).not.toBeInTheDocument();
   });
 
-  it('asserts Internal only after the shares endpoint answered empty', async () => {
-    renderOverview([]);
+  it('shows no badge until the shares endpoint answers, then Internal once it answered empty', async () => {
+    // The shares endpoint is held open, so the header renders (the project resolved) while the
+    // shares query is still in flight. This is the "only after" the title claims: the badge must
+    // be *absent* here, not defaulted to "Internal" the way the pre-CLIENT-001 screen was.
+    let answerShares!: (response: Response) => void;
+    const shares = new Promise<Response>((resolve) => {
+      answerShares = resolve;
+    });
+    const { client } = clientOver((call) =>
+      call.url.includes('/work-items')
+        ? json({ workItems: [] })
+        : call.url.includes('/clients')
+          ? shares
+          : json(PROJECTS.projects[0] as unknown),
+    );
+    render(
+      withQuery(
+        <ProjectOverviewScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          projectId="proj-1"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
 
     const header = await screen.findByRole('region', { name: 'This project' });
+    expect(within(header).queryByText('Internal')).not.toBeInTheDocument();
+
+    answerShares(json({ clients: [] }));
     await within(header).findByText('Internal');
   });
 
