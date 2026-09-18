@@ -39,21 +39,6 @@ export function unknownMemberLabel(userId: string): string {
 }
 
 /**
- * The name to show for a stored user id, whatever the directory knows.
- *
- * `null` is the only input that reads as "Unassigned"; every non-null id names somebody, even
- * when the list cannot say who.
- */
-export function memberDisplayName(
-  userId: string | null,
-  members: readonly MemberSummary[],
-): string {
-  if (userId === null) return 'Unassigned';
-  const found = members.find((member) => member.userId === userId);
-  return found ? found.displayName : unknownMemberLabel(userId);
-}
-
-/**
  * What to show for a stored id while the directory has not answered yet.
  *
  * "Not in the list" and "the list has not arrived" are different facts and only one of them is
@@ -61,6 +46,29 @@ export function memberDisplayName(
  * so that is what it says.
  */
 export const LOADING_MEMBER_LABEL = 'Loading this member’s name…';
+
+/**
+ * The name to show for a stored user id, whatever the directory knows.
+ *
+ * `null` is the only input that reads as "Unassigned"; every non-null id names somebody, even
+ * when the list cannot say who.
+ *
+ * `loading` is why an owner line takes the same third argument the picker's options do: while
+ * the directory is in flight every stored id is absent from it, so without this a pre-seeded
+ * owner reads as `Former or hidden member` for as long as the fetch lasts — a false statement
+ * about a present colleague's standing, the exact misreading D16 exists to prevent. Until the
+ * list answers, all that is known is that somebody owns this, so that is what it says.
+ */
+export function memberDisplayName(
+  userId: string | null,
+  members: readonly MemberSummary[],
+  loading = false,
+): string {
+  if (userId === null) return 'Unassigned';
+  const found = members.find((member) => member.userId === userId);
+  if (found) return found.displayName;
+  return loading ? LOADING_MEMBER_LABEL : unknownMemberLabel(userId);
+}
 
 /**
  * The picker's options.

@@ -389,7 +389,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
               D16's acceptance sentence: a member "can see who is accountable". This said
               "Assigned" — which is the one thing about an owner nobody needed telling.
             */}
-            <dd>{memberDisplayName(item.ownerUserId, directory.members)}</dd>
+            <dd>{memberDisplayName(item.ownerUserId, directory.members, directory.isPending)}</dd>
           </div>
           <div className="tm-detail-list__pair">
             <dt>Starts</dt>
