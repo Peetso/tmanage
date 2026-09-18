@@ -373,4 +373,22 @@ describe('subscriptions, against current rows', () => {
     expect(await client.next()).toEqual({ type: 'refused', conversationId });
     client.socket.close();
   });
+
+  // The channel-membership half of the alignment, against real rows (x41, review-x33 finding
+  // I1). Over HTTP an org-wide principal reads a channel with no `conversation_memberships`
+  // row; the subscribe check must too. The owner is org-wide and the channel's creator, so it
+  // holds a channel row — delete it, leaving only `has_org_wide_scope = 1`, and the subscribe
+  // must still be allowed. The unit test fakes the row; only this proves the SQL reads the
+  // column. UNEXECUTED here: this file needs mysqld and this slice does not own `db-e2e.lock`.
+  it('allows an org-wide principal to subscribe with no channel row', async () => {
+    await db.admin.execute(
+      'delete from conversation_memberships where organization_id = ? and conversation_id = ? and user_id = ?',
+      [world.northstar.organizationId, conversationId, world.northstar.owner.id],
+    );
+
+    const client = await connectAs(world.northstar.owner.id);
+    client.socket.send(JSON.stringify({ type: 'subscribe', conversationId }));
+    expect(await client.next()).toMatchObject({ type: 'subscribed', conversationId });
+    client.socket.close();
+  });
 });
