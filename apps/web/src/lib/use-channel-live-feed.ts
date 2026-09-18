@@ -21,6 +21,33 @@ import { mintRealtimeTicket } from './api/realtime';
  * deployment whose mint answers `socketUrl: null` runs no socket, and the hook settles at
  * `off` without retrying: dialing a port nothing answers is not resilience.
  *
+ * ## Revocation (RT-001's server half, slice x18)
+ *
+ * When authority is withdrawn — a membership suspended, a role capability removed, a channel
+ * membership dropped — the worker unsubscribes the connection and sends `{type:'revoked'}`
+ * (`apps/worker/src/realtime/server.ts`). That is *not* a transient socket hiccup: reconnecting
+ * would only re-subscribe to something the server will refuse again, a silent retry loop
+ * against an access the person no longer has. So a `revoked` frame is terminal here — the hook
+ * stops retrying, closes the socket, drops to the `'revoked'` status, and calls `onRevoked`
+ * once. It is a statement about *this channel only*: the session, its cookies and every other
+ * channel are untouched, so the screen shows a channel-scoped "you no longer have access"
+ * state and the person stays signed in.
+ *
+ * A `refused` answer to a re-subscribe is the same verdict wearing different clothes, and in a
+ * default deployment it is the shape revocation actually arrives in: the worker closes 4401
+ * when the ticket's TTL lapses, this hook re-mints (the session is still perfectly valid) and
+ * re-subscribes, and the server's current-rows check answers `{type:'refused'}`. Retrying that
+ * forever is a channel parked on "Reconnecting…" that will never reconnect, so a `refused` for
+ * a channel this connection had already subscribed to is terminal in exactly the same way. A
+ * `refused` on a subscribe that never succeeded is left alone: the worker also answers
+ * `refused` when a database read merely hiccups, and the screen's ordinary authorized read
+ * path already governs what such a person sees.
+ *
+ * A plain socket close is *not* revocation: it is the ordinary end of a ticket's life and
+ * still reconnects with a fresh mint. A fully ended session is handled one layer down —
+ * `mintRealtimeTicket` goes through `ApiClient`, whose refresh-refused path announces
+ * `session-ended` and navigates this screen away, unmounting the hook.
+ *
  * ## The seam
  *
  * `socketFactory` exists because jsdom has no WebSocket and a suite must drive this hook
@@ -39,7 +66,7 @@ export interface LiveSocket {
 
 export type LiveSocketFactory = (url: string) => LiveSocket | null;
 
-export type LiveFeedStatus = 'off' | 'connecting' | 'live' | 'retrying';
+export type LiveFeedStatus = 'off' | 'connecting' | 'live' | 'retrying' | 'revoked';
 
 export interface ChannelLiveFeedOptions {
   readonly api: ApiClient;
@@ -48,6 +75,14 @@ export interface ChannelLiveFeedOptions {
   readonly enabled: boolean;
   /** Called on every frame and once on subscribe. Refetch; never apply frame content. */
   readonly onCatchUp: () => void;
+  /**
+   * Called once when this channel's authority is gone — a `revoked` frame, or a `refused`
+   * answer to a re-subscribe. The hook has already stopped reconnecting and moved to the
+   * terminal `'revoked'` status, which is what the screen renders; this is the optional
+   * side-effect seam for a screen that also wants to drop channel-scoped state. It is *not*
+   * a session end: nothing here may sign the person out.
+   */
+  readonly onRevoked?: () => void;
   readonly socketFactory?: LiveSocketFactory;
   /** Base for the reconnect backoff. Small in tests; the default is a second. */
   readonly reconnectBaseMs?: number;
@@ -66,6 +101,8 @@ export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedSta
   // conversation's, not the render's.
   const onCatchUp = useRef(options.onCatchUp);
   onCatchUp.current = options.onCatchUp;
+  const onRevoked = useRef(options.onRevoked);
+  onRevoked.current = options.onRevoked;
 
   const { api, organizationSlug, conversationId, enabled } = options;
   const factory = options.socketFactory ?? defaultFactory;
@@ -80,7 +117,25 @@ export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedSta
     let disposed = false;
     let socket: LiveSocket | null = null;
     let attempts = 0;
+    // Whether the server has ever verified this channel for this connection. It is what
+    // separates a refusal that means "your access is gone" from one that may only mean the
+    // worker's database read hiccupped on a channel we never held.
+    let subscribedOnce = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+
+    // The terminal end of this channel's feed. Stop retrying (a fresh subscribe would only be
+    // refused again), cancel any pending retry, close the socket, and settle on the
+    // channel-scoped `'revoked'` status the screen renders. `disposed` doubles as
+    // `scheduleRetry`'s guard, so the close below cannot schedule a reconnect, and as the
+    // `onmessage` guard, so `onRevoked` runs once however many frames follow.
+    const revoke = (): void => {
+      disposed = true;
+      if (timer !== undefined) clearTimeout(timer);
+      socket?.close();
+      socket = null;
+      setStatus('revoked');
+      onRevoked.current?.();
+    };
 
     const connect = async (): Promise<void> => {
       if (disposed) return;
@@ -111,6 +166,7 @@ export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedSta
         socket?.send(JSON.stringify({ type: 'subscribe', conversationId }));
       };
       socket.onmessage = (event) => {
+        if (disposed) return;
         let frame: Record<string, unknown>;
         try {
           frame = JSON.parse(String(event.data)) as Record<string, unknown>;
@@ -119,6 +175,7 @@ export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedSta
         }
         if (frame['type'] === 'subscribed' && frame['conversationId'] === conversationId) {
           attempts = 0;
+          subscribedOnce = true;
           setStatus('live');
           // Cover the window between the page's load and this subscription.
           onCatchUp.current();
@@ -127,9 +184,26 @@ export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedSta
         if (frame['type'] === 'event' && frame['conversationId'] === conversationId) {
           // Ids only in the frame; the transcript is refetched, never patched from it.
           onCatchUp.current();
+          return;
         }
-        // `refused` and anything unknown: leave the socket be — the server said its piece,
-        // and the screen's reload behaviour still stands underneath.
+        if (frame['type'] === 'revoked' && frame['conversationId'] === conversationId) {
+          // Authority for this channel was withdrawn while it was subscribed.
+          revoke();
+          return;
+        }
+        if (
+          frame['type'] === 'refused' &&
+          frame['conversationId'] === conversationId &&
+          subscribedOnce
+        ) {
+          // A channel this connection held, refused on a re-subscribe: the same verdict as
+          // `revoked`, and the one that actually arrives when the ticket TTL closes the
+          // socket 4401 first. Retrying it is a permanent "Reconnecting…".
+          revoke();
+          return;
+        }
+        // A first-subscribe `refused` and anything unknown: leave the socket be — the server
+        // said its piece, and the screen's reload behaviour still stands underneath.
       };
       socket.onclose = () => {
         socket = null;

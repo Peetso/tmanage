@@ -156,6 +156,35 @@ describe('the realtime server authority lifecycle', () => {
     await closed(client.socket);
   });
 
+  it('R04: with the period set to the ticket TTL, revocation still arrives as a frame before the expiry close', async () => {
+    // The shipped shape: `revalidateIntervalMs` left at the ticket's own TTL. Unbounded, the
+    // first tick would land at expiry, close 4401 and return before re-checking anything —
+    // the browser would re-mint on a still-valid session, be answered `refused`, and park on
+    // "Reconnecting…" for ever.
+    const ticketTtlMs = 400;
+    let rows: unknown = ALLOWED_ROWS;
+    server = await createRealtimeServer({
+      database: makeDatabase(() => rows),
+      sessionSecret: SESSION_SECRET,
+      port: 0,
+      revalidateIntervalMs: ticketTtlMs,
+    });
+
+    const ticket = signRealtimeTicket(
+      { organizationId: ORG, userId: USER, expiresAt: Date.now() + ticketTtlMs },
+      SESSION_SECRET,
+    );
+    const client = connect(server.port, ticket);
+    await opened(client.socket);
+    client.socket.send(JSON.stringify({ type: 'subscribe', conversationId: CONV }));
+    expect(await client.next()).toEqual({ type: 'subscribed', conversationId: CONV, cursor: 0 });
+
+    rows = REFUSED_ROWS;
+
+    expect(await client.next(2_000)).toEqual({ type: 'revoked', conversationId: CONV });
+    expect(server.hub.subscriberCount(ORG, CONV)).toBe(0);
+  });
+
   it('R05: a socket closing mid-authorization registers no listener', async () => {
     const started = deferred<void>();
     const gate = deferred<unknown>();

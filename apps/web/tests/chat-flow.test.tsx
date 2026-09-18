@@ -7,6 +7,7 @@ import { ChatScreen } from '../src/components/screens/ChatScreen';
 import { ProjectChannelScreen } from '../src/components/screens/ProjectChannelScreen';
 import { ApiClient } from '../src/lib/api/client';
 import type { LiveSocket } from '../src/lib/use-channel-live-feed';
+import { authBoundary } from '../src/lib/auth-boundary';
 import { expectNoAxeViolations } from './axe';
 
 /**
@@ -569,6 +570,7 @@ describe('transcript paging — WEB-003 second half', () => {
 describe('the live feed — RT-001 second half', () => {
   class FakeSocket implements LiveSocket {
     readonly sent: string[] = [];
+    closed = false;
     onopen: (() => void) | null = null;
     onmessage: ((event: { readonly data: unknown }) => void) | null = null;
     onclose: (() => void) | null = null;
@@ -577,6 +579,7 @@ describe('the live feed — RT-001 second half', () => {
     }
     close(): void {
       // The screen unmounting closes the socket; the hook must not treat that as a drop.
+      this.closed = true;
     }
     emitOpen(): void {
       act(() => this.onopen?.());
@@ -726,5 +729,127 @@ describe('the live feed — RT-001 second half', () => {
       expect(mints.length).toBeGreaterThanOrEqual(2);
       expect(sockets.length).toBeGreaterThanOrEqual(2);
     });
+  });
+
+  it('a revoked channel stops reconnecting and shows a channel-scoped notice, leaving the session alone', async () => {
+    const sockets: FakeSocket[] = [];
+    const { client, calls } = clientOver(
+      channelHandler({
+        ticket: () =>
+          json(
+            { ticket: 'tkt-1', expiresAt: '2026-08-30T00:01:00.000Z', socketUrl: 'ws://sock.test' },
+            201,
+          ),
+      }),
+    );
+
+    const notices: string[] = [];
+    const stop = authBoundary.subscribe((notice) => notices.push(notice.event));
+
+    try {
+      render(
+        withQuery(
+          <ProjectChannelScreen
+            organizationSlug="northstar"
+            organizationName="Northstar Studio"
+            conversationId="conv-1"
+            client={client}
+            socketFactory={() => {
+              const socket = new FakeSocket();
+              sockets.push(socket);
+              return socket;
+            }}
+            // Tiny, so that if the hook wrongly scheduled a retry it would have fired by the
+            // time the assertions run — proving the absence of a reconnect, not just its delay.
+            reconnectBaseMs={1}
+          />,
+        ),
+      );
+
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      const socket = sockets[0] as FakeSocket;
+      socket.emitOpen();
+      socket.emit({ type: 'subscribed', conversationId: 'conv-1', cursor: 3 });
+      await screen.findByLabelText('Live updates connected');
+      // The transcript and the composer are on screen right up to the revoke, so their
+      // absence afterwards is this frame's doing and not a screen that never loaded.
+      await screen.findByLabelText('Messages, oldest first');
+      await screen.findByLabelText('Message the channel');
+
+      // Authority for this channel is withdrawn. That is a statement about the channel, not
+      // about the session: the transcript and composer go, the notice explains why, and the
+      // person stays signed in — no `session-ended`, so no cache clear and no cross-tab
+      // sign-out of a session the server never ended.
+      socket.emit({ type: 'revoked', conversationId: 'conv-1' });
+
+      await screen.findByText('You no longer have access to this channel');
+      expect(screen.queryByLabelText('Messages, oldest first')).toBeNull();
+      expect(screen.queryByLabelText('Message the channel')).toBeNull();
+      expect(notices).toEqual([]);
+
+      // Terminal, not a drop: the socket is closed, the live chip is gone, and there is no
+      // "Reconnecting…" — no fresh mint, no fresh socket, however long we wait.
+      expect(socket.closed).toBe(true);
+      expect(screen.queryByLabelText('Live updates connected')).toBeNull();
+      expect(screen.queryByLabelText('Reconnecting to live updates')).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(sockets).toHaveLength(1);
+      expect(calls.filter((call) => call.url.includes('/realtime/tickets'))).toHaveLength(1);
+    } finally {
+      stop();
+    }
+  });
+
+  it('a refused re-subscribe after a reconnect ends the channel the same way', async () => {
+    // The revocation path a default deployment actually takes: the worker closes the socket
+    // 4401 when the ticket TTL lapses, the hook re-mints on a still-valid session and
+    // re-subscribes, and the server's current-rows check answers `refused`. Retrying that is
+    // a channel parked on "Reconnecting…" that will never reconnect.
+    const sockets: FakeSocket[] = [];
+    const { client } = clientOver(
+      channelHandler({
+        ticket: () =>
+          json(
+            { ticket: 'tkt-1', expiresAt: '2026-08-30T00:01:00.000Z', socketUrl: 'ws://sock.test' },
+            201,
+          ),
+      }),
+    );
+
+    render(
+      withQuery(
+        <ProjectChannelScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          conversationId="conv-1"
+          client={client}
+          socketFactory={() => {
+            const socket = new FakeSocket();
+            sockets.push(socket);
+            return socket;
+          }}
+          reconnectBaseMs={1}
+        />,
+      ),
+    );
+
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    const first = sockets[0] as FakeSocket;
+    first.emitOpen();
+    first.emit({ type: 'subscribed', conversationId: 'conv-1', cursor: 3 });
+    await screen.findByLabelText('Live updates connected');
+
+    // The ticket's TTL lapses: an ordinary close, which still reconnects.
+    first.drop();
+    await waitFor(() => expect(sockets.length).toBeGreaterThanOrEqual(2));
+    const second = sockets[1] as FakeSocket;
+    second.emitOpen();
+    second.emit({ type: 'refused', conversationId: 'conv-1' });
+
+    await screen.findByText('You no longer have access to this channel');
+    expect(second.closed).toBe(true);
+    expect(screen.queryByLabelText('Reconnecting to live updates')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(sockets).toHaveLength(2);
   });
 });

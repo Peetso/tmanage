@@ -159,6 +159,17 @@ export function ProjectChannelScreen({
     ...(reconnectBaseMs === undefined ? {} : { reconnectBaseMs }),
   });
 
+  /*
+   * The worker revoked *this channel* — a suspended membership, a withdrawn capability, or
+   * the routine "remove Dana from #design". None of those ends a session, so nothing here
+   * clears caches, announces `session-ended` or tells other tabs anything: the person stays
+   * signed in and every other channel keeps working. What ends is this screen's channel, and
+   * it says so — the live chip is gone, the transcript and the composer go with the access,
+   * and the way out is the channel list. The genuine session end has its own path
+   * (`ApiClient`'s refresh-refused `onSessionEnded`), which unmounts this screen anyway.
+   */
+  const channelRevoked = liveStatus === 'revoked';
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
@@ -203,6 +214,16 @@ export function ProjectChannelScreen({
         messages appear when the channel is reloaded.
       </BackendPending>
 
+      {channelRevoked ? (
+        <InlineAlert tone="warning" title="You no longer have access to this channel" live>
+          <p className="tm-prose">
+            Live updates have stopped and the transcript is no longer shown here. You are still
+            signed in and your other channels are unaffected.
+          </p>
+          <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
+        </InlineAlert>
+      ) : null}
+
       {conversation.isError ? (
         <InlineAlert tone="danger" title="Could not load this channel" live>
           {describeError(conversation.error)}
@@ -224,21 +245,21 @@ export function ProjectChannelScreen({
         </InlineAlert>
       ) : null}
 
-      {messages.hasNextPage ? (
+      {messages.hasNextPage && !channelRevoked ? (
         <InlineAlert tone="warning" title="This is not the whole transcript">
           {rows.length} messages loaded — there are more. &ldquo;Load more&rdquo; below the
           transcript continues it.
         </InlineAlert>
       ) : null}
 
-      {!messages.isPending && !messages.isError && rows.length === 0 ? (
+      {!messages.isPending && !messages.isError && rows.length === 0 && !channelRevoked ? (
         <InlineAlert tone="neutral" title="Nothing said yet">
           The first message starts the channel&rsquo;s record. Everything said here stays with the
           project.
         </InlineAlert>
       ) : null}
 
-      {rows.length > 0 ? (
+      {rows.length > 0 && !channelRevoked ? (
         <ol className="tm-list tm-stack" aria-label="Messages, oldest first">
           {rows.map((message) => (
             <li key={message.id} className="tm-panel tm-stack tm-stack--tight">
@@ -349,7 +370,7 @@ export function ProjectChannelScreen({
         </ol>
       ) : null}
 
-      {messages.hasNextPage ? (
+      {messages.hasNextPage && !channelRevoked ? (
         <div className="tm-row">
           <Button
             tone="outline"
@@ -366,9 +387,10 @@ export function ProjectChannelScreen({
       {/*
        * Only for a channel that actually loaded. A member outside the room gets the load
        * error and nothing else — a composer under a denial would be a control that cannot
-       * work, and AUTH-04's e2e journey asserts its absence.
+       * work, and AUTH-04's e2e journey asserts its absence. A revoked channel is the same
+       * denial arriving mid-session.
        */}
-      {conversation.data !== undefined ? (
+      {conversation.data !== undefined && !channelRevoked ? (
         <Composer
           api={api}
           organizationSlug={organizationSlug}
