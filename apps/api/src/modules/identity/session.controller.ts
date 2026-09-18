@@ -1,12 +1,28 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { CurrentSession, NoTenant, Public } from '../../common/http/decorators.js';
 import { CSRF_HEADER } from '../../common/http/csrf.js';
 import { requireRequestState } from '../../common/http/request-state.js';
-import { API_CONFIG, SESSION_SERVICE } from '../../common/http/tokens.js';
+import { API_CONFIG, AUTHENTICATION_SERVICE, SESSION_SERVICE } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import { RefreshRejectedError } from './session.service.js';
 import type { AuthenticatedSession, SessionService } from './session.service.js';
+import {
+  ReauthenticationRequiredError,
+  type AuthenticationService,
+} from './authentication.service.js';
+import { REAUTH_HEADER } from './authentication.controller.js';
 import type { SessionSummary } from './sessions.repository.js';
 import { readCookie } from './session-token.js';
 
@@ -26,6 +42,8 @@ import { readCookie } from './session-token.js';
 /** Minimal shapes, so the controller does not depend on Fastify's full types. */
 interface RequestLike {
   readonly headers: Record<string, string | string[] | undefined>;
+  /** The abuse-controlled source address, for the security-log row a revocation writes. */
+  readonly ip?: string;
 }
 /**
  * Only `header`. Every route below uses `@Res({ passthrough: true })`, so Nest still sends the
@@ -47,6 +65,10 @@ export class SessionController {
   constructor(
     @Inject(SESSION_SERVICE) private readonly sessions: SessionService,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
+    // `I-1`. The revoke routes run behind `requireReauth`, which lives on the authentication
+    // service alongside the security-log path they record through; the controller reads the
+    // `x-reauth-token` header and hands it across.
+    @Inject(AUTHENTICATION_SERVICE) private readonly authentication: AuthenticationService,
   ) {}
 
   /**
@@ -124,6 +146,103 @@ export class SessionController {
         userId: session.userId,
         correlationId: state.correlationId,
       }),
+    };
+  }
+
+  /**
+   * `I-1`. Revoke every *other* session — the "revoke all" of `22-SCREEN-BY-SCREEN` §3. The
+   * session making the request is kept; every other device this person holds is ended, and its
+   * refresh cookie stops working with it.
+   *
+   * Behind `requireReauth` (the service verifies the `x-reauth-token` header), because ending
+   * a person's other devices is credential-adjacent: a stolen access cookie must not be
+   * enough. `CsrfGuard` is global and already covers this unsafe method.
+   */
+  @Delete()
+  @NoTenant()
+  @HttpCode(204)
+  async revokeOthers(
+    @CurrentSession() session: AuthenticatedSession,
+    @Req() request: RequestLike,
+  ): Promise<void> {
+    const state = requireRequestState(request);
+    try {
+      await this.authentication.revokeOtherSessions({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
+      });
+    } catch (error) {
+      this.translateReauth(error);
+      throw error;
+    }
+  }
+
+  /**
+   * `I-1`. Revoke one named session — a device from the list, or this one.
+   *
+   * `DELETE current` is a static route and wins over this parameter in the router, so
+   * sign-out still reaches {@link signOut} and this only ever sees a real session id. A
+   * session that is not this person's, or does not exist, answers **404** exactly as
+   * `DELETE /v1/auth/factors/:id` does, so the id cannot be probed. Behind `requireReauth`,
+   * for the reason {@link revokeOthers} gives.
+   */
+  @Delete(':sessionId')
+  @NoTenant()
+  @HttpCode(204)
+  async revokeOne(
+    @CurrentSession() session: AuthenticatedSession,
+    @Param('sessionId') sessionId: string,
+    @Req() request: RequestLike,
+  ): Promise<void> {
+    const state = requireRequestState(request);
+    let removed: boolean;
+    try {
+      removed = await this.authentication.revokeSession({
+        userId: session.userId,
+        sessionId: session.sessionId,
+        targetSessionId: sessionId,
+        reauthToken: this.reauthTokenOf(request),
+        context: this.contextOf(request, state.correlationId),
+      });
+    } catch (error) {
+      this.translateReauth(error);
+      throw error;
+    }
+    if (!removed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+  }
+
+  /** The `x-reauth-token` header, if one was sent. Absence is the service's decision to make. */
+  private reauthTokenOf(request: RequestLike): string | undefined {
+    const raw = request.headers[REAUTH_HEADER];
+    return typeof raw === 'string' && raw !== '' ? raw : undefined;
+  }
+
+  /**
+   * `D05`'s refusal, restated here because these routes gate on the same proof the enrolment
+   * routes do: **403 `reauthentication_required`**, not 401 (the session is genuine) and not
+   * the generic `forbidden` (the client's correct response is specific — ask for the password,
+   * call `POST /v1/auth/reauth`, retry with the header). The precise reason goes to the log.
+   */
+  private translateReauth(error: unknown): void {
+    if (error instanceof ReauthenticationRequiredError) {
+      throw new ApiError(
+        403,
+        'reauthentication_required',
+        'Confirm your password to make this change.',
+        undefined,
+        error.reason,
+      );
+    }
+  }
+
+  private contextOf(request: RequestLike, correlationId: string) {
+    const userAgent = request.headers['user-agent'];
+    return {
+      correlationId,
+      ip: request.ip ?? null,
+      userAgent: typeof userAgent === 'string' ? userAgent : null,
     };
   }
 }
