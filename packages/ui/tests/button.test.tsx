@@ -76,7 +76,7 @@ describe('Button', () => {
   });
 
   describe('loading', () => {
-    it('disables the button, marks it busy, and says so', () => {
+    it('stays focusable but inert while it waits, marks itself busy, and says so', () => {
       render(
         <Button loading loadingLabel="Publishing the version">
           Publish
@@ -84,9 +84,17 @@ describe('Button', () => {
       );
 
       const button = screen.getByRole('button', { name: /Publish/ });
-      expect(button).toBeDisabled();
+      // Deliberately NOT `disabled`: a disabled control is pulled out of the tab order, so a
+      // keyboard user who presses a button that then starts working has focus thrown to <body>
+      // (WCAG 2.2 2.4.3 Focus Order). It is made inert with aria-disabled and a click guard
+      // instead, which keeps it focusable and keeps the person where they were.
+      expect(button).not.toBeDisabled();
+      expect(button).toHaveAttribute('aria-disabled', 'true');
       expect(button).toHaveAttribute('aria-busy', 'true');
       expect(screen.getByRole('status')).toHaveTextContent('Publishing the version');
+
+      button.focus();
+      expect(button).toHaveFocus();
     });
 
     it('keeps the visible label, so the control does not resize under the pointer', () => {

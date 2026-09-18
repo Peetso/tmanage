@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Badge, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Badge, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -121,11 +121,10 @@ export function ProjectOverviewScreen({
       ) : null}
 
       {project.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading this project.</span>
+        <LoadingRegion label="Loading this project.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {project.data ? (
@@ -191,10 +190,9 @@ export function ProjectOverviewScreen({
           How it is going
         </h2>
         {workItems.isPending ? (
-          <div aria-busy="true" aria-live="polite">
-            <span className="tm-visually-hidden">Counting the work.</span>
+          <LoadingRegion label="Counting the work.">
             <Skeleton height="var(--row)" />
-          </div>
+          </LoadingRegion>
         ) : (
           <>
             <p className="tm-prose">

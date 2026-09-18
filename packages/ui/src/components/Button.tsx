@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from 'react';
 import { VisuallyHidden } from './VisuallyHidden.js';
 
 /**
@@ -26,9 +26,17 @@ export interface ButtonProps extends Omit<
   tone?: ButtonTone;
   size?: ControlSize;
   /**
-   * A button that is waiting is disabled *and* announced. `loadingLabel` is what a screen
+   * A button that is waiting is inert *and* announced. `loadingLabel` is what a screen
    * reader says while it waits; the visible label does not change, so the control does not
    * resize under the pointer.
+   *
+   * A loading button is made inert with `aria-disabled` and a click guard, **not** the
+   * `disabled` attribute. A `disabled` element is pulled out of the tab sequence, so a
+   * keyboard user who presses a button that then starts working has focus silently thrown to
+   * `<body>` — WCAG 2.2 **2.4.3 Focus Order**. `aria-disabled` keeps the control focusable
+   * and keeps the person where they were; `aria-busy` toggling to `true` on the element they
+   * are focused on is what announces the wait. The explicit `disabled` prop is still honoured
+   * for a control that is genuinely unavailable rather than merely busy.
    */
   loading?: boolean;
   loadingLabel?: string;
@@ -43,19 +51,32 @@ export function Button({
   className,
   type = 'button',
   disabled,
+  onClick,
   ...rest
 }: ButtonProps) {
   const classes = ['tm-button', `tm-button--${tone}`, `tm-button--${size}`, className]
     .filter(Boolean)
     .join(' ');
 
+  function handleClick(event: MouseEvent<HTMLButtonElement>) {
+    // A busy button is focusable but does nothing: swallow the activation rather than let a
+    // second press fire the handler or submit the form again.
+    if (loading) {
+      event.preventDefault();
+      return;
+    }
+    onClick?.(event);
+  }
+
   return (
     <button
       {...rest}
       type={type}
       className={classes}
-      disabled={disabled === true || loading}
+      disabled={disabled === true}
+      aria-disabled={loading || undefined}
       aria-busy={loading || undefined}
+      onClick={handleClick}
     >
       {children}
       {loading ? (

@@ -106,7 +106,7 @@
   color: var(--paper-0);
 }
 
-.tm-button--ink:hover:not(:disabled) {
+.tm-button--ink:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--ink-800);
 }
 
@@ -115,19 +115,29 @@
   color: var(--tm-on-lime);
 }
 
-.tm-button--lime:hover:not(:disabled),
-.tm-button--lime:active:not(:disabled) {
+.tm-button--lime:hover:not(:disabled):not([aria-disabled='true']),
+.tm-button--lime:active:not(:disabled):not([aria-disabled='true']) {
   background: var(--lime-600);
 }
 
+/*
+ * The border is `--ink-500`, not `--line-300`, for the same reason the note above
+ * `.tm-checkbox` gives: an outline button's background is transparent, so its border *is* the
+ * control's visual boundary, and WCAG 2.2 **1.4.11 Non-text Contrast** asks 3:1 of it.
+ * `--line-300` is the decorative rule token — 1.71:1 on `--paper-0` in light, 1.55:1 in dark —
+ * and reusing it here left every outline button and outline orb below the floor. `--ink-500`
+ * gives 4.51:1 light / 7.32:1 dark and adds no value to the design export, exactly as the
+ * checkbox/field/switch controls resolved the same defect. Only the resting border moves; the
+ * darker `--line-700` hover already cleared 3:1 and is unchanged.
+ */
 .tm-button--outline {
   background: transparent;
   color: var(--ink-800);
-  border-color: var(--line-300);
+  border-color: var(--ink-500);
   border-width: var(--b-structural);
 }
 
-.tm-button--outline:hover:not(:disabled) {
+.tm-button--outline:hover:not(:disabled):not([aria-disabled='true']) {
   border-color: var(--line-700);
 }
 
@@ -143,7 +153,7 @@
   border-color: var(--ink-950);
 }
 
-.tm-button[aria-pressed='true']:hover:not(:disabled) {
+.tm-button[aria-pressed='true']:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--ink-800);
   border-color: var(--ink-800);
 }
@@ -154,7 +164,7 @@
   padding-inline: var(--s2);
 }
 
-.tm-button--text:hover:not(:disabled) {
+.tm-button--text:hover:not(:disabled):not([aria-disabled='true']) {
   color: var(--ink-950);
   text-decoration: underline;
 }
@@ -169,7 +179,16 @@
   color: var(--tm-ink-absolute);
 }
 
-.tm-button:disabled {
+/*
+ * A busy button is now made inert with `aria-disabled` rather than the `disabled` attribute,
+ * so it stays in the tab order and a keyboard user is not thrown to `<body>` mid-request (WCAG
+ * 2.2 2.4.3, see Button.tsx). The inert *look* must therefore key off `aria-disabled` as well
+ * as `:disabled`, or a loading button would render at full opacity and no longer read as inert.
+ * The `[aria-busy='true']` rule below still wins the cursor for the loading case (`progress`),
+ * because it comes later at equal specificity; a genuinely disabled button keeps `not-allowed`.
+ */
+.tm-button:disabled,
+.tm-button[aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -236,9 +255,10 @@
   color: var(--tm-on-lime);
 }
 
+/* Same 1.4.11 fix as `.tm-button--outline`: the border is the control, so `--ink-500`. */
 .tm-orb-button--outline {
   background: transparent;
-  border-color: var(--line-300);
+  border-color: var(--ink-500);
   border-width: var(--b-structural);
 }
 

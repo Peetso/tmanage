@@ -3,7 +3,15 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Badge, Button, InlineAlert, SearchField, Skeleton, StatusDot } from '@tmanage/ui';
+import {
+  Badge,
+  Button,
+  InlineAlert,
+  LoadingRegion,
+  SearchField,
+  Skeleton,
+  StatusDot,
+} from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations, type OrganizationSummary } from '../../lib/api/organizations';
@@ -66,11 +74,10 @@ export function OrganizationSelectorScreen({ client }: OrganizationSelectorScree
       </div>
 
       {organizations.isPending ? (
-        <div className="tm-stack tm-stack--tight" aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading your organizations.</span>
+        <LoadingRegion label="Loading your organizations." className="tm-stack tm-stack--tight">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       {organizations.isError ? (

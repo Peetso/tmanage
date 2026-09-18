@@ -888,6 +888,20 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /*
+   * WCAG 2.2 **2.4.11 Focus Not Obscured (Minimum)**: the dock below is a sticky bar that
+   * paints over the bottom of the page, so a control a keyboard user tabs to near the foot of
+   * the canvas — the last row of a table, the final button of a form — can end up hidden
+   * behind it. The dock sticks to the viewport, so the viewport's own scroller must keep
+   * focused elements clear of it: `scroll-padding-block-end` reserves the dock's height
+   * (~65px: a 32px `--orb-compact` orb, its caption, and the block padding) so the browser
+   * scrolls a newly focused element above the dock rather than under it. Scoped to `:has(.tm-app)`
+   * because only the internal shell mounts this dock; `5rem` so 200%/400% zoom scales it.
+   */
+  :root:has(.tm-app) {
+    scroll-padding-block-end: 5rem;
+  }
+
   .tm-rail {
     position: sticky;
     inset-block-end: 0;

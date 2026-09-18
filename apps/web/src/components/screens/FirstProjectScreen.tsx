@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -240,10 +240,9 @@ export function FirstProjectScreen({
         </section>
 
         {workspaces.isPending ? (
-          <div aria-busy="true" aria-live="polite">
-            <span className="tm-visually-hidden">Loading this organization.</span>
+          <LoadingRegion label="Loading this organization.">
             <Skeleton height="var(--row)" />
-          </div>
+          </LoadingRegion>
         ) : null}
 
         {failure ? (

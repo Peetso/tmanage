@@ -2,7 +2,15 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Avatar, Badge, Button, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import {
+  Avatar,
+  Badge,
+  Button,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+  StateCapsule,
+} from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { acceptInvitation, previewInvitation } from '../../lib/api/invitations';
@@ -87,11 +95,10 @@ export function InvitationScreen({ token, client, onAccepted }: InvitationScreen
           resolves has no heading for the moment a screen reader lands on it.
         */}
         <h1 className="tm-identity__title">Your invitation</h1>
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading this invitation.</span>
+        <LoadingRegion label="Loading this invitation.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       </IdentityShell>
     );
   }

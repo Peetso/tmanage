@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Button, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -100,11 +100,10 @@ export function RequestInboxScreen({
       ) : null}
 
       {requests.isPending ? (
-        <div aria-busy="true" aria-live="polite">
-          <span className="tm-visually-hidden">Loading requests.</span>
+        <LoadingRegion label="Loading requests.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
-        </div>
+        </LoadingRegion>
       ) : null}
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-inbox-counts">
@@ -147,7 +146,15 @@ export function RequestInboxScreen({
       ) : null}
 
       {shown.length > 0 ? (
-        <div className="tm-table-scroll">
+        <div
+          className="tm-table-scroll"
+          // A scrollable region must be focusable or a keyboard cannot reach its overflow
+          // columns (WCAG 2.2 2.1.1); the .tm-table-scroll CSS comment states the same.
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          role="region"
+          aria-label="Client requests"
+        >
           <table className="tm-table">
             <caption className="tm-visually-hidden">
               Client requests, oldest first. Each row links to its triage page.
@@ -207,6 +214,18 @@ export function RequestInboxScreen({
           </Button>
         </div>
       ) : null}
+
+      {/*
+        WCAG 2.2 4.1.3: announce the running total when "Load more" appends rows to a table that
+        is in no live region, so a screen-reader user knows the press landed.
+      */}
+      <Announce
+        message={
+          (requests.data?.pages.length ?? 0) > 1 && !requests.isFetchingNextPage
+            ? `${all.length} ${all.length === 1 ? 'request' : 'requests'} loaded in total.`
+            : ''
+        }
+      />
 
       <BackendPending ticket="PEOPLE · FILE-001">
         The artifact names the person who submitted each request beside their company. Nothing

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { SkipLink } from '@tmanage/ui';
+import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 
 /**
@@ -54,54 +54,56 @@ export function OnboardingShell({
   const currentIndex = ONBOARDING_STEPS.findIndex((step) => step.id === current);
 
   return (
-    <div className="tm-onboarding">
-      <SkipLink targetId="tm-main" />
+    <LiveAnnouncer>
+      <div className="tm-onboarding">
+        <SkipLink targetId="tm-main" />
 
-      <header className="tm-onboarding__header">
-        <Wordmark />
-        <p className="tm-onboarding__identity tm-mono">Signed in as {signedInAs}</p>
-      </header>
+        <header className="tm-onboarding__header">
+          <Wordmark />
+          <p className="tm-onboarding__identity tm-mono">Signed in as {signedInAs}</p>
+        </header>
 
-      <div className="tm-onboarding__body">
-        <nav className="tm-onboarding__steps" aria-label="Setup progress">
-          <ol className="tm-onboarding__step-list">
-            {ONBOARDING_STEPS.map((step, index) => {
-              const state =
-                index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'future';
-              return (
-                <li
-                  key={step.id}
-                  className="tm-onboarding__step"
-                  data-state={state}
-                  {...(state === 'current' ? { 'aria-current': 'step' as const } : {})}
-                >
-                  <span className="tm-onboarding__step-index tm-mono" aria-hidden="true">
-                    {state === 'done' ? '✓' : index + 1}
-                  </span>
-                  <span className="tm-onboarding__step-label">{step.label}</span>
-                  <span className="tm-visually-hidden">
-                    {state === 'done'
-                      ? ' — done'
-                      : state === 'current'
-                        ? ' — current step'
-                        : ' — not started'}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+        <div className="tm-onboarding__body">
+          <nav className="tm-onboarding__steps" aria-label="Setup progress">
+            <ol className="tm-onboarding__step-list">
+              {ONBOARDING_STEPS.map((step, index) => {
+                const state =
+                  index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'future';
+                return (
+                  <li
+                    key={step.id}
+                    className="tm-onboarding__step"
+                    data-state={state}
+                    {...(state === 'current' ? { 'aria-current': 'step' as const } : {})}
+                  >
+                    <span className="tm-onboarding__step-index tm-mono" aria-hidden="true">
+                      {state === 'done' ? '✓' : index + 1}
+                    </span>
+                    <span className="tm-onboarding__step-label">{step.label}</span>
+                    <span className="tm-visually-hidden">
+                      {state === 'done'
+                        ? ' — done'
+                        : state === 'current'
+                          ? ' — current step'
+                          : ' — not started'}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
 
-          <p className="tm-onboarding__step-count tm-mono">
-            Step {currentIndex + 1} of {ONBOARDING_STEPS.length}
-          </p>
-        </nav>
+            <p className="tm-onboarding__step-count tm-mono">
+              Step {currentIndex + 1} of {ONBOARDING_STEPS.length}
+            </p>
+          </nav>
 
-        <main id="tm-main" className="tm-onboarding__canvas" tabIndex={-1}>
-          <h1 className="tm-onboarding__title">{title}</h1>
-          {description ? <p className="tm-onboarding__description">{description}</p> : null}
-          {children}
-        </main>
+          <main id="tm-main" className="tm-onboarding__canvas" tabIndex={-1}>
+            <h1 className="tm-onboarding__title">{title}</h1>
+            {description ? <p className="tm-onboarding__description">{description}</p> : null}
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </LiveAnnouncer>
   );
 }

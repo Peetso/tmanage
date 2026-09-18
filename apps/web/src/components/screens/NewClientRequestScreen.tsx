@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -169,10 +169,9 @@ export function NewClientRequestScreen({
           ) : null}
 
           {projects.isPending ? (
-            <div aria-busy="true" aria-live="polite">
-              <span className="tm-visually-hidden">Loading your projects.</span>
+            <LoadingRegion label="Loading your projects.">
               <Skeleton height="var(--row)" />
-            </div>
+            </LoadingRegion>
           ) : null}
 
           <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
