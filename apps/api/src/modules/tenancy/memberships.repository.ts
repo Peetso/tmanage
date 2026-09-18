@@ -2,7 +2,7 @@ import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { InternalRole } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { type MEMBERSHIP_STATUS, memberships } from '../../common/database/schema.js';
+import { type MEMBERSHIP_STATUS, memberships, users } from '../../common/database/schema.js';
 import type { MembershipRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import { defaultOrgWideScope } from './principal.repository.js';
@@ -94,6 +94,20 @@ export interface ListMembershipsOptions {
   readonly statuses?: readonly MembershipStatus[];
 }
 
+/**
+ * One row of the member directory: the membership, plus the name the person is known by.
+ *
+ * `userId` is kept because it is what every work action stores — D16's fix is that a person
+ * never has to *type* it, not that it stops existing. `membershipId` is the keyset cursor.
+ */
+export interface MemberDirectoryEntry {
+  readonly membershipId: string;
+  readonly userId: string;
+  readonly displayName: string;
+  readonly role: string;
+  readonly status: MembershipStatus;
+}
+
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
 
@@ -115,6 +129,58 @@ export class MembershipsRepository {
     return tenantDrizzle(runner)
       .select()
       .from(memberships)
+      .where(and(...predicates))
+      .orderBy(asc(memberships.id))
+      .limit(limit);
+  }
+
+  /**
+   * The same list, with the name each row belongs to — D16.
+   *
+   * `list()` returns `user_id` and nothing a person can read, which is why every screen that
+   * needed a member asked somebody to paste a UUID. The name lives on `users.display_name`,
+   * so the read is a join, and the join is the reason this is a separate method rather than
+   * an option on `list()`: `list()` answers "what are the membership rows", which several
+   * internal callers want as rows, and widening its result type would put a second table in
+   * every one of their statements for a column they do not read.
+   *
+   * **Why joining `users` is legitimate.** `users` carries no `organization_id` and is absent
+   * from the guard's `TENANT_TABLES` — it is global identity, not tenant data. Only the
+   * `memberships` side has a tenant key, and it is anchored to the active context with a
+   * bound `organization_id = ?` exactly as `list()` is. The rows a caller can reach are
+   * therefore the memberships of their own organization and the user records those rows name,
+   * never another tenant's roster: an adjacent tenant's member is unreachable because their
+   * membership row is filtered out before the join has anything to attach to.
+   *
+   * The projection is explicit and deliberately narrow. `users.email` is not in it: a member
+   * directory exists so that work can be assigned by name, and an address list is a different
+   * decision with different consequences (it is what makes a roster worth exfiltrating). A
+   * column added to `users` later is invisible here until somebody chooses to add it.
+   */
+  async listWithNames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: ListMembershipsOptions = {},
+  ): Promise<readonly MemberDirectoryEntry[]> {
+    const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+    const statuses = options.statuses ?? (['active'] as const);
+
+    const predicates = [
+      eq(memberships.organizationId, context.organizationId),
+      inArray(memberships.status, [...statuses]),
+    ];
+    if (options.after) predicates.push(gt(memberships.id, options.after));
+
+    return tenantDrizzle(runner)
+      .select({
+        membershipId: memberships.id,
+        userId: memberships.userId,
+        displayName: users.displayName,
+        role: memberships.role,
+        status: memberships.status,
+      })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
       .where(and(...predicates))
       .orderBy(asc(memberships.id))
       .limit(limit);

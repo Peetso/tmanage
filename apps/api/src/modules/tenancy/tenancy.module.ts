@@ -6,6 +6,7 @@ import {
   INVITATIONS_REPOSITORY,
   INVITATIONS_SERVICE,
   MEMBERSHIP_RESOLVER,
+  MEMBERSHIPS_REPOSITORY,
   ORGANIZATION_DIRECTORY_REPOSITORY,
   PRINCIPAL_REPOSITORY,
   PROVISIONING_SERVICE,
@@ -19,6 +20,7 @@ import { ClientMembershipsRepository } from '../clients/client-memberships.repos
 import { InvitationsController, InvitationAcceptanceController } from './invitations.controller.js';
 import { InvitationsRepository } from './invitations.repository.js';
 import { InvitationsService } from './invitations.service.js';
+import { MembersController } from './members.controller.js';
 import { MembershipsRepository } from './memberships.repository.js';
 import { MembershipResolver } from './membership-resolver.repository.js';
 import { OrganizationDirectoryRepository } from './organization-directory.repository.js';
@@ -72,6 +74,14 @@ export class TenancyModule {
       useFactory: () => new WorkspacesRepository(),
     };
 
+    // Registered rather than constructed at the call site, unlike the two the invitations
+    // service builds for itself: `MembersController` is a controller, and Nest resolves a
+    // controller's constructor from the container.
+    const membershipsRepository: Provider = {
+      provide: MEMBERSHIPS_REPOSITORY,
+      useFactory: () => new MembershipsRepository(),
+    };
+
     const invitationsRepository: Provider = {
       provide: INVITATIONS_REPOSITORY,
       useFactory: () => new InvitationsRepository(),
@@ -108,13 +118,23 @@ export class TenancyModule {
         directory,
         provisioning,
         workspaces,
+        membershipsRepository,
         invitationsRepository,
         invitationsService,
       ],
-      exports: [resolver, principals, directory, provisioning, workspaces, invitationsService],
+      exports: [
+        resolver,
+        principals,
+        directory,
+        provisioning,
+        workspaces,
+        membershipsRepository,
+        invitationsService,
+      ],
       controllers: [
         OrganizationsController,
         WorkspacesController,
+        MembersController,
         InvitationsController,
         // The route with no tenant. Its own controller so that `@NoTenant()` sits on a class
         // whose whole purpose is the pre-membership path, rather than on one method of a
