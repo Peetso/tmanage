@@ -49,9 +49,10 @@ export async function checkConversationSubscription(
     readonly next_sequence_no: number;
     readonly is_member: number;
     readonly may_reach_project: number;
+    readonly has_org_wide_scope: number;
   }
   const rows = await tx.query<readonly Row[]>(
-    `SELECT m.role, c.next_sequence_no,
+    `SELECT m.role, c.next_sequence_no, m.has_org_wide_scope AS has_org_wide_scope,
             EXISTS (
               SELECT 1 FROM conversation_memberships cm
                WHERE cm.organization_id = c.organization_id
@@ -84,6 +85,12 @@ export async function checkConversationSubscription(
   // project member with a stale conversation-membership row keeps receiving the project's
   // events, though the HTTP API would refuse them.
   if (!row.may_reach_project) return REFUSED;
-  if (!row.is_member) return REFUSED;
+  // The channel-membership half of the same alignment (review-x33 finding I1). Over HTTP
+  // `ConversationsService.mayReach` returns true for an org-wide principal that clears the
+  // project gate *without* a `conversation_memberships` row ("an Owner could not read a
+  // channel until somebody added them to it"). Mirror that here so the two read paths agree:
+  // an org-wide principal needs no channel row, everyone else still does. Non-org-wide,
+  // revoked, and removed principals stay refused — the project gate above already saw to that.
+  if (!row.has_org_wide_scope && !row.is_member) return REFUSED;
   return { allowed: true, cursor: Number(row.next_sequence_no) - 1 };
 }

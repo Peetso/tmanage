@@ -16,6 +16,7 @@ interface FakeRow {
   readonly next_sequence_no: number;
   readonly is_member: number;
   readonly may_reach_project: number;
+  readonly has_org_wide_scope: number;
 }
 
 function txReturning(row: FakeRow): WorkerTransaction {
@@ -33,6 +34,7 @@ describe('checkConversationSubscription — project gate', () => {
       next_sequence_no: 8,
       is_member: 1,
       may_reach_project: 0,
+      has_org_wide_scope: 0,
     });
 
     const verdict = await checkConversationSubscription(tx, INPUT);
@@ -46,10 +48,49 @@ describe('checkConversationSubscription — project gate', () => {
       next_sequence_no: 8,
       is_member: 1,
       may_reach_project: 1,
+      has_org_wide_scope: 0,
     });
 
     const verdict = await checkConversationSubscription(tx, INPUT);
 
     expect(verdict).toEqual({ allowed: true, cursor: 7 });
+  });
+});
+
+/**
+ * The channel-membership half of the alignment (x41, review-x33 finding I1). Over HTTP
+ * `ConversationsService.mayReach` returns true for an org-wide principal that passes the
+ * project gate *without* a `conversation_memberships` row; a plain member still needs one.
+ * The subscribe check must answer the same way, so the two paths agree on who may read a
+ * channel. These pin the JS gate without a database; the SQL that reads `has_org_wide_scope`
+ * against real rows is exercised by `apps/api/test/rt-001-realtime.db.test.ts`.
+ */
+describe('checkConversationSubscription — org-wide channel-membership exemption', () => {
+  it('allows an org-wide principal that reaches the project but holds no channel row', async () => {
+    const tx = txReturning({
+      role: 'owner',
+      next_sequence_no: 8,
+      is_member: 0,
+      may_reach_project: 1,
+      has_org_wide_scope: 1,
+    });
+
+    const verdict = await checkConversationSubscription(tx, INPUT);
+
+    expect(verdict).toEqual({ allowed: true, cursor: 7 });
+  });
+
+  it('refuses a non-org-wide member that reaches the project but holds no channel row', async () => {
+    const tx = txReturning({
+      role: 'member',
+      next_sequence_no: 8,
+      is_member: 0,
+      may_reach_project: 1,
+      has_org_wide_scope: 0,
+    });
+
+    const verdict = await checkConversationSubscription(tx, INPUT);
+
+    expect(verdict.allowed).toBe(false);
   });
 });
