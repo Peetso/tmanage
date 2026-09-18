@@ -182,6 +182,9 @@ export async function runOutboxBatch(
     readonly run: OutboxEffect;
   }
   let committedEffects: StagedEffect[] = [];
+  // Which event's own handler destroyed the batch transaction, if one did — the refund's
+  // per-row cap. See the catch below.
+  let transactionLostEventId: string | null = null;
 
   // Phase one, in a transaction of its own and committed before any handler runs: the
   // attempt is counted on durable storage, so a handler that kills the process costs its row
@@ -194,8 +197,10 @@ export async function runOutboxBatch(
   try {
     batchResult = await database.transaction(async (tx) => {
       // Reset per attempt: should `transaction` ever re-run its callback, effects staged by an
-      // attempt that did not commit must not survive into the one that did.
+      // attempt that did not commit must not survive into the one that did — and neither must
+      // the blame for a transaction loss that attempt did not suffer.
       committedEffects = [];
+      transactionLostEventId = null;
       const events = await claimReservedEvents(tx, reserved);
 
       let published = 0;
@@ -233,7 +238,14 @@ export async function runOutboxBatch(
           // write into a fresh implicit one and the earlier events' `published_at` stamps are
           // already destroyed. Rethrowing discards every staged effect with them, and the
           // batch is retried from the claim.
-          if (error instanceof OutboxTransactionLostError) throw error;
+          //
+          // Before rethrowing, remember *whose* handler did it: this event's attempt is the one
+          // the whole-batch refund below must not give back, or a handler that deadlocks every
+          // time never reaches the cap and never parks (IMPORTANT-1 of the x8 review).
+          if (error instanceof OutboxTransactionLostError) {
+            transactionLostEventId = event.id;
+            throw error;
+          }
           // Already incremented by the reservation — `attempts` counts this delivery.
           const attempts = event.attempts;
           const delay = backoffDelayMs(attempts, options.backoffBaseMs, options.backoffCapMs);
@@ -269,9 +281,28 @@ export async function runOutboxBatch(
     // never-delivered events at poll rate. A real process kill never reaches this catch, so its
     // rows keep the attempt CRITICAL-1 counted; an unrecognised error keeps it too, erring
     // toward parking a possible poison row rather than retrying it forever.
-    if (reserved.length > 0 && isRecoverableBatchError(error)) {
+    //
+    // IMPORTANT-1 of the x8 review — **the refund is capped per row at zero for the row that
+    // caused the loss.** `withSavepoint` turns a handler's own `ER_LOCK_DEADLOCK` into
+    // `OutboxTransactionLostError`, which is classified recoverable; refunding *every* reserved
+    // row therefore refunded the culprit too, so a handler with a genuine lock-ordering bug
+    // against the API repeated for ever — `attempts` back to its old value on every pass, the
+    // row still first under `ORDER BY available_at, id`, nothing behind it draining. That is
+    // CRITICAL-1's failure shape surviving for the deadlock class. Excluding the culprit spends
+    // its attempt like any other failure, so it parks after `OUTBOX_MAX_ATTEMPTS` passes while
+    // its blameless batch-mates keep the refund CRITICAL-B added.
+    //
+    // A blanket "refund at most N times, then spend the attempt" was considered and rejected:
+    // for the *unattributable* recoverable failures (a pool exhausted, a connection dropped at
+    // COMMIT, a lock-wait timeout on a statement of the relay's own) no row is at fault, and
+    // spending their attempts during a long database outage would park a whole batch of
+    // never-delivered events — which is exactly CRITICAL-B, re-opened. Those cases stay
+    // refunded for ever by design; the loop backoff bounds the retry rate and backlog age is
+    // what tells an operator the relay is not draining.
+    const refundable = reserved.filter((id) => id !== transactionLostEventId);
+    if (refundable.length > 0 && isRecoverableBatchError(error)) {
       try {
-        await database.transaction((tx) => releaseReservedAttempts(tx, reserved));
+        await database.transaction((tx) => releaseReservedAttempts(tx, refundable));
       } catch {
         // Best effort. If even the refund cannot run, the rows keep an extra attempt, which is
         // the safe direction — they park rather than retry for ever. The original failure is

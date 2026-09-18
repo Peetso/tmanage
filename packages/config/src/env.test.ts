@@ -524,8 +524,9 @@ describe('loadEnv', () => {
     });
 
     it('normalises an empty OUTBOX_HEARTBEAT_FILE to undefined — the mechanism CRITICAL-A turns on', () => {
-      // `.env.example` ships this key empty; the worker must read "no heartbeat configured", not
-      // an empty path. A regression here re-opens CRITICAL-A: `relay:status` degraded for ever.
+      // A host with no writable path clears this key; the worker must then read "no heartbeat
+      // configured", not an empty path. A regression here re-opens CRITICAL-A: `relay:status`
+      // degraded for ever. (`.env.example` itself now ships a real path — see `env.ts`.)
       expect(
         loadEnv({ ...devEnv(), OUTBOX_HEARTBEAT_FILE: '' }).OUTBOX_HEARTBEAT_FILE,
       ).toBeUndefined();

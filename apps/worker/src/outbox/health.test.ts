@@ -1,6 +1,7 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   backlogIsStale,
@@ -66,11 +67,12 @@ describe('outbox health verdict', () => {
   });
 
   it('is ok when no heartbeat file is configured and the queue is drained (CRITICAL-A)', () => {
-    // The shipped default ships `OUTBOX_HEARTBEAT_FILE` empty, normalised to undefined. Before
-    // this fix that reported `heartbeat-missing` and exited 1 on a healthy, fully drained queue
-    // on every invocation, for ever — an alarm silenced in week one. Absence of a *configured*
-    // heartbeat is not a fault; it narrows the readings to backlog age, exactly as the runbook
-    // and env.ts already promised.
+    // A host with no writable path clears `OUTBOX_HEARTBEAT_FILE`, normalised to undefined.
+    // Before this fix that reported `heartbeat-missing` and exited 1 on a healthy, fully drained
+    // queue on every invocation, for ever — an alarm silenced in week one. Absence of a
+    // *configured* heartbeat is not a fault; it narrows the readings to backlog age, exactly as
+    // the runbook and env.ts already promised. (`.env.example` now ships a real path, so the
+    // default deployment keeps both readings — this branch is the opt-out, not the default.)
     const health = evaluateOutboxHealth({
       backlog: { pending: 0, parked: 0, oldestPendingSeconds: null },
       heartbeatConfigured: false,
@@ -243,6 +245,33 @@ describe('readHeartbeatState — the CRITICAL-A wiring decision', () => {
       configured: true,
       lastPollAt: null,
     });
+  });
+
+  it('is configured by the shipped .env.example, so the default deployment keeps both readings', async () => {
+    // CRITICAL-A was fixed the right way round — an unconfigured heartbeat is honest, not a
+    // fault — but the repository then shipped `OUTBOX_HEARTBEAT_FILE` empty, so the reading that
+    // separates "drained and idle" from "dead with an empty queue" was absent from the default
+    // deployment: a relay that died on Friday with a drained queue reported ok and exited 0 all
+    // weekend. The fix is the shipped value, not a change to the verdict — making "unconfigured"
+    // degraded would delete the `heartbeatConfigured` distinction CRITICAL-A turns on and page
+    // every host that legitimately keeps none.
+    const example = fileURLToPath(new URL('../../../../.env.example', import.meta.url));
+    const shipped = /^OUTBOX_HEARTBEAT_FILE=(.*)$/m.exec(await readFile(example, 'utf8'));
+    const path = shipped?.[1]?.trim() ?? '';
+
+    expect(path).not.toBe('');
+    await expect(readHeartbeatState(path)).resolves.toMatchObject({ configured: true });
+
+    // Which is what makes a dead relay with a drained queue reportable at all.
+    const health = evaluateOutboxHealth({
+      backlog: { pending: 0, parked: 0, oldestPendingSeconds: null },
+      heartbeatConfigured: true,
+      lastPollAt: null,
+      now: NOW,
+      thresholds: THRESHOLDS,
+    });
+    expect(health.status).toBe('degraded');
+    expect(health.reasons).toEqual(['heartbeat-missing']);
   });
 });
 

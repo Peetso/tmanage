@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loopErrorDelayMs, runOutboxBatch } from './dispatcher.js';
 import type { OutboxHandlers } from './dispatcher.js';
-import { OutboxTransactionLostError } from '../common/database/outbox-store.js';
+import { OutboxTransactionLostError, unparkEvents } from '../common/database/outbox-store.js';
 import type { WorkerDatabase, WorkerTransaction } from '../common/database/worker-database.js';
 
 /**
@@ -67,6 +67,37 @@ class FakeQueue {
     query: <T>(sql: string, params: readonly unknown[] = []): Promise<T> => {
       const text = sql.trim().toUpperCase();
       const locking = text.includes('FOR UPDATE');
+
+      // `relay:unpark`'s selection: the parked rows it is about to reset, locked. Told from
+      // phase one by `last_error` — only the parked shapes read it.
+      if (locking && text.includes('LAST_ERROR')) {
+        const parked = this.rows.filter(
+          (row) =>
+            row.publishedAt === null &&
+            row.attempts >= Number(params[0]) &&
+            (params.length < 2 || row.id === params[1]),
+        );
+        return Promise.resolve(
+          parked.map((row) => ({
+            id: row.id,
+            organization_id: 'org-1',
+            type: row.type,
+            attempts: row.attempts,
+            last_error: row.lastError,
+          })) as T,
+        );
+      }
+
+      // `relay:unpark`'s reset: back to pending, due now, diagnosis cleared.
+      if (text.startsWith('UPDATE') && text.includes('ATTEMPTS = 0')) {
+        for (const id of params) {
+          const row = this.row(String(id));
+          row.attempts = 0;
+          row.availableAt = new Date(Date.now() - 1);
+          row.lastError = null;
+        }
+        return Promise.resolve({ affectedRows: params.length } as T);
+      }
 
       // Phase two: re-claim the reserved ids that are still unpublished. Distinguished from
       // phase one by the columns — only the full claim reads the payload.
@@ -379,6 +410,79 @@ describe('whole-batch failure compensation (CRITICAL-B)', () => {
       'process killed mid-batch',
     );
     expect(queue.row('poison').attempts).toBe(1);
+  });
+
+  it('keeps the attempt on the handler whose own deadlock lost the batch, so it parks (IMPORTANT-1)', async () => {
+    // `withSavepoint` turns a handler's ER_LOCK_DEADLOCK into `OutboxTransactionLostError`, which
+    // the classifier calls recoverable — so refunding *every* reserved row refunded the culprit
+    // too. A handler with a real lock-ordering bug against the API therefore repeated for ever:
+    // `attempts` back to its old value on every pass, the row still first under
+    // `ORDER BY available_at, id`, nothing behind it draining. That is CRITICAL-1's failure
+    // shape surviving for the deadlock class. The culprit now pays; its batch-mate still does not.
+    const queue = new FakeQueue();
+    queue.add('deadlocker', 'deadlocks.v1', 60);
+    queue.add('innocent', 'plain.v1', 30);
+    const handlers: OutboxHandlers = {
+      'deadlocks.v1': () =>
+        Promise.reject(
+          Object.assign(new Error('Deadlock found when trying to get lock'), {
+            errno: 1213,
+          }),
+        ),
+      'plain.v1': () => Promise.resolve(),
+    };
+
+    for (let pass = 1; pass <= OPTIONS.maxAttempts; pass += 1) {
+      await expect(runOutboxBatch(queue.database, handlers, OPTIONS)).rejects.toBeInstanceOf(
+        OutboxTransactionLostError,
+      );
+      expect(queue.row('deadlocker').attempts).toBe(pass);
+      expect(queue.row('innocent').attempts).toBe(0);
+    }
+
+    // At the cap it is parked, and everything behind it drains — the whole point.
+    const after = await runOutboxBatch(queue.database, handlers, OPTIONS);
+    expect(after.parked.map((event) => event.id)).toEqual(['deadlocker']);
+    expect(queue.row('innocent').publishedAt).not.toBeNull();
+  });
+});
+
+describe('replaying a parked event — relay:unpark (IMPORTANT-2)', () => {
+  it('resets the named parked row to pending and leaves every other parked row alone', async () => {
+    // Without a way out, one poison event makes `relay:status` and `relay:once` exit 1 on every
+    // run for ever, and an alarm with no stand-down is an alarm somebody switches off.
+    const queue = new FakeQueue();
+    queue.add('replayed', 'throws.v1');
+    queue.add('still-parked', 'throws.v1');
+    const failing: OutboxHandlers = { 'throws.v1': () => Promise.reject(new Error('boom')) };
+
+    for (let attempt = 1; attempt <= OPTIONS.maxAttempts; attempt += 1) {
+      for (const row of queue.rows) row.availableAt = new Date(Date.now() - 1000);
+      await runOutboxBatch(queue.database, failing, OPTIONS);
+    }
+    expect(queue.row('replayed').attempts).toBe(OPTIONS.maxAttempts);
+
+    const replayed = await queue.database.transaction((tx) =>
+      unparkEvents(tx, OPTIONS.maxAttempts, 'replayed'),
+    );
+
+    // Reported before the reset, so the operator's log keeps the attempt count and the row's
+    // organization; the row itself goes back to pending with its stale diagnosis cleared.
+    expect(replayed.map((event) => event.id)).toEqual(['replayed']);
+    expect(replayed[0]?.attempts).toBe(OPTIONS.maxAttempts);
+    expect(queue.row('replayed').attempts).toBe(0);
+    expect(queue.row('replayed').lastError).toBeNull();
+    expect(queue.row('still-parked').attempts).toBe(OPTIONS.maxAttempts);
+
+    // And it is genuinely deliverable again — the claim takes it, the other stays parked.
+    const report = await runOutboxBatch(
+      queue.database,
+      { 'throws.v1': () => Promise.resolve() },
+      OPTIONS,
+    );
+    expect(report.published).toBe(1);
+    expect(queue.row('replayed').publishedAt).not.toBeNull();
+    expect(report.parked.map((event) => event.id)).toEqual(['still-parked']);
   });
 });
 

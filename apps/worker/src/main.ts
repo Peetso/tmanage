@@ -3,7 +3,7 @@ import type { Env } from '@tmanage/config';
 import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { createWorkerDatabase } from './common/database/worker-database.js';
-import { readOutboxBacklog } from './common/database/outbox-store.js';
+import { readOutboxBacklog, unparkEvents } from './common/database/outbox-store.js';
 import { runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
 import type { BatchReport } from './outbox/dispatcher.js';
 import {
@@ -37,6 +37,11 @@ import { createMessageFanOut } from './realtime/fan-out.js';
  *   ago a batch last finished, as one JSON line, exiting 1 when any of those is past its
  *   threshold. The monitoring surface for a host that has no spare port for the worker to
  *   answer on — `pnpm --filter @tmanage/worker relay:status`, from cron or an uptime check.
+ * - **`--unpark <event-id>`**, or **`--unpark --all`**, replays parked events: `attempts`
+ *   back to zero and due immediately, so the next batch delivers them. It is the way *out* of
+ *   parking, which until now was hand-written SQL — and an alarm whose only stand-down is
+ *   hand-written SQL is an alarm somebody silences instead (x8 review IMPORTANT-2). It
+ *   delivers nothing itself and names every row it replayed on stderr.
  * - **No flag** runs the polling loop until SIGINT/SIGTERM, finishing the in-flight batch
  *   before leaving — the standalone-worker shape for a host that supports one.
  *
@@ -112,6 +117,14 @@ async function main(): Promise<void> {
   const env = loadEnv();
   const once = process.argv.includes('--once');
   const status = process.argv.includes('--status');
+  const unparkIndex = process.argv.indexOf('--unpark');
+  const unparkAll = process.argv.includes('--all');
+  // The first argument after `--unpark` that is not itself a flag. An event id is a UUID, so
+  // nothing an operator can type here is ambiguous with `--all`.
+  const unparkId =
+    unparkIndex === -1
+      ? undefined
+      : process.argv.slice(unparkIndex + 1).find((argument) => !argument.startsWith('--'));
   const thresholds: OutboxHealthThresholds = {
     backlogMaxAgeSeconds: env.OUTBOX_BACKLOG_MAX_AGE_SECONDS,
     heartbeatMaxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS,
@@ -130,6 +143,50 @@ async function main(): Promise<void> {
       console.error('[worker] connection rejected during session setup', error);
     },
   });
+
+  // Replay and leave: no handlers are built and nothing is delivered here — the rows are made
+  // claimable again and the next batch, loop or cron, does the delivering.
+  //
+  // Tenant safety: there is no organization selector, by construction. `unparkEvents` takes a
+  // primary key or nothing at all, the relay is org-blind throughout (delivery order is global
+  // across every tenant), and the process runs as `tmanage_worker`, a system role rather than
+  // any tenant's. So there is no tenant to pass wrongly — the worst a typo does is name an id
+  // that is not parked, which the predicate refuses and the exit code reports. The one broad
+  // form, `--all`, has to be asked for by name: a bare `--unpark` refuses rather than guessing.
+  if (unparkIndex !== -1) {
+    try {
+      if (unparkAll === (unparkId !== undefined)) {
+        console.error(
+          '[worker] relay:unpark needs exactly one of: an event id, or --all for every parked event',
+        );
+        process.exitCode = 2;
+        return;
+      }
+      const replayed = await database.transaction((tx) =>
+        unparkEvents(tx, env.OUTBOX_MAX_ATTEMPTS, unparkAll ? null : (unparkId ?? null)),
+      );
+      // Named one per line, organization included: this is an operator overriding the relay's
+      // own verdict, and it is the only record that it happened. No `last_error` and no
+      // payload — the diagnosis is the operator's to read from `relay:status`, and a driver
+      // message can quote a recipient.
+      for (const event of replayed) {
+        console.warn(
+          `[worker] unparked event ${event.id} (${event.type}, organization ${event.organizationId}) ` +
+            `after ${String(event.attempts)} attempts — due now`,
+        );
+      }
+      console.warn(`[worker] relay:unpark replayed ${String(replayed.length)} parked event(s)`);
+      // A named id that matched nothing was not replayed, and the operator must hear that from
+      // the exit code, not only from a count. `--all` finding nothing parked is a no-op success.
+      if (replayed.length === 0 && !unparkAll) {
+        console.error('[worker] no parked event with that id — nothing was changed');
+        process.exitCode = 1;
+      }
+    } finally {
+      await database.end();
+    }
+    return;
+  }
 
   // Report and leave: no handlers are built, nothing is claimed, and the only statement is
   // the aggregate read. Safe to run from cron beside a live loop, and safe to run on a

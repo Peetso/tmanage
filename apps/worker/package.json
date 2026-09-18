@@ -19,7 +19,8 @@
     "dev": "tsx src/main.ts",
     "start": "node dist/main.js",
     "relay:once": "node dist/main.js --once",
-    "relay:status": "node dist/main.js --status"
+    "relay:status": "node dist/main.js --status",
+    "relay:unpark": "node dist/main.js --unpark"
   },
   "dependencies": {
     "@tmanage/config": "workspace:*",

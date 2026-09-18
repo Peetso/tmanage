@@ -271,6 +271,13 @@ export const envSchema = z
     // a host with no writable path and leaves backlog age as the only reading.
     // Empty means "keep no heartbeat", the same shape `OTEL_EXPORTER_OTLP_ENDPOINT` uses for
     // "exporter off" — normalised to `undefined` so the worker has one absence to test.
+    //
+    // `.env.example` ships a real path (`var/worker-heartbeat.json`) rather than an empty one:
+    // shipped empty, the reading that separates "drained and idle" from "dead with an empty
+    // queue" was absent from the default deployment, so a relay that died on Friday with a
+    // drained queue reported ok all weekend. The *schema* default stays absent on purpose —
+    // making "unconfigured" degraded would delete the `heartbeatConfigured` distinction that
+    // CRITICAL-A turns on, and page every host that legitimately keeps no heartbeat.
     OUTBOX_HEARTBEAT_FILE: z
       .string()
       .trim()

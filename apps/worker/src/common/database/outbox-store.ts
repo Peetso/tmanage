@@ -145,6 +145,12 @@ function placeholders(count: number): string {
  * cost of an ordinary deadlock — nothing — while a real process kill, which never reaches this
  * code, keeps its count. `attempts > 0` guards against ever going negative; `published_at IS
  * NULL` leaves a row a second relay drained in the gap alone.
+ *
+ * **It refunds only the ids it is handed, and the dispatcher withholds one.** The row whose own
+ * handler raised the lost-transaction error is left out of the list (see the catch in
+ * `dispatcher.ts`), so a deterministically deadlocking handler still spends its attempt and
+ * still parks. This function stays deliberately dumb about that: blame belongs to the
+ * dispatcher, the only place that knows which handler was running when the transaction died.
  */
 export async function releaseReservedAttempts(
   tx: WorkerTransaction,
@@ -305,9 +311,10 @@ export interface ParkedOutboxEvent {
 }
 
 /**
- * The poison events — §2's dead-letter set, reported rather than silently skipped. An
- * operator replays one by resetting its `attempts`; nothing in the relay does that for
- * them, because a poison event that un-parks itself is a retry loop with extra steps.
+ * The poison events — §2's dead-letter set, reported rather than silently skipped. Nothing in
+ * the relay un-parks one on its own, because a poison event that un-parks itself is a retry
+ * loop with extra steps; an operator replays it deliberately with {@link unparkEvents}
+ * (`relay:unpark`).
  */
 export async function listParkedEvents(
   tx: WorkerTransaction,
@@ -329,6 +336,74 @@ export async function listParkedEvents(
       LIMIT ?`,
     [maxAttempts, limit],
   );
+  return rows.map((row) => ({
+    id: row.id,
+    organizationId: row.organization_id,
+    type: row.type,
+    attempts: Number(row.attempts),
+    lastError: row.last_error,
+  }));
+}
+
+/**
+ * **Replay a parked event — the way out of parking (x8 review IMPORTANT-2).**
+ *
+ * Parking is permanent by design: the row is never claimed again, so `relay:status` and
+ * `relay:once` exit 1 on *every* invocation until somebody intervenes. Without a command to
+ * intervene with, the only remedy was an operator editing `attempts` by hand with a SQL client,
+ * and an alarm whose only stand-down is hand-written SQL is an alarm that gets ignored — the
+ * same alarm-fatigue shape CRITICAL-A was condemned for, only about something real.
+ *
+ * This resets the parked rows to pending: `attempts` back to zero, `available_at` to now so the
+ * next batch takes them, and `last_error` cleared because a pending row carrying the diagnosis
+ * of a delivery that is about to be retried is a lie. The rows are selected `FOR UPDATE` first
+ * and returned, so the caller logs exactly what it replayed before the change lands.
+ *
+ * `eventId === null` means every parked row; an id means that one and only if it is genuinely
+ * parked — `published_at IS NULL AND attempts >= maxAttempts` is re-applied either way, so this
+ * can never resurrect a delivered event or reset the counter of one that is merely retrying.
+ *
+ * ## Tenancy
+ *
+ * There is no `organization_id` parameter and no way to pass one. The relay is org-blind by
+ * construction (see the file header) — delivery order is global and the worker runs as
+ * `tmanage_worker`, a system role rather than a tenant's — so "a tenant it should not touch"
+ * has no representation here to get wrong. The selector is the primary key or nothing, both of
+ * which an operator on the worker's own credential could already reach with a SQL client; what
+ * changes is that the action is now named, predicate-guarded and logged. The organization of
+ * every replayed row is returned and printed for exactly that audit trail.
+ */
+export async function unparkEvents(
+  tx: WorkerTransaction,
+  maxAttempts: number,
+  eventId: string | null,
+): Promise<readonly ParkedOutboxEvent[]> {
+  interface ParkedRow {
+    readonly id: string;
+    readonly organization_id: string;
+    readonly type: string;
+    readonly attempts: number;
+    readonly last_error: string | null;
+  }
+  const rows = await tx.query<readonly ParkedRow[]>(
+    `SELECT id, organization_id, type, attempts, last_error
+       FROM outbox_events
+      WHERE published_at IS NULL
+        AND attempts >= ?${eventId === null ? '' : '\n        AND id = ?'}
+      ORDER BY id
+      FOR UPDATE`,
+    eventId === null ? [maxAttempts] : [maxAttempts, eventId],
+  );
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((row) => row.id);
+  await tx.query(
+    `UPDATE outbox_events
+        SET attempts = 0, available_at = NOW(3), last_error = NULL
+      WHERE id IN (${placeholders(ids.length)})`,
+    ids,
+  );
+
   return rows.map((row) => ({
     id: row.id,
     organizationId: row.organization_id,
@@ -408,6 +483,15 @@ const RECOVERABLE_CODES = new Set<string>([
  * CRITICAL-1 exists for, and keeping the attempt (so the poison row still parks) is the safe
  * direction. A real process kill never reaches the caller's catch at all — the process is
  * gone — so it is refunded by nobody, exactly as CRITICAL-1 requires.
+ *
+ * `true` here is **not** "refund every reserved row". A recoverable verdict says the *batch*
+ * may be retried without cost; it says nothing about which row caused it. One row can: a
+ * handler that deadlocks against the API raises `ER_LOCK_DEADLOCK` inside `withSavepoint`,
+ * which becomes an `OutboxTransactionLostError` classified recoverable here. Refunding that row
+ * too made it immortal — never at the cap, never parked, the queue stalled behind it, which is
+ * CRITICAL-1's failure shape surviving for the deadlock class (x8 review IMPORTANT-1). The
+ * dispatcher therefore withholds the culprit from the refund list; this classifier keeps its
+ * single job, which is the error, not the blame.
  */
 export function isRecoverableBatchError(error: unknown): boolean {
   if (error instanceof OutboxTransactionLostError) return true;
