@@ -22,6 +22,8 @@ import {
   stateCapsule,
   stateLabel,
 } from '../../lib/work-item-presentation';
+import { memberDisplayName } from '../../lib/members-presentation';
+import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface WorkListScreenProps {
@@ -108,6 +110,10 @@ export function WorkListScreen({
     queryKey: ['projects', organizationSlug],
     queryFn: () => listProjects(api, organizationSlug),
   });
+
+  // D16. One directory for every row's owner, resolved through one map rather than a fetch per
+  // row; the same list the detail screen's picker offers, so a name never disagrees with itself.
+  const directory = useMembers(api, organizationSlug);
 
   /*
    * The filters are part of the key, so changing one is a new query rather than a mutation of
@@ -487,12 +493,14 @@ export function WorkListScreen({
                   </td>
                   <td>{projectNames.get(item.projectId) ?? 'Another project'}</td>
                   {/*
-                    An id is not a name. Nothing exposes a person's name yet, and no ticket in
-                    `28-SPRINT-TICKETS` builds a people directory; until one does this says
-                    whether the item has an owner at all,
-                    which is the part that matters for "who is this waiting on".
+                    D16: who this is waiting on, by name. Resolved through the one directory
+                    loaded above — no fetch per row — with "Unassigned" for an empty owner, the
+                    loading label while the list is in flight, and a stable label for an id the
+                    directory does not hold (a removed member on a stale row).
                   */}
-                  <td>{item.ownerUserId === null ? 'Unassigned' : 'Assigned'}</td>
+                  <td>
+                    {memberDisplayName(item.ownerUserId, directory.members, directory.isPending)}
+                  </td>
                   <td>
                     {formatInstant(item.dueAt)}
                     {isOverdue(item, now) ? (

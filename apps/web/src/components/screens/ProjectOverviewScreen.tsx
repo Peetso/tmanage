@@ -21,6 +21,8 @@ import {
   stateCapsule,
   stateLabel,
 } from '../../lib/work-item-presentation';
+import { memberDisplayName } from '../../lib/members-presentation';
+import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface ProjectOverviewScreenProps {
@@ -87,6 +89,10 @@ export function ProjectOverviewScreen({
     queryKey: ['project-shares', organizationSlug, projectId],
     queryFn: () => listProjectShares(api, organizationSlug, projectId),
   });
+
+  // D16. One directory for the owner line, the same list `WorkItemDetailScreen`'s picker reads,
+  // so the name shown here and the name chosen there can never come from two different answers.
+  const directory = useMembers(api, organizationSlug);
 
   const items = workItems.data ?? [];
   const blocked = items.filter((item) => item.state === 'blocked');
@@ -156,7 +162,18 @@ export function ProjectOverviewScreen({
           <dl className="tm-detail-list">
             <div className="tm-detail-list__pair">
               <dt>Owner</dt>
-              <dd>{project.data.ownerUserId === null ? 'Unassigned' : 'Assigned'}</dd>
+              {/*
+                D16: who is accountable, by name. `memberDisplayName` reads `null` as
+                "Unassigned", a name when the directory holds the id, the loading label while it
+                is in flight, and a stable "Former or hidden member" label for an id it does not.
+              */}
+              <dd>
+                {memberDisplayName(
+                  project.data.ownerUserId,
+                  directory.members,
+                  directory.isPending,
+                )}
+              </dd>
             </div>
             <div className="tm-detail-list__pair">
               <dt>Committed</dt>

@@ -7,6 +7,7 @@ import { ProjectOverviewScreen } from '../src/components/screens/ProjectOverview
 import { WorkItemDetailScreen } from '../src/components/screens/WorkItemDetailScreen';
 import { WorkListScreen } from '../src/components/screens/WorkListScreen';
 import { ApiClient } from '../src/lib/api/client';
+import { LOADING_MEMBER_LABEL } from '../src/lib/members-presentation';
 import { expectNoAxeViolations } from './axe';
 
 /**
@@ -1126,5 +1127,91 @@ describe('the work surfaces share a cache, and must not share a cache entry', ()
     expect(
       await within(health).findByText('Nothing is blocked and nothing is past its due date.'),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * D16 follow-up (x42): the owner reads as a name, not an id, on the three surfaces the x36
+ * reviewer left open. Each surface resolves its stored `ownerUserId` through the one members
+ * directory `useMembers` loads — the same list the picker offers — so an owner and the people
+ * a transition can name can never come from two different answers. `user-1` is Ada Okonkwo.
+ */
+describe('D16 follow-up — the owner reads as a name on all three surfaces (x42)', () => {
+  it('names the project owner rather than saying only "Assigned"', async () => {
+    const { client } = clientOver((call) =>
+      call.url.includes('/members')
+        ? json(MEMBERS)
+        : call.url.includes('/work-items')
+          ? json({ workItems: [] })
+          : call.url.includes('/clients')
+            ? json({ clients: [] })
+            : json(PROJECTS.projects[0] as unknown),
+    );
+    render(
+      withQuery(
+        <ProjectOverviewScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          projectId="proj-1"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
+
+    expect(await screen.findByText('Ada Okonkwo')).toBeInTheDocument();
+    expect(screen.queryByText(/user-1/)).not.toBeInTheDocument();
+  });
+
+  it('names each work-list row owner rather than saying only "Assigned"', async () => {
+    const { client } = clientOver((call) =>
+      call.url.includes('/members')
+        ? json(MEMBERS)
+        : call.url.includes('/work-items')
+          ? json({ workItems: [workItem()] })
+          : json(PROJECTS),
+    );
+    render(
+      withQuery(
+        <WorkListScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
+
+    expect(await screen.findByText('Ada Okonkwo')).toBeInTheDocument();
+    expect(screen.queryByText(/user-1/)).not.toBeInTheDocument();
+  });
+
+  it('resolves the detail owner line from loading to a name, never a former-member label', async () => {
+    let release: (value: Response) => void = () => {};
+    const membersPending = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    const { client } = clientOver((call) =>
+      call.url.includes('/members') ? membersPending : json(workItem({ state: 'in_progress' })),
+    );
+    render(
+      withQuery(
+        <WorkItemDetailScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          workItemId="wi-1"
+          client={client}
+        />,
+      ),
+    );
+
+    // While the directory is in flight the owner line says it is loading — not that a present
+    // colleague is a former member, which is what the two-argument call rendered.
+    expect(await screen.findByText(LOADING_MEMBER_LABEL)).toBeInTheDocument();
+    expect(screen.queryByText(/Former or hidden member/)).not.toBeInTheDocument();
+
+    // It resolves to the name once the directory answers.
+    release(json(MEMBERS));
+    expect(await screen.findByText('Ada Okonkwo')).toBeInTheDocument();
   });
 });
