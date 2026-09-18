@@ -21,6 +21,21 @@ import { mintRealtimeTicket } from './api/realtime';
  * deployment whose mint answers `socketUrl: null` runs no socket, and the hook settles at
  * `off` without retrying: dialing a port nothing answers is not resilience.
  *
+ * ## Revocation (RT-001's server half, slice x18)
+ *
+ * When authority is withdrawn — a membership suspended, a role capability removed, a channel
+ * membership dropped — the worker unsubscribes the connection and sends `{type:'revoked'}`
+ * (`apps/worker/src/realtime/server.ts`). That is *not* a transient socket hiccup: reconnecting
+ * would only re-subscribe to something the server will refuse again, a silent retry loop
+ * against an access the person no longer has. So a `revoked` frame is terminal here — the hook
+ * stops retrying, closes the socket, drops to the `'revoked'` status, and calls `onRevoked`
+ * once so the screen can drop stale state and send the person to the signed-out path. A plain
+ * socket close (including the 4401 the worker sends when a ticket's short TTL lapses) is *not*
+ * revocation: it is the ordinary end of a ticket's life and still reconnects with a fresh mint.
+ * A fully ended session is handled one layer down — `mintRealtimeTicket` goes through
+ * `ApiClient`, whose refresh-refused path announces `session-ended` and navigates this screen
+ * away, unmounting the hook.
+ *
  * ## The seam
  *
  * `socketFactory` exists because jsdom has no WebSocket and a suite must drive this hook
@@ -39,7 +54,7 @@ export interface LiveSocket {
 
 export type LiveSocketFactory = (url: string) => LiveSocket | null;
 
-export type LiveFeedStatus = 'off' | 'connecting' | 'live' | 'retrying';
+export type LiveFeedStatus = 'off' | 'connecting' | 'live' | 'retrying' | 'revoked';
 
 export interface ChannelLiveFeedOptions {
   readonly api: ApiClient;
@@ -48,6 +63,12 @@ export interface ChannelLiveFeedOptions {
   readonly enabled: boolean;
   /** Called on every frame and once on subscribe. Refetch; never apply frame content. */
   readonly onCatchUp: () => void;
+  /**
+   * Called once when the server revokes this channel (`{type:'revoked'}`). The hook has
+   * already stopped reconnecting; the screen decides what a revoked person sees — the app
+   * wires this to the authentication boundary's signed-out path.
+   */
+  readonly onRevoked?: () => void;
   readonly socketFactory?: LiveSocketFactory;
   /** Base for the reconnect backoff. Small in tests; the default is a second. */
   readonly reconnectBaseMs?: number;
@@ -66,6 +87,8 @@ export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedSta
   // conversation's, not the render's.
   const onCatchUp = useRef(options.onCatchUp);
   onCatchUp.current = options.onCatchUp;
+  const onRevoked = useRef(options.onRevoked);
+  onRevoked.current = options.onRevoked;
 
   const { api, organizationSlug, conversationId, enabled } = options;
   const factory = options.socketFactory ?? defaultFactory;
@@ -127,6 +150,20 @@ export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedSta
         if (frame['type'] === 'event' && frame['conversationId'] === conversationId) {
           // Ids only in the frame; the transcript is refetched, never patched from it.
           onCatchUp.current();
+          return;
+        }
+        if (frame['type'] === 'revoked' && frame['conversationId'] === conversationId) {
+          // Authority for this channel was withdrawn. Terminal: stop reconnecting (a fresh
+          // subscribe would only be refused), cancel any pending retry, close the socket, and
+          // hand off to the screen's signed-out path. `disposed` doubles as the retry guard,
+          // so the close below cannot schedule a reconnect.
+          disposed = true;
+          if (timer !== undefined) clearTimeout(timer);
+          socket?.close();
+          socket = null;
+          setStatus('revoked');
+          onRevoked.current?.();
+          return;
         }
         // `refused` and anything unknown: leave the socket be — the server said its piece,
         // and the screen's reload behaviour still stands underneath.

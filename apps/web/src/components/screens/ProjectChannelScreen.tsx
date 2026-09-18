@@ -28,6 +28,7 @@ import type {
 import { composeMessage } from '../../lib/rich-composer';
 import { useChannelLiveFeed } from '../../lib/use-channel-live-feed';
 import type { LiveSocketFactory } from '../../lib/use-channel-live-feed';
+import { authBoundary } from '../../lib/auth-boundary';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { audienceLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
@@ -155,6 +156,10 @@ export function ProjectChannelScreen({
     onCatchUp: () => {
       void queries.invalidateQueries({ queryKey: ['messages', organizationSlug, conversationId] });
     },
+    // The worker revoked this channel (authority withdrawn or the session ended). Treat it
+    // like a session end: clear this tab's caches and send the person to sign in, rather than
+    // leaving a dead "Reconnecting…" channel or looping fresh subscribes the server refuses.
+    onRevoked: () => authBoundary.announce('session-ended'),
     ...(socketFactory === undefined ? {} : { socketFactory }),
     ...(reconnectBaseMs === undefined ? {} : { reconnectBaseMs }),
   });
