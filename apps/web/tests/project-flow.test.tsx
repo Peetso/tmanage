@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FirstProjectScreen } from '../src/components/screens/FirstProjectScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
+import { expectInertUntilAnswered, heldAnswer } from './hydration-gate';
 
 /**
  * `ON-03` against the endpoints PROJ-001 delivered.
@@ -23,7 +24,10 @@ interface Call {
   readonly body: unknown;
 }
 
-function clientOver(handler: (call: Call) => Response): { client: ApiClient; calls: Call[] } {
+function clientOver(handler: (call: Call) => Response | Promise<Response>): {
+  client: ApiClient;
+  calls: Call[];
+} {
   const calls: Call[] = [];
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -109,6 +113,36 @@ describe('ON-03 create the first project', () => {
 
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     expect(calls[0]?.url).toBe('https://api.example.test/v1/organizations/northstar/workspaces');
+  });
+
+  /**
+   * The same defect x38 fixed on CL-09, here on ON-03. "Create project" already carried
+   * `disabled={workspaces.isPending}`; the fields did not. On a cold page a project name typed
+   * before React hydrated was held by the DOM only, and hydration re-applied `value=''` and
+   * erased it — then the submit guard answered "Enter a project name." over a field that looked
+   * filled in. One test for the one behaviour: inert while pending, editable after, and what is
+   * typed then stays typed.
+   */
+  it('takes no word until the workspaces have arrived, so nothing typed is silently wiped', async () => {
+    const user = userEvent.setup();
+    const held = heldAnswer();
+    const { client } = clientOver((call) =>
+      call.method === 'POST' ? json(CREATED, 201) : held.after(() => json(WORKSPACES)),
+    );
+    renderScreen(client);
+
+    const name = screen.getByLabelText(/Project name/);
+    await expectInertUntilAnswered(
+      [
+        name,
+        screen.getByLabelText(/Target date/),
+        screen.getByRole('button', { name: 'Create project' }),
+      ],
+      held.answer,
+    );
+
+    await user.type(name, 'Atlas Website Relaunch');
+    expect(name).toHaveValue('Atlas Website Relaunch');
   });
 
   it('posts the project to the organization in the route', async () => {

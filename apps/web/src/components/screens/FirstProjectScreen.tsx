@@ -147,75 +147,88 @@ export function FirstProjectScreen({
       ) : null}
 
       <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
-        <Field
-          label="Project name"
-          name="projectName"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          hint="What your team calls it. Clients see this name too."
-          required
-        />
-
-        <fieldset className="tm-fieldset">
-          <legend className="tm-field__label">Who is this for</legend>
-          <div className="tm-stack tm-stack--tight">
-            <label className="tm-choice">
-              <input
-                className="tm-choice__input"
-                type="radio"
-                name="audience"
-                value="client"
-                checked={audience === 'client'}
-                onChange={() => setAudience('client')}
-              />
-              <span className="tm-choice__name">A client</span>
-              <span className="tm-choice__detail">
-                A client organization and a portal can be set up for it in the next steps.
-              </span>
-            </label>
-            <label className="tm-choice">
-              <input
-                className="tm-choice__input"
-                type="radio"
-                name="audience"
-                value="internal"
-                checked={audience === 'internal'}
-                onChange={() => setAudience('internal')}
-              />
-              <span className="tm-choice__name">Internal only</span>
-              <span className="tm-choice__detail">
-                No portal. You can switch one on later without recreating the project.
-              </span>
-            </label>
-          </div>
-        </fieldset>
-
         {/*
+          The controls take nothing until this screen's data has arrived. "Create project" has
+          always carried `disabled={workspaces.isPending}`; the fields did not, so on a cold page
+          a person could type a project name before React hydrated — the DOM held the word, no
+          listener existed, `name` stayed `''`, and hydration re-applied `value=''` and wiped it.
+          They then met "Enter a project name." over a field they had just filled in. The
+          server-rendered HTML has `isPending === true`, so the controls ship disabled and become
+          editable only once React is live and the workspaces query has answered. `isError` means
+          `isPending === false`, so a failed load leaves the form editable and the alert above it
+          explains itself.
+        */}
+        <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={workspaces.isPending}>
+          <Field
+            label="Project name"
+            name="projectName"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            hint="What your team calls it. Clients see this name too."
+            required
+          />
+
+          <fieldset className="tm-fieldset">
+            <legend className="tm-field__label">Who is this for</legend>
+            <div className="tm-stack tm-stack--tight">
+              <label className="tm-choice">
+                <input
+                  className="tm-choice__input"
+                  type="radio"
+                  name="audience"
+                  value="client"
+                  checked={audience === 'client'}
+                  onChange={() => setAudience('client')}
+                />
+                <span className="tm-choice__name">A client</span>
+                <span className="tm-choice__detail">
+                  A client organization and a portal can be set up for it in the next steps.
+                </span>
+              </label>
+              <label className="tm-choice">
+                <input
+                  className="tm-choice__input"
+                  type="radio"
+                  name="audience"
+                  value="internal"
+                  checked={audience === 'internal'}
+                  onChange={() => setAudience('internal')}
+                />
+                <span className="tm-choice__name">Internal only</span>
+                <span className="tm-choice__detail">
+                  No portal. You can switch one on later without recreating the project.
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          {/*
           A statement rather than a picker.
           `22` §3 lists an owner field, and there is no endpoint that lists the people in an
           organization, and no ticket builds one. A select with one invented name in it would
           look like a choice and be a fiction; the API defaults the owner to the person
           creating the project, and this says so.
         */}
-        <div className="tm-field">
-          <span className="tm-field__label">Project owner</span>
-          <p className="tm-prose">{signedInAs}</p>
-          <span className="tm-field__hint">
-            You, because there is nobody else in this organization yet. It can be changed at any
-            time once you have invited your team.
-          </span>
-        </div>
+          <div className="tm-field">
+            <span className="tm-field__label">Project owner</span>
+            <p className="tm-prose">{signedInAs}</p>
+            <span className="tm-field__hint">
+              You, because there is nobody else in this organization yet. It can be changed at any
+              time once you have invited your team.
+            </span>
+          </div>
 
-        <Field
-          label="Target date"
-          name="targetDate"
-          type="date"
-          value={targetDate}
-          onChange={(event) => setTargetDate(event.target.value)}
-          dir="ltr"
-          hint="A target, not a commitment. It stays a target until a milestone plan is confirmed."
-          {...(dateProblem === undefined ? {} : { error: dateProblem })}
-        />
+          <Field
+            label="Target date"
+            name="targetDate"
+            type="date"
+            value={targetDate}
+            onChange={(event) => setTargetDate(event.target.value)}
+            dir="ltr"
+            hint="A target, not a commitment. It stays a target until a milestone plan is confirmed."
+            {...(dateProblem === undefined ? {} : { error: dateProblem })}
+          />
+        </fieldset>
 
         <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-project-summary">
           <h2 id="tm-project-summary" className="tm-eyebrow">

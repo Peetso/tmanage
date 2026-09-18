@@ -251,48 +251,59 @@ export function WorkListScreen({
           Filters
         </h2>
 
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-work-project">
-            Project
-          </label>
-          <select
-            id="tm-work-project"
-            className="tm-field__control"
-            value={projectId}
-            onChange={(event) => {
-              setProjectId(event.target.value);
-              setSelected(new Set());
-            }}
-          >
-            <option value="">All projects</option>
-            {(projects.data ?? []).map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <fieldset className="tm-fieldset">
-          <legend className="tm-field__label">State</legend>
-          <div className="tm-row tm-row--wrap">
-            {WORK_ITEM_STATES.map((state) => (
-              <label key={state} className="tm-choice tm-choice--inline">
-                <input
-                  className="tm-choice__input"
-                  type="checkbox"
-                  name="state"
-                  value={state}
-                  checked={states.includes(state)}
-                  onChange={() => toggleState(state)}
-                />
-                <span className="tm-choice__name">{stateLabel(state)}</span>
-              </label>
-            ))}
+        {/*
+          Inert until the projects query has answered. Every filter here is a controlled input
+          shipped in the server HTML, so a choice made before React hydrated was held only by
+          the DOM: hydration re-applied `''` and an empty state list, the list below silently
+          stayed unfiltered, and nothing said why. The gate is the projects query rather than
+          `workItems`, which re-pends on every filter change and would lock the filters the
+          moment one was used. `isError` means `isPending === false`, so a failed project list
+          still leaves the state filters usable.
+        */}
+        <fieldset className="tm-fieldset tm-stack" disabled={projects.isPending}>
+          <div className="tm-field">
+            <label className="tm-field__label" htmlFor="tm-work-project">
+              Project
+            </label>
+            <select
+              id="tm-work-project"
+              className="tm-field__control"
+              value={projectId}
+              onChange={(event) => {
+                setProjectId(event.target.value);
+                setSelected(new Set());
+              }}
+            >
+              <option value="">All projects</option>
+              {(projects.data ?? []).map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
           </div>
-          <span className="tm-field__hint">
-            No state ticked means every state, which is what the list opens with.
-          </span>
+
+          <fieldset className="tm-fieldset">
+            <legend className="tm-field__label">State</legend>
+            <div className="tm-row tm-row--wrap">
+              {WORK_ITEM_STATES.map((state) => (
+                <label key={state} className="tm-choice tm-choice--inline">
+                  <input
+                    className="tm-choice__input"
+                    type="checkbox"
+                    name="state"
+                    value={state}
+                    checked={states.includes(state)}
+                    onChange={() => toggleState(state)}
+                  />
+                  <span className="tm-choice__name">{stateLabel(state)}</span>
+                </label>
+              ))}
+            </div>
+            <span className="tm-field__hint">
+              No state ticked means every state, which is what the list opens with.
+            </span>
+          </fieldset>
         </fieldset>
       </section>
 

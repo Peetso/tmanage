@@ -9,6 +9,7 @@ import { ApiClient } from '../src/lib/api/client';
 import type { LiveSocket } from '../src/lib/use-channel-live-feed';
 import { authBoundary } from '../src/lib/auth-boundary';
 import { expectNoAxeViolations } from './axe';
+import { expectInertUntilAnswered, heldAnswer } from './hydration-gate';
 
 /**
  * `TM-06`, `TM-08` and `TM-09` against the endpoints CHAT-001 through CHAT-003 delivered —
@@ -43,7 +44,10 @@ interface Call {
   readonly body: unknown;
 }
 
-function clientOver(handler: (call: Call) => Response): { client: ApiClient; calls: Call[] } {
+function clientOver(handler: (call: Call) => Response | Promise<Response>): {
+  client: ApiClient;
+  calls: Call[];
+} {
   const calls: Call[] = [];
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -226,6 +230,47 @@ describe('the channel list', () => {
     // The project name appears beside the channel row (it is also an option in two selects).
     const row = link.closest('li') as HTMLElement;
     expect(within(row).getByText('Atlas Website Relaunch')).toBeInTheDocument();
+  });
+
+  /**
+   * The x38 defect (CL-09) on TM-08. Every control on this screen is a controlled input in the
+   * server-rendered HTML — the two project selects, the archived checkbox, the channel name —
+   * and none of them carried the readiness condition. A filter chosen or a name typed before
+   * React hydrated was held by the DOM alone and undone by hydration, with nothing said. They
+   * now sit behind `disabled={projects.isPending}`, filters and form alike.
+   */
+  it('takes no filter and no channel name until the projects have arrived', async () => {
+    const user = userEvent.setup();
+    const held = heldAnswer();
+    const { client } = clientOver((call) => {
+      if (call.url.includes('/projects')) return held.after(() => json({ projects: [PROJECT] }));
+      return json({ conversations: [] });
+    });
+
+    render(
+      withQuery(
+        <ChatScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+        />,
+      ),
+    );
+
+    const name = within(
+      screen.getByRole('heading', { name: 'New channel' }).closest('section') as HTMLElement,
+    ).getByLabelText('Channel name');
+    await expectInertUntilAnswered(
+      [
+        name,
+        screen.getByLabelText('Show archived channels'),
+        ...screen.getAllByLabelText('Project'),
+      ],
+      held.answer,
+    );
+
+    await user.type(name, 'general');
+    expect(name).toHaveValue('general');
   });
 
   it('creates a channel on the chosen project', async () => {

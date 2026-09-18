@@ -99,34 +99,42 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
           Filters
         </h2>
 
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-chat-project">
-            Project
-          </label>
-          <select
-            id="tm-chat-project"
-            className="tm-field__control"
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-          >
-            <option value="">All projects</option>
-            {(projects.data ?? []).map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/*
+          Inert until the projects query has answered. Both controls are controlled inputs
+          rendered in the server HTML, so without this a filter chosen before React hydrated
+          would be re-applied from state — `''` and `false` — and silently undone. `isError`
+          means `isPending === false`, so a failed project list still leaves the filters usable.
+        */}
+        <fieldset className="tm-fieldset tm-stack" disabled={projects.isPending}>
+          <div className="tm-field">
+            <label className="tm-field__label" htmlFor="tm-chat-project">
+              Project
+            </label>
+            <select
+              id="tm-chat-project"
+              className="tm-field__control"
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+            >
+              <option value="">All projects</option>
+              {(projects.data ?? []).map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <label className="tm-choice tm-choice--inline">
-          <input
-            className="tm-choice__input"
-            type="checkbox"
-            checked={includeArchived}
-            onChange={() => setIncludeArchived((current) => !current)}
-          />
-          <span className="tm-choice__name">Show archived channels</span>
-        </label>
+          <label className="tm-choice tm-choice--inline">
+            <input
+              className="tm-choice__input"
+              type="checkbox"
+              checked={includeArchived}
+              onChange={() => setIncludeArchived((current) => !current)}
+            />
+            <span className="tm-choice__name">Show archived channels</span>
+          </label>
+        </fieldset>
       </section>
 
       {conversations.isError ? (
@@ -180,41 +188,49 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
           New channel
         </h2>
         <form className="tm-stack" onSubmit={submitCreate}>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-chat-new-project">
-              Project
-            </label>
-            <select
-              id="tm-chat-new-project"
-              className="tm-field__control"
-              value={newProjectId}
-              onChange={(event) => setNewProjectId(event.target.value)}
-              required
-            >
-              <option value="">Choose a project</option>
-              {(projects.data ?? []).map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-chat-new-name">
-              Channel name
-            </label>
-            <input
-              id="tm-chat-new-name"
-              className="tm-field__control"
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              maxLength={120}
-              required
-            />
-            <span className="tm-field__hint">
-              A leading # is fine; the API treats #general and general as the same channel.
-            </span>
-          </div>
+          {/*
+            The same gate as the filters, for the same reason: a channel name typed into this
+            server-rendered input before React hydrated was held by the DOM, never by `newName`,
+            and hydration re-applied `value=''` and erased it. The button already refuses an
+            empty name, so the person was told nothing and lost what they wrote.
+          */}
+          <fieldset className="tm-fieldset tm-stack" disabled={projects.isPending}>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-chat-new-project">
+                Project
+              </label>
+              <select
+                id="tm-chat-new-project"
+                className="tm-field__control"
+                value={newProjectId}
+                onChange={(event) => setNewProjectId(event.target.value)}
+                required
+              >
+                <option value="">Choose a project</option>
+                {(projects.data ?? []).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-chat-new-name">
+                Channel name
+              </label>
+              <input
+                id="tm-chat-new-name"
+                className="tm-field__control"
+                value={newName}
+                onChange={(event) => setNewName(event.target.value)}
+                maxLength={120}
+                required
+              />
+              <span className="tm-field__hint">
+                A leading # is fine; the API treats #general and general as the same channel.
+              </span>
+            </div>
+          </fieldset>
 
           {create.isError ? (
             <InlineAlert tone="danger" title="Could not create the channel" live>

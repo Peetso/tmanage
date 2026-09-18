@@ -8,6 +8,7 @@ import { WorkItemDetailScreen } from '../src/components/screens/WorkItemDetailSc
 import { WorkListScreen } from '../src/components/screens/WorkListScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
+import { expectInertUntilAnswered, heldAnswer } from './hydration-gate';
 
 /**
  * `TM-03`, `TM-10` and `TM-13` against the endpoints WORK-001 delivered.
@@ -129,6 +130,41 @@ const PROJECTS = {
 };
 
 describe('TM-10 the work list', () => {
+  /**
+   * The x38 defect (CL-09) on TM-10's filters. The project select and the state checkboxes are
+   * controlled inputs in the server-rendered HTML with nothing gating them, so a filter set
+   * before React hydrated was held by the DOM alone: hydration re-applied `''` and an empty
+   * state list, the table below stayed unfiltered, and nothing said why. They now sit behind
+   * `disabled={projects.isPending}` — the projects query rather than `workItems`, which
+   * re-pends on every filter change and would lock the filters the moment one was used.
+   */
+  it('takes no filter until the projects have arrived', async () => {
+    const held = heldAnswer();
+    const { client } = clientOver((call) =>
+      call.url.includes('/work-items')
+        ? json({ workItems: [workItem()] })
+        : held.after(() => json(PROJECTS)),
+    );
+
+    render(
+      withQuery(
+        <WorkListScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+          now={NOW}
+        />,
+      ),
+    );
+
+    const project = screen.getByLabelText('Project');
+    const inProgress = screen.getByRole('checkbox', { name: 'In progress' });
+    await expectInertUntilAnswered([project, inProgress], held.answer);
+
+    await userEvent.click(inProgress);
+    expect(inProgress).toBeChecked();
+  });
+
   it('renders a real table with a row per item', async () => {
     const { client } = clientOver((call) =>
       call.url.includes('/work-items') ? json({ workItems: [workItem()] }) : json(PROJECTS),
