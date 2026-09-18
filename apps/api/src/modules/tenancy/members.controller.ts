@@ -55,6 +55,13 @@ const MAX_LIMIT = 200;
  */
 const DEFAULT_LIMIT = 50;
 
+/**
+ * `users.display_name` is `VARCHAR(190)`, so nothing longer than that can match anything. The
+ * fragment is cut rather than refused: a caller has not made an error, and a 400 would be an
+ * error path with no way for an ordinary client to reach it.
+ */
+const MAX_SEARCH_LENGTH = 190;
+
 @Controller('v1/organizations/:orgSlug/members')
 export class MembersController {
   constructor(
@@ -78,6 +85,14 @@ export class MembersController {
    * `membershipId` is not projected. It is the keyset cursor and it is returned as `nextAfter`
    * when the page is full, which is the only thing a caller does with it — a client that held
    * membership ids would grow a second identifier for a person with no route that takes one.
+   *
+   * `q` narrows by name, and it is the reason this route is usable by an organization of any
+   * size. One page is 50 people; without a search, the fifty-first member of an organization is
+   * somebody a picker can never offer and therefore somebody no work can be assigned to. The
+   * search is here rather than in the browser because the alternative is shipping the whole
+   * staff list to the client to answer a keystroke. It narrows this tenant's own query — the
+   * `organization_id` predicate and the active-only filter are untouched by it — so it can
+   * reach further into the roster the caller already has, and nowhere else.
    */
   @Get()
   @RequireCapability('work.read')
@@ -85,6 +100,7 @@ export class MembersController {
     @Ctx() context: TenantContext,
     @Query('after') after?: string,
     @Query('limit') limit?: string,
+    @Query('q') q?: string,
   ): Promise<{ readonly members: readonly MemberView[]; readonly nextAfter: string | null }> {
     const parsedLimit = limit === undefined ? undefined : Number(limit);
     if (parsedLimit !== undefined && (!Number.isSafeInteger(parsedLimit) || parsedLimit < 1)) {
@@ -94,10 +110,12 @@ export class MembersController {
     }
 
     const effectiveLimit = Math.min(parsedLimit ?? DEFAULT_LIMIT, MAX_LIMIT);
+    const search = (q ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
 
     const rows = await this.database.read(context, (db) =>
       this.memberships.listWithNames(db, context, {
         ...(after ? { after } : {}),
+        ...(search === '' ? {} : { q: search }),
         limit: effectiveLimit,
       }),
     );

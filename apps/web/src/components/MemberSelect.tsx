@@ -1,9 +1,17 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Combobox } from '@tmanage/ui';
 import { memberOptions } from '../lib/members-presentation';
 import type { MemberSummary } from '../lib/api/members';
+
+/**
+ * How long the typing has to stop before the search is sent.
+ *
+ * Long enough that a name typed at speed is one request rather than nine, short enough that a
+ * person who has stopped and is waiting does not notice having done so.
+ */
+const SEARCH_DEBOUNCE_MS = 250;
 
 export interface MemberSelectProps {
   label: ReactNode;
@@ -13,6 +21,15 @@ export interface MemberSelectProps {
   value: string;
   /** Called with the chosen member's user id, `''` when the field is cleared. */
   onChange: (userId: string) => void;
+  /**
+   * Called with the typed text once typing pauses, for `useMembers`' `search`.
+   *
+   * Optional: without it the control offers exactly the members it was handed, which is right
+   * wherever the whole list is already in hand. With it, the list is the server's answer to
+   * what was typed — which is the only way a person past the first page of a large
+   * organization can be found at all.
+   */
+  onSearchChange?: (q: string) => void;
   hint?: ReactNode;
   required?: boolean;
   /** True while the directory is still loading, so the empty list does not read as "nobody". */
@@ -52,20 +69,37 @@ export interface MemberSelectProps {
  * - **A stored id nobody recognises.** Offboarded, or in a project this reader cannot see.
  *   `memberOptions` appends it under a stable label so the control shows what the item
  *   actually holds; dropping it would render an empty box, which reads as "unassigned" and is
- *   the misreading D16 exists to stop.
+ *   the misreading D16 exists to stop. `loading` is passed to it because *every* id is
+ *   unrecognised by a directory that has not arrived yet, and calling a colleague a former
+ *   member for the half-second before the names land is a false statement, not a loading state.
+ *
+ * ## Searching happens on the server
+ *
+ * The combobox filters the options it holds, but the options it holds are one page of a roster
+ * that may be far longer. So the typed text is also handed up — once typing pauses — as the
+ * search the directory is re-read with, which is what makes the fifty-first member of an
+ * organization findable rather than invisible.
  */
 export function MemberSelect({
   label,
   members,
   value,
   onChange,
+  onSearchChange,
   hint,
   required,
   loading = false,
   failed = false,
   name,
 }: MemberSelectProps) {
-  const options = memberOptions(members, value === '' ? null : value);
+  const options = memberOptions(members, value === '' ? null : value, loading);
+
+  const [typed, setTyped] = useState('');
+  useEffect(() => {
+    if (onSearchChange === undefined) return;
+    const timer = setTimeout(() => onSearchChange(typed), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [typed, onSearchChange]);
 
   const stateHint = loading
     ? 'Loading the people in this organization.'
@@ -79,6 +113,7 @@ export function MemberSelect({
       options={options}
       value={value}
       onValueChange={onChange}
+      onQueryChange={setTyped}
       emptyLabel={loading ? 'Loading members' : 'No member of this organization matches'}
       {...(name === undefined ? {} : { name })}
       {...(required === undefined ? {} : { required })}

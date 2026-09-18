@@ -221,8 +221,13 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
   const [pendingAudience, setPendingAudience] = useState<WorkItemAudience | undefined>(undefined);
 
   // D16. One query for both the owner line and the pickers, so the name a person reads above
-  // and the name they choose below can never come from two different answers.
-  const directory = useMembers(api, organizationSlug);
+  // and the name they choose below can never come from two different answers. `memberSearch`
+  // is what a picker last typed: the roster is longer than one page in any real organization,
+  // so the search that finds somebody has to reach the server rather than the page already in
+  // hand. `useMembers` merges each answer into what is known, so neither the owner line nor a
+  // field already filled in changes because somebody typed in a picker.
+  const [memberSearch, setMemberSearch] = useState('');
+  const directory = useMembers(api, organizationSlug, memberSearch);
 
   const reachable = workItemStateMachine.allowedFrom(item.state);
   const required = target === '' ? [] : workItemStateMachine.requirementsFor(item.state, target);
@@ -323,6 +328,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
           members={directory.members}
           value={facts[fact] ?? ''}
           onChange={(userId) => setFacts({ ...facts, [fact]: userId })}
+          onSearchChange={setMemberSearch}
           loading={directory.isPending}
           failed={directory.isError}
           {...(hint === undefined ? {} : { hint })}

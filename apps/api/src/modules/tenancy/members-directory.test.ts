@@ -134,6 +134,31 @@ describe('MembershipsRepository.listWithNames', () => {
     expect(statement?.params).toEqual([ORG, 'active', cursor, 2]);
     expect(statement?.sql).toMatch(/order by\s+`memberships`\.`id`/i);
   });
+
+  it('searches the name on the server, without letting go of the tenant', async () => {
+    const captured: Captured[] = [];
+    const { runner } = capturingRunner(captured, []);
+
+    // A person typing into the picker. Without this the search happens on whatever page the
+    // browser already holds, so the fifty-first member of an organization is unassignable.
+    await repository.listWithNames(runner, contextFor(ORG), { q: 'Pri' });
+
+    const statement = captured[0];
+    expect(statement?.sql).toMatch(/like/i);
+    // Bound, never interpolated: the typed text appears in the parameters and nowhere in the
+    // SQL, which is also what keeps `%` a character somebody typed rather than a wildcard.
+    expect(statement?.params).toContain('%Pri%');
+    expect(statement?.sql).not.toContain('Pri');
+
+    // And the search is still this tenant's search: narrowing by name cannot widen who is
+    // reachable, so the guard must accept the statement exactly as it does without a `q`.
+    expect(statement?.params).toContain(ORG);
+    const analysis = analyzeStatement(statement?.sql ?? '', statement?.params ?? [], ORG);
+    expect(analysis.violations, analysis.violations.join('\n')).toEqual([]);
+    expect(
+      analyzeStatement(statement?.sql ?? '', statement?.params ?? [], OTHER_ORG).violations.length,
+    ).toBeGreaterThan(0);
+  });
 });
 
 describe('GET /v1/organizations/:orgSlug/members', () => {

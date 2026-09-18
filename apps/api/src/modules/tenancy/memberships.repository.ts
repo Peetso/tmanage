@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, like, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { InternalRole } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -95,6 +95,41 @@ export interface ListMembershipsOptions {
 }
 
 /**
+ * `listWithNames`' options: the membership list's, plus the directory's own search term.
+ *
+ * Separate from `ListMembershipsOptions` because only the directory has a name to search: the
+ * plain membership list projects no `display_name` and joins no `users`, so a `q` on it would
+ * be a field nothing could honour.
+ */
+export interface MemberDirectoryOptions extends ListMembershipsOptions {
+  /**
+   * A fragment of the name to look for, matched as a contains.
+   *
+   * This is what makes an organization larger than one page usable at all: without it a picker
+   * reads the first 50 rows and the fifty-first member can never be assigned anything, because
+   * nothing on the client can ask for somebody it has not already been sent. The search belongs
+   * on the server for the same reason — a client that paged the whole roster into memory to
+   * filter it would be downloading the staff list to answer one keystroke.
+   *
+   * Blank or whitespace-only is the same as absent: an empty search box asks for everybody.
+   */
+  readonly q?: string;
+}
+
+/**
+ * Make a person's typed text safe to put inside a `LIKE` pattern.
+ *
+ * `%` and `_` are `LIKE`'s own wildcards and `\` its escape character. This is **not** injection
+ * defence — the pattern below is a bound parameter either way, and the guard in
+ * `tenant-guard.ts` would reject it if it were not. It is about the pattern meaning what was
+ * typed: a colleague whose name contains `_` should find themselves rather than match every
+ * name of the same length, and a caller typing `%` should get no rows rather than the roster.
+ */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+/**
  * One row of the member directory: the membership, plus the name the person is known by.
  *
  * `userId` is kept because it is what every work action stores — D16's fix is that a person
@@ -156,20 +191,31 @@ export class MembershipsRepository {
    * directory exists so that work can be assigned by name, and an address list is a different
    * decision with different consequences (it is what makes a roster worth exfiltrating). A
    * column added to `users` later is invisible here until somebody chooses to add it.
+   *
+   * **`q` searches the name, and is still the tenant's search.** The fragment narrows the same
+   * statement rather than replacing it: `organization_id = ?` and the status filter are both
+   * still there, so a search can only ever reach further into this organization's own roster.
+   * The comparison is case-insensitive because `users.display_name` is `utf8mb4_unicode_ci`
+   * (spelled out on the table in `0001_tenancy.sql`, not inherited) — a `LOWER()` wrapped round
+   * the column would say the same thing while forbidding every index on it.
    */
   async listWithNames(
     runner: TenantQueryRunner,
     context: TenantContext,
-    options: ListMembershipsOptions = {},
+    options: MemberDirectoryOptions = {},
   ): Promise<readonly MemberDirectoryEntry[]> {
     const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
     const statuses = options.statuses ?? (['active'] as const);
+    const search = options.q?.trim() ?? '';
 
     const predicates = [
       eq(memberships.organizationId, context.organizationId),
       inArray(memberships.status, [...statuses]),
     ];
     if (options.after) predicates.push(gt(memberships.id, options.after));
+    if (search !== '') {
+      predicates.push(like(users.displayName, `%${escapeLikePattern(search)}%`));
+    }
 
     return tenantDrizzle(runner)
       .select({

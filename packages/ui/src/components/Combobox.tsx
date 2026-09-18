@@ -39,6 +39,15 @@ export interface ComboboxProps extends Omit<
   value?: string;
   /** Called with the chosen option's value when one is picked, `''` when cleared. */
   onValueChange?: (value: string) => void;
+  /**
+   * Called with the text as it is typed, before any option is chosen.
+   *
+   * For a list that cannot be held in the browser — a staff directory, a project list — where
+   * the typed text has to reach the server. The component keeps filtering the options it was
+   * given either way; this only lets a caller widen the set it hands back. It is deliberately
+   * not the input's `onChange`: that one carries a DOM event and is the component's own.
+   */
+  onQueryChange?: (text: string) => void;
   /** Shown inside the popup when the typed text matches nothing. */
   emptyLabel?: string;
   /**
@@ -89,6 +98,7 @@ export function Combobox({
   options,
   value,
   onValueChange,
+  onQueryChange,
   emptyLabel = 'No matches',
   defaultOpen = false,
   className,
@@ -229,6 +239,7 @@ export function Combobox({
             setText(event.currentTarget.value);
             setOpen(true);
             setActiveIndex(-1);
+            onQueryChange?.(event.currentTarget.value);
             if (event.currentTarget.value === '') {
               setCommitted('');
               onValueChange?.('');

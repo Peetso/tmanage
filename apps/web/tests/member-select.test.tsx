@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { MemberSelect } from '../src/components/MemberSelect';
 import { WorkItemDetailScreen } from '../src/components/screens/WorkItemDetailScreen';
 import { ApiClient } from '../src/lib/api/client';
+import { useMembers } from '../src/lib/use-members';
 import type { MemberSummary } from '../src/lib/api/members';
 
 /**
@@ -79,6 +80,84 @@ describe('MemberSelect', () => {
     expect(screen.getByRole('combobox', { name: 'Who owns this' })).toHaveValue(
       'Former or hidden member (u-depart)',
     );
+  });
+
+  it('does not call a present colleague a former member while the directory loads', () => {
+    // Every id is absent from a list that has not arrived, so the unknown-id label would fire
+    // on a perfectly ordinary owner for as long as the fetch takes. "Nobody by that id" and
+    // "the names are not here yet" are different facts and only one of them is about a person.
+    render(
+      <MemberSelect
+        label="Who owns this"
+        members={[]}
+        value="u-ada"
+        onChange={() => undefined}
+        loading
+      />,
+    );
+
+    const field = screen.getByRole('combobox', { name: 'Who owns this' });
+    expect(field).not.toHaveValue('Former or hidden member (u-ada)');
+    expect(field).toHaveValue('Loading this member’s name…');
+  });
+});
+
+describe('searching the directory', () => {
+  function searchClient(calls: string[]): ApiClient {
+    return new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: ((input: RequestInfo | URL) => {
+        calls.push(String(input));
+        return Promise.resolve(
+          new Response(JSON.stringify({ members: MEMBERS, nextAfter: null }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => 'csrf-token',
+      newCorrelationId: () => 'correlation-fixed',
+    });
+  }
+
+  function SearchHarness({ client }: { client: ApiClient }) {
+    const [search, setSearch] = useState('');
+    const directory = useMembers(client, 'northstar', search);
+    return (
+      <MemberSelect
+        label="Who owns this"
+        members={directory.members}
+        value=""
+        onChange={() => undefined}
+        onSearchChange={setSearch}
+      />
+    );
+  }
+
+  it('asks the server for what was typed, so somebody past the first page can be found', async () => {
+    // The hole this closes: one request is one page of 50, so before this the fifty-first
+    // member of an organization was somebody the browser had never been sent and therefore
+    // somebody no field here could assign work to. Filtering what had already arrived could
+    // never reach them; asking the server can.
+    const calls: string[] = [];
+    const queries = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queries}>
+        <SearchHarness client={searchClient(calls)} />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.type(screen.getByRole('combobox', { name: 'Who owns this' }), 'Oma');
+
+    await waitFor(() => {
+      expect(calls.some((url) => url.includes('/members?q=Oma'))).toBe(true);
+    });
+    // Debounced, not per keystroke: three characters are not three round trips.
+    expect(calls.filter((url) => url.includes('q=')).length).toBeLessThan(3);
   });
 });
 

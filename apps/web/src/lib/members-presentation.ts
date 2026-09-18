@@ -54,16 +54,33 @@ export function memberDisplayName(
 }
 
 /**
+ * What to show for a stored id while the directory has not answered yet.
+ *
+ * "Not in the list" and "the list has not arrived" are different facts and only one of them is
+ * about the person. Until the directory answers, all that is known is that somebody owns this,
+ * so that is what it says.
+ */
+export const LOADING_MEMBER_LABEL = 'Loading this member’s name…';
+
+/**
  * The picker's options.
  *
  * A stored id that is not in the directory is appended as its own option rather than dropped,
  * so the control can show what the item actually holds. A `Combobox` whose `value` matches no
  * option renders an empty box, which would read as "nobody is assigned" — the precise
  * misreading D16 asks to prevent.
+ *
+ * `loading` is why this takes a third argument. Every stored id is absent from a directory that
+ * has not arrived, so without it a pre-seeded owner flashes as `Former or hidden member` before
+ * the names land — a statement about a colleague's standing that is simply false, and the same
+ * class of misreading the unknown-id label exists to prevent. While the directory is in flight
+ * the option is a placeholder instead; it becomes the name, or the unknown-id label, once there
+ * is an answer to base that on.
  */
 export function memberOptions(
   members: readonly MemberSummary[],
   selectedUserId: string | null,
+  loading = false,
 ): readonly ComboboxOption[] {
   const options = members.map((member) => ({
     value: member.userId,
@@ -71,7 +88,10 @@ export function memberOptions(
   }));
 
   if (selectedUserId !== null && !members.some((member) => member.userId === selectedUserId)) {
-    options.push({ value: selectedUserId, label: unknownMemberLabel(selectedUserId) });
+    options.push({
+      value: selectedUserId,
+      label: loading ? LOADING_MEMBER_LABEL : unknownMemberLabel(selectedUserId),
+    });
   }
 
   return options;

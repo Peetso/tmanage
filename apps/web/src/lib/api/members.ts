@@ -17,25 +17,42 @@ export interface MemberSummary {
   readonly status: string;
 }
 
+export interface ListMembersQuery {
+  /**
+   * A fragment of the name to search for, sent to the server.
+   *
+   * One request is one page — the API's default is 50 and its ceiling is 200 — so without a
+   * search the fifty-first member of an organization is somebody this client has never been
+   * sent and therefore somebody no field here can assign work to. `q` is how the roster beyond
+   * the first page is reached, and it is answered by the server on purpose: paging the whole
+   * staff list into the browser to filter it there would download a roster to answer a
+   * keystroke. Blank is the same as absent.
+   */
+  readonly q?: string;
+  readonly limit?: number;
+}
+
 /**
- * Every active member of this organization, by name.
+ * This organization's active members, by name — all of them, or the ones matching `q`.
  *
- * One page. The API's default is 50 and its ceiling is 200; a directory large enough to need
- * a second page needs a search parameter on the server rather than a client that walks the
- * whole roster into memory, and `nextAfter` is returned so the day that is true is visible
- * rather than silent.
+ * `nextAfter` is returned rather than dropped, so a page that was full is a visible fact to a
+ * caller rather than a silent truncation.
  */
 export async function listMembers(
   client: ApiClient,
   organizationSlug: string,
-  options: { readonly limit?: number } = {},
+  options: ListMembersQuery = {},
 ): Promise<{ readonly members: readonly MemberSummary[]; readonly nextAfter: string | null }> {
-  const query = options.limit === undefined ? '' : `?limit=${String(options.limit)}`;
+  const parameters = new URLSearchParams();
+  if (options.q !== undefined && options.q.trim() !== '') parameters.set('q', options.q.trim());
+  if (options.limit !== undefined) parameters.set('limit', String(options.limit));
+
+  const suffix = parameters.size === 0 ? '' : `?${parameters.toString()}`;
   const { data } = await client.request<{
     members: readonly MemberSummary[];
     nextAfter: string | null;
   }>({
-    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/members${query}`,
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/members${suffix}`,
   });
   return data;
 }
