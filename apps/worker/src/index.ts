@@ -32,6 +32,25 @@ export type {
   ParkedOutboxEvent,
 } from './common/database/outbox-store.js';
 
+// x31 — `credential_change_notices`, the second queue the same dispatcher drains.
+export {
+  CREDENTIAL_CHANGE_NOTICE_TYPE,
+  CREDENTIAL_NOTICE_QUEUE,
+  claimReservedNotices,
+  findCredentialNoticeRecipient,
+  listParkedNotices,
+  markNoticePublished,
+  readNoticeBacklog,
+  recordNoticeFailure,
+  releaseReservedNoticeAttempts,
+  reserveDueNotices,
+  unparkNotices,
+} from './common/database/notice-store.js';
+export type {
+  ClaimedCredentialNotice,
+  CredentialNoticeRecipient,
+} from './common/database/notice-store.js';
+
 export { backoffDelayMs } from './outbox/backoff.js';
 // Is the relay draining? — the audit's CRITICAL-2, exported so the db suite can drive the
 // same readings the `--status` command prints.
@@ -40,6 +59,7 @@ export {
   describeHealth,
   evaluateOutboxHealth,
   heartbeatTempPath,
+  mergeBacklogs,
   onceIsUnhealthy,
   readHeartbeat,
   readHeartbeatState,
@@ -51,7 +71,14 @@ export type {
   OutboxHealthReason,
   OutboxHealthThresholds,
 } from './outbox/health.js';
-export { loopErrorDelayMs, runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
+export {
+  OUTBOX_QUEUE,
+  loopErrorDelayMs,
+  runOutboxBatch,
+  runOutboxLoop,
+  runQueueBatch,
+  runQueueLoop,
+} from './outbox/dispatcher.js';
 export type {
   BatchReport,
   DispatcherOptions,
@@ -62,9 +89,20 @@ export type {
   OutboxEffects,
   OutboxHandler,
   OutboxHandlers,
+  ParkedQueueRow,
+  QueueHandler,
+  QueueHandlers,
+  QueueItem,
+  QueueStore,
 } from './outbox/dispatcher.js';
 
-export { WORKER_OUTBOX_HANDLERS, both, createWorkerOutboxHandlers } from './consumers/registry.js';
+export {
+  WORKER_NOTICE_HANDLERS,
+  WORKER_OUTBOX_HANDLERS,
+  both,
+  createWorkerNoticeHandlers,
+  createWorkerOutboxHandlers,
+} from './consumers/registry.js';
 export type { WorkerConsumerDependencies } from './consumers/registry.js';
 export {
   requestTransitionFor,
@@ -82,6 +120,15 @@ export {
   createClientRequestSubmittedMail,
   createClientRequestTransitionedMail,
 } from './consumers/client-request-mail.js';
+export { createCredentialChangeMail } from './consumers/credential-change-mail.js';
+export {
+  CredentialChangeMailer,
+  composeCredentialChangeEmail,
+} from './notifications/credential-change-mailer.js';
+export type {
+  CredentialChangeEmailFacts,
+  CredentialChangeMailDelivery,
+} from './notifications/credential-change-mailer.js';
 export { ClientRequestMailer, mailKindForStatus } from './notifications/client-request-mailer.js';
 export type {
   ClientRequestMailDelivery,

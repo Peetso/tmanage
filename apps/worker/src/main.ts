@@ -2,21 +2,29 @@ import { loadEnv } from '@tmanage/config';
 import type { Env } from '@tmanage/config';
 import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
-import { createWorkerDatabase } from './common/database/worker-database.js';
+import { createWorkerDatabase, workerConnectionLimit } from './common/database/worker-database.js';
+import type { WorkerMode } from './common/database/worker-database.js';
 import { readOutboxBacklog, unparkEvents } from './common/database/outbox-store.js';
-import { runOutboxBatch, runOutboxLoop } from './outbox/dispatcher.js';
+import {
+  CREDENTIAL_NOTICE_QUEUE,
+  readNoticeBacklog,
+  unparkNotices,
+} from './common/database/notice-store.js';
+import { runOutboxBatch, runOutboxLoop, runQueueBatch, runQueueLoop } from './outbox/dispatcher.js';
 import type { BatchReport } from './outbox/dispatcher.js';
 import {
   backlogIsStale,
   describeHealth,
   evaluateOutboxHealth,
+  mergeBacklogs,
   onceIsUnhealthy,
   readHeartbeatState,
   writeHeartbeat,
 } from './outbox/health.js';
 import type { OutboxHealthThresholds } from './outbox/health.js';
-import { createWorkerOutboxHandlers } from './consumers/registry.js';
+import { createWorkerNoticeHandlers, createWorkerOutboxHandlers } from './consumers/registry.js';
 import { ClientRequestMailer } from './notifications/client-request-mailer.js';
+import { CredentialChangeMailer } from './notifications/credential-change-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
 import { createMessageFanOut } from './realtime/fan-out.js';
 
@@ -129,6 +137,10 @@ async function main(): Promise<void> {
     backlogMaxAgeSeconds: env.OUTBOX_BACKLOG_MAX_AGE_SECONDS,
     heartbeatMaxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS,
   };
+  // Every flagged mode delivers from a single sequential pass and exits; only the no-flag
+  // shape holds two loops and the realtime server open at once, and only it needs the third
+  // connection. See `workerConnectionLimit`.
+  const mode: WorkerMode = once || status || unparkIndex !== -1 ? 'batch' : 'loop';
 
   // The relay's own least-privilege credential when it is set; the API's otherwise, named
   // on stderr so nobody reads a development fallback as the production shape.
@@ -137,7 +149,7 @@ async function main(): Promise<void> {
   );
   const database = createWorkerDatabase({
     url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
-    connectionLimit: Math.min(env.DATABASE_POOL_MAX, 2),
+    connectionLimit: workerConnectionLimit(env.DATABASE_POOL_MAX, mode),
     statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => {
       console.error('[worker] connection rejected during session setup', error);
@@ -162,20 +174,26 @@ async function main(): Promise<void> {
         process.exitCode = 2;
         return;
       }
-      const replayed = await database.transaction((tx) =>
-        unparkEvents(tx, env.OUTBOX_MAX_ATTEMPTS, unparkAll ? null : (unparkId ?? null)),
-      );
+      // Both queues — x31. A parked notice is the same operator condition as a parked event
+      // and must have the same way out; an id is a primary key in exactly one of the two
+      // tables, so naming one and finding it in the other is not a case that can arise.
+      const selector = unparkAll ? null : (unparkId ?? null);
+      const replayed = await database.transaction(async (tx) => [
+        ...(await unparkEvents(tx, env.OUTBOX_MAX_ATTEMPTS, selector)),
+        ...(await unparkNotices(tx, env.OUTBOX_MAX_ATTEMPTS, selector)),
+      ]);
       // Named one per line, organization included: this is an operator overriding the relay's
       // own verdict, and it is the only record that it happened. No `last_error` and no
       // payload — the diagnosis is the operator's to read from `relay:status`, and a driver
       // message can quote a recipient.
       for (const event of replayed) {
         console.warn(
-          `[worker] unparked event ${event.id} (${event.type}, organization ${event.organizationId}) ` +
+          `[worker] unparked ${event.id} (${event.type}, organization ` +
+            `${event.organizationId ?? 'none — not tenant-owned'}) ` +
             `after ${String(event.attempts)} attempts — due now`,
         );
       }
-      console.warn(`[worker] relay:unpark replayed ${String(replayed.length)} parked event(s)`);
+      console.warn(`[worker] relay:unpark replayed ${String(replayed.length)} parked row(s)`);
       // A named id that matched nothing was not replayed, and the operator must hear that from
       // the exit code, not only from a count. `--all` finding nothing parked is a no-op success.
       if (replayed.length === 0 && !unparkAll) {
@@ -193,12 +211,26 @@ async function main(): Promise<void> {
   // schedule of its own on a host where the relay is cron-driven batches.
   if (status) {
     try {
-      const backlog = await database.read((tx) => readOutboxBacklog(tx, env.OUTBOX_MAX_ATTEMPTS));
+      // Both queues, one verdict (x31) — see `mergeBacklogs`. The JSON line keeps every key
+      // a monitor already parses, with the same summed meaning, and gains a `queues` object
+      // carrying the same three numbers per queue.
+      const outboxBacklog = await database.read((tx) =>
+        readOutboxBacklog(tx, env.OUTBOX_MAX_ATTEMPTS),
+      );
+      const noticeBacklog = await database.read((tx) =>
+        readNoticeBacklog(tx, env.OUTBOX_MAX_ATTEMPTS),
+      );
+      const backlog = mergeBacklogs(outboxBacklog, noticeBacklog);
+      const queues = { outbox: outboxBacklog, notices: noticeBacklog };
       // CRITICAL-A: "no heartbeat file configured" must not read as "heartbeat missing". A host
       // with no writable path keeps none, and its absence is honest, not degraded.
       const { configured, lastPollAt } = await readHeartbeatState(env.OUTBOX_HEARTBEAT_FILE);
       const health = evaluateOutboxHealth({
         backlog,
+        // The per-queue split, in the JSON line rather than only on stderr: a summed
+        // `parked: 1` does not say which table is stuck, and a monitor cannot read the
+        // operator's stream to find out.
+        queues,
         heartbeatConfigured: configured,
         lastPollAt,
         now: new Date(),
@@ -210,7 +242,14 @@ async function main(): Promise<void> {
       // for the operator's log, which is stderr. The exit code is the contract: 0 draining,
       // 1 not. Nothing in the line names an organization, a recipient or a payload.
       process.stdout.write(`${JSON.stringify(health)}\n`);
-      console.warn(`[worker] outbox ${describeHealth(health)}`);
+      console.warn(`[worker] queues ${describeHealth(health)}`);
+      // The same split the JSON's `queues` carries, in the operator's words. Both queues are
+      // named rather than only the notices: "of which notices" made the reader subtract.
+      console.warn(
+        `[worker] of which outbox: pending ${String(outboxBacklog.pending)}, ` +
+          `parked ${String(outboxBacklog.parked)}; notices: pending ` +
+          `${String(noticeBacklog.pending)}, parked ${String(noticeBacklog.parked)}`,
+      );
       if (health.status !== 'ok') process.exitCode = 1;
     } finally {
       await database.end();
@@ -221,8 +260,17 @@ async function main(): Promise<void> {
   // The relay's own producer. The console driver counts as a transport — printing the
   // composed message is its whole job, and the bootstrap profile is where a developer reads
   // what a client would have received.
+  // One transport, two registries. `mailerFrom` is called once: two drivers would mean two
+  // SMTP connection pools for one process, and the console driver would print each message
+  // under a different banner.
+  const transport = mailerFrom(env);
   const handlers = createWorkerOutboxHandlers({
-    clientRequestMailer: new ClientRequestMailer(mailerFrom(env), env.WEB_PUBLIC_URL),
+    clientRequestMailer: new ClientRequestMailer(transport, env.WEB_PUBLIC_URL),
+  });
+  // x31: the notice queue's own registry. Empty when no transport is wired, which drains and
+  // stamps rather than growing a tail — see `createWorkerNoticeHandlers`.
+  const noticeHandlers = createWorkerNoticeHandlers({
+    credentialChangeMailer: new CredentialChangeMailer(transport),
   });
 
   const options = {
@@ -235,11 +283,22 @@ async function main(): Promise<void> {
   if (once) {
     try {
       const report = await runOutboxBatch(database, handlers, options);
+      // x31: the second queue, drained in the same invocation. Sequential, not parallel —
+      // the pool is capped at two connections and a controlled batch has no reason to race
+      // itself for them. The heartbeat is written once both have run, so a beat still means
+      // "the relay completed a pass", not "one of its queues did".
+      const noticeReport = await runQueueBatch(
+        database,
+        CREDENTIAL_NOTICE_QUEUE,
+        noticeHandlers,
+        options,
+      );
       await beat(env.OUTBOX_HEARTBEAT_FILE, new Date());
       console.warn(`[worker] batch: ${describe(report)}`);
-      for (const parked of report.parked) {
+      console.warn(`[worker] notice batch: ${describe(noticeReport)}`);
+      for (const parked of [...report.parked, ...noticeReport.parked]) {
         console.error(
-          `[worker] parked event ${parked.id} (${parked.type}) after ${parked.attempts} attempts`,
+          `[worker] parked row ${parked.id} (${parked.type}) after ${parked.attempts} attempts`,
         );
       }
       // The alarm, in the one place a cron-driven deployment can hear it. Two conditions, both
@@ -248,13 +307,14 @@ async function main(): Promise<void> {
       // whatever the cause), or at least one event has parked (CRITICAL-C — permanent, silent
       // non-delivery until someone resets its attempts). An event that merely *failed* this
       // batch is due to be retried and is not yet a problem, so it is deliberately not here.
-      if (backlogIsStale(report.backlog, thresholds.backlogMaxAgeSeconds)) {
+      const backlog = mergeBacklogs(report.backlog, noticeReport.backlog);
+      if (backlogIsStale(backlog, thresholds.backlogMaxAgeSeconds)) {
         console.error(
-          `[worker] outbox backlog is ${String(report.backlog.oldestPendingSeconds)}s old, ` +
+          `[worker] relay backlog is ${String(backlog.oldestPendingSeconds)}s old, ` +
             `over the ${String(thresholds.backlogMaxAgeSeconds)}s threshold — the relay is not draining`,
         );
       }
-      if (onceIsUnhealthy(report.backlog, thresholds.backlogMaxAgeSeconds)) {
+      if (onceIsUnhealthy(backlog, thresholds.backlogMaxAgeSeconds)) {
         process.exitCode = 1;
       }
     } finally {
@@ -286,30 +346,56 @@ async function main(): Promise<void> {
     ? { ...handlers, 'message.created.v1': createMessageFanOut(realtime.hub) }
     : handlers;
 
+  // x31. Two loops, one process, one `AbortSignal`: the notice queue drains beside the outbox
+  // rather than behind it, so a backlog of events cannot delay a security receipt and a notice
+  // handler cannot stall the relay. `Promise.all` keeps the shape the single loop had — either
+  // loop leaves only by abort or by throwing, and a throw from either ends the process.
   try {
-    await runOutboxLoop(database, loopHandlers, {
-      ...options,
-      pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
-      signal: controller.signal,
-      onBatch: (report) => {
-        // The heartbeat is the loop's half of CRITICAL-2: a batch that completed is the
-        // only evidence this process is alive, and it must be recorded whether or not the
-        // batch had anything to do. Fire-and-forget — `beat` swallows its own failures and
-        // the loop must not wait on a disk to keep delivering.
-        void beat(env.OUTBOX_HEARTBEAT_FILE, new Date());
-        if (report.claimed > 0 || report.parked.length > 0) {
-          console.warn(`[worker] batch: ${describe(report)}`);
-        } else if (backlogIsStale(report.backlog, thresholds.backlogMaxAgeSeconds)) {
-          // Claimed nothing, yet something has been waiting past the threshold: rows exist
-          // that this relay cannot take — parked, or locked by another process that is not
-          // draining them. Silence here is what the audit found; this is the line.
-          console.error(`[worker] outbox not draining: ${describe(report)}`);
-        }
-      },
-      onError: (error) => {
-        console.error('[worker] batch failed whole', error);
-      },
-    });
+    await Promise.all([
+      runOutboxLoop(database, loopHandlers, {
+        ...options,
+        pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
+        signal: controller.signal,
+        onBatch: (report) => {
+          // The heartbeat is the loop's half of CRITICAL-2: a batch that completed is the
+          // only evidence this process is alive, and it must be recorded whether or not the
+          // batch had anything to do. Fire-and-forget — `beat` swallows its own failures and
+          // the loop must not wait on a disk to keep delivering.
+          void beat(env.OUTBOX_HEARTBEAT_FILE, new Date());
+          if (report.claimed > 0 || report.parked.length > 0) {
+            console.warn(`[worker] batch: ${describe(report)}`);
+          } else if (backlogIsStale(report.backlog, thresholds.backlogMaxAgeSeconds)) {
+            // Claimed nothing, yet something has been waiting past the threshold: rows exist
+            // that this relay cannot take — parked, or locked by another process that is not
+            // draining them. Silence here is what the audit found; this is the line.
+            console.error(`[worker] outbox not draining: ${describe(report)}`);
+          }
+        },
+        onError: (error) => {
+          console.error('[worker] batch failed whole', error);
+        },
+      }),
+      // The notice queue. Its own `consecutiveErrors`, its own poll, its own log prefix — the
+      // two queues share a process and a signal and nothing else.
+      runQueueLoop(database, CREDENTIAL_NOTICE_QUEUE, noticeHandlers, {
+        ...options,
+        pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
+        signal: controller.signal,
+        onBatch: (report) => {
+          // Beaten by both loops: the heartbeat records that *this process* completed a pass,
+          // and either loop completing one is evidence of that.
+          void beat(env.OUTBOX_HEARTBEAT_FILE, new Date());
+          if (report.claimed > 0 || report.parked.length > 0) {
+            console.warn(`[worker] notice batch: ${describe(report)}`);
+          } else if (backlogIsStale(report.backlog, thresholds.backlogMaxAgeSeconds)) {
+            console.error(`[worker] notices not draining: ${describe(report)}`);
+          }
+        },
+        onError: (error) => {
+          console.error('[worker] notice batch failed whole', error);
+        },
+      }),
+    ]);
   } finally {
     await realtime?.close();
     await database.end();

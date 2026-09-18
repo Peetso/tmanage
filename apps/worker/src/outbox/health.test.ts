@@ -8,6 +8,7 @@ import {
   describeHealth,
   evaluateOutboxHealth,
   heartbeatTempPath,
+  mergeBacklogs,
   onceIsUnhealthy,
   readHeartbeat,
   readHeartbeatState,
@@ -128,6 +129,32 @@ describe('outbox health verdict', () => {
     expect(health.status).toBe('degraded');
     expect(health.reasons).toEqual(['parked']);
     expect(health.parked).toBe(3);
+  });
+
+  it('reports the per-queue split beside the totals, without changing them', () => {
+    // A summed `parked: 1` does not say which table is stuck, and the answer decides what the
+    // operator does next — a client email or a security receipt nobody received. The split
+    // goes in the JSON a monitor parses, not only on the operator's stream.
+    const outbox = { pending: 3, parked: 0, oldestPendingSeconds: 41 };
+    const notices = { pending: 0, parked: 1, oldestPendingSeconds: null };
+    const health = evaluateOutboxHealth({
+      backlog: mergeBacklogs(outbox, notices),
+      queues: { outbox, notices },
+      heartbeatConfigured: true,
+      lastPollAt: secondsAgo(5),
+      now: NOW,
+      thresholds: THRESHOLDS,
+    });
+
+    // The shipped keys keep their names and carry the sum; nothing was renamed.
+    expect(health.pending).toBe(3);
+    expect(health.parked).toBe(1);
+    expect(health.oldestPendingSeconds).toBe(41);
+    expect(health.queues).toEqual({ outbox, notices });
+    // And it survives `JSON.stringify` — the line the monitor actually reads.
+    expect(JSON.parse(JSON.stringify(health))).toMatchObject({
+      queues: { notices: { parked: 1 } },
+    });
   });
 
   it('is degraded when no batch has finished for longer than the threshold', () => {

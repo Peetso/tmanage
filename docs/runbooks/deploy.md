@@ -422,12 +422,21 @@ Two behaviours look like bugs at 02:00 and are not:
 
 ---
 
-## Monitoring the relay — is the outbox draining?
+## Monitoring the relay — are the queues draining?
 
 A worker with nothing to do and a worker that died on Friday night look identical from
 outside: both log nothing, and `relay:once` used to exit 0 either way. That is why a stopped
 relay was found by a person noticing — a manager wondering why the inbox was quiet, a client
 asking why they never heard back — hours on a weekday, days over a weekend.
+
+**The relay drains two queues, and every number below covers both of them.** `outbox_events`
+is the client-facing work — notifications, the request emails, the portal's own events — and
+`credential_change_notices` is the security receipt sent to a person whose password, two-factor
+method or recovery codes have just changed. They are separate tables with separate loops, but
+one process drains them and one verdict covers them: `pending`, `parked` and the backlog age
+are the **sum** across both, so a stuck security receipt raises the same alarm and the same
+exit code as a stuck client email. The per-queue split is reported beside the totals — see
+`queues` below — for when you need to know which of the two is stuck.
 
 The website is unaffected either way. What stops is everything that happens _because_ of what
 people do: the notification that a request arrived, the "we've received it" and "we need more
@@ -437,8 +446,8 @@ then nothing is delivered.
 
 ### The two readings
 
-- **Backlog age** — how old the oldest undelivered event is. Near zero while the relay
-  drains, growing without bound the moment it stops, and it does not care what stopped it: a
+- **Backlog age** — how old the oldest undelivered row in either queue is. Near zero while the
+  relay drains, growing without bound the moment it stops, and it does not care what stopped it: a
   crash loop, a killed process, an exhausted connection pool, a cron entry someone removed, a
   `WORKER_DATABASE_URL` that stopped resolving.
 - **Heartbeat** — when a batch last finished. Backlog age alone cannot tell "drained and
@@ -451,10 +460,28 @@ pnpm --filter @tmanage/worker relay:status
 ```
 
 Delivers nothing. Prints one JSON line — `status`, `reasons`, `pending`, `parked`,
-`oldestPendingSeconds`, `lastPollAt`, `secondsSinceLastPoll` — and **exits 1** when the
-backlog is too old, the heartbeat is stale, **or any event has parked**. Safe to run beside a
-live loop and safe to run on a schedule of its own. Point cron, or any uptime check that can
-run a command, at that exit code: its own failure reporting is the alarm.
+`oldestPendingSeconds`, `queues`, `lastPollAt`, `secondsSinceLastPoll` — and **exits 1** when
+the backlog is too old, the heartbeat is stale, **or any row in either queue has parked**. Safe
+to run beside a live loop and safe to run on a schedule of its own. Point cron, or any uptime
+check that can run a command, at that exit code: its own failure reporting is the alarm.
+
+`pending`, `parked` and `oldestPendingSeconds` are the totals **across both queues** — the age
+is taken from whichever queue has waited longest, not summed, and it is `null` only when every
+queue is drained. `queues` is the same three numbers reported per queue, so the line a monitor
+parses says which table is stuck rather than only that something is:
+
+```
+{"status":"degraded","reasons":["parked"],"pending":3,"parked":1,"oldestPendingSeconds":41,
+ "queues":{"outbox":{"pending":3,"parked":0,"oldestPendingSeconds":41},
+           "notices":{"pending":0,"parked":1,"oldestPendingSeconds":null}}, ...}
+```
+
+Read that as: the client-facing outbox is draining normally, and one **security receipt** has
+parked and will never be sent without an operator. The totals alone could not tell you which.
+A summary of the same split is printed on stderr for a person; the `queues` object is for
+whatever parses the JSON. The keys that existed before this change keep their names and now
+carry the sum, so an existing monitor needs no edit — it simply loses the ability to say which
+queue, which is what `queues` restores.
 
 When no heartbeat file is configured (`OUTBOX_HEARTBEAT_FILE` cleared), its absence is **not**
 counted against health — the verdict rests on backlog age and parked count alone. Only a
@@ -466,30 +493,42 @@ you get by doing nothing.
 pnpm --filter @tmanage/worker relay:once
 ```
 
-The delivery batch. It **exits 1 when the backlog is older than
-`OUTBOX_BACKLOG_MAX_AGE_SECONDS`** — the relay has work it is not getting through — **or when
-any event has parked**, which is permanent, silent non-delivery until an operator resets it
-and the one thing a cron-driven deployment could not otherwise surface. A batch that merely
-failed an event still exits 0: the retry is the design, and a page per transient failure is a
-page nobody reads.
+The delivery batch — **both queues, one invocation**: the outbox batch runs, then the notice
+batch, then the heartbeat is written, so one beat means the relay completed a whole pass rather
+than half of one. Each queue's report is logged on its own line. It **exits 1 when the backlog
+is older than `OUTBOX_BACKLOG_MAX_AGE_SECONDS`** — the relay has work it is not getting
+through — **or when any row in either queue has parked**, which is permanent, silent
+non-delivery until an operator resets it and the one thing a cron-driven deployment could not
+otherwise surface. A batch that merely failed a row still exits 0: the retry is the design, and
+a page per transient failure is a page nobody reads.
 
 ```
 pnpm --filter @tmanage/worker relay:unpark -- <event-id>
 pnpm --filter @tmanage/worker relay:unpark -- --all
 ```
 
-The way **out** of parking. A parked event is never claimed again, so until somebody
-intervenes `relay:status` and `relay:once` exit 1 on every single run — and an alarm that
-fires for ever with no stand-down is an alarm somebody switches off. This is the stand-down:
-it resets the named event (or every parked event, with `--all`) to `attempts = 0`, due
-immediately, so the next batch delivers it. It delivers nothing itself.
+The way **out** of parking, **for both queues**. There is no second command and no queue flag:
+one `relay:unpark` run replays parked `outbox_events` rows _and_ parked
+`credential_change_notices` rows. An id is a primary key in exactly one of the two tables, so
+naming one replays whichever queue it belongs to and nothing else; `--all` replays every parked
+row in both. That is deliberate — a parked security receipt is the same operator condition as a
+parked client email and must have the same way out.
 
-It prints one line per replayed event — id, type, organization, the attempt count it had —
-so there is a record that an operator overrode the relay's verdict. Exit codes: `0` replayed,
-`1` the named id was not parked and nothing changed, `2` the arguments were wrong. A bare
-`relay:unpark` with neither an id nor `--all` refuses rather than guessing.
+A parked row is never claimed again, so until somebody intervenes `relay:status` and
+`relay:once` exit 1 on every single run — and an alarm that fires for ever with no stand-down
+is an alarm somebody switches off. This is the stand-down: it resets the named row (or every
+parked row, with `--all`) to `attempts = 0`, due immediately, so the next batch delivers it. It
+delivers nothing itself.
 
-Fix the cause first. Un-parking an event whose handler still fails just spends
+It prints one line per replayed row — id, type, organization, the attempt count it had — so
+there is a record that an operator overrode the relay's verdict, then a count of the rows
+replayed across both queues. A notice is not tenant-owned (`credential_change_notices` has no
+`organization_id`; a credential belongs to a person, not a workspace), so its line reads
+`organization none — not tenant-owned`. Exit codes: `0` replayed, `1` the named id was not
+parked and nothing changed, `2` the arguments were wrong. A bare `relay:unpark` with neither an
+id nor `--all` refuses rather than guessing.
+
+Fix the cause first. Un-parking a row whose handler still fails just spends
 `OUTBOX_MAX_ATTEMPTS` attempts and parks it again — read `last_error` from the `parked` rows
 before you replay them, because replaying clears it.
 
@@ -511,17 +550,22 @@ merely retrying.
 Set them on every process that runs the relay, the cron entries included — including the
 heartbeat path, which is worthless if the loop writes one place and `relay:status` reads
 another. The reading is
-taken on the worker's own credential (`tmanage_worker` already holds `SELECT` on
-`outbox_events`), so no grant in `scripts/db/users.sql` changes.
+taken on the worker's own credential: `tmanage_worker` already holds `SELECT` on
+`outbox_events`, and `scripts/db/users.sql` now also grants it `SELECT` and `UPDATE` (no
+`INSERT`, no `DELETE`) on `credential_change_notices` so the same process can drain the second
+queue. Re-run the grants script on any environment provisioned before that change, or the
+notice queue will not drain and its backlog will age into `relay:status`.
 
 ### When `relay:status` says degraded
 
-1. `parked` — one or more poison events have reached `OUTBOX_MAX_ATTEMPTS` and will never be
-   claimed again on their own. The `parked` count says how many. This is its own reason now,
-   not a footnote to `backlog-age`: a relay can be draining perfectly and still be degraded
-   because a handful of events can never be delivered. Read their `last_error`, fix the cause,
-   then replay them with `relay:unpark` — that is what clears this reason, and until it is
-   cleared every `relay:status` and every `relay:once` exits 1.
+1. `parked` — one or more poison rows have reached `OUTBOX_MAX_ATTEMPTS` and will never be
+   claimed again on their own. The `parked` count says how many, and `queues` says which of the
+   two queues they are in — check that first, because a parked `notices` row is a security
+   receipt nobody received. This is its own reason now, not a footnote to `backlog-age`: a
+   relay can be draining perfectly and still be degraded because a handful of rows can never be
+   delivered. Read their `last_error`, fix the cause, then replay them with `relay:unpark` —
+   that is what clears this reason, and until it is cleared every `relay:status` and every
+   `relay:once` exits 1.
 2. `backlog-age` with a recent heartbeat — the relay is running and losing ground. If `parked`
    is zero it is throughput, and the batch size or the cron period is the lever.
 3. `heartbeat-stale` or `heartbeat-missing` with an empty backlog — the relay is not running

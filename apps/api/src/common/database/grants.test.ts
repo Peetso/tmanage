@@ -141,10 +141,13 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     }
   });
 
-  it('gives the worker fourteen table-level reads and no database-wide grant', () => {
+  it('gives the worker fifteen table-level reads and no database-wide grant', () => {
+    // Fifteen since x31: the fourteen D07 narrowed to, plus `credential_change_notices` —
+    // the second queue the same dispatcher drains. The count is asserted rather than the
+    // list so that a grant added without a reviewer noticing fails here.
     const worker = intents.get("'tmanage_worker'@'%'");
     const reads = [...(worker?.privileges ?? [])].filter((p) => p.endsWith(':SELECT'));
-    expect(reads).toHaveLength(14);
+    expect(reads).toHaveLength(15);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

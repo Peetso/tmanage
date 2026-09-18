@@ -49,6 +49,25 @@ export interface OutboxHealthThresholds {
 /** Why health is not `ok`. Stable strings — a monitor may match on them. */
 export type OutboxHealthReason = 'backlog-age' | 'parked' | 'heartbeat-missing' | 'heartbeat-stale';
 
+/**
+ * The same three numbers as the totals, per queue — the split a monitor could otherwise only
+ * find on stderr.
+ *
+ * `pending` / `parked` / `oldestPendingSeconds` at the top level are the **sum** over every
+ * queue (see {@link mergeBacklogs}), which is the right default for the one question an
+ * operator asks the process. But a summed `parked: 1` does not say *which table is stuck*, and
+ * the answer decides what the operator does next: `outbox_events` is a client email, and
+ * `credential_change_notices` is a security receipt nobody received. So the split is reported
+ * beside the totals rather than instead of them, and the existing keys keep both their names
+ * and their meaning-as-totals.
+ */
+export interface OutboxHealthQueues {
+  /** `outbox_events` — the client-facing relay. */
+  readonly outbox: OutboxBacklog;
+  /** `credential_change_notices` — the security receipts (x31). */
+  readonly notices: OutboxBacklog;
+}
+
 export interface OutboxHealth {
   readonly status: 'ok' | 'degraded';
   /** Empty exactly when `status` is `ok`. */
@@ -57,6 +76,11 @@ export interface OutboxHealth {
   readonly parked: number;
   /** `null` means nothing is pending — drained, not unmeasured. */
   readonly oldestPendingSeconds: number | null;
+  /**
+   * The per-queue split of the three numbers above. Absent only when the caller measured a
+   * single backlog and so has nothing to split — the CLI always supplies it.
+   */
+  readonly queues?: OutboxHealthQueues;
   /** ISO-8601, or `null` when no batch has ever recorded one here. */
   readonly lastPollAt: string | null;
   readonly secondsSinceLastPoll: number | null;
@@ -64,7 +88,13 @@ export interface OutboxHealth {
 }
 
 export interface OutboxHealthInput {
+  /** The verdict is taken over this — the sum, when there is more than one queue. */
   readonly backlog: OutboxBacklog;
+  /**
+   * The queues {@link backlog} was merged from, reported verbatim beside the totals. Omit it
+   * when there is only one backlog to report; passing it changes no verdict.
+   */
+  readonly queues?: OutboxHealthQueues;
   /**
    * Whether a heartbeat file is configured at all. When `false`, a `null` {@link lastPollAt}
    * is *not* a fault — it is a host that keeps no heartbeat, a supported shape (see
@@ -123,9 +153,35 @@ export function evaluateOutboxHealth(input: OutboxHealthInput): OutboxHealth {
     pending: input.backlog.pending,
     parked: input.backlog.parked,
     oldestPendingSeconds: oldest,
+    // Additive: the key is absent rather than `null` when there is nothing to split, so no
+    // monitor parsing the shipped keys sees a change it has to handle.
+    ...(input.queues === undefined ? {} : { queues: input.queues }),
     lastPollAt: input.lastPollAt === null ? null : input.lastPollAt.toISOString(),
     secondsSinceLastPoll,
     thresholds: input.thresholds,
+  };
+}
+
+/**
+ * Two queues, one verdict — x31.
+ *
+ * The relay drains `outbox_events` and `credential_change_notices`, and an operator asks one
+ * question of the process, not one per table: is anything undelivered, and for how long. So
+ * `--status` and `--once` evaluate health over the *sum* — pending and parked added, the age
+ * taken from whichever queue has waited longest — and the JSON line keeps the shape a monitor
+ * already parses. A parked notice therefore raises the same page and the same exit code as a
+ * parked event, which is the whole of "visible to health".
+ *
+ * `null` survives only when **every** queue is drained: one pending row anywhere is an age.
+ */
+export function mergeBacklogs(...backlogs: readonly OutboxBacklog[]): OutboxBacklog {
+  const ages = backlogs
+    .map((backlog) => backlog.oldestPendingSeconds)
+    .filter((age): age is number => age !== null);
+  return {
+    pending: backlogs.reduce((total, backlog) => total + backlog.pending, 0),
+    parked: backlogs.reduce((total, backlog) => total + backlog.parked, 0),
+    oldestPendingSeconds: ages.length === 0 ? null : Math.max(...ages),
   };
 }
 
