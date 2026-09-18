@@ -175,151 +175,167 @@ export function NewClientRequestScreen({
           ) : null}
 
           <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
-            <Field
-              label="What do you need?"
-              name="title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              hint="One line. This is what the studio sees first."
-              required
-              {...errorFor(fieldErrors, 'title')}
-            />
-
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-request-description">
-                Why it matters
-                <span className="tm-field__required" aria-hidden="true">
-                  *
-                </span>
-              </label>
-              <textarea
-                id="tm-request-description"
-                name="description"
-                className="tm-field__control tm-field__control--multiline"
-                rows={5}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                aria-describedby="tm-request-description-hint"
-                aria-invalid={fieldErrors.has('description') ? true : undefined}
-                required
-              />
-              <span className="tm-field__hint" id="tm-request-description-hint">
-                What you are trying to achieve, and what happens if it does not get done. The studio
-                judges the request on this.
-              </span>
-              {fieldErrors.get('description') ? (
-                <span className="tm-field__error">{fieldErrors.get('description')}</span>
-              ) : null}
-            </div>
-
-            <Field
-              label="Category"
-              name="category"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              hint="Optional. A short label such as new-page or bug-report — lowercase, no spaces."
-              {...errorFor(fieldErrors, 'category')}
-            />
-
-            <Field
-              label="Is it urgent, and why?"
-              name="urgencyReason"
-              value={urgencyReason}
-              onChange={(event) => setUrgencyReason(event.target.value)}
-              hint="Optional. A deadline of your own, a season, an event — anything that makes the timing matter."
-              {...errorFor(fieldErrors, 'urgencyReason')}
-            />
-
-            <Field
-              label="When you would like it"
-              name="desiredAt"
-              type="date"
-              value={desiredDate}
-              onChange={(event) => setDesiredDate(event.target.value)}
-              dir="ltr"
-              hint="Optional, and it is a wish rather than a deadline. Nothing is scheduled until the studio agrees a date."
-              {...errorFor(fieldErrors, 'desiredAt')}
-            />
-
-            {available.length > 1 ? (
-              <div className="tm-field">
-                <label className="tm-field__label" htmlFor="tm-request-project">
-                  Which project
-                </label>
-                <select
-                  id="tm-request-project"
-                  className="tm-field__control"
-                  value={chosenProjectId}
-                  onChange={(event) => setProjectId(event.target.value)}
-                >
-                  {available.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div className="tm-field">
-                <span className="tm-field__label">Which project</span>
-                <p className="tm-prose">
-                  {chosenProject?.name ?? 'No project shared with you yet'}
-                </p>
-                <span className="tm-field__hint">
-                  The only project {providerName} has shared with you.
-                </span>
-              </div>
-            )}
-
-            <section
-              className="tm-panel tm-panel--quiet tm-stack"
-              aria-labelledby="tm-request-summary"
+            {/*
+              The controls are not editable until this screen's data has arrived. The submit
+              button has always carried `disabled={projects.isPending}`; the fields did not, so
+              on a cold page a person could type into them before React hydrated — the DOM held
+              the words, no listener existed, state stayed `''`, and hydration re-applied
+              `value=''` and wiped them. They then met "Say what you need in the first field"
+              over a field they had just filled in. Server-rendered HTML has `isPending === true`,
+              so the controls ship disabled and become editable only once React is live and the
+              portal-projects query has answered — one condition, applied in one place, to the
+              fields and to the button that was already honouring it.
+            */}
+            <fieldset
+              className="tm-fieldset tm-stack tm-stack--loose"
+              disabled={projects.isPending}
             >
-              <h2 id="tm-request-summary" className="tm-eyebrow">
-                What will be sent
-              </h2>
-              <div className="tm-row">
-                <StateCapsule state="future">Asked for</StateCapsule>
-                <span className="tm-prose">
-                  {desiredDate === '' ? 'No date' : formatDay(desiredDate)}
+              <Field
+                label="What do you need?"
+                name="title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                hint="One line. This is what the studio sees first."
+                required
+                {...errorFor(fieldErrors, 'title')}
+              />
+
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-request-description">
+                  Why it matters
+                  <span className="tm-field__required" aria-hidden="true">
+                    *
+                  </span>
+                </label>
+                <textarea
+                  id="tm-request-description"
+                  name="description"
+                  className="tm-field__control tm-field__control--multiline"
+                  rows={5}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  aria-describedby="tm-request-description-hint"
+                  aria-invalid={fieldErrors.has('description') ? true : undefined}
+                  required
+                />
+                <span className="tm-field__hint" id="tm-request-description-hint">
+                  What you are trying to achieve, and what happens if it does not get done. The
+                  studio judges the request on this.
                 </span>
+                {fieldErrors.get('description') ? (
+                  <span className="tm-field__error">{fieldErrors.get('description')}</span>
+                ) : null}
               </div>
-              <InlineAlert tone="neutral" title="A date you ask for is not a date you are given">
-                {providerName} reads the request, asks anything unclear, and then either agrees a
-                date or tells you why not. Your date stays visible either way, and it never becomes
-                a commitment on its own.
-              </InlineAlert>
-            </section>
 
-            <section className="tm-panel tm-stack" aria-labelledby="tm-request-audience">
-              <h2 id="tm-request-audience" className="tm-eyebrow">
-                Who will see this
-              </h2>
-              <p className="tm-prose">
-                {providerName}&rsquo;s delivery team, and your colleagues at {clientName}. Nobody
-                outside those two groups — no other client of {providerName} can see it, and no
-                other client organization exists as far as this portal is concerned.
-              </p>
-            </section>
+              <Field
+                label="Category"
+                name="category"
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                hint="Optional. A short label such as new-page or bug-report — lowercase, no spaces."
+                {...errorFor(fieldErrors, 'category')}
+              />
 
-            {failure ? (
-              <InlineAlert tone="danger" title="Could not send the request" live>
-                {failure}
-              </InlineAlert>
-            ) : null}
+              <Field
+                label="Is it urgent, and why?"
+                name="urgencyReason"
+                value={urgencyReason}
+                onChange={(event) => setUrgencyReason(event.target.value)}
+                hint="Optional. A deadline of your own, a season, an event — anything that makes the timing matter."
+                {...errorFor(fieldErrors, 'urgencyReason')}
+              />
 
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={sending}
-                loadingLabel="Sending"
-                disabled={projects.isPending}
+              <Field
+                label="When you would like it"
+                name="desiredAt"
+                type="date"
+                value={desiredDate}
+                onChange={(event) => setDesiredDate(event.target.value)}
+                dir="ltr"
+                hint="Optional, and it is a wish rather than a deadline. Nothing is scheduled until the studio agrees a date."
+                {...errorFor(fieldErrors, 'desiredAt')}
+              />
+
+              {available.length > 1 ? (
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-request-project">
+                    Which project
+                  </label>
+                  <select
+                    id="tm-request-project"
+                    className="tm-field__control"
+                    value={chosenProjectId}
+                    onChange={(event) => setProjectId(event.target.value)}
+                  >
+                    {available.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="tm-field">
+                  <span className="tm-field__label">Which project</span>
+                  <p className="tm-prose">
+                    {chosenProject?.name ?? 'No project shared with you yet'}
+                  </p>
+                  <span className="tm-field__hint">
+                    The only project {providerName} has shared with you.
+                  </span>
+                </div>
+              )}
+
+              <section
+                className="tm-panel tm-panel--quiet tm-stack"
+                aria-labelledby="tm-request-summary"
               >
-                Send request
-              </Button>
-            </div>
+                <h2 id="tm-request-summary" className="tm-eyebrow">
+                  What will be sent
+                </h2>
+                <div className="tm-row">
+                  <StateCapsule state="future">Asked for</StateCapsule>
+                  <span className="tm-prose">
+                    {desiredDate === '' ? 'No date' : formatDay(desiredDate)}
+                  </span>
+                </div>
+                <InlineAlert tone="neutral" title="A date you ask for is not a date you are given">
+                  {providerName} reads the request, asks anything unclear, and then either agrees a
+                  date or tells you why not. Your date stays visible either way, and it never
+                  becomes a commitment on its own.
+                </InlineAlert>
+              </section>
+
+              <section className="tm-panel tm-stack" aria-labelledby="tm-request-audience">
+                <h2 id="tm-request-audience" className="tm-eyebrow">
+                  Who will see this
+                </h2>
+                <p className="tm-prose">
+                  {providerName}&rsquo;s delivery team, and your colleagues at {clientName}. Nobody
+                  outside those two groups — no other client of {providerName} can see it, and no
+                  other client organization exists as far as this portal is concerned.
+                </p>
+              </section>
+
+              {failure ? (
+                <InlineAlert tone="danger" title="Could not send the request" live>
+                  {failure}
+                </InlineAlert>
+              ) : null}
+
+              <div className="tm-row">
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="accessible"
+                  loading={sending}
+                  loadingLabel="Sending"
+                  disabled={projects.isPending}
+                >
+                  Send request
+                </Button>
+              </div>
+            </fieldset>
           </form>
 
           <BackendPending ticket="FILE-001 · CHAT-001 · CL-13">
