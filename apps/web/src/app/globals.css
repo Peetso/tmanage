@@ -301,11 +301,22 @@ body {
   color: var(--ink-950);
 }
 
+/*
+ * D14. This footer is inside `.tm-identity__card`, which paints `--paper-150` — a paper
+ * surface — so it must take a paper-surface muted tone. It used to take
+ * `--tm-inverted-muted`, the muted tone for the *inverted* ground the shell behind the card
+ * paints; in the light theme that resolves to `--line-300` (`#c5c7c0`) and read at 1.40:1 on
+ * `#e9e9e5`, far below the 4.5:1 AA floor (WCAG 1.4.3). `--ink-650` is this file's muted
+ * secondary text throughout and is 6.74:1 on `--paper-150`, so the links stay quiet next to
+ * `--ink-950` without disappearing. The dark theme is unaffected: `--tm-inverted-muted`
+ * already resolved to `--ink-650` there, so its 8.03:1 is unchanged. Both ratios are
+ * asserted in `tests/contrast.test.ts`.
+ */
 .tm-identity__footer {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s4);
-  color: var(--tm-inverted-muted);
+  color: var(--ink-650);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
 }
