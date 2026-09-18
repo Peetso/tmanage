@@ -231,7 +231,7 @@ describe('the pairings globals.css actually paints', () => {
    * that was `#c5c7c0` on `#e9e9e5`, **1.40:1**, far below the 4.5:1 AA floor (WCAG 1.4.3),
    * which made the footer's privacy and support links (`22-SCREEN-BY-SCREEN` §3) effectively
    * invisible. The footer now takes `--ink-650`, this file's muted secondary text, which is
-   * `#5f635a` on `#e9e9e5`: **6.74:1**. The assertion below is a normal AA assertion, so the
+   * `#4d5049` on `#e9e9e5`: **6.74:1**. The assertion below is a normal AA assertion, so the
    * defect cannot come back by anyone reaching for an inverted token here again.
    */
   it('paints the identity footer at AA in the light theme (6.74:1)', () => {
