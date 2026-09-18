@@ -131,32 +131,41 @@ afterAll(async () => {
   await db?.stop();
 });
 
+/**
+ * These two cases `EXPLAIN` the SQL {@link WorkItemsRepository.list} actually emits, captured
+ * through `list`'s own query builder (`WorkItemsRepository.listQuery(...).toSQL()`) rather than
+ * retyped here. `list` is `await this.listQuery(...)`, so the plan below is the plan of the hot
+ * read itself — drop `list`'s project/state predicate, its `order by`, or its `LIMIT` and the
+ * captured SQL changes with it, which is the drift a hand-written lookalike would sail past.
+ */
 describe('the plans, at volume', () => {
-  it('the project/state list is an index walk, with §9 index among the candidates', async () => {
-    const plan = await explain(
-      `select id from work_items
-        where organization_id = ? and project_id = ? and state = ?
-        order by due_at limit 50`,
-      [world.northstar.organizationId, world.northstar.projectId, 'in_progress'],
+  it('the project/state list list() emits is an index walk, with §9 index among the candidates', async () => {
+    const { sql, params } = await tenant.read(northstarCtx, async (runner) =>
+      workItems
+        .listQuery(runner, northstarCtx, {
+          projectId: world.northstar.projectId,
+          states: ['in_progress'],
+          limit: 50,
+        })
+        .toSQL(),
     );
+    const plan = await explain(sql, params);
     expect(String(plan['type'])).not.toBe('ALL');
     expect(plan['key']).not.toBeNull();
     expect(String(plan['possible_keys'])).toContain('ix_work_items_org_project_state_due');
   });
 
-  it('the cursor page is an index walk over the (organization, id) key', async () => {
+  it('the cursor page list() emits is an index walk over the (organization, id) key', async () => {
     const anchorRows = await db.admin.query<RowDataPacket[]>(
       `select id from work_items where organization_id = ? order by id limit 1`,
       [world.northstar.organizationId],
     );
     const firstId = String((anchorRows[0] as RowDataPacket[])[0]?.['id']);
 
-    const plan = await explain(
-      `select id from work_items
-        where organization_id = ? and id > ?
-        order by id limit 200`,
-      [world.northstar.organizationId, firstId],
+    const { sql, params } = await tenant.read(northstarCtx, async (runner) =>
+      workItems.listQuery(runner, northstarCtx, { after: firstId, limit: 200 }).toSQL(),
     );
+    const plan = await explain(sql, params);
     expect(String(plan['type'])).not.toBe('ALL');
     expect(plan['key']).not.toBeNull();
     expect(String(plan['possible_keys'])).toContain('uq_work_items_org_id');

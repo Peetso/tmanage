@@ -37,16 +37,118 @@ import { describe, expect, it } from 'vitest';
  * rejects an instance of it with "The URL must be of scheme file" even when the href is
  * exactly that.
  */
-const GLOBALS_CSS = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '../src/app/globals.css'),
+const HERE = dirname(fileURLToPath(import.meta.url));
+const GLOBALS_CSS = readFileSync(join(HERE, '../src/app/globals.css'), 'utf8');
+
+/**
+ * The design system's token sheet. `packages/ui/tests/tokens.drift.test.ts` proves every value
+ * here against the immutable design export, in both directions — so, once we have read which
+ * base token a `--tm-inverted-*` property resolves to, this file is the honest source of that
+ * token's hex per theme.
+ */
+const TOKENS_CSS = readFileSync(join(HERE, '../../../packages/ui/src/styles/tokens.css'), 'utf8');
+
+/** The shell that decides which ground the identity footer is painted on. See `paintedPairing`. */
+const IDENTITY_SHELL = readFileSync(
+  join(HERE, '../src/components/shell/IdentityShell.tsx'),
   'utf8',
 );
 
-/** Light-theme values, as `tokens.css` declares them under `:root`. */
+/**
+ * The declarations of one top-level block, `name -> value`. The token and application sheets
+ * declare their `:root`, `[data-theme='dark']` and class blocks flat (no nested rules), so the
+ * first match of the selector is the unconditional block and a brace-free body is exact for it.
+ * A nested `:root` inside an `@media` (reduced-motion), and the `.tm-identity__card` override
+ * inside the narrow breakpoint, are never the first match and are ignored.
+ */
+function blockDeclarations(css: string, selector: string): Map<string, string> {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = withoutComments.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+  const declarations = new Map<string, string>();
+  for (const line of match?.[1]?.split(';') ?? []) {
+    const at = line.indexOf(':');
+    if (at === -1) continue;
+    declarations.set(line.slice(0, at).trim(), line.slice(at + 1).trim());
+  }
+  return declarations;
+}
+
+/**
+ * Resolve a `--tm-inverted-*` property to the hex it paints in a theme, entirely through the
+ * stylesheets: `globals.css` maps the property to a base token for this theme, `tokens.css`
+ * maps that base token to a hex for this theme (a token the dark block does not redefine
+ * inherits its `:root` value). This is I3 of the test-honesty sweep: the pairs these assertions
+ * measure are now the pairs the stylesheet composes, not a hand-transcribed comment. Re-point
+ * `--tm-inverted-muted` at a failing colour in `globals.css` and the ratio below moves with it.
+ */
+function resolveValue(value: string, theme: 'light' | 'dark'): string {
+  const themeSelector = theme === 'light' ? ':root' : "[data-theme='dark']";
+  const rootTokens = blockDeclarations(TOKENS_CSS, ':root');
+  const lookups = [
+    blockDeclarations(GLOBALS_CSS, themeSelector),
+    theme === 'light' ? rootTokens : blockDeclarations(TOKENS_CSS, themeSelector),
+    rootTokens,
+  ];
+  let current = value;
+  // Two hops today (`--tm-inverted-muted` -> `--line-300` -> `#c5c7c0`); the cap only stops a
+  // future cycle from hanging the suite. Running out of hops is an error, never a silent pass.
+  for (let hop = 0; hop < 4; hop += 1) {
+    const token = current.match(/var\(\s*(--[\w-]+)\s*\)/)?.[1];
+    if (!token) return current;
+    const next = lookups.map((table) => table.get(token)).find((found) => found !== undefined);
+    if (next === undefined) {
+      throw new Error(`could not resolve ${token} in the ${theme} theme through the stylesheets`);
+    }
+    current = next;
+  }
+  throw new Error(`var() chain from ${value} does not bottom out in the ${theme} theme`);
+}
+
+function invertedSurfaces(theme: 'light' | 'dark') {
+  return {
+    invertedGround: resolveValue('var(--tm-inverted-ground)', theme),
+    invertedInk: resolveValue('var(--tm-inverted-ink)', theme),
+    invertedMuted: resolveValue('var(--tm-inverted-muted)', theme),
+  };
+}
+
+/**
+ * The pairing a *rule* paints, rather than a pairing this file chose.
+ *
+ * `chain` is the DOM ancestry, outermost first. The foreground is the innermost rule in it
+ * that sets a `color`, the ground the innermost that sets a `background` — both taken out of
+ * `globals.css` and resolved through the token sheet. This is the second half of I3: until now
+ * every assertion below paired `--tm-inverted-muted` with `--tm-inverted-ground` because a
+ * human wrote that pair down, and nothing asked which ground the rule using it actually sits
+ * on. Change the `background` on `.tm-identity__card` and the measured number here moves.
+ */
+function paintedPairing(chain: readonly string[], theme: 'light' | 'dark') {
+  let foreground: string | undefined;
+  let background: string | undefined;
+  for (const selector of chain) {
+    const rule = blockDeclarations(GLOBALS_CSS, selector);
+    const color = rule.get('color');
+    const ground = rule.get('background') ?? rule.get('background-color');
+    if (color !== undefined && color !== 'inherit') foreground = resolveValue(color, theme);
+    if (ground !== undefined) background = resolveValue(ground, theme);
+  }
+  if (foreground === undefined || background === undefined) {
+    throw new Error(
+      `${chain[chain.length - 1]} has no painted ${foreground === undefined ? 'colour' : 'ground'} in the ${theme} theme`,
+    );
+  }
+  return { foreground, background };
+}
+
+const lightInverted = invertedSurfaces('light');
+const darkInverted = invertedSurfaces('dark');
+
+/** Light-theme values. The inverted surfaces are resolved from the stylesheets (see above). */
 const LIGHT = {
-  invertedGround: colorLight.line['700'], // --tm-inverted-ground = --line-700
-  invertedInk: colorLight.paper['50'], // --tm-inverted-ink     = --paper-50
-  invertedMuted: colorLight.line['300'], // --tm-inverted-muted   = --line-300
+  invertedGround: lightInverted.invertedGround, // globals.css --tm-inverted-ground, light
+  invertedInk: lightInverted.invertedInk, // globals.css --tm-inverted-ink, light
+  invertedMuted: lightInverted.invertedMuted, // globals.css --tm-inverted-muted, light
   ink950: colorLight.ink['950'],
   ink800: colorLight.ink['800'],
   ink650: colorLight.ink['650'],
@@ -58,11 +160,11 @@ const LIGHT = {
   client500: colorLight.client['500'],
 } as const;
 
-/** Dark-theme values, as `tokens.css` declares them under `[data-theme='dark']`. */
+/** Dark-theme values. The inverted surfaces are resolved from the stylesheets (see above). */
 const DARK = {
-  invertedGround: colorDark.rail, // --tm-inverted-ground = --paper-350 = #171814
-  invertedInk: colorDark.ink, // --tm-inverted-ink     = --ink-950  = #F5F6F0
-  invertedMuted: colorDark.muted, // --tm-inverted-muted   = --ink-650  = #A7ACA0
+  invertedGround: darkInverted.invertedGround, // globals.css --tm-inverted-ground, dark
+  invertedInk: darkInverted.invertedInk, // globals.css --tm-inverted-ink, dark
+  invertedMuted: darkInverted.invertedMuted, // globals.css --tm-inverted-muted, dark
   surface: colorDark.surface1,
   canvas: colorDark.canvas,
   limePlane: colorDark.limePlane,
@@ -102,6 +204,51 @@ describe('the inverted surfaces', () => {
   it('would have been unreadable had the rail used --line-700 directly in dark mode', () => {
     const naive = ratio(colorDark.ink, colorDark.ink);
     expect(naive).toBeLessThan(AA_NORMAL_TEXT);
+  });
+});
+
+/**
+ * I3, second half. The cases above pair `--tm-inverted-muted` with `--tm-inverted-ground`
+ * because that is the pair a person wrote down; these read the pair out of the rules.
+ */
+describe('the pairings globals.css actually paints', () => {
+  const IDENTITY_FOOTER = ['.tm-identity', '.tm-identity__card', '.tm-identity__footer'] as const;
+
+  it('paints the identity footer inside the card, not on the inverted shell', () => {
+    // The chain measured below is a claim about the DOM, so it is checked against the DOM:
+    // the footer opens after the card and before any `</div>` closes it.
+    const cardAt = IDENTITY_SHELL.indexOf('className="tm-identity__card"');
+    const footerAt = IDENTITY_SHELL.indexOf('className="tm-identity__footer"');
+    expect(cardAt).toBeGreaterThan(-1);
+    expect(footerAt).toBeGreaterThan(cardAt);
+    expect(IDENTITY_SHELL.slice(cardAt, footerAt)).not.toContain('</div>');
+  });
+
+  /**
+   * ⚠️ DISCLOSED KNOWN GAP — D14. This is an expected failure recorded with its measured
+   * ratio, not a pass: `.tm-identity__footer` (`globals.css:304-311`) paints
+   * `--tm-inverted-muted` — a label colour chosen to sit on the *inverted* ground, where it
+   * reads at 8.04:1 — on `--paper-150`, the card it is actually inside. In the light theme
+   * that is `#c5c7c0` on `#e9e9e5`: **1.40:1**, far below the 4.5:1 AA floor. The links in
+   * that footer (`22-SCREEN-BY-SCREEN` §3: privacy, support) are effectively invisible.
+   *
+   * It is disclosed here rather than fixed because the fix is a CSS change (the footer should
+   * take `--ink-650`, 6.74:1 on `--paper-150`) and this slice is not allowed to touch CSS.
+   * Carried forward as an open defect for a separate slice. When D14 is fixed, this case must
+   * be deleted and the footer folded into the AA assertions — it will go red at that point,
+   * which is the intended signal, the same way `verify:gaps` discloses the gates it skipped
+   * instead of letting a green run read as "everything checked".
+   */
+  it('DISCLOSED D14: the identity footer fails AA in the light theme at 1.40:1', () => {
+    const { foreground, background } = paintedPairing(IDENTITY_FOOTER, 'light');
+    expect(ratio(foreground, background)).toBe(1.4);
+    expect(ratio(foreground, background)).toBeLessThan(AA_NORMAL_TEXT);
+  });
+
+  it('paints the identity footer at AA in the dark theme (8.03:1)', () => {
+    const { foreground, background } = paintedPairing(IDENTITY_FOOTER, 'dark');
+    expect(ratio(foreground, background)).toBe(8.03);
+    expect(ratio(foreground, background)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 });
 

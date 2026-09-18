@@ -166,6 +166,19 @@ export class WorkItemsRepository {
     context: TenantContext,
     options: ListWorkItemsOptions = {},
   ): Promise<readonly WorkItemRow[]> {
+    return this.listQuery(runner, context, options);
+  }
+
+  /**
+   * The Drizzle statement {@link list} runs, returned as the builder rather than its rows.
+   *
+   * {@link list} is nothing but `await this.listQuery(...)`, so the SQL this emits is, byte for
+   * byte, the SQL the hot read executes. A plan test can therefore `EXPLAIN` the builder's own
+   * `.toSQL()` and know it is planning the production query — not a hand-written lookalike that
+   * can silently drift from `list` (drop a predicate, the `order by`, the `LIMIT`) and leave the
+   * regression fixture green. Nothing but {@link list} and that test should need this.
+   */
+  listQuery(runner: TenantQueryRunner, context: TenantContext, options: ListWorkItemsOptions = {}) {
     const limit = effectivePageSize(options.limit);
 
     const predicates = [eq(workItems.organizationId, context.organizationId)];

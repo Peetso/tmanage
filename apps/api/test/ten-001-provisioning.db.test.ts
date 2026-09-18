@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
+import { CAPABILITIES, uuidv7 } from '@tmanage/domain';
 import type { RowDataPacket } from 'mysql2/promise';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
@@ -245,8 +245,12 @@ describe('provisioning an organization', () => {
     expect(resolved.role).toBe('owner');
     expect(resolved.context.membershipId).toBe(created.membershipId);
     expect(resolved.hasOrgWideScope).toBe(true);
-    // An owner holds every capability. Asserted against the domain rather than restated.
-    expect(resolved.context.capabilities.length).toBe(capabilitiesFor('owner').length);
+    // An owner holds *every* capability. Asserted against the independent capability universe
+    // (`CAPABILITIES`, the §4 list), not against `capabilitiesFor('owner')` — the resolver
+    // builds `capabilities` with `capabilitiesFor(role)`, so comparing to it is X === X and a
+    // narrowed owner ceiling (drop one capability) would shrink both sides together and stay
+    // green. Comparing to the full list catches that: the owner ceiling must be the whole list.
+    expect([...resolved.context.capabilities].sort()).toEqual([...CAPABILITIES].sort());
     // The provisioning context's literal `policyVersion` is gone; a real one has replaced it.
     expect(resolved.context.policyVersion).not.toBe('provisioning');
   });
