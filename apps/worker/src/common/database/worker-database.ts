@@ -59,12 +59,23 @@ async function applySessionState(
   connection: Connection,
   statementTimeoutMs: number,
 ): Promise<void> {
-  await connection.query(`SET SESSION sql_mode = ?, time_zone = '+00:00'`, [SESSION_SQL_MODE]);
-  try {
-    await connection.query('SET SESSION max_execution_time = ?', [statementTimeoutMs]);
-  } catch {
-    // A server that refuses the variable still serves queries; see `connection.ts`.
-  }
+  // Both statements are issued in the same synchronous tick, before the first `await` yields,
+  // so both are enqueued onto the per-connection command queue ahead of the borrower's first
+  // query (the pool emits `'connection'` — running this — before handing the connection out).
+  // Awaiting the sql_mode set before issuing the timeout set would enqueue the timeout a
+  // microtask later, after the borrower's query, leaving that first statement uncapped. The
+  // timeout set is still tolerated failing (see `connection.ts`), so its rejection is
+  // swallowed here rather than destroying the connection.
+  const applied = connection.query(`SET SESSION sql_mode = ?, time_zone = '+00:00'`, [
+    SESSION_SQL_MODE,
+  ]);
+  const capped = connection
+    .query('SET SESSION max_execution_time = ?', [statementTimeoutMs])
+    .catch(() => {
+      // A server that refuses the variable still serves queries; see `connection.ts`.
+    });
+  await applied;
+  await capped;
 }
 
 function promisify(connection: PoolConnection): Connection {
