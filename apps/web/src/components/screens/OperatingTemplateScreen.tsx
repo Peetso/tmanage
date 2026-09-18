@@ -5,6 +5,7 @@ import { DELIVERABLE_STATES, WORK_ITEM_STATES } from '@tmanage/domain';
 import { Button, InlineAlert, StateCapsule } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { BackendPending } from './BackendPending';
+import { useHydrated } from '../../lib/use-hydrated';
 
 /**
  * The four templates `22-SCREEN-BY-SCREEN` §3 names for ON-02: "Agency delivery, Software
@@ -87,6 +88,11 @@ export interface OperatingTemplateScreenProps {
  * that holds a chosen template and no endpoint that would write one.
  */
 export function OperatingTemplateScreen({ signedInAs }: OperatingTemplateScreenProps) {
+  // The template radios are controlled inputs in the server HTML with no query behind them, so a
+  // choice made on a cold page would be re-applied to the default by hydration. The picker is
+  // disabled until React is live: `false` in the server render, `true` on the first client render.
+  const hydrated = useHydrated();
+
   const [chosen, setChosen] = useState<string>(TEMPLATES[0].value);
   const template = TEMPLATES.find((candidate) => candidate.value === chosen) ?? TEMPLATES[0];
 
@@ -102,7 +108,7 @@ export function OperatingTemplateScreen({ signedInAs }: OperatingTemplateScreenP
         write one.
       </BackendPending>
 
-      <fieldset className="tm-fieldset">
+      <fieldset className="tm-fieldset" disabled={!hydrated}>
         <legend className="tm-field__label">Operating template</legend>
         <div className="tm-stack tm-stack--tight">
           {TEMPLATES.map((option) => (

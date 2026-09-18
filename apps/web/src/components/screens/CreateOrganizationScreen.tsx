@@ -13,6 +13,7 @@ import {
   slugProblems,
   slugify,
 } from '../../lib/slug';
+import { useHydrated } from '../../lib/use-hydrated';
 
 /**
  * The timezone list.
@@ -101,6 +102,11 @@ export function CreateOrganizationScreen({
 }: CreateOrganizationScreenProps) {
   const api = client ?? browserApiClient();
 
+  // No query gates this form — nothing is fetched before it is shown — so the controls hang on
+  // the hydration signal instead: disabled in the server render, enabled once React is live, so
+  // a name or address typed on a cold page is not wiped when hydration re-applies the empty state.
+  const hydrated = useHydrated();
+
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
@@ -167,128 +173,130 @@ export function CreateOrganizationScreen({
       description="This is the space your team works in. A client organization is created separately, later in this sequence."
     >
       <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
-        <Field
-          label="Organization name"
-          name="name"
-          value={name}
-          maxLength={MAX_ORGANIZATION_NAME_LENGTH}
-          onChange={(event) => {
-            setName(event.target.value);
-            // While the address is still derived, editing the name changes it too.
-            if (!slugEdited) setServerSlugError(undefined);
-          }}
-          hint="The name your team and your clients will see."
-          required
-        />
+        <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={!hydrated}>
+          <Field
+            label="Organization name"
+            name="name"
+            value={name}
+            maxLength={MAX_ORGANIZATION_NAME_LENGTH}
+            onChange={(event) => {
+              setName(event.target.value);
+              // While the address is still derived, editing the name changes it too.
+              if (!slugEdited) setServerSlugError(undefined);
+            }}
+            hint="The name your team and your clients will see."
+            required
+          />
 
-        <Field
-          label="Workspace address"
-          name="slug"
-          value={effectiveSlug}
-          onChange={(event) => {
-            setSlugEdited(true);
-            setSlug(event.target.value);
-            // The server said *this* address was taken. Editing it makes that answer stale,
-            // and leaving it on screen would mark a different address as unavailable on no
-            // evidence.
-            setServerSlugError(undefined);
-          }}
-          dir="ltr"
-          spellCheck={false}
-          hint="Lowercase letters, numbers and hyphens. It appears in every link to this organization."
-          {...(slugError === undefined ? {} : { error: slugError })}
-        />
+          <Field
+            label="Workspace address"
+            name="slug"
+            value={effectiveSlug}
+            onChange={(event) => {
+              setSlugEdited(true);
+              setSlug(event.target.value);
+              // The server said *this* address was taken. Editing it makes that answer stale,
+              // and leaving it on screen would mark a different address as unavailable on no
+              // evidence.
+              setServerSlugError(undefined);
+            }}
+            dir="ltr"
+            spellCheck={false}
+            hint="Lowercase letters, numbers and hyphens. It appears in every link to this organization."
+            {...(slugError === undefined ? {} : { error: slugError })}
+          />
 
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-timezone">
-            Timezone
-          </label>
-          <select
-            id="tm-timezone"
-            className="tm-field__control"
-            value={timezone}
-            onChange={(event) => setTimezone(event.target.value)}
-          >
-            {timezones().map((zone) => (
-              <option key={zone} value={zone}>
-                {zone}
-              </option>
-            ))}
-          </select>
-          <span className="tm-field__hint">
-            Dates and deadlines are stored with a timezone. When a client is in another zone, both
-            are shown on the deadline.
-          </span>
-        </div>
-
-        <fieldset className="tm-fieldset">
-          <legend className="tm-field__label">Default language</legend>
-          <div className="tm-stack tm-stack--tight">
-            {LOCALES.map((option) => (
-              <label key={option.value} className="tm-choice">
-                <input
-                  className="tm-choice__input"
-                  type="radio"
-                  name="locale"
-                  value={option.value}
-                  checked={locale === option.value}
-                  onChange={() => setLocale(option.value)}
-                />
-                <span className="tm-choice__name">{option.label}</span>
-                <span className="tm-choice__detail">{option.direction}</span>
-              </label>
-            ))}
+          <div className="tm-field">
+            <label className="tm-field__label" htmlFor="tm-timezone">
+              Timezone
+            </label>
+            <select
+              id="tm-timezone"
+              className="tm-field__control"
+              value={timezone}
+              onChange={(event) => setTimezone(event.target.value)}
+            >
+              {timezones().map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone}
+                </option>
+              ))}
+            </select>
+            <span className="tm-field__hint">
+              Dates and deadlines are stored with a timezone. When a client is in another zone, both
+              are shown on the deadline.
+            </span>
           </div>
-        </fieldset>
 
-        <fieldset className="tm-fieldset">
-          <legend className="tm-field__label">What does your team deliver?</legend>
-          <p className="tm-prose">
-            This sets the vocabulary, the default workflow and the client experience. You can change
-            all of it later — nothing here is locked.
-          </p>
-          <div className="tm-stack tm-stack--tight">
-            {WORK_TYPES.map((option) => (
-              <label key={option.value} className="tm-choice">
-                <input
-                  className="tm-choice__input"
-                  type="radio"
-                  name="workType"
-                  value={option.value}
-                  checked={workType === option.value}
-                  onChange={() => setWorkType(option.value)}
-                />
-                <span className="tm-choice__name">{option.name}</span>
-                <span className="tm-choice__detail">{option.detail}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+          <fieldset className="tm-fieldset">
+            <legend className="tm-field__label">Default language</legend>
+            <div className="tm-stack tm-stack--tight">
+              {LOCALES.map((option) => (
+                <label key={option.value} className="tm-choice">
+                  <input
+                    className="tm-choice__input"
+                    type="radio"
+                    name="locale"
+                    value={option.value}
+                    checked={locale === option.value}
+                    onChange={() => setLocale(option.value)}
+                  />
+                  <span className="tm-choice__name">{option.label}</span>
+                  <span className="tm-choice__detail">{option.direction}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
-        <InlineAlert tone="neutral">
-          Your workspace address will be{' '}
-          <strong>{effectiveSlug === '' ? '—' : effectiveSlug}</strong>. Whether it is free is
-          decided when you create the organization; nothing checks it before then, because a tick
-          that checked nothing would be worse than no tick.
-        </InlineAlert>
+          <fieldset className="tm-fieldset">
+            <legend className="tm-field__label">What does your team deliver?</legend>
+            <p className="tm-prose">
+              This sets the vocabulary, the default workflow and the client experience. You can
+              change all of it later — nothing here is locked.
+            </p>
+            <div className="tm-stack tm-stack--tight">
+              {WORK_TYPES.map((option) => (
+                <label key={option.value} className="tm-choice">
+                  <input
+                    className="tm-choice__input"
+                    type="radio"
+                    name="workType"
+                    value={option.value}
+                    checked={workType === option.value}
+                    onChange={() => setWorkType(option.value)}
+                  />
+                  <span className="tm-choice__name">{option.name}</span>
+                  <span className="tm-choice__detail">{option.detail}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
-        {failure ? (
-          <InlineAlert tone="danger" title="Could not create the organization" live>
-            {failure}
+          <InlineAlert tone="neutral">
+            Your workspace address will be{' '}
+            <strong>{effectiveSlug === '' ? '—' : effectiveSlug}</strong>. Whether it is free is
+            decided when you create the organization; nothing checks it before then, because a tick
+            that checked nothing would be worse than no tick.
           </InlineAlert>
-        ) : null}
 
-        <div className="tm-row">
-          <Button
-            type="submit"
-            tone="ink"
-            size="accessible"
-            loading={creating}
-            loadingLabel="Creating"
-          >
-            Create organization
-          </Button>
-        </div>
+          {failure ? (
+            <InlineAlert tone="danger" title="Could not create the organization" live>
+              {failure}
+            </InlineAlert>
+          ) : null}
+
+          <div className="tm-row">
+            <Button
+              type="submit"
+              tone="ink"
+              size="accessible"
+              loading={creating}
+              loadingLabel="Creating"
+            >
+              Create organization
+            </Button>
+          </div>
+        </fieldset>
       </form>
     </OnboardingShell>
   );

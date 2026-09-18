@@ -157,6 +157,13 @@ body {
   margin: 0;
   padding: 0;
   border: 0;
+  /*
+   * The UA gives `fieldset` `min-inline-size: min-content`, which stops it shrinking below its
+   * widest child. A fieldset used as a flex or grid container — which is what a hydration gate
+   * around a stack of fields is — would then overflow its form at a narrow viewport instead of
+   * letting the fields wrap. Reset once here rather than per screen.
+   */
+  min-inline-size: 0;
 }
 
 .tm-fieldset > .tm-field__label {
