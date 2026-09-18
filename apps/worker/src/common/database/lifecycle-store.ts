@@ -28,19 +28,25 @@ export interface LinkedClientRequest {
 }
 
 /**
- * The request a work item is the committed answer to, locked for this transaction.
+ * Every request a work item is the committed answer to, locked for this transaction.
  *
- * `FOR UPDATE`: the consumer read-decides-writes, and a concurrent API transition on the
- * same request must wait rather than interleave. `linked_work_item_id` carries no index —
+ * Acceptance permits linking existing work, and the schema does not enforce one request per
+ * linked item (R09) — so more than one request can point at the same work item, and when it
+ * moves, *all* of them must follow. Fetching a single row with `LIMIT 1` left the others
+ * stale at their old state forever. This returns them all, ordered by `id` so the caller's
+ * per-request writes are deterministic.
+ *
+ * `FOR UPDATE`: the consumer read-decides-writes, and a concurrent API transition on any of
+ * these requests must wait rather than interleave. `linked_work_item_id` carries no index —
  * the table is small and the column was never queried before this consumer existed; noted
  * in implementation-status rather than silently indexed here, because indexes are the
  * migrator's to add.
  */
-export async function findRequestLinkedToWorkItem(
+export async function findRequestsLinkedToWorkItem(
   tx: WorkerTransaction,
   organizationId: string,
   workItemId: string,
-): Promise<LinkedClientRequest | null> {
+): Promise<readonly LinkedClientRequest[]> {
   interface Row {
     readonly id: string;
     readonly project_id: string;
@@ -52,19 +58,17 @@ export async function findRequestLinkedToWorkItem(
     `SELECT id, project_id, client_organization_id, state, version
        FROM client_requests
       WHERE organization_id = ? AND linked_work_item_id = ?
-      LIMIT 1
+      ORDER BY id
       FOR UPDATE`,
     [organizationId, workItemId],
   );
-  const row = rows[0];
-  if (!row) return null;
-  return {
+  return rows.map((row) => ({
     id: row.id,
     projectId: row.project_id,
     clientOrganizationId: row.client_organization_id,
     state: row.state,
     version: Number(row.version),
-  };
+  }));
 }
 
 /**

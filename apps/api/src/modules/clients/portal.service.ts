@@ -111,10 +111,17 @@ function toProjectView(row: ProjectRow): PortalProjectView {
  * read as "in progress", because the differences between them are internal: a client learning
  * that their deliverable is blocked, and on what, is a conversation somebody at the agency
  * should be having rather than a status a portal leaks.
+ *
+ * **Terminal state wins over the action audience.** `client_action_required` is an audience,
+ * not a lifecycle state, and it is not cleared when an item is finished — a `done` item can
+ * still carry it. Deciding the terminal states first means a completed deliverable reads as
+ * `done`, never as `waiting_on_you`: the portal must not ask a client to act on work that is
+ * already finished or archived. Only a still-open item's audience promotes it to
+ * `waiting_on_you`. Exported for the unit suite.
  */
-function progressOf(row: WorkItemRow): PortalWorkItemView['progress'] {
-  if (row.audience === 'client_action_required') return 'waiting_on_you';
+export function progressOf(row: WorkItemRow): PortalWorkItemView['progress'] {
   if (row.state === 'done' || row.state === 'archived') return 'done';
+  if (row.audience === 'client_action_required') return 'waiting_on_you';
   return 'in_progress';
 }
 
