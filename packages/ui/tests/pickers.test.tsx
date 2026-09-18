@@ -19,6 +19,14 @@ describe('Combobox', () => {
     expect(screen.queryAllByRole('option')).toHaveLength(0);
   });
 
+  it('names the open popup distinctly from the input, so the field label stays unique', () => {
+    render(<Combobox label="Owner" options={PEOPLE} defaultOpen value="nr" />);
+    const listbox = screen.getByRole('listbox');
+    expect(listbox).toHaveAccessibleName();
+    expect(listbox).not.toHaveAccessibleName('Owner');
+    expect(screen.getAllByLabelText('Owner')).toHaveLength(1);
+  });
+
   it('opens and filters as the person types, case-insensitively', async () => {
     render(<Combobox label="Owner" options={PEOPLE} />);
     const input = screen.getByRole('combobox', { name: 'Owner' });

@@ -255,7 +255,7 @@ export function Combobox({
         <ul
           role="listbox"
           id={listboxId}
-          aria-label={typeof label === 'string' ? label : undefined}
+          aria-label={typeof label === 'string' ? `${label} options` : undefined}
           className="tm-combobox__listbox"
           data-open={open || undefined}
           onMouseDown={(event) => {
