@@ -74,6 +74,12 @@ test.describe.serial('the client-request journeys', () => {
     // The client asks.
     const client = await openAs(browser, world().atlas.admin.id);
     await client.page.goto('/northstar-studio/portal/requests/new');
+    // Not a sleep: the screen's own readiness signal. The form ships disabled and enables only
+    // once React has hydrated and the portal-projects query has answered, so an enabled title
+    // field is the app saying it will keep what is typed next. Without this barrier `goto`
+    // returns on `load`, and on a cold compile the first two fills landed before hydration and
+    // were wiped by it.
+    await expect(client.page.getByLabel('What do you need?')).toBeEnabled();
     await client.page.getByLabel('What do you need?').fill(TITLE);
     await client.page
       .getByLabel('Why it matters')

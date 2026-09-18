@@ -32,7 +32,9 @@ import { expectNoAxeViolations } from './axe';
  *    `REQ-001`.
  */
 
-function clientOver(handler: (url: string, init?: RequestInit) => Response): ApiClient {
+function clientOver(
+  handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
+): ApiClient {
   return new ApiClient({
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
@@ -123,6 +125,44 @@ describe('CL-09 the new request form', () => {
     );
     return { view, sent };
   }
+
+  /**
+   * The form used to accept typing into fields it was about to wipe. The controls are
+   * controlled inputs; the submit button alone carried `disabled={projects.isPending}`. On a
+   * cold page a person could type before React hydrated — the DOM held the words, no listener
+   * existed, state stayed `''` — and hydration then re-applied `value=''` and erased them,
+   * leaving "Say what you need in the first field" over a field they had just filled in.
+   *
+   * So the readiness condition now reaches the fields as well as the button. This is the one
+   * test for that: disabled while the projects query is pending, editable once it answers, and
+   * what is typed afterwards stays typed.
+   */
+  it('takes no word until the screen’s data has arrived, so nothing typed is silently wiped', async () => {
+    const user = userEvent.setup();
+    let answer: () => void = () => {};
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const api = clientOver((url) => {
+      if (url.includes('/portal/projects')) {
+        return answered.then(() => json({ projects: [PROJECT] }));
+      }
+      return json({ requests: [] });
+    });
+
+    render(withQuery(<NewClientRequestScreen {...NAMES} client={api} />));
+
+    const title = screen.getByLabelText(/What do you need/);
+    expect(title).toBeDisabled();
+    expect(screen.getByLabelText(/Why it matters/)).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send request' })).toBeDisabled();
+
+    answer();
+    await waitFor(() => expect(title).toBeEnabled());
+
+    await user.type(title, 'Refresh the homepage hero');
+    expect(title).toHaveValue('Refresh the homepage hero');
+  });
 
   it('calls the date a wish beside the field, not a deadline', async () => {
     renderForm();
