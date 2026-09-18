@@ -506,9 +506,26 @@ describe('TM-10 second half — paging, sorting, selection, bulk audience', () =
   });
 });
 
+/**
+ * The organization's members, as `GET /v1/organizations/:orgSlug/members` answers — D16.
+ *
+ * The detail screen now reads this list to show who an owner *is* and to offer the people a
+ * transition can name. Every test in the block below gets it, because a screen that renders
+ * without it is not the screen a person uses.
+ */
+const MEMBERS = {
+  members: [
+    { userId: 'user-1', displayName: 'Ada Okonkwo', role: 'member', status: 'active' },
+    { userId: 'user-omar', displayName: 'Omar Haddad', role: 'manager', status: 'active' },
+  ],
+  nextAfter: null,
+};
+
 describe('TM-13 the work item detail', () => {
   function renderDetail(handler: (call: Call) => Response) {
-    const { client, calls } = clientOver(handler);
+    const { client, calls } = clientOver((call) =>
+      call.url.includes('/members') ? json(MEMBERS) : handler(call),
+    );
     render(
       withQuery(
         <WorkItemDetailScreen
@@ -636,7 +653,9 @@ describe('TM-13 the work item detail', () => {
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'blocked');
 
     // Offered, and not marked required — the asterisk is the machine's word, not the form's.
-    const owner = screen.getByLabelText(/Who the ask is on/);
+    // Role-based: the picker's popup carries the same accessible name as its input, so a
+    // label query alone is ambiguous.
+    const owner = screen.getByRole('combobox', { name: /Who the ask is on/ });
     expect(owner).toBeInTheDocument();
     expect(owner).not.toBeRequired();
     expect(screen.getByLabelText(/What is blocking this/)).toBeRequired();
@@ -670,7 +689,11 @@ describe('TM-13 the work item detail', () => {
       screen.getByLabelText(/What you need, and from whom/),
       'The key, from Atlas',
     );
-    await userEvent.type(screen.getByLabelText(/Who the ask is on/), 'user-omar');
+    // D16. The person is chosen by name — nobody types or pastes `user-omar` — and the id is
+    // still what travels. This is the whole finding in one assertion: "Preserve IDs in the
+    // API, not as required human input."
+    await userEvent.type(screen.getByRole('combobox', { name: /Who the ask is on/ }), 'Omar');
+    await userEvent.click(await screen.findByRole('option', { name: /Omar Haddad/ }));
     await userEvent.click(screen.getByRole('button', { name: /Move to Blocked/ }));
 
     await waitFor(() => {
@@ -699,8 +722,10 @@ describe('TM-13 the work item detail', () => {
     await screen.findByLabelText('Move to');
     await userEvent.selectOptions(screen.getByLabelText('Move to'), 'done');
 
-    const owner = screen.getByLabelText(/Who owned this to completion/);
-    expect(owner).toHaveValue('user-1');
+    // Seeded with the item's current owner, and shown as the name that owner has rather than
+    // as the id the row stores.
+    const owner = await screen.findByRole('combobox', { name: /Who owned this to completion/ });
+    await waitFor(() => expect(owner).toHaveValue('Ada Okonkwo · Team member'));
     const completed = screen.getByLabelText(/When it was completed/);
     expect(completed).toHaveAttribute('type', 'datetime-local');
     expect((completed as HTMLInputElement).value).not.toBe('');

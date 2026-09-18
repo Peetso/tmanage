@@ -7,12 +7,15 @@ import { workItemStateMachine } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
 import { Badge, Button, Field, InlineAlert, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { MemberSelect } from '../MemberSelect';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getWorkItem, transitionWorkItem, updateWorkItem } from '../../lib/api/work-items';
 import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
+import { memberDisplayName } from '../../lib/members-presentation';
+import { useMembers } from '../../lib/use-members';
 import {
   audienceLabel,
   formatInstant,
@@ -44,13 +47,23 @@ const FACT_HINT: Record<string, string> = {
   blockerReason: 'Plain words. This is read by whoever picks the item up next.',
   blockerAsk: 'The specific thing that would unblock it, and who can give it.',
   blockerOwnerUserId:
-    'Optional. The user id of the member who can act on the ask, so the blocker shows up in their list rather than only in prose.',
+    'Optional. The member who can act on the ask, so the blocker shows up in their list rather than only in prose.',
   blockerResolution: 'What actually changed. "Resolved" on its own tells nobody anything.',
   ownerId:
-    'The user id of the person accountable for it, not whoever moved the card. Filled in with the current owner when there is one.',
+    'The person accountable for it, not whoever moved the card. Filled in with the current owner when there is one.',
   completedAt: 'When the work was actually finished, which need not be right now.',
   reopenReason: 'What was wrong with it. This is the record when a deliverable comes back.',
 };
+
+/**
+ * The facts that name a person — D16.
+ *
+ * Each of these is stored as a `user_id`, and each was asked for as a text box a person had
+ * to paste a UUID into. They are the two fields the finding is about, and they are listed
+ * here rather than detected by name-shape so that a third one is a decision somebody makes
+ * rather than a regex that happens to match.
+ */
+const MEMBER_FACTS: readonly string[] = ['ownerId', 'blockerOwnerUserId'];
 
 /**
  * `completedAt` is asked for with a date-and-time control rather than as an ISO string a
@@ -207,6 +220,10 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
   const [missing, setMissing] = useState<readonly string[]>([]);
   const [pendingAudience, setPendingAudience] = useState<WorkItemAudience | undefined>(undefined);
 
+  // D16. One query for both the owner line and the pickers, so the name a person reads above
+  // and the name they choose below can never come from two different answers.
+  const directory = useMembers(api, organizationSlug);
+
   const reachable = workItemStateMachine.allowedFrom(item.state);
   const required = target === '' ? [] : workItemStateMachine.requirementsFor(item.state, target);
   const optional = target === '' ? [] : workItemStateMachine.optionalFor(item.state, target);
@@ -287,6 +304,47 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
     onError: handleWriteError,
   });
 
+  /**
+   * One fact, asked for with the control that fits what it is.
+   *
+   * A fact naming a person gets the member picker; everything else keeps the text box it had.
+   * The value the form holds is identical either way — a `user_id` — which is what lets D16 be
+   * fixed here rather than in the state machine, the request body or the API.
+   */
+  function renderFact(fact: string, isRequired: boolean) {
+    const hint = FACT_HINT[fact];
+
+    if (MEMBER_FACTS.includes(fact)) {
+      return (
+        <MemberSelect
+          key={fact}
+          label={FACT_LABEL[fact] ?? fact}
+          name={fact}
+          members={directory.members}
+          value={facts[fact] ?? ''}
+          onChange={(userId) => setFacts({ ...facts, [fact]: userId })}
+          loading={directory.isPending}
+          failed={directory.isError}
+          {...(hint === undefined ? {} : { hint })}
+          {...(isRequired ? { required: true } : {})}
+        />
+      );
+    }
+
+    return (
+      <Field
+        key={fact}
+        label={FACT_LABEL[fact] ?? fact}
+        name={fact}
+        type={fact === 'completedAt' ? 'datetime-local' : 'text'}
+        value={facts[fact] ?? ''}
+        onChange={(event) => setFacts({ ...facts, [fact]: event.target.value })}
+        {...(hint === undefined ? {} : { hint })}
+        {...(isRequired ? { required: true } : {})}
+      />
+    );
+  }
+
   function submitTransition(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (target === '') return;
@@ -314,7 +372,11 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
         <dl className="tm-detail-list">
           <div className="tm-detail-list__pair">
             <dt>Owner</dt>
-            <dd>{item.ownerUserId === null ? 'Unassigned' : 'Assigned'}</dd>
+            {/*
+              D16's acceptance sentence: a member "can see who is accountable". This said
+              "Assigned" — which is the one thing about an owner nobody needed telling.
+            */}
+            <dd>{memberDisplayName(item.ownerUserId, directory.members)}</dd>
           </div>
           <div className="tm-detail-list__pair">
             <dt>Starts</dt>
@@ -412,33 +474,13 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
               </span>
             </div>
 
-            {required.map((fact) => (
-              <Field
-                key={fact}
-                label={FACT_LABEL[fact] ?? fact}
-                name={fact}
-                type={fact === 'completedAt' ? 'datetime-local' : 'text'}
-                value={facts[fact] ?? ''}
-                onChange={(event) => setFacts({ ...facts, [fact]: event.target.value })}
-                {...(FACT_HINT[fact] === undefined ? {} : { hint: FACT_HINT[fact] })}
-                required
-              />
-            ))}
+            {required.map((fact) => renderFact(fact, true))}
 
             {/*
               What the move will take but does not need. Rendered after the requirements and
               never marked required, so the asterisks say exactly what the machine says.
             */}
-            {optional.map((fact) => (
-              <Field
-                key={fact}
-                label={FACT_LABEL[fact] ?? fact}
-                name={fact}
-                value={facts[fact] ?? ''}
-                onChange={(event) => setFacts({ ...facts, [fact]: event.target.value })}
-                {...(FACT_HINT[fact] === undefined ? {} : { hint: FACT_HINT[fact] })}
-              />
-            ))}
+            {optional.map((fact) => renderFact(fact, false))}
 
             {target !== '' && required.length === 0 && optional.length === 0 ? (
               <p className="tm-prose">This move needs nothing else from you.</p>
