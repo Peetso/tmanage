@@ -12,6 +12,7 @@ import { developmentSignIn } from '../../lib/api/session';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
+import { useHydrated } from '../../lib/use-hydrated';
 
 export interface SignInScreenProps {
   /** Injected in tests. Defaults to the browser client. */
@@ -74,6 +75,14 @@ export function SignInScreen({
   boundary = authBoundary,
 }: SignInScreenProps) {
   const api = client ?? browserApiClient();
+
+  /**
+   * There is no query to gate the fields on — this is a cold sign-in page, and email and
+   * password are the most damaging things to lose to the hydration wipe. So the controls are
+   * disabled until React is live: the server render has `hydrated === false`, ships the fields
+   * disabled, and the first render after hydration enables them.
+   */
+  const hydrated = useHydrated();
 
   /**
    * A new principal is a boundary (review finding D01). Announced before the caller
@@ -196,52 +205,54 @@ export function SignInScreen({
         associated with the field for a screen reader, and gone on the next click.
       */}
       <form className="tm-stack" noValidate onSubmit={submit}>
-        <Field
-          label="Work email"
-          type="email"
-          name="email"
-          autoComplete="username"
-          inputMode="email"
-          // 22 §3: "Mobile/RTL: single column; email direction remains LTR."
-          dir="ltr"
-          value={email}
-          onChange={(event) => {
-            setEmail(event.target.value);
-            setFailure(undefined);
-          }}
-          required
-        />
-        <Field
-          label="Password"
-          type="password"
-          name="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => {
-            setPassword(event.target.value);
-            setFailure(undefined);
-          }}
-          required
-        />
+        <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+          <Field
+            label="Work email"
+            type="email"
+            name="email"
+            autoComplete="username"
+            inputMode="email"
+            // 22 §3: "Mobile/RTL: single column; email direction remains LTR."
+            dir="ltr"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setFailure(undefined);
+            }}
+            required
+          />
+          <Field
+            label="Password"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setFailure(undefined);
+            }}
+            required
+          />
 
-        {failure ? (
-          <InlineAlert tone="danger" title="Could not sign you in" live>
-            {failure}
-          </InlineAlert>
-        ) : null}
+          {failure ? (
+            <InlineAlert tone="danger" title="Could not sign you in" live>
+              {failure}
+            </InlineAlert>
+          ) : null}
 
-        <div className="tm-row">
-          <Button
-            type="submit"
-            tone="ink"
-            size="accessible"
-            loading={signingIn}
-            loadingLabel="Signing in"
-          >
-            Sign in
-          </Button>
-          <Link href="/recover">Forgot access</Link>
-        </div>
+          <div className="tm-row">
+            <Button
+              type="submit"
+              tone="ink"
+              size="accessible"
+              loading={signingIn}
+              loadingLabel="Signing in"
+            >
+              Sign in
+            </Button>
+            <Link href="/recover">Forgot access</Link>
+          </div>
+        </fieldset>
       </form>
 
       <InlineAlert tone="neutral">
@@ -259,26 +270,28 @@ export function SignInScreen({
           </p>
 
           <form className="tm-stack" noValidate onSubmit={submitDevelopmentSignIn}>
-            <Field
-              label="User id"
-              name="userId"
-              value={userId}
-              onChange={(event) => setUserId(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              hint="The uuid of an existing row in users."
-              {...(developmentFailure === undefined ? {} : { error: developmentFailure })}
-            />
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="lime"
-                loading={developmentState === 'working'}
-                loadingLabel="Starting a session"
-              >
-                Start a development session
-              </Button>
-            </div>
+            <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+              <Field
+                label="User id"
+                name="userId"
+                value={userId}
+                onChange={(event) => setUserId(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                hint="The uuid of an existing row in users."
+                {...(developmentFailure === undefined ? {} : { error: developmentFailure })}
+              />
+              <div className="tm-row">
+                <Button
+                  type="submit"
+                  tone="lime"
+                  loading={developmentState === 'working'}
+                  loadingLabel="Starting a session"
+                >
+                  Start a development session
+                </Button>
+              </div>
+            </fieldset>
           </form>
 
           {developmentState === 'signed-in' ? (

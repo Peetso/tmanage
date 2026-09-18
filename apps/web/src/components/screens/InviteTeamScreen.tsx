@@ -14,6 +14,7 @@ import {
   type InviteCandidate,
 } from '../../lib/invitations';
 import type { ApiClient } from '../../lib/api/client';
+import { useHydrated } from '../../lib/use-hydrated';
 
 export interface InviteTeamScreenProps {
   signedInAs: string;
@@ -79,6 +80,11 @@ export function InviteTeamScreen({
   client,
 }: InviteTeamScreenProps) {
   const api = client ?? browserApiClient();
+
+  // The add-an-address form has no query behind it, so it gates on the hydration signal: the
+  // draft email input ships disabled in the server HTML and becomes editable only once React is
+  // live, so an address typed on a cold page is not silently wiped by hydration.
+  const hydrated = useHydrated();
 
   const [draftEmail, setDraftEmail] = useState('');
   const [draftRole, setDraftRole] = useState<string>(INVITABLE_ROLES[0] ?? 'member');
@@ -183,44 +189,46 @@ export function InviteTeamScreen({
           add();
         }}
       >
-        <Field
-          label="Email address"
-          name="email"
-          type="email"
-          value={draftEmail}
-          onChange={(event) => {
-            setDraftEmail(event.target.value);
-            setDraftError(undefined);
-          }}
-          dir="ltr"
-          autoComplete="off"
-          placeholder={`name@${organizationDomain}`}
-          {...(draftError === undefined ? {} : { error: draftError })}
-        />
+        <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+          <Field
+            label="Email address"
+            name="email"
+            type="email"
+            value={draftEmail}
+            onChange={(event) => {
+              setDraftEmail(event.target.value);
+              setDraftError(undefined);
+            }}
+            dir="ltr"
+            autoComplete="off"
+            placeholder={`name@${organizationDomain}`}
+            {...(draftError === undefined ? {} : { error: draftError })}
+          />
 
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-invite-role">
-            Role
-          </label>
-          <select
-            id="tm-invite-role"
-            className="tm-field__control"
-            value={draftRole}
-            onChange={(event) => setDraftRole(event.target.value)}
-          >
-            {INVITABLE_ROLES.map((option) => (
-              <option key={option} value={option}>
-                {describeInternalRole(option).label}
-              </option>
-            ))}
-          </select>
-        </div>
+          <div className="tm-field">
+            <label className="tm-field__label" htmlFor="tm-invite-role">
+              Role
+            </label>
+            <select
+              id="tm-invite-role"
+              className="tm-field__control"
+              value={draftRole}
+              onChange={(event) => setDraftRole(event.target.value)}
+            >
+              {INVITABLE_ROLES.map((option) => (
+                <option key={option} value={option}>
+                  {describeInternalRole(option).label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="tm-row">
-          <Button type="submit" tone="outline">
-            Add to the list
-          </Button>
-        </div>
+          <div className="tm-row">
+            <Button type="submit" tone="outline">
+              Add to the list
+            </Button>
+          </div>
+        </fieldset>
       </form>
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-role-preview">

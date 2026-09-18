@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SignInScreen } from '../src/components/screens/SignInScreen';
@@ -66,6 +67,19 @@ async function signIn(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('signing in with a password', () => {
+  // No query gates this cold page, so the fields ship inside a hydration-disabled fieldset: a
+  // keystroke landed before React hydrates cannot be silently wiped. Enabled once hydrated.
+  it('ships the fields disabled on the server render and enables them once hydrated', () => {
+    const { client } = clientOver(() => json(AUTHENTICATED));
+
+    const ssr = renderToString(<SignInScreen client={client} developmentSignInEnabled={false} />);
+    expect(ssr).toMatch(/<fieldset[^>]*\bdisabled\b/);
+
+    render(<SignInScreen client={client} developmentSignInEnabled={false} />);
+    expect(screen.getByLabelText(/Work email/)).toBeEnabled();
+    expect(screen.getByLabelText(/^Password/)).toBeEnabled();
+  });
+
   it('posts the credentials to the real endpoint', async () => {
     const user = userEvent.setup();
     const onSignedIn = vi.fn();

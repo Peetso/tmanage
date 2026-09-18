@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { completeMfaChallenge, completeWithRecoveryCode } from '../../lib/api/auth';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useHydrated } from '../../lib/use-hydrated';
 
 export interface MfaChallengeScreenProps {
   client?: ApiClient;
@@ -64,6 +65,13 @@ export function MfaChallengeScreen({
   onCompleted,
 }: MfaChallengeScreenProps) {
   const api = client ?? browserApiClient();
+
+  // Reached at its own route, the method radios and the code field are controlled inputs in the
+  // server HTML with no query to gate them. They hang on the hydration signal instead — disabled
+  // in the server render, enabled once React is live — so a code typed on a cold page survives
+  // hydration. In the sign-in flow this screen is only ever mounted after React is already live,
+  // where the signal is already true and the gate is a no-op.
+  const hydrated = useHydrated();
 
   const [method, setMethod] = useState<Method>('code');
   const [value, setValue] = useState('');
@@ -127,100 +135,102 @@ export function MfaChallengeScreen({
         </InlineAlert>
       ) : null}
 
-      <fieldset className="tm-fieldset">
-        <legend className="tm-field__label">How do you want to verify?</legend>
-        <div className="tm-stack tm-stack--tight">
-          <label className="tm-choice">
-            <input
-              className="tm-choice__input"
-              type="radio"
-              name="method"
-              value="code"
-              checked={method === 'code'}
-              onChange={() => {
-                setMethod('code');
-                setValue('');
+      <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+        <fieldset className="tm-fieldset">
+          <legend className="tm-field__label">How do you want to verify?</legend>
+          <div className="tm-stack tm-stack--tight">
+            <label className="tm-choice">
+              <input
+                className="tm-choice__input"
+                type="radio"
+                name="method"
+                value="code"
+                checked={method === 'code'}
+                onChange={() => {
+                  setMethod('code');
+                  setValue('');
+                  setFailure(undefined);
+                }}
+              />
+              <span className="tm-choice__name">A code from your authenticator</span>
+              <span className="tm-choice__detail">Six digits, from {factorLabel}.</span>
+            </label>
+            <label className="tm-choice">
+              <input
+                className="tm-choice__input"
+                type="radio"
+                name="method"
+                value="recovery"
+                checked={method === 'recovery'}
+                onChange={() => {
+                  setMethod('recovery');
+                  setValue('');
+                  setFailure(undefined);
+                }}
+              />
+              <span className="tm-choice__name">A recovery code</span>
+              <span className="tm-choice__detail">
+                One of the ten you saved. Each one works once.
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <form className="tm-stack" noValidate onSubmit={submit}>
+          {method === 'code' ? (
+            <Field
+              label="Six-digit code"
+              name="code"
+              value={value}
+              onChange={(event) => {
+                setValue(event.target.value);
                 setFailure(undefined);
               }}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={7}
+              // Codes are digits in every locale, so the field stays LTR in an RTL document.
+              dir="ltr"
+              hint="From your authenticator app."
+              disabled={rateLimited}
             />
-            <span className="tm-choice__name">A code from your authenticator</span>
-            <span className="tm-choice__detail">Six digits, from {factorLabel}.</span>
-          </label>
-          <label className="tm-choice">
-            <input
-              className="tm-choice__input"
-              type="radio"
-              name="method"
-              value="recovery"
-              checked={method === 'recovery'}
-              onChange={() => {
-                setMethod('recovery');
-                setValue('');
+          ) : (
+            <Field
+              label="Recovery code"
+              name="recoveryCode"
+              value={value}
+              onChange={(event) => {
+                setValue(event.target.value);
                 setFailure(undefined);
               }}
+              autoComplete="one-time-code"
+              spellCheck={false}
+              dir="ltr"
+              hint="Ten characters, in two groups. Case and hyphens do not matter."
+              disabled={rateLimited}
             />
-            <span className="tm-choice__name">A recovery code</span>
-            <span className="tm-choice__detail">
-              One of the ten you saved. Each one works once.
-            </span>
-          </label>
-        </div>
+          )}
+
+          {failure ? (
+            <InlineAlert tone="danger" title="That did not work" live>
+              {failure}
+            </InlineAlert>
+          ) : null}
+
+          <div className="tm-row">
+            <Button
+              type="submit"
+              tone="ink"
+              size="accessible"
+              disabled={rateLimited || challengeToken === undefined}
+              loading={working}
+              loadingLabel="Verifying"
+            >
+              Verify
+            </Button>
+          </div>
+        </form>
       </fieldset>
-
-      <form className="tm-stack" noValidate onSubmit={submit}>
-        {method === 'code' ? (
-          <Field
-            label="Six-digit code"
-            name="code"
-            value={value}
-            onChange={(event) => {
-              setValue(event.target.value);
-              setFailure(undefined);
-            }}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={7}
-            // Codes are digits in every locale, so the field stays LTR in an RTL document.
-            dir="ltr"
-            hint="From your authenticator app."
-            disabled={rateLimited}
-          />
-        ) : (
-          <Field
-            label="Recovery code"
-            name="recoveryCode"
-            value={value}
-            onChange={(event) => {
-              setValue(event.target.value);
-              setFailure(undefined);
-            }}
-            autoComplete="one-time-code"
-            spellCheck={false}
-            dir="ltr"
-            hint="Ten characters, in two groups. Case and hyphens do not matter."
-            disabled={rateLimited}
-          />
-        )}
-
-        {failure ? (
-          <InlineAlert tone="danger" title="That did not work" live>
-            {failure}
-          </InlineAlert>
-        ) : null}
-
-        <div className="tm-row">
-          <Button
-            type="submit"
-            tone="ink"
-            size="accessible"
-            disabled={rateLimited || challengeToken === undefined}
-            loading={working}
-            loadingLabel="Verifying"
-          >
-            Verify
-          </Button>
-        </div>
-      </form>
 
       <BackendPending ticket="ID-002 · passkeys">
         &ldquo;Use a passkey on this device&rdquo; and &ldquo;Ask an admin to verify you&rdquo; are
