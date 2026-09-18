@@ -22,21 +22,24 @@ const SESSION: AuthenticatedSession = {
   sessionId: '0198f0aa-0000-7000-8000-0000000000a1',
 };
 const TARGET = '0198f0aa-0000-7000-8000-0000000000b1';
+const CLEARED = ['tm_at=; Max-Age=0', 'tm_at_refresh=; Max-Age=0'];
 
 interface Fakes {
   controller: SessionController;
   revokeSession: ReturnType<typeof vi.fn>;
   revokeOtherSessions: ReturnType<typeof vi.fn>;
+  clearedCookies: ReturnType<typeof vi.fn>;
 }
 
 function build(): Fakes {
   const revokeSession = vi.fn();
   const revokeOtherSessions = vi.fn();
   const authentication = { revokeSession, revokeOtherSessions } as unknown as AuthenticationService;
-  const sessions = {} as unknown as SessionService;
+  const clearedCookies = vi.fn(() => CLEARED);
+  const sessions = { clearedCookies } as unknown as SessionService;
   const config = {} as unknown as ApiConfig;
   const controller = new SessionController(sessions, config, authentication);
-  return { controller, revokeSession, revokeOtherSessions };
+  return { controller, revokeSession, revokeOtherSessions, clearedCookies };
 }
 
 const request = (headers: Record<string, string> = {}, ip?: string) => ({
@@ -44,13 +47,21 @@ const request = (headers: Record<string, string> = {}, ip?: string) => ({
   ...(ip === undefined ? {} : { ip }),
 });
 
+const reply = () => ({ header: vi.fn() });
+
 describe('DELETE /v1/sessions/:sessionId', () => {
   it('forwards the reauth header and source address, and resolves on a real revoke', async () => {
     const { controller, revokeSession } = build();
     revokeSession.mockResolvedValue(true);
+    const r = reply();
 
     await expect(
-      controller.revokeOne(SESSION, TARGET, request({ 'x-reauth-token': 'proof' }, '203.0.113.9')),
+      controller.revokeOne(
+        SESSION,
+        TARGET,
+        request({ 'x-reauth-token': 'proof' }, '203.0.113.9'),
+        r,
+      ),
     ).resolves.toBeUndefined();
 
     expect(revokeSession).toHaveBeenCalledTimes(1);
@@ -66,13 +77,31 @@ describe('DELETE /v1/sessions/:sessionId', () => {
     expect(arg.targetSessionId).toBe(TARGET);
     expect(arg.reauthToken).toBe('proof');
     expect(arg.context.ip).toBe('203.0.113.9');
+    // Revoking another device leaves the caller's own cookies in place.
+    expect(r.header).not.toHaveBeenCalled();
+  });
+
+  it('clears the caller’s cookies when revoking their own current session', async () => {
+    const { controller, revokeSession, clearedCookies } = build();
+    revokeSession.mockResolvedValue(true);
+    const r = reply();
+
+    await controller.revokeOne(
+      SESSION,
+      SESSION.sessionId,
+      request({ 'x-reauth-token': 'proof' }),
+      r,
+    );
+
+    expect(clearedCookies).toHaveBeenCalledTimes(1);
+    expect(r.header).toHaveBeenCalledWith('set-cookie', CLEARED);
   });
 
   it('passes undefined when the reauth header is absent', async () => {
     const { controller, revokeSession } = build();
     revokeSession.mockResolvedValue(true);
 
-    await controller.revokeOne(SESSION, TARGET, request());
+    await controller.revokeOne(SESSION, TARGET, request(), reply());
 
     const arg = revokeSession.mock.calls[0]![0] as { reauthToken?: string };
     expect(arg.reauthToken).toBeUndefined();
@@ -83,7 +112,7 @@ describe('DELETE /v1/sessions/:sessionId', () => {
     revokeSession.mockResolvedValue(false);
 
     await expect(
-      controller.revokeOne(SESSION, TARGET, request({ 'x-reauth-token': 'proof' })),
+      controller.revokeOne(SESSION, TARGET, request({ 'x-reauth-token': 'proof' }), reply()),
     ).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
 
@@ -92,7 +121,7 @@ describe('DELETE /v1/sessions/:sessionId', () => {
     revokeSession.mockRejectedValue(new ReauthenticationRequiredError('reauth_wrong_session'));
 
     const error = await controller
-      .revokeOne(SESSION, TARGET, request({ 'x-reauth-token': 'proof' }))
+      .revokeOne(SESSION, TARGET, request({ 'x-reauth-token': 'proof' }), reply())
       .then(
         () => null,
         (e: unknown) => e,
