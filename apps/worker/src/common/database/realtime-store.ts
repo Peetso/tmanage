@@ -7,10 +7,21 @@ import type { WorkerTransaction } from './worker-database.js';
  *
  * The ticket proved a session; it proves nothing about a conversation. Every subscribe is
  * answered from **current** rows, the same discipline the notification consumers keep: an
- * active internal membership whose role ceiling includes `conversation.read`, and a
- * conversation-membership row for this person on this channel, both inside the ticket's
+ * active internal membership whose role ceiling includes `conversation.read`, a current
+ * relation to the channel's **project** (org-wide scope, or an explicit `project_memberships`
+ * row — the same project gate `authorize()`'s rule 12 applies over HTTP), and a
+ * conversation-membership row for this person on this channel, all inside the ticket's
  * organization. A client principal cannot arrive here at all — no client role holds any
  * conversation capability, and the ceiling check answers that without a special case.
+ *
+ * The project gate closes REVIEW R04's "align the initial check with the HTTP project's
+ * access rules as well": `checkConversationSubscription` used to pass on membership + ceiling
+ * + channel row alone, so a user removed from the project (their `project_memberships` row
+ * revoked) but still carrying a stale `conversation_memberships` row kept receiving that
+ * project's events over the socket, while the HTTP path (`ConversationsService.mayReach`)
+ * would 404 them. A refusal here is the module's ordinary `REFUSED` verdict; the socket layer
+ * answers it with an opaque `{type:'refused'}` frame, so the denial says nothing about which
+ * of the three conditions failed — the same anti-oracle stance the handshake takes.
  */
 
 export interface SubscriptionVerdict {
@@ -37,6 +48,7 @@ export async function checkConversationSubscription(
     readonly role: string;
     readonly next_sequence_no: number;
     readonly is_member: number;
+    readonly may_reach_project: number;
   }
   const rows = await tx.query<readonly Row[]>(
     `SELECT m.role, c.next_sequence_no,
@@ -45,7 +57,16 @@ export async function checkConversationSubscription(
                WHERE cm.organization_id = c.organization_id
                  AND cm.conversation_id = c.id
                  AND cm.user_id = m.user_id
-            ) AS is_member
+            ) AS is_member,
+            (
+              m.has_org_wide_scope = 1
+              OR EXISTS (
+                   SELECT 1 FROM project_memberships pm
+                    WHERE pm.organization_id = c.organization_id
+                      AND pm.project_id = c.project_id
+                      AND pm.user_id = m.user_id
+                 )
+            ) AS may_reach_project
        FROM conversations c
        JOIN memberships m
          ON m.organization_id = c.organization_id
@@ -58,6 +79,11 @@ export async function checkConversationSubscription(
   const row = rows[0];
   if (!row) return REFUSED;
   if (!isRole(row.role) || !hasCapability(row.role, 'conversation.read')) return REFUSED;
+  // The project gate `authorize()` applies over HTTP (rule 12): a channel membership row is
+  // not on its own a licence to the project the channel belongs to. Without this, a revoked
+  // project member with a stale conversation-membership row keeps receiving the project's
+  // events, though the HTTP API would refuse them.
+  if (!row.may_reach_project) return REFUSED;
   if (!row.is_member) return REFUSED;
   return { allowed: true, cursor: Number(row.next_sequence_no) - 1 };
 }

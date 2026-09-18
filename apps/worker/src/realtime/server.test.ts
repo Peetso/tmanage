@@ -30,8 +30,9 @@ const USER = 'user-unit-1';
 const CONV = 'conv-unit-1';
 
 // The shape `checkConversationSubscription` reads: an active `owner` membership (a role that
-// holds `conversation.read`) that is a member of the channel, and the channel's next sequence.
-const ALLOWED_ROWS = [{ role: 'owner', next_sequence_no: 1, is_member: 1 }];
+// holds `conversation.read`) that is a member of the channel and can reach its project (an
+// owner does through org-wide scope), and the channel's next sequence.
+const ALLOWED_ROWS = [{ role: 'owner', next_sequence_no: 1, is_member: 1, may_reach_project: 1 }];
 const REFUSED_ROWS: readonly unknown[] = [];
 
 const eventFrame: RealtimeEventFrame = {

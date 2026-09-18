@@ -44,7 +44,8 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *    mint itself); the socket refuses a bad or absent ticket with 4401 and no detail.
  * 2. **"Subscription request names authorized resource."** A channel member subscribes and
  *    is answered; an internal non-member is refused; another tenant's conversation id is
- *    refused indistinguishably.
+ *    refused indistinguishably; and a non-org-wide member of the channel is refused the
+ *    moment their `project_memberships` row goes, stale channel row and all (x33's gate).
  * 3. **"Server returns current cursor."** The cursor is the allocator's last handed-out
  *    sequence, asserted against the number of messages actually posted.
  * 4. **Broadcasts are safe projections.** A message posted through the ordinary service,
@@ -344,6 +345,32 @@ describe('subscriptions, against current rows', () => {
     expect(frame['sequence']).toBe(2);
     expect(JSON.stringify(frame)).not.toContain('Thursday');
     expect(JSON.stringify(frame)).not.toContain('Confidential');
+    client.socket.close();
+  });
+
+  // The project half of the gate, against real rows. Every case above subscribes as the
+  // owner, whose `has_org_wide_scope = 1` short-circuits the check; Omar is a manager with
+  // no org-wide scope, so for him the `project_memberships` sub-select decides.
+  it('a non-org-wide project member subscribes once they hold the channel row', async () => {
+    await conversations.addMember(ownerCtx, owner, conversationId, world.northstar.manager.id);
+
+    const client = await connectAs(world.northstar.manager.id);
+    client.socket.send(JSON.stringify({ type: 'subscribe', conversationId }));
+    expect(await client.next()).toMatchObject({ type: 'subscribed', conversationId });
+    client.socket.close();
+  });
+
+  it('and is refused the moment the project row goes, stale channel row and all', async () => {
+    // One fact changes from the case above; the channel row stays, which is the point: a
+    // stale `conversation_memberships` row must not keep a removed project member on air.
+    await db.admin.execute(
+      'delete from project_memberships where organization_id = ? and project_id = ? and user_id = ?',
+      [world.northstar.organizationId, world.northstar.projectId, world.northstar.manager.id],
+    );
+
+    const client = await connectAs(world.northstar.manager.id);
+    client.socket.send(JSON.stringify({ type: 'subscribe', conversationId }));
+    expect(await client.next()).toEqual({ type: 'refused', conversationId });
     client.socket.close();
   });
 });
