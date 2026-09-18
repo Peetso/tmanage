@@ -8,8 +8,14 @@ import {
   createClientRequestSubmittedMail,
   createClientRequestTransitionedMail,
 } from './client-request-mail.js';
+import { createCredentialChangeMail } from './credential-change-mail.js';
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
-import type { OutboxHandler, OutboxHandlers } from '../outbox/dispatcher.js';
+import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
+import {
+  CREDENTIAL_CHANGE_NOTICE_TYPE,
+  type ClaimedCredentialNotice,
+} from '../common/database/notice-store.js';
+import type { OutboxHandler, OutboxHandlers, QueueHandlers } from '../outbox/dispatcher.js';
 
 /**
  * The registry `main.ts` runs, keyed by the type each consumer answers to. A file of its own
@@ -45,6 +51,8 @@ export function both(first: OutboxHandler, second: OutboxHandler): OutboxHandler
 export interface WorkerConsumerDependencies {
   /** Absent, or present-but-disabled, means the client-request mail half is not registered. */
   readonly clientRequestMailer?: ClientRequestMailer | undefined;
+  /** Absent, or present-but-disabled, means the notice queue drains without sending — x31. */
+  readonly credentialChangeMailer?: CredentialChangeMailer | undefined;
 }
 
 export function createWorkerOutboxHandlers(
@@ -77,3 +85,26 @@ export function createWorkerOutboxHandlers(
  * database suites run, and what `main.ts` falls back to with no mail transport configured.
  */
 export const WORKER_OUTBOX_HANDLERS: OutboxHandlers = createWorkerOutboxHandlers();
+
+/**
+ * The notice queue's handlers — x31. One key, one consumer, for the reason
+ * `notice-store.ts` gives: `credential_change_notices` has exactly one row shape, and
+ * `action` picks a template rather than a consumer.
+ *
+ * With no transport, the set is **empty** rather than a handler that returns immediately.
+ * That is not a cosmetic choice: an empty set makes every notice an item with no consumer,
+ * which the dispatcher publishes and stamps — so a worker with no mail configured drains the
+ * queue instead of growing an unbounded tail that would page an operator about a deployment
+ * that is behaving exactly as configured.
+ */
+export function createWorkerNoticeHandlers(
+  dependencies: WorkerConsumerDependencies = {},
+): QueueHandlers<ClaimedCredentialNotice> {
+  const mailer = dependencies.credentialChangeMailer;
+  if (mailer === undefined || !mailer.enabled) return {};
+  return { [CREDENTIAL_CHANGE_NOTICE_TYPE]: createCredentialChangeMail(mailer) };
+}
+
+/** The dependency-free notice set: drain and stamp, send nothing. */
+export const WORKER_NOTICE_HANDLERS: QueueHandlers<ClaimedCredentialNotice> =
+  createWorkerNoticeHandlers();

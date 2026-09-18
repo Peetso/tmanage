@@ -110,11 +110,14 @@
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
 --
 -- **`tmanage_worker`** — the outbox relay.
---   · `SELECT` on exactly fourteen tables: outbox_events, client_requests, users,
+--   · `SELECT` on exactly fifteen tables: outbox_events, client_requests, users,
 --     organizations, projects, memberships, project_memberships, client_memberships,
 --     project_clients, conversations, conversation_memberships, notifications, work_items,
---     idempotency_records — and on **no** others, which is the whole of D07
+--     idempotency_records, credential_change_notices — and on **no** others, which is the
+--     whole of D07
 --   · `INSERT, UPDATE` on: outbox_events, idempotency_records
+--   · `UPDATE` on: credential_change_notices — x31 drains it; the row is never created or
+--     destroyed by the relay, only claimed, stamped and (on failure) rescheduled
 --   · `UPDATE` on: work_items, client_requests
 --   · `INSERT` on: audit_events, notifications
 --   · `DELETE` nowhere, no database-wide grant of any kind, and nothing whatever on
@@ -307,6 +310,15 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_worker'@'%';
 -- schedule and the parked-event report (`outbox-store.ts`).
 GRANT SELECT ON `tmanage`.`outbox_events`            TO 'tmanage_worker'@'%';
 
+-- `D05d` / x31: the credential-change notice queue, drained by the same dispatcher over its
+-- own table (`notice-store.ts`). SELECT and UPDATE and nothing else — the API is the only
+-- writer of a notice (INSERT is `tmanage_app`'s, further up) and DELETE is withheld from this
+-- account everywhere. The queue's presence here does **not** widen what a leaked relay
+-- credential is worth: 0020 keeps every secret, address and user agent out of the table, and
+-- `user_passwords`, `user_mfa_factors`, `user_recovery_codes` and `authentication_events`
+-- remain unreachable by this account entirely.
+GRANT SELECT ON `tmanage`.`credential_change_notices` TO 'tmanage_worker'@'%';
+
 -- PLAT-004's lifecycle rule reads the request the work item was born from and its version
 -- (`lifecycle-store.ts`); NOTIF-002's mail joins the three rows an email renders it with —
 -- who submitted it, which studio, which project (`mail-store.ts`). `users` is here for the
@@ -346,6 +358,9 @@ GRANT SELECT ON `tmanage`.`idempotency_records`      TO 'tmanage_worker'@'%';
 -- so SELECT would be privilege granted against no statement. `INSERT` alone, below.
 
 GRANT INSERT, UPDATE ON `tmanage`.`outbox_events`       TO 'tmanage_worker'@'%';
+-- x31's drain: `attempts`, `available_at`, `last_error`, `published_at`. No INSERT — the
+-- notice is written by the transaction that changed the credential, on the API's credential.
+GRANT UPDATE         ON `tmanage`.`credential_change_notices` TO 'tmanage_worker'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`idempotency_records` TO 'tmanage_worker'@'%';
 GRANT UPDATE         ON `tmanage`.`work_items`          TO 'tmanage_worker'@'%';
 GRANT INSERT         ON `tmanage`.`audit_events`        TO 'tmanage_worker'@'%';

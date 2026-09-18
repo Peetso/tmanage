@@ -129,6 +129,29 @@ export function evaluateOutboxHealth(input: OutboxHealthInput): OutboxHealth {
   };
 }
 
+/**
+ * Two queues, one verdict — x31.
+ *
+ * The relay drains `outbox_events` and `credential_change_notices`, and an operator asks one
+ * question of the process, not one per table: is anything undelivered, and for how long. So
+ * `--status` and `--once` evaluate health over the *sum* — pending and parked added, the age
+ * taken from whichever queue has waited longest — and the JSON line keeps the shape a monitor
+ * already parses. A parked notice therefore raises the same page and the same exit code as a
+ * parked event, which is the whole of "visible to health".
+ *
+ * `null` survives only when **every** queue is drained: one pending row anywhere is an age.
+ */
+export function mergeBacklogs(...backlogs: readonly OutboxBacklog[]): OutboxBacklog {
+  const ages = backlogs
+    .map((backlog) => backlog.oldestPendingSeconds)
+    .filter((age): age is number => age !== null);
+  return {
+    pending: backlogs.reduce((total, backlog) => total + backlog.pending, 0),
+    parked: backlogs.reduce((total, backlog) => total + backlog.parked, 0),
+    oldestPendingSeconds: ages.length === 0 ? null : Math.max(...ages),
+  };
+}
+
 /** `true` when the backlog alone is past its threshold — the loop's `not draining` condition. */
 export function backlogIsStale(backlog: OutboxBacklog, maxAgeSeconds: number): boolean {
   const oldest = backlog.oldestPendingSeconds;

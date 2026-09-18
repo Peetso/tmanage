@@ -12,9 +12,9 @@ import {
   withSavepoint,
 } from '../common/database/outbox-store.js';
 import type {
+  ClaimOptions,
   ClaimedOutboxEvent,
   OutboxBacklog,
-  ParkedOutboxEvent,
 } from '../common/database/outbox-store.js';
 import { backoffDelayMs } from './backoff.js';
 
@@ -65,6 +65,19 @@ import { backoffDelayMs } from './backoff.js';
  * claimed again (`attempts < maxAttempts` is in the claim predicate), and surfaced in
  * every report so the failure is an operator's page rather than a permanent retry hum.
  *
+ * ## One loop, more than one queue — x31
+ *
+ * `credential_change_notices` (migration 0020) is the same append-and-drain shape with the
+ * tenant column removed: a credential is not tenant-owned and is written on the identity
+ * path, which physically cannot touch `outbox_events`. Rather than hand-roll a second loop
+ * — re-proving claim, attempts, backoff and parking for a security-adjacent queue — the
+ * batch below takes a {@link QueueStore}: the *statements* are per table, because MySQL
+ * cannot bind a table name, and everything above them (the two-phase claim, the savepoint,
+ * the refund, the parking arithmetic, the after-commit seam) is this one function. The
+ * outbox keeps its own reviewed statements untouched, bound to the port by
+ * {@link OUTBOX_QUEUE}; {@link runOutboxBatch} and {@link runOutboxLoop} are the same calls
+ * they always were.
+ *
  * ## After-commit effects, and why they exist
  *
  * A handler runs *inside* the batch transaction, which is right for everything that writes
@@ -111,13 +124,88 @@ export interface OutboxEffects {
   afterCommit(effect: OutboxEffect): void;
 }
 
-export type OutboxHandler = (
-  event: ClaimedOutboxEvent,
+/**
+ * The least the batch needs of a claimed row, whatever queue it came from: which row it is,
+ * which handler it is for, and how many deliveries have been started on it.
+ */
+export interface QueueItem {
+  readonly id: string;
+  /**
+   * The dispatch key. On `outbox_events` it is the event's `type` column; a queue whose rows
+   * all have one shape — the credential notices — supplies a constant, because a `type`
+   * column with one value would be a column nobody reads.
+   */
+  readonly type: string;
+  readonly attempts: number;
+}
+
+export type QueueHandler<TItem extends QueueItem> = (
+  item: TItem,
   tx: WorkerTransaction,
   effects: OutboxEffects,
 ) => Promise<void>;
 
-export type OutboxHandlers = Readonly<Record<string, OutboxHandler>>;
+export type QueueHandlers<TItem extends QueueItem> = Readonly<Record<string, QueueHandler<TItem>>>;
+
+export type OutboxHandler = QueueHandler<ClaimedOutboxEvent>;
+
+export type OutboxHandlers = QueueHandlers<ClaimedOutboxEvent>;
+
+/**
+ * A parked row as every report names it. `organizationId` is `null` for a queue whose rows
+ * are not tenant-owned: a credential change belongs to a person, not to one of the
+ * organizations they are a member of, and inventing one for the log would be the same
+ * fiction `0020_credential_change_notices.sql` refuses to store.
+ */
+export interface ParkedQueueRow {
+  readonly id: string;
+  readonly organizationId: string | null;
+  readonly type: string;
+  readonly attempts: number;
+  readonly lastError: string | null;
+}
+
+/**
+ * One drainable queue, as the batch sees it — the seam that lets a second table reuse this
+ * loop instead of copying it.
+ *
+ * Every method is a store function from `common/database/`, the one directory permitted to
+ * spell SQL. Nothing here takes a table name: each implementation names its own table as a
+ * literal in its own statements, so a queue cannot be selected by a value that reached the
+ * process from outside it.
+ */
+export interface QueueStore<TItem extends QueueItem> {
+  /** For the operator's log and nothing else — never interpolated into a statement. */
+  readonly name: string;
+  reserveDue(tx: WorkerTransaction, options: ClaimOptions): Promise<readonly string[]>;
+  claimReserved(tx: WorkerTransaction, ids: readonly string[]): Promise<readonly TItem[]>;
+  markPublished(tx: WorkerTransaction, id: string): Promise<void>;
+  recordFailure(
+    tx: WorkerTransaction,
+    id: string,
+    error: string,
+    nextAvailableAt: Date,
+  ): Promise<void>;
+  releaseReserved(tx: WorkerTransaction, ids: readonly string[]): Promise<void>;
+  listParked(
+    tx: WorkerTransaction,
+    maxAttempts: number,
+    limit: number,
+  ): Promise<readonly ParkedQueueRow[]>;
+  readBacklog(tx: WorkerTransaction, maxAttempts: number): Promise<OutboxBacklog>;
+}
+
+/** `outbox_events`, bound to the port. The statements are `outbox-store.ts`'s, unchanged. */
+export const OUTBOX_QUEUE: QueueStore<ClaimedOutboxEvent> = {
+  name: 'outbox',
+  reserveDue: reserveDueEvents,
+  claimReserved: claimReservedEvents,
+  markPublished,
+  recordFailure,
+  releaseReserved: releaseReservedAttempts,
+  listParked: listParkedEvents,
+  readBacklog: readOutboxBacklog,
+};
 
 export interface DispatcherOptions {
   readonly batchSize: number;
@@ -152,7 +240,7 @@ export interface BatchReport {
   readonly failed: number;
   readonly failures: readonly EventFailure[];
   /** Every parked event visible at the end of the batch, this batch's casualties included. */
-  readonly parked: readonly ParkedOutboxEvent[];
+  readonly parked: readonly ParkedQueueRow[];
   /**
    * The queue as it stands just after the batch committed — CRITICAL-2's measurement. Taken on
    * `database.read`, outside the batch transaction (IMPORTANT-D), so its full scan holds no row
@@ -176,6 +264,19 @@ export async function runOutboxBatch(
   handlers: OutboxHandlers,
   options: DispatcherOptions,
 ): Promise<BatchReport> {
+  return runQueueBatch(database, OUTBOX_QUEUE, handlers, options);
+}
+
+/**
+ * The batch itself, over any {@link QueueStore} — what {@link runOutboxBatch} has always
+ * done, with the four statements it issues taken from the store rather than imported.
+ */
+export async function runQueueBatch<TItem extends QueueItem>(
+  database: WorkerDatabase,
+  store: QueueStore<TItem>,
+  handlers: QueueHandlers<TItem>,
+  options: DispatcherOptions,
+): Promise<BatchReport> {
   interface StagedEffect {
     readonly eventId: string;
     readonly type: string;
@@ -190,7 +291,7 @@ export async function runOutboxBatch(
   // attempt is counted on durable storage, so a handler that kills the process costs its row
   // an attempt instead of costing it nothing. See `reserveDueEvents`.
   const reserved = await database.transaction((tx) =>
-    reserveDueEvents(tx, { limit: options.batchSize, maxAttempts: options.maxAttempts }),
+    store.reserveDue(tx, { limit: options.batchSize, maxAttempts: options.maxAttempts }),
   );
 
   let batchResult: Omit<BatchReport, 'backlog' | 'effects' | 'effectFailures'>;
@@ -201,7 +302,7 @@ export async function runOutboxBatch(
       // the blame for a transaction loss that attempt did not suffer.
       committedEffects = [];
       transactionLostEventId = null;
-      const events = await claimReservedEvents(tx, reserved);
+      const events = await store.claimReserved(tx, reserved);
 
       let published = 0;
       let unhandled = 0;
@@ -211,7 +312,7 @@ export async function runOutboxBatch(
         const handler = handlers[event.type];
 
         if (!handler) {
-          await markPublished(tx, event.id);
+          await store.markPublished(tx, event.id);
           published += 1;
           unhandled += 1;
           continue;
@@ -228,7 +329,7 @@ export async function runOutboxBatch(
 
         try {
           await withSavepoint(tx, () => handler(event, tx, effects));
-          await markPublished(tx, event.id);
+          await store.markPublished(tx, event.id);
           published += 1;
           for (const run of staged) {
             committedEffects.push({ eventId: event.id, type: event.type, run });
@@ -249,7 +350,7 @@ export async function runOutboxBatch(
           // Already incremented by the reservation — `attempts` counts this delivery.
           const attempts = event.attempts;
           const delay = backoffDelayMs(attempts, options.backoffBaseMs, options.backoffCapMs);
-          await recordFailure(tx, event.id, messageOf(error), new Date(Date.now() + delay));
+          await store.recordFailure(tx, event.id, messageOf(error), new Date(Date.now() + delay));
           failures.push({
             eventId: event.id,
             type: event.type,
@@ -261,7 +362,7 @@ export async function runOutboxBatch(
 
       // Reported from inside the same transaction, so the batch's own casualties are already
       // visible. The limit keeps a pathological backlog from turning a report into a dump.
-      const parked = await listParkedEvents(tx, options.maxAttempts, 100);
+      const parked = await store.listParked(tx, options.maxAttempts, 100);
 
       return {
         claimed: events.length,
@@ -302,7 +403,7 @@ export async function runOutboxBatch(
     const refundable = reserved.filter((id) => id !== transactionLostEventId);
     if (refundable.length > 0 && isRecoverableBatchError(error)) {
       try {
-        await database.transaction((tx) => releaseReservedAttempts(tx, refundable));
+        await database.transaction((tx) => store.releaseReserved(tx, refundable));
       } catch {
         // Best effort. If even the refund cannot run, the rows keep an extra attempt, which is
         // the safe direction — they park rather than retry for ever. The original failure is
@@ -330,7 +431,7 @@ export async function runOutboxBatch(
   // `FOR UPDATE` row locks for its whole duration and, worse, a `max_execution_time` kill on it
   // aborted the entire batch — feeding CRITICAL-B exactly when a backlog made the scan slowest.
   // A plain `SELECT` is a consistent non-locking read, so `--status` already reads it this way.
-  const backlog = await database.read((tx) => readOutboxBacklog(tx, options.maxAttempts));
+  const backlog = await database.read((tx) => store.readBacklog(tx, options.maxAttempts));
 
   return { ...batchResult, backlog, effects: committedEffects.length, effectFailures };
 }
@@ -390,12 +491,26 @@ export async function runOutboxLoop(
   handlers: OutboxHandlers,
   options: LoopOptions,
 ): Promise<void> {
+  return runQueueLoop(database, OUTBOX_QUEUE, handlers, options);
+}
+
+/**
+ * {@link runOutboxLoop} over any {@link QueueStore}. Each queue gets its own loop and its own
+ * `consecutiveErrors`, so a notice table that cannot be read backs itself off without
+ * slowing the outbox, and a `signal` aborted once stops both.
+ */
+export async function runQueueLoop<TItem extends QueueItem>(
+  database: WorkerDatabase,
+  store: QueueStore<TItem>,
+  handlers: QueueHandlers<TItem>,
+  options: LoopOptions,
+): Promise<void> {
   let consecutiveErrors = 0;
   while (!options.signal?.aborted) {
     let claimed = 0;
     let errored = false;
     try {
-      const report = await runOutboxBatch(database, handlers, options);
+      const report = await runQueueBatch(database, store, handlers, options);
       claimed = report.claimed;
       consecutiveErrors = 0;
       options.onBatch?.(report);
