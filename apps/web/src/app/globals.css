@@ -875,6 +875,35 @@ body {
   margin: 0;
 }
 
+/*
+ * The storage-usage meter (USAGE-001, the billing screen). One bar, a neutral ink fill on a
+ * quiet track — no threshold colour, because the band is a separate counter and lime is
+ * reserved for current/next/live. The fill grows on the inline axis, so it fills from the
+ * inline-start in both LTR and RTL, and every colour is a token so dark mode inverts with the
+ * theme. The accessible value lives on the `progressbar` element; this is only its paint.
+ */
+.tm-usage-meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-usage-meter__track {
+  block-size: 0.75rem;
+  inline-size: 100%;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  overflow: hidden;
+}
+
+.tm-usage-meter__fill {
+  block-size: 100%;
+  min-inline-size: 0;
+  background: var(--ink-800);
+  border-radius: var(--r-capsule);
+}
+
 /* A row of checkboxes reads as a row, and wraps rather than overflowing. */
 .tm-row--wrap {
   flex-wrap: wrap;
