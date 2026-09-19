@@ -56,6 +56,7 @@ import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/s
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
+import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
@@ -106,6 +107,7 @@ import type {
   ProjectSummary as WebProjectSummary,
   WorkspaceSummary as WebWorkspaceSummary,
 } from '../../apps/web/src/lib/api/projects';
+import type { RealtimeTicket as WebRealtimeTicket } from '../../apps/web/src/lib/api/realtime';
 import type {
   EstablishedSession as WebEstablishedSession,
   SessionSummary as WebSessionSummary,
@@ -253,11 +255,9 @@ type _mfaRequired = Assert<Exact<ApiChallengeResponseView, WebMfaRequiredRespons
  * internal projection uses `Date`), so the web declarations pair Exact.
  *
  * A fourth — `RealtimeTicketView` (POST …/realtime/tickets) — is authored in
- * `realtime.controller.ts` because `RealtimeModule` has no service to hold it, so
- * `scripts/contracts-check.mjs`, which enumerates views under `*.service.ts` only, cannot yet
- * see it; its pair waits for that check to also enumerate controller-declared views (x77). The
- * intended assertion is `Assert<Exact<RealtimeTicketView, WebRealtimeTicket>>`, and it holds
- * today at the type level — it is left out here solely so the coverage guard stays green.
+ * `realtime.controller.ts` because `RealtimeModule` has no service to hold it. x77 extended
+ * `scripts/contracts-check.mjs` to enumerate controller-declared views, so the coverage guard
+ * now sees it and it is paired Exact below (pass-10 integration reconcile).
  */
 
 /** `GET /v1/organizations` — `ID-04`'s directory row. */
@@ -268,3 +268,6 @@ type _createdOrganization = Assert<Exact<ApiCreatedOrganizationView, WebCreatedO
 
 /** `GET /v1/auth/factors` — one enrolled MFA factor, `confirmedAt` an ISO string or `null`. */
 type _enrolledFactor = Assert<Exact<ApiEnrolledFactorView, WebEnrolledFactor>>;
+
+/** `POST …/realtime/tickets` — a minted realtime ticket; `expiresAt` an ISO string, `socketUrl` `null` where no live socket exists. */
+type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;

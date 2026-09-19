@@ -111,16 +111,15 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
-  // class-3 — API response is an inline object literal; x78 authors the view, then pairs it.
-  ['OrganizationSummary', 'API view pending (x78)'],
-  ['CreatedOrganization', 'API view pending (x78)'],
-  ['RealtimeTicket', 'API view pending (x78)'],
-  ['EnrolledFactor', 'API view pending (x78)'],
   // class-4 — union alias of AuthenticatedResponse | MfaRequiredResponse; the arms pair
   // individually (class-1-lift), so the union itself is never a single projection to Assert.
   [
     'SignInResponse',
     'union alias of AuthenticatedResponse | MfaRequiredResponse — not a single response projection; the two arms pair individually.',
+  ],
+  [
+    'InboxItem',
+    'union alias of InboxBundle | InboxUsageNotice — not a single response projection; the two arms pair individually.',
   ],
   // class-1-lift (MemberSummary, WorkspaceSummary, AuthenticatedResponse, MfaRequiredResponse)
   // was exempted here while its API interface was unexported. x79 exported each interface
