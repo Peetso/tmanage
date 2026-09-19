@@ -52,9 +52,28 @@ function fakeDatabase(
             : [{ email: 'owner@example.test', display_name: 'Owner' }],
         );
       }
-      if (text.startsWith('SELECT SUM')) {
+      // The backlog read: raw unpublished rows aggregated in TypeScript by `computeBacklog`,
+      // routed on the `NOW(3) AS now_at` marker exactly as `claim-attempts.test.ts` routes the
+      // outbox read. One pending row whose `occurred_at` (90s ago) is older than its
+      // `available_at` (30s ago), so the age must come from `LEAST(occurred_at, available_at)`
+      // per IMPORTANT-E, plus one parked row that is counted but excluded from the age.
+      if (text.includes('NOW_AT')) {
         log.push('backlog');
-        return Promise.resolve([{ pending: 0, parked: 0, oldest_pending_seconds: null }]);
+        const now = new Date();
+        return Promise.resolve([
+          {
+            attempts: 0,
+            occurred_at: new Date(now.getTime() - 90_000),
+            available_at: new Date(now.getTime() - 30_000),
+            now_at: now,
+          },
+          {
+            attempts: OPTIONS.maxAttempts,
+            occurred_at: new Date(now.getTime() - 500_000),
+            available_at: new Date(now.getTime() - 500_000),
+            now_at: now,
+          },
+        ]);
       }
       // The parked report. Named before the reservation's `SELECT id`, which it also matches
       // on table but not on projection.
@@ -153,6 +172,16 @@ describe('the credential-change notice drain', () => {
     expect(log).toContain('publish:n1');
     // The handler key is the queue's single dispatch key, so the notice reached a consumer.
     expect(Object.keys(handlers)).toEqual([CREDENTIAL_CHANGE_NOTICE_TYPE]);
+    // The notice backlog read is correctly routed (its own `NOW(3) AS now_at` marker, not the
+    // reservation's `SELECT id`) and `readNoticeBacklog` aggregates its rows: one pending, one
+    // parked, and the age taken from the older `occurred_at` (90s) rather than `available_at`.
+    expect(log).toContain('backlog');
+    expect(report.backlog).toEqual({
+      pending: 1,
+      parked: 1,
+      oldestPendingSeconds: expect.any(Number),
+    });
+    expect(report.backlog.oldestPendingSeconds).toBeGreaterThanOrEqual(90);
   });
 
   it('sends after the commit, never inside the batch transaction', async () => {
