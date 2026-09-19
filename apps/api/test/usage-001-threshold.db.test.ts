@@ -11,9 +11,22 @@ import { StorageModule } from '../src/common/storage/storage.module.js';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
 import type { ApiConfig } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
-import { USAGE_RECONCILER } from '../src/common/http/tokens.js';
+import { uuidv7 } from '@tmanage/domain';
+import {
+  AUDIT_SERVICE,
+  OUTBOX_EVENTS_REPOSITORY,
+  TENANT_DATABASE,
+  USAGE_COUNTERS_REPOSITORY,
+  USAGE_RECONCILER,
+} from '../src/common/http/tokens.js';
 import type { UsageReconciler } from '../src/modules/files/usage-reconciler.js';
 import { STORAGE_BYTES_METRIC } from '../src/modules/files/usage-counters.repository.js';
+import type { UsageCountersRepository } from '../src/modules/files/usage-counters.repository.js';
+import { UsageThresholdEvaluator } from '../src/modules/files/usage-thresholds.js';
+import type { OutboxEventsRepository } from '../src/modules/platform/outbox-events.repository.js';
+import type { AuditService } from '../src/modules/audit/audit.service.js';
+import { createServiceContext } from '../src/common/database/tenant-context.js';
+import type { TenantDatabase } from '../src/common/database/tenant-context.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { seedTwoTenants } from './seed-two-tenants.js';
@@ -24,7 +37,7 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *
  * UNEXECUTED in this slice: it belongs to the `database` project, which needs `db-e2e.lock`;
  * this agent (x63) does not own the lock (x62 holds it and runs mysqld), so the integrator runs
- * it in the next chain. The four cases are exactly the acceptance list of the brief, no more:
+ * it in the next chain. The cases follow the acceptance list of the brief:
  *
  * 1. A reserve that crosses 70% emits ONE `usage.threshold_reached.v1` (band 70) and stores the
  *    band on the counter row.
@@ -34,10 +47,15 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *    without emitting; a new reserve then crosses 70% again and emits a second event (re-arm).
  * 4. Tenant isolation: each organization's crossing is its own event, and an organization that
  *    stayed below 70% has none.
+ * 5. A committed over-quota move (x76): a commit whose provider size beats the reservation pushes
+ *    `used + reserved` past the quota, so `bandForMove` returns 100 — ONE band-100 event, ONE
+ *    audit row, and a second identical evaluation emits nothing.
  *
- * The quota is small (`ORG_LIMIT`) so a single reservation crosses a real band. Only the reserve
- * path is exercised for the crossing; completion would keep used + reserved in the same band, so
- * it would not emit a second event — the "once" the first case asserts.
+ * The quota is small (`ORG_LIMIT`) so a single reservation crosses a real band. Cases 1-4 drive
+ * the reserve path over HTTP; the HTTP completion refuses a size mismatch
+ * (`files.service.ts` `stored.sizeBytes !== session.declaredBytes` → 422), so case 5 drives the
+ * commit + evaluate directly through the repository and the same evaluator the commit path wires,
+ * the only way `used + reserved` can settle above the quota.
  */
 
 const ORG_LIMIT = 1_000;
@@ -296,5 +314,53 @@ describe('two tenants', () => {
     expect(ours).toHaveLength(1);
     expect(twins).toHaveLength(0);
     expect(await bandOf(world.twin.organizationId)).toBe(0);
+  });
+});
+
+describe('a committed move that pushes usage past the quota', () => {
+  it('emits ONE band-100 event and ONE audit row, and a replay emits nothing', async () => {
+    const database = app.get<TenantDatabase>(TENANT_DATABASE);
+    const counters = app.get<UsageCountersRepository>(USAGE_COUNTERS_REPOSITORY);
+    const outbox = app.get<OutboxEventsRepository>(OUTBOX_EVENTS_REPOSITORY);
+    const audit = app.get<AuditService>(AUDIT_SERVICE);
+    // The same evaluator wiring the commit path uses (files.module `new UsageThresholdEvaluator`).
+    const evaluator = new UsageThresholdEvaluator(counters, outbox, audit);
+    const context = createServiceContext({
+      organizationId: world.northstar.organizationId,
+      correlationId: uuidv7(),
+      policyVersion: 'x76-over-quota-test',
+    });
+
+    // Reserve the whole quota (accepted at exactly 100%), then commit a provider size that beat
+    // the declaration, so `used + reserved` settles above the quota — the one move that reaches
+    // the 100 band. Evaluate once, in the same transaction as `commitCompletion` does.
+    await database.transaction(context, async (tx) => {
+      await counters.ensure(tx, context, STORAGE_BYTES_METRIC);
+      await counters.reserve(tx, context, STORAGE_BYTES_METRIC, ORG_LIMIT, ORG_LIMIT);
+      await counters.commit(tx, context, STORAGE_BYTES_METRIC, ORG_LIMIT, ORG_LIMIT + 100);
+      await evaluator.evaluate(tx, context, STORAGE_BYTES_METRIC, ORG_LIMIT);
+    });
+
+    const events = await thresholdEvents(world.northstar.organizationId);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      band: 100,
+      used: ORG_LIMIT + 100,
+      reserved: 0,
+      quota: ORG_LIMIT,
+    });
+    // `<counterId>:<band>:<counterVersion>` — the band is 100, the version is the move's.
+    expect(events[0]?.idempotencyKey).toMatch(/^[0-9a-f-]+:100:\d+$/);
+    const audits = await thresholdAudit(world.northstar.organizationId);
+    expect(audits).toHaveLength(1);
+    expect(Number((audits[0]?.['m'] as Record<string, unknown>)?.['band'])).toBe(100);
+    expect(await bandOf(world.northstar.organizationId)).toBe(100);
+
+    // A second identical evaluation over the unchanged counter emits nothing more (idempotent).
+    await database.transaction(context, (tx) =>
+      evaluator.evaluate(tx, context, STORAGE_BYTES_METRIC, ORG_LIMIT),
+    );
+    expect(await thresholdEvents(world.northstar.organizationId)).toHaveLength(1);
+    expect(await thresholdAudit(world.northstar.organizationId)).toHaveLength(1);
   });
 });
