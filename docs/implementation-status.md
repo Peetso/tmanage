@@ -167,6 +167,7 @@ The database suite that would prove it (`apps/api/test/usage-001-reconcile.db.te
 acceptance cases: drift corrected, `reconciled_at` written, no-drift no-op, tenant isolation) is
 written and **unexecuted** (no `mysqld` this run; this agent does not own `db-e2e.lock`). The
 pure diff is proven by `usage-reconciler.test.ts` (unit, executed).
+
 ## 2026-09-19 — OBS-001 redaction Minors closed (slice x58)
 
 Three Minor findings carried from the x49 OBS-001 reviews, closed on branch `x58-obs-001-redaction-minors` (**not merged**): the log redactor (`apps/api/src/common/observability/redact.ts`) now masks the `email` key family (`email*`/`*email`, e.g. `userEmail`, `emailAddress`) case-insensitively, masking only actual address strings so non-address siblings like `emailVerifiedAt` survive; its cycle guard is now ancestor-only (unmark on exit), so a shared non-cyclic reference is kept on both branches while a real cycle is still cut; and a stale `packages/config/src/env.ts` comment citing the removed `OTEL_EXPORTER_OTLP_ENDPOINT` now cites the surviving `OTEL_EXPORTER_URL`. `to`/`recipient` were left unmatched on purpose (overloaded here — state-machine targets and user ids — so masking them would corrupt honest logs). api typecheck, api unit, config test, lint and format:check green and recorded in `integrate-2026-09-19-1120/x58-report.md`.
@@ -190,6 +191,7 @@ schema headers alone are not the register.
 
 The database suite that would prove the invariant (`usage-001-ledger.db.test.ts`) is written and
 **unexecuted** (no `mysqld` this run).
+
 ## 2026-09-19 — INBOX-001: quiet hours honoured in delivery (slice x57)
 
 Run `claude-auto-1789805818`, branch `x57-inbox-001-quiet-hours` off x54's `f3647f1`,
