@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSignInAbuseControl } from './sign-in-abuse-control.js';
 import type { SignInAbuseOptions, SignInAbuseReason } from './sign-in-abuse-control.js';
+import { decideVerifyFirst } from './authentication.service.js';
 
 /**
  * Every case drives an injected clock, so a window turn is an assignment rather than a wait,
@@ -472,5 +473,32 @@ describe('the sign-in abuse control', () => {
     // the documented direction of error: a caller is admitted a little more than the budget
     // says, and never less.
     expect(control.admit({ ip: '198.51.100.1' }).admitted).toBe(true);
+  });
+});
+
+/**
+ * `C-1` — the durable per-user lockout's ordering, extracted from `authentication.service.ts`
+ * so the one property that closes the finding is provable without a database: verify first,
+ * charge only on failure. A correct password is admitted regardless of the window, so a wrong
+ * password from a hostile source can never lock the holder out of their own sign-in; a wrong
+ * password is throttled by the window exactly as before.
+ */
+describe('verify-first lockout ordering (C-1)', () => {
+  it('admits a correct password without charging the window, even when it is full', () => {
+    expect(
+      decideVerifyFirst({ passwordCorrect: true, failuresInWindow: 99, maxFailuresInWindow: 5 }),
+    ).toBe('admit');
+  });
+
+  it('locks out a wrong password once the window is full', () => {
+    expect(
+      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 5, maxFailuresInWindow: 5 }),
+    ).toBe('locked_out');
+  });
+
+  it('rejects a wrong password below the window as an ordinary failure', () => {
+    expect(
+      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 4, maxFailuresInWindow: 5 }),
+    ).toBe('reject');
   });
 });

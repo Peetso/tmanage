@@ -447,7 +447,9 @@ describe('POST /v1/auth/password', () => {
       for (let attempt = 0; attempt < THROTTLED_CONFIG.maxFailuresInWindow; attempt += 1) {
         await signIn(owner().email, 'wrong', { from: '198.51.100.20' });
       }
-      const lockedOut = await signIn(owner().email, PASSWORD, { from: '198.51.100.20' });
+      // A further *wrong* password is what the full window locks out (C-1: verify first, then
+      // charge — the holder's correct password would be admitted, not locked).
+      const lockedOut = await signIn(owner().email, 'wrong', { from: '198.51.100.20' });
       expect(lockedOut.statusCode).toBe(429);
       expect(lockedOut.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
 

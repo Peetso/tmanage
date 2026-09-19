@@ -440,7 +440,7 @@ describe('signing in with a password', () => {
 });
 
 describe('the lockout window', () => {
-  it('refuses once the window is full, with a different rejection', async () => {
+  it('refuses a further wrong password once the window is full, with a different rejection', async () => {
     await giveOwnerAPassword();
 
     for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
@@ -449,8 +449,11 @@ describe('the lockout window', () => {
         .catch(() => undefined);
     }
 
+    // C-1 (verify first, then charge): the *failing* path is what the full window throttles.
+    // A further wrong password is `locked_out`; the holder's correct password is not (see the
+    // C-1 case below).
     const error = await service
-      .signInWithPassword({ email: owner().email, password: PASSWORD, context: context() })
+      .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(AuthenticationRejectedError);
@@ -459,6 +462,34 @@ describe('the lockout window', () => {
     // ID-02 screen already shows a rate-limit state, so this is the specified behaviour.
     expect((error as AuthenticationRejectedError).rejection).toBe('rate_limited');
     expect((error as AuthenticationRejectedError).reason).toBe('locked_out');
+  });
+
+  it('admits the account holder’s correct password even when the window is full (C-1)', async () => {
+    await giveOwnerAPassword();
+
+    // A hostile source spends the whole window against a known account.
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      await service
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
+        .catch(() => undefined);
+    }
+
+    // The holder's own correct password verifies first, so it is admitted rather than locked
+    // out: a single source can no longer drive a known account into a lockout it cannot clear.
+    const outcome = await service.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    expect(outcome).toEqual({ status: 'authenticated', userId: owner().id });
+
+    // And the success did not charge the window: the count is still the five wrong guesses.
+    const failures = await observe(
+      `select count(*) as n from authentication_events
+        where user_id = ? and outcome = 'failed'`,
+      [owner().id],
+    );
+    expect(Number(failures[0]!['n'])).toBe(OPTIONS.maxFailuresInWindow);
   });
 
   it('does not count a correct password toward the window', async () => {
@@ -1064,10 +1095,11 @@ describe('D08 — bounding sign-in by where the attempt came from', () => {
       ),
     ).toBe(OPTIONS.maxFailuresInWindow);
 
+    // A further wrong password is what the full window throttles (C-1: the failing path only).
     const locked = await refusal(
       service.signInWithPassword({
         email: owner().email,
-        password: PASSWORD,
+        password: 'wrong',
         context: context(),
       }),
     );
@@ -1896,17 +1928,21 @@ describe('D05 — re-authentication before a credential changes', () => {
           })
           .catch(() => undefined);
       }
+      // A wrong sign-in password is now locked out — proving the re-auth failures above raised
+      // sign-in's window. (C-1: the correct password would be admitted; the window throttles
+      // the failing path only.)
       const signIn = await service
-        .signInWithPassword({ email: owner().email, password: PASSWORD, context: context() })
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
         .catch((thrown: unknown) => thrown);
       expect((signIn as AuthenticationRejectedError).rejection).toBe('rate_limited');
+      expect((signIn as AuthenticationRejectedError).reason).toBe('locked_out');
 
-      // And a locked-out account cannot mint proof with the right password either.
+      // And a further wrong password at re-auth is refused for the same shared window.
       const locked = await service
         .confirmReauthentication({
           userId: owner().id,
           sessionId: SESSION,
-          password: PASSWORD,
+          password: 'not it',
           context: context(),
         })
         .catch((thrown: unknown) => thrown);
@@ -2111,8 +2147,10 @@ describe('D05 — re-authentication before a credential changes', () => {
       }
       expect(await countedFailures()).toBe(OPTIONS.maxFailuresInWindow);
 
+      // The failing path is still throttled: a further wrong password is locked out (C-1 does
+      // not weaken the lockout, it only stops it refusing the *correct* password).
       const locked = await service
-        .signInWithPassword({ email: owner().email, password: PASSWORD, context: context() })
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
         .catch((thrown: unknown) => thrown);
       expect(locked).toBeInstanceOf(AuthenticationRejectedError);
       expect((locked as AuthenticationRejectedError).rejection).toBe('rate_limited');

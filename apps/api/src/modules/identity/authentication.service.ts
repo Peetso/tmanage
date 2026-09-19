@@ -234,6 +234,46 @@ export type AuthenticationReason =
 /** What the caller is told. Deliberately coarse — see the note at the top of the file. */
 export type SignInRejection = 'invalid_credentials' | 'rate_limited';
 
+/**
+ * The three ways a password credential check ends once the password has been verified.
+ *
+ * - `admit` — the password was right, so the person is who they say they are.
+ * - `locked_out` — the password was wrong *and* the durable window is already full.
+ * - `reject` — the password was wrong and the window is not yet full (an ordinary failure,
+ *   the row that moves the account towards the lockout next time).
+ */
+export type VerifyFirstDecision = 'admit' | 'locked_out' | 'reject';
+
+/**
+ * `C-1` — the durable lockout's ordering, made a pure function so the property that closes the
+ * finding is provable without a database.
+ *
+ * The finding: the lockout was consulted **before** the password was verified, so once a hostile
+ * source had spent `maxFailuresInWindow` wrong guesses against a known account, the account
+ * holder's own **correct** password was refused with `locked_out` for the rest of the window —
+ * and a wrong guess every window held it shut indefinitely, with no self-service way out (the
+ * same window gates `confirmReauthentication`, the only door to a password change). x14 bounded
+ * the source that could arm it but recorded the real close as this ordering change.
+ *
+ * Verify first, then charge: a correct password is admitted whatever the window says — it is
+ * never charged and can never trip a lockout — so a wrong password can no longer deny a right
+ * one. Only the failing path consults the window, and there it throttles exactly as before:
+ * a wrong password at or above the threshold is `locked_out`, below it an ordinary `reject`.
+ *
+ * This does **not** turn either oracle into an unmetered guessing surface (the weakening x14
+ * warned against): wrong passwords are still counted and still locked out. Only the *right*
+ * password bypasses the window, and the right password is the account holder.
+ */
+export function decideVerifyFirst(input: {
+  readonly passwordCorrect: boolean;
+  readonly failuresInWindow: number;
+  readonly maxFailuresInWindow: number;
+}): VerifyFirstDecision {
+  if (input.passwordCorrect) return 'admit';
+  if (input.failuresInWindow >= input.maxFailuresInWindow) return 'locked_out';
+  return 'reject';
+}
+
 export interface AuthenticationOptions {
   /** `SESSION_SECRET`. Signs the MFA challenge token; see `challenge-token.ts`. */
   readonly sessionSecret: string;
@@ -406,36 +446,50 @@ export class AuthenticationService {
       },
     );
 
-    if (found && found.failures >= this.options.maxFailuresInWindow) {
-      await this.record(context, {
-        userId: found.user.id,
-        action: AUTHENTICATION_ACTIONS.passwordSignIn,
-        outcome: 'failed',
-        reason: 'locked_out',
-      });
-      throw new AuthenticationRejectedError('rate_limited', 'locked_out');
-    }
-
-    // The wasted work that keeps the timing flat. `verifyPassword` returns false rather than
-    // throwing on a hash it cannot use, so this is a plain Argon2 run and nothing else.
+    // The wasted work that keeps the timing flat, and — since C-1 — it runs *before* the
+    // durable window is consulted. `verifyPassword` returns false rather than throwing on a
+    // hash it cannot use, so this is a plain Argon2 run and nothing else, taken for every
+    // attempt so an unknown account and a locked one are indistinguishable by timing.
     const storedHash = found?.stored?.passwordHash ?? DUMMY_PASSWORD_HASH;
     const correct = await verifyPassword(storedHash, password);
 
-    if (!found || !found.stored || !correct) {
-      const reason: AuthenticationReason = !found
-        ? 'no_such_user'
-        : !found.stored
-          ? 'no_password_set'
-          : 'bad_password';
+    // Verify first, then charge (C-1). The password has been checked above; only now is the
+    // durable window consulted, and only on the failing path. A correct password is admitted
+    // whatever the window says, so a wrong password from a hostile source can no longer drive
+    // the account holder into a lockout of their own sign-in that they cannot clear.
+    const decision = decideVerifyFirst({
+      passwordCorrect: Boolean(found?.stored) && correct,
+      failuresInWindow: found?.failures ?? 0,
+      maxFailuresInWindow: this.options.maxFailuresInWindow,
+    });
+
+    if (decision !== 'admit') {
+      const reason: AuthenticationReason =
+        decision === 'locked_out'
+          ? 'locked_out'
+          : !found
+            ? 'no_such_user'
+            : !found.stored
+              ? 'no_password_set'
+              : 'bad_password';
       await this.record(context, {
         userId: found?.user.id ?? null,
         action: AUTHENTICATION_ACTIONS.passwordSignIn,
         outcome: 'failed',
         reason,
       });
-      throw new AuthenticationRejectedError('invalid_credentials', reason);
+      throw new AuthenticationRejectedError(
+        decision === 'locked_out' ? 'rate_limited' : 'invalid_credentials',
+        reason,
+      );
     }
 
+    // `admit` is returned only when the password was correct, which requires both `found` and a
+    // stored hash; the guard re-states that for the type-checker and fails closed if it ever
+    // does not hold.
+    if (!found || !found.stored) {
+      throw new AuthenticationRejectedError('invalid_credentials', 'bad_password');
+    }
     const userId = found.user.id;
     const currentHash = found.stored.passwordHash;
 
@@ -717,29 +771,38 @@ export class AuthenticationService {
       },
     );
 
-    if (found.failures >= this.options.maxFailuresInWindow) {
-      await this.record(context, {
-        userId,
-        action: AUTHENTICATION_ACTIONS.reauthentication,
-        outcome: 'failed',
-        reason: 'locked_out',
-      });
-      throw new AuthenticationRejectedError('rate_limited', 'locked_out');
-    }
-
+    // Verify first, then charge (C-1) — the same ordering as `signInWithPassword`, and it
+    // matters here for the same reason plus one more: this is the only door to a password
+    // change, so a lockout that refused the holder's *correct* password would leave a targeted
+    // account with no self-service way out. A wrong password is still throttled by the window
+    // exactly as before, so re-auth does not become an unmetered guessing oracle.
     const correct = await verifyPassword(
       found.stored?.passwordHash ?? DUMMY_PASSWORD_HASH,
       password,
     );
-    if (!found.stored || !correct) {
-      const reason: AuthenticationReason = !found.stored ? 'no_password_set' : 'bad_password';
+    const decision = decideVerifyFirst({
+      passwordCorrect: Boolean(found.stored) && correct,
+      failuresInWindow: found.failures,
+      maxFailuresInWindow: this.options.maxFailuresInWindow,
+    });
+
+    if (decision !== 'admit') {
+      const reason: AuthenticationReason =
+        decision === 'locked_out'
+          ? 'locked_out'
+          : !found.stored
+            ? 'no_password_set'
+            : 'bad_password';
       await this.record(context, {
         userId,
         action: AUTHENTICATION_ACTIONS.reauthentication,
         outcome: 'failed',
         reason,
       });
-      throw new AuthenticationRejectedError('invalid_credentials', reason);
+      throw new AuthenticationRejectedError(
+        decision === 'locked_out' ? 'rate_limited' : 'invalid_credentials',
+        reason,
+      );
     }
 
     const outcome = await this.database.identityTransaction(
