@@ -139,6 +139,37 @@ describe('TM-04 the inbox', () => {
     await expectNoAxeViolations(container);
   });
 
+  it('renders the organization usage notice as one storage line', async () => {
+    // USAGE-001 slice 4b: an owner/admin sees the band and the used+reserved of quota. 8.5 GiB
+    // held of a 10 GiB quota, band 85 — 35 §1's "Storage at 85 % — 8.5 GB of 10 GB".
+    const { client } = clientOver(() =>
+      json({
+        items: [
+          {
+            bundleId: 'organization_usage:org-1',
+            objectType: 'organization_usage',
+            objectId: 'org-1',
+            band: 85,
+            used: 8 * 1024 * 1024 * 1024, // 8 GiB committed
+            reserved: 512 * 1024 * 1024, // 0.5 GiB reserved → 8.5 GiB held
+            quota: 10 * 1024 * 1024 * 1024,
+            count: 1,
+            unreadCount: 1,
+            latestAt: '2026-09-19T08:00:00.000Z',
+          },
+        ],
+        nextCursor: null,
+      }),
+    );
+    render(withQuery(<InboxScreen {...NAMES} client={client} />));
+
+    const cell = await screen.findByText('Storage at 85% — 8.5 GB of 10 GB');
+    // Usage has no object to open and no mark-read path: the row is a plain line.
+    const row = cell.closest('tr') as HTMLTableRowElement;
+    expect(within(row).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('a mode is a query: switching one asks the API again with ?mode=', async () => {
     const user = userEvent.setup();
     const { client, calls } = clientOver((call) => {

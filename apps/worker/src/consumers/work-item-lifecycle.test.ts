@@ -45,6 +45,7 @@ describe('the handler registry', () => {
     expect(Object.keys(WORKER_OUTBOX_HANDLERS).sort()).toEqual([
       'client_request.submitted.v1',
       'client_request.transitioned.v1',
+      'usage.threshold_reached.v1',
       'work_item.blocked.v1',
       'work_item.updated.v1',
     ]);
