@@ -17,13 +17,17 @@ import { requireRequestState } from '../../common/http/request-state.js';
 import { API_CONFIG, AUTHENTICATION_SERVICE, SESSION_SERVICE } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import { RefreshRejectedError } from './session.service.js';
-import type { AuthenticatedSession, SessionService } from './session.service.js';
+import type {
+  AuthenticatedSession,
+  EstablishedSessionView,
+  SessionService,
+  SessionSummaryView,
+} from './session.service.js';
 import {
   ReauthenticationRequiredError,
   type AuthenticationService,
 } from './authentication.service.js';
 import { REAUTH_HEADER } from './authentication.controller.js';
-import type { SessionSummary } from './sessions.repository.js';
 import { readCookie } from './session-token.js';
 
 /**
@@ -84,7 +88,7 @@ export class SessionController {
   async refresh(
     @Req() request: RequestLike,
     @Res({ passthrough: true }) reply: ReplyLike,
-  ): Promise<{ readonly csrfToken: string; readonly expiresAt: string }> {
+  ): Promise<EstablishedSessionView> {
     const state = requireRequestState(request);
     const cookieHeader = request.headers['cookie'];
     const refreshToken = readCookie(
@@ -139,13 +143,24 @@ export class SessionController {
   async devices(
     @CurrentSession() session: AuthenticatedSession,
     @Req() request: RequestLike,
-  ): Promise<{ readonly sessions: readonly SessionSummary[] }> {
+  ): Promise<{ readonly sessions: readonly SessionSummaryView[] }> {
     const state = requireRequestState(request);
+    const rows = await this.sessions.listForUser({
+      userId: session.userId,
+      correlationId: state.correlationId,
+    });
+    // Project the repository's `Date` columns to the ISO strings the wire carries. This is the
+    // same text `JSON.stringify` produces for a `Date` (it calls `toISOString`), so the response
+    // bytes are unchanged; naming the projection is what lets `SessionSummaryView` — and the web
+    // shape paired against it — describe the wire truthfully rather than the internal `Date` type.
     return {
-      sessions: await this.sessions.listForUser({
-        userId: session.userId,
-        correlationId: state.correlationId,
-      }),
+      sessions: rows.map((row) => ({
+        id: row.id,
+        userAgent: row.userAgent,
+        createdAt: row.createdAt.toISOString(),
+        rotatedAt: row.rotatedAt ? row.rotatedAt.toISOString() : null,
+        expiresAt: row.expiresAt.toISOString(),
+      })),
     };
   }
 
@@ -278,7 +293,7 @@ export class DevelopmentSignInController {
     @Body() body: DevelopmentSignInBody,
     @Req() request: RequestLike,
     @Res({ passthrough: true }) reply: ReplyLike,
-  ): Promise<{ readonly csrfToken: string; readonly expiresAt: string }> {
+  ): Promise<EstablishedSessionView> {
     const state = requireRequestState(request);
     const userId = typeof body?.userId === 'string' ? body.userId : undefined;
     if (!userId) {

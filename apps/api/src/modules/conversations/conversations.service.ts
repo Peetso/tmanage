@@ -255,7 +255,7 @@ export interface ConvertMessageCommand {
   readonly dueAt?: Date | null;
 }
 
-export interface ConvertMessageResult {
+export interface ConvertMessageResultView {
   readonly workItem: WorkItemView;
   readonly messageId: string;
   readonly convertedAt: string;
@@ -701,7 +701,7 @@ export class ConversationsService {
     conversationId: string,
     messageId: string,
     command: ConvertMessageCommand = {},
-  ): Promise<ConvertMessageResult> {
+  ): Promise<ConvertMessageResultView> {
     const conversation = await this.loadReadable(context, principal, conversationId);
 
     const message = await this.database.read(context, (runner) =>
@@ -826,7 +826,7 @@ export class ConversationsService {
   private async existingConversion(
     context: TenantContext,
     link: { readonly workItemId: string; readonly messageId: string; readonly createdAt: Date },
-  ): Promise<ConvertMessageResult> {
+  ): Promise<ConvertMessageResultView> {
     const row = await this.database.read(context, (runner) =>
       this.workItems.findById(runner, context, link.workItemId),
     );

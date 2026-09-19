@@ -166,6 +166,37 @@ export interface StartSessionInput {
   readonly correlationId: string;
 }
 
+/**
+ * The wire body of `POST /v1/dev/sessions` and `POST /v1/sessions/refresh` — the two fields the
+ * controller writes after a session is established or rotated.
+ *
+ * Distinct from {@link EstablishedSession}, which is the internal result the service hands the
+ * controller: that type also carries the credentials and the `Set-Cookie` values and dates
+ * `expiresAt` as a `Date`. This is only what leaves the process, with `expiresAt` as the ISO
+ * string the controller already serialises it to (`expiresAt.toISOString()`), so `apps/web`'s
+ * `EstablishedSession` can be paired against it exactly.
+ */
+export interface EstablishedSessionView {
+  readonly csrfToken: string;
+  readonly expiresAt: string;
+}
+
+/**
+ * The wire shape of one row of the device/session list — `GET /v1/sessions/current/devices`.
+ *
+ * {@link SessionSummary} in `sessions.repository.ts` is the same five fields with `createdAt`,
+ * `rotatedAt` and `expiresAt` typed as `Date`, because that is what the query returns. This is
+ * what the controller sends: those three as the ISO strings JSON serialises a `Date` to, which
+ * is exactly what `apps/web`'s `SessionSummary` reads.
+ */
+export interface SessionSummaryView {
+  readonly id: string;
+  readonly userAgent: string | null;
+  readonly createdAt: string;
+  readonly rotatedAt: string | null;
+  readonly expiresAt: string;
+}
+
 export class SessionService {
   private readonly sessions: SessionsRepository;
 

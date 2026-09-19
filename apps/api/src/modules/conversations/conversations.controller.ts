@@ -20,7 +20,7 @@ import type {
   ConversationMemberView,
   ConversationView,
   ConversationsService,
-  ConvertMessageResult,
+  ConvertMessageResultView,
   MessageContentCommand,
   MessageRevisionView,
   MessageView,
@@ -328,7 +328,7 @@ export class ConversationsController {
     @Param('messageId') messageId: string,
     @Body() body: ConvertMessageBody,
     @Res({ passthrough: true }) reply: ReplyLike,
-  ): Promise<ConvertMessageResult> {
+  ): Promise<ConvertMessageResultView> {
     const details: { field: string; message: string }[] = [];
 
     const title = optionalTrimmed(body?.title, 'title', MAX_WORK_TITLE_LENGTH, details);

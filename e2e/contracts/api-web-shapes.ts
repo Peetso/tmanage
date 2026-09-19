@@ -28,13 +28,19 @@
  */
 
 // ── The API's response projections ──────────────────────────────────────────
+import type { AcceptedClientRequestView as ApiAcceptedClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
+import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { ClientRequestClientView as ApiClientRequestClientView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
+import type { ConvertMessageResultView as ApiConvertMessageResultView } from '../../apps/api/src/modules/conversations/conversations.service.js';
+import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { InboxBundleView as ApiInboxBundleView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InboxPageView as ApiInboxPageView } from '../../apps/api/src/modules/inbox/inbox.service.js';
+import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
+import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
@@ -43,17 +49,20 @@ import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/s
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
+import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
+  AcceptedClientRequest as WebAcceptedClientRequest,
   ClientRequestHistoryEntry as WebClientRequestHistoryEntry,
   ClientRequestRecord as WebClientRequestRecord,
 } from '../../apps/web/src/lib/api/client-requests';
 import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
 import type {
   ConversationSummary as WebConversationSummary,
+  ConvertMessageResult as WebConvertMessageResult,
   MessageRevisionSummary as WebMessageRevisionSummary,
   MessageSummary as WebMessageSummary,
 } from '../../apps/web/src/lib/api/conversations';
@@ -61,7 +70,12 @@ import type {
   InboxBundle as WebInboxBundle,
   InboxPage as WebInboxPage,
 } from '../../apps/web/src/lib/api/inbox';
-import type { InvitationSummary as WebInvitationSummary } from '../../apps/web/src/lib/api/invitations';
+import type {
+  AcceptedInvitation as WebAcceptedInvitation,
+  InvitationPreview as WebInvitationPreview,
+  InvitationSummary as WebInvitationSummary,
+  IssuedInvitation as WebIssuedInvitation,
+} from '../../apps/web/src/lib/api/invitations';
 import type {
   ClientRequest as WebClientRequest,
   PortalInboxBundle as WebPortalInboxBundle,
@@ -70,6 +84,10 @@ import type {
   PortalWorkItem as WebPortalWorkItem,
 } from '../../apps/web/src/lib/api/portal';
 import type { ProjectSummary as WebProjectSummary } from '../../apps/web/src/lib/api/projects';
+import type {
+  EstablishedSession as WebEstablishedSession,
+  SessionSummary as WebSessionSummary,
+} from '../../apps/web/src/lib/api/session';
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 
@@ -150,13 +168,36 @@ type _invitation = Assert<Exact<ApiInvitationView, WebInvitationSummary>>;
  * `metadata`, which the screen does not read. Narrowing, not Exact — this un-stales the
  * `AuditEventView` EXEMPT entry, whose "no web consumer" reason is now false
  * (`GET .../client-requests/:id/history`, client-requests.controller.ts:315, serves this screen).
- *
- * The scope's other candidates are deferred: the 4 "lift" pairs need a controller export (source
- * change), the 4 class-3 shapes need a view authored, and the remaining class-1 candidates name
- * API response types that are not `export interface *View` (e.g. `ConvertMessageResult`,
- * `AcceptedClientRequest`, `IssuedInvitation`, `InvitationPreview`, `AcceptedInvitation`) or that
- * declare wire dates as `Date` at an internal projection (`SessionSummary`, `EstablishedSession`),
- * so `scripts/contracts-check.mjs` cannot pair them until its enumeration is extended — see the
- * x69 report.
  */
 type _clientRequestHistory = Assert<Narrows<ApiAuditEventView, WebClientRequestHistoryEntry>>;
+
+/**
+ * CONTRACT-001 lift (x71). The seven pairs x69 left out. Five named their response type in the
+ * owning service but not as an `export interface *View`, so the coverage guard could not see
+ * them; each is now the service's declared return type under a `…View` name, renamed with no
+ * change to the object any endpoint builds. Two — the session pair — describe the wire body the
+ * controller serialises: `EstablishedSessionView`/`SessionSummaryView` carry the ISO-string dates
+ * `JSON.stringify` already emits, distinct from the `Date`-typed internal projections of the same
+ * name in `session.service.ts`/`sessions.repository.ts`, so the web shapes pair Exact.
+ */
+
+/** `POST …/messages/:id/work-items` — INT-07's convert-with-dedupe. */
+type _convertMessage = Assert<Exact<ApiConvertMessageResultView, WebConvertMessageResult>>;
+
+/** `POST …/client-requests/:id/acceptance` — REQ-002's accept-and-commit. */
+type _acceptedClientRequest = Assert<Exact<ApiAcceptedClientRequestView, WebAcceptedClientRequest>>;
+
+/** `POST …/invitations` — ON-04's issued token, shown once. */
+type _issuedInvitation = Assert<Exact<ApiIssuedInvitationView, WebIssuedInvitation>>;
+
+/** `POST /v1/invitations/previews` — ID-03's pre-acceptance preview. */
+type _invitationPreview = Assert<Exact<ApiInvitationPreviewView, WebInvitationPreview>>;
+
+/** `POST /v1/invitations/acceptances` — the membership an acceptance creates. */
+type _acceptedInvitation = Assert<Exact<ApiAcceptedInvitationView, WebAcceptedInvitation>>;
+
+/** `POST /v1/dev/sessions` and `POST /v1/sessions/refresh` — `{ csrfToken, expiresAt }`. */
+type _establishedSession = Assert<Exact<ApiEstablishedSessionView, WebEstablishedSession>>;
+
+/** `GET /v1/sessions/current/devices` — one device row, ISO-string dates on the wire. */
+type _sessionSummary = Assert<Exact<ApiSessionSummaryView, WebSessionSummary>>;

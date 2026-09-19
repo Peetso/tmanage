@@ -6,7 +6,7 @@ import { ApiError } from '../../common/http/errors.js';
 import { CLIENT_REQUESTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type {
-  AcceptedClientRequest,
+  AcceptedClientRequestView,
   ClientRequestView,
   ClientRequestsService,
 } from './client-requests.service.js';
@@ -223,7 +223,7 @@ export class ClientRequestsController {
     @CurrentPrincipal() principal: Principal,
     @Param('clientRequestId') clientRequestId: string,
     @Body() body: AcceptanceBody,
-  ): Promise<AcceptedClientRequest> {
+  ): Promise<AcceptedClientRequestView> {
     const details: { field: string; message: string }[] = [];
     const version = requiredVersion(body?.version, details);
 

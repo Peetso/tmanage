@@ -26,10 +26,11 @@ import { INVITATIONS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { InvitationStatus } from './invitations.repository.js';
 import type {
-  InvitationPreview,
+  AcceptedInvitationView,
+  InvitationPreviewView,
   InvitationView,
   InvitationsService,
-  IssuedInvitation,
+  IssuedInvitationView,
 } from './invitations.service.js';
 
 /**
@@ -119,7 +120,7 @@ export class InvitationsController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Body() body: IssueBody,
-  ): Promise<IssuedInvitation> {
+  ): Promise<IssuedInvitationView> {
     const details: { field: string; message: string }[] = [];
     const email = requiredEmail(body?.email, details);
 
@@ -159,7 +160,7 @@ export class InvitationsController {
     @CurrentPrincipal() principal: Principal,
     @Param('invitationId') invitationId: string,
     @Body() body: ReissueBody,
-  ): Promise<IssuedInvitation> {
+  ): Promise<IssuedInvitationView> {
     const role = typeof body?.role === 'string' && body.role !== '' ? body.role : undefined;
     if (body?.role !== undefined && role === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -238,7 +239,10 @@ export class InvitationAcceptanceController {
   @Public()
   @NoTenant()
   @HttpCode(200)
-  async preview(@Req() request: RequestLike, @Body() body: AcceptBody): Promise<InvitationPreview> {
+  async preview(
+    @Req() request: RequestLike,
+    @Body() body: AcceptBody,
+  ): Promise<InvitationPreviewView> {
     const token = typeof body?.token === 'string' ? body.token : undefined;
     if (!token) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -256,12 +260,7 @@ export class InvitationAcceptanceController {
     @Req() request: RequestLike,
     @CurrentSession() session: AuthenticatedSession,
     @Body() body: AcceptBody,
-  ): Promise<{
-    readonly organizationId: string;
-    readonly membershipId: string;
-    readonly clientOrganizationId: string | null;
-    readonly role: string;
-  }> {
+  ): Promise<AcceptedInvitationView> {
     const token = typeof body?.token === 'string' ? body.token : undefined;
     if (!token) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
