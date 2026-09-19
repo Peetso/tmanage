@@ -10,7 +10,11 @@ import type { UsageCountersRepository } from './usage-counters.repository.js';
  * ## What a band is
  *
  * §6's threshold table has four rows — 70% (insight), 85% (warning), 95% (persistent warning),
- * 100% (block new reservations). An organization is in exactly one band at a time; 0 is "below
+ * 100% (block new reservations). That last row names what the *reservation guard* refuses at —
+ * 100% of quota — which is not the same as when the 100 *band* is emitted: the guard caps an
+ * accepted reservation at exactly 100% (that fill is the 95 persistent-warning experience), so
+ * only a committed move that pushes usage *past* the quota reaches the 100 band. See {@link
+ * bandForMove}. An organization is in exactly one band at a time; 0 is "below
  * 70%, nothing to warn about". Crossing a boundary *rising* is the moment the owner/admin should
  * be told, so it emits one `usage.threshold_reached.v1`. The band is stored on the counter row
  * (`usage_counters.threshold_band`, migration 0024) so the crossing fires once, not on every
@@ -28,7 +32,9 @@ import type { UsageCountersRepository } from './usage-counters.repository.js';
  *
  * The percentage is `(used + reserved) / quota` — what the reservation guard blocks on, not
  * `used` alone (what the eventual bill measures). An organization that has reserved its whole
- * quota is at 100% and blocked, whether or not those uploads have committed yet.
+ * quota is at 100% and blocked by the reservation guard, whether or not those uploads have
+ * committed yet — but reaching 100% this way stays in the 95 band; only a committed move past
+ * the quota reaches the 100 band (see {@link bandForMove}).
  *
  * {@link bandFor} and its helpers are pure and total so the table-driven unit test drives the
  * arithmetic directly; {@link UsageThresholdEvaluator} is the one seam that touches the database.
