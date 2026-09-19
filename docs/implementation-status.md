@@ -6,6 +6,20 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
+**Last updated:** 2026-09-19 (**x55 chain-5 TESTDB red fixes**, branch `x55-chain5-testdb-fixes` off
+`master` `a310dc9`) — the two database-suite reds chain 5 found on master, both fixed. (1) Migration 0021's
+`usage_ledger_entries` (merged with x48) carries an `organization_id` column but was never registered in the
+tenant guard, so `tenant-isolation.db.test.ts` counted 25 tables carrying the column against 24 registered
+and left `usage_ledger_entries` unclassified; it is now registered tenant-owned (`organization_id`) in
+`apps/api/src/common/database/tenant-guard.ts` beside `usage_counters`, the counters it records the moves of,
+with a revert proof recorded. (2) The `POST /v1/auth/password` "429 once the window is full" case in
+`id-002-auth-http.db.test.ts` was a stale assertion under x47's accepted C-1 verify-first lockout: it filled
+the window and then posted the _correct_ password expecting 429, but C-1 admits a correct password whatever
+the window says (200). The case is corrected to prove the accepted C-1 behaviour — a _wrong_ password once
+the window is full is the lockout's 429 `rate_limited`, and a _correct_ password once the window is full is
+still 200 authenticated (the DoS-resistance property C-1 exists for); no assertion that still holds was
+removed. Test-only, so no revert proof. Gates green and recorded; **not merged and not pushed.** Earlier:
+
 **Last updated:** 2026-09-12 (**D09** — the API no longer believes a forwarding header from
 whoever sends it: `main.ts` passes `trustProxy: env.TRUSTED_PROXY_ADDRESSES` instead of `true`,
 the value is a validated list of the proxies the operator actually runs, and unset — the default
