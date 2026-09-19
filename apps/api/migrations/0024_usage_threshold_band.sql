@@ -1,4 +1,4 @@
--- 0025_usage_threshold_band — the per-organization storage threshold band (USAGE-001 slice 4).
+-- 0024_usage_threshold_band — the per-organization storage threshold band (USAGE-001 slice 4).
 --
 -- Governing sources: 49-PRICING-ENTITLEMENTS-AND-STORAGE-POLICY §6 (the 70/85/95/100 threshold
 -- behaviour table — insight, warning, persistent warning, block new reservations); 24-EVENT-CATALOG
