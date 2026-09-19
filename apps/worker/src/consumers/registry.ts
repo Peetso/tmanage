@@ -4,6 +4,7 @@ import {
   clientRequestTransitionedConsumer,
 } from './client-request-notifications.js';
 import { workItemBlockedConsumer } from './work-blocked-notification.js';
+import { usageThresholdReachedConsumer } from './usage-threshold-notice.js';
 import {
   createClientRequestSubmittedMail,
   createClientRequestTransitionedMail,
@@ -88,6 +89,9 @@ export function createWorkerOutboxHandlers(
         : both(clientRequestTransitionedConsumer, createClientRequestTransitionedMail(mails)),
     // WORK-003 — the blocker's ask owner, and nobody else.
     'work_item.blocked.v1': workItemBlockedConsumer,
+    // USAGE-001 slice 4b — org-wide owner/admin inbox notice on a storage threshold crossing.
+    // No mailer dependency: the mail half needs a new template and is a recorded follow-up.
+    'usage.threshold_reached.v1': usageThresholdReachedConsumer,
     // INBOX-001 — a quiet-hours-deferred email resumes on its own internal type, handled only by
     // the resume path, never by the notification consumer. Registered only with a transport,
     // since a resume row can only be produced by the mail consumer, which only runs when enabled.

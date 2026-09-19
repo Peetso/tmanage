@@ -59,6 +59,44 @@ export async function listActiveInternalMemberships(
   }));
 }
 
+/** An org-wide membership as the usage-threshold recipient decision needs to see it. */
+export interface OrgWideMembershipCandidate {
+  readonly userId: string;
+  readonly role: string;
+  readonly hasOrgWideScope: boolean;
+}
+
+/**
+ * Every **active** membership of the organization, with its role and org-wide-scope flag —
+ * USAGE-001 slice 4b. A usage threshold has no project, so this is the projectless sibling of
+ * {@link listActiveInternalMemberships}: it returns the whole active set and leaves the
+ * role/scope decision to the consumer's pure predicate, where `12-PERMISSION-MATRIX` §1's
+ * "Billing/ownership" row (owner full, org admin policy) is transcribed and testable, rather
+ * than being restated as SQL. Scoped to the one organization the event carries, like every
+ * read here — recipients are resolved inside the tenant only (`24-EVENT-CATALOG` §6).
+ */
+export async function listActiveOrgWideMemberships(
+  tx: WorkerTransaction,
+  organizationId: string,
+): Promise<readonly OrgWideMembershipCandidate[]> {
+  interface Row {
+    readonly user_id: string;
+    readonly role: string;
+    readonly has_org_wide_scope: number;
+  }
+  const rows = await tx.query<readonly Row[]>(
+    `SELECT m.user_id, m.role, m.has_org_wide_scope
+       FROM memberships m
+      WHERE m.organization_id = ? AND m.status = 'active'`,
+    [organizationId],
+  );
+  return rows.map((row) => ({
+    userId: row.user_id,
+    role: row.role,
+    hasOrgWideScope: Boolean(row.has_org_wide_scope),
+  }));
+}
+
 /** Whether one user holds an active internal membership — a blocker owner's gate. */
 export async function isActiveInternalMember(
   tx: WorkerTransaction,
