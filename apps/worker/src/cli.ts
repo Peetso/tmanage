@@ -21,6 +21,7 @@ import type { WorkerMode } from './common/database/worker-database.js';
 export type WorkerCommand =
   | { readonly kind: 'unpark'; readonly selector: string | null }
   | { readonly kind: 'unpark-invalid' }
+  | { readonly kind: 'sweep-invitations' }
   | { readonly kind: 'status' }
   | { readonly kind: 'once' }
   | { readonly kind: 'loop' };
@@ -28,6 +29,7 @@ export type WorkerCommand =
 export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
   const once = argv.includes('--once');
   const status = argv.includes('--status');
+  const sweepInvitations = argv.includes('--sweep-invitations');
   const unparkIndex = argv.indexOf('--unpark');
   const unparkAll = argv.includes('--all');
   // The first argument after `--unpark` that is not itself a flag. An event id is a UUID, so
@@ -44,6 +46,11 @@ export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
     if (unparkAll === (unparkId !== undefined)) return { kind: 'unpark-invalid' };
     return { kind: 'unpark', selector: unparkAll ? null : (unparkId ?? null) };
   }
+  // TEN-003 / ON-04: the invitation-expiry sweep, its own single-batch operational command. It
+  // delivers nothing from the outbox and holds nothing open, so it ranks with the flagged batch
+  // modes below `--unpark`; a `--sweep-invitations --once` names two jobs and the sweep wins,
+  // matching how `--status` wins over `--once` — one invocation does one thing.
+  if (sweepInvitations) return { kind: 'sweep-invitations' };
   if (status) return { kind: 'status' };
   if (once) return { kind: 'once' };
   return { kind: 'loop' };

@@ -28,6 +28,8 @@ import { ClientRequestMailer } from './notifications/client-request-mailer.js';
 import { CredentialChangeMailer } from './notifications/credential-change-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
 import { createMessageFanOut } from './realtime/fan-out.js';
+import { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
+import { sweepOverdueInvitations } from './invitations/invitation-sweep.js';
 
 /**
  * The worker process entry point.
@@ -51,6 +53,10 @@ import { createMessageFanOut } from './realtime/fan-out.js';
  *   parking, which until now was hand-written SQL — and an alarm whose only stand-down is
  *   hand-written SQL is an alarm somebody silences instead (x8 review IMPORTANT-2). It
  *   delivers nothing itself and names every row it replayed on stderr.
+ * - **`--sweep-invitations`** (TEN-003 / ON-04) runs the one cross-tenant `pending → expired`
+ *   move the API's manual `POST /invitations/expirations` route also runs, prints the count and
+ *   exits — the scheduled half of invitation expiry, on the same `relay:once` cron shape. It
+ *   delivers nothing from the outbox and leaves the manual route in place as a fallback.
  * - **No flag** runs the polling loop until SIGINT/SIGTERM, finishing the in-flight batch
  *   before leaving — the standalone-worker shape for a host that supports one.
  *
@@ -257,6 +263,25 @@ async function main(): Promise<void> {
           `${String(noticeBacklog.pending)}, parked ${String(noticeBacklog.parked)}`,
       );
       if (health.status !== 'ok') process.exitCode = 1;
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
+  // TEN-003 / ON-04: the invitation-expiry sweep. Delivers nothing from the outbox and builds no
+  // handlers — its whole job is the one cross-tenant `pending → expired` move the API's manual
+  // route (`POST /invitations/expirations`) also runs, on the `relay:once` shape a host cron
+  // already invokes. The count goes to stdout as a data line (a caller may read it), the operator
+  // sentence to stderr, and the process exits 0; a store failure rejects and `main().catch` turns
+  // it into exit 1 — non-zero only on failure, so sweeping nothing is a success (idempotent).
+  if (command.kind === 'sweep-invitations') {
+    try {
+      const result = await sweepOverdueInvitations(createInvitationSweepStore(database));
+      process.stdout.write(`${JSON.stringify({ expired: result.expired })}\n`);
+      console.warn(
+        `[worker] invitation sweep: expired ${String(result.expired)} overdue invitation(s)`,
+      );
     } finally {
       await database.end();
     }
