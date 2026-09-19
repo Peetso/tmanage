@@ -1,20 +1,19 @@
 import 'reflect-metadata';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { CLIENT_ROLES, INTERNAL_ROLES, hasCapability, uuidv7 } from '@tmanage/domain';
 import type { Capability, InternalRole, Role } from '@tmanage/domain';
 import { ACCEPTED_CEILING_DIVERGENCES, PERMISSION_MATRIX } from '@tmanage/test-kit';
-import { AppModule } from '../src/app.module.js';
-import { DatabaseModule } from '../src/common/database/database.module.js';
-import { apiConfigFrom } from '../src/common/http/api-config.js';
-import type { ApiConfig } from '../src/common/http/api-config.js';
-import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
-import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
+import {
+  bootHttpHarness,
+  reseed,
+  signIn as harnessSignIn,
+  stopHarness,
+} from './support/http-harness.js';
+import type { InjectedResponse, Session } from './support/http-harness.js';
 
 /**
  * SEC-002 — the prohibitions of `12-PERMISSION-MATRIX.md` §2, restated by hand.
@@ -95,56 +94,8 @@ let db: TestDatabase;
 let world: SeedWorld;
 let app: NestFastifyApplication;
 
-const SESSION_SECRET = 'local_dev_only_session_secret_for_the_role_prohibitions_suite';
-const CSRF_SECRET = 'local_dev_only_csrf_secret_for_role_prohibitions_suite_xxxx';
-
-const CONFIG: ApiConfig = apiConfigFrom({
-  NODE_ENV: 'test',
-  SESSION_COOKIE_NAME: 'tmanage_session',
-  SESSION_SECRET,
-  SESSION_TTL_SECONDS: 900,
-  REFRESH_TTL_SECONDS: 1_209_600,
-  CSRF_SECRET,
-  AUTH_MFA_SEED_KEYS: '1:local_dev_only_mfa_seed_key_change_me_00000',
-  API_PUBLIC_URL: 'http://localhost:4000',
-  AUTH_MAX_FAILURES_IN_WINDOW: 50,
-  AUTH_FAILURE_WINDOW_SECONDS: 900,
-  AUTH_TOTP_ISSUER: 'TManage',
-  CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: 180,
-});
-
-interface InjectedResponse {
-  readonly statusCode: number;
-  readonly body: string;
-  readonly headers: Record<string, unknown>;
-  json<T = unknown>(): T;
-}
-
-interface Session {
-  readonly cookie: string;
-}
-
-function setCookies(response: InjectedResponse): readonly string[] {
-  const raw = response.headers['set-cookie'];
-  if (Array.isArray(raw)) return raw as string[];
-  return typeof raw === 'string' ? [raw] : [];
-}
-
-function cookieHeader(cookies: readonly string[]): string {
-  return cookies
-    .map((c) => c.split(';')[0] ?? '')
-    .filter((pair) => pair.split('=').slice(1).join('=').length > 0)
-    .join('; ');
-}
-
-async function signIn(userId: string): Promise<Session> {
-  const response = (await app.inject({
-    method: 'POST',
-    url: '/v1/dev/sessions',
-    headers: { 'content-type': 'application/json' },
-    payload: { userId },
-  })) as unknown as InjectedResponse;
-  return { cookie: cookieHeader(setCookies(response)) };
+function signIn(userId: string): Promise<Session> {
+  return harnessSignIn(app, userId, { csrf: false });
 }
 
 async function get(path: string, session: Session): Promise<InjectedResponse> {
@@ -508,9 +459,8 @@ const HTTP_PROHIBITIONS: readonly {
 const EXPECTED_DENIAL_EVENTS = 9;
 
 beforeAll(async () => {
-  db = await startTestDatabase();
-  await truncateAll(db.admin);
-  world = await seedTwoTenants(db.admin);
+  ({ app, db } = await bootHttpHarness({ secretTag: 'the_role_prohibitions_suite' }));
+  world = await reseed(db);
 
   for (const role of INTERNAL_ROLES) {
     const userId = uuidv7();
@@ -532,22 +482,10 @@ beforeAll(async () => {
     );
     roleUsers.set(role, userId);
   }
-
-  app = await NestFactory.create<NestFastifyApplication>(
-    AppModule.register({
-      config: CONFIG,
-      database: DatabaseModule.forPool({ pool: db.runtime, guardMode: 'enforce' }),
-    }),
-    new FastifyAdapter(),
-    { logger: false, abortOnError: false },
-  );
-  await app.init();
-  await app.getHttpAdapter().getInstance().ready();
 }, 300_000);
 
 afterAll(async () => {
-  await app?.close();
-  await db?.stop();
+  await stopHarness({ app, db });
 });
 
 describe('§2 prohibitions, transcribed by hand and not derived', () => {
