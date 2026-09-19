@@ -18,6 +18,7 @@ import {
   USAGE_COUNTERS_REPOSITORY,
   USAGE_LEDGER_REPOSITORY,
   USAGE_RECONCILER,
+  USAGE_SERVICE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -38,6 +39,8 @@ import { FileDownloadsController } from './file-downloads.controller.js';
 import { PortalFileDownloadsController } from './portal-file-downloads.controller.js';
 import { UploadSessionSweeper } from './upload-session-sweeper.js';
 import { UsageReconciler } from './usage-reconciler.js';
+import { UsageService } from './usage.service.js';
+import { UsageController } from './usage.controller.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
 import { UploadPartsController } from './upload-parts.controller.js';
@@ -140,6 +143,19 @@ export class FilesModule {
       ) => new UsageReconciler(database, counters, ledger, audit),
     };
 
+    // USAGE-001 slice 5. The read behind the billing screen (§8): the same counters repository
+    // the write paths use, plus the config that carries the effective quota. A read-only service —
+    // no store, no outbox, no audit — because it moves no counter and appends no event.
+    const usage: Provider = {
+      provide: USAGE_SERVICE,
+      inject: [TENANT_DATABASE, USAGE_COUNTERS_REPOSITORY, API_CONFIG],
+      useFactory: (
+        database: TenantDatabase,
+        counters: UsageCountersRepository,
+        config: ApiConfig,
+      ) => new UsageService(database, counters, config),
+    };
+
     // FILE-002. The verification pass is a job too: exported so `verify.ts` can resolve
     // it, built on the same store the uploads went into and the same audit and outbox
     // the service writes through — a copy without the outbox would reject files nobody is
@@ -211,14 +227,24 @@ export class FilesModule {
 
     return {
       module: FilesModule,
-      providers: [...repositories, service, sweeper, reconciler, verifier, scanner, downloads],
-      exports: [service, sweeper, reconciler, verifier, scanner, downloads],
+      providers: [
+        ...repositories,
+        service,
+        usage,
+        sweeper,
+        reconciler,
+        verifier,
+        scanner,
+        downloads,
+      ],
+      exports: [service, usage, sweeper, reconciler, verifier, scanner, downloads],
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,
         UploadPartsController,
         FileDownloadsController,
         PortalFileDownloadsController,
+        UsageController,
       ],
     };
   }

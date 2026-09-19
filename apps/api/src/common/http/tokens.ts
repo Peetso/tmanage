@@ -70,6 +70,8 @@ export const USAGE_COUNTERS_REPOSITORY = Symbol.for('tmanage.UsageCountersReposi
 /** USAGE-001 slice 2. The append-only ledger writer. */
 export const USAGE_LEDGER_REPOSITORY = Symbol.for('tmanage.UsageLedgerRepository');
 export const FILES_SERVICE = Symbol.for('tmanage.FilesService');
+/** USAGE-001 slice 5. The read side of the quota counter — the billing screen's `used/reserved/quota`. */
+export const USAGE_SERVICE = Symbol.for('tmanage.UsageService');
 /** USAGE-001. The expiry sweeper — resolved by `sweep.ts`, never by a controller. */
 export const UPLOAD_SESSION_SWEEPER = Symbol.for('tmanage.UploadSessionSweeper');
 /** USAGE-001 slice 3. The counter reconciler — resolved by `reconcile.ts`, never by a controller. */
