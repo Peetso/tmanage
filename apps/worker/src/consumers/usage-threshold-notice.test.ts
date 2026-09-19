@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INTERNAL_ROLES } from '@tmanage/domain';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
+import type { OutboxEffects } from '../outbox/dispatcher.js';
 import {
   isUsageThresholdRecipient,
   usageThresholdReachedConsumer,
@@ -40,7 +41,17 @@ function fakeTx(memberships: readonly Membership[]): {
     async query(sql: string, params: readonly unknown[] = []): Promise<unknown> {
       if (/FROM memberships/.test(sql)) return memberships;
       if (/INSERT INTO notifications/.test(sql)) {
-        const [, org, recipient, type, objectType, objectId, dedupeKey] = params as string[];
+        // The insert binds these seven params in order; a tuple keeps each a `string` under
+        // noUncheckedIndexedAccess rather than the `string | undefined` an array index yields.
+        const [, org, recipient, type, objectType, objectId, dedupeKey] = params as readonly [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+        ];
         const key = `${org}|${recipient}|${dedupeKey}`;
         if (seen.has(key)) return { affectedRows: 0 };
         seen.add(key);
@@ -80,6 +91,10 @@ describe('isUsageThresholdRecipient', () => {
   });
 });
 
+/** The consumer is an `OutboxHandler` (event, tx, effects); it stages no after-commit work, so a
+ * no-op effects collector satisfies the signature without affecting behaviour. */
+const noEffects: OutboxEffects = { afterCommit: () => {} };
+
 describe('usageThresholdReachedConsumer', () => {
   const memberships: readonly Membership[] = [
     { user_id: 'owner-1', role: 'owner', has_org_wide_scope: 1 },
@@ -90,7 +105,7 @@ describe('usageThresholdReachedConsumer', () => {
 
   it('fans out to org-wide owner and admin only, member excluded', async () => {
     const { tx, inserts } = fakeTx(memberships);
-    await usageThresholdReachedConsumer(event(), tx);
+    await usageThresholdReachedConsumer(event(), tx, noEffects);
     expect(inserts.map((i) => i.recipient).sort()).toEqual(['admin-1', 'owner-1']);
     for (const insert of inserts) {
       expect(insert.type).toBe('usage.threshold_reached.v1');
@@ -102,8 +117,8 @@ describe('usageThresholdReachedConsumer', () => {
 
   it('is idempotent on redelivery: the same crossing writes each recipient once', async () => {
     const { tx, inserts } = fakeTx(memberships);
-    await usageThresholdReachedConsumer(event(), tx);
-    await usageThresholdReachedConsumer(event(), tx); // outbox may deliver twice
+    await usageThresholdReachedConsumer(event(), tx, noEffects);
+    await usageThresholdReachedConsumer(event(), tx, noEffects); // outbox may deliver twice
     expect(inserts.map((i) => i.recipient).sort()).toEqual(['admin-1', 'owner-1']);
   });
 });

@@ -6,6 +6,10 @@ import {
 import { workItemBlockedConsumer } from './work-blocked-notification.js';
 import { usageThresholdReachedConsumer } from './usage-threshold-notice.js';
 import {
+  createUsageThresholdMail,
+  createUsageThresholdMailResume,
+} from './usage-threshold-mail.js';
+import {
   createClientRequestSubmittedMail,
   createClientRequestTransitionedMail,
   createQuietHoursMailResume,
@@ -14,6 +18,7 @@ import { QUIET_HOURS_MAIL_RESUME_TYPE } from '../common/database/notifications-s
 import { createCredentialChangeMail } from './credential-change-mail.js';
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
 import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
+import type { UsageThresholdMailer } from '../notifications/usage-threshold-mailer.js';
 import {
   CREDENTIAL_CHANGE_NOTICE_TYPE,
   type ClaimedCredentialNotice,
@@ -65,6 +70,8 @@ export interface WorkerConsumerDependencies {
   readonly clientRequestMailer?: ClientRequestMailer | undefined;
   /** Absent, or present-but-disabled, means the notice queue drains without sending — x31. */
   readonly credentialChangeMailer?: CredentialChangeMailer | undefined;
+  /** Absent, or present-but-disabled, means the usage-threshold mail half is not registered. */
+  readonly usageThresholdMailer?: UsageThresholdMailer | undefined;
 }
 
 export function createWorkerOutboxHandlers(
@@ -74,6 +81,21 @@ export function createWorkerOutboxHandlers(
   // `enabled` is false when no transport was configured. Composing a handler that would
   // return immediately every time is harmless but says something untrue about the registry.
   const mails = mailer !== undefined && mailer.enabled ? mailer : null;
+
+  const usageMailer = dependencies.usageThresholdMailer;
+  const usageMails = usageMailer !== undefined && usageMailer.enabled ? usageMailer : null;
+
+  // The quiet-hours resume type takes one handler, but more than one interrupting producer can
+  // defer onto it (client-request and usage). Each resume handler no-ops on a row that is not its
+  // originalType, so composing them with `both` is safe: the row is decoded by each and acted on
+  // by exactly one. Registered only when at least one deferring producer is wired.
+  const resumeHandlers: OutboxHandler[] = [];
+  if (mails !== null) resumeHandlers.push(createQuietHoursMailResume(mails));
+  if (usageMails !== null) resumeHandlers.push(createUsageThresholdMailResume(usageMails));
+  const resumeHandler = resumeHandlers.reduce<OutboxHandler | null>(
+    (acc, handler) => (acc === null ? handler : both(acc, handler)),
+    null,
+  );
 
   return {
     'work_item.updated.v1': workItemLifecycleConsumer,
@@ -89,15 +111,17 @@ export function createWorkerOutboxHandlers(
         : both(clientRequestTransitionedConsumer, createClientRequestTransitionedMail(mails)),
     // WORK-003 — the blocker's ask owner, and nobody else.
     'work_item.blocked.v1': workItemBlockedConsumer,
-    // USAGE-001 slice 4b — org-wide owner/admin inbox notice on a storage threshold crossing.
-    // No mailer dependency: the mail half needs a new template and is a recorded follow-up.
-    'usage.threshold_reached.v1': usageThresholdReachedConsumer,
+    // USAGE-001 — the org-wide owner/admin inbox notice (x68, slice 4b, unconditional), composed
+    // with the mail half (slice 4c) when a transport is wired. Notice first, so a mail throw rolls
+    // back an event whose notice is re-inserted idempotently on redelivery.
+    'usage.threshold_reached.v1':
+      usageMails === null
+        ? usageThresholdReachedConsumer
+        : both(usageThresholdReachedConsumer, createUsageThresholdMail(usageMails)),
     // INBOX-001 — a quiet-hours-deferred email resumes on its own internal type, handled only by
-    // the resume path, never by the notification consumer. Registered only with a transport,
-    // since a resume row can only be produced by the mail consumer, which only runs when enabled.
-    ...(mails === null
-      ? {}
-      : { [QUIET_HOURS_MAIL_RESUME_TYPE]: createQuietHoursMailResume(mails) }),
+    // the resume path(s), never by the notification consumer. Registered only when at least one
+    // interrupting producer that defers is wired, since only they produce a resume row.
+    ...(resumeHandler === null ? {} : { [QUIET_HOURS_MAIL_RESUME_TYPE]: resumeHandler }),
   };
 }
 

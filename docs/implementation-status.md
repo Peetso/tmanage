@@ -94,6 +94,57 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-19 — USAGE-001 slice 4c, the threshold mail + quiet-hours bypass (slice x74)
+
+Built on branch `x74-usage-threshold-mail` (off x68's HEAD `1526f6b`), **not merged**. Completes
+the mail follow-up x68 (slice 4b) recorded: 4b shipped the in-app inbox notice for
+`usage.threshold_reached.v1`; this slice adds the email, as the interrupting channel, honouring
+NOTIF-001 and INBOX-001.
+
+- **The mail (acceptance §1).** A new `UsageThresholdMailer` (`apps/worker/src/notifications/
+usage-threshold-mailer.ts`) and its consumer half `createUsageThresholdMail`
+  (`consumers/usage-threshold-mail.ts`), composed in `registry.ts` with x68's notice via
+  `both(notice, mail)` — notice first, so a mail throw rolls back an event whose notice is
+  re-inserted idempotently on redelivery. It does **not** fork `ClientRequestMailer`'s
+  client-request facts: the copy is `35 §1`'s "Storage at 85% — 8.5 GB of 10 GB", rendered from the
+  x63 payload (`band/used/reserved/quota`), and, like the credential receipt, carries **no link**
+  (the usage screen it would point at is a later slice). One mail per recipient, the same
+  owner/org_admin fan-out and the same dedupe-absorbed idempotency as the notice.
+- **Preferences (acceptance §2).** Each recipient's `notification_preferences.email_enabled` is
+  read at delivery (`findUsageMailRecipient`, a `LEFT JOIN` so a person with no row is
+  default-reachable per `0022`) and a recipient who turned the mail channel off is skipped; the
+  in-app notice stays unconditional (x68). **Divergence, recorded:** the existing relay mailers
+  (client-request, credential-change) do not read `email_enabled` — their recipients are external
+  client users / security receipts where the toggle does not apply — so this is the first consumer
+  to honour it. It is read in the same in-transaction, re-resolved, default-reachable style the
+  quiet-hours read uses, which is the "exactly as the existing mail consumers honour them" the
+  brief names; honouring an explicit opt-out (with the canonical in-app channel still reaching the
+  owner) was taken as the safer reading of §2 than leaving the toggle unhonoured.
+- **Quiet hours + band-100 bypass (acceptance §3).** Bands 70/85/95 defer through the existing
+  INBOX-001 mechanism; band 100 (uploads already blocked — critical) bypasses. The type-keyed
+  `QUIET_HOURS_BYPASS_EVENT_TYPES` cannot express a per-band rule, so the smallest generic
+  extension was added in the domain: `eventBypassesQuietHours(type, payload)` consults the type set
+  and then a payload-predicate registry `QUIET_HOURS_BYPASS_PAYLOAD_PREDICATES` keyed by event type
+  (`usage.threshold_reached.v1 → band === 100`). The type-only `eventTypeBypassesQuietHours` is
+  unchanged for the client-request path. **Divergence, recorded:** a fan-out has per-recipient
+  windows, so a deferred recipient is re-enqueued as their **own** `QUIET_HOURS_MAIL_RESUME_TYPE`
+  row (the envelope gained an optional `recipientUserId`); the resume mails just that one recipient,
+  because re-running the whole fan-out on resume would re-mail the recipients who were not in quiet
+  hours. The resume type now carries both the client-request and usage resume handlers, composed
+  with `both` (each no-ops on a row that is not its `originalType`).
+- **Failure isolation (acceptance §4).** One `afterCommit` effect is staged per recipient, so the
+  dispatcher's per-effect `try/catch` isolates a failed send, and `mailer.deliver` also never
+  throws (absorb-and-report, matching the two existing relay mailers). A mail failure for one
+  recipient rolls back neither the committed inbox notice nor the other recipients' mails.
+- **Gates.** `pnpm --filter @tmanage/worker test` 135 passed (was 128); `@tmanage/domain` test 147
+  passed; `pnpm lint`, `pnpm format:check`, `pnpm contracts:check` (26 views, 16 paired) and
+  `pnpm build:worker` green. No new API `*View` and no new catalog event (the resume type is
+  worker-internal, like `CREDENTIAL_CHANGE_NOTICE_TYPE`), so no contract entry was needed. No DB
+  test written: the consumer reads two tables and writes one, all proven through the fakes; the
+  end-to-end path against MySQL is UNPROVEN here (no `db-e2e.lock`).
+
+---
+
 ## 2026-09-19 — USAGE-001 slice 3b, schedule the reconciler (slice x56)
 
 Built on branch `x56-usage-001-reconcile-schedule` (off x53's HEAD `cec1739`), **not merged**.

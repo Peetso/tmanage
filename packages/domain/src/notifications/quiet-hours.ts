@@ -61,6 +61,40 @@ export function eventTypeBypassesQuietHours(type: string): boolean {
 }
 
 /**
+ * A per-event bypass rule the type-keyed {@link QUIET_HOURS_BYPASS_EVENT_TYPES} cannot express,
+ * decided from the event's own payload — the smallest generic extension USAGE-001 slice 4c's
+ * brief asked for over a special case in the consumer.
+ *
+ * `usage.threshold_reached.v1` is the first case: `09-MVP-PRD`/`49-PRICING…` §6 make only the
+ * **100%** crossing critical (new reservations are already blocked — an owner unaware of it is
+ * a studio that has stopped accepting uploads), while the 70/85/95 warnings are advisory and
+ * defer like any other interrupting mail. A single event *type* cannot say "critical only at
+ * band 100", so the rule reads the payload's `band` here.
+ */
+export type QuietHoursBypassPredicate = (payload: Record<string, unknown>) => boolean;
+
+/**
+ * Per-type payload predicates, checked after the type-keyed set. Keyed by event type, so a new
+ * event with a payload-conditional bypass registers one entry rather than teaching every
+ * delivery seam a new rule. `band` is a number on the `usage.threshold_reached.v1` payload the
+ * x63 producer writes; a missing or non-100 band defers.
+ */
+export const QUIET_HOURS_BYPASS_PAYLOAD_PREDICATES: ReadonlyMap<string, QuietHoursBypassPredicate> =
+  new Map([['usage.threshold_reached.v1', (payload) => payload['band'] === 100]]);
+
+/**
+ * Whether an event interrupts through the window — by its type (the `yes-critical` set) or by a
+ * per-type payload predicate. The superset of {@link eventTypeBypassesQuietHours} that a
+ * payload-conditional event (USAGE-001's band-100 crossing) needs; a type-only caller can keep
+ * using {@link eventTypeBypassesQuietHours} unchanged.
+ */
+export function eventBypassesQuietHours(type: string, payload: Record<string, unknown>): boolean {
+  if (QUIET_HOURS_BYPASS_EVENT_TYPES.has(type)) return true;
+  const predicate = QUIET_HOURS_BYPASS_PAYLOAD_PREDICATES.get(type);
+  return predicate !== undefined && predicate(payload);
+}
+
+/**
  * Whether `value` is a zone `Intl` accepts — brief scope (c). The `DateTimeFormat` probe is the
  * authoritative check: it throws `RangeError` for an unknown zone and accepts every real one,
  * which is exactly the set the delivery seam later feeds to `Intl`. It is preferred over
