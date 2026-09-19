@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bandFor,
+  bandForMove,
   crossedUpInto,
   usagePercent,
   usageThresholdIdempotencyKey,
@@ -69,6 +70,21 @@ describe('bandFor — falling is sticky within 5 points (Q5 hysteresis)', () => 
     const dropped = bandFor(60, 85); // → 0
     expect(dropped).toBe(0);
     expect(bandFor(86, dropped)).toBe(85); // crosses 85 again
+  });
+});
+
+describe('bandForMove — the 100 block band needs usage over the quota (x72)', () => {
+  it('caps an accepted fill at 95: exactly 100% is the persistent warning, only over-quota blocks', () => {
+    // The reserve guard caps an accepted reservation at exactly the quota, so a move to 100%
+    // was accepted, not blocked — the 95 warning, not the 100 block (49 §6).
+    expect(bandForMove(100, 85)).toBe(95);
+    expect(bandForMove(100, 0)).toBe(95);
+    // Already at or past the warning: no new band, so evaluate emits nothing.
+    expect(bandForMove(100, 95)).toBe(95);
+    // Only usage OVER the quota (a commit over the declaration, reconciler drift) is a block.
+    expect(bandForMove(100.01, 95)).toBe(100);
+    // Below the warning bands it is identical to bandFor.
+    expect(bandForMove(72, 0)).toBe(70);
   });
 });
 

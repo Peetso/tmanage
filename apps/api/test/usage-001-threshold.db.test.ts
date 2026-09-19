@@ -144,8 +144,11 @@ async function cancelUpload(slug: string, session: Session, id: string): Promise
   const done = (await app.inject({
     method: 'POST',
     url: `/v1/organizations/${slug}/upload-sessions/${id}/cancel`,
+    // No `content-type: application/json`: cancel carries no body, and declaring a JSON
+    // content type with an empty body makes Fastify reject the request with a 400 before the
+    // handler runs (FST_ERR_CTP_EMPTY_JSON_BODY). Mirrors the bodyless-POST wiring in
+    // file-001-upload-sessions' `sendTo`.
     headers: {
-      'content-type': 'application/json',
       cookie: session.cookie,
       [CSRF_HEADER]: session.csrfToken,
     },

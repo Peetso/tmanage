@@ -580,7 +580,7 @@ export const usageCounters = mysqlTable(
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     reconciledAt: datetime('reconciled_at', { mode: 'date', fsp: 3 }),
     /**
-     * USAGE-001 slice 4 (migration 0025). The threshold band this counter is currently in —
+     * USAGE-001 slice 4 (migration 0024). The threshold band this counter is currently in —
      * 0, 70, 85, 95 or 100 — carried on the row so a rising crossing fires its
      * `usage.threshold_reached.v1` event exactly once and a fall back below the hysteresis
      * floor re-arms it. Not part of the `version` optimistic-lock value: it moves on a band

@@ -13,7 +13,7 @@ import type { UsageCountersRepository } from './usage-counters.repository.js';
  * 100% (block new reservations). An organization is in exactly one band at a time; 0 is "below
  * 70%, nothing to warn about". Crossing a boundary *rising* is the moment the owner/admin should
  * be told, so it emits one `usage.threshold_reached.v1`. The band is stored on the counter row
- * (`usage_counters.threshold_band`, migration 0025) so the crossing fires once, not on every
+ * (`usage_counters.threshold_band`, migration 0024) so the crossing fires once, not on every
  * later reserve inside the same band.
  *
  * ## Hysteresis (Q5, delegated: 5 percentage points)
@@ -79,6 +79,26 @@ export function bandFor(pct: number, currentBand: ThresholdBand): ThresholdBand 
   return bandFor(pct, nextLowerBand(currentBand));
 }
 
+/**
+ * The band a committed counter move settles into (acceptance §2). Like {@link bandFor}, but the
+ * 100 "block new reservations" band (§6) is entered only when usage genuinely **exceeds** the
+ * quota. The reserve guard caps an accepted reservation at `used + reserved <= quota`, so a
+ * reservation can bring usage to at most exactly 100% and never past it: reaching 100% by
+ * reserving is the reservation being *accepted*, not blocked, and is the 95% persistent-warning
+ * experience. Only a move that pushes usage over the quota — a completion whose provider size
+ * beat the declaration, or a reconciler correction — is a real block. So at `pct <= 100` the
+ * highest band is 95; `pct > 100` is the block band.
+ *
+ * This is why a refused reservation (which never moves the counter) and a legitimate fill to
+ * exactly 100% both emit nothing at the block band, while the warning bands still fire on the
+ * crossing that reaches them.
+ */
+export function bandForMove(pct: number, currentBand: ThresholdBand): ThresholdBand {
+  const band = bandFor(pct, currentBand);
+  if (band === 100 && pct <= 100) return currentBand >= 95 ? currentBand : 95;
+  return band;
+}
+
 /** The band to emit for when moving `previous → next`, or `null` when nothing rose. */
 export function crossedUpInto(previous: ThresholdBand, next: ThresholdBand): ThresholdBand | null {
   return next > previous ? next : null;
@@ -127,7 +147,14 @@ export class UsageThresholdEvaluator {
     if (state === null) return;
 
     const pct = usagePercent(state.used, state.reserved, quotaBytes);
-    const next = bandFor(pct, state.band);
+    // A counter move — accepted reserve, commit, release/expire or reconcile — settles into the
+    // band {@link bandForMove} gives: reaching exactly 100% by an *accepted* reservation (the
+    // guard caps used + reserved at the quota) is the 95 persistent-warning, not the 100 "block
+    // new reservations" band, so it writes no 100% audit row. Only a move that pushes usage over
+    // the quota (a completion whose provider size beat the declaration, or a reconciler
+    // correction) is a real block. A refused reservation never reaches here — the guard throws
+    // and rolls the transaction back before this call.
+    const next = bandForMove(pct, state.band);
     if (next === state.band) return;
 
     await this.counters.setThresholdBand(runner, context, metricKey, next);
