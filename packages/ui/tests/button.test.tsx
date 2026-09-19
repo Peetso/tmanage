@@ -6,6 +6,7 @@ import {
   DestructiveButton,
   InkButton,
   LimeButton,
+  LiveAnnouncer,
   OrbButton,
   OutlineButton,
   SplitCapsuleButton,
@@ -76,7 +77,7 @@ describe('Button', () => {
   });
 
   describe('loading', () => {
-    it('stays focusable but inert while it waits, marks itself busy, and says so', () => {
+    it('stays focusable but inert while it waits, and marks itself busy', () => {
       render(
         <Button loading loadingLabel="Publishing the version">
           Publish
@@ -91,10 +92,25 @@ describe('Button', () => {
       expect(button).not.toBeDisabled();
       expect(button).toHaveAttribute('aria-disabled', 'true');
       expect(button).toHaveAttribute('aria-busy', 'true');
-      expect(screen.getByRole('status')).toHaveTextContent('Publishing the version');
 
       button.focus();
       expect(button).toHaveFocus();
+    });
+
+    it('announces its loading label through the ambient live region, not a mounted status node', () => {
+      // I-02: the wait is written into the shell's always-mounted LiveAnnouncer as a mutation,
+      // rather than a `role="status"` node mounted together with its text (which is not announced).
+      const { container } = render(
+        <LiveAnnouncer>
+          <Button loading loadingLabel="Publishing the version">
+            Publish
+          </Button>
+        </LiveAnnouncer>,
+      );
+      const announced = [...container.querySelectorAll('[aria-live="polite"]')].map(
+        (node) => node.textContent,
+      );
+      expect(announced).toContain('Publishing the version');
     });
 
     it('keeps the visible label, so the control does not resize under the pointer', () => {
