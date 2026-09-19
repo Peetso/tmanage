@@ -142,3 +142,27 @@ describe('GET /v1/organizations/:orgSlug/notification-preferences', () => {
     expect(principal.userId).toBe(AUTHENTICATED.userId);
   });
 });
+
+describe('PUT /v1/organizations/:orgSlug/notification-preferences', () => {
+  it('rejects a quiet-hours timezone that is not a real IANA zone (INBOX-001)', async () => {
+    // A stored zone the delivery seam feeds to Intl must be real; a bogus one is a 400, not a
+    // row that silently never triggers quiet hours.
+    const response = await app.inject({
+      method: 'PUT',
+      url: URL,
+      headers: { cookie: `${COOKIE_NAME}=a-signed-token` },
+      payload: {
+        inAppEnabled: true,
+        emailEnabled: true,
+        digestFrequency: 'off',
+        quietHoursStart: '22:00',
+        quietHoursEnd: '07:00',
+        quietHoursTimezone: 'Mars/Phobos',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('validation_failed');
+    expect(updatePreferences).not.toHaveBeenCalled();
+  });
+});

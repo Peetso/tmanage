@@ -7,7 +7,9 @@ import { workItemBlockedConsumer } from './work-blocked-notification.js';
 import {
   createClientRequestSubmittedMail,
   createClientRequestTransitionedMail,
+  createQuietHoursMailResume,
 } from './client-request-mail.js';
+import { QUIET_HOURS_MAIL_RESUME_TYPE } from '../common/database/notifications-store.js';
 import { createCredentialChangeMail } from './credential-change-mail.js';
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
 import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
@@ -38,6 +40,15 @@ import type { OutboxHandler, OutboxHandlers, QueueHandlers } from '../outbox/dis
  * one connection is a driver error, not concurrency. Notification first, deliberately: it is
  * the canonical channel, and if the mail half throws, the whole event rolls back and is
  * redelivered, where the notification's dedupe key absorbs the repeat.
+ *
+ * ## The quiet-hours resume is its own type, not a marked re-run
+ *
+ * INBOX-001 defers an interrupting email past a recipient's quiet window by re-enqueuing it as a
+ * dedicated {@link QUIET_HOURS_MAIL_RESUME_TYPE} row. That type is registered here to the resume
+ * handler **alone** — never to `both` — so the notification consumer, and any future
+ * `client_request.*` consumer, cannot re-fire on a resume row. Reusing the original type with a
+ * payload marker would have made no-double-delivery depend on every such consumer being
+ * marker-aware or idempotent; a separate type makes it structural.
  */
 
 /** Runs two handlers over one event, in order, sharing its transaction and its effects. */
@@ -77,6 +88,12 @@ export function createWorkerOutboxHandlers(
         : both(clientRequestTransitionedConsumer, createClientRequestTransitionedMail(mails)),
     // WORK-003 — the blocker's ask owner, and nobody else.
     'work_item.blocked.v1': workItemBlockedConsumer,
+    // INBOX-001 — a quiet-hours-deferred email resumes on its own internal type, handled only by
+    // the resume path, never by the notification consumer. Registered only with a transport,
+    // since a resume row can only be produced by the mail consumer, which only runs when enabled.
+    ...(mails === null
+      ? {}
+      : { [QUIET_HOURS_MAIL_RESUME_TYPE]: createQuietHoursMailResume(mails) }),
   };
 }
 

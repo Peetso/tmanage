@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { clientRequestStateMachine } from '@tmanage/domain';
-import { WORKER_OUTBOX_HANDLERS } from './registry.js';
+import type { MailDelivery, Mailer } from '@tmanage/mail';
+import { WORKER_OUTBOX_HANDLERS, createWorkerOutboxHandlers } from './registry.js';
+import { ClientRequestMailer } from '../notifications/client-request-mailer.js';
 import { requestTransitionFor } from './work-item-lifecycle.js';
 
 /**
@@ -46,5 +48,21 @@ describe('the handler registry', () => {
       'work_item.blocked.v1',
       'work_item.updated.v1',
     ]);
+  });
+
+  it('routes the quiet-hours resume row to a dedicated handler, not the notification consumer', () => {
+    // INBOX-001: a deferred email resumes on its own internal event type. That type must map to a
+    // handler of its own — never to `both(notification, mail)` under a `client_request.*` key — so
+    // the notification consumer (and any future consumer of the real type) never sees a resume row
+    // and cannot double-fire on it. On the pre-fix code the resume row reused the original type, so
+    // this key did not exist and the notification consumer re-ran on it; this pins the fix.
+    const transport: Mailer = { send: (): Promise<MailDelivery> => Promise.resolve('sent') };
+    const handlers = createWorkerOutboxHandlers({
+      clientRequestMailer: new ClientRequestMailer(transport, 'https://app.example'),
+    });
+    const resume = handlers['notification.quiet_hours_resume.v1'];
+    expect(typeof resume).toBe('function');
+    expect(resume).not.toBe(handlers['client_request.submitted.v1']);
+    expect(resume).not.toBe(handlers['client_request.transitioned.v1']);
   });
 });
