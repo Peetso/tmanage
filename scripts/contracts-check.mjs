@@ -42,7 +42,6 @@ const asJson = process.argv.includes('--json');
  * longer exists, so this list cannot rot into a blanket.
  */
 const EXEMPT = new Map([
-  ['AuditEventView', 'No web consumer: the audit surface has no screen (AUDIT-002 unbuilt).'],
   [
     'ClientOrganizationView',
     'No web consumer: CLIENT-001s client-organization CRUD has no internal screen; apps/web/src/lib/api/clients.ts deliberately wraps only GET projects/:id/clients.',
