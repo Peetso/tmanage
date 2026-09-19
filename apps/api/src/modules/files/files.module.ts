@@ -30,6 +30,7 @@ import { FileAssetsRepository } from './file-assets.repository.js';
 import { UploadSessionsRepository } from './upload-sessions.repository.js';
 import { UsageCountersRepository } from './usage-counters.repository.js';
 import { UsageLedgerRepository } from './usage-ledger.repository.js';
+import { UsageThresholdEvaluator } from './usage-thresholds.js';
 import { FilesService } from './files.service.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
@@ -51,11 +52,12 @@ import { UploadPartsController } from './upload-parts.controller.js';
  * A repository is a stateless collection of queries, so this module owning its own
  * read-only handles on `projects` and `client_requests` costs nothing and reads honestly.
  *
- * `FilesService` takes eleven constructor arguments. Counted against the other modules' copies
- * on purpose: the object store is the tenth and the outbox the eleventh, and a copy built
- * elsewhere without the outbox — or without the usage ledger beside it (USAGE-001 slice 2) —
- * would move a counter nobody is ever told about, the wiring defect the inbox session found
- * in `PortalInboxService`.
+ * `FilesService` takes twelve constructor arguments. Counted against the other modules' copies
+ * on purpose: the object store is the tenth, the outbox the eleventh, and the threshold
+ * evaluator (USAGE-001 slice 4) the twelfth. A copy built elsewhere without the outbox — or
+ * without the usage ledger beside it (slice 2), or without the evaluator that turns a counter
+ * move into a `usage.threshold_reached.v1` — would move a counter nobody is ever told about,
+ * the wiring defect the inbox session found in `PortalInboxService`.
  *
  * `UploadPartsController` (FILE-001b) is the third door: public, tenantless, the local
  * stand-in for the bucket. It injects `LOCAL_PART_SINK` optionally and nothing from this
@@ -108,6 +110,9 @@ export class FilesModule {
           config,
           audit,
           outbox,
+          // USAGE-001 slice 4. Built on the same counters, outbox and audit the reserve and
+          // commit paths already use, so the band write and its event commit with the move.
+          new UsageThresholdEvaluator(counters, outbox, audit),
         ),
     };
 
@@ -131,13 +136,32 @@ export class FilesModule {
     // counter with no trace of the repair.
     const reconciler: Provider = {
       provide: USAGE_RECONCILER,
-      inject: [TENANT_DATABASE, USAGE_COUNTERS_REPOSITORY, USAGE_LEDGER_REPOSITORY, AUDIT_SERVICE],
+      inject: [
+        TENANT_DATABASE,
+        USAGE_COUNTERS_REPOSITORY,
+        USAGE_LEDGER_REPOSITORY,
+        AUDIT_SERVICE,
+        OUTBOX_EVENTS_REPOSITORY,
+        API_CONFIG,
+      ],
       useFactory: (
         database: TenantDatabase,
         counters: UsageCountersRepository,
         ledger: UsageLedgerRepository,
         audit: AuditService,
-      ) => new UsageReconciler(database, counters, ledger, audit),
+        outbox: OutboxEventsRepository,
+        config: ApiConfig,
+        // USAGE-001 slice 4. The reconciler re-evaluates the band under the same lock; the
+        // evaluator emits `usage.threshold_reached.v1` when a corrected counter has risen.
+      ) =>
+        new UsageReconciler(
+          database,
+          counters,
+          ledger,
+          audit,
+          new UsageThresholdEvaluator(counters, outbox, audit),
+          config.storageOrgBytesLimit,
+        ),
     };
 
     // FILE-002. The verification pass is a job too: exported so `verify.ts` can resolve

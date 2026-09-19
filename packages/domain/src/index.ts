@@ -184,6 +184,7 @@ export type {
   UsageStorageCommittedV1,
   UsageStorageReleasedV1,
   UsageStorageReservedV1,
+  UsageThresholdReachedV1,
   WorkItemBlockedV1,
   WorkItemUpdatedV1,
 } from './events/outbox.js';

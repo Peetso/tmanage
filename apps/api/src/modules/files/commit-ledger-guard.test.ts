@@ -49,6 +49,9 @@ describe('commitCompletion ledger guard honours counters.commit()', () => {
       {} as never,
       audit as never,
       outbox as never,
+      // USAGE-001 slice 4. This test drives only the commit ledger guard; the band evaluator is
+      // absent (null), so `commitCompletion`'s `this.thresholds?.evaluate` is a no-op here.
+      null,
     );
     const commitCompletion = (
       service as unknown as {

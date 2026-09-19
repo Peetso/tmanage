@@ -5,6 +5,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import { STORAGE_BYTES_METRIC } from './usage-counters.repository.js';
 import type { UsageCountersRepository } from './usage-counters.repository.js';
 import type { UsageLedgerRepository } from './usage-ledger.repository.js';
+import type { UsageThresholdEvaluator } from './usage-thresholds.js';
 import { describeFailure } from './upload-session-sweeper.js';
 
 /**
@@ -129,6 +130,16 @@ export class UsageReconciler {
     private readonly counters: UsageCountersRepository,
     private readonly ledger: UsageLedgerRepository,
     private readonly audit: AuditService,
+    /**
+     * USAGE-001 slice 4. Re-evaluates the band under the same lock this pass already holds, so a
+     * counter whose usage rose without the reserve/commit path emitting (a drift the pass just
+     * corrected, or a band left stale by an earlier code path) still crosses its threshold. The
+     * quota it evaluates against is {@link quotaBytes}. Nullable so the slice-3 constructor
+     * signature still builds a reconciler that reconciles but does not evaluate bands.
+     */
+    private readonly thresholds: UsageThresholdEvaluator | null = null,
+    /** The effective storage quota the band is a percentage of (`49-PRICING` §5's seam). */
+    private readonly quotaBytes: number = 0,
     /** Where a failed reconciliation is reported. The organization is named, never its payload. */
     private readonly onFailure: (organizationId: string, error: unknown) => void = (id, error) =>
       console.error(`[reconciler] reconciling organization ${id} failed`, describeFailure(error)),
@@ -182,6 +193,8 @@ export class UsageReconciler {
 
       if (!diff.drifted) {
         await this.counters.touchReconciledAt(tx, context, STORAGE_BYTES_METRIC);
+        // Re-evaluate the band under the lock, in case an earlier path left it stale (slice 4).
+        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, this.quotaBytes);
         return 'clean';
       }
 
@@ -215,6 +228,9 @@ export class UsageReconciler {
           reserved_drift: diff.reservedDelta,
         },
       });
+      // The corrected counter may have crossed a band the drifting path never emitted for
+      // (USAGE-001 slice 4): re-evaluate under the same lock and emit if it rose.
+      await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, this.quotaBytes);
       return 'corrected';
     });
   }

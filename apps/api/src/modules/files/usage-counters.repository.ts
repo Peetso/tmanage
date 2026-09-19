@@ -9,6 +9,17 @@ import type {
   TenantContext,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
+import type { ThresholdBand } from './usage-thresholds.js';
+
+/** What {@link UsageCountersRepository.loadThresholdState} reads for the band evaluation (slice 4). */
+export interface ThresholdCounterState {
+  readonly id: string;
+  readonly used: number;
+  readonly reserved: number;
+  readonly band: ThresholdBand;
+  /** The counter's version after the move — the third part of the crossing's idempotency key. */
+  readonly version: number;
+}
 
 /** What {@link UsageCountersRepository.lockForReconcile} reads under the row lock. */
 export interface LockedCounter {
@@ -263,6 +274,70 @@ export class UsageCountersRepository {
         ),
       );
     return result[0].affectedRows === 1;
+  }
+
+  // ── USAGE-001 slice 4: threshold bands ──────────────────────────────────────
+
+  /**
+   * Read what the band evaluation needs — the counter's id, its used and reserved bytes, its
+   * current band and its version — for the storage metric. Called inside the move's own
+   * transaction, after the reserve/commit/correct that changed the row, so it sees that row's
+   * own uncommitted values under the lock the move already holds. `null` when the organization
+   * has no counter row for the metric (nothing was moved, nothing to evaluate).
+   */
+  async loadThresholdState(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+  ): Promise<ThresholdCounterState | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        id: usageCounters.id,
+        usedValue: usageCounters.usedValue,
+        reservedValue: usageCounters.reservedValue,
+        thresholdBand: usageCounters.thresholdBand,
+        version: usageCounters.version,
+      })
+      .from(usageCounters)
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (row === undefined) return null;
+    return {
+      id: row.id,
+      used: Number(row.usedValue),
+      reserved: Number(row.reservedValue),
+      band: row.thresholdBand as ThresholdBand,
+      version: Number(row.version),
+    };
+  }
+
+  /**
+   * Set the stored band. No `version` bump: the band is not part of the used/reserved
+   * optimistic-lock value the reconciler guards on (it moves on a band change, not a byte
+   * change). No version guard either: the caller has already moved this row in the same
+   * transaction, so it holds the row lock and nothing else can interleave.
+   */
+  async setThresholdBand(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+    band: ThresholdBand,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(usageCounters)
+      .set({ thresholdBand: band, updatedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+        ),
+      );
   }
 
   /**

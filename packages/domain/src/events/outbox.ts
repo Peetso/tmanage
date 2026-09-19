@@ -92,6 +92,20 @@ export const OUTBOX_EVENT_CATALOG = {
     catalog: '§4 usage.storage_released.v1 — usage UI, reconciliation',
   },
   /**
+   * USAGE-001 slice 4. §4 grades this "audit yes at 100%" and names the aggregate
+   * `organization_usage`; the row that exists is `usage_counters` (one per organization for
+   * the storage metric), and `ix_outbox_events_org_aggregate` indexes real row kinds, so the
+   * aggregate is `usage_counter` and the aggregate id is that counter row — the same
+   * divergence, for the same reason, as the four FILE-001 upload events above. Produced by
+   * service code (the reserve and commit paths and the reconciler), never by a route, when a
+   * band boundary (70/85/95/100 of used + reserved over quota) is crossed rising, with
+   * hysteresis. Recorded as a divergence in docs/implementation-status.md.
+   */
+  'usage.threshold_reached.v1': {
+    aggregateType: 'usage_counter',
+    catalog: '§4 usage.threshold_reached.v1 — authorized owner/admin notification, billing UI',
+  },
+  /**
    * FILE-002. §4: "validation/scan failed", audit yes. The aggregate is the asset — the
    * row the verification judged and the row a consumer would read to learn why — not the
    * session that produced it; `ix_outbox_events_org_aggregate` answers "everything about
@@ -242,6 +256,24 @@ export interface UsageStorageReleasedV1 {
 }
 
 /**
+ * USAGE-001 slice 4. The band crossed and the numbers behind it — safe scalars only, no
+ * filename and no content (§1's forbidden list has nothing this shape could carry). `band` is
+ * one of 70/85/95/100. `idempotencyKey` is `<counterId>:<band>:<counterVersion>`: the counter
+ * version advances on every move, so a re-entry after the usage fell back below the hysteresis
+ * floor carries a fresh key and is delivered again, while a redelivery of the same crossing
+ * does not — the property the notification consumer dedupes on.
+ */
+export interface UsageThresholdReachedV1 {
+  readonly organizationId: string;
+  readonly band: number;
+  readonly used: number;
+  readonly reserved: number;
+  readonly quota: number;
+  readonly idempotencyKey: string;
+  readonly occurredAt: string;
+}
+
+/**
  * FILE-002. Ids, the purpose, and the rejection as a code — §7's "never raw content" and
  * §1's forbidden list: no filename, no declared or detected type, no digest. A consumer
  * that may tell the uploader why reads the row under its own permissions.
@@ -281,6 +313,7 @@ export interface OutboxEventPayloads {
   readonly 'usage.storage_reserved.v1': UsageStorageReservedV1;
   readonly 'usage.storage_committed.v1': UsageStorageCommittedV1;
   readonly 'usage.storage_released.v1': UsageStorageReleasedV1;
+  readonly 'usage.threshold_reached.v1': UsageThresholdReachedV1;
   readonly 'file.rejected.v1': FileRejectedV1;
   readonly 'file.ready.v1': FileReadyV1;
 }
