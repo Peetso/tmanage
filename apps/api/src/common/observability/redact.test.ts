@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'vitest';
+import { redactFields } from './redact.js';
+
+/**
+ * OBS-001 security proof. A log line must never carry a secret or raw PII, whatever shape the
+ * record arrives in. This is the one thorough test the slice budget reserves for the redactor
+ * (RULES rule 11: a security proof may be thorough), so it exercises every rule at once:
+ * deny-listed keys at several depths and inside an array, the suffix rules, the email mask, and
+ * a circular graph that must survive rather than throw.
+ */
+describe('redactFields', () => {
+  it('strips seeded secrets at three depths, including inside an array, and masks email', () => {
+    const record = {
+      // depth 1 — deny-list and a suffix rule
+      password: 'DEPTH1-PW',
+      apiKey: 'DEPTH1-APIKEY',
+      email: 'john.doe@example.com',
+      keep: 'visible-scalar',
+      // depth 2
+      user: {
+        refreshToken: 'DEPTH2-RT',
+        clientSecret: 'DEPTH2-SECRET',
+        name: 'Ada',
+      },
+      // depth 3
+      nested: {
+        inner: {
+          totpSeed: 'DEPTH3-SEED',
+          recoveryCode: 'DEPTH3-RECOVERY',
+        },
+      },
+      // inside an array
+      sessions: [
+        { id: 's1', accessToken: 'ARR-AT' },
+        { id: 's2', cookie: 'ARR-COOKIE', userPassword: 'ARR-PW' },
+      ],
+    };
+
+    const out = redactFields(record);
+    const serialized = JSON.stringify(out);
+
+    for (const secret of [
+      'DEPTH1-PW',
+      'DEPTH1-APIKEY',
+      'DEPTH2-RT',
+      'DEPTH2-SECRET',
+      'DEPTH3-SEED',
+      'DEPTH3-RECOVERY',
+      'ARR-AT',
+      'ARR-COOKIE',
+      'ARR-PW',
+    ]) {
+      expect(serialized).not.toContain(secret);
+    }
+
+    // Non-sensitive scalars are preserved so the log stays useful.
+    expect(serialized).toContain('visible-scalar');
+    expect(serialized).toContain('Ada');
+    expect(serialized).toContain('s1');
+
+    // Email is masked to first character + domain, never the full local part.
+    const masked = (out as { email: string }).email;
+    expect(masked).toBe('j***@example.com');
+    expect(serialized).not.toContain('john.doe@example.com');
+  });
+
+  it('never throws on a circular graph and marks the cycle', () => {
+    const cyclic: Record<string, unknown> = { token: 'CIRCULAR-SECRET', label: 'root' };
+    cyclic['self'] = cyclic;
+
+    let out: unknown;
+    expect(() => {
+      out = redactFields(cyclic);
+    }).not.toThrow();
+
+    const serialized = JSON.stringify(out);
+    expect(serialized).not.toContain('CIRCULAR-SECRET');
+    expect(serialized).toContain('label');
+  });
+});

@@ -6,6 +6,7 @@ import { StorageModule } from './common/storage/storage.module.js';
 import { ScannerModule } from './common/scan/scanner.module.js';
 import { AppModule } from './app.module.js';
 import { apiConfigFrom } from './common/http/api-config.js';
+import { serializeForLog } from './common/observability/logger.js';
 
 /**
  * The application module as a deployment composes it — from a validated `Env` and nothing
@@ -33,8 +34,10 @@ export function composeAppModule(env: Env): DynamicModule {
       },
       onGuardEvent: (event) => {
         // ADR-0001 layer 3. The event carries a redacted statement shape and never a bound
-        // value; OBS-001 will route this to the metric and the alert.
-        console.warn('[tenant-guard]', JSON.stringify(event));
+        // value; OBS-001 routes it through the field-level redactor (`serializeForLog`) so any
+        // future field a guard event grows cannot become a secret in the log, and later to the
+        // metric and the alert.
+        console.warn('[tenant-guard]', serializeForLog(event));
       },
     }),
     mailer: MailerModule.forConfig({

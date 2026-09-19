@@ -430,6 +430,19 @@ export const envSchema = z
     OTEL_SERVICE_NAME: nonEmpty('OTEL_SERVICE_NAME').default('tmanage-api'),
     OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default(''),
     OTEL_TRACES_SAMPLER_ARG: z.coerce.number().min(0).max(1).default(1),
+    /**
+     * OBS-001. The trace-export master switch, off by default. Not `z.coerce.boolean()` — that is
+     * `Boolean(value)`, so the string `"false"` would coerce to `true` (the SMTP_SECURE reasoning
+     * above); the enum makes `OTEL_ENABLED=false` mean no. When it is on, `OTEL_EXPORTER_URL` is
+     * required by the `superRefine` below, so an enabled exporter with nowhere to send spans is a
+     * loud boot failure rather than telemetry that silently disappears.
+     */
+    OTEL_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    /** Where spans are exported when `OTEL_ENABLED=true`. Absent (and unused) when disabled. */
+    OTEL_EXPORTER_URL: z.string().url().optional(),
 
     // Email
     EMAIL_DRIVER: z.enum(['console', 'smtp']).default('console'),
@@ -543,6 +556,16 @@ export const envSchema = z
       fail(
         'RATE_LIMIT_AUTH_MAX_REQUESTS',
         `must be strictly below AUTH_MAX_FAILURES_IN_WINDOW (${env.RATE_LIMIT_AUTH_MAX_REQUESTS} >= ${env.AUTH_MAX_FAILURES_IN_WINDOW}): one address could then drive any known account into the ${env.AUTH_FAILURE_WINDOW_SECONDS}s lockout, which the account holder cannot clear`,
+      );
+    }
+
+    // OBS-001. An enabled exporter with no endpoint would accept every span and drop it —
+    // telemetry that looks configured and silently goes nowhere. Fail loudly at boot instead,
+    // in every environment (a misconfigured dev deployment is where the mistake is copied from).
+    if (env.OTEL_ENABLED && !env.OTEL_EXPORTER_URL) {
+      fail(
+        'OTEL_EXPORTER_URL',
+        'is required when OTEL_ENABLED=true: an enabled exporter with no endpoint drops every span',
       );
     }
 
