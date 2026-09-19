@@ -465,6 +465,10 @@ the backlog is too old, the heartbeat is stale, **or any row in either queue has
 to run beside a live loop and safe to run on a schedule of its own. Point cron, or any uptime
 check that can run a command, at that exit code: its own failure reporting is the alarm.
 
+The flags are not additive and have a fixed precedence: `--unpark` wins over `--status`, which
+wins over `--once`, so `relay:status` invoked as `--once --status` reports and delivers nothing
+(status wins) rather than running a batch.
+
 `pending`, `parked` and `oldestPendingSeconds` are the totals **across both queues** — the age
 is taken from whichever queue has waited longest, not summed, and it is `null` only when every
 queue is drained. `queues` is the same three numbers reported per queue, so the line a monitor

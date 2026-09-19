@@ -4,6 +4,7 @@ import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import { createWorkerDatabase, workerConnectionLimit } from './common/database/worker-database.js';
 import type { WorkerMode } from './common/database/worker-database.js';
+import { selectWorkerCommand, unparkDiagnosticLines, workerModeFor } from './cli.js';
 import { readOutboxBacklog, unparkEvents } from './common/database/outbox-store.js';
 import {
   CREDENTIAL_NOTICE_QUEUE,
@@ -123,16 +124,10 @@ async function beat(path: string | undefined, at: Date): Promise<void> {
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  const once = process.argv.includes('--once');
-  const status = process.argv.includes('--status');
-  const unparkIndex = process.argv.indexOf('--unpark');
-  const unparkAll = process.argv.includes('--all');
-  // The first argument after `--unpark` that is not itself a flag. An event id is a UUID, so
-  // nothing an operator can type here is ambiguous with `--all`.
-  const unparkId =
-    unparkIndex === -1
-      ? undefined
-      : process.argv.slice(unparkIndex + 1).find((argument) => !argument.startsWith('--'));
+  // Argument parsing and mode selection are `cli.ts`'s pure functions so they can be tested
+  // without a database (x8 review IMPORTANT-G). `--unpark` wins over `--status` wins over
+  // `--once`; `--once --status` therefore reports and delivers nothing. See `selectWorkerCommand`.
+  const command = selectWorkerCommand(process.argv);
   const thresholds: OutboxHealthThresholds = {
     backlogMaxAgeSeconds: env.OUTBOX_BACKLOG_MAX_AGE_SECONDS,
     heartbeatMaxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS,
@@ -140,7 +135,7 @@ async function main(): Promise<void> {
   // Every flagged mode delivers from a single sequential pass and exits; only the no-flag
   // shape holds two loops and the realtime server open at once, and only it needs the third
   // connection. See `workerConnectionLimit`.
-  const mode: WorkerMode = once || status || unparkIndex !== -1 ? 'batch' : 'loop';
+  const mode: WorkerMode = workerModeFor(command);
 
   // The relay's own least-privilege credential when it is set; the API's otherwise, named
   // on stderr so nobody reads a development fallback as the production shape.
@@ -165,9 +160,9 @@ async function main(): Promise<void> {
   // any tenant's. So there is no tenant to pass wrongly — the worst a typo does is name an id
   // that is not parked, which the predicate refuses and the exit code reports. The one broad
   // form, `--all`, has to be asked for by name: a bare `--unpark` refuses rather than guessing.
-  if (unparkIndex !== -1) {
+  if (command.kind === 'unpark' || command.kind === 'unpark-invalid') {
     try {
-      if (unparkAll === (unparkId !== undefined)) {
+      if (command.kind === 'unpark-invalid') {
         console.error(
           '[worker] relay:unpark needs exactly one of: an event id, or --all for every parked event',
         );
@@ -177,15 +172,26 @@ async function main(): Promise<void> {
       // Both queues — x31. A parked notice is the same operator condition as a parked event
       // and must have the same way out; an id is a primary key in exactly one of the two
       // tables, so naming one and finding it in the other is not a case that can arise.
-      const selector = unparkAll ? null : (unparkId ?? null);
+      const selector = command.selector;
       const replayed = await database.transaction(async (tx) => [
         ...(await unparkEvents(tx, env.OUTBOX_MAX_ATTEMPTS, selector)),
         ...(await unparkNotices(tx, env.OUTBOX_MAX_ATTEMPTS, selector)),
       ]);
+      // Carry-over 2: `--all` clears `last_error` on every parked row at once, and nothing else
+      // — not `relay:status`, not the per-row confirmation below — ever prints it, so this is
+      // the last chance to read the diagnosis before it is gone. The value was captured by the
+      // `FOR UPDATE` select before the reset landed, so it is the pre-reset error even though it
+      // prints after. Only `--all` does this; a named id leaves the rest of the parked set and
+      // its diagnoses readable, so its output is unchanged. `last_error` can quote a recipient,
+      // but the operator running `--all` already holds the worker credential and the diagnosis
+      // is about to be destroyed for good — surfacing it to that same operator's log is the
+      // smaller loss.
+      for (const line of unparkDiagnosticLines(replayed, selector)) {
+        console.warn(line);
+      }
       // Named one per line, organization included: this is an operator overriding the relay's
-      // own verdict, and it is the only record that it happened. No `last_error` and no
-      // payload — the diagnosis is the operator's to read from `relay:status`, and a driver
-      // message can quote a recipient.
+      // own verdict, and it is the only record that it happened. No payload — a driver message
+      // can quote a recipient, and the payload is never the operator's to read here.
       for (const event of replayed) {
         console.warn(
           `[worker] unparked ${event.id} (${event.type}, organization ` +
@@ -196,7 +202,7 @@ async function main(): Promise<void> {
       console.warn(`[worker] relay:unpark replayed ${String(replayed.length)} parked row(s)`);
       // A named id that matched nothing was not replayed, and the operator must hear that from
       // the exit code, not only from a count. `--all` finding nothing parked is a no-op success.
-      if (replayed.length === 0 && !unparkAll) {
+      if (replayed.length === 0 && selector !== null) {
         console.error('[worker] no parked event with that id — nothing was changed');
         process.exitCode = 1;
       }
@@ -209,7 +215,7 @@ async function main(): Promise<void> {
   // Report and leave: no handlers are built, nothing is claimed, and the only statement is
   // the aggregate read. Safe to run from cron beside a live loop, and safe to run on a
   // schedule of its own on a host where the relay is cron-driven batches.
-  if (status) {
+  if (command.kind === 'status') {
     try {
       // Both queues, one verdict (x31) — see `mergeBacklogs`. The JSON line keeps every key
       // a monitor already parses, with the same summed meaning, and gains a `queues` object
@@ -280,7 +286,7 @@ async function main(): Promise<void> {
     backoffCapMs: env.OUTBOX_BACKOFF_CAP_MS,
   };
 
-  if (once) {
+  if (command.kind === 'once') {
     try {
       const report = await runOutboxBatch(database, handlers, options);
       // x31: the second queue, drained in the same invocation. Sequential, not parallel —
