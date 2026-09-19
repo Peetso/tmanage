@@ -264,13 +264,27 @@ describe('CRITICAL-2 — the backlog aggregate', () => {
     expect(backlog.oldestPendingSeconds).toBeLessThan(3_600);
   });
 
-  it('floors a row backed off into the future at zero rather than reporting a negative', async () => {
+  it('measures a backed-off row from occurred_at, not its retry time (IMPORTANT-E)', async () => {
     await db.admin.execute('update outbox_events set published_at = utc_timestamp(3)');
-    const id = await insertEvent('unconsumed.critical2.v1');
+    // Occurred two hours ago; retried, so its next attempt is 600s in the future. Measuring from
+    // available_at reported ~0 and hid a genuinely stuck queue; the age is the two hours it has
+    // waited, taken from occurred_at, which a retry never rewrites.
+    const id = await insertEvent('unconsumed.critical2.v1', 7200);
     await db.admin.execute(
       'update outbox_events set available_at = date_add(utc_timestamp(3), interval 600 second) where id = ?',
       [id],
     );
+
+    const backlog = await workerDb.read((tx) => readOutboxBacklog(tx, OPTIONS.maxAttempts));
+    expect(backlog.pending).toBe(1);
+    expect(backlog.oldestPendingSeconds).toBeGreaterThanOrEqual(7_190);
+  });
+
+  it('floors a row whose occurred_at is itself in the future at zero, never negative', async () => {
+    await db.admin.execute('update outbox_events set published_at = utc_timestamp(3)');
+    // occurred_at and available_at both 600s ahead (clock skew, or an event dated forward):
+    // LEAST(occurred_at, available_at) is still in the future, so 0 is the honest answer.
+    await insertEvent('unconsumed.critical2.v1', -600);
 
     const backlog = await workerDb.read((tx) => readOutboxBacklog(tx, OPTIONS.maxAttempts));
     expect(backlog.pending).toBe(1);

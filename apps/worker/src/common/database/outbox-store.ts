@@ -262,44 +262,100 @@ export interface OutboxBacklog {
   /** Unpublished and at or past the attempt cap — never claimed again without an operator. */
   readonly parked: number;
   /**
-   * Seconds between now and the oldest pending row's `available_at`, floored at 0.
+   * Seconds between now and the oldest pending row's `LEAST(occurred_at, available_at)`, floored
+   * at 0. Measured from `occurred_at` — the event's own timestamp, which a retry never rewrites —
+   * rather than `available_at`, which a retry pushes into the future (IMPORTANT-E): a row that
+   * keeps failing and backing off must still report how long it has genuinely been waiting.
    * `null` when nothing is pending, which is the drained state and not a missing reading.
    */
   readonly oldestPendingSeconds: number | null;
 }
+
+/**
+ * One unpublished row, as {@link computeBacklog} needs it.
+ *
+ * `occurredAt` is the event's insert-set timestamp; `availableAt` is its redelivery-backoff time,
+ * moved forward on each failed attempt.
+ */
+export interface BacklogCandidateRow {
+  readonly attempts: number;
+  readonly occurredAt: Date;
+  readonly availableAt: Date;
+}
+
+/**
+ * The backlog aggregate over the unpublished rows, computed here rather than in SQL so the age
+ * source is provable without a database (see `outbox-backlog.test.ts`).
+ *
+ * Age is taken from `LEAST(occurredAt, availableAt)` of the oldest **pending** row: `occurredAt`
+ * is the stable origin a retry never rewrites, and `LEAST` keeps the older of the two under any
+ * clock skew, so the reading never under-reports how long the queue has been stuck. Parked rows
+ * (`attempts >= maxAttempts`) are counted but excluded from the age — a permanently parked row is
+ * a separately reported condition and would otherwise pin the age at "growing for ever".
+ *
+ * `now` is the database's `NOW(3)`, passed in so the reading stays on the server's clock.
+ */
+export function computeBacklog(
+  rows: readonly BacklogCandidateRow[],
+  now: Date,
+  maxAttempts: number,
+): OutboxBacklog {
+  let pending = 0;
+  let parked = 0;
+  let oldestPendingAt: number | null = null;
+  for (const row of rows) {
+    if (row.attempts >= maxAttempts) {
+      parked += 1;
+      continue;
+    }
+    pending += 1;
+    const origin = Math.min(row.occurredAt.getTime(), row.availableAt.getTime());
+    if (oldestPendingAt === null || origin < oldestPendingAt) oldestPendingAt = origin;
+  }
+  return {
+    pending,
+    parked,
+    // A pending row dated into the future reads negative; 0 is the honest answer for "nothing is
+    // overdue", and `null` above is reserved for "nothing is pending".
+    oldestPendingSeconds:
+      oldestPendingAt === null
+        ? null
+        : Math.max(0, Math.floor((now.getTime() - oldestPendingAt) / 1000)),
+  };
+}
+
+const asDate = (value: unknown): Date => (value instanceof Date ? value : new Date(String(value)));
 
 export async function readOutboxBacklog(
   tx: WorkerTransaction,
   maxAttempts: number,
 ): Promise<OutboxBacklog> {
   interface BacklogRow {
-    readonly pending: unknown;
-    readonly parked: unknown;
-    readonly oldest_pending_seconds: unknown;
+    readonly attempts: unknown;
+    readonly occurred_at: unknown;
+    readonly available_at: unknown;
+    readonly now_at: unknown;
   }
+  // The counts and the age are computed in TypeScript (see `computeBacklog`) rather than in SQL,
+  // so the age source is unit-provable. The unpublished tail is kept small and contiguous by
+  // `ix_outbox_events_unpublished`, so this transfers few rows in the healthy case.
   const rows = await tx.query<readonly BacklogRow[]>(
-    `SELECT SUM(CASE WHEN attempts <  ? THEN 1 ELSE 0 END) AS pending,
-            SUM(CASE WHEN attempts >= ? THEN 1 ELSE 0 END) AS parked,
-            TIMESTAMPDIFF(
-              SECOND,
-              MIN(CASE WHEN attempts < ? THEN available_at END),
-              NOW(3)
-            ) AS oldest_pending_seconds
+    `SELECT attempts, occurred_at, available_at, NOW(3) AS now_at
        FROM outbox_events
       WHERE published_at IS NULL`,
-    [maxAttempts, maxAttempts, maxAttempts],
   );
 
-  const row = rows[0];
-  const oldest = row === undefined ? null : row.oldest_pending_seconds;
-  return {
-    pending: row === undefined ? 0 : Number(row.pending ?? 0),
-    parked: row === undefined ? 0 : Number(row.parked ?? 0),
-    // A pending row backed off into the future reads negative; 0 is the honest answer for
-    // "nothing is overdue", and the `null` above is reserved for "nothing is pending".
-    oldestPendingSeconds:
-      oldest === null || oldest === undefined ? null : Math.max(0, Number(oldest)),
-  };
+  const first = rows[0];
+  const now = first === undefined ? new Date() : asDate(first.now_at);
+  return computeBacklog(
+    rows.map((row) => ({
+      attempts: Number(row.attempts),
+      occurredAt: asDate(row.occurred_at),
+      availableAt: asDate(row.available_at),
+    })),
+    now,
+    maxAttempts,
+  );
 }
 
 export interface ParkedOutboxEvent {

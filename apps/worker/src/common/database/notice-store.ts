@@ -1,3 +1,4 @@
+import { computeBacklog } from './outbox-store.js';
 import type { OutboxBacklog } from './outbox-store.js';
 import type { WorkerTransaction } from './worker-database.js';
 import type { ClaimOptions } from './outbox-store.js';
@@ -196,36 +197,36 @@ export async function listParkedNotices(
   }));
 }
 
-/** CRITICAL-2's measurement, over the notice table. Same aggregate, same meaning. */
+/** CRITICAL-2's measurement, over the notice table. Same aggregate, same meaning — age from
+ * `LEAST(occurred_at, available_at)` per IMPORTANT-E, computed in `computeBacklog`. */
 export async function readNoticeBacklog(
   tx: WorkerTransaction,
   maxAttempts: number,
 ): Promise<OutboxBacklog> {
   interface BacklogRow {
-    readonly pending: unknown;
-    readonly parked: unknown;
-    readonly oldest_pending_seconds: unknown;
+    readonly attempts: unknown;
+    readonly occurred_at: unknown;
+    readonly available_at: unknown;
+    readonly now_at: unknown;
   }
   const rows = await tx.query<readonly BacklogRow[]>(
-    `SELECT SUM(CASE WHEN attempts <  ? THEN 1 ELSE 0 END) AS pending,
-            SUM(CASE WHEN attempts >= ? THEN 1 ELSE 0 END) AS parked,
-            TIMESTAMPDIFF(
-              SECOND,
-              MIN(CASE WHEN attempts < ? THEN available_at END),
-              NOW(3)
-            ) AS oldest_pending_seconds
+    `SELECT attempts, occurred_at, available_at, NOW(3) AS now_at
        FROM credential_change_notices
       WHERE published_at IS NULL`,
-    [maxAttempts, maxAttempts, maxAttempts],
   );
-  const row = rows[0];
-  const oldest = row === undefined ? null : row.oldest_pending_seconds;
-  return {
-    pending: row === undefined ? 0 : Number(row.pending ?? 0),
-    parked: row === undefined ? 0 : Number(row.parked ?? 0),
-    oldestPendingSeconds:
-      oldest === null || oldest === undefined ? null : Math.max(0, Number(oldest)),
-  };
+  const asDate = (value: unknown): Date =>
+    value instanceof Date ? value : new Date(String(value));
+  const first = rows[0];
+  const now = first === undefined ? new Date() : asDate(first.now_at);
+  return computeBacklog(
+    rows.map((row) => ({
+      attempts: Number(row.attempts),
+      occurredAt: asDate(row.occurred_at),
+      availableAt: asDate(row.available_at),
+    })),
+    now,
+    maxAttempts,
+  );
 }
 
 /**
