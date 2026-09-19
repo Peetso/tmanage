@@ -186,9 +186,24 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                       ) : null}
                     </td>
                     <td>{formatInstant(item.latestAt)}</td>
-                    {/* No inline action: there is no billing screen to open in this slice, and
-                        the mark-read path resolves only work items and client requests. */}
-                    <td />
+                    <td>
+                      {/* The same inline action every other row has: a usage notice has no
+                          object to open, but it can be dismissed. Wired to the same client call
+                          and the same unread guard, so it greys away after the refetch just as
+                          an object bundle's does. */}
+                      {item.unreadCount > 0 ? (
+                        <Button
+                          tone="outline"
+                          size="accessible"
+                          loading={markRead.isPending && markRead.variables === item.bundleId}
+                          loadingLabel="Marking read"
+                          aria-label="Mark read: Storage usage"
+                          onClick={() => markRead.mutate(item.bundleId)}
+                        >
+                          Mark read
+                        </Button>
+                      ) : null}
+                    </td>
                   </tr>
                 ) : (
                   <tr key={item.bundleId}>

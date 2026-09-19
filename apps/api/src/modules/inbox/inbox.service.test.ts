@@ -22,11 +22,15 @@ import type { NotificationsRepository } from './notifications.repository.js';
  */
 
 const CONTEXT = { organizationId: 'org-1' } as unknown as TenantContext;
-const OWNER = { userId: 'owner-1' } as unknown as Principal;
+const OWNER = { userId: 'owner-1', role: 'owner' } as unknown as Principal;
+const MEMBER = { userId: 'member-9', role: 'member' } as unknown as Principal;
 
-/** A `read` that simply runs the work against a throwaway runner — no server, no tenancy. */
+/** `read`/`transaction` that simply run the work against a throwaway runner — no server. */
 const database = {
   async read<T>(_context: TenantContext, work: (runner: TenantQueryRunner) => Promise<T>) {
+    return work({} as TenantQueryRunner);
+  },
+  async transaction<T>(_context: TenantContext, work: (runner: TenantQueryRunner) => Promise<T>) {
     return work({} as TenantQueryRunner);
   },
 } as unknown as TenantDatabase;
@@ -99,5 +103,39 @@ describe('InboxService organization_usage resolver', () => {
   it('drops a notice whose object is another tenant’s organization', async () => {
     const page = await serviceFor([usageRow('org-OTHER')]).list(CONTEXT, OWNER);
     expect(page.items).toHaveLength(0);
+  });
+});
+
+/** A notifications repository whose `markRead` reports a fixed count of rows changed. */
+function markingService(marked: number): InboxService {
+  const notifications = {
+    async markRead() {
+      return marked;
+    },
+  } as unknown as NotificationsRepository;
+  return new InboxService(
+    database,
+    {} as unknown as WorkItemsService,
+    {} as unknown as ClientRequestsService,
+    notifications,
+    { quotaBytes: 10_000_000_000, counters: countersReturning(COUNTER) },
+  );
+}
+
+describe('InboxService.markBundleRead organization_usage', () => {
+  it('marks an owner’s own usage notice read', async () => {
+    const result = await markingService(3).markBundleRead(
+      CONTEXT,
+      OWNER,
+      'organization_usage:org-1',
+    );
+    expect(result).toEqual({ bundleId: 'organization_usage:org-1', marked: 3 });
+  });
+
+  it('refuses a same-org member who is not an owner/admin with 404 not_found', async () => {
+    // The reauthorization the object branches give: not this person's notice, so the same 404.
+    await expect(
+      markingService(0).markBundleRead(CONTEXT, MEMBER, 'organization_usage:org-1'),
+    ).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
 });
