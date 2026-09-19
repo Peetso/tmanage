@@ -30,6 +30,46 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-19 — INBOX-001: quiet hours honoured in delivery (slice x57)
+
+Run `claude-auto-1789805818`, branch `x57-inbox-001-quiet-hours` off x54's `f3647f1`,
+implemented by **Claude Opus 4.8**. x54 stored the quiet-hours columns; this slice reads them at
+the delivery seam so an interrupting channel actually waits.
+
+**What is built.** A pure module `packages/domain/src/notifications/quiet-hours.ts`:
+`isInQuietHours(now, prefs)` (handles a window inside a day, a window crossing midnight, and the
+recipient's IANA zone via `Intl` — no new dependency), `quietHoursResumeAt(now, prefs)` (the
+window's next end, the instant a deferred delivery resumes), `eventTypeBypassesQuietHours(type)`
+with `QUIET_HOURS_BYPASS_EVENT_TYPES` (the `24-EVENT-CATALOG` §4 `yes-critical` kinds —
+`09-MVP-PRD`'s "critical security events" that interrupt regardless), and `isValidTimeZone`.
+
+**Where it hooks in.** The interrupting channel today is client-request **email**, staged in
+`apps/worker/src/consumers/client-request-mail.ts` via `effects.afterCommit`. Before staging,
+the mail consumer reads the recipient's window (`findRecipientQuietHours`) and, if the submitter
+is inside it and the event type is not urgent, defers: it re-enqueues the event with a marker and
+`available_at` = the window's end (`enqueueQuietHoursMailResume`, existing `outbox_events` table —
+no migration) and stages nothing this pass. The in-app notification the composed notification
+consumer wrote stays committed, so `35-NOTIFICATION-AND-EMAIL-COPY` §1's canonical channel arrives
+at once and only the email waits. When the resume event is claimed the marker forces an
+unconditional send, so a deferral is a single hop. Urgent (`yes-critical`) kinds are never
+deferred. None of those kinds has a producer yet, so the bypass is proven only by unit test.
+
+**The x54 Minor, closed.** The `PUT` route now validates `quietHoursTimezone` as a real IANA zone
+(`isValidTimeZone`) and rejects a start without an end or an end without a start.
+
+**Not in scope, stated per the brief.** Honouring channel opt-outs (`in_app_enabled`,
+`email_enabled`) and per-kind opt-outs — still not applied; digests — still not applied; any
+migration — none, the columns already exist.
+
+**Tests.** `packages/domain/src/notifications/quiet-hours.test.ts` (window inside a day, crossing
+midnight, timezone offset, no window, the urgent bypass, the resume time) and one route case added
+to `notification-preferences.controller.test.ts` (bad timezone → 400), both in unit projects. The
+worker deferral (re-enqueue + resume) is **UNPROVEN**: it is exercised only against a live DB /
+outbox loop, which this slice does not own (`db-e2e.lock`); no DB test was added because the
+decision is proven by the pure unit test and a DB case would not run here.
+
+---
+
 ## 2026-09-19 — NOTIF-001 second half: the preferences table (slice x54)
 
 Run `claude-auto-1789791408`, branch `x54-notif-001-preferences` off `master` `a204ebe`,
@@ -60,8 +100,9 @@ neither document draws. If per-kind granularity is wanted, it is a later contrac
 
 **Not in scope, and stated so here per the brief.** Honouring these preferences in delivery —
 the bundler/relay reading this table to suppress, defer or batch a notification — is a later
-slice. This slice stores settings; nothing yet reads them to change what is delivered. Quiet
-hours are stored, not applied (INBOX-001 applies them).
+slice. This slice stores settings; the rest — channel and per-kind opt-outs, digests — is not yet
+read to change what is delivered. Quiet hours, though, are now applied by INBOX-001 (slice x57,
+dated section above).
 
 **Tests.** `apps/api/test/notif-001-preferences.db.test.ts` (defaults on first read, upsert
 round-trip and single-row replacement, user isolation within a studio, organization isolation

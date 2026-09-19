@@ -1,8 +1,12 @@
+import { eventTypeBypassesQuietHours, isInQuietHours, quietHoursResumeAt } from '@tmanage/domain';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
 import { findClientRequestMailFacts } from '../common/database/mail-store.js';
 import {
   clientRecipientStillPermitted,
+  enqueueQuietHoursMailResume,
+  findRecipientQuietHours,
   findRequestSubmitter,
+  isQuietHoursResume,
 } from '../common/database/notifications-store.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import type { OutboxEffects, OutboxHandler } from '../outbox/dispatcher.js';
@@ -66,6 +70,17 @@ function stringField(payload: Record<string, unknown>, key: string, eventId: str
 /**
  * Everything the two consumers share: resolve the submitter, re-check their access, read the
  * facts, and stage the send. Returns without staging anything when any step says no.
+ *
+ * ## Quiet hours — INBOX-001, the one behaviour this ticket added here
+ *
+ * Email is an interrupting channel. Before it is staged, the recipient's quiet window is read
+ * (`findRecipientQuietHours`) and, if the submitter is inside it and the event type is not one
+ * `24-EVENT-CATALOG` marks urgent, the send is **deferred, not dropped**: the event is
+ * re-enqueued with a marker and `available_at` set to the window's end, and nothing is staged on
+ * this pass. The in-app notification the composed notification consumer already wrote stays
+ * committed — only the email waits. When the resume event comes due `isQuietHoursResume` is true
+ * and the mail is staged unconditionally, so a deferral is one hop. A `null` resume time (not
+ * actually in the window by the time this reads) falls through to an immediate send.
  */
 async function stageClientMail(input: {
   readonly event: ClaimedOutboxEvent;
@@ -92,6 +107,20 @@ async function stageClientMail(input: {
 
   const facts = await findClientRequestMailFacts(tx, event.organizationId, requestId);
   if (facts === null) return;
+
+  // INBOX-001: honour the recipient's quiet hours on the first delivery only. A resume event
+  // (marker set) has already waited out the window; an urgent kind never waits.
+  if (!isQuietHoursResume(event) && !eventTypeBypassesQuietHours(event.type)) {
+    const now = new Date();
+    const quietHours = await findRecipientQuietHours(tx, event.organizationId, submitter);
+    if (isInQuietHours(now, quietHours)) {
+      const resumeAt = quietHoursResumeAt(now, quietHours);
+      if (resumeAt !== null) {
+        await enqueueQuietHoursMailResume(tx, event, resumeAt);
+        return; // Interrupting send deferred to the window's end; in-app row already written.
+      }
+    }
+  }
 
   effects.afterCommit(async () => {
     await mailer.deliver(kind, requestId, facts);

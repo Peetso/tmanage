@@ -182,3 +182,13 @@ export type {
   WorkItemBlockedV1,
   WorkItemUpdatedV1,
 } from './events/outbox.js';
+
+// Quiet hours — INBOX-001, the honouring half of NOTIF-001
+export {
+  QUIET_HOURS_BYPASS_EVENT_TYPES,
+  eventTypeBypassesQuietHours,
+  isInQuietHours,
+  isValidTimeZone,
+  quietHoursResumeAt,
+} from './notifications/quiet-hours.js';
+export type { QuietHoursPreferences } from './notifications/quiet-hours.js';

@@ -1,5 +1,7 @@
 import { uuidv7 } from '@tmanage/domain';
+import type { QuietHoursPreferences } from '@tmanage/domain';
 import type { WorkerTransaction } from './worker-database.js';
+import type { ClaimedOutboxEvent } from './outbox-store.js';
 
 /**
  * The statements the notification consumers need — NOTIF-001.
@@ -128,6 +130,97 @@ export async function clientRecipientStillPermitted(
     ],
   );
   return Boolean(rows[0]?.permitted);
+}
+
+/**
+ * The recipient's quiet-hours window — INBOX-001. Read at delivery time, in the same
+ * transaction the mail consumer reads its facts in, so the window honoured is the one in force
+ * now. Absent row, or any of the three columns unset, reads as "no quiet hours" (the same
+ * default the API returns), which {@link QuietHoursPreferences} carries as nulls.
+ */
+export async function findRecipientQuietHours(
+  tx: WorkerTransaction,
+  organizationId: string,
+  userId: string,
+): Promise<QuietHoursPreferences | null> {
+  interface Row {
+    readonly quiet_hours_start: string | null;
+    readonly quiet_hours_end: string | null;
+    readonly quiet_hours_timezone: string | null;
+  }
+  const rows = await tx.query<readonly Row[]>(
+    `SELECT quiet_hours_start, quiet_hours_end, quiet_hours_timezone
+       FROM notification_preferences
+      WHERE organization_id = ? AND user_id = ?`,
+    [organizationId, userId],
+  );
+  const row = rows[0];
+  if (row === undefined) return null;
+  return {
+    quietHoursStart: row.quiet_hours_start,
+    quietHoursEnd: row.quiet_hours_end,
+    quietHoursTimezone: row.quiet_hours_timezone,
+  };
+}
+
+/**
+ * The payload marker a quiet-hours-deferred delivery carries — INBOX-001. When the interrupting
+ * channel (email) would fire during a recipient's quiet window, its consumer stages nothing and
+ * instead re-enqueues the event with this marker and `available_at` set to the window's end
+ * (see {@link enqueueQuietHoursMailResume}). When that resume event comes due the consumer sees
+ * the marker and delivers unconditionally — the deferral is one hop, never a chain, whatever the
+ * window looks like when it resumes.
+ *
+ * The in-app notification is untouched by all this: it is written on the *original* delivery,
+ * transactionally, so `35-NOTIFICATION-AND-EMAIL-COPY` §1's canonical channel arrives at once
+ * and only the interrupting email waits. The notification consumer re-runs on the resume event
+ * too, harmlessly — `uq_notifications_dedupe` absorbs the repeat.
+ */
+export const QUIET_HOURS_RESUME_MARKER = '_quietHoursResume';
+
+/** Whether a claimed event is a quiet-hours resume — its interrupting channel sends now. */
+export function isQuietHoursResume(event: ClaimedOutboxEvent): boolean {
+  return (
+    event.payload !== null &&
+    typeof event.payload === 'object' &&
+    (event.payload as Record<string, unknown>)[QUIET_HOURS_RESUME_MARKER] === true
+  );
+}
+
+/**
+ * Re-enqueue an event so its interrupting delivery fires when the recipient's quiet window ends
+ * — INBOX-001. A copy of the row (same type, aggregate, payload and correlation) with the
+ * {@link QUIET_HOURS_RESUME_MARKER} set and `available_at = resumeAt`, so the relay claims it
+ * only once the window has closed. The original event still publishes on this pass: its in-app
+ * notification is committed and its interrupting send is the only thing held back.
+ */
+export async function enqueueQuietHoursMailResume(
+  tx: WorkerTransaction,
+  event: ClaimedOutboxEvent,
+  resumeAt: Date,
+): Promise<void> {
+  const basePayload =
+    event.payload !== null && typeof event.payload === 'object'
+      ? (event.payload as Record<string, unknown>)
+      : {};
+  const resumePayload = { ...basePayload, [QUIET_HOURS_RESUME_MARKER]: true };
+  await tx.query(
+    `INSERT INTO outbox_events
+       (id, organization_id, type, schema_version, aggregate_type, aggregate_id,
+        payload_json, correlation_id, occurred_at, available_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(3), ?)`,
+    [
+      uuidv7(),
+      event.organizationId,
+      event.type,
+      event.schemaVersion,
+      event.aggregateType,
+      event.aggregateId,
+      JSON.stringify(resumePayload),
+      event.correlationId,
+      resumeAt,
+    ],
+  );
 }
 
 export interface NotificationInput {

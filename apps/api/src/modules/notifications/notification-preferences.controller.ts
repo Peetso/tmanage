@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Inject, Put } from '@nestjs/common';
+import { isValidTimeZone } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -105,11 +106,31 @@ function parseInput(body: unknown): NotificationPreferencesInput {
   const zoneRaw = value['quietHoursTimezone'];
   let quietHoursTimezone: string | null = null;
   if (zoneRaw !== null && zoneRaw !== undefined) {
-    if (typeof zoneRaw !== 'string' || zoneRaw.length === 0 || zoneRaw.length > 64) {
-      details.push({ field: 'quietHoursTimezone', message: 'must be a timezone name, or null' });
+    // INBOX-001 closes the x54 Minor: a stored zone the delivery seam feeds to `Intl` must be a
+    // real IANA name, or `isInQuietHours` silently reads no window and the person is never quiet.
+    if (
+      typeof zoneRaw !== 'string' ||
+      zoneRaw.length === 0 ||
+      zoneRaw.length > 64 ||
+      !isValidTimeZone(zoneRaw)
+    ) {
+      details.push({
+        field: 'quietHoursTimezone',
+        message: 'must be a valid IANA timezone, or null',
+      });
     } else {
       quietHoursTimezone = zoneRaw;
     }
+  }
+
+  // A window needs both ends: a start without an end (or the reverse) describes nothing the
+  // seam can honour, so it is the client's error rather than a half-window stored as if valid.
+  if ((quietHoursStart === null) !== (quietHoursEnd === null)) {
+    const missing = quietHoursStart === null ? 'quietHoursStart' : 'quietHoursEnd';
+    details.push({
+      field: missing,
+      message: 'quiet hours need both a start and an end, or neither',
+    });
   }
 
   if (details.length > 0) {
