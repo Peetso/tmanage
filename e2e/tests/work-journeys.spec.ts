@@ -52,6 +52,8 @@ import { API_URL, WEB_URL } from '../setup/stack.js';
 
 interface SeededUser {
   readonly id: string;
+  /** The seed's display name for this member; the owner Combobox shows it, not the id. */
+  readonly displayName: string;
 }
 
 interface World {
@@ -237,7 +239,17 @@ test.describe.serial('the work-delivery journeys', () => {
     // designer — and the time with now. Neither has to be typed; the time is corrected here to
     // when the work was actually finished, which is the point of asking.
     const ownerField = maker.page.getByRole('combobox', { name: 'Who owned this to completion' });
-    await expect(ownerField).toHaveValue(world().northstar.designer.id);
+    // Since x36 (f10cccf) the owner field is the member Combobox (D16): it shows the current
+    // owner by *name*, not the raw id, so the id no longer lives in the input's value. The seed
+    // gives this item to the designer, so the field opens filled with the designer's display
+    // name, followed by their role label (`memberLabel`, proved exactly in
+    // apps/web/tests/work-flow.test.tsx). Anchored to the seed's display name rather than a
+    // literal; the *persisted* owner id is the fact this leg still asserts, read back from the
+    // API below (`body.ownerUserId`).
+    const ownerName = world().northstar.designer.displayName;
+    await expect(ownerField).toHaveValue(
+      new RegExp(`^${ownerName.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')} · `),
+    );
     const completedField = maker.page.getByLabel('When it was completed');
     await expect(completedField).not.toHaveValue('');
     // An hour before the run, to the minute — taken from the run's own clock, because the
