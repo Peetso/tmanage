@@ -467,6 +467,21 @@ export const AUDIT_ACTION_CATALOG = {
       "§12 — a system-initiated correction to a tenant's quota counter with no actor is exactly " +
       'what the log exists to explain; 49-PRICING §6 reconciled counters, 27-TEST-CATALOG CONC-06',
   },
+  /**
+   * USAGE-001 slice 4. The one row written when an organization's storage usage first crosses
+   * 100% of quota — the band the reservation guard already refuses at. Nobody acted: the actor
+   * is null, the documented system case, as with an expiry or a drift correction, because the
+   * crossing is a consequence of the reserve/commit/reconcile that produced it, not a request
+   * of its own. `24-EVENT-CATALOG` §4 grades `usage.threshold_reached.v1` audit "yes at 100%";
+   * this is the "yes". Metadata carries the band and the counter numbers, safe scalars only.
+   */
+  'usage.threshold_reached': {
+    objectType: 'usage_counter',
+    clause:
+      "§12 — a system-observed change to a tenant's quota standing with no actor is exactly " +
+      'what the log exists to explain; 49-PRICING §6 (100% blocks new reservations), ' +
+      '24-EVENT-CATALOG §4 audit "yes at 100%"',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the

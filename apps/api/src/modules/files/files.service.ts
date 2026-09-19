@@ -35,6 +35,7 @@ import {
 } from './upload-sessions.repository.js';
 import { STORAGE_BYTES_METRIC, type UsageCountersRepository } from './usage-counters.repository.js';
 import { USAGE_LEDGER_REASON, type UsageLedgerRepository } from './usage-ledger.repository.js';
+import type { UsageThresholdEvaluator } from './usage-thresholds.js';
 import { mayUploadFor, objectTableFor } from './purpose-policy.js';
 import type { ParsedPart, ParsedUploadBody } from './upload-input.js';
 
@@ -260,6 +261,13 @@ export class FilesService {
     private readonly config: ApiConfig,
     private readonly audit: AuditService | null,
     private readonly outbox: OutboxEventsRepository | null,
+    /**
+     * USAGE-001 slice 4. Re-evaluates the storage threshold band inside the reserve and commit
+     * transactions — the two counter moves that can raise usage — and emits
+     * `usage.threshold_reached.v1` on a rising crossing. Nullable for the same reason the outbox
+     * beside it is: a copy built without it moves a counter across a threshold nobody is told of.
+     */
+    private readonly thresholds: UsageThresholdEvaluator | null,
   ) {}
 
   // ── The studio's door ──────────────────────────────────────────────────────
@@ -574,6 +582,9 @@ export class FilesService {
             sourceEventId: reservedEventId,
           });
         }
+        // A reservation raised used + reserved: re-evaluate the band in this same transaction
+        // (USAGE-001 slice 4). A rising crossing emits one `usage.threshold_reached.v1`.
+        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, limitBytes);
         return row;
       });
     } catch (error) {
@@ -876,6 +887,9 @@ export class FilesService {
             sourceEventId: committedEventId,
           });
         }
+        // Commit can raise used + reserved when the provider's count exceeds the declaration
+        // (USAGE-001 slice 4, acceptance §2). Re-evaluate the band in the commit transaction.
+        await this.thresholds?.evaluate(tx, context, STORAGE_BYTES_METRIC, this.storageLimitsFor());
         return { asset, version };
       }),
     );

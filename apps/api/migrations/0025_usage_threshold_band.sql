@@ -1,0 +1,40 @@
+-- 0025_usage_threshold_band — the per-organization storage threshold band (USAGE-001 slice 4).
+--
+-- Governing sources: 49-PRICING-ENTITLEMENTS-AND-STORAGE-POLICY §6 (the 70/85/95/100 threshold
+-- behaviour table — insight, warning, persistent warning, block new reservations); 24-EVENT-CATALOG
+-- §4 (`usage.threshold_reached.v1` — "70/85/95/100 threshold crossed with hysteresis", audit
+-- "yes at 100%"); migration 0015 (`usage_counters`, the row this column lives on).
+--
+-- ## What this column is
+--
+-- One TINYINT on the existing counter row holding the band the organization's storage usage is
+-- currently in: 0 (below 70%), 70, 85, 95 or 100. It is state, not history: the append-only
+-- `usage_ledger_entries` records every byte move, and this column records only "which warning
+-- band are we in now", so a rising crossing emits its threshold event exactly once rather than
+-- on every subsequent reserve inside the same band.
+--
+-- ## Why a column and not a table
+--
+-- The band is a single small enum per organization for the one storage metric, evaluated inside
+-- the very transaction that already holds this row's lock (the reserve, the commit, the
+-- reconcile). A separate table would need its own row lock and its own join for a value that is
+-- a function of `used_value + reserved_value` against the quota — the two numbers already on
+-- this row. Q6 (delegated): the band's basis is used + reserved over quota, what the reservation
+-- guard blocks on, not used alone.
+--
+-- ## Hysteresis lives in code, not here
+--
+-- The rule "rising crosses a boundary → new band; falling only leaves a band when the percentage
+-- has dropped a full 5 points below it" (Q5, delegated: 5 percentage points) is the pure
+-- `bandFor` in `apps/api/src/modules/files/usage-thresholds.ts`. This column only stores the
+-- answer so the next move can compare against it.
+--
+-- ## Backfill
+--
+-- Existing rows default to 0. That is correct for every organization whose usage is below 70%,
+-- and safe for any already above it: the next reserve, commit or reconcile pass re-evaluates the
+-- band from the live numbers and emits the crossing then, rather than the migration guessing a
+-- band and firing (or suppressing) an event with no counter move behind it.
+
+ALTER TABLE `usage_counters`
+  ADD COLUMN `threshold_band` TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `reconciled_at`;
