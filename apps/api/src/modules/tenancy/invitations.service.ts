@@ -1,6 +1,7 @@
 import { authorize, isClientRole, isInternalRole, uuidv7 } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
+import { serializeForLog } from '../../common/observability/logger.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -597,7 +598,9 @@ export class InvitationsService {
         // the mail may already be in somebody's inbox. A 500 here would lose the response's
         // one-time token — the issuer's only copy of a link that is now live — to punish
         // them for a bookkeeping failure that was not theirs.
-        console.error('[mailer] failed to record invitation.emailed', error);
+        // The write is a database error that can carry the DSN, so it is redacted through the
+        // OBS-001 seam rather than printed raw.
+        console.error('[mailer] failed to record invitation.emailed', serializeForLog(error));
       }
     }
 

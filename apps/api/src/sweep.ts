@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { loadEnv } from '@tmanage/config';
 import { composeAppModule } from './app-composition.js';
+import { serializeForLog } from './common/observability/logger.js';
 import { TENANT_DATABASE, UPLOAD_SESSION_SWEEPER } from './common/http/tokens.js';
 import type { TenantDatabase } from './common/database/tenant-context.js';
 import { describeSweep } from './modules/files/upload-session-sweeper.js';
@@ -48,6 +49,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error('[sweeper] fatal', error);
+  // A fatal here is usually a failed app build or database connection carrying the DSN, so it is
+  // redacted through the OBS-001 seam rather than printed raw.
+  console.error('[sweeper] fatal', serializeForLog(error));
   process.exitCode = 1;
 });

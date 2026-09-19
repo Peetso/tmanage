@@ -29,8 +29,14 @@ export function composeAppModule(env: Env): DynamicModule {
       guardMode: env.TENANT_GUARD_MODE,
       onConnectionError: (error) => {
         // A connection whose session state would not apply is destroyed rather than served
-        // (see `connection.ts`). Silence here would present as the pool hanging.
-        console.error('[database] connection rejected during session setup', error);
+        // (see `connection.ts`). Silence here would present as the pool hanging. The driver
+        // error can carry the connection config — DSN and credential — so it goes through the
+        // same field-level redactor (`serializeForLog`) the tenant-guard event below does,
+        // never raw to the log.
+        console.error(
+          '[database] connection rejected during session setup',
+          serializeForLog(error),
+        );
       },
       onGuardEvent: (event) => {
         // ADR-0001 layer 3. The event carries a redacted statement shape and never a bound

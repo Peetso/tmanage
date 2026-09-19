@@ -1,5 +1,6 @@
 import { composeInvitationEmail } from './invitation-email.js';
 import type { InvitationEmailFacts } from './invitation-email.js';
+import { serializeForLog } from '../observability/logger.js';
 import type { Mailer } from '@tmanage/mail';
 
 /**
@@ -60,8 +61,9 @@ export class InvitationMailer {
     } catch (error) {
       // The one place a mail error is absorbed, and it is absorbed loudly: the audit row
       // the service writes says `error`, and this line carries the driver's own words —
-      // which may name the recipient, so it goes to the operator's log and nowhere else.
-      console.error('[mailer] invitation email failed', error);
+      // which may name the recipient and can carry the SMTP host and credential, so it goes
+      // to the operator's log through the OBS-001 redactor and nowhere else.
+      console.error('[mailer] invitation email failed', serializeForLog(error));
       return 'failed';
     }
   }

@@ -1,4 +1,5 @@
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { serializeForLog } from '../../common/observability/logger.js';
 import type { CredentialsRepository } from './credentials.repository.js';
 import {
   CHALLENGE_TTL_SECONDS,
@@ -1460,7 +1461,8 @@ export class AuthenticationService {
       console.error(
         `[identity] recording a refused ${input.action} (${input.reason}) failed; the refusal still stands` +
           ` (loss ${String(this.lostRefusalRows)} in this process, correlation ${context.correlationId})`,
-        error,
+        // A database error here can carry the DSN, so it is redacted through the OBS-001 seam.
+        serializeForLog(error),
       );
     }
   }

@@ -427,9 +427,14 @@ export const envSchema = z
     RATE_LIMIT_AUTH_MAX_GLOBAL: positiveInt.default(3000),
 
     // Observability
-    OTEL_SERVICE_NAME: nonEmpty('OTEL_SERVICE_NAME').default('tmanage-api'),
-    OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default(''),
-    OTEL_TRACES_SAMPLER_ARG: z.coerce.number().min(0).max(1).default(1),
+    //
+    // OBS-001 owns exactly two exporter variables — `OTEL_ENABLED` and `OTEL_EXPORTER_URL` below —
+    // and no more. The OTel-standard names (`OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
+    // `OTEL_TRACES_SAMPLER_ARG`) were declared here before the exporter existed and were read
+    // nowhere: no `tracer` or boot guard consumed them, so an operator setting the standard
+    // endpoint got a boot pass and no export — a silent config trap. They are removed until the
+    // OpenTelemetry SDK follow-up lands and can read whichever name it standardises on; OBS-001
+    // itself names none, so nothing here keeps a dead alias alive.
     /**
      * OBS-001. The trace-export master switch, off by default. Not `z.coerce.boolean()` — that is
      * `Boolean(value)`, so the string `"false"` would coerce to `true` (the SMTP_SECURE reasoning

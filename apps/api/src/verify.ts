@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { loadEnv } from '@tmanage/config';
 import { composeAppModule } from './app-composition.js';
+import { serializeForLog } from './common/observability/logger.js';
 import { FILE_SCANNER, FILE_VERIFIER, TENANT_DATABASE } from './common/http/tokens.js';
 import type { TenantDatabase } from './common/database/tenant-context.js';
 import { describeVerification } from './modules/files/file-verifier.js';
@@ -53,6 +54,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error('[verifier] fatal', error);
+  // A fatal here is usually a failed app build or database connection carrying the DSN, so it is
+  // redacted through the OBS-001 seam rather than printed raw.
+  console.error('[verifier] fatal', serializeForLog(error));
   process.exitCode = 1;
 });
