@@ -3,10 +3,10 @@ import type { WorkerTransaction } from '../common/database/worker-database.js';
 import { findClientRequestMailFacts } from '../common/database/mail-store.js';
 import {
   clientRecipientStillPermitted,
+  decodeQuietHoursMailResume,
   enqueueQuietHoursMailResume,
   findRecipientQuietHours,
   findRequestSubmitter,
-  isQuietHoursResume,
 } from '../common/database/notifications-store.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import type { OutboxEffects, OutboxHandler } from '../outbox/dispatcher.js';
@@ -76,11 +76,13 @@ function stringField(payload: Record<string, unknown>, key: string, eventId: str
  * Email is an interrupting channel. Before it is staged, the recipient's quiet window is read
  * (`findRecipientQuietHours`) and, if the submitter is inside it and the event type is not one
  * `24-EVENT-CATALOG` marks urgent, the send is **deferred, not dropped**: the event is
- * re-enqueued with a marker and `available_at` set to the window's end, and nothing is staged on
- * this pass. The in-app notification the composed notification consumer already wrote stays
- * committed — only the email waits. When the resume event comes due `isQuietHoursResume` is true
- * and the mail is staged unconditionally, so a deferral is one hop. A `null` resume time (not
- * actually in the window by the time this reads) falls through to an immediate send.
+ * re-enqueued as a dedicated {@link QUIET_HOURS_MAIL_RESUME_TYPE} row with `available_at` set to
+ * the window's end, and nothing is staged on this pass. The in-app notification the composed
+ * notification consumer already wrote stays committed — only the email waits. When the resume row
+ * comes due it is dispatched to {@link createQuietHoursMailResume}, which calls this with
+ * `deferForQuietHours: false` so the mail is staged unconditionally — a deferral is one hop. A
+ * `null` resume time (not actually in the window by the time this reads) falls through to an
+ * immediate send.
  */
 async function stageClientMail(input: {
   readonly event: ClaimedOutboxEvent;
@@ -91,6 +93,8 @@ async function stageClientMail(input: {
   readonly requestId: string;
   readonly projectId: string;
   readonly clientOrganizationId: string;
+  /** True on the original delivery (may defer); false on the resume pass (send now). */
+  readonly deferForQuietHours: boolean;
 }): Promise<void> {
   const { event, tx, effects, mailer, kind, requestId } = input;
 
@@ -108,9 +112,9 @@ async function stageClientMail(input: {
   const facts = await findClientRequestMailFacts(tx, event.organizationId, requestId);
   if (facts === null) return;
 
-  // INBOX-001: honour the recipient's quiet hours on the first delivery only. A resume event
-  // (marker set) has already waited out the window; an urgent kind never waits.
-  if (!isQuietHoursResume(event) && !eventTypeBypassesQuietHours(event.type)) {
+  // INBOX-001: honour the recipient's quiet hours on the first delivery only. A resume pass has
+  // already waited out the window; an urgent kind never waits.
+  if (input.deferForQuietHours && !eventTypeBypassesQuietHours(event.type)) {
     const now = new Date();
     const quietHours = await findRecipientQuietHours(tx, event.organizationId, submitter);
     if (isInQuietHours(now, quietHours)) {
@@ -142,6 +146,7 @@ export function createClientRequestSubmittedMail(mailer: ClientRequestMailer): O
       requestId: stringField(raw, 'requestId', event.id),
       projectId: stringField(raw, 'projectId', event.id),
       clientOrganizationId: stringField(raw, 'clientOrganizationId', event.id),
+      deferForQuietHours: true,
     });
   };
 }
@@ -167,6 +172,52 @@ export function createClientRequestTransitionedMail(mailer: ClientRequestMailer)
       requestId: stringField(raw, 'requestId', event.id),
       projectId: stringField(raw, 'projectId', event.id),
       clientOrganizationId: stringField(raw, 'clientOrganizationId', event.id),
+      deferForQuietHours: true,
+    });
+  };
+}
+
+/**
+ * The quiet-hours resume consumer — INBOX-001, the second half of the deferral.
+ *
+ * A deferred interrupting delivery is re-enqueued as a dedicated internal event type
+ * ({@link QUIET_HOURS_MAIL_RESUME_TYPE}) whose payload wraps the original type and payload. Only
+ * this handler is registered for that type (see `registry.ts`), so the notification consumer — and
+ * any future consumer of the real `client_request.*` types — never sees a resume row and cannot
+ * double-fire on it. When the row comes due this unwraps the envelope, recovers the mail kind from
+ * the original type, and stages the send unconditionally (`deferForQuietHours: false` — the window
+ * was already waited out). The §6 permission re-check still runs inside {@link stageClientMail},
+ * so a revocation between defer and resume still silences the mail; tenant scoping is the resume
+ * row's own `organizationId`, copied from the original.
+ */
+export function createQuietHoursMailResume(mailer: ClientRequestMailer): OutboxHandler {
+  return async (event, tx, effects) => {
+    if (!mailer.enabled) return; // No transport: do not pay for the join.
+
+    const envelope = decodeQuietHoursMailResume(event);
+    if (envelope === null) return; // Not a well-formed resume row; nothing to send.
+    const { originalType, originalPayload } = envelope;
+
+    let kind: 'received' | 'clarification' | 'accepted' | null;
+    if (originalType === 'client_request.submitted.v1') {
+      kind = 'received';
+    } else if (originalType === 'client_request.transitioned.v1') {
+      kind = mailKindForStatus(stringField(originalPayload, 'toStatus', event.id));
+    } else {
+      return; // No interrupting channel defers any other type today.
+    }
+    if (kind === null) return;
+
+    await stageClientMail({
+      event,
+      tx,
+      effects,
+      mailer,
+      kind,
+      requestId: stringField(originalPayload, 'requestId', event.id),
+      projectId: stringField(originalPayload, 'projectId', event.id),
+      clientOrganizationId: stringField(originalPayload, 'clientOrganizationId', event.id),
+      deferForQuietHours: false,
     });
   };
 }

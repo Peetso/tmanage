@@ -46,13 +46,29 @@ with `QUIET_HOURS_BYPASS_EVENT_TYPES` (the `24-EVENT-CATALOG` §4 `yes-critical`
 **Where it hooks in.** The interrupting channel today is client-request **email**, staged in
 `apps/worker/src/consumers/client-request-mail.ts` via `effects.afterCommit`. Before staging,
 the mail consumer reads the recipient's window (`findRecipientQuietHours`) and, if the submitter
-is inside it and the event type is not urgent, defers: it re-enqueues the event with a marker and
-`available_at` = the window's end (`enqueueQuietHoursMailResume`, existing `outbox_events` table —
-no migration) and stages nothing this pass. The in-app notification the composed notification
-consumer wrote stays committed, so `35-NOTIFICATION-AND-EMAIL-COPY` §1's canonical channel arrives
-at once and only the email waits. When the resume event is claimed the marker forces an
-unconditional send, so a deferral is a single hop. Urgent (`yes-critical`) kinds are never
-deferred. None of those kinds has a producer yet, so the bypass is proven only by unit test.
+is inside it and the event type is not urgent, defers: it re-enqueues the delivery as a **dedicated
+internal event type** `notification.quiet_hours_resume.v1` (`enqueueQuietHoursMailResume`, existing
+`outbox_events` table — no migration) with `available_at` = the window's end and stages nothing
+this pass. The resume row's payload wraps the original event's type and payload. The in-app
+notification the composed notification consumer wrote stays committed, so
+`35-NOTIFICATION-AND-EMAIL-COPY` §1's canonical channel arrives at once and only the email waits.
+When the resume row is claimed the dispatcher routes it — by type — to the resume handler alone
+(`createQuietHoursMailResume`, keyed only in `registry.ts` when a transport is configured), which
+recovers the mail kind from the wrapped original type and sends unconditionally, so a deferral is a
+single hop. Urgent (`yes-critical`) kinds are never deferred. None of those kinds has a producer
+yet, so the bypass is proven only by unit test.
+
+**Design fragility closed (x57 review "Important").** The first cut re-enqueued the resume with the
+_original_ event type plus a payload marker, so no-double-delivery rested on every consumer of that
+type being marker-aware or idempotent — true today (the notification consumer is idempotent via
+`uq_notifications_dedupe`, the mail consumer read the marker), but a future non-marker-aware
+`client_request.*` consumer added to the registry would have double-fired on the resume row. The
+dedicated type removes that implicit contract: the resume row is a different type, routed to the
+resume handler alone, so ordinary consumers never see it. The marker (`QUIET_HOURS_RESUME_MARKER` /
+`isQuietHoursResume`) is gone. The type follows `24-EVENT-CATALOG`'s naming convention but is a
+worker-internal delivery-mechanism type (like `CREDENTIAL_CHANGE_NOTICE_TYPE`), so it is
+deliberately **not** a member of the domain `OUTBOX_EVENT_CATALOG`; `outbox_events.type` is a free
+`VARCHAR` with no allow-list, and no producer or consumer of it exists outside the worker.
 
 **The x54 Minor, closed.** The `PUT` route now validates `quietHoursTimezone` as a real IANA zone
 (`isValidTimeZone`) and rejects a start without an end or an end without a start.
@@ -64,9 +80,12 @@ migration — none, the columns already exist.
 **Tests.** `packages/domain/src/notifications/quiet-hours.test.ts` (window inside a day, crossing
 midnight, timezone offset, no window, the urgent bypass, the resume time) and one route case added
 to `notification-preferences.controller.test.ts` (bad timezone → 400), both in unit projects. The
-worker deferral (re-enqueue + resume) is **UNPROVEN**: it is exercised only against a live DB /
-outbox loop, which this slice does not own (`db-e2e.lock`); no DB test was added because the
-decision is proven by the pure unit test and a DB case would not run here.
+handler-registry suite (`work-item-lifecycle.test.ts`) gains one focused case pinning that the
+resume type routes to a dedicated handler, not to the notification consumer. The worker deferral
+(re-enqueue + resume against real rows) is still **UNPROVEN**: it is exercised only against a live
+DB / outbox loop, which this slice does not own (`db-e2e.lock`); no DB test was added because the
+routing is proven structurally by the unit case and the pure decision by the domain suite, and a
+DB case would not run here.
 
 ---
 

@@ -164,46 +164,80 @@ export async function findRecipientQuietHours(
 }
 
 /**
- * The payload marker a quiet-hours-deferred delivery carries — INBOX-001. When the interrupting
- * channel (email) would fire during a recipient's quiet window, its consumer stages nothing and
- * instead re-enqueues the event with this marker and `available_at` set to the window's end
- * (see {@link enqueueQuietHoursMailResume}). When that resume event comes due the consumer sees
- * the marker and delivers unconditionally — the deferral is one hop, never a chain, whatever the
- * window looks like when it resumes.
+ * The dedicated internal event type a quiet-hours-deferred interrupting delivery is re-enqueued
+ * as — INBOX-001. When email would fire during a recipient's quiet window, the mail consumer
+ * stages nothing and instead re-enqueues a row of *this* type (see {@link enqueueQuietHoursMailResume})
+ * with `available_at` set to the window's end, so the relay claims it only once the window has
+ * closed.
+ *
+ * It is a type of its own, not the original event type with a marker, so that only the one
+ * consumer registered for it (the resume path in `client-request-mail.ts`) ever sees a resume
+ * row. The original `client_request.*` types keep `both(notification, mail)`; a resume row is
+ * routed to the resume handler alone, so the notification consumer — and any future
+ * `client_request.*` consumer — cannot double-fire on it. That removes the implicit contract
+ * that "every consumer of the real type is marker-aware or idempotent", which held only by
+ * accident of who was registered.
+ *
+ * The name follows `24-EVENT-CATALOG`'s `domain.thing.vN` convention but is a worker-internal
+ * delivery-mechanism type (like `CREDENTIAL_CHANGE_NOTICE_TYPE`), not one of §4's catalog
+ * events, so it is not a member of the domain `OUTBOX_EVENT_CATALOG`: no producer outside this
+ * file writes it and no consumer outside this worker reads it. The `outbox_events.type` column
+ * is a free `VARCHAR`, so no allow-list gates the insert.
  *
  * The in-app notification is untouched by all this: it is written on the *original* delivery,
  * transactionally, so `35-NOTIFICATION-AND-EMAIL-COPY` §1's canonical channel arrives at once
- * and only the interrupting email waits. The notification consumer re-runs on the resume event
- * too, harmlessly — `uq_notifications_dedupe` absorbs the repeat.
+ * and only the interrupting email waits.
  */
-export const QUIET_HOURS_RESUME_MARKER = '_quietHoursResume';
+export const QUIET_HOURS_MAIL_RESUME_TYPE = 'notification.quiet_hours_resume.v1';
 
-/** Whether a claimed event is a quiet-hours resume — its interrupting channel sends now. */
-export function isQuietHoursResume(event: ClaimedOutboxEvent): boolean {
-  return (
-    event.payload !== null &&
-    typeof event.payload === 'object' &&
-    (event.payload as Record<string, unknown>)[QUIET_HOURS_RESUME_MARKER] === true
-  );
+/**
+ * The payload a {@link QUIET_HOURS_MAIL_RESUME_TYPE} row carries: the original event's type and
+ * its (reference-only) payload, enough for the resume handler to recover the mail kind and the
+ * request/project/client ids without re-reading the original row.
+ */
+export interface QuietHoursMailResumeEnvelope {
+  readonly originalType: string;
+  readonly originalPayload: Record<string, unknown>;
 }
 
 /**
- * Re-enqueue an event so its interrupting delivery fires when the recipient's quiet window ends
- * — INBOX-001. A copy of the row (same type, aggregate, payload and correlation) with the
- * {@link QUIET_HOURS_RESUME_MARKER} set and `available_at = resumeAt`, so the relay claims it
- * only once the window has closed. The original event still publishes on this pass: its in-app
- * notification is committed and its interrupting send is the only thing held back.
+ * Read the envelope off a claimed resume row, or null when it is not a well-formed one. A
+ * malformed resume row (no interrupting channel could have produced it) is dropped rather than
+ * throwing, so it publishes to zero consumers like any other undeliverable row.
+ */
+export function decodeQuietHoursMailResume(
+  event: ClaimedOutboxEvent,
+): QuietHoursMailResumeEnvelope | null {
+  if (event.payload === null || typeof event.payload !== 'object') return null;
+  const envelope = event.payload as Record<string, unknown>;
+  const originalType = envelope['originalType'];
+  const originalPayload = envelope['originalPayload'];
+  if (typeof originalType !== 'string') return null;
+  if (originalPayload === null || typeof originalPayload !== 'object') return null;
+  return { originalType, originalPayload: originalPayload as Record<string, unknown> };
+}
+
+/**
+ * Re-enqueue an interrupting delivery so it fires when the recipient's quiet window ends —
+ * INBOX-001. A {@link QUIET_HOURS_MAIL_RESUME_TYPE} row whose payload wraps the original event's
+ * type and payload, `available_at = resumeAt`, scoped to the original's organization and pointing
+ * at the same aggregate (so `ix_outbox_events_org_aggregate` still answers "everything about this
+ * request"). The original event still publishes on this pass: its in-app notification is
+ * committed and its interrupting send is the only thing held back.
  */
 export async function enqueueQuietHoursMailResume(
   tx: WorkerTransaction,
   event: ClaimedOutboxEvent,
   resumeAt: Date,
 ): Promise<void> {
-  const basePayload =
+  const originalPayload =
     event.payload !== null && typeof event.payload === 'object'
       ? (event.payload as Record<string, unknown>)
       : {};
-  const resumePayload = { ...basePayload, [QUIET_HOURS_RESUME_MARKER]: true };
+  const resumePayload: QuietHoursMailResumeEnvelope = {
+    originalType: event.type,
+    originalPayload,
+  };
   await tx.query(
     `INSERT INTO outbox_events
        (id, organization_id, type, schema_version, aggregate_type, aggregate_id,
@@ -212,8 +246,8 @@ export async function enqueueQuietHoursMailResume(
     [
       uuidv7(),
       event.organizationId,
-      event.type,
-      event.schemaVersion,
+      QUIET_HOURS_MAIL_RESUME_TYPE,
+      1,
       event.aggregateType,
       event.aggregateId,
       JSON.stringify(resumePayload),
