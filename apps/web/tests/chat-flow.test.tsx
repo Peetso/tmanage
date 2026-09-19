@@ -708,12 +708,19 @@ describe('the live feed — RT-001 second half', () => {
     );
 
     await waitFor(() => expect(sockets).toHaveLength(1));
+
+    // Minor 1: while the socket is 'connecting' the status span is deliberately empty, so the
+    // breadcrumb must not trail a dangling ' · ' separator with nothing after it.
+    expect(
+      screen.getByText('Back to all channels').closest('p')?.textContent?.replace(/\s+$/u, ''),
+    ).not.toMatch(/·$/u);
+
     const socket = sockets[0] as FakeSocket;
     socket.emitOpen();
     expect(socket.sent).toEqual([JSON.stringify({ type: 'subscribe', conversationId: 'conv-1' })]);
 
     socket.emit({ type: 'subscribed', conversationId: 'conv-1', cursor: 3 });
-    await screen.findByLabelText('Live updates connected');
+    await screen.findByText('Live updates connected');
 
     // A frame carries ids only; the screen refetches and the new message arrives through
     // the ordinary read path — the frame's own content is never rendered.
@@ -758,8 +765,8 @@ describe('the live feed — RT-001 second half', () => {
     });
     // socketUrl: null — no dial, no chip, the reload behaviour stands.
     expect(factoryCalls).toHaveLength(0);
-    expect(screen.queryByLabelText('Live updates connected')).toBeNull();
-    expect(screen.queryByLabelText('Reconnecting to live updates')).toBeNull();
+    expect(screen.queryByText('Live updates connected')).toBeNull();
+    expect(screen.queryByText('Reconnecting to live updates')).toBeNull();
   });
 
   it('a dropped socket reconnects with a fresh ticket', async () => {
@@ -793,7 +800,7 @@ describe('the live feed — RT-001 second half', () => {
 
     await waitFor(() => expect(sockets).toHaveLength(1));
     (sockets[0] as FakeSocket).drop();
-    await screen.findByLabelText('Reconnecting to live updates');
+    await screen.findByText('Reconnecting to live updates');
 
     // A fresh mint and a fresh socket — the sixty-second ticket is never reused.
     await waitFor(() => {
@@ -842,7 +849,7 @@ describe('the live feed — RT-001 second half', () => {
       const socket = sockets[0] as FakeSocket;
       socket.emitOpen();
       socket.emit({ type: 'subscribed', conversationId: 'conv-1', cursor: 3 });
-      await screen.findByLabelText('Live updates connected');
+      await screen.findByText('Live updates connected');
       // The transcript and the composer are on screen right up to the revoke, so their
       // absence afterwards is this frame's doing and not a screen that never loaded.
       await screen.findByLabelText('Messages, oldest first');
@@ -862,8 +869,8 @@ describe('the live feed — RT-001 second half', () => {
       // Terminal, not a drop: the socket is closed, the live chip is gone, and there is no
       // "Reconnecting…" — no fresh mint, no fresh socket, however long we wait.
       expect(socket.closed).toBe(true);
-      expect(screen.queryByLabelText('Live updates connected')).toBeNull();
-      expect(screen.queryByLabelText('Reconnecting to live updates')).toBeNull();
+      expect(screen.queryByText('Live updates connected')).toBeNull();
+      expect(screen.queryByText('Reconnecting to live updates')).toBeNull();
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(sockets).toHaveLength(1);
       expect(calls.filter((call) => call.url.includes('/realtime/tickets'))).toHaveLength(1);
@@ -909,7 +916,7 @@ describe('the live feed — RT-001 second half', () => {
     const first = sockets[0] as FakeSocket;
     first.emitOpen();
     first.emit({ type: 'subscribed', conversationId: 'conv-1', cursor: 3 });
-    await screen.findByLabelText('Live updates connected');
+    await screen.findByText('Live updates connected');
 
     // The ticket's TTL lapses: an ordinary close, which still reconnects.
     first.drop();
@@ -920,7 +927,7 @@ describe('the live feed — RT-001 second half', () => {
 
     await screen.findByText('You no longer have access to this channel');
     expect(second.closed).toBe(true);
-    expect(screen.queryByLabelText('Reconnecting to live updates')).toBeNull();
+    expect(screen.queryByText('Reconnecting to live updates')).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(sockets).toHaveLength(2);
   });

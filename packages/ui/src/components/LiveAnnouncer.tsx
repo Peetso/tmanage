@@ -80,7 +80,16 @@ export function LiveAnnouncer({ children }: LiveAnnouncerProps) {
        * usually-empty slots do not register as extra `status`/`alert` roles, which would
        * otherwise turn every screen's single real alert into "multiple elements with the role".
        */}
-      <div className="tm-visually-hidden">
+      {/*
+       * The slots render after `{children}` — outside `<main>` and every other landmark. axe's
+       * `region` rule (a best-practice rule the web axe helper leaves on) flags perceivable
+       * content that sits in no landmark, and a slot holding an announcement is exactly that. A
+       * named `role="region"` wrapper makes the whole announcer a landmark, so a scan taken while
+       * a sentence is live cannot fail `region`. (Each slot already carries `aria-live`, which axe
+       * treats as region-satisfying on its own, so this is belt-and-braces — but it keeps the
+       * guarantee from depending on that internal axe behaviour.)
+       */}
+      <div className="tm-visually-hidden" role="region" aria-label="Live announcements">
         <div aria-live="polite" aria-atomic="true">
           {polite[0]}
         </div>

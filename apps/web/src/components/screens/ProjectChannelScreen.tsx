@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
-import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Badge, Button, InlineAlert, LoadingRegion, Skeleton, VisuallyHidden } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { RichTextBody } from '../RichTextBody';
@@ -101,6 +101,17 @@ export function ProjectChannelScreen({
   const [removeTargetId, setRemoveTargetId] = useState<string | undefined>(undefined);
 
   /*
+   * WCAG 2.2 4.1.3, verbosity. The transcript's <ol> is a live region so a genuinely new message
+   * (a live frame's refetch appends one) is announced. But "Load more" appends a whole page —
+   * up to MAX_MESSAGE_PAGE rows — at once, and a live region would read the lot out. We hold the
+   * region silent across a manual page fetch and re-enable it only afterwards. `announceMessages`
+   * mirrors `!isFetchingNextPage` one render late, which is exactly what keeps the region `off`
+   * through the commit that appends the page; a live refetch never toggles that flag, so it stays
+   * announced.
+   */
+  const [announceMessages, setAnnounceMessages] = useState(true);
+
+  /*
    * WCAG 2.2 2.4.3. The thread pane is an <aside> rendered after <main>, so opening it leaves
    * focus on the trigger and closing it (the close button unmounts) would drop focus to <body>.
    * We remember the control that opened the pane and restore focus to it on close; the pane
@@ -156,6 +167,10 @@ export function ProjectChannelScreen({
     },
   });
 
+  useEffect(() => {
+    setAnnounceMessages(!messages.isFetchingNextPage);
+  }, [messages.isFetchingNextPage]);
+
   const rows = useMemo(() => messages.data?.pages.flat() ?? [], [messages.data]);
   const threadRoot = rows.find((message) => message.id === threadRootId);
   const archived = conversation.data?.archivedAt != null;
@@ -199,27 +214,34 @@ export function ProjectChannelScreen({
           <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
           {project.data ? <> · {project.data.name}</> : null}
           {archived ? <> · Archived</> : null}
-          {liveStatus === 'off' ? null : ' · '}
           {/*
-           * WCAG 2.2 4.1.3 and 4.1.2. This region is mounted from the first render — empty while
-           * the socket is off — so a later flip (a dropped connection, above all) is a text
-           * mutation of a region that already exists, which is what assistive technology
-           * announces; the old chip was mounted together with its text and so was routinely not
-           * announced, and a person whose channel had silently stopped updating was told nothing.
-           * `role="status"` also *permits* the accessible name that a bare <span> (implicit role
-           * `generic`) prohibits, so the fuller sentence is honoured rather than silently dropped.
+           * The separator belongs only before a status that actually renders text. Keying it off
+           * `!== 'off'` left a dangling " · " while the socket was `'connecting'` or `'revoked'`,
+           * states in which the status span below is deliberately empty.
            */}
-          <span
-            role="status"
-            aria-label={
-              liveStatus === 'live'
-                ? 'Live updates connected'
-                : liveStatus === 'retrying'
-                  ? 'Reconnecting to live updates'
-                  : undefined
-            }
-          >
-            {liveStatus === 'live' ? 'Live' : liveStatus === 'retrying' ? 'Reconnecting…' : null}
+          {liveStatus === 'live' || liveStatus === 'retrying' ? ' · ' : null}
+          {/*
+           * WCAG 2.2 4.1.3. This region is mounted from the first render — empty while the socket
+           * is off — so a later flip (a dropped connection, above all) is a text mutation of a
+           * region that already exists, which is what assistive technology announces; the old chip
+           * was mounted together with its text and so was routinely not announced, and a person
+           * whose channel had silently stopped updating was told nothing. A live region's
+           * *announcement* is built from its content, not from `aria-label`, so the fuller sentence
+           * lives in visually-hidden text inside the region; the short visible word is hidden from
+           * assistive technology so what is heard is the sentence, not "Live Live updates connected".
+           */}
+          <span role="status">
+            {liveStatus === 'live' ? (
+              <>
+                <span aria-hidden="true">Live</span>
+                <VisuallyHidden>Live updates connected</VisuallyHidden>
+              </>
+            ) : liveStatus === 'retrying' ? (
+              <>
+                <span aria-hidden="true">Reconnecting…</span>
+                <VisuallyHidden>Reconnecting to live updates</VisuallyHidden>
+              </>
+            ) : null}
           </span>
         </>
       }
@@ -298,7 +320,7 @@ export function ProjectChannelScreen({
         <ol
           className="tm-list tm-stack"
           aria-label="Messages, oldest first"
-          aria-live="polite"
+          aria-live={announceMessages ? 'polite' : 'off'}
           aria-relevant="additions"
         >
           {rows.map((message) => (

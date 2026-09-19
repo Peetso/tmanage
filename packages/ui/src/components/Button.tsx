@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from 'react';
-import { VisuallyHidden } from './VisuallyHidden.js';
+import { Announce } from './LiveAnnouncer.js';
 
 /**
  * The inventory names five buttons — InkButton, LimeButton, OutlineButton, TextButton,
@@ -79,11 +79,16 @@ export function Button({
       onClick={handleClick}
     >
       {children}
-      {loading ? (
-        <VisuallyHidden>
-          <span role="status">{loadingLabel}</span>
-        </VisuallyHidden>
-      ) : null}
+      {/*
+       * WCAG 2.2 4.1.3. The wait is announced through the ambient `LiveAnnouncer`, not by
+       * mounting a `role="status"` node together with its text — a region that arrives already
+       * populated is routinely not announced at all (the I-02 defect). `Announce` writes
+       * `loadingLabel` into the shell's always-mounted region from an effect, so it lands as a
+       * mutation of an existing region. Outside a `LiveAnnouncer` `useAnnounce()` is a safe no-op,
+       * so a bare `<Button loading>` still renders and stays inert; there `aria-busy` toggling on
+       * the focused control carries the wait on its own.
+       */}
+      {loading ? <Announce message={loadingLabel} /> : null}
     </button>
   );
 }
