@@ -26,6 +26,7 @@ import type { OutboxHealthThresholds } from './outbox/health.js';
 import { createWorkerNoticeHandlers, createWorkerOutboxHandlers } from './consumers/registry.js';
 import { ClientRequestMailer } from './notifications/client-request-mailer.js';
 import { CredentialChangeMailer } from './notifications/credential-change-mailer.js';
+import { UsageThresholdMailer } from './notifications/usage-threshold-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
 import { createMessageFanOut } from './realtime/fan-out.js';
 
@@ -272,6 +273,9 @@ async function main(): Promise<void> {
   const transport = mailerFrom(env);
   const handlers = createWorkerOutboxHandlers({
     clientRequestMailer: new ClientRequestMailer(transport, env.WEB_PUBLIC_URL),
+    // USAGE-001 slice 4c — the storage-threshold mail. No link, so no WEB_PUBLIC_URL: the usage
+    // screen it would point at is a later slice and does not exist yet.
+    usageThresholdMailer: new UsageThresholdMailer(transport),
   });
   // x31: the notice queue's own registry. Empty when no transport is wired, which drains and
   // stamps rather than growing a tail — see `createWorkerNoticeHandlers`.

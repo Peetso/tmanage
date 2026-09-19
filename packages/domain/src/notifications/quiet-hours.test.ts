@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  eventBypassesQuietHours,
   eventTypeBypassesQuietHours,
   isInQuietHours,
   isValidTimeZone,
@@ -64,6 +65,18 @@ describe('eventTypeBypassesQuietHours', () => {
     expect(eventTypeBypassesQuietHours('membership.suspended.v1')).toBe(true);
     expect(eventTypeBypassesQuietHours('client_request.submitted.v1')).toBe(false);
     expect(eventTypeBypassesQuietHours('work_item.blocked.v1')).toBe(false);
+  });
+});
+
+describe('eventBypassesQuietHours', () => {
+  it('adds a per-payload rule: the usage crossing bypasses only at band 100 (USAGE-001)', () => {
+    const usage = 'usage.threshold_reached.v1';
+    expect(eventBypassesQuietHours(usage, { band: 100 })).toBe(true);
+    expect(eventBypassesQuietHours(usage, { band: 95 })).toBe(false);
+    expect(eventBypassesQuietHours(usage, {})).toBe(false); // missing band defers
+    // Still honours the type-keyed set, and still defers an ordinary type.
+    expect(eventBypassesQuietHours('approval.decided.v1', {})).toBe(true);
+    expect(eventBypassesQuietHours('client_request.submitted.v1', {})).toBe(false);
   });
 });
 

@@ -202,6 +202,69 @@ export async function findRecipientQuietHours(
 }
 
 /**
+ * What the usage-threshold mail needs about one recipient, resolved at delivery — USAGE-001
+ * slice 4c. The address and name come from the global `users` row (re-read at delivery, never
+ * carried on the event, `24-EVENT-CATALOG` §6 — an address changed since the crossing is the
+ * one the owner reads); `emailEnabled` and the quiet-hours window come from this person's
+ * `notification_preferences` row *in this organization* (NOTIF-001).
+ */
+export interface UsageMailRecipient {
+  readonly email: string;
+  readonly displayName: string;
+  /** NOTIF-001's mail-channel toggle. Default TRUE when no preferences row exists — "reachable". */
+  readonly emailEnabled: boolean;
+  readonly quietHours: QuietHoursPreferences;
+}
+
+/**
+ * One usage-mail recipient's address, name, mail-channel toggle and quiet-hours window, or null
+ * when the user row is gone (silence, never a throw — the same answer the fan-out gives a
+ * membership ended between the crossing and delivery).
+ *
+ * A `LEFT JOIN` because a person who has never opened the preferences screen has no row, and
+ * `0022`'s defaults are then the honoured ones: reachable on email, no quiet hours. A `NULL`
+ * `email_enabled` (no row) reads as TRUE — the "an account that opted into nothing is told
+ * nothing" default the migration states — so a missing row and a saved default are one
+ * behaviour. Scoped to the one organization the event carries, like every read here.
+ */
+export async function findUsageMailRecipient(
+  tx: WorkerTransaction,
+  organizationId: string,
+  userId: string,
+): Promise<UsageMailRecipient | null> {
+  interface Row {
+    readonly email: string;
+    readonly display_name: string;
+    readonly email_enabled: number | null;
+    readonly quiet_hours_start: string | null;
+    readonly quiet_hours_end: string | null;
+    readonly quiet_hours_timezone: string | null;
+  }
+  const rows = await tx.query<readonly Row[]>(
+    `SELECT u.email, u.display_name,
+            np.email_enabled, np.quiet_hours_start, np.quiet_hours_end, np.quiet_hours_timezone
+       FROM users u
+       LEFT JOIN notification_preferences np
+              ON np.organization_id = ? AND np.user_id = u.id
+      WHERE u.id = ?`,
+    [organizationId, userId],
+  );
+  const row = rows[0];
+  if (row === undefined) return null;
+  return {
+    email: row.email,
+    displayName: row.display_name,
+    // No row (NULL) is the default-reachable state; a stored 0/1 is honoured.
+    emailEnabled: row.email_enabled === null ? true : Boolean(row.email_enabled),
+    quietHours: {
+      quietHoursStart: row.quiet_hours_start,
+      quietHoursEnd: row.quiet_hours_end,
+      quietHoursTimezone: row.quiet_hours_timezone,
+    },
+  };
+}
+
+/**
  * The dedicated internal event type a quiet-hours-deferred interrupting delivery is re-enqueued
  * as — INBOX-001. When email would fire during a recipient's quiet window, the mail consumer
  * stages nothing and instead re-enqueues a row of *this* type (see {@link enqueueQuietHoursMailResume})
@@ -236,6 +299,15 @@ export const QUIET_HOURS_MAIL_RESUME_TYPE = 'notification.quiet_hours_resume.v1'
 export interface QuietHoursMailResumeEnvelope {
   readonly originalType: string;
   readonly originalPayload: Record<string, unknown>;
+  /**
+   * The one recipient this deferral is for, when the original delivery was a per-recipient
+   * fan-out (USAGE-001's owner/admin usage mail). Absent for a single-recipient deferral (the
+   * client-request mail), whose recipient is recovered from the original payload's ids. A
+   * fan-out defers each in-quiet-hours recipient as its own resume row so the resume mails just
+   * that one — re-running the whole fan-out on resume would re-mail the recipients who were not
+   * in quiet hours and were already sent on the original pass.
+   */
+  readonly recipientUserId?: string;
 }
 
 /**
@@ -252,7 +324,12 @@ export function decodeQuietHoursMailResume(
   const originalPayload = envelope['originalPayload'];
   if (typeof originalType !== 'string') return null;
   if (originalPayload === null || typeof originalPayload !== 'object') return null;
-  return { originalType, originalPayload: originalPayload as Record<string, unknown> };
+  const recipientUserId = envelope['recipientUserId'];
+  return {
+    originalType,
+    originalPayload: originalPayload as Record<string, unknown>,
+    ...(typeof recipientUserId === 'string' ? { recipientUserId } : {}),
+  };
 }
 
 /**
@@ -267,6 +344,7 @@ export async function enqueueQuietHoursMailResume(
   tx: WorkerTransaction,
   event: ClaimedOutboxEvent,
   resumeAt: Date,
+  recipientUserId?: string,
 ): Promise<void> {
   const originalPayload =
     event.payload !== null && typeof event.payload === 'object'
@@ -275,6 +353,7 @@ export async function enqueueQuietHoursMailResume(
   const resumePayload: QuietHoursMailResumeEnvelope = {
     originalType: event.type,
     originalPayload,
+    ...(recipientUserId === undefined ? {} : { recipientUserId }),
   };
   await tx.query(
     `INSERT INTO outbox_events

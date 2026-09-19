@@ -192,9 +192,14 @@ export type {
 // Quiet hours — INBOX-001, the honouring half of NOTIF-001
 export {
   QUIET_HOURS_BYPASS_EVENT_TYPES,
+  QUIET_HOURS_BYPASS_PAYLOAD_PREDICATES,
+  eventBypassesQuietHours,
   eventTypeBypassesQuietHours,
   isInQuietHours,
   isValidTimeZone,
   quietHoursResumeAt,
 } from './notifications/quiet-hours.js';
-export type { QuietHoursPreferences } from './notifications/quiet-hours.js';
+export type {
+  QuietHoursBypassPredicate,
+  QuietHoursPreferences,
+} from './notifications/quiet-hours.js';
