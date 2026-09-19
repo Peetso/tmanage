@@ -224,6 +224,35 @@ export async function sweepUploads(databaseUrl: string, storageRoot?: string): P
 }
 
 /**
+ * Run USAGE-001 slice 3's counter reconciler once, to completion — the step that closes the
+ * loop the ledger (slice 2) opened, run in the same tick the sweeper is (`reconcile:once`
+ * after `sweep:once`).
+ *
+ * The API's own `reconcile.ts`, the shape `reconcile:once` deploys, with the environment the
+ * API got: the same database, so the pass reads and repairs through the same counters, ledger
+ * and audit the routes use. One invocation is one whole pass — the reconciler batches
+ * internally over every organization — so, like {@link sweepUploads}, there is no loop here.
+ * The report line is the reconciler's `[reconciler] pass:` on stderr; an organization whose
+ * counter could not be reconciled is `failed N` in it and the process still exits zero, so the
+ * helper reads the count and fails the journey itself.
+ */
+export async function reconcileUsage(databaseUrl: string, storageRoot?: string): Promise<string> {
+  const { stdout, stderr } = await run(
+    'pnpm',
+    ['--filter', '@tmanage/api', 'exec', 'tsx', 'src/reconcile.ts', '--once'],
+    { cwd: REPO_ROOT, env: apiEnv(databaseUrl, storageRoot) },
+  );
+  const report = /\[reconciler\] pass: (.*)/.exec(`${stderr}\n${stdout}`)?.[1]?.trim();
+  if (!report) {
+    throw new Error(`reconcileUsage: the reconciler printed no report\n${stderr}\n${stdout}`);
+  }
+  const failed = Number(/failed (\d+)/.exec(report)?.[1] ?? '0');
+  if (failed > 0)
+    throw new Error(`reconcileUsage: an organization failed to reconcile — ${report}`);
+  return report;
+}
+
+/**
  * Run FILE-002's verification and scan passes once — E2E-12a's steps between "uploaded" and
  * "downloadable". The API's own `verify.ts`, the shape `verify:once` deploys, with the
  * environment the API got (the same database, the same storage root, the stub scanner).

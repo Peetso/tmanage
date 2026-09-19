@@ -7,6 +7,7 @@ import {
   WEB_URL,
   ageUploadSession,
   drainOutbox,
+  reconcileUsage,
   sweepUploads,
   verifyUploads,
 } from '../setup/stack.js';
@@ -365,6 +366,14 @@ test.describe('the upload journey', () => {
 
     // The release is an event; the relay consumes it without a failure.
     await drainOutbox(databaseUrl, root);
+
+    // USAGE-001 slice 3 (x56): the reconcile pass runs as the deployment's tick would, after
+    // sweep and relay. The sweep wrote the release through the counter and the ledger together,
+    // so this tenant's counter agrees with its ledger: the pass stamps `reconciled_at` and
+    // corrects nothing. Running it here proves `reconcile:once` is wired into the same tick the
+    // sweeper is, and that a healthy tenant drifts by zero.
+    const reconciled = await reconcileUsage(databaseUrl, root);
+    expect(reconciled).toMatch(/drifted 0/);
 
     // Leave the tenant as found.
     const fresh = (await accepted.json()) as UploadSession;

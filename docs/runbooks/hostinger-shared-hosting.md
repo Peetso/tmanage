@@ -18,7 +18,8 @@ and are referenced where they bear on this plan. Prerequisites (`pnpm db:migrate
 
 Every environment claim below is verified against `packages/config/src/env.ts` and the process
 entry points `apps/api/src/main.ts`, `apps/worker/src/main.ts`, `apps/api/src/verify.ts`,
-`apps/api/src/sweep.ts`, and `apps/web/next.config.ts`, at the commit this file was written on.
+`apps/api/src/sweep.ts`, `apps/api/src/reconcile.ts`, and `apps/web/next.config.ts`, at the commit
+this file was written on.
 File and line are cited so a reader can re-check each one.
 
 ---
@@ -32,26 +33,27 @@ If any of these three is absent, **stop**: the plan is wrong for this account, n
    inside the other — see §2. Two slots is the floor. One slot in total means TManage cannot be
    deployed at all.
 2. **A cron manager**, or an external way to run a shell command on a schedule (§4). Without a
-   scheduler the outbox never drains and uploaded files never leave quarantine — three of the
-   five processes have no driver.
+   scheduler the outbox never drains, uploaded files never leave quarantine, and usage counters
+   are never reconciled — four of the six processes have no driver.
 3. **A Node 22.x runtime.** The repository's `engines` requires `node >=22.12.0 <23`
    (`package.json`). Confirm hPanel offers 22.x before anything else.
 
 ---
 
-## 2. The five processes, and how they fold onto this host
+## 2. The six processes, and how they fold onto this host
 
-The code is five processes (plus one conditional listener). Three are long-running or scheduled;
-two are scheduled one-shot passes. Here is where each one lands.
+The code is six processes (plus one conditional listener). Three are long-running or scheduled;
+three are scheduled one-shot passes. Here is where each one lands.
 
-| #   | Process                             | Entry command                                                                                                                    | Where it goes on this host                                                                                                     |
-| --- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | **Web**                             | `next start --port 3000` (`apps/web/package.json` `start`)                                                                       | **App slot 1**, on the primary hostname (e.g. `peetrix.com`). Also the same-origin proxy: it rewrites `/v1/*` to the API (§3). |
-| 2   | **API**                             | `node dist/main.js` — **there is no `start` script in `apps/api/package.json`**; the hPanel entry command is written out by hand | **App slot 2**, on a second hostname (e.g. `api.peetrix.com`).                                                                 |
-| 3   | **Worker / outbox relay**           | `node dist/main.js --once` (`apps/worker/package.json` `relay:once`)                                                             | **Cron**, not an app slot (§4). The `--once` mode runs one controlled batch and exits — `apps/worker/src/main.ts:104-117`.     |
-| 4   | **Verify + scan pass**              | `node dist/verify.js --once` (`apps/api/package.json` `verify:once`)                                                             | **Cron** (§4). One verification pass then one scan pass, then exit — `apps/api/src/verify.ts:35-53`.                           |
-| 5   | **Sweep pass**                      | `node dist/sweep.js --once` (`apps/api/package.json` `sweep:once`)                                                               | **Cron** (§4). Expires reserved upload sessions and exits — `apps/api/src/sweep.ts:30-48`.                                     |
-| 6   | **Realtime socket** _(conditional)_ | inside process 3, loop mode only, when `REALTIME_PORT > 0`                                                                       | **Off.** Set `REALTIME_PORT=0` (the default). See below.                                                                       |
+| #   | Process                             | Entry command                                                                                                                    | Where it goes on this host                                                                                                                       |
+| --- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Web**                             | `next start --port 3000` (`apps/web/package.json` `start`)                                                                       | **App slot 1**, on the primary hostname (e.g. `peetrix.com`). Also the same-origin proxy: it rewrites `/v1/*` to the API (§3).                   |
+| 2   | **API**                             | `node dist/main.js` — **there is no `start` script in `apps/api/package.json`**; the hPanel entry command is written out by hand | **App slot 2**, on a second hostname (e.g. `api.peetrix.com`).                                                                                   |
+| 3   | **Worker / outbox relay**           | `node dist/main.js --once` (`apps/worker/package.json` `relay:once`)                                                             | **Cron**, not an app slot (§4). The `--once` mode runs one controlled batch and exits — `apps/worker/src/main.ts:104-117`.                       |
+| 4   | **Verify + scan pass**              | `node dist/verify.js --once` (`apps/api/package.json` `verify:once`)                                                             | **Cron** (§4). One verification pass then one scan pass, then exit — `apps/api/src/verify.ts:35-53`.                                             |
+| 5   | **Sweep pass**                      | `node dist/sweep.js --once` (`apps/api/package.json` `sweep:once`)                                                               | **Cron** (§4). Expires reserved upload sessions and exits — `apps/api/src/sweep.ts:30-48`.                                                       |
+| 6   | **Reconcile pass**                  | `node dist/reconcile.js --once` (`apps/api/package.json` `reconcile:once`)                                                       | **Cron** (§4), on its own hourly schedule. Reconciles each org's usage counter against its ledger and exits — `apps/api/src/reconcile.ts:28-49`. |
+| 7   | **Realtime socket** _(conditional)_ | inside process 3, loop mode only, when `REALTIME_PORT > 0`                                                                       | **Off.** Set `REALTIME_PORT=0` (the default). See below.                                                                                         |
 
 ### The API cannot fold into the web app
 
@@ -60,13 +62,18 @@ codebase does not pretend otherwise. `apps/web/src/lib/public-config.ts` only ch
 **browser** sees; the two Node applications stay two Node applications. **Two app slots on two
 hostnames is the hard floor.** The topology that makes cookies work across them is in §3.
 
-### Processes 3, 4 and 5 are already cron-shaped
+### Processes 3, 4, 5 and 6 are already cron-shaped
 
-None of these three has an in-process scheduler; that is deliberate. `apps/worker/src/main.ts`
-runs one batch and exits under `--once` (lines 104-117); `verify.ts` and `sweep.ts` accept
-`--once` "for symmetry and is the only behaviour" (`verify.ts:20`, `sweep.ts:16-17`). The
-intended tick is all three, in this order: **`relay:once`, `sweep:once`, `verify:once`** —
-`sweep.ts:13-16`, `verify.ts:30-33`. §4 covers how to run them.
+None of these four has an in-process scheduler; that is deliberate. `apps/worker/src/main.ts`
+runs one batch and exits under `--once` (lines 104-117); `verify.ts`, `sweep.ts` and
+`reconcile.ts` accept `--once` "for symmetry and is the only behaviour" (`verify.ts:20`,
+`sweep.ts:16-17`, `reconcile.ts:16-17`). The delivery tick is three passes, in this order:
+**`relay:once`, `sweep:once`, `verify:once`** — `sweep.ts:13-16`, `verify.ts:30-33`. The
+reconcile pass (`reconcile:once`) runs the same `--once` shape but on its own **hourly**
+schedule rather than in the every-minute chain: it is a data-integrity sweep over every
+organization's counter, has no delivery-latency requirement, and running a full-table scan every
+minute would waste work and contend needlessly with live counter writes. §4 covers how to run
+them.
 
 ### The realtime socket cannot be provided, and nothing is lost that matters
 
@@ -131,7 +138,7 @@ half a batch.
 
 ### 4a. With a cron manager (recommended)
 
-Register **one** entry that sources an env file and runs the three passes in order:
+Register **one** entry that sources an env file and runs the three delivery passes in order:
 
 ```sh
 # every minute; adjust to the plan's smallest granularity
@@ -146,6 +153,25 @@ Order matters: relay first (drains the outbox), then sweep (releases expired res
 verify+scan (`sweep.ts:13-16`, `verify.ts:30-33`). Delivery latency becomes the cron granularity
 — typically one minute at best on a shared plan, so a client-request email can be up to a minute
 late. That is acceptable and is what the code was built for.
+
+Register a **second, hourly** entry for the reconcile pass — it is not part of the delivery tick
+above:
+
+```sh
+# hourly; a data-integrity sweep, not a delivery pass
+set -a; . /home/u152275336/tmanage.env; set +a
+cd /home/u152275336/domains/peetrix.com/public_html/tmanage
+node apps/api/dist/reconcile.js --once
+```
+
+`reconcile:once` (`apps/api/src/reconcile.ts`) walks every organization's usage counter, sums its
+append-only ledger under the counter's own lock, corrects any drift towards the ledger and stamps
+`reconciled_at`. It is what writes `reconciled_at` in production at all — without this entry the
+column is only ever set by a hand-run of `reconcile:once`. It runs **hourly, not every minute**:
+it has no delivery-latency requirement, it is a full-table scan whose cost scales with the number
+of organizations, and running it in the minute chain would contend with live counter writes for
+no benefit. Hourly is the intended order; loosen or tighten it to how fresh `reconciled_at` needs
+to be for monitoring, never below the minute chain's cadence.
 
 The env file (`tmanage.env` above) must carry the whole §5 checklist, including
 `AUTH_MFA_SEED_KEYS`, `SESSION_SECRET`, `CSRF_SECRET` and the three database URLs, in plaintext

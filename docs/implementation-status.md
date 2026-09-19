@@ -44,6 +44,41 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-19 — USAGE-001 slice 3b, schedule the reconciler (slice x56)
+
+Built on branch `x56-usage-001-reconcile-schedule` (off x53's HEAD `cec1739`), **not merged**.
+Closes the gap x53 left open: x53 built the counter reconciler (`usage-reconciler`,
+`reconcile:once`) but nothing ran it, so `usage_counters.reconciled_at` was never written outside
+a manual run. This slice wires `reconcile:once` into the deployment's periodic mechanism the way
+slice 1's expiry sweeper (`sweep:once`) is — **the external cron tick, not an in-process
+scheduler**. There is no in-process scheduler for any of these passes and that is deliberate
+(`hostinger-shared-hosting.md` §2 "already cron-shaped", §4b forbids an in-API timer — it would
+run under `DATABASE_URL` instead of the least-privilege user); the sweeper carries no interval or
+enable-flag config in `packages/config`, so there was none to mirror there.
+
+- `docs/runbooks/hostinger-shared-hosting.md` — reconcile added as process 6 in the deployment
+  table, to the "already cron-shaped" section, and as its **own hourly cron entry** in §4a
+  (separate from the every-minute relay/sweep/verify delivery chain). Hourly, not per-minute,
+  because it is a full-table integrity sweep over every organization with no delivery-latency
+  requirement, and running it each minute would contend with live counter writes for no benefit
+  (the brief's "interval in the order of hours", expressed in the cron mechanism the deployment
+  actually uses).
+- `docs/runbooks/deploy.md` — the reconcile pass added to the two lists of processes that load
+  the same validated environment (`AUTH_MFA_SEED_KEYS`, `TRUSTED_PROXY_ADDRESSES`), so its cron
+  entry is provisioned like the others.
+- `e2e/setup/stack.ts` — new `reconcileUsage()` helper, the exact shape of `sweepUploads()`,
+  running `reconcile:once` with the harness environment and failing the caller on `failed N`.
+- `e2e/tests/upload-journeys.spec.ts` — the E2E-12b sweep journey now runs `reconcileUsage()`
+  after the sweep and relay and asserts `drifted 0`: on a tenant whose counter and ledger agree
+  it stamps `reconciled_at` and corrects nothing, proving the pass runs in the same tick the
+  sweeper does. **Unexecuted this run** (no `mysqld`/Playwright; this agent does not own
+  `db-e2e.lock`) — the lock owner runs `pnpm --filter @tmanage/e2e test` next chain.
+
+No `apps/api`/`packages/*` source changed and the reconciler's semantics are untouched. Tests:
+no unit test was added — there is no in-process scheduler to unit-test and no sweeper scheduling
+test to mirror; the wiring's behaviour is proven by the e2e journey above, which is unexecuted
+here. Gates run: `pnpm lint`, `pnpm format:check` (the touched files are docs + e2e only).
+
 ## 2026-09-19 — USAGE-001 slice 3, reconciled counters (slice x53)
 
 Built on branch `x53-usage-001-reconcile` (off x48's approved HEAD `573b5ec`), **not merged**.
@@ -67,9 +102,9 @@ ledger)` diff (unit-tested) plus the `UsageReconciler` job. Per organization, in
   (`object_type` `usage_counter`, actor null — the system case, as an expiry's row is).
 - Wired like the sweeper: `USAGE_RECONCILER` token, a `FilesModule` provider built on the same
   counters/ledger/audit, entry point `apps/api/src/reconcile.ts` (`--once`) and a
-  `reconcile:once` script. Adding `reconcile:once` to the external cron tick (after
-  `verify:once`) and to `e2e/setup/stack.ts` is a follow-up left to the integrator — the job
-  is resolvable and runnable but not yet on the tick.
+  `reconcile:once` script. **Now scheduled (slice x56, below):** `reconcile:once` is on the
+  deployment's cron mechanism — its own hourly entry in the runbooks — and in
+  `e2e/setup/stack.ts`, so `reconciled_at` is written outside a manual run.
 
 **Divergence from the pre-build note (recorded, not a defect).** The USAGE-001 pre-build note
 for slice 3 (this file, "Reconciled counters") named "a correcting ledger row and an audit row
