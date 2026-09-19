@@ -92,22 +92,10 @@ type Exact<Api, Web> = [Api] extends [Web]
     : ApiWebMismatch<Api, Web>
   : ApiWebMismatch<Api, Web>;
 
-type SameKeys<Api, Web> = [keyof Api] extends [keyof Web]
-  ? [keyof Web] extends [keyof Api]
-    ? true
-    : ApiWebMismatch<Api, Web>
-  : ApiWebMismatch<Api, Web>;
-
-/**
- * One-way assignability plus key equality — the weaker assertion, used only where the web type
- * is deliberately *narrower* than the API's and the difference is recorded below with a reason.
- *
- * It is weaker in exactly one direction and no further: a renamed field still fails (`SameKeys`),
- * a `string` that became a `number` still fails (`[Web] extends [Api]`), a removed field still
- * fails. What it tolerates is the API declaring `string` where the web declares the union the
- * database actually constrains — never the reverse, and never a different field.
- */
-type Narrows<Api, Web> = [Web] extends [Api] ? SameKeys<Api, Web> : ApiWebMismatch<Api, Web>;
+// A weaker `Narrows<Api, Web>` assertion once lived here, for pairs where the API projection
+// typed a lifecycle column as bare `string` while the web declared the constrained union. All
+// three such pairs were tightened to `Exact` (CONTRACT-001), so the helper had no remaining use
+// and was removed; reintroduce it from git history if a genuine one-way divergence appears again.
 
 /** `never extends true` is vacuously satisfied, so a failing check must resolve to an object. */
 type Assert<T extends true> = T;
@@ -126,19 +114,17 @@ type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
 type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRequest>>;
 
-// Narrowing pairs — three, each a real divergence, each open rather than papered over.
-//
-// In all three the API projection types a lifecycle column as `string` while the web declares
-// the union the column is actually constrained to. The web side is the more truthful of the
-// two and is *not* being widened to make this file compile; the API side is what wants
-// tightening, and tightening it is an `apps/api` change with its own test surface, not this
-// slice's. Recorded in the report and in `docs/implementation-status.md` as open.
+// These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
+// while the web declared the union the column is actually constrained to (CONTRACT-001). The API
+// side has since been tightened to the domain union at its projection, guarded where a raw
+// `varchar` is read, so the pair is now `Exact`: a `state` the web's union does not contain can
+// no longer be typed on the API view, and the gate catches it either way.
 
-/** `WorkItemView.state: string` vs `WORK_ITEM_STATES` (`@tmanage/domain`). */
-type _workItem = Assert<Narrows<ApiWorkItemView, WebWorkItemSummary>>;
+/** `WorkItemView.state` ↔ `WORK_ITEM_STATES` (`@tmanage/domain`). */
+type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
 
-/** `ClientRequestView.state: string` vs the nine states of `23-ERD` §6. */
-type _clientRequest = Assert<Narrows<ApiClientRequestView, WebClientRequestRecord>>;
+/** `ClientRequestView.state` ↔ the nine states of `23-ERD` §6. */
+type _clientRequest = Assert<Exact<ApiClientRequestView, WebClientRequestRecord>>;
 
-/** `InvitationView.status: string` vs `pending | accepted | expired | revoked`. */
-type _invitation = Assert<Narrows<ApiInvitationView, WebInvitationSummary>>;
+/** `InvitationView.status` ↔ `pending | accepted | expired | revoked`. */
+type _invitation = Assert<Exact<ApiInvitationView, WebInvitationSummary>>;

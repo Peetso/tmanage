@@ -15,6 +15,15 @@ export const CLIENT_REQUEST_STATES = [
 
 export type ClientRequestState = (typeof CLIENT_REQUEST_STATES)[number];
 
+/**
+ * Whether a raw string — a value read from the `varchar` state column — is one the machine
+ * defines. Lets a response projection narrow `string` to {@link ClientRequestState} rather than
+ * asserting it, so the API cannot type a field as the union while returning a value outside it.
+ */
+export function isClientRequestState(value: string): value is ClientRequestState {
+  return (CLIENT_REQUEST_STATES as readonly string[]).includes(value);
+}
+
 const definition: StateMachineDefinition<ClientRequestState> = {
   name: 'client_request',
   initial: 'submitted',
