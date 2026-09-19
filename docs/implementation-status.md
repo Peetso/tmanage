@@ -22,6 +22,40 @@ coverage failure is x54's unpaired `NotificationPreferencesView` (pre-existing a
 x61 — not this slice's to add). Left for later: the 48 `apps/web` shapes with no API `…View`, and
 generating `packages/contracts` (R12). **Not merged, not pushed.** Earlier:
 
+**Last updated:** 2026-09-19 (**x59 TEN-001 leftovers — workspace-scoped admin default + stored
+policyVersion**, branch `x59-ten-001-admin-default-policyversion` off `master` `80c0c59`) — the two
+TEN-001 gaps that needed a migration, landed together in migration `0023`
+(`0023_membership_scope_and_policy_version.sql`). **(A1, gap #5 — Workspace Admin default scope,**
+docs/implementation-status.md gap #5, `12-PERMISSION-MATRIX.md` §2): `memberships` gains a nullable
+`workspace_scope_id CHAR(36)` with a composite FK `(organization_id, workspace_scope_id)` →
+`workspaces`, so a Workspace Admin's reach can be one whole workspace without granting the whole
+organization (which `has_org_wide_scope` would) or falling back to only the projects they joined.
+`defaultOrgWideScope('workspace_admin')` stays `false`; the resolver surfaces `workspaceScopeId` on
+`Candidate`/`ResolvedMembership`, and `PrincipalRepository.projectScope` gained a branch: an internal,
+non-org-wide principal with a non-null `workspaceScopeId` sees every project in that workspace
+(`SELECT projects.id WHERE organization_id = ? AND workspace_id = ?`), a null scope keeps the existing
+project-membership fallback (no widening). Write paths accept an explicit `workspaceScopeId`
+(`invite`, `changeRole`); a role change never defaults it from the role name. **(A2, gap #6 — stored
+policy version,** `25` §2/§9): `organizations` and `memberships` each gain
+`policy_version BIGINT UNSIGNED NOT NULL DEFAULT 1`; `policyVersionOf` is rewritten from the derived
+`v1:${orgUpdatedAt}:${memUpdatedAt}` to `v2:${orgPolicyVersion}:${memPolicyVersion}` reading the stored
+columns. `changeRole` bumps the membership's `policy_version`; `organizations.update` deliberately does
+**not** touch it (name/locale/timezone are settings, not policy), so an org rename no longer rotates
+every member's cache key — the defect this closes. **Divergences recorded** (no Peter call, per the
+brief): a single `workspace_scope_id` column rather than a membership↔workspace join table
+(multi-workspace admin deferred); and `client_memberships` was left without a `policy_version` column,
+so the client path keeps deriving its membership epoch from `updated_at` (its organization half is the
+stored column, so a rename does not rotate a client's key either) — a stored client policy version is
+deferred with the multi-workspace work. **The slug-change leftover (gap #4) remains OPEN**: reserve vs
+reuse an old slug is the Peter-only product decision the pack is silent on, and was excluded from this
+slice. Gates green: `@tmanage/api` typecheck, unit (593 pass incl. the new
+`scope-and-policy-version.test.ts`), `pnpm lint`, `pnpm format:check`, `@tmanage/api` build. The DB
+tests added to `membership-resolver.db.test.ts` (workspace-scope visibility, no-bump-on-rename, plus
+the adapted role-change bump) are **UNEXECUTED** — this dispatch does not own `db-e2e.lock`.
+`pnpm contracts:check` is **RED on a pre-existing master issue** (x54's `NotificationPreferencesView`
+unpaired), untouched and unrelated to this slice. Revert proof recorded for the `policyVersionOf` fix.
+**Not merged, not pushed.** Earlier:
+
 **Last updated:** 2026-09-19 (**x55 chain-5 TESTDB red fixes**, branch `x55-chain5-testdb-fixes` off
 `master` `a310dc9`) — the two database-suite reds chain 5 found on master, both fixed. (1) Migration 0021's
 `usage_ledger_entries` (merged with x48) carries an `organization_id` column but was never registered in the

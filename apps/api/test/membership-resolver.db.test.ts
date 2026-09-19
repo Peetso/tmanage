@@ -9,6 +9,7 @@ import {
   MembershipNotResolvedError,
   MembershipResolver,
 } from '../src/modules/tenancy/membership-resolver.repository.js';
+import { PrincipalRepository } from '../src/modules/tenancy/principal.repository.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { seedTwoTenants } from './seed-two-tenants.js';
@@ -46,6 +47,7 @@ let world: SeedWorld;
 let tenant: TenantDatabase;
 let guardEvents: TenantGuardEvent[];
 let resolver: MembershipResolver;
+const principals = new PrincipalRepository();
 
 beforeAll(async () => {
   db = await startTestDatabase();
@@ -139,12 +141,16 @@ describe('an active membership resolves into a trusted context', () => {
     // Spec section 9 keys caches on organization plus policy version, and section 11 lists
     // "changed role after session" as a grid case. A policy version that did not move when
     // the role moved would serve the old capabilities from cache.
+    //
+    // Since 0023 the epoch is the stored `policy_version`, not `updated_at`, so a role change is
+    // paired with a `policy_version` bump exactly as `MembershipsRepository.changeRole` does it
+    // — the raw update here stands in for that command.
     const before = await resolveInternal(world.northstar.designer.id, 'northstar-studio');
 
-    await db.admin.execute('update memberships set role = ? where id = ?', [
-      'moderator',
-      world.northstar.designer.membershipId,
-    ]);
+    await db.admin.execute(
+      'update memberships set role = ?, policy_version = policy_version + 1 where id = ?',
+      ['moderator', world.northstar.designer.membershipId],
+    );
     const after = await resolveInternal(world.northstar.designer.id, 'northstar-studio');
 
     expect(after.role).toBe('moderator');
@@ -155,6 +161,72 @@ describe('an active membership resolves into a trusted context', () => {
       'member',
       world.northstar.designer.membershipId,
     ]);
+  });
+
+  it('does NOT change a member’s policy version when the organization is merely renamed', async () => {
+    // The defect 0023 closes: `organizations.updated_at` carries ON UPDATE CURRENT_TIMESTAMP,
+    // so deriving the epoch from it rotated every member's cache key on a rename. The stored
+    // `policy_version` is untouched by a settings write, so the key holds across the rename.
+    const before = await resolveInternal(world.northstar.owner.id, 'northstar-studio');
+
+    await db.admin.execute('update organizations set name = ? where id = ?', [
+      'Northstar Studio (renamed)',
+      world.northstar.organizationId,
+    ]);
+    const after = await resolveInternal(world.northstar.owner.id, 'northstar-studio');
+
+    expect(after.context.policyVersion).toBe(before.context.policyVersion);
+
+    await db.admin.execute('update organizations set name = ? where id = ?', [
+      'Northstar Studio',
+      world.northstar.organizationId,
+    ]);
+  });
+
+  it('scopes a Workspace Admin to every project in their workspace, and nothing outside it', async () => {
+    // 12-PERMISSION-MATRIX §2 grants a Workspace Admin "Scope" on internal projects — every
+    // project in their workspace, wider than the projects they personally joined but narrower
+    // than the tenant. `workspace_scope_id` (0023) expresses exactly that middle ground.
+    await db.admin.execute('update memberships set role = ?, workspace_scope_id = ? where id = ?', [
+      'workspace_admin',
+      world.northstar.workspaceId,
+      world.northstar.manager.membershipId,
+    ]);
+
+    const resolved = await resolveInternal(world.northstar.manager.id, 'northstar-studio');
+    expect(resolved.hasOrgWideScope).toBe(false);
+    expect(resolved.workspaceScopeId).toBe(world.northstar.workspaceId);
+
+    const scope = await tenant.read(resolved.context, (tx) =>
+      principals.projectScope(tx, resolved.context, resolved),
+    );
+
+    // Every project in the workspace, including Meridian's — which the manager is NOT a project
+    // member of, so a project-membership scope would have missed it. That is the widening under
+    // test. The twin tenant's identically named project never appears: the read is org-scoped.
+    expect([...scope].sort()).toEqual(
+      [world.northstar.projectId, world.northstar.otherProjectId, world.meridian.projectId].sort(),
+    );
+    expect(scope).not.toContain(world.twin.projectId);
+
+    await db.admin.execute(
+      'update memberships set role = ?, workspace_scope_id = NULL where id = ?',
+      ['manager', world.northstar.manager.membershipId],
+    );
+  });
+
+  it('leaves a null-scope internal member on their project-membership scope', async () => {
+    // The other half of the branch: a non-org-wide member with no workspace scope still sees
+    // only the projects they joined. The designer is a member of one project and not the other.
+    const resolved = await resolveInternal(world.northstar.designer.id, 'northstar-studio');
+    expect(resolved.workspaceScopeId).toBeNull();
+
+    const scope = await tenant.read(resolved.context, (tx) =>
+      principals.projectScope(tx, resolved.context, resolved),
+    );
+
+    expect(scope).toContain(world.northstar.projectId);
+    expect(scope).not.toContain(world.northstar.otherProjectId);
   });
 });
 

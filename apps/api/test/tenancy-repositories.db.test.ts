@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { authorize, uuidv7 } from '@tmanage/domain';
+import { authorize, uuidv7, type InternalRole } from '@tmanage/domain';
 import { TenantDatabase } from '../src/common/database/tenant-context.js';
 import type { TenantContext } from '../src/common/database/tenant-context.js';
 import type { TenantGuardEvent } from '../src/common/database/tenant-guard.js';
@@ -398,6 +398,46 @@ describe('the membership aggregate', () => {
         overridden.version,
         'member',
       ),
+    );
+  });
+
+  it('bumps the membership policy_version by exactly one on a role change, and a rename does not', async () => {
+    // A2 acceptance ("version-bump-on-role-change", 0023): the authorization epoch stored on the
+    // membership rotates through the *real* changeRole command — not a raw UPDATE standing in for
+    // it — so a regression dropping `policy_version + 1` from the repository would fail here. The
+    // second half pins the other side of the same decision: a rename is a settings write and must
+    // leave every epoch alone, which is exactly the `updated_at` churn 0023 removed.
+    const before = await tenant.read(contextOf(northstarOwner), (tx) =>
+      memberships.requireById(tx, contextOf(northstarOwner), world.northstar.designer.membershipId),
+    );
+    const original = before.role as InternalRole;
+    const target: InternalRole = original === 'moderator' ? 'member' : 'moderator';
+
+    const changed = await tenant.transaction(contextOf(northstarOwner), (tx) =>
+      memberships.changeRole(tx, contextOf(northstarOwner), before.id, before.version, target),
+    );
+    expect(changed.role).toBe(target);
+    expect(changed.policyVersion).toBe(before.policyVersion + 1);
+
+    const orgBefore = await tenant.read(contextOf(northstarOwner), (tx) =>
+      organizations.requireCurrent(tx, contextOf(northstarOwner)),
+    );
+    const renamed = await tenant.transaction(contextOf(northstarOwner), (tx) =>
+      organizations.update(tx, contextOf(northstarOwner), orgBefore.updatedAt, {
+        name: `${orgBefore.name} (renamed)`,
+      }),
+    );
+    expect(renamed.name).toBe(`${orgBefore.name} (renamed)`);
+    expect(renamed.policyVersion).toBe(orgBefore.policyVersion);
+
+    // Restore the shared fixtures for the cases that follow.
+    await tenant.transaction(contextOf(northstarOwner), (tx) =>
+      organizations.update(tx, contextOf(northstarOwner), renamed.updatedAt, {
+        name: orgBefore.name,
+      }),
+    );
+    await tenant.transaction(contextOf(northstarOwner), (tx) =>
+      memberships.changeRole(tx, contextOf(northstarOwner), changed.id, changed.version, original),
     );
   });
 

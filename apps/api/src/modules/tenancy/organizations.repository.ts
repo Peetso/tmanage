@@ -166,6 +166,12 @@ export class OrganizationsRepository {
     expectedUpdatedAt: Date,
     input: UpdateOrganizationInput,
   ): Promise<OrganizationRow> {
+    // `policy_version` (0023) is deliberately NOT touched here. Name, locale and timezone are
+    // display settings, not authorization policy: rotating every member's cache epoch on a
+    // rename is the exact churn 0023 removed. When a genuine org-policy field lands (an org-wide
+    // authorization setting), the write that changes it bumps `policy_version` — here or in its
+    // own method — and this settings update still will not. That is why the epoch is a separate
+    // column from `updated_at`, which this statement does move.
     const changes: Record<string, unknown> = { updatedAt: sql`current_timestamp(3)` };
     if (input.name !== undefined) changes['name'] = input.name;
     if (input.defaultLocale !== undefined) changes['defaultLocale'] = input.defaultLocale;

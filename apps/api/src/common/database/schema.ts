@@ -131,6 +131,15 @@ export const organizations = mysqlTable(
     name: varchar('name', { length: 190 }).notNull(),
     defaultLocale: varchar('default_locale', { length: 35 }).notNull().default('en'),
     timezone: varchar('timezone', { length: 64 }).notNull().default('UTC'),
+    /**
+     * The organization half of the context's policy-version epoch (0023). Bumped by a future
+     * org-policy write, never by a rename — so an unrelated `updated_at` change no longer
+     * rotates every member's cache key. Stored rather than derived from `updated_at` for
+     * exactly that reason; see `membership-resolver.repository.ts`.
+     */
+    policyVersion: bigint('policy_version', { mode: 'number', unsigned: true })
+      .notNull()
+      .default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
@@ -150,7 +159,23 @@ export const memberships = mysqlTable(
     status: mysqlEnum('status', MEMBERSHIP_STATUS).notNull().default('active'),
     /** Stored rather than derived, so a policy change cannot silently widen historical scope. */
     hasOrgWideScope: boolean('has_org_wide_scope').notNull().default(false),
+    /**
+     * A Workspace Admin's one-workspace reach (0023). NULL is the safe default — the
+     * project-membership fallback, no widening — and a workspace id means every project in that
+     * workspace and nothing outside it. The middle ground `has_org_wide_scope` (a boolean) has
+     * no room for; multi-workspace admins are deferred. The composite FK including
+     * `organization_id` keeps the scope inside the membership's own tenant.
+     */
+    workspaceScopeId: char('workspace_scope_id', { length: 36 }),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    /**
+     * The membership half of the context's policy-version epoch (0023). Bumped on a role or
+     * scope change, never by unrelated `updated_at` churn — so a stale cache key is rotated
+     * exactly when the principal's authority changes and not otherwise.
+     */
+    policyVersion: bigint('policy_version', { mode: 'number', unsigned: true })
+      .notNull()
+      .default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },
