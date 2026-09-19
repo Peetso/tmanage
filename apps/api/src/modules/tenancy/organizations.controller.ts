@@ -9,7 +9,11 @@ import {
 import type { AuthenticatedSession } from '../identity/session.service.js';
 import type { OrganizationDirectoryRepository } from './organization-directory.repository.js';
 import { OrganizationSlugTakenError } from './organizations.repository.js';
-import type { ProvisioningService } from './provisioning.service.js';
+import type {
+  CreatedOrganizationView,
+  OrganizationSummaryView,
+  ProvisioningService,
+} from './provisioning.service.js';
 
 /**
  * The two routes `ON-01` and `ID-04` have been waiting for — TEN-001's unbuilt half.
@@ -117,16 +121,7 @@ export class OrganizationsController {
   async list(
     @CurrentSession() session: AuthenticatedSession,
     @Req() request: RequestLike,
-  ): Promise<{
-    organizations: readonly {
-      id: string;
-      slug: string;
-      name: string;
-      audience: 'internal' | 'client';
-      role: string;
-      clientOrganizationName: string | null;
-    }[];
-  }> {
+  ): Promise<{ organizations: readonly OrganizationSummaryView[] }> {
     const state = requireRequestState(request);
     const rows = await this.directory.listForUser({
       userId: session.userId,
@@ -158,13 +153,7 @@ export class OrganizationsController {
     @CurrentSession() session: AuthenticatedSession,
     @Body() body: CreateOrganizationBody,
     @Req() request: RequestLike,
-  ): Promise<{
-    id: string;
-    slug: string;
-    name: string;
-    workspaceId: string;
-    role: string;
-  }> {
+  ): Promise<CreatedOrganizationView> {
     const state = requireRequestState(request);
     const input = validate(body);
 

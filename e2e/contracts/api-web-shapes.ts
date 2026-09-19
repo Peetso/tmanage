@@ -36,6 +36,8 @@ import type { ClientRequestClientView as ApiClientRequestClientView } from '../.
 import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { ConvertMessageResultView as ApiConvertMessageResultView } from '../../apps/api/src/modules/conversations/conversations.service.js';
+import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
+import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { InboxBundleView as ApiInboxBundleView } from '../../apps/api/src/modules/inbox/inbox.service.js';
@@ -47,6 +49,7 @@ import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
+import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
@@ -59,6 +62,7 @@ import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
+import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -87,6 +91,10 @@ import type {
   IssuedInvitation as WebIssuedInvitation,
 } from '../../apps/web/src/lib/api/invitations';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
+import type {
+  CreatedOrganization as WebCreatedOrganization,
+  OrganizationSummary as WebOrganizationSummary,
+} from '../../apps/web/src/lib/api/organizations';
 import type {
   ClientRequest as WebClientRequest,
   PortalInboxBundle as WebPortalInboxBundle,
@@ -237,3 +245,26 @@ type _authenticated = Assert<Exact<ApiEstablishedView, WebAuthenticatedResponse>
 
 /** `POST /v1/auth/password` — the MFA-required arm of the sign-in response. */
 type _mfaRequired = Assert<Exact<ApiChallengeResponseView, WebMfaRequiredResponse>>;
+
+/**
+ * CONTRACT-001 class-3 (x78). Three response bodies that `apps/api` built as inline object
+ * literals now have named, exported `*View` shapes beside the code that returns them, with no
+ * change to the bytes any endpoint emits. Each is the wire shape (ISO-string dates where the
+ * internal projection uses `Date`), so the web declarations pair Exact.
+ *
+ * A fourth — `RealtimeTicketView` (POST …/realtime/tickets) — is authored in
+ * `realtime.controller.ts` because `RealtimeModule` has no service to hold it, so
+ * `scripts/contracts-check.mjs`, which enumerates views under `*.service.ts` only, cannot yet
+ * see it; its pair waits for that check to also enumerate controller-declared views (x77). The
+ * intended assertion is `Assert<Exact<RealtimeTicketView, WebRealtimeTicket>>`, and it holds
+ * today at the type level — it is left out here solely so the coverage guard stays green.
+ */
+
+/** `GET /v1/organizations` — `ID-04`'s directory row. */
+type _organizationSummary = Assert<Exact<ApiOrganizationSummaryView, WebOrganizationSummary>>;
+
+/** `POST /v1/organizations` — `ON-01`'s created organization. */
+type _createdOrganization = Assert<Exact<ApiCreatedOrganizationView, WebCreatedOrganization>>;
+
+/** `GET /v1/auth/factors` — one enrolled MFA factor, `confirmedAt` an ISO string or `null`. */
+type _enrolledFactor = Assert<Exact<ApiEnrolledFactorView, WebEnrolledFactor>>;

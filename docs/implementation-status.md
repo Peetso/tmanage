@@ -494,7 +494,15 @@ are exported and asserted `Exact` against `apps/web`'s `MemberSummary`, `Workspa
 shapes are named in an explicit `WEB_REQUEST_SHAPES` list (empty today), so response nouns
 `ClientRequest`/`AcceptedClientRequest` are enumerated and paired. `contracts:check` now reports
 `37 API response views — 28 paired … / 33 web response shapes — 28 paired, 5 exempt`; zero runtime
-change.
+change. **x78 — CONTRACT-001 class-3 (2026-09-19):** the inline object literals for
+`GET`/`POST /v1/organizations`, `GET /v1/auth/factors` and `POST …/realtime/tickets` are now named,
+exported `*View` shapes beside the code that returns them (`OrganizationSummaryView`,
+`CreatedOrganizationView` in `provisioning.service.ts`; `EnrolledFactorView` in
+`authentication.service.ts`; `RealtimeTicketView` in `realtime.controller.ts`), typed at the return
+sites with zero change to the response bytes, and the first three paired `Exact`, taking
+`contracts:check` to 36 views, 27 paired (26 exact, 1 narrowing), 9 exempt. `RealtimeTicketView`'s
+pair is deferred: `RealtimeModule` is providerless so the view has no `*.service.ts` home, and the
+coverage guard enumerates service files only until x77 extends it to controller-declared views.
 
 ### x13 — the grant script narrows on re-apply, R10 (branch `x13-grant-revokes`, not merged)
 

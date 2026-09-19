@@ -20,6 +20,7 @@ import {
   PasswordRejectedError,
   ReauthenticationRequiredError,
   type AuthenticationService,
+  type EnrolledFactorView,
 } from './authentication.service.js';
 import { describePasswordRejection } from './password.js';
 
@@ -496,7 +497,7 @@ export class CredentialsController {
     @CurrentSession() session: AuthenticatedSession,
     @Req() request: RequestLike,
   ): Promise<{
-    factors: readonly { id: string; kind: string; label: string; confirmedAt: string | null }[];
+    factors: readonly EnrolledFactorView[];
     recoveryCodesRemaining: number;
   }> {
     const state = requireRequestState(request);
