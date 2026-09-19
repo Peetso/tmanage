@@ -39,7 +39,7 @@ import type { MembershipsRepository } from './memberships.repository.js';
  * API surface grows faster than anything can exercise it.
  */
 
-interface MemberView {
+export interface MemberView {
   readonly userId: string;
   readonly displayName: string;
   readonly role: string;

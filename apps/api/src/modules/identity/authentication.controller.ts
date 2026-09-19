@@ -102,13 +102,13 @@ interface ConfirmEnrolmentBody {
 }
 
 /** The shape both completion routes return, and what `POST /password` returns on success. */
-interface EstablishedBody {
+export interface EstablishedView {
   readonly status: 'authenticated';
   readonly csrfToken: string;
   readonly expiresAt: string;
 }
 
-interface ChallengeResponseBody {
+export interface ChallengeResponseView {
   readonly status: 'mfa_required';
   readonly challengeToken: string;
   readonly expiresAt: string;
@@ -141,7 +141,7 @@ export class AuthenticationController {
     @Body() body: PasswordSignInBody,
     @Req() request: RequestLike,
     @Res({ passthrough: true }) reply: ReplyLike,
-  ): Promise<EstablishedBody | ChallengeResponseBody> {
+  ): Promise<EstablishedView | ChallengeResponseView> {
     const state = requireRequestState(request);
     const email = typeof body?.email === 'string' ? body.email : undefined;
     const password = typeof body?.password === 'string' ? body.password : undefined;
@@ -183,7 +183,7 @@ export class AuthenticationController {
     @Body() body: ChallengeBody,
     @Req() request: RequestLike,
     @Res({ passthrough: true }) reply: ReplyLike,
-  ): Promise<EstablishedBody> {
+  ): Promise<EstablishedView> {
     const state = requireRequestState(request);
     const outcome = await this.run(() =>
       this.authentication.completeMfaChallenge({
@@ -203,7 +203,7 @@ export class AuthenticationController {
     @Body() body: ChallengeBody,
     @Req() request: RequestLike,
     @Res({ passthrough: true }) reply: ReplyLike,
-  ): Promise<EstablishedBody> {
+  ): Promise<EstablishedView> {
     const state = requireRequestState(request);
     const outcome = await this.run(() =>
       this.authentication.completeWithRecoveryCode({
@@ -223,7 +223,7 @@ export class AuthenticationController {
     request: RequestLike,
     reply: ReplyLike,
     correlationId: string,
-  ): Promise<EstablishedBody> {
+  ): Promise<EstablishedView> {
     const userAgent = request.headers['user-agent'];
     const established = await this.sessions.start({
       userId,

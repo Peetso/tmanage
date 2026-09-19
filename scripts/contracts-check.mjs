@@ -23,11 +23,19 @@
  *            This closes the reverse gap: a web shape whose endpoint the API never paired can
  *            no longer hide. A "response projection" is every `export interface`/`export type`
  *            EXCEPT the ones the WEB_EXCLUDE rules below drop — request-side shapes (name ends
- *            `Input|Query|Body|Options|Request`), the `client.ts`/`errors.ts` transport and
- *            error plumbing, and literal `type` aliases (string-literal enums like `InboxMode`
- *            and inline object-literal command unions like `TriageMove`). A `type` alias that
- *            is a union of *named* interfaces (e.g. `SignInResponse`) is kept — it is a real
- *            response shape — and paired or exempted like any other.
+ *            `Input|Query|Body|Options`), the `client.ts`/`errors.ts` transport and error
+ *            plumbing, and literal `type` aliases (string-literal enums like `InboxMode` and
+ *            inline object-literal command unions like `TriageMove`). A `type` alias that is a
+ *            union of *named* interfaces (e.g. `SignInResponse`) is kept — it is a real response
+ *            shape — and paired or exempted like any other.
+ *
+ *            `Request` is deliberately NOT a dropped suffix (it was until x79). It is an ordinary
+ *            domain noun here — `ClientRequest` and `AcceptedClientRequest` are a client's request
+ *            *for work*, response shapes, not HTTP request bodies — so a blanket suffix drop hid
+ *            real response projections and, worse, would silently omit any future `*Request`
+ *            response with no API pair. Genuine request-side `*Request` shapes are instead named
+ *            explicitly in WEB_REQUEST_SHAPES, so excluding one is a reviewed act, not a suffix
+ *            accident. (`client.ts`'s `ApiRequest` is already dropped by the file rule above.)
  *
  *      A new response projection on either side therefore cannot appear unpaired and unnoticed —
  *      the failure mode a type-level file alone cannot catch, because a type that nobody wrote
@@ -114,23 +122,11 @@ const WEB_EXEMPT = new Map([
     'SignInResponse',
     'union alias of AuthenticatedResponse | MfaRequiredResponse — not a single response projection; the two arms pair individually.',
   ],
-  // class-1-lift — the API interface exists but is unexported; pair Exact once it is exported.
-  [
-    'MemberSummary',
-    'class-1-lift: apps/api tenancy/members.controller.ts declares `MemberView` but does not export it; pair Exact once that export lands (out of this test-only slice).',
-  ],
-  [
-    'WorkspaceSummary',
-    'class-1-lift: apps/api tenancy/workspaces.controller.ts declares `WorkspaceView` but does not export it; pair Exact once that export lands.',
-  ],
-  [
-    'AuthenticatedResponse',
-    'class-1-lift: apps/api identity/authentication.controller.ts declares `EstablishedBody` but does not export it; pair Exact once that export lands.',
-  ],
-  [
-    'MfaRequiredResponse',
-    'class-1-lift: apps/api identity/authentication.controller.ts declares `ChallengeResponseBody` but does not export it; pair Exact once that export lands.',
-  ],
+  // class-1-lift (MemberSummary, WorkspaceSummary, AuthenticatedResponse, MfaRequiredResponse)
+  // was exempted here while its API interface was unexported. x79 exported each interface
+  // (members.controller `MemberView`, workspaces.controller `WorkspaceView`, authentication.controller
+  // `EstablishedView`/`ChallengeResponseView`) and paired all four Exact in the pairing file, so the
+  // entries were retired — the shapes are now paired, not exempt.
 ]);
 
 // ── 1. Enumerate the API's response projections ─────────────────────────────
@@ -172,7 +168,10 @@ for (const file of apiSourceFiles(apiModulesDir)) {
  * A web `export interface`/`export type` is a *response projection* unless one of these drops it:
  *   - it lives in `client.ts` or `errors.ts` — request/response transport and error plumbing,
  *     not an endpoint's response body;
- *   - its name ends in a request-side suffix (`Input|Query|Body|Options|Request`);
+ *   - its name ends in a request-side suffix (`Input|Query|Body|Options`);
+ *   - its name is listed in WEB_REQUEST_SHAPES — a request-side shape whose name ends in `Request`
+ *     but which is genuinely a fetch body/params type, named here explicitly rather than dropped
+ *     by suffix (see below);
  *   - it is a literal `type` alias — a string-literal enum (`type InboxMode = 'all' | …`) or an
  *     inline object-literal command union (`type TriageMove = { to: 'triage' } | …`). A `type`
  *     alias that unions *named* interfaces (e.g. `SignInResponse`) is a real response shape and
@@ -180,14 +179,20 @@ for (const file of apiSourceFiles(apiModulesDir)) {
  * The rule is deliberately about shape, not a hand-maintained allow-list, so a new web response
  * type is caught by default and a new request type is ignored by default.
  *
- * One consequence of the `Request` suffix: two *response* shapes are domain nouns that end in it
- * — `ClientRequest` and `AcceptedClientRequest` (a client's request for work, not an HTTP request
- * body) — so this rule drops them from the web enumeration. They are not thereby unguarded: their
- * API projections `ClientRequestClientView` and `AcceptedClientRequestView` are enumerated on the
- * API side and paired in the pairing file, so a break in either is still caught from that side.
+ * `Request` is NOT a dropped suffix (it was until x79 — review-x77 Important-2). Two *response*
+ * shapes are domain nouns that end in it — `ClientRequest` (portal.ts) and `AcceptedClientRequest`
+ * (client-requests.ts), a client's request *for work*, not an HTTP request body — and the old
+ * suffix drop hid them from the web enumeration, and would silently hide any future `*Request`
+ * response noun with no API pair. Both are enumerated now and paired (their web side appears in
+ * the pairing file). A genuine request-side `*Request` type is excluded only by being named in
+ * WEB_REQUEST_SHAPES below, which makes each such exclusion a reviewed decision. The set is empty
+ * today: the one `*Request` request type, `client.ts`'s `ApiRequest`, is already dropped by the
+ * file rule, so nothing else needs naming.
  */
 const WEB_EXCLUDE_FILES = new Set(['client.ts', 'errors.ts']);
-const WEB_REQUEST_SUFFIX = /(?:Input|Query|Body|Options|Request)$/;
+const WEB_REQUEST_SUFFIX = /(?:Input|Query|Body|Options)$/;
+/** Request-side shapes whose name ends in `Request` but are fetch body/params types, not responses. */
+const WEB_REQUEST_SHAPES = new Set([]);
 
 function webApiFiles(dir) {
   const out = [];
@@ -219,11 +224,11 @@ if (existsSync(webApiDir)) {
     const at = (index) =>
       `${relative(repoRoot, file).split(sep).join('/')}:${text.slice(0, index).split('\n').length}`;
     for (const m of text.matchAll(WEB_INTERFACE_RE)) {
-      if (WEB_REQUEST_SUFFIX.test(m[1])) continue;
+      if (WEB_REQUEST_SUFFIX.test(m[1]) || WEB_REQUEST_SHAPES.has(m[1])) continue;
       webShapes.set(m[1], at(m.index));
     }
     for (const m of text.matchAll(WEB_TYPE_RE)) {
-      if (WEB_REQUEST_SUFFIX.test(m[1])) continue;
+      if (WEB_REQUEST_SUFFIX.test(m[1]) || WEB_REQUEST_SHAPES.has(m[1])) continue;
       if (!isNamedTypeUnion(m[2])) continue; // string-literal enum or object-literal command union
       webShapes.set(m[1], at(m.index));
     }
