@@ -10,17 +10,34 @@
  *
  * What this checks instead, and why it is two things rather than one:
  *
- *   1. **Coverage.** Every `export interface …View` under `apps/api/src/modules/**\/*.service.ts`
- *      must be either asserted against a web type in `e2e/contracts/api-web-shapes.ts` or listed
- *      in EXEMPT below with a reason. A new API response projection therefore cannot appear
- *      unpaired and unnoticed — which is the failure mode a type-level file alone cannot catch,
- *      because a type that nobody wrote an assertion for compiles perfectly.
+ *   1. **Coverage — both directions.** The check is no longer one-directional. It enumerates
+ *      response projections on *both* sides and asserts each is paired or explicitly exempt:
+ *
+ *        (a) API side. Every `export interface …View` under `apps/api/src/modules/**` in a
+ *            `*.service.ts`, `*.controller.ts` or `*.repository.ts` file (a view lifted into a
+ *            controller or repository counts, not only the service layer) must be asserted
+ *            against a web type in `e2e/contracts/api-web-shapes.ts` or listed in EXEMPT.
+ *
+ *        (b) Web side. Every web *response projection* declared in `apps/web/src/lib/api/**`
+ *            must be asserted here (Exact or Narrows) or listed in WEB_EXEMPT with a reason.
+ *            This closes the reverse gap: a web shape whose endpoint the API never paired can
+ *            no longer hide. A "response projection" is every `export interface`/`export type`
+ *            EXCEPT the ones the WEB_EXCLUDE rules below drop — request-side shapes (name ends
+ *            `Input|Query|Body|Options|Request`), the `client.ts`/`errors.ts` transport and
+ *            error plumbing, and literal `type` aliases (string-literal enums like `InboxMode`
+ *            and inline object-literal command unions like `TriageMove`). A `type` alias that
+ *            is a union of *named* interfaces (e.g. `SignInResponse`) is kept — it is a real
+ *            response shape — and paired or exempted like any other.
+ *
+ *      A new response projection on either side therefore cannot appear unpaired and unnoticed —
+ *      the failure mode a type-level file alone cannot catch, because a type that nobody wrote
+ *      an assertion for compiles perfectly.
  *
  *   2. **Agreement.** `tsc --noEmit -p e2e/tsconfig.json` compiles those assertions. A field
  *      renamed on either side, or retyped from `string` to `number`, fails here.
  *
- * Neither half can succeed silently: (1) fails if the pairing file shrinks, (2) fails if the
- * pairing file stops being true, and both fail loudly if their target is missing.
+ * Neither half can succeed silently: (1) fails if the pairing file shrinks on either side, (2)
+ * fails if the pairing file stops being true, and both fail loudly if their target is missing.
  *
  * Usage: node scripts/contracts-check.mjs [--json]
  */
@@ -31,6 +48,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const apiModulesDir = join(repoRoot, 'apps/api/src/modules');
+const webApiDir = join(repoRoot, 'apps/web/src/lib/api');
 const pairingFile = join(repoRoot, 'e2e/contracts/api-web-shapes.ts');
 const e2eTsconfig = join(repoRoot, 'e2e/tsconfig.json');
 const asJson = process.argv.includes('--json');
@@ -65,12 +83,68 @@ const EXEMPT = new Map([
   ],
 ]);
 
+/**
+ * Web response projections in `apps/web/src/lib/api/**` with no counterpart assertion yet, each
+ * with the reason there is none. Same contract as EXEMPT: an entry is a claim that the shape
+ * cannot be paired right now, not that lining it up was fiddly, and the check fails if an entry
+ * names a shape that no longer exists — so this list cannot rot into a blanket either.
+ *
+ * The class-3/class-4 shapes (NEXT-SCOPES §Scope B): their API response is an inline object
+ * literal that slice x78 lifts into a named `*View`, at which point each moves from here to a
+ * pair; `SignInResponse` is a union alias of two arms that pair individually, not a single
+ * projection to `Assert`.
+ *
+ * The class-1-lift shapes carry a *different* reason: a named API interface for each already
+ * exists in a controller but is not `export`ed (`MemberView`, `WorkspaceView`, `EstablishedBody`,
+ * `ChallengeResponseBody`), so it cannot be imported and paired until that source `export` lands
+ * (NEXT-SCOPES §Scope B "class (1-lift)", x69-report §Deferred). This gate now *sees* them —
+ * broadening the API enumeration to controllers means the pair can be added the moment the
+ * `export` does — but authoring that source `export` is out of this test-only slice, so they are
+ * exempted with a truthful, self-expiring reason rather than left to fail the gate.
+ */
+const WEB_EXEMPT = new Map([
+  // class-3 — API response is an inline object literal; x78 authors the view, then pairs it.
+  ['OrganizationSummary', 'API view pending (x78)'],
+  ['CreatedOrganization', 'API view pending (x78)'],
+  ['RealtimeTicket', 'API view pending (x78)'],
+  ['EnrolledFactor', 'API view pending (x78)'],
+  // class-4 — union alias of AuthenticatedResponse | MfaRequiredResponse; the arms pair
+  // individually (class-1-lift), so the union itself is never a single projection to Assert.
+  [
+    'SignInResponse',
+    'union alias of AuthenticatedResponse | MfaRequiredResponse — not a single response projection; the two arms pair individually.',
+  ],
+  // class-1-lift — the API interface exists but is unexported; pair Exact once it is exported.
+  [
+    'MemberSummary',
+    'class-1-lift: apps/api tenancy/members.controller.ts declares `MemberView` but does not export it; pair Exact once that export lands (out of this test-only slice).',
+  ],
+  [
+    'WorkspaceSummary',
+    'class-1-lift: apps/api tenancy/workspaces.controller.ts declares `WorkspaceView` but does not export it; pair Exact once that export lands.',
+  ],
+  [
+    'AuthenticatedResponse',
+    'class-1-lift: apps/api identity/authentication.controller.ts declares `EstablishedBody` but does not export it; pair Exact once that export lands.',
+  ],
+  [
+    'MfaRequiredResponse',
+    'class-1-lift: apps/api identity/authentication.controller.ts declares `ChallengeResponseBody` but does not export it; pair Exact once that export lands.',
+  ],
+]);
+
 // ── 1. Enumerate the API's response projections ─────────────────────────────
 
-function serviceFiles(dir) {
+/**
+ * API response projections live in the service layer, but x71 lifted several into the controller
+ * that serialises them, and repository projections are wire shapes too — so a view under any of
+ * these three file kinds counts, not only `*.service.ts`.
+ */
+function apiSourceFiles(dir) {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile() || !entry.name.endsWith('.service.ts')) continue;
+    if (!entry.isFile()) continue;
+    if (!/\.(service|controller|repository)\.ts$/.test(entry.name)) continue;
     out.push(join(entry.parentPath ?? entry.path, entry.name));
   }
   return out.sort();
@@ -84,11 +158,75 @@ if (!existsSync(apiModulesDir)) {
 const VIEW_RE = /^export interface ([A-Za-z0-9_]*View)\b/gm;
 /** @type {Map<string, string>} view name → `path:line` */
 const apiViews = new Map();
-for (const file of serviceFiles(apiModulesDir)) {
+for (const file of apiSourceFiles(apiModulesDir)) {
   const text = readFileSync(file, 'utf8');
   for (const m of text.matchAll(VIEW_RE)) {
     const line = text.slice(0, m.index).split('\n').length;
     apiViews.set(m[1], `${relative(repoRoot, file).split(sep).join('/')}:${line}`);
+  }
+}
+
+// ── 1b. Enumerate the web client's response projections ─────────────────────
+
+/**
+ * A web `export interface`/`export type` is a *response projection* unless one of these drops it:
+ *   - it lives in `client.ts` or `errors.ts` — request/response transport and error plumbing,
+ *     not an endpoint's response body;
+ *   - its name ends in a request-side suffix (`Input|Query|Body|Options|Request`);
+ *   - it is a literal `type` alias — a string-literal enum (`type InboxMode = 'all' | …`) or an
+ *     inline object-literal command union (`type TriageMove = { to: 'triage' } | …`). A `type`
+ *     alias that unions *named* interfaces (e.g. `SignInResponse`) is a real response shape and
+ *     is kept.
+ * The rule is deliberately about shape, not a hand-maintained allow-list, so a new web response
+ * type is caught by default and a new request type is ignored by default.
+ *
+ * One consequence of the `Request` suffix: two *response* shapes are domain nouns that end in it
+ * — `ClientRequest` and `AcceptedClientRequest` (a client's request for work, not an HTTP request
+ * body) — so this rule drops them from the web enumeration. They are not thereby unguarded: their
+ * API projections `ClientRequestClientView` and `AcceptedClientRequestView` are enumerated on the
+ * API side and paired in the pairing file, so a break in either is still caught from that side.
+ */
+const WEB_EXCLUDE_FILES = new Set(['client.ts', 'errors.ts']);
+const WEB_REQUEST_SUFFIX = /(?:Input|Query|Body|Options|Request)$/;
+
+function webApiFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.ts')) continue;
+    if (WEB_EXCLUDE_FILES.has(entry.name)) continue;
+    out.push(join(entry.parentPath ?? entry.path, entry.name));
+  }
+  return out.sort();
+}
+
+/** True for a `type` alias RHS that is a single named type or a union of *named* types only. */
+function isNamedTypeUnion(rhs) {
+  const members = rhs
+    .replace(/^\s*\|/, '')
+    .split('|')
+    .map((s) => s.trim());
+  return members.every((member) => /^[A-Za-z_][A-Za-z0-9_.]*(?:<[^>]*>)?(?:\[\])?$/.test(member));
+}
+
+const WEB_INTERFACE_RE = /^export interface ([A-Za-z0-9_]+)\b/gm;
+const WEB_TYPE_RE = /^export type ([A-Za-z0-9_]+)\s*=\s*([\s\S]*?);/gm;
+/** @type {Map<string, string>} web shape name → `path:line` */
+const webShapes = new Map();
+
+if (existsSync(webApiDir)) {
+  for (const file of webApiFiles(webApiDir)) {
+    const text = readFileSync(file, 'utf8');
+    const at = (index) =>
+      `${relative(repoRoot, file).split(sep).join('/')}:${text.slice(0, index).split('\n').length}`;
+    for (const m of text.matchAll(WEB_INTERFACE_RE)) {
+      if (WEB_REQUEST_SUFFIX.test(m[1])) continue;
+      webShapes.set(m[1], at(m.index));
+    }
+    for (const m of text.matchAll(WEB_TYPE_RE)) {
+      if (WEB_REQUEST_SUFFIX.test(m[1])) continue;
+      if (!isNamedTypeUnion(m[2])) continue; // string-literal enum or object-literal command union
+      webShapes.set(m[1], at(m.index));
+    }
   }
 }
 
@@ -107,13 +245,20 @@ const pairingText = readFileSync(pairingFile, 'utf8');
 // imported from apps/api.
 /** @type {Map<string, string>} local alias → exported name in apps/api */
 const aliasToView = new Map();
+/** @type {Map<string, string>} local alias → exported name in apps/web (the web side of a pair) */
+const webAliasToShape = new Map();
 const IMPORT_RE = /import type \{([^}]*)\} from '([^']*)'/g;
 for (const m of pairingText.matchAll(IMPORT_RE)) {
-  if (!m[2].includes('apps/api/')) continue;
+  const target = m[2].includes('apps/api/')
+    ? aliasToView
+    : m[2].includes('apps/web/')
+      ? webAliasToShape
+      : null;
+  if (!target) continue;
   for (const clause of m[1].split(',')) {
     const parts = clause.trim().split(/\s+as\s+/);
-    if (parts.length === 2) aliasToView.set(parts[1], parts[0]);
-    else if (parts[0]) aliasToView.set(parts[0], parts[0]);
+    if (parts.length === 2) target.set(parts[1], parts[0]);
+    else if (parts[0]) target.set(parts[0], parts[0]);
   }
 }
 
@@ -125,6 +270,10 @@ for (const m of pairingText.matchAll(ASSERT_RE)) {
   if (api) pairs.push({ kind: m[1], api, web: m[3] });
 }
 const pairedViews = new Set(pairs.map((p) => p.api));
+/** Web shapes named on the web side of a pair, resolved through the aliases above. */
+const pairedWebShapes = new Set(
+  pairs.map((p) => webAliasToShape.get(p.web)).filter((name) => name !== undefined),
+);
 
 // ── 3. Coverage ─────────────────────────────────────────────────────────────
 
@@ -161,6 +310,27 @@ if (pairs.length === 0)
     'e2e/contracts/api-web-shapes.ts contains no Assert<Exact<…>> / Assert<Narrows<…>> assertions. An empty pairing file is the same vacuous gate this check replaced.',
   );
 
+// ── 3b. Coverage — the web side ──────────────────────────────────────────────
+
+for (const [shape, where] of webShapes) {
+  if (pairedWebShapes.has(shape)) continue;
+  if (WEB_EXEMPT.has(shape)) continue;
+  problems.push(
+    `${where}: \`${shape}\` is a web response shape in apps/web/src/lib/api/** with no counterpart assertion in e2e/contracts/api-web-shapes.ts and no entry in WEB_EXEMPT. Pair it with the apps/api view that produces the same response, or add it to WEB_EXEMPT with the reason it has no pair yet.`,
+  );
+}
+
+for (const [shape, reason] of WEB_EXEMPT) {
+  if (webShapes.has(shape)) {
+    if (!reason || reason.length < 20)
+      problems.push(`WEB_EXEMPT["${shape}"] has no usable reason. Say why the shape has no pair.`);
+    continue;
+  }
+  problems.push(
+    `WEB_EXEMPT["${shape}"] names a shape that is no longer an enumerated web response projection in apps/web/src/lib/api/**. Delete the entry — a stale exemption is how this list turns back into a blanket.`,
+  );
+}
+
 // ── 4. Agreement — compile the assertions ───────────────────────────────────
 
 let tscOutput = '';
@@ -180,12 +350,18 @@ if (!existsSync(e2eTsconfig)) {
 
 // ── 5. Report ───────────────────────────────────────────────────────────────
 
+const webPairedCount = [...webShapes.keys()].filter((s) => pairedWebShapes.has(s)).length;
+const webExemptCount = [...webShapes.keys()].filter((s) => WEB_EXEMPT.has(s)).length;
+
 const summary = {
   apiViews: apiViews.size,
   paired: pairedViews.size,
   exact: pairs.filter((p) => p.kind === 'Exact').length,
   narrows: pairs.filter((p) => p.kind === 'Narrows').length,
   exempt: EXEMPT.size,
+  webShapes: webShapes.size,
+  webPaired: webPairedCount,
+  webExempt: webExemptCount,
   coverageProblems: problems,
   assignabilityOk: tscOk,
 };
@@ -195,6 +371,9 @@ if (asJson) {
 } else {
   console.log(
     `contracts-check: ${apiViews.size} API response views — ${pairedViews.size} paired (${summary.exact} exact, ${summary.narrows} narrowing), ${EXEMPT.size} exempt with a stated reason.`,
+  );
+  console.log(
+    `contracts-check: ${webShapes.size} web response shapes — ${webPairedCount} paired, ${webExemptCount} exempt`,
   );
   if (problems.length) {
     console.error('\ncontracts-check FAILED — coverage:\n');
