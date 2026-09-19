@@ -16,6 +16,7 @@ import {
   UPLOAD_SESSIONS_REPOSITORY,
   UPLOAD_SESSION_SWEEPER,
   USAGE_COUNTERS_REPOSITORY,
+  USAGE_LEDGER_REPOSITORY,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -27,6 +28,7 @@ import { ClientRequestsRepository } from '../requests/client-requests.repository
 import { FileAssetsRepository } from './file-assets.repository.js';
 import { UploadSessionsRepository } from './upload-sessions.repository.js';
 import { UsageCountersRepository } from './usage-counters.repository.js';
+import { UsageLedgerRepository } from './usage-ledger.repository.js';
 import { FilesService } from './files.service.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
@@ -47,10 +49,11 @@ import { UploadPartsController } from './upload-parts.controller.js';
  * A repository is a stateless collection of queries, so this module owning its own
  * read-only handles on `projects` and `client_requests` costs nothing and reads honestly.
  *
- * `FilesService` takes ten constructor arguments. Counted against the other modules' copies
- * on purpose: the object store is the ninth and the outbox the tenth, and a copy built
- * elsewhere without the outbox would reserve bytes nobody is ever told about — the wiring
- * defect the inbox session found in `PortalInboxService`.
+ * `FilesService` takes eleven constructor arguments. Counted against the other modules' copies
+ * on purpose: the object store is the tenth and the outbox the eleventh, and a copy built
+ * elsewhere without the outbox — or without the usage ledger beside it (USAGE-001 slice 2) —
+ * would move a counter nobody is ever told about, the wiring defect the inbox session found
+ * in `PortalInboxService`.
  *
  * `UploadPartsController` (FILE-001b) is the third door: public, tenantless, the local
  * stand-in for the bucket. It injects `LOCAL_PART_SINK` optionally and nothing from this
@@ -64,6 +67,7 @@ export class FilesModule {
       { provide: UPLOAD_SESSIONS_REPOSITORY, useFactory: () => new UploadSessionsRepository() },
       { provide: FILE_ASSETS_REPOSITORY, useFactory: () => new FileAssetsRepository() },
       { provide: USAGE_COUNTERS_REPOSITORY, useFactory: () => new UsageCountersRepository() },
+      { provide: USAGE_LEDGER_REPOSITORY, useFactory: () => new UsageLedgerRepository() },
     ];
 
     const service: Provider = {
@@ -73,6 +77,7 @@ export class FilesModule {
         UPLOAD_SESSIONS_REPOSITORY,
         FILE_ASSETS_REPOSITORY,
         USAGE_COUNTERS_REPOSITORY,
+        USAGE_LEDGER_REPOSITORY,
         OBJECT_STORE,
         API_CONFIG,
         AUDIT_SERVICE,
@@ -83,6 +88,7 @@ export class FilesModule {
         sessions: UploadSessionsRepository,
         assets: FileAssetsRepository,
         counters: UsageCountersRepository,
+        ledger: UsageLedgerRepository,
         store: ObjectStore,
         config: ApiConfig,
         audit: AuditService,
@@ -93,6 +99,7 @@ export class FilesModule {
           sessions,
           assets,
           counters,
+          ledger,
           new ProjectsRepository(),
           new ClientRequestsRepository(),
           store,

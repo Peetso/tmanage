@@ -61,6 +61,8 @@ export const LOCAL_PART_SINK = Symbol.for('tmanage.LocalPartSink');
 export const UPLOAD_SESSIONS_REPOSITORY = Symbol.for('tmanage.UploadSessionsRepository');
 export const FILE_ASSETS_REPOSITORY = Symbol.for('tmanage.FileAssetsRepository');
 export const USAGE_COUNTERS_REPOSITORY = Symbol.for('tmanage.UsageCountersRepository');
+/** USAGE-001 slice 2. The append-only ledger writer. */
+export const USAGE_LEDGER_REPOSITORY = Symbol.for('tmanage.UsageLedgerRepository');
 export const FILES_SERVICE = Symbol.for('tmanage.FilesService');
 /** USAGE-001. The expiry sweeper — resolved by `sweep.ts`, never by a controller. */
 export const UPLOAD_SESSION_SWEEPER = Symbol.for('tmanage.UploadSessionSweeper');

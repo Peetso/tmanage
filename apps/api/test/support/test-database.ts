@@ -284,6 +284,9 @@ export async function truncateAll(admin: Pool): Promise<void> {
       'user_mfa_factors',
       'user_passwords',
       'idempotency_records',
+      // USAGE-001 slice 2. Before `outbox_events`: a ledger row names the event that produced
+      // it (and `usage_counters`, cleared below).
+      'usage_ledger_entries',
       'outbox_events',
       'notifications',
       // FILE-001. Child first: a version names an asset, a session names an asset and a

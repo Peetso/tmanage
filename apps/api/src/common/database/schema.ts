@@ -556,6 +556,32 @@ export const usageCounters = mysqlTable(
   ],
 );
 
+/**
+ * USAGE-001 slice 2. The append-only ledger behind {@link usageCounters}: one immutable row
+ * per counter move, written in the move's own transaction (migration 0021). `counter` names
+ * the dimension (`used` | `reserved`, the Q8 divergence); `delta` is signed; `sourceEventId`
+ * points at the {@link outboxEvents} row the move produced. No `updatedAt`, no `version`:
+ * append-only, and the runtime credential holds INSERT alone.
+ */
+export const usageLedgerEntries = mysqlTable(
+  'usage_ledger_entries',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    counter: mysqlEnum('counter', ['used', 'reserved']).notNull(),
+    delta: bigint('delta', { mode: 'number' }).notNull(),
+    reason: varchar('reason', { length: 32 }).notNull(),
+    idempotencyKey: varchar('idempotency_key', { length: 96 }).notNull(),
+    sourceEventId: char('source_event_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_usage_ledger_entries_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_usage_ledger_entries_org_idem').on(table.organizationId, table.idempotencyKey),
+    index('ix_usage_ledger_entries_org_source').on(table.organizationId, table.sourceEventId),
+  ],
+);
+
 export const fileAssets = mysqlTable(
   'file_assets',
   {
@@ -1173,6 +1199,7 @@ export const TABLES = {
   audit_events: auditEvents,
   notifications,
   usage_counters: usageCounters,
+  usage_ledger_entries: usageLedgerEntries,
   file_assets: fileAssets,
   file_versions: fileVersions,
   upload_sessions: uploadSessions,
@@ -1206,6 +1233,7 @@ export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
+export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;
 export type FileVersionRow = typeof fileVersions.$inferSelect;
 export type UploadSessionRow = typeof uploadSessions.$inferSelect;
