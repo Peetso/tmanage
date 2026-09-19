@@ -129,9 +129,9 @@ Every address in this list is a peer that is allowed to tell the API who somebod
 A malformed value **fails the boot** and names the entry: a hostname instead of an address, a
 stray or trailing comma, `/33` on an IPv4 range. `/0` is refused by name as well — it matches
 every address, so it is the old trust-everybody setting spelled as a range. Nothing is silently
-repaired and nothing silently falls back. Only the API uses the value, but all four processes
-(API, worker, `verify`, `sweep`) load the same validated environment, so a malformed value set
-globally stops all of them.
+repaired and nothing silently falls back. Only the API uses the value, but all five processes
+(API, worker, `verify`, `sweep`, `reconcile`) load the same validated environment, so a malformed
+value set globally stops all of them.
 
 ### How the address is picked, and the three ways it goes wrong
 
@@ -265,17 +265,18 @@ you cannot finish it.
 
 ### The new variable
 
-`AUTH_MFA_SEED_KEYS` is now required. Four processes refuse to start without it:
+`AUTH_MFA_SEED_KEYS` is now required. Five processes refuse to start without it:
 
 - the API (`apps/api/src/main.ts`),
 - the relay/worker (`apps/worker/src/main.ts`),
 - the `verify` pass (`apps/api/src/verify.ts`),
-- the `sweep` pass (`apps/api/src/sweep.ts`).
+- the `sweep` pass (`apps/api/src/sweep.ts`),
+- the `reconcile` pass (`apps/api/src/reconcile.ts`).
 
-Only the API ever decrypts anything. The other three refuse because they load the same
+Only the API ever decrypts anything. The other four refuse because they load the same
 validated environment, and a process that starts with half a configuration is worse than one
 that will not start: the failure would otherwise appear later, somewhere else, as something
-that looks unrelated. Set the variable for all four — including the cron entries — or the
+that looks unrelated. Set the variable for all five — including the cron entries — or the
 first tick after the deploy fails.
 
 Its value is one or more `version:key` pairs separated by `;`, for example `1:<key>` or
