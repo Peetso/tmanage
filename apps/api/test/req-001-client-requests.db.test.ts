@@ -1,23 +1,19 @@
 import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { uuidv7 } from '@tmanage/domain';
-import { AppModule } from '../src/app.module.js';
-import { DatabaseModule } from '../src/common/database/database.module.js';
-import { apiConfigFrom } from '../src/common/http/api-config.js';
-import type { ApiConfig } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
-import {
-  startTestDatabase,
-  truncateAll,
-  usingLeastPrivilegeCredential,
-} from './support/test-database.js';
+import { usingLeastPrivilegeCredential } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
-import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
+import {
+  bootHttpHarness,
+  reseed,
+  signIn as harnessSignIn,
+  stopHarness,
+} from './support/http-harness.js';
+import type { InjectedResponse, Session } from './support/http-harness.js';
 
 /**
  * REQ-001 and REQ-002 over real HTTP — the client request aggregate, its API, its projection,
@@ -62,66 +58,13 @@ let db: TestDatabase;
 let world: SeedWorld;
 let app: NestFastifyApplication;
 
-const SESSION_SECRET = 'local_dev_only_session_secret_for_the_requests_suite_x';
-const CSRF_SECRET = 'local_dev_only_csrf_secret_for_the_requests_suite_xxxxx';
-
-const CONFIG: ApiConfig = apiConfigFrom({
-  NODE_ENV: 'test',
-  SESSION_COOKIE_NAME: 'tmanage_session',
-  SESSION_SECRET,
-  SESSION_TTL_SECONDS: 900,
-  REFRESH_TTL_SECONDS: 1_209_600,
-  CSRF_SECRET,
-  AUTH_MFA_SEED_KEYS: '1:local_dev_only_mfa_seed_key_change_me_00000',
-  API_PUBLIC_URL: 'http://localhost:4000',
-  AUTH_MAX_FAILURES_IN_WINDOW: 50,
-  AUTH_FAILURE_WINDOW_SECONDS: 900,
-  AUTH_TOTP_ISSUER: 'TManage',
-  CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: 180,
-});
-
-interface InjectedResponse {
-  readonly statusCode: number;
-  readonly body: string;
-  readonly headers: Record<string, unknown>;
-  json<T = unknown>(): T;
-}
-
-interface Session {
-  readonly cookie: string;
-  readonly csrfToken: string;
-}
-
-function setCookies(response: InjectedResponse): readonly string[] {
-  const raw = response.headers['set-cookie'];
-  if (Array.isArray(raw)) return raw as string[];
-  return typeof raw === 'string' ? [raw] : [];
-}
-
-function cookieHeader(cookies: readonly string[]): string {
-  return cookies
-    .map((c) => c.split(';')[0] ?? '')
-    .filter((pair) => pair.split('=').slice(1).join('=').length > 0)
-    .join('; ');
-}
-
 async function observe(sql: string, params: readonly unknown[] = []): Promise<RowDataPacket[]> {
   const [rows] = await db.admin.query<RowDataPacket[]>(sql, params as unknown[]);
   return rows;
 }
 
-async function signIn(userId: string): Promise<Session> {
-  const response = (await app.inject({
-    method: 'POST',
-    url: '/v1/dev/sessions',
-    headers: { 'content-type': 'application/json' },
-    payload: { userId },
-  })) as unknown as InjectedResponse;
-  const cookies = setCookies(response);
-  return {
-    cookie: cookieHeader(cookies),
-    csrfToken: response.json<{ csrfToken: string }>().csrfToken,
-  };
+function signIn(userId: string): Promise<Session> {
+  return harnessSignIn(app, userId);
 }
 
 const NORTHSTAR = 'northstar-studio';
@@ -243,27 +186,18 @@ async function countWorkItems(): Promise<number> {
 }
 
 beforeAll(async () => {
-  db = await startTestDatabase();
-  app = await NestFactory.create<NestFastifyApplication>(
-    AppModule.register({
-      config: CONFIG,
-      database: DatabaseModule.forPool({ pool: db.runtime, guardMode: 'enforce' }),
-    }),
-    new FastifyAdapter(),
-    { logger: false, abortOnError: false },
-  );
-  await app.init();
-  await app.getHttpAdapter().getInstance().ready();
+  ({ app, db } = await bootHttpHarness({
+    secretTag: 'the_requests_suite',
+    guardMode: 'enforce',
+  }));
 }, 300_000);
 
 beforeEach(async () => {
-  await truncateAll(db.admin);
-  world = await seedTwoTenants(db.admin);
+  world = await reseed(db);
 });
 
 afterAll(async () => {
-  await app?.close();
-  await db?.stop();
+  await stopHarness({ app, db });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
