@@ -15,6 +15,7 @@ import {
 } from '../src/common/database/migrator.js';
 import { migrationsDirectory, startTestDatabase } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
+import { INTERNAL_ROLES } from '@tmanage/domain';
 
 /**
  * Migrator behaviour against a real server.
@@ -319,6 +320,55 @@ describe('0012: calendar dates survive the DATETIME -> DATE conversion', () => {
     );
     expect(requestRows[0]?.['d']).toBe('2026-10-30');
     expect(requestRows[0]?.['c']).toBe('2026-11-14');
+  });
+});
+
+describe('0025: project_memberships.role is constrained to the internal role set', () => {
+  beforeAll(freshDatabase);
+
+  it('admits exactly INTERNAL_ROLES and rejects any other string', async () => {
+    // Anti-drift: the CHECK values are read from the migration, never restated here, so the
+    // constraint and the packages/domain union cannot become two independently edited copies.
+    const sql = await readFile(
+      join(migrationsDirectory, '0025_project_membership_role_check.sql'),
+      'utf8',
+    );
+    const check = sql.slice(sql.indexOf('CHECK (role IN ('));
+    const roles = [...check.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+    expect(roles.sort()).toEqual([...INTERNAL_ROLES].sort());
+
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'r', 'R')`, [
+      id('a1'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('a2'), id('a1')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('a3'), id('a1'), id('a2')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'r@e.test', 'R')`,
+      [id('a4')],
+    );
+
+    // Every internal role is accepted (one write, rows built from the union)...
+    const rows = INTERNAL_ROLES.map((role, i) => [id(`1${i}`), id('a1'), id('a3'), id('a4'), role]);
+    await connection.query(
+      `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES ?`,
+      [rows],
+    );
+    // ...and a string outside the set is rejected by the engine, not by a service check.
+    await expect(
+      connection.query(
+        `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'client_admin')`,
+        [id('ff'), id('a1'), id('a3'), id('a4')],
+      ),
+    ).rejects.toThrow(/[Cc]heck constraint/);
   });
 });
 
