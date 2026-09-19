@@ -783,6 +783,20 @@ function ThreadPane({
 
   const replyRows = useMemo(() => replies.data?.pages.flat() ?? [], [replies.data]);
 
+  /*
+   * WCAG 2.2 4.1.3, verbosity — the x46 pattern (61f4f44) applied to the thread pane. The replies
+   * <ol> is a live region so a genuinely new reply (one that arrives through the ordinary refetch
+   * path a live frame triggers) is announced. But "Load more replies" appends a whole page — up to
+   * MAX_MESSAGE_PAGE rows — at once, and a live region would read the lot out. We hold the region
+   * silent across a manual page fetch and re-enable it only afterwards. `announceReplies` mirrors
+   * `!isFetchingNextPage` one render late, which is what keeps the region `off` through the commit
+   * that appends the page; a live refetch never toggles that flag, so it stays announced.
+   */
+  const [announceReplies, setAnnounceReplies] = useState(true);
+  useEffect(() => {
+    setAnnounceReplies(!replies.isFetchingNextPage);
+  }, [replies.isFetchingNextPage]);
+
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     // WCAG 2.2 2.4.3: move focus into the pane when it opens, rather than leaving the keyboard
@@ -827,7 +841,7 @@ function ThreadPane({
         <ol
           className="tm-list tm-stack"
           aria-label="Replies, oldest first"
-          aria-live="polite"
+          aria-live={announceReplies ? 'polite' : 'off'}
           aria-relevant="additions"
         >
           {replyRows.map((reply) => (

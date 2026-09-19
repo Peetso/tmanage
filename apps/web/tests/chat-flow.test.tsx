@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { ChatScreen } from '../src/components/screens/ChatScreen';
 import { ProjectChannelScreen } from '../src/components/screens/ProjectChannelScreen';
 import { ApiClient } from '../src/lib/api/client';
+import { MAX_MESSAGE_PAGE } from '../src/lib/api/conversations';
 import type { LiveSocket } from '../src/lib/use-channel-live-feed';
 import { authBoundary } from '../src/lib/auth-boundary';
 import { expectNoAxeViolations } from './axe';
@@ -158,8 +159,10 @@ const MODERATED_MESSAGE = message({
 
 /** Routes a channel-screen request. Most specific paths first — `/work-items` and
  * `/revisions` both contain `/messages`. */
-function channelHandler(overrides: Partial<Record<string, (call: Call) => Response>> = {}) {
-  return (call: Call): Response => {
+function channelHandler(
+  overrides: Partial<Record<string, (call: Call) => Response | Promise<Response>>> = {},
+) {
+  return (call: Call): Response | Promise<Response> => {
     if (call.url.includes('/work-items')) {
       return (overrides['convert'] ?? (() => json({}, 500)))(call);
     }
@@ -456,6 +459,63 @@ describe('TM-08 the thread pane', () => {
     const headingB = await screen.findByRole('heading', { name: 'Thread' });
     expect(headingB).toHaveFocus();
     expect(headingB).not.toBe(headingA); // a fresh mount, not the same pane re-rendered
+  });
+
+  /**
+   * WCAG 2.2 4.1.3, verbosity — the x46 pattern (61f4f44) carried over to the thread pane. The
+   * replies <ol> is a polite live region so a genuinely new reply (one that arrives through the
+   * ordinary refetch path) is announced. "Load more replies" appends a whole page at once, which
+   * a live region would read out in full: the region is held silent across the page fetch and
+   * speaks again once it lands.
+   */
+  it('silences the replies live region for a Load more page and speaks again after (WCAG 2.2 4.1.3)', async () => {
+    const firstPage = Array.from({ length: MAX_MESSAGE_PAGE }, (_, index) =>
+      message({
+        id: `reply-${index + 1}`,
+        sequenceNo: index + 5,
+        parentMessageId: 'msg-1',
+        body: `Reply ${index + 1}`,
+      }),
+    );
+    const held = heldAnswer();
+    const { client } = clientOver(
+      channelHandler({
+        // The first page fills the region; the load-more page (afterSequenceNo present) is held so
+        // the fetch can be observed in flight.
+        replies: (call) =>
+          call.url.includes('afterSequenceNo=')
+            ? held.after(() =>
+                json({
+                  messages: [
+                    message({
+                      id: 'reply-late',
+                      sequenceNo: 400,
+                      parentMessageId: 'msg-1',
+                      body: 'A later reply',
+                    }),
+                  ],
+                }),
+              )
+            : json({ messages: firstPage }),
+      }),
+    );
+    renderChannel(client);
+
+    const list = await screen.findByRole('list', { name: 'Messages, oldest first' });
+    const firstItem = within(list).getAllByRole('listitem')[0] as HTMLElement;
+    await userEvent.click(within(firstItem).getByRole('button', { name: 'Reply in thread' }));
+
+    const replies = await screen.findByRole('list', { name: 'Replies, oldest first' });
+    // A newly arrived reply would land in an announced region.
+    expect(replies).toHaveAttribute('aria-live', 'polite');
+
+    // The whole appended page must not be read out: the region is off while the page fetches.
+    await userEvent.click(screen.getByRole('button', { name: 'Load more replies' }));
+    await waitFor(() => expect(replies).toHaveAttribute('aria-live', 'off'));
+
+    // Once the page has landed the region speaks again for the next live reply.
+    held.answer();
+    await waitFor(() => expect(replies).toHaveAttribute('aria-live', 'polite'));
   });
 });
 
