@@ -28,6 +28,7 @@
  */
 
 // ── The API's response projections ──────────────────────────────────────────
+import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { ClientRequestClientView as ApiClientRequestClientView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
@@ -46,7 +47,10 @@ import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
-import type { ClientRequestRecord as WebClientRequestRecord } from '../../apps/web/src/lib/api/client-requests';
+import type {
+  ClientRequestHistoryEntry as WebClientRequestHistoryEntry,
+  ClientRequestRecord as WebClientRequestRecord,
+} from '../../apps/web/src/lib/api/client-requests';
 import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
 import type {
   ConversationSummary as WebConversationSummary,
@@ -94,10 +98,16 @@ type Exact<Api, Web> = [Api] extends [Web]
     : ApiWebMismatch<Api, Web>
   : ApiWebMismatch<Api, Web>;
 
-// A weaker `Narrows<Api, Web>` assertion once lived here, for pairs where the API projection
-// typed a lifecycle column as bare `string` while the web declared the constrained union. All
-// three such pairs were tightened to `Exact` (CONTRACT-001), so the helper had no remaining use
-// and was removed; reintroduce it from git history if a genuine one-way divergence appears again.
+/**
+ * One-way assignability: every `Api` value is a valid `Web` value, but not the reverse.
+ *
+ * For a pair where the API response carries strictly more than the web screen reads — the
+ * history screen consumes `AuditEventView` but declares only the seven fields it renders, not
+ * `correlationId`/`metadata`/`effectiveActorId` — an `Exact` assertion would be a false claim.
+ * `Narrows<Api, Web>` states the true relationship: the API projection is assignable to the web
+ * shape, so nothing the screen reads can move or change type on the API side without failing here.
+ */
+type Narrows<Api, Web> = [Api] extends [Web] ? true : ApiWebMismatch<Api, Web>;
 
 /** `never extends true` is vacuously satisfied, so a failing check must resolve to an object. */
 type Assert<T extends true> = T;
@@ -133,3 +143,20 @@ type _clientRequest = Assert<Exact<ApiClientRequestView, WebClientRequestRecord>
 
 /** `InvitationView.status` ↔ `pending | accepted | expired | revoked`. */
 type _invitation = Assert<Exact<ApiInvitationView, WebInvitationSummary>>;
+
+/**
+ * CONTRACT-001 remainder (x69). The client-request history screen renders a seven-field subset
+ * of `AuditEventView`; the API view also carries `effectiveActorId`, `correlationId` and
+ * `metadata`, which the screen does not read. Narrowing, not Exact — this un-stales the
+ * `AuditEventView` EXEMPT entry, whose "no web consumer" reason is now false
+ * (`GET .../client-requests/:id/history`, client-requests.controller.ts:315, serves this screen).
+ *
+ * The scope's other candidates are deferred: the 4 "lift" pairs need a controller export (source
+ * change), the 4 class-3 shapes need a view authored, and the remaining class-1 candidates name
+ * API response types that are not `export interface *View` (e.g. `ConvertMessageResult`,
+ * `AcceptedClientRequest`, `IssuedInvitation`, `InvitationPreview`, `AcceptedInvitation`) or that
+ * declare wire dates as `Date` at an internal projection (`SessionSummary`, `EstablishedSession`),
+ * so `scripts/contracts-check.mjs` cannot pair them until its enumeration is extended — see the
+ * x69 report.
+ */
+type _clientRequestHistory = Assert<Narrows<ApiAuditEventView, WebClientRequestHistoryEntry>>;
