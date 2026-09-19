@@ -23,7 +23,7 @@ import { WorkItemsService } from '../src/modules/work/work-items.service.js';
 import { ClientRequestsRepository } from '../src/modules/requests/client-requests.repository.js';
 import { ClientRequestsService } from '../src/modules/requests/client-requests.service.js';
 import { ClientOrganizationsRepository } from '../src/modules/clients/client-organizations.repository.js';
-import { InboxService } from '../src/modules/inbox/inbox.service.js';
+import { InboxService, isInboxBundleView } from '../src/modules/inbox/inbox.service.js';
 import { NotificationsRepository } from '../src/modules/inbox/notifications.repository.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
@@ -377,7 +377,9 @@ describe('recipient only, and a bundle is one object', () => {
     });
 
     const page = await inbox.list(ownerCtx, owner);
-    const bundle = page.items.find((candidate) => candidate.objectId === itemId);
+    const bundle = page.items
+      .filter(isInboxBundleView)
+      .find((candidate) => candidate.objectId === itemId);
     expect(bundle).toBeDefined();
     expect(bundle?.bundleId).toBe(`work_item:${itemId}`);
     expect(bundle?.count).toBe(3);
@@ -410,7 +412,9 @@ describe('recipient only, and a bundle is one object', () => {
     });
 
     const page = await inbox.list(managerCtx, manager);
-    const bundle = page.items.find((candidate) => candidate.objectId === submitted.id);
+    const bundle = page.items
+      .filter(isInboxBundleView)
+      .find((candidate) => candidate.objectId === submitted.id);
     expect(bundle?.bundleId).toBe(`client_request:${submitted.id}`);
     expect(bundle?.objectType).toBe('client_request');
     expect(bundle?.title).toBe('Add the loyalty desk to the footer');
@@ -561,7 +565,8 @@ describe('the four modes', () => {
     expect(ids).toContain(requestId);
     expect(ids).not.toContain(blockedItemId);
     expect(ids).not.toContain(quietItemId);
-    for (const bundle of page.items) expect(bundle.types).toContain(SUBMITTED);
+    for (const bundle of page.items.filter(isInboxBundleView))
+      expect(bundle.types).toContain(SUBMITTED);
   });
 
   it('`important` is a blocker affecting the recipient', async () => {
@@ -684,7 +689,10 @@ describe('the cursor runs backwards', () => {
     }
 
     const first = await brightopsInbox.list(ctx, principal, { limit: 2 });
-    expect(first.items.map((bundle) => bundle.title)).toEqual(['Newest', 'Middle']);
+    expect(first.items.filter(isInboxBundleView).map((bundle) => bundle.title)).toEqual([
+      'Newest',
+      'Middle',
+    ]);
     // The cursor is the id of the oldest row this page bundled — "Middle"'s.
     expect(first.nextCursor).toBe(ids[1]);
 
@@ -692,7 +700,9 @@ describe('the cursor runs backwards', () => {
       limit: 2,
       ...(first.nextCursor === null ? {} : { before: first.nextCursor }),
     });
-    expect(second.items.map((bundle) => bundle.title)).toEqual(['Oldest']);
+    expect(second.items.filter(isInboxBundleView).map((bundle) => bundle.title)).toEqual([
+      'Oldest',
+    ]);
     expect(second.nextCursor).toBeNull();
   });
 });
@@ -889,9 +899,9 @@ describe('one authorized read per object type, not one per bundle', () => {
     expect(clientRequests.many).toBe(1);
     expect(clientRequests.one).toBe(0);
     expect(workItems.many).toBe(0);
-    for (const bundle of actions.items.filter((candidate) =>
-      requestIds.includes(candidate.objectId),
-    )) {
+    for (const bundle of actions.items
+      .filter(isInboxBundleView)
+      .filter((candidate) => requestIds.includes(candidate.objectId))) {
       const single = await requests.get(managerCtx, manager, bundle.objectId);
       expect(bundle.title).toBe(single.title);
       expect(bundle.state).toBe(single.state);
@@ -902,7 +912,9 @@ describe('one authorized read per object type, not one per bundle', () => {
     });
 
     // The batch says what the single read says, field for field — and refuses what it refuses.
-    for (const bundle of page.items.filter((candidate) => visible.includes(candidate.objectId))) {
+    for (const bundle of page.items
+      .filter(isInboxBundleView)
+      .filter((candidate) => visible.includes(candidate.objectId))) {
       const single = await work.get(designerCtx, designer, bundle.objectId);
       expect(bundle.title).toBe(single.title);
       expect(bundle.state).toBe(single.state);

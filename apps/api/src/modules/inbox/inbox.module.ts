@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  API_CONFIG,
   AUDIT_SERVICE,
   INBOX_SERVICE,
   NOTIFICATIONS_REPOSITORY,
@@ -8,6 +9,7 @@ import {
   PORTAL_INBOX_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
@@ -82,6 +84,7 @@ export class InboxModule {
         OUTBOX_EVENTS_REPOSITORY,
         NOTIFICATIONS_REPOSITORY,
         INBOX_CLIENT_REQUESTS,
+        API_CONFIG,
       ],
       useFactory: (
         database: TenantDatabase,
@@ -89,6 +92,7 @@ export class InboxModule {
         outbox: OutboxEventsRepository,
         notifications: NotificationsRepository,
         requests: ClientRequestsService,
+        config: ApiConfig,
       ) =>
         new InboxService(
           database,
@@ -101,6 +105,9 @@ export class InboxModule {
           ),
           requests,
           notifications,
+          // USAGE-001 slice 4b: the effective storage quota the reservation guard uses, so the
+          // inbox can render "Storage at 85 % — 8.5 GB of 10 GB" for an owner/admin.
+          { quotaBytes: config.storageOrgBytesLimit },
         ),
     };
 

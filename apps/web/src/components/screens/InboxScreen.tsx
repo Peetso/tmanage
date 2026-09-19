@@ -11,7 +11,7 @@ import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { DEFAULT_INBOX_PAGE, listInbox, markBundleRead } from '../../lib/api/inbox';
-import type { InboxBundle, InboxMode } from '../../lib/api/inbox';
+import type { InboxBundle, InboxItem, InboxMode, InboxUsageNotice } from '../../lib/api/inbox';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
@@ -169,38 +169,60 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
               </tr>
             </thead>
             <tbody>
-              {bundles.map((bundle) => (
-                <tr key={bundle.bundleId}>
-                  <th scope="row">
-                    <Link href={hrefOf(organizationSlug, bundle)}>{bundle.title}</Link>
-                    <span className="tm-field__hint">{describeWhy(bundle)}</span>
-                  </th>
-                  <td>
-                    <StateCapsule state={capsuleOf(bundle)}>{labelOf(bundle)}</StateCapsule>
-                  </td>
-                  <td>
-                    {bundle.count} {bundle.count === 1 ? 'update' : 'updates'}
-                    {bundle.unreadCount > 0 ? (
-                      <span className="tm-field__hint">{bundle.unreadCount} unread</span>
-                    ) : null}
-                  </td>
-                  <td>{formatInstant(bundle.latestAt)}</td>
-                  <td>
-                    {bundle.unreadCount > 0 ? (
-                      <Button
-                        tone="outline"
-                        size="accessible"
-                        loading={markRead.isPending && markRead.variables === bundle.bundleId}
-                        loadingLabel="Marking read"
-                        aria-label={`Mark read: ${bundle.title}`}
-                        onClick={() => markRead.mutate(bundle.bundleId)}
-                      >
-                        Mark read
-                      </Button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
+              {bundles.map((item) =>
+                item.objectType === 'organization_usage' ? (
+                  <tr key={item.bundleId}>
+                    <th scope="row">
+                      {describeUsage(item)}
+                      <span className="tm-field__hint">Storage usage</span>
+                    </th>
+                    <td>
+                      <StateCapsule state={usageCapsule(item.band)}>{`${item.band}%`}</StateCapsule>
+                    </td>
+                    <td>
+                      {item.count} {item.count === 1 ? 'update' : 'updates'}
+                      {item.unreadCount > 0 ? (
+                        <span className="tm-field__hint">{item.unreadCount} unread</span>
+                      ) : null}
+                    </td>
+                    <td>{formatInstant(item.latestAt)}</td>
+                    {/* No inline action: there is no billing screen to open in this slice, and
+                        the mark-read path resolves only work items and client requests. */}
+                    <td />
+                  </tr>
+                ) : (
+                  <tr key={item.bundleId}>
+                    <th scope="row">
+                      <Link href={hrefOf(organizationSlug, item)}>{item.title}</Link>
+                      <span className="tm-field__hint">{describeWhy(item)}</span>
+                    </th>
+                    <td>
+                      <StateCapsule state={capsuleOf(item)}>{labelOf(item)}</StateCapsule>
+                    </td>
+                    <td>
+                      {item.count} {item.count === 1 ? 'update' : 'updates'}
+                      {item.unreadCount > 0 ? (
+                        <span className="tm-field__hint">{item.unreadCount} unread</span>
+                      ) : null}
+                    </td>
+                    <td>{formatInstant(item.latestAt)}</td>
+                    <td>
+                      {item.unreadCount > 0 ? (
+                        <Button
+                          tone="outline"
+                          size="accessible"
+                          loading={markRead.isPending && markRead.variables === item.bundleId}
+                          loadingLabel="Marking read"
+                          aria-label={`Mark read: ${item.title}`}
+                          onClick={() => markRead.mutate(item.bundleId)}
+                        >
+                          Mark read
+                        </Button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>
@@ -284,27 +306,61 @@ function describeWhy(bundle: InboxBundle): string {
  * list here: counts add, unread counts add, types union, the newest time wins, and the row
  * keeps the place of its first (newest) appearance.
  */
-function mergePages(pages: readonly (readonly InboxBundle[])[]): readonly InboxBundle[] {
-  const byId = new Map<string, InboxBundle>();
+function mergePages(pages: readonly (readonly InboxItem[])[]): readonly InboxItem[] {
+  const byId = new Map<string, InboxItem>();
   for (const page of pages) {
-    for (const bundle of page) {
-      const seen = byId.get(bundle.bundleId);
+    for (const item of page) {
+      const seen = byId.get(item.bundleId);
       if (!seen) {
-        byId.set(bundle.bundleId, bundle);
+        byId.set(item.bundleId, item);
         continue;
       }
-      const types = [...seen.types];
-      for (const type of bundle.types) if (!types.includes(type)) types.push(type);
-      byId.set(bundle.bundleId, {
-        ...seen,
-        count: seen.count + bundle.count,
-        unreadCount: seen.unreadCount + bundle.unreadCount,
-        types,
-        latestAt: seen.latestAt >= bundle.latestAt ? seen.latestAt : bundle.latestAt,
-      });
+      byId.set(item.bundleId, mergeItem(seen, item));
     }
   }
   return [...byId.values()];
+}
+
+function mergeItem(seen: InboxItem, next: InboxItem): InboxItem {
+  const count = seen.count + next.count;
+  const unreadCount = seen.unreadCount + next.unreadCount;
+  const latestAt = seen.latestAt >= next.latestAt ? seen.latestAt : next.latestAt;
+  // Same bundle id means the same object, so a usage notice never merges with an object bundle.
+  // A usage notice carries no `types`; keep the freshest read's counters.
+  if (seen.objectType === 'organization_usage' || next.objectType === 'organization_usage') {
+    const fresher = seen.latestAt >= next.latestAt ? seen : next;
+    return { ...fresher, count, unreadCount, latestAt } as InboxItem;
+  }
+  const types = [...seen.types];
+  for (const type of next.types) if (!types.includes(type)) types.push(type);
+  return { ...seen, count, unreadCount, types, latestAt };
+}
+
+/** "Storage at 85 % — 8.5 GB of 10 GB": the band, then used+reserved of quota (35 §1's copy). */
+function describeUsage(notice: InboxUsageNotice): string {
+  const held = notice.used + notice.reserved;
+  return `Storage at ${notice.band}% — ${formatBytes(held)} of ${formatBytes(notice.quota)}`;
+}
+
+/** A capsule state for a threshold band, within the palette the matrix draws. */
+function usageCapsule(band: number): CapsuleState {
+  if (band >= 100) return 'blocked';
+  if (band >= 70) return 'waiting';
+  return 'neutral';
+}
+
+/** Bytes as a short human string, binary units — "8.5 GB", "512 MB". */
+function formatBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const rounded = Math.round(value * 10) / 10;
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `${text} ${units[unit]}`;
 }
 
 function hrefOf(organizationSlug: string, bundle: InboxBundle): string {

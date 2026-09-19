@@ -9,6 +9,10 @@ import {
 } from './notifications.repository.js';
 import type { ClientRequestsService } from '../requests/client-requests.service.js';
 import type { WorkItemsService } from '../work/work-items.service.js';
+import {
+  STORAGE_BYTES_METRIC,
+  UsageCountersRepository,
+} from '../files/usage-counters.repository.js';
 
 /**
  * INBOX-001, first half — the read surface over NOTIF-001's rows, as **bundles**.
@@ -90,8 +94,45 @@ export interface InboxBundleView {
   readonly action: { readonly kind: 'open' };
 }
 
+/**
+ * USAGE-001 slice 4b's read side — a `usage.threshold_reached.v1` notice, resolved to the
+ * organization's live storage counters at read time. The notification row is a reference
+ * envelope (`organization_usage:organizationId`); the band %, and the used+reserved-of-quota
+ * bytes the copy shows, are read here from the usage counter, exactly as a work-item bundle
+ * reads its title. Owner/admin-only by construction — the worker consumer
+ * (`usage-threshold-notice.ts`) wrote the row only to org-wide owner/org_admin recipients, and
+ * the list already filters to `principal.userId` — and tenant-scoped: a notice whose object id
+ * is not this tenant's organization is dropped, never rendered.
+ */
+export interface InboxUsageNoticeView {
+  /** `organization_usage:organizationId`. */
+  readonly bundleId: string;
+  readonly objectType: 'organization_usage';
+  /** The organization whose usage this is — always the caller's own tenant. */
+  readonly objectId: string;
+  /** The threshold band the counter is in: 0, 70, 85, 95 or 100. */
+  readonly band: number;
+  /** Bytes committed. */
+  readonly used: number;
+  /** Bytes reserved and not yet committed. */
+  readonly reserved: number;
+  /** The effective storage quota in bytes. */
+  readonly quota: number;
+  readonly count: number;
+  readonly unreadCount: number;
+  readonly latestAt: string;
+}
+
+/** A page carries object bundles and — for owners/admins — the organization's usage notice. */
+export type InboxItemView = InboxBundleView | InboxUsageNoticeView;
+
+/** Narrow a page item to an object bundle (work item or client request). */
+export function isInboxBundleView(item: InboxItemView): item is InboxBundleView {
+  return item.objectType === 'work_item' || item.objectType === 'client_request';
+}
+
 export interface InboxPageView {
-  readonly items: readonly InboxBundleView[];
+  readonly items: readonly InboxItemView[];
   /** The id of the oldest notification row this page bundled, or `null` at the end. */
   readonly nextCursor: string | null;
 }
@@ -112,13 +153,30 @@ interface ResolvedObject {
 const BLOCKED_TYPE = 'work_item.blocked.v1';
 const CLIENT_ACTION_TYPES: readonly string[] = ['client_request.submitted.v1'];
 
+/**
+ * How the inbox reads the organization's storage usage for a `usage.threshold_reached.v1`
+ * notice. `quotaBytes` is the effective quota — the same number `files` service's
+ * `storageLimitsFor` hands the reservation guard (config today, ENT-001's entitlement row
+ * later). Absent, the inbox has no usage read wired and drops `organization_usage` notices
+ * gracefully, exactly as it drops any objectType it cannot resolve.
+ */
+export interface InboxUsageConfig {
+  readonly quotaBytes: number;
+  readonly counters?: UsageCountersRepository;
+}
+
 export class InboxService {
+  private readonly usageCounters: UsageCountersRepository;
+
   constructor(
     private readonly database: TenantDatabase,
     private readonly workItems: WorkItemsService,
     private readonly requests: ClientRequestsService,
     private readonly notifications: NotificationsRepository = new NotificationsRepository(),
-  ) {}
+    private readonly usage?: InboxUsageConfig,
+  ) {
+    this.usageCounters = usage?.counters ?? new UsageCountersRepository();
+  }
 
   /**
    * The recipient's inbox, one page of rows bundled by object.
@@ -192,7 +250,7 @@ export class InboxService {
     context: TenantContext,
     principal: Principal,
     rows: readonly NotificationRow[],
-  ): Promise<readonly InboxBundleView[]> {
+  ): Promise<readonly InboxItemView[]> {
     // Newest first is the row order; a Map keeps insertion order, so the first row seen for
     // an object is its latest and the bundle order is "most recently touched first".
     const byObject = new Map<string, NotificationRow[]>();
@@ -214,11 +272,43 @@ export class InboxService {
     }
     const objects = await this.resolveMany(context, principal, workItemIds, requestIds);
 
-    const bundles: InboxBundleView[] = [];
+    // USAGE-001 slice 4b: if any group is the organization's usage notice, resolve its live
+    // counters once (there is one usage counter per organization). Skipped entirely when the
+    // usage read is not wired.
+    const wantsUsage =
+      this.usage !== undefined &&
+      [...byObject.values()].some((group) => group[0]?.objectType === 'organization_usage');
+    const usage = wantsUsage ? await this.resolveUsage(context) : null;
+
+    const bundles: InboxItemView[] = [];
     for (const [bundleId, group] of byObject) {
       const first = group[0];
       if (!first) continue;
       const objectType = first.objectType;
+
+      if (objectType === 'organization_usage') {
+        // The recipient is an org-wide owner/admin by construction (the worker wrote the row
+        // only to them, and the list already filters to this principal). Still refuse
+        // cross-tenant: a notice whose object is not this tenant's organization is never
+        // rendered. `usage === null` means no counter row (nothing to show) — dropped like a
+        // revoked object, silently.
+        if (!this.usage || usage === null) continue;
+        if (first.objectId !== context.organizationId) continue;
+        bundles.push({
+          bundleId,
+          objectType: 'organization_usage',
+          objectId: first.objectId,
+          band: usage.band,
+          used: usage.used,
+          reserved: usage.reserved,
+          quota: this.usage.quotaBytes,
+          count: group.length,
+          unreadCount: group.filter((row) => row.readAt === null).length,
+          latestAt: first.createdAt.toISOString(),
+        });
+        continue;
+      }
+
       if (objectType !== 'work_item' && objectType !== 'client_request') {
         // A type this surface cannot resolve — a producer this half does not know. Skipped
         // rather than rendered as an id, and not an error: the row is real and someone else's
@@ -282,6 +372,27 @@ export class InboxService {
       }
     }
     return objects;
+  }
+
+  /**
+   * The organization's storage counters — USAGE-001 slice 4b's read side. Tenant-scoped
+   * through {@link UsageCountersRepository.find} (its `WHERE` names `context.organizationId`),
+   * so it can only ever read the caller's own organization. `null` when the organization has
+   * no counter row for the storage metric — nothing has been uploaded, so there is nothing to
+   * render.
+   */
+  private async resolveUsage(
+    context: TenantContext,
+  ): Promise<{ readonly used: number; readonly reserved: number; readonly band: number } | null> {
+    const row = await this.database.read(context, (runner) =>
+      this.usageCounters.find(runner, context, STORAGE_BYTES_METRIC),
+    );
+    if (!row) return null;
+    return {
+      used: Number(row.usedValue),
+      reserved: Number(row.reservedValue),
+      band: Number(row.thresholdBand),
+    };
   }
 
   /**

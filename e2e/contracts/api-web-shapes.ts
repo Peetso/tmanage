@@ -33,6 +33,7 @@ import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/s
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { InboxBundleView as ApiInboxBundleView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InboxPageView as ApiInboxPageView } from '../../apps/api/src/modules/inbox/inbox.service.js';
+import type { InboxUsageNoticeView as ApiInboxUsageNoticeView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
@@ -55,6 +56,7 @@ import type {
 import type {
   InboxBundle as WebInboxBundle,
   InboxPage as WebInboxPage,
+  InboxUsageNotice as WebInboxUsageNotice,
 } from '../../apps/web/src/lib/api/inbox';
 import type { InvitationSummary as WebInvitationSummary } from '../../apps/web/src/lib/api/invitations';
 import type {
@@ -105,6 +107,7 @@ type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
 type _messageRevision = Assert<Exact<ApiMessageRevisionView, WebMessageRevisionSummary>>;
 type _inboxBundle = Assert<Exact<ApiInboxBundleView, WebInboxBundle>>;
+type _inboxUsageNotice = Assert<Exact<ApiInboxUsageNoticeView, WebInboxUsageNotice>>;
 type _inboxPage = Assert<Exact<ApiInboxPageView, WebInboxPage>>;
 type _portalInboxBundle = Assert<Exact<ApiPortalInboxBundleView, WebPortalInboxBundle>>;
 type _portalInboxPage = Assert<Exact<ApiPortalInboxPageView, WebPortalInboxPage>>;

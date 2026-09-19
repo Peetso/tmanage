@@ -25,8 +25,29 @@ export interface InboxBundle {
   readonly action: { readonly kind: 'open' };
 }
 
+/**
+ * USAGE-001 slice 4b — the organization's storage-usage notice, resolved by the API to the
+ * live counters. Owner/admin-only and tenant-scoped; the row carries the numbers the screen
+ * renders as "Storage at 85 % — 8.5 GB of 10 GB", not a title of another object.
+ */
+export interface InboxUsageNotice {
+  readonly bundleId: string;
+  readonly objectType: 'organization_usage';
+  readonly objectId: string;
+  readonly band: number;
+  readonly used: number;
+  readonly reserved: number;
+  readonly quota: number;
+  readonly count: number;
+  readonly unreadCount: number;
+  readonly latestAt: string;
+}
+
+/** A page item is an object bundle or the organization's usage notice. */
+export type InboxItem = InboxBundle | InboxUsageNotice;
+
 export interface InboxPage {
-  readonly items: readonly InboxBundle[];
+  readonly items: readonly InboxItem[];
   readonly nextCursor: string | null;
 }
 

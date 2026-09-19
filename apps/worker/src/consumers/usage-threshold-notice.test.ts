@@ -4,16 +4,15 @@ import type { WorkerTransaction } from '../common/database/worker-database.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import {
   isUsageThresholdRecipient,
-  usageThresholdBandBypassesQuietHours,
   usageThresholdReachedConsumer,
 } from './usage-threshold-notice.js';
 
 /**
- * The unit half of USAGE-001 slice 4b. The recipient rule and the band-100 classification are
- * pure and enumerated here; the fan-out and the replay dedupe are driven through a fake
- * transaction that answers the membership read and records the notification inserts, exactly
- * the two statements the consumer issues. No DB test is needed: the consumer reads one table
- * and writes one, and the fake proves both without a server.
+ * The unit half of USAGE-001 slice 4b. The recipient rule is pure and enumerated here; the
+ * fan-out and the replay dedupe are driven through a fake transaction that answers the
+ * membership read and records the notification inserts, exactly the two statements the consumer
+ * issues. No DB test is needed: the consumer reads one table and writes one, and the fake proves
+ * both without a server.
  */
 
 interface Membership {
@@ -77,15 +76,6 @@ describe('isUsageThresholdRecipient', () => {
       expect(isUsageThresholdRecipient({ userId: 'u', role, hasOrgWideScope: true }), role).toBe(
         billing.has(role),
       );
-    }
-  });
-});
-
-describe('usageThresholdBandBypassesQuietHours', () => {
-  it('marks only the 100 band yes-critical; lower bands defer', () => {
-    expect(usageThresholdBandBypassesQuietHours(100)).toBe(true);
-    for (const band of [0, 70, 85, 95]) {
-      expect(usageThresholdBandBypassesQuietHours(band), String(band)).toBe(false);
     }
   });
 });

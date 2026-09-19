@@ -45,19 +45,14 @@ import type { OutboxHandler } from '../outbox/dispatcher.js';
  * Acceptance §1's mail is conditional on the existing mail path having a reusable template
  * mechanism. It does not: the only mailer is `ClientRequestMailer`, whose templates and facts are
  * client-request-specific, so a usage mail would need a new template file — the acceptance's
- * "ship the inbox notice only and record the mail as follow-up" branch. When that mail is built it
- * honours quiet hours through the sibling seam, with {@link usageThresholdBandBypassesQuietHours}
- * as its yes-critical rule (§3): the 100 band interrupts the quiet window; lower bands defer like
- * ordinary notices. In-app notices are never deferred, so quiet hours does not gate this consumer.
+ * "ship the inbox notice only and record the mail as follow-up" branch. Quiet-hours handling —
+ * including §3's yes-critical 100-band bypass — belongs to that mail follow-up: in-app notices are
+ * never deferred (only interrupting channels are), so quiet hours does not gate this consumer, and
+ * no bypass classification is carried here until there is a mail channel for it to govern.
  */
 
 /** The notice `object_type` — the aggregate `24-EVENT-CATALOG` §4 names for this event. */
 const USAGE_OBJECT_TYPE = 'organization_usage';
-
-/** The band that interrupts a recipient's quiet window — §3's yes-critical, for the mail follow-up. */
-export function usageThresholdBandBypassesQuietHours(band: number): boolean {
-  return band === 100;
-}
 
 /**
  * The recipient rule: an org-wide owner or org_admin membership, and no one else. Pure so the
