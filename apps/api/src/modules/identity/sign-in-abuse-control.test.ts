@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSignInAbuseControl } from './sign-in-abuse-control.js';
 import type { SignInAbuseOptions, SignInAbuseReason } from './sign-in-abuse-control.js';
+import { decideVerifyFirst } from './authentication.service.js';
 
 /**
  * Every case drives an injected clock, so a window turn is an assignment rather than a wait,
@@ -472,5 +473,51 @@ describe('the sign-in abuse control', () => {
     // the documented direction of error: a caller is admitted a little more than the budget
     // says, and never less.
     expect(control.admit({ ip: '198.51.100.1' }).admitted).toBe(true);
+  });
+});
+
+/**
+ * `C-1` — the durable per-user lockout's ordering, extracted from `authentication.service.ts`
+ * so the one property that closes the finding is provable without a database: verify first,
+ * charge only on failure. A correct password is admitted regardless of the window, so a wrong
+ * password from a hostile source can never lock the holder out of their own sign-in; a wrong
+ * password is throttled by the window exactly as before.
+ */
+describe('verify-first lockout ordering (C-1)', () => {
+  it('admits a correct password without charging the window, even when it is full', () => {
+    expect(
+      decideVerifyFirst({ passwordCorrect: true, failuresInWindow: 99, maxFailuresInWindow: 5 }),
+    ).toBe('admit');
+  });
+
+  it('locks out a wrong password once the window is full', () => {
+    expect(
+      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 5, maxFailuresInWindow: 5 }),
+    ).toBe('locked_out');
+  });
+
+  it('rejects a wrong password below the window as an ordinary failure', () => {
+    expect(
+      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 4, maxFailuresInWindow: 5 }),
+    ).toBe('reject');
+  });
+
+  // `completeMfaChallenge` now spends the TOTP code before the shared window is consulted and
+  // feeds `spent === null` (was the code accepted?) into this same helper, so the MFA path is
+  // decided by the identical rule: a correct code is admitted through a full window and never
+  // charged, a wrong code is throttled by the window exactly as a wrong password is.
+  it('admits a correct TOTP through a full window without charging it, and charges a wrong one (C-1 MFA path)', () => {
+    // Correct code (spent === null ⇒ passwordCorrect: true): admitted whatever the window says.
+    expect(
+      decideVerifyFirst({ passwordCorrect: true, failuresInWindow: 5, maxFailuresInWindow: 5 }),
+    ).toBe('admit');
+    // Wrong code at a full window: throttled, the failing path the window governs.
+    expect(
+      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 5, maxFailuresInWindow: 5 }),
+    ).toBe('locked_out');
+    // Wrong code below the window: an ordinary refusal — the row that charges the window.
+    expect(
+      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 4, maxFailuresInWindow: 5 }),
+    ).toBe('reject');
   });
 });
