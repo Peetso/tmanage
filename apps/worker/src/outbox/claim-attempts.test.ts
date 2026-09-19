@@ -32,6 +32,7 @@ interface Row {
   type: string;
   attempts: number;
   publishedAt: Date | null;
+  occurredAt: Date;
   availableAt: Date;
   lastError: string | null;
 }
@@ -47,12 +48,16 @@ class FakeQueue {
   readonly rows: Row[] = [];
 
   add(id: string, type: string, availableSecondsAgo = 1): void {
+    // The event occurred when it became due; a retry would later push availableAt forward, but a
+    // freshly added row has occurred_at == available_at, so the backlog age reads availableSecondsAgo.
+    const at = new Date(Date.now() - availableSecondsAgo * 1000);
     this.rows.push({
       id,
       type,
       attempts: 0,
       publishedAt: null,
-      availableAt: new Date(Date.now() - availableSecondsAgo * 1000),
+      occurredAt: at,
+      availableAt: at,
       lastError: null,
     });
   }
@@ -162,20 +167,19 @@ class FakeQueue {
         return Promise.resolve({ affectedRows: 1 } as T);
       }
 
-      // The backlog aggregate.
-      if (text.includes('OLDEST_PENDING_SECONDS')) {
-        const unpublished = this.rows.filter((row) => row.publishedAt === null);
-        const pending = unpublished.filter((row) => row.attempts < Number(params[0]));
-        const ages = pending.map((row) =>
-          Math.max(0, Math.floor((Date.now() - row.availableAt.getTime()) / 1000)),
+      // The backlog read: the raw unpublished rows, aggregated in TypeScript by `computeBacklog`.
+      if (text.includes('NOW_AT')) {
+        const now = new Date();
+        return Promise.resolve(
+          this.rows
+            .filter((row) => row.publishedAt === null)
+            .map((row) => ({
+              attempts: row.attempts,
+              occurred_at: row.occurredAt,
+              available_at: row.availableAt,
+              now_at: now,
+            })) as T,
         );
-        return Promise.resolve([
-          {
-            pending: pending.length,
-            parked: unpublished.length - pending.length,
-            oldest_pending_seconds: ages.length === 0 ? null : Math.max(...ages),
-          },
-        ] as T);
       }
 
       // The parked listing.
@@ -523,10 +527,9 @@ describe('the backlog aggregate is read outside the batch transaction (IMPORTANT
         query: <T>(sql: string): Promise<T> => {
           const text = sql.trim().toUpperCase();
           sink.push(text);
-          if (text.includes('OLDEST_PENDING_SECONDS')) {
-            return Promise.resolve([{ pending: 0, parked: 0, oldest_pending_seconds: null }] as T);
-          }
-          // Everything else (reserve select, claim, parked list) returns no rows.
+          // The backlog read (NOW_AT marker) returns no rows — a drained queue — and so does
+          // everything else (reserve select, claim, parked list). This spy only records which
+          // channel each statement was issued on.
           return Promise.resolve([] as T);
         },
       };
@@ -545,7 +548,7 @@ describe('the backlog aggregate is read outside the batch transaction (IMPORTANT
     const spy = new ChannelSpy();
     await runOutboxBatch(spy.database, {}, OPTIONS);
 
-    const isAggregate = (text: string): boolean => text.includes('OLDEST_PENDING_SECONDS');
+    const isAggregate = (text: string): boolean => text.includes('NOW_AT');
     expect(spy.viaRead.some(isAggregate)).toBe(true);
     expect(spy.viaTransaction.some(isAggregate)).toBe(false);
   });
