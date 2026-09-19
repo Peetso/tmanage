@@ -104,7 +104,7 @@
 --     upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
 --   · `INSERT, DELETE` on: work_item_dependencies
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
---     authentication_events
+--     authentication_events, usage_ledger_entries
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -226,6 +226,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_blockers`          TO 'tmanage_a
 -- `trg_file_versions_immutable` to pin every other column outright and those two once set,
 -- so the runtime credential can move two NULLs and nothing else. DELETE stays withheld.
 GRANT INSERT, UPDATE         ON `tmanage`.`usage_counters`   TO 'tmanage_app'@'%';
+-- USAGE-001 slice 2. The append-only usage ledger: INSERT only, and never UPDATE or DELETE.
+-- Reading is the database-wide SELECT (line above). A counter is corrected in place (UPDATE);
+-- the ledger that explains how it got there is history, and an application that could amend or
+-- erase a ledger row is a bill that can be quietly rewritten — the `audit_events` argument, in
+-- the storage-accounting domain. Immutability here is the withheld privilege, not a trigger.
+GRANT INSERT                 ON `tmanage`.`usage_ledger_entries` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`file_assets`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`file_versions`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`upload_sessions`  TO 'tmanage_app'@'%';

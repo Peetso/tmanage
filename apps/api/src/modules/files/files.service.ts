@@ -34,6 +34,7 @@ import {
   type UploadSessionsRepository,
 } from './upload-sessions.repository.js';
 import { STORAGE_BYTES_METRIC, type UsageCountersRepository } from './usage-counters.repository.js';
+import { USAGE_LEDGER_REASON, type UsageLedgerRepository } from './usage-ledger.repository.js';
 import { mayUploadFor, objectTableFor } from './purpose-policy.js';
 import type { ParsedPart, ParsedUploadBody } from './upload-input.js';
 
@@ -252,6 +253,7 @@ export class FilesService {
     private readonly sessions: UploadSessionsRepository,
     private readonly assets: FileAssetsRepository,
     private readonly counters: UsageCountersRepository,
+    private readonly ledger: UsageLedgerRepository | null,
     private readonly projects: ProjectsRepository,
     private readonly requests: ClientRequestsRepository,
     private readonly store: ObjectStore,
@@ -552,7 +554,7 @@ export class FilesService {
           uploadTargets: upload.parts,
           expiresAt,
         });
-        await this.outbox?.append(tx, context, {
+        const reservedEventId = await this.outbox?.append(tx, context, {
           type: 'usage.storage_reserved.v1',
           aggregateId: row.id,
           payload: {
@@ -561,6 +563,17 @@ export class FilesService {
             deltaBytes: input.sizeBytes,
           },
         });
+        // The ledger row joins the reservation to the event that produced it, in the same
+        // transaction: a counter move without a ledger row is impossible (USAGE-001 slice 2).
+        if (reservedEventId) {
+          await this.ledger?.record(tx, context, {
+            uploadSessionId: row.id,
+            counter: 'reserved',
+            deltaBytes: input.sizeBytes,
+            reason: USAGE_LEDGER_REASON.reserve,
+            sourceEventId: reservedEventId,
+          });
+        }
         return row;
       });
     } catch (error) {
@@ -829,7 +842,7 @@ export class FilesService {
             sizeBytes: version.sizeBytes,
           },
         });
-        await this.outbox?.append(tx, context, {
+        const committedEventId = await this.outbox?.append(tx, context, {
           type: 'usage.storage_committed.v1',
           aggregateId: session.id,
           payload: {
@@ -840,6 +853,25 @@ export class FilesService {
             reservedBytes: session.declaredBytes,
           },
         });
+        // Completion is two counter moves: the reservation retired and the used bytes added
+        // (the counter's `commit` UPDATE changes both columns). Each is its own ledger row,
+        // both citing the one committed event, so summing `delta` per counter still holds.
+        if (committedEventId) {
+          await this.ledger?.record(tx, context, {
+            uploadSessionId: session.id,
+            counter: 'reserved',
+            deltaBytes: -session.declaredBytes,
+            reason: USAGE_LEDGER_REASON.commitRelease,
+            sourceEventId: committedEventId,
+          });
+          await this.ledger?.record(tx, context, {
+            uploadSessionId: session.id,
+            counter: 'used',
+            deltaBytes: version.sizeBytes,
+            reason: USAGE_LEDGER_REASON.commit,
+            sourceEventId: committedEventId,
+          });
+        }
         return { asset, version };
       }),
     );
@@ -1018,7 +1050,7 @@ export class FilesService {
           session.fileAssetId,
           cause === 'expired' ? 'expired' : 'cancelled',
         );
-        await this.outbox?.append(tx, context, {
+        const releasedEventId = await this.outbox?.append(tx, context, {
           type: 'usage.storage_released.v1',
           aggregateId: session.id,
           payload: {
@@ -1028,6 +1060,19 @@ export class FilesService {
             cause,
           },
         });
+        // Only when the counter actually gave the bytes back: a drifted counter that refused
+        // the release (`counterMoved === false`) recorded no move, so the ledger records none
+        // either and its per-counter sum still equals the counter. `cause` is the reason, so a
+        // release and this session's earlier reserve never share an idempotency key.
+        if (releasedEventId && counterMoved) {
+          await this.ledger?.record(tx, context, {
+            uploadSessionId: session.id,
+            counter: 'reserved',
+            deltaBytes: -session.declaredBytes,
+            reason: cause,
+            sourceEventId: releasedEventId,
+          });
+        }
         await then?.(tx, { counterMoved });
         return true;
       }),
