@@ -668,6 +668,27 @@ describe('loadEnv', () => {
     });
   });
 
+  /**
+   * OBS-001. After the dead OTel-standard names were removed, `OTEL_EXPORTER_URL` is the one
+   * exporter endpoint the schema and its boot guard know. This pins the survivor: disabled by
+   * default, and an enabled exporter with no endpoint is a loud boot failure, not a silent no-op.
+   */
+  describe('OpenTelemetry exporter (OBS-001)', () => {
+    it('defaults disabled, and when enabled requires OTEL_EXPORTER_URL', () => {
+      expect(loadEnv(devEnv()).OTEL_ENABLED).toBe(false);
+      expect(issuePaths(() => loadEnv({ ...devEnv(), OTEL_ENABLED: 'true' }))).toContain(
+        'OTEL_EXPORTER_URL',
+      );
+      expect(() =>
+        loadEnv({
+          ...devEnv(),
+          OTEL_ENABLED: 'true',
+          OTEL_EXPORTER_URL: 'https://otel-collector.example:4318',
+        }),
+      ).not.toThrow();
+    });
+  });
+
   describe('outbox relay monitoring (PLAT-004, worker/outbox audit CRITICAL-2)', () => {
     it('applies the documented defaults for the two age thresholds', () => {
       const env = loadEnv(devEnv());

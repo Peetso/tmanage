@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ApiConfigModule } from './common/http/api-config.js';
 import type { ApiConfig } from './common/http/api-config.js';
 import { CorrelationInterceptor } from './common/http/correlation.interceptor.js';
+import { NOOP_TRACER, TRACER } from './common/observability/tracer.js';
 import { ClientProjectionInterceptor } from './common/http/client-projection.interceptor.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { SessionAuthGuard } from './common/http/guards/session-auth.guard.js';
@@ -141,6 +142,10 @@ export class AppModule {
         FilesModule.register(),
       ],
       providers: [
+        // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
+        // lockfile change) is added, at which point an exporter-backed tracer replaces this
+        // value and every request span already carries the correlation id.
+        { provide: TRACER, useValue: NOOP_TRACER },
         { provide: APP_INTERCEPTOR, useClass: CorrelationInterceptor },
         // SEC-001. After the correlation interceptor, so a refusal it raises still carries the
         // id a log line is findable by. It only inspects responses on the client's side of the

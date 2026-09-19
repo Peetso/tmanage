@@ -7,6 +7,7 @@ import { createFastifyAdapter } from './common/http/fastify-adapter.js';
 import { corsOptions } from './common/http/cors.js';
 import { createFixedWindowLimiter } from './common/http/rate-limiter.js';
 import { composeAppModule } from './app-composition.js';
+import { serializeForLog } from './common/observability/logger.js';
 
 /**
  * The API process entry point.
@@ -65,6 +66,8 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap().catch((error: unknown) => {
-  console.error('[api] failed to start', error);
+  // A startup failure is often a database-connection error carrying the DSN, so it is redacted
+  // through the OBS-001 seam rather than printed raw.
+  console.error('[api] failed to start', serializeForLog(error));
   process.exitCode = 1;
 });
