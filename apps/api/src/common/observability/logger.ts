@@ -24,6 +24,27 @@ export function serializeForLog(payload: unknown): string {
 }
 
 /**
+ * CONTRACT-001's exact-view projections fail closed: a row whose persisted `state` is outside
+ * the domain union is a corrupt row and becomes a 500 rather than an out-of-contract response.
+ * The throw on its own surfaces only through fastify's generic 500 path, leaving the operator
+ * nothing to search on, so before it we emit exactly the offending row id and the request
+ * correlation id — never the row's contents — through the same field-level redactor
+ * (`serializeForLog`) every other OBS-001 line uses. The value that made the row invalid is not
+ * logged: the operator locates the row by id and inspects it, and a bad column value never
+ * reaches the log sink.
+ */
+export function logUnrecognisedRowState(
+  entity: string,
+  rowId: string,
+  correlationId: string,
+): void {
+  console.error(
+    '[projection] unrecognised persisted state',
+    serializeForLog({ entity, rowId, correlationId }),
+  );
+}
+
+/**
  * Lift `Error` instances into plain records so {@link redactFields} can see and redact their
  * fields. Only `Error`s are transformed; every other value (including a plain-object `cause`) is
  * returned untouched for `redactFields` to walk with its own depth and cycle bounds, so the

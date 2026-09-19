@@ -8,6 +8,7 @@ import {
 } from '@tmanage/domain';
 import type { Audience, ClientRequestState, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { logUnrecognisedRowState } from '../../common/observability/logger.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
@@ -208,11 +209,18 @@ export interface AcceptedClientRequest {
   readonly workItemCreated: boolean;
 }
 
-function toView(row: ClientRequestRow, clientOrganizationName: string | null): ClientRequestView {
+function toView(
+  row: ClientRequestRow,
+  clientOrganizationName: string | null,
+  correlationId: string,
+): ClientRequestView {
   // The column is `VARCHAR(32)`, but only `clientRequestStateMachine` ever writes it. A value
   // outside the union means a corrupt row, which is a 500 — never a shape the internal view admits.
+  // Fail closed, but log the row id + correlation id first (never the bad value) so the poisoned
+  // row can be found; a single 500 otherwise names no row.
   if (!isClientRequestState(row.state)) {
-    throw new Error(`client request ${row.id} has an unrecognised state: ${row.state}`);
+    logUnrecognisedRowState('client_request', row.id, correlationId);
+    throw new Error(`client request ${row.id} has an unrecognised state`);
   }
   const state = row.state;
   return {
@@ -357,7 +365,9 @@ export class ClientRequestsService {
     // One read for the whole page rather than one per row: a triage queue that issued a query
     // per request would make the cost of the queue quadratic in its own length.
     const names = await this.clientOrganizationNames(context, visible);
-    return visible.map((row) => toView(row, names.get(row.clientOrganizationId) ?? null));
+    return visible.map((row) =>
+      toView(row, names.get(row.clientOrganizationId) ?? null, context.correlationId),
+    );
   }
 
   /** Read one, internally. Absent or unrelated both produce the same 404. */
@@ -370,7 +380,11 @@ export class ClientRequestsService {
     if (!this.mayTriage(principal, row)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
-    return toView(row, await this.clientOrganizationName(context, row.clientOrganizationId));
+    return toView(
+      row,
+      await this.clientOrganizationName(context, row.clientOrganizationId),
+      context.correlationId,
+    );
   }
 
   /**
@@ -410,7 +424,10 @@ export class ClientRequestsService {
     );
 
     return new Map(
-      readable.map((row) => [row.id, toView(row, names.get(row.clientOrganizationId) ?? null)]),
+      readable.map((row) => [
+        row.id,
+        toView(row, names.get(row.clientOrganizationId) ?? null, context.correlationId),
+      ]),
     );
   }
 
@@ -442,7 +459,11 @@ export class ClientRequestsService {
       to,
       facts,
     );
-    return toView(moved, await this.clientOrganizationName(context, moved.clientOrganizationId));
+    return toView(
+      moved,
+      await this.clientOrganizationName(context, moved.clientOrganizationId),
+      context.correlationId,
+    );
   }
 
   /**
@@ -698,6 +719,7 @@ export class ClientRequestsService {
         request: toView(
           result.moved,
           await this.clientOrganizationName(context, result.moved.clientOrganizationId),
+          context.correlationId,
         ),
         workItemId: result.workItemId,
         workItemCreated: result.created,

@@ -183,6 +183,12 @@ export const memberships = mysqlTable(
     uniqueIndex('uq_memberships_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_memberships_org_user').on(table.organizationId, table.userId),
     index('ix_memberships_user').on(table.userId),
+    // The backing index for `fk_memberships_workspace_scope_tenant` (0023). InnoDB requires an
+    // index whose leftmost columns are the referencing columns; none of the indexes above is a
+    // usable prefix (`uq_memberships_org_id` is `(organization_id, id)`), so adding the composite
+    // FK made the engine create this one implicitly under the constraint's own name. Declared
+    // here only so `schema.ts` and the migrated database agree — it adds no migration.
+    index('fk_memberships_workspace_scope_tenant').on(table.organizationId, table.workspaceScopeId),
   ],
 );
 
