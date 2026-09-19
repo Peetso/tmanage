@@ -67,6 +67,13 @@ export interface ResolvedMembership {
   readonly clientOrganizationId: string | null;
   /** Whether scope comes from the organization rather than from an explicit project list. */
   readonly hasOrgWideScope: boolean;
+  /**
+   * A Workspace Admin's one-workspace scope (0023), or null. Consulted by
+   * `PrincipalRepository.projectScope` only for an internal principal that is not org-wide: a
+   * non-null id widens their reach to every project in that workspace, and null leaves the
+   * project-membership fallback untouched.
+   */
+  readonly workspaceScopeId: string | null;
 }
 
 /**
@@ -125,24 +132,34 @@ const RESOLUTION_TABLES = ['organizations', 'memberships', 'client_memberships']
 /**
  * The cache and decision epoch carried on the context (spec section 9).
  *
- * Derived rather than stored, because no migration defines a policy-version column yet. Both
- * inputs matter: the organization row moves when organization policy changes, and the
- * membership row moves when the principal's role does — section 11 lists "changed role after
- * session" as a case a stale cache key would get wrong. When a policy table lands, this is
- * the one function to change.
+ * Stored now, not derived from `updated_at` (0023). Both inputs still matter for the reason
+ * section 11 gives — "changed role after session" is a case a stale cache key gets wrong — but
+ * the inputs are the two `policy_version` columns rather than the two `updated_at` instants.
+ * That is the whole point of the migration: `updated_at` carries `ON UPDATE
+ * CURRENT_TIMESTAMP(3)`, so a rename rotated every member's key for a change that touched no
+ * policy. `policy_version` moves only when a policy-relevant fact does, so the epoch is stable
+ * across unrelated churn and rotates exactly when authority changes.
+ *
+ * The `v2:` prefix marks the format change from the derived-timestamp `v1:` and keeps the two
+ * uncollidable, so a context minted just before a deploy never matches one minted just after.
  */
-function policyVersionOf(organizationUpdatedAt: Date, membershipUpdatedAt: Date): string {
-  return `v1:${organizationUpdatedAt.getTime()}:${membershipUpdatedAt.getTime()}`;
+export function policyVersionOf(
+  organizationPolicyVersion: number,
+  membershipPolicyVersion: number,
+): string {
+  return `v2:${organizationPolicyVersion}:${membershipPolicyVersion}`;
 }
 
 interface Candidate {
   readonly organizationId: string;
-  readonly organizationUpdatedAt: Date;
+  readonly organizationPolicyVersion: number;
   readonly membershipId: string;
   readonly role: string;
-  readonly membershipUpdatedAt: Date;
+  readonly membershipPolicyVersion: number;
   readonly clientOrganizationId: string | null;
   readonly hasOrgWideScope: boolean;
+  /** A Workspace Admin's one-workspace scope, or null for org-wide and project-scoped members. */
+  readonly workspaceScopeId: string | null;
 }
 
 export class MembershipResolver {
@@ -180,14 +197,15 @@ export class MembershipResolver {
         membershipId: candidate.membershipId,
         capabilities: capabilitiesFor(role),
         policyVersion: policyVersionOf(
-          candidate.organizationUpdatedAt,
-          candidate.membershipUpdatedAt,
+          candidate.organizationPolicyVersion,
+          candidate.membershipPolicyVersion,
         ),
         correlationId: request.correlationId,
       }),
       role,
       clientOrganizationId: candidate.clientOrganizationId,
       hasOrgWideScope: candidate.hasOrgWideScope,
+      workspaceScopeId: candidate.workspaceScopeId,
     };
   }
 
@@ -229,11 +247,12 @@ export class MembershipResolver {
     const rows = await tenantDrizzle(tx)
       .select({
         organizationId: organizations.id,
-        organizationUpdatedAt: organizations.updatedAt,
+        organizationPolicyVersion: organizations.policyVersion,
         membershipId: memberships.id,
         role: memberships.role,
-        membershipUpdatedAt: memberships.updatedAt,
+        membershipPolicyVersion: memberships.policyVersion,
         hasOrgWideScope: memberships.hasOrgWideScope,
+        workspaceScopeId: memberships.workspaceScopeId,
       })
       .from(organizations)
       .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
@@ -263,7 +282,7 @@ export class MembershipResolver {
     const rows = await tenantDrizzle(tx)
       .select({
         organizationId: organizations.id,
-        organizationUpdatedAt: organizations.updatedAt,
+        organizationPolicyVersion: organizations.policyVersion,
         membershipId: clientMemberships.id,
         role: clientMemberships.role,
         membershipUpdatedAt: clientMemberships.updatedAt,
@@ -286,8 +305,24 @@ export class MembershipResolver {
       .limit(1);
 
     const row = rows[0];
+    if (!row) return null;
     // An external principal never has organization-wide scope; their reach is the projects
-    // shared with their client organization, and nothing widens that.
-    return row ? { ...row, hasOrgWideScope: false } : null;
+    // shared with their client organization, and nothing widens that — nor a workspace scope,
+    // which is an internal Workspace Admin's grant.
+    //
+    // `client_memberships` carries no `policy_version` column: it was left out of 0023, whose
+    // acceptance is the internal path, and adding it would pull in the client-membership write
+    // paths that bump it. So the client's membership epoch keeps its pre-0023 derivation from
+    // `updated_at` — client role/status/expiry changes still rotate the key as before. The
+    // organization half is the stored `policy_version` either way, so an organization rename no
+    // longer rotates a client's key. Recorded as a divergence; a stored client policy version
+    // is deferred with the multi-workspace admin work.
+    const { membershipUpdatedAt, ...rest } = row;
+    return {
+      ...rest,
+      membershipPolicyVersion: membershipUpdatedAt.getTime(),
+      hasOrgWideScope: false,
+      workspaceScopeId: null,
+    };
   }
 }

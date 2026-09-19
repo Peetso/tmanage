@@ -85,6 +85,12 @@ export interface InviteMembershipInput {
    * rather than derived precisely so a later policy change cannot widen it retroactively.
    */
   readonly hasOrgWideScope?: boolean;
+  /**
+   * A Workspace Admin's one-workspace scope (0023), or null/absent for none. Like
+   * `hasOrgWideScope`, it is an explicit recorded decision — a workspace scope is never a
+   * consequence of a role name, so an org-wide leak cannot arrive through a default.
+   */
+  readonly workspaceScopeId?: string | null;
 }
 
 export interface ListMembershipsOptions {
@@ -356,6 +362,7 @@ export class MembershipsRepository {
         role: input.role,
         status: 'invited',
         hasOrgWideScope: input.hasOrgWideScope ?? defaultOrgWideScope(input.role),
+        workspaceScopeId: input.workspaceScopeId ?? null,
         version: 1,
         createdAt: sql`current_timestamp(3)`,
         updatedAt: sql`current_timestamp(3)`,
@@ -380,15 +387,27 @@ export class MembershipsRepository {
     expectedVersion: number,
     role: InternalRole,
     hasOrgWideScope?: boolean,
+    workspaceScopeId?: string | null,
   ): Promise<MembershipRow> {
+    // Two independent tokens move on a role change. `version` is optimistic concurrency — it
+    // guards this very write against a concurrent one. `policy_version` is the authorization
+    // epoch (0023): a role or scope change is precisely the policy-relevant change spec §9
+    // keys caches on, so bumping it here is what rotates a stale context minted before the
+    // change. It is bumped only here and never by unrelated `updated_at` churn.
+    const changes: Record<string, unknown> = {
+      role,
+      hasOrgWideScope: hasOrgWideScope ?? defaultOrgWideScope(role),
+      version: sql`version + 1`,
+      policyVersion: sql`policy_version + 1`,
+      updatedAt: sql`current_timestamp(3)`,
+    };
+    // A tri-state: absent leaves the workspace scope untouched (a role change must not silently
+    // widen or narrow it), null clears it, an id sets it. Never defaulted from the role name.
+    if (workspaceScopeId !== undefined) changes['workspaceScopeId'] = workspaceScopeId;
+
     const result = await tenantDrizzle(runner)
       .update(memberships)
-      .set({
-        role,
-        hasOrgWideScope: hasOrgWideScope ?? defaultOrgWideScope(role),
-        version: sql`version + 1`,
-        updatedAt: sql`current_timestamp(3)`,
-      })
+      .set(changes)
       .where(
         and(
           eq(memberships.organizationId, context.organizationId),

@@ -1,7 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 import type { Principal } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { projectClients, projectMemberships } from '../../common/database/schema.js';
+import { projectClients, projectMemberships, projects } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { ResolvedMembership } from './membership-resolver.repository.js';
 
@@ -28,10 +28,12 @@ import type { ResolvedMembership } from './membership-resolver.repository.js';
  *
  * `12-PERMISSION-MATRIX.md` §2 records "View internal project: Scope" for Owner, Org Admin
  * **and Workspace Admin**. Only the first two are here, and the omission is deliberate: a
- * Workspace Admin's scope is one workspace, `memberships` has no workspace-scope column, and
- * `Principal.hasOrgWideScope` is a boolean with no room for "within these workspaces". Given
- * a choice between granting a Workspace Admin the whole organization and granting them the
- * projects they are a member of, the second is the one that cannot leak.
+ * Workspace Admin's scope is one workspace, and org-wide default scope is exactly what they
+ * must not get — granting the whole organization by role name is the leak this list avoids.
+ * Since 0023 a Workspace Admin's one-workspace reach is expressed by `memberships.
+ * workspace_scope_id` (surfaced as `ResolvedMembership.workspaceScopeId` and read by
+ * {@link PrincipalRepository.projectScope}), not by this boolean — so the default here stays
+ * false and the workspace scope is a recorded per-membership decision, never a role default.
  *
  * It is a default, not a rule — {@link MembershipsRepository} takes an explicit override — so
  * an organization that wants an org-wide workspace admin can have one as a recorded decision
@@ -83,6 +85,25 @@ export class PrincipalRepository {
         )
         .orderBy(asc(projectClients.projectId));
       return rows.map((row) => row.projectId);
+    }
+
+    // A Workspace Admin (0023): scope is one workspace, so their reach is every project in it
+    // and nothing outside it. This runs only for an internal principal that is not org-wide and
+    // carries a `workspaceScopeId`; the read is anchored on `organization_id = ?`, so the
+    // widening it grants can never cross the tenant. Null falls through to the narrower
+    // project-membership scope below — no role name silently widens anyone.
+    if (resolved.workspaceScopeId !== null) {
+      const workspaceRows = await db
+        .select({ projectId: projects.id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.organizationId, context.organizationId),
+            eq(projects.workspaceId, resolved.workspaceScopeId),
+          ),
+        )
+        .orderBy(asc(projects.id));
+      return workspaceRows.map((row) => row.projectId);
     }
 
     const rows = await db
