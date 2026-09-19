@@ -139,11 +139,18 @@ describe('TM-04 the inbox', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('renders the organization usage notice as one storage line', async () => {
+  it('renders the usage notice as one storage line and marks it read like any other row', async () => {
     // USAGE-001 slice 4b: an owner/admin sees the band and the used+reserved of quota. 8.5 GiB
-    // held of a 10 GiB quota, band 85 — 35 §1's "Storage at 85 % — 8.5 GB of 10 GB".
-    const { client } = clientOver(() =>
-      json({
+    // held of a 10 GiB quota, band 85 — 35 §1's "Storage at 85 % — 8.5 GB of 10 GB". x75: the
+    // row has no object to open but offers the same "Mark read" control every other row has,
+    // wired to the same client call; after the POST the list is asked again and, with nothing
+    // unread, the control greys away.
+    const user = userEvent.setup();
+    let reads = 0;
+    const { client, calls } = clientOver((call) => {
+      if (call.method === 'POST') return json({ bundleId: 'organization_usage:org-1', marked: 1 });
+      reads += 1;
+      return json({
         items: [
           {
             bundleId: 'organization_usage:org-1',
@@ -154,20 +161,33 @@ describe('TM-04 the inbox', () => {
             reserved: 512 * 1024 * 1024, // 0.5 GiB reserved → 8.5 GiB held
             quota: 10 * 1024 * 1024 * 1024,
             count: 1,
-            unreadCount: 1,
+            unreadCount: reads === 1 ? 1 : 0,
             latestAt: '2026-09-19T08:00:00.000Z',
           },
         ],
         nextCursor: null,
-      }),
-    );
+      });
+    });
     render(withQuery(<InboxScreen {...NAMES} client={client} />));
 
     const cell = await screen.findByText('Storage at 85% — 8.5 GB of 10 GB');
-    // Usage has no object to open and no mark-read path: the row is a plain line.
+    // No object to open: a usage notice is a plain line, not a link.
     const row = cell.closest('tr') as HTMLTableRowElement;
     expect(within(row).queryByRole('link')).not.toBeInTheDocument();
-    expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Mark read: Storage usage' }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Mark read: Storage usage' }),
+      ).not.toBeInTheDocument();
+    });
+    const post = calls.find((call) => call.method === 'POST');
+    // The bundle id is a path segment, so its colon is escaped rather than trusted.
+    expect(post?.url).toBe(
+      'https://api.example.test/v1/organizations/northstar/inbox/organization_usage%3Aorg-1/read',
+    );
+    expect(reads).toBe(2);
   });
 
   it('a mode is a query: switching one asks the API again with ?mode=', async () => {

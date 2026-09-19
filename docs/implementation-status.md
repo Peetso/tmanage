@@ -145,6 +145,12 @@ usage-threshold-mailer.ts`) and its consumer half `createUsageThresholdMail`
 
 ---
 
+## 2026-09-19 — USAGE-001 / INBOX-001: usage threshold notices can be marked read (slice x75)
+
+Branch `x75-usage-notice-dismiss` off x68's `1526f6b`, **not merged** — `InboxService.markBundleRead` now accepts `organization_usage:<id>` bundles (owner/org_admin-only via `org.security.manage`, tenant- and recipient-scoped; a cross-tenant object id or a non-owner/admin same-org member gets the same 404 `not_found` the work_item/client_request branches give), and the web inbox usage row offers the same "Mark read" control the object rows have, wired to the same client call and unread guard; no new endpoint, no new view.
+
+---
+
 ## 2026-09-19 — USAGE-001 slice 3b, schedule the reconciler (slice x56)
 
 Built on branch `x56-usage-001-reconcile-schedule` (off x53's HEAD `cec1739`), **not merged**.

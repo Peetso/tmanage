@@ -1,3 +1,4 @@
+import { hasCapability } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -237,6 +238,26 @@ export class InboxService {
     const parsed = parseBundleId(bundleId);
     if (!parsed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
 
+    if (parsed.objectType === 'organization_usage') {
+      // Reauthorize a usage notice at execution exactly as the object branches reauthorize
+      // theirs. It is owner/org_admin-only by construction — the worker wrote the row only to
+      // org-wide owner/org_admin recipients, the pair that holds `org.security.manage` — and
+      // tenant-scoped. A cross-tenant object id, or a same-org member who is not an
+      // owner/admin, gets the very same 404 the object branches hide a revoked bundle behind,
+      // never a "you cannot see this" that confirms the notice exists. `markRead` is already
+      // recipient-scoped, so a reader marks only their own rows about their own org's usage.
+      if (parsed.objectId !== context.organizationId) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+      if (!hasCapability(principal.role, 'org.security.manage')) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+      const marked = await this.database.transaction(context, (tx) =>
+        this.notifications.markRead(tx, context, principal.userId, parsed),
+      );
+      return { bundleId, marked };
+    }
+
     const resolved = await this.resolve(context, principal, parsed.objectType, parsed.objectId);
     if (!resolved) throw new ApiError(404, 'not_found', MESSAGES.notFound);
 
@@ -421,14 +442,21 @@ export class InboxService {
   }
 }
 
-function parseBundleId(
-  bundleId: string,
-): { readonly objectType: 'work_item' | 'client_request'; readonly objectId: string } | null {
+function parseBundleId(bundleId: string): {
+  readonly objectType: 'work_item' | 'client_request' | 'organization_usage';
+  readonly objectId: string;
+} | null {
   const separator = bundleId.indexOf(':');
   if (separator <= 0) return null;
   const objectType = bundleId.slice(0, separator);
   const objectId = bundleId.slice(separator + 1);
-  if (objectType !== 'work_item' && objectType !== 'client_request') return null;
+  if (
+    objectType !== 'work_item' &&
+    objectType !== 'client_request' &&
+    objectType !== 'organization_usage'
+  ) {
+    return null;
+  }
   if (objectId === '') return null;
   return { objectType, objectId };
 }
