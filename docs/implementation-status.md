@@ -477,7 +477,14 @@ now carry their unions and their assertions are `Exact`, so `contracts:check` re
 were removed. Still open: 48 of `apps/web`'s 63 response shapes have no API `…View` behind them, and
 `CONTRACT-001` proper (generating `packages/contracts`) is **not** closed — only the false signal
 and the three loose views are. Typecheck (api/web/e2e), `contracts:check` and lint pass; no database
-suite is involved.
+suite is involved. **x77 (branch `x77-contracts-check-web-shapes`, not merged):** the gate is no
+longer one-directional — `contracts:check` now also enumerates `…View` interfaces in
+`*.controller.ts`/`*.repository.ts` (not only `*.service.ts`) and every web response projection in
+`apps/web/src/lib/api/**` (excluding request-side `*Input/*Query/*Body/*Options/*Request` shapes,
+the `client.ts`/`errors.ts` transport, and literal `type` unions), pairing each against
+`api-web-shapes.ts` or a reasoned `WEB_EXEMPT` entry, and prints a second line
+`33 API response views — 24 paired … / 31 web response shapes — 22 paired, 9 exempt`, so a web shape
+with no API counterpart can no longer hide.
 
 ### x13 — the grant script narrows on re-apply, R10 (branch `x13-grant-revokes`, not merged)
 
