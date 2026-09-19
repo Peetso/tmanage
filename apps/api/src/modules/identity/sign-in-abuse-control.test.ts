@@ -501,4 +501,23 @@ describe('verify-first lockout ordering (C-1)', () => {
       decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 4, maxFailuresInWindow: 5 }),
     ).toBe('reject');
   });
+
+  // `completeMfaChallenge` now spends the TOTP code before the shared window is consulted and
+  // feeds `spent === null` (was the code accepted?) into this same helper, so the MFA path is
+  // decided by the identical rule: a correct code is admitted through a full window and never
+  // charged, a wrong code is throttled by the window exactly as a wrong password is.
+  it('admits a correct TOTP through a full window without charging it, and charges a wrong one (C-1 MFA path)', () => {
+    // Correct code (spent === null ⇒ passwordCorrect: true): admitted whatever the window says.
+    expect(
+      decideVerifyFirst({ passwordCorrect: true, failuresInWindow: 5, maxFailuresInWindow: 5 }),
+    ).toBe('admit');
+    // Wrong code at a full window: throttled, the failing path the window governs.
+    expect(
+      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 5, maxFailuresInWindow: 5 }),
+    ).toBe('locked_out');
+    // Wrong code below the window: an ordinary refusal — the row that charges the window.
+    expect(
+      decideVerifyFirst({ passwordCorrect: false, failuresInWindow: 4, maxFailuresInWindow: 5 }),
+    ).toBe('reject');
+  });
 });

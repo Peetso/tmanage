@@ -587,20 +587,35 @@ export class AuthenticationService {
 
     const userId = verified.claims.userId;
 
+    // Verify first, then charge (C-1) — the same ordering as `signInWithPassword` and
+    // `confirmReauthentication`, through the same pure {@link decideVerifyFirst} helper. The
+    // code is spent *before* the durable window is consulted, so a correct code is admitted
+    // whatever the window says and is never charged; only a failing code consults the window,
+    // and there it is `locked_out` at or above the threshold and an ordinary refusal below it.
+    // Before this, `completeMfaChallenge` read the shared window ahead of `spendTotpCode`, so a
+    // hostile source that filled it with wrong passwords refused an MFA holder's *correct* code
+    // for the rest of the window with no self-service way out — the very DoS C-1 closes for the
+    // password oracles, still open for MFA users. `spendTotpCode` is unchanged, so its
+    // counter compare-and-swap (replay protection) is untouched, and a wrong or replayed code
+    // has no side effect and so cannot charge the window merely by being presented.
     const outcome = await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
       async (tx): Promise<AuthenticationReason | null> => {
+        const factors = await this.credentials.listActiveFactors(tx, userId);
+        const spent =
+          factors.length === 0 ? 'mfa_no_factor' : await this.spendTotpCode(tx, factors, code);
         const failures = await this.credentials.countRecentFailures(
           tx,
           userId,
           this.options.failureWindowSeconds,
         );
-        if (failures >= this.options.maxFailuresInWindow) return 'locked_out';
-
-        const factors = await this.credentials.listActiveFactors(tx, userId);
-        if (factors.length === 0) return 'mfa_no_factor';
-
-        return this.spendTotpCode(tx, factors, code);
+        const decision = decideVerifyFirst({
+          passwordCorrect: spent === null,
+          failuresInWindow: failures,
+          maxFailuresInWindow: this.options.maxFailuresInWindow,
+        });
+        if (decision === 'admit') return null;
+        return decision === 'locked_out' ? 'locked_out' : spent;
       },
     );
 

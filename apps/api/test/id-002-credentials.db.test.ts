@@ -1355,6 +1355,49 @@ describe('the second factor', () => {
     expect((error as AuthenticationRejectedError).reason).toBe('mfa_bad_code');
   });
 
+  // C-1, MFA path. The password oracles admit a correct password through a full window
+  // (`the lockout window` above); `completeMfaChallenge` shared the same window but read it
+  // *before* `spendTotpCode`, so a hostile source that filled it locked an MFA holder out with
+  // a correct code and no way to clear it. Verify-first closes that here too: the code is spent
+  // before the window is consulted, so it is admitted and does not charge the window.
+  it('admits a correct TOTP even when the window is full, without charging it (C-1)', async () => {
+    await giveOwnerAPassword();
+    const secret = await enrolOwnerTotp();
+    clockMs += 30_000;
+
+    // A hostile source spends the whole window against the account with wrong passwords.
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      await service
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
+        .catch(() => undefined);
+    }
+
+    // The holder's correct password still admits (C-1 at the password oracle) and returns the
+    // challenge; the correct code is then spent before the window is consulted, so it too is
+    // admitted rather than refused with `locked_out`.
+    const challenge = await service.signInWithPassword({
+      email: owner().email,
+      password: PASSWORD,
+      context: context(),
+    });
+    if (challenge.status !== 'mfa_required') throw new Error('expected a challenge');
+
+    const completed = await service.completeMfaChallenge({
+      challengeToken: challenge.challengeToken,
+      code: codeFor(secret, clockMs),
+      context: context(),
+    });
+    expect(completed).toEqual({ status: 'authenticated', userId: owner().id });
+
+    // The correct code did not charge the window: still exactly the five wrong guesses.
+    const failures = await observe(
+      `select count(*) as n from authentication_events
+        where user_id = ? and outcome = 'failed'`,
+      [owner().id],
+    );
+    expect(Number(failures[0]!['n'])).toBe(OPTIONS.maxFailuresInWindow);
+  });
+
   it('refuses a challenge token signed with another secret', async () => {
     await giveOwnerAPassword();
     await enrolOwnerTotp();
