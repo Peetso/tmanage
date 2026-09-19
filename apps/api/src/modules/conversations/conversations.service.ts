@@ -804,7 +804,7 @@ export class ConversationsService {
       });
 
       return {
-        workItem: toWorkItemView(row),
+        workItem: toWorkItemView(row, context.correlationId),
         messageId,
         convertedAt: link.createdAt.toISOString(),
         created: true,
@@ -836,7 +836,7 @@ export class ConversationsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     return {
-      workItem: toWorkItemView(row),
+      workItem: toWorkItemView(row, context.correlationId),
       messageId: link.messageId,
       convertedAt: link.createdAt.toISOString(),
       created: false,

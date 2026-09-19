@@ -165,4 +165,26 @@ describe('PUT /v1/organizations/:orgSlug/notification-preferences', () => {
     expect(response.json().error.code).toBe('validation_failed');
     expect(updatePreferences).not.toHaveBeenCalled();
   });
+
+  it('rejects a zero-length quiet-hours window whose start equals its end (INBOX-001)', async () => {
+    // A window with start == end describes no time; the delivery seam reads no window from it,
+    // so it is the client's error rather than a row stored as if it meant something.
+    const response = await app.inject({
+      method: 'PUT',
+      url: URL,
+      headers: { cookie: `${COOKIE_NAME}=a-signed-token` },
+      payload: {
+        inAppEnabled: true,
+        emailEnabled: true,
+        digestFrequency: 'off',
+        quietHoursStart: '22:00',
+        quietHoursEnd: '22:00',
+        quietHoursTimezone: 'Europe/London',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('validation_failed');
+    expect(updatePreferences).not.toHaveBeenCalled();
+  });
 });

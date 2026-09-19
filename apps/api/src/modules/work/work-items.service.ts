@@ -1,6 +1,7 @@
 import { authorize, isWorkItemState, workItemStateMachine } from '@tmanage/domain';
 import type { Audience, Principal, WorkItemState } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { logUnrecognisedRowState } from '../../common/observability/logger.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
@@ -93,11 +94,14 @@ export interface WorkItemView {
  * Exported for CHAT-003: converting a message creates a work item from inside the
  * conversations module, and a second projection there would be a copy free to drift.
  */
-export function toWorkItemView(row: WorkItemRow): WorkItemView {
+export function toWorkItemView(row: WorkItemRow, correlationId: string): WorkItemView {
   // The column is `VARCHAR(32)`, but only `workItemStateMachine` ever writes it. A value outside
   // the union means a corrupt row, which is a 500 — never a shape the response contract admits.
+  // Fail closed, but log the row id + correlation id first (never the bad value) so the poisoned
+  // row can be found; a single 500 otherwise names no row.
   if (!isWorkItemState(row.state)) {
-    throw new Error(`work item ${row.id} has an unrecognised state: ${row.state}`);
+    logUnrecognisedRowState('work_item', row.id, correlationId);
+    throw new Error(`work item ${row.id} has an unrecognised state`);
   }
   const state = row.state;
   return {
@@ -292,7 +296,7 @@ export class WorkItemsService {
       return collected.slice(0, limit);
     });
 
-    return readable.map(toView);
+    return readable.map((row) => toView(row, context.correlationId));
   }
 
   /** Read one work item. Absent, deleted, or unrelated all produce the same 404. */
@@ -311,7 +315,7 @@ export class WorkItemsService {
     if (!row || row.deletedAt !== null || !this.mayRead(principal, row)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
-    return toView(row);
+    return toView(row, context.correlationId);
   }
 
   /**
@@ -339,7 +343,7 @@ export class WorkItemsService {
     const views = new Map<string, WorkItemView>();
     for (const row of rows) {
       if (row.deletedAt !== null || !this.mayRead(principal, row)) continue;
-      views.set(row.id, toView(row));
+      views.set(row.id, toView(row, context.correlationId));
     }
     return views;
   }
@@ -389,7 +393,7 @@ export class WorkItemsService {
       return created;
     });
 
-    return toView(row);
+    return toView(row, context.correlationId);
   }
 
   /**
@@ -445,7 +449,7 @@ export class WorkItemsService {
       }),
     );
 
-    return toView(row);
+    return toView(row, context.correlationId);
   }
 
   /**
@@ -587,7 +591,7 @@ export class WorkItemsService {
         }),
       );
 
-      return toView(row);
+      return toView(row, context.correlationId);
     } catch (error) {
       if (error instanceof WorkItemTransitionError) {
         throw new ApiError(

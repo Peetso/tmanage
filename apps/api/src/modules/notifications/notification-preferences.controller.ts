@@ -37,6 +37,15 @@ import type {
 
 const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 
+/**
+ * A `TIME_OF_DAY` value canonicalised to `HH:MM:SS`, so an equal pair compares equal whichever
+ * of the two accepted spellings each end used (`22:00` and `22:00:00` name the same instant).
+ * The regex has already bounded every field, so a plain suffix is enough — no parsing.
+ */
+function normalizeTimeOfDay(value: string): string {
+  return value.length === 5 ? `${value}:00` : value;
+}
+
 @Controller('v1/organizations/:orgSlug/notification-preferences')
 export class NotificationPreferencesController {
   constructor(
@@ -130,6 +139,20 @@ function parseInput(body: unknown): NotificationPreferencesInput {
     details.push({
       field: missing,
       message: 'quiet hours need both a start and an end, or neither',
+    });
+  } else if (
+    quietHoursStart !== null &&
+    quietHoursEnd !== null &&
+    normalizeTimeOfDay(quietHoursStart) === normalizeTimeOfDay(quietHoursEnd)
+  ) {
+    // A zero-length window (`start === end`) describes no time at all: the delivery seam reads
+    // no window from it (`quiet-hours.ts` `windowOf` returns null on an equal pair), so the
+    // person would be silenced never rather than always. It is the client's error, not a row
+    // stored as if it meant something. Compared as seconds-of-day so `22:00` and `22:00:00`
+    // — the same instant — are caught the same way the seam catches them.
+    details.push({
+      field: 'quietHoursEnd',
+      message: 'quiet hours start and end must be different times',
     });
   }
 
