@@ -172,6 +172,16 @@ export interface WithdrawObjectInput {
   readonly objectKey: string;
 }
 
+/**
+ * FILE-003's retention delete. Unlike {@link WithdrawObjectInput}, which names the private
+ * zone alone, this names the zone explicitly: the retention job removes a rejected object's
+ * bytes from `quarantine`, the zone they never left because the asset was never promoted.
+ */
+export interface RemoveObjectInput {
+  readonly zone: TrustZone;
+  readonly objectKey: string;
+}
+
 export interface ObjectStore {
   beginMultipart(input: BeginMultipartInput): Promise<MultipartUpload>;
   completeMultipart(input: CompleteMultipartInput): Promise<StoredObject>;
@@ -196,4 +206,13 @@ export interface ObjectStore {
    * it and when.
    */
   withdraw(input: WithdrawObjectInput): Promise<void>;
+  /**
+   * Remove the object under the zone and key, if any (FILE-003's retention delete).
+   * Idempotent: a re-run over an already-deleted object is not an error, which is what
+   * lets the retention job be safe to run twice (`49-PRICING` §6 step 8 — delete is
+   * confirmed before the counter is reduced, so a crash between the two re-deletes here
+   * and finds nothing). It names the zone, so the job removes a rejected object's counted
+   * bytes from `quarantine` without reaching the `private` zone `withdraw` owns.
+   */
+  remove(input: RemoveObjectInput): Promise<void>;
 }

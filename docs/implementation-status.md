@@ -6,6 +6,35 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
+**Last updated:** 2026-09-20 (**x80 — FILE-003: quarantine / rejected-object deletion & retention
+lifecycle**, branch `x80-file-003-lifecycle` off `master` `e23deb0`) — the deletion lifecycle that
+closes decision F4: a rejected object's committed bytes stay counted against the tenant's quota
+(`49-PRICING` §5) until this job deletes the provider copy and gives them back. A new job
+`apps/api/src/modules/files/quarantine-cleanup.ts` (`QuarantineCleanupJob`) and CLI
+`apps/api/src/cleanup.ts` (`cleanup:once`, the `sweep.ts`/`reconcile.ts` shape — `50-BOOTSTRAP` §3's
+one-pass tick) select every `rejected` asset older than `FILE_RETENTION_REJECTED_DAYS` (new tunable
+on `ApiConfig`, default 30 days — decision F4 delegated), across tenants through the audited
+`bootstrapRead` hatch, then purge each under its own service context. **§6 step 8 order:**
+`FilesService.purge` deletes the provider bytes **first** (new idempotent `ObjectStore.remove`,
+naming the `quarantine` zone — added to the port, fake and filesystem drivers), and only then, in
+one transaction, claims the row (new `file_assets.purged_at`, migration `0025`, conditional on it
+being NULL — the idempotency AC), decrements the counter's `used` (new `UsageCountersRepository.releaseUsed`,
+guarded `used_value >= ?` — a drift refuses and writes no ledger row), appends `file.purged.v1`
+(new outbox event; **divergence:** no `contracts/events` schema, as the other `usage.*`/`file.*`
+moves have none — that tree is a separate slice), records the ledger `purged` row (`-size` on `used`,
+so the append-only sum stays equal to the decremented counter and the reconciler will not re-inflate
+it), and writes exactly one `file_asset.purged` audit row (`actor_user_id` NULL, `reason:
+retention_expired`, never the `rejection_code`). The `file_assets`/`file_versions` rows are **never
+deleted** (`49` §6: no automatic deletion of customer data) — only the bytes; the rejection and its
+evidence stay. Triggers on rejection status + retention age alone, never a plan change or payment
+(`49` §6 last line). **DB proof deferred** — `apps/api/test/file-003-lifecycle.db.test.ts` is written
+(5 cases = the acceptance list) but UNEXECUTED (no `db-e2e.lock`); the SHA-256 revert proof on the
+delete-before-decrement ordering rests on it and is deferred with it. Unit: `quarantine-cleanup.test.ts`
+(cutoff + summary). api/worker/web typecheck, api unit, worker test, lint, format:check,
+`contracts:check` green. **Still carried, out of this slice:** the FILE-003 production R2/S3 driver,
+and the deletion of the _quarantine copy of a `ready` version_ (the object that exists twice after a
+promotion — this slice deletes rejected objects only). **Not merged, not pushed.** Earlier:
+
 **Last updated:** 2026-09-19 (**x60 — CONTRACT-001 first slice: the three loose API views tightened
 to Exact**, branch `x60-contract-001-exact-views` off `master` `80c0c59`) — `WorkItemView.state`,
 `ClientRequestView.state` and `InvitationView.status` no longer type a lifecycle column as bare

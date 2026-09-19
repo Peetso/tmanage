@@ -125,6 +125,20 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'file_asset',
     catalog: '§4 file.ready.v1 — preview, requester notification; security metadata',
   },
+  /**
+   * FILE-003. The retention-lifecycle job's event when it deletes a rejected/quarantined
+   * object's provider bytes and gives the counted bytes back. The aggregate is the asset, for
+   * `file.rejected.v1`'s reason — a consumer asking "everything about this file" is answered
+   * only if the file's events name the file. It carries the byte delta the ledger row records,
+   * so `usage.*` reconciliation stays whole: the ledger move this event sources keeps the
+   * append-only sum equal to the decremented counter (`49-PRICING` §6 step 8). No `usage.*`
+   * schema is claimed for it (that tree is another slice's); the divergence is recorded in
+   * docs/implementation-status.md, as the other unschematised usage moves are.
+   */
+  'file.purged.v1': {
+    aggregateType: 'file_asset',
+    catalog: '§4 file lifecycle — FILE-003 retention deletion; usage reconciliation',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -301,6 +315,20 @@ export interface FileReadyV1 {
   readonly sizeBytes: number;
 }
 
+/**
+ * FILE-003. Ids, the metric and the byte delta — §7's "never raw content": no filename, no
+ * type, no digest, no rejection reason. `deltaBytes` is the magnitude the counter's `used`
+ * dimension is decremented by and the ledger row records as negative, so a reconciliation
+ * consumer can keep the counter and the append-only ledger in agreement.
+ */
+export interface FilePurgedV1 {
+  readonly fileAssetId: string;
+  readonly fileVersionId: string;
+  readonly projectId: string;
+  readonly metricKey: string;
+  readonly deltaBytes: number;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -316,4 +344,5 @@ export interface OutboxEventPayloads {
   readonly 'usage.threshold_reached.v1': UsageThresholdReachedV1;
   readonly 'file.rejected.v1': FileRejectedV1;
   readonly 'file.ready.v1': FileReadyV1;
+  readonly 'file.purged.v1': FilePurgedV1;
 }

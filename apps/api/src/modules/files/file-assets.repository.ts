@@ -398,6 +398,108 @@ export class FileAssetsRepository {
     return result[0].affectedRows === 1;
   }
 
+  // ── FILE-003: quarantine / rejected retention lifecycle ─────────────────────
+
+  /**
+   * FILE-003's cross-tenant half: which organizations hold a rejected asset past its
+   * retention window that has not yet been purged. Read through the bootstrap escape hatch
+   * with a reason naming this use, as the verifier's `organizationsAwaitingVerification` and
+   * the sweeper's `organizationsHoldingExpired` are; one statement, reaching `file_assets`
+   * alone. `updated_at` is when the asset was rejected (its last transition), so the cutoff is
+   * the retention age.
+   */
+  async organizationsWithPurgeableAssets(
+    runner: BootstrapQueryRunner,
+    cutoff: Date,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ organizationId: fileAssets.organizationId })
+      .from(fileAssets)
+      .where(
+        and(
+          eq(fileAssets.status, 'rejected'),
+          isNull(fileAssets.purgedAt),
+          lt(fileAssets.updatedAt, cutoff),
+        ),
+      )
+      .orderBy(asc(fileAssets.organizationId));
+    return rows.map((row) => row.organizationId);
+  }
+
+  /**
+   * FILE-003. The assets one retention pass should purge in this organization: every
+   * `rejected` one past `cutoff` that has not been purged, paired with its latest version —
+   * the version whose quarantine object the job deletes and whose `size_bytes` it gives back.
+   * Only versions still in `quarantine` are returned: a rejected asset never reached the
+   * private zone, and filtering on it guarantees the job cannot delete a promoted object.
+   * Oldest first, so a stuck row is never starved by new arrivals; a limit caps the batch.
+   */
+  async listPurgeable(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    cutoff: Date,
+    limit: number,
+  ): Promise<readonly { readonly asset: FileAssetRow; readonly version: FileVersionRow }[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ asset: fileAssets, version: fileVersions })
+      .from(fileAssets)
+      .innerJoin(
+        fileVersions,
+        and(
+          eq(fileVersions.organizationId, fileAssets.organizationId),
+          eq(fileVersions.fileAssetId, fileAssets.id),
+          eq(fileVersions.trustZone, 'quarantine'),
+          eq(
+            fileVersions.versionNo,
+            sql`(select max(l.version_no) from file_versions l where l.organization_id = ${fileAssets.organizationId} and l.file_asset_id = ${fileAssets.id})`,
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.status, 'rejected'),
+          isNull(fileAssets.purgedAt),
+          lt(fileAssets.updatedAt, cutoff),
+        ),
+      )
+      .orderBy(asc(fileAssets.updatedAt), asc(fileAssets.id))
+      .limit(Math.min(Math.max(limit, 1), 500));
+    return rows.map((row) => ({ asset: row.asset, version: row.version }));
+  }
+
+  /**
+   * FILE-003's one-shot claim: stamp `purged_at` on a `rejected`, not-yet-purged row,
+   * conditional on its `version` (so two passes that selected it together cannot both take
+   * it) and on `purged_at` still being NULL (so a second pass over an already-purged object
+   * moves nothing). `true` when this call took it. Called inside the purge transaction,
+   * after the provider bytes are gone (`49-PRICING` §6 step 8), so a committed claim means
+   * the counter decrement and the ledger row beside it also committed.
+   */
+  async claimPurged(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    row: FileAssetRow,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(fileAssets)
+      .set({
+        purgedAt: sql`current_timestamp(3)`,
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.id, row.id),
+          eq(fileAssets.status, 'rejected'),
+          eq(fileAssets.version, row.version),
+          isNull(fileAssets.purgedAt),
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
   async findVersionById(
     runner: TenantQueryRunner,
     context: TenantContext,

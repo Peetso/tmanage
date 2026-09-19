@@ -9,6 +9,7 @@ import type {
   OpenedObject,
   PromoteObjectInput,
   Promotion,
+  RemoveObjectInput,
   StoredObject,
   WithdrawObjectInput,
 } from './object-store.js';
@@ -50,6 +51,8 @@ export class FakeObjectStore implements ObjectStore {
   readonly abortedPromotions: string[] = [];
   /** Every `withdraw` call, by key. */
   readonly withdrawn: string[] = [];
+  /** Every `remove` call (FILE-003), in order — so a retention proof can assert the delete ran. */
+  readonly removed: RemoveObjectInput[] = [];
   /** Thrown by the next call to any method, then cleared. The provider being down. */
   failNext: Error | null = null;
   /**
@@ -140,6 +143,14 @@ export class FakeObjectStore implements ObjectStore {
     this.consumeFailure();
     this.withdrawn.push(input.objectKey);
     this.objects.delete(`private/${input.objectKey}`);
+  }
+
+  async remove(input: RemoveObjectInput): Promise<void> {
+    // `consumeFailure` first, before the record and the delete, so `failNext` models a
+    // provider that refused the delete: nothing is recorded as removed and the object stays.
+    this.consumeFailure();
+    this.removed.push(input);
+    this.objects.delete(`${input.zone}/${input.objectKey}`);
   }
 
   async abortMultipart(input: AbortMultipartInput): Promise<void> {

@@ -27,6 +27,7 @@ import type {
   OpenedObject,
   PromoteObjectInput,
   Promotion,
+  RemoveObjectInput,
   StoredObject,
   TrustZone,
   WithdrawObjectInput,
@@ -412,6 +413,25 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
       throw error;
     }
     // Only an object this driver could have written: never a directory, never a link.
+    if (!info.isFile()) throw new ObjectNotFoundError();
+    await rm(path, { force: true, maxRetries: 3 });
+  }
+
+  /**
+   * FILE-003's retention delete. Resolves the path under the named zone the same checked way
+   * every write does, refuses anything that is not a regular file (never a directory, never a
+   * link — the `withdraw`/`openObject` guard, so a link left under the root cannot make this
+   * remove a file outside the store), and is idempotent: nothing there returns without error.
+   */
+  async remove(input: RemoveObjectInput): Promise<void> {
+    const path = this.objectPath(input.zone, input.objectKey);
+    let info: Awaited<ReturnType<typeof lstat>>;
+    try {
+      info = await lstat(path);
+    } catch (error) {
+      if (isNotFound(error)) return;
+      throw error;
+    }
     if (!info.isFile()) throw new ObjectNotFoundError();
     await rm(path, { force: true, maxRetries: 3 });
   }

@@ -171,6 +171,38 @@ export class UsageCountersRepository {
     return result[0].affectedRows === 1;
   }
 
+  /**
+   * §6 step 8: FILE-003's retention deletion gives *used* bytes back — the committed bytes of
+   * a rejected object whose provider copy the job has just deleted. The `used_value >= ?`
+   * guard is the counter-drift refusal the sweeper's `release` has for reserved bytes: on a
+   * drifted counter that holds fewer used bytes than the version records, this answers `false`
+   * and the caller records the drift and writes no ledger row, so the append-only sum still
+   * equals the counter. `BIGINT UNSIGNED` refuses the underflow at the engine even if the
+   * guard were ever forgotten. Never called on anything but a `rejected`, quarantined object.
+   */
+  async releaseUsed(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+    usedBytes: number,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(usageCounters)
+      .set({
+        usedValue: sql`used_value - ${usedBytes}`,
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+          sql`used_value >= ${usedBytes}`,
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
   /** §6 step 7: cancel, failure or expiry gives the bytes back. Same guard as {@link commit}. */
   async release(
     runner: TenantQueryRunner,

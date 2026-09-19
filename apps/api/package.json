@@ -12,6 +12,7 @@
     "sweep:once": "node dist/sweep.js --once",
     "verify:once": "node dist/verify.js --once",
     "reconcile:once": "node dist/reconcile.js --once",
+    "cleanup:once": "node dist/cleanup.js --once",
     "db:migrate": "tsx src/common/database/cli.ts migrate",
     "db:status": "tsx src/common/database/cli.ts status",
     "db:grants": "tsx src/common/database/cli.ts grants",

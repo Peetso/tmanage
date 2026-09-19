@@ -75,6 +75,13 @@ export interface ApiConfig extends SessionServiceOptions {
   readonly uploadMaxBytes: number;
   readonly uploadUrlTtlSeconds: number;
   /**
+   * FILE-003. How many days a rejected / quarantined object's bytes are kept before the
+   * retention-lifecycle job (`quarantine-cleanup.ts`) deletes the provider bytes and
+   * decrements the counter. `49-PRICING` §5's documented expiry; the one seam that reads it
+   * is the cleanup job's cutoff.
+   */
+  readonly fileRetentionRejectedDays: number;
+  /**
    * FILE-001b. The size of one multipart part (`UPLOAD_PART_SIZE_BYTES`).
    * `packages/config`'s `UPLOAD_PART_SIZE_DEFAULT_BYTES` is the default — one definition,
    * read by the schema and by this file, so nothing here can drift from it; a suite lowers
@@ -128,6 +135,8 @@ export interface ApiConfigSource {
   readonly STORAGE_UPLOAD_URL_TTL_SECONDS?: number;
   readonly UPLOAD_PART_SIZE_BYTES?: number;
   readonly UPLOAD_MAX_OPEN_SESSIONS_PER_USER?: number;
+  /** FILE-003. Optional for the same reason as the storage keys above; the default matches the env's. */
+  readonly FILE_RETENTION_REJECTED_DAYS?: number;
   /** D08. Optional for the same reason as the keys above; the defaults match the env's. */
   readonly RATE_LIMIT_AUTH_WINDOW_SECONDS?: number;
   readonly RATE_LIMIT_AUTH_MAX_PER_SOURCE?: number;
@@ -170,6 +179,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     storageOrgBytesLimit: env.STORAGE_ORG_BYTES_LIMIT_BYTES ?? 524_288_000,
     uploadMaxBytes: env.UPLOAD_MAX_BYTES ?? 104_857_600,
     uploadUrlTtlSeconds: env.STORAGE_UPLOAD_URL_TTL_SECONDS ?? 900,
+    fileRetentionRejectedDays: env.FILE_RETENTION_REJECTED_DAYS ?? 30,
     uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES ?? UPLOAD_PART_SIZE_DEFAULT_BYTES,
     uploadMaxOpenSessionsPerUser: env.UPLOAD_MAX_OPEN_SESSIONS_PER_USER ?? 20,
     authAbuseWindowSeconds: env.RATE_LIMIT_AUTH_WINDOW_SECONDS ?? 300,
