@@ -454,6 +454,19 @@ export const AUDIT_ACTION_CATALOG = {
       "§12 — a system-initiated change to a tenant's quota with no actor is exactly what the " +
       'log exists to explain; 49-PRICING §6 step 7 expiry, 24-EVENT-CATALOG §4 audit conditional',
   },
+  /**
+   * USAGE-001 slice 3. The reconciler's one row when it corrects a `usage_counters` value to
+   * its append-only ledger sums. Nobody acted — the actor is null, the documented system case,
+   * as with an expiry — and this is the only trace that a tenant's quota counter was silently
+   * repaired towards the ledger (`49-PRICING` §6 reconciled counters). The metadata carries the
+   * before/after and the per-counter drift, safe scalars only.
+   */
+  'usage_counter.drift_corrected': {
+    objectType: 'usage_counter',
+    clause:
+      "§12 — a system-initiated correction to a tenant's quota counter with no actor is exactly " +
+      'what the log exists to explain; 49-PRICING §6 reconciled counters, 27-TEST-CATALOG CONC-06',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the
