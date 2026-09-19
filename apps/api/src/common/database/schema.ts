@@ -12,6 +12,7 @@ import {
   smallint,
   int,
   text,
+  time,
   tinyint,
   uniqueIndex,
   varchar,
@@ -929,6 +930,39 @@ export const notifications = mysqlTable(
   ],
 );
 
+/** TM-27's digest windows. `off` is immediate delivery; the two others are bundling windows. */
+export const DIGEST_FREQUENCIES = ['off', 'daily', 'weekly'] as const;
+
+/**
+ * NOTIF-001. How one person, in one studio, wants to be told — `22-SCREEN-BY-SCREEN` TM-27's
+ * "notification channels, quiet hours, digest", keyed by `(organization_id, user_id)`. The
+ * two channels are `24-EVENT-CATALOG` §2's: the durable email path and the in-app/realtime
+ * projection. This slice stores the settings; honouring them in delivery is a later slice.
+ * Quiet-hours columns are nullable and stored for INBOX-001, which is what reads them.
+ * `0022_notification_preferences.sql` is the source of truth; this is its typed mirror.
+ */
+export const notificationPreferences = mysqlTable(
+  'notification_preferences',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    inAppEnabled: boolean('in_app_enabled').notNull().default(true),
+    emailEnabled: boolean('email_enabled').notNull().default(true),
+    digestFrequency: mysqlEnum('digest_frequency', DIGEST_FREQUENCIES).notNull().default('off'),
+    quietHoursStart: time('quiet_hours_start'),
+    quietHoursEnd: time('quiet_hours_end'),
+    quietHoursTimezone: varchar('quiet_hours_timezone', { length: 64 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_notification_preferences_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per person per studio.
+    uniqueIndex('uq_notification_preferences_org_user').on(table.organizationId, table.userId),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -1172,6 +1206,7 @@ export const TABLES = {
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
   notifications,
+  notification_preferences: notificationPreferences,
   usage_counters: usageCounters,
   file_assets: fileAssets,
   file_versions: fileVersions,
@@ -1205,6 +1240,7 @@ export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
+export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;
 export type FileVersionRow = typeof fileVersions.$inferSelect;

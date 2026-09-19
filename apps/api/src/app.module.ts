@@ -16,6 +16,7 @@ import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
+import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
@@ -126,6 +127,9 @@ export class AppModule {
         // never through a read path of the inbox's own. The module constructs its own
         // instances of both (see its doc), so its position here is by subject, not by need.
         InboxModule.register(),
+        // NOTIF-001. The caller's own notification settings (GET/PUT). No tenant object to
+        // resolve, so unlike the inbox it depends on nothing but the database.
+        NotificationPreferencesModule.register(),
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),

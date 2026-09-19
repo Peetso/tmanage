@@ -30,6 +30,49 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-19 — NOTIF-001 second half: the preferences table (slice x54)
+
+Run `claude-auto-1789791408`, branch `x54-notif-001-preferences` off `master` `a204ebe`,
+implemented by **Claude Opus 4.8**. NOTIF-001's first half deliberately stopped short of
+preferences because `contracts/tmanage-core.dbml` drew no table and building one "would
+outrun the contract" (see "NOTIF-001 first half" below). This slice is the storage that half
+was waiting on.
+
+**What is built.** `0022_notification_preferences.sql` creates a per-`(organization_id,
+user_id)` table with the two delivery channels `24-EVENT-CATALOG` §2 has (`in_app_enabled`,
+`email_enabled`, both on by default), the digest window TM-27 names
+(`digest_frequency` ENUM `off`|`daily`|`weekly`, default `off` = immediate), and the
+quiet-hours columns INBOX-001 needs (`quiet_hours_start`/`_end` TIME, `quiet_hours_timezone`
+VARCHAR(64), all nullable). A read/upsert repository (`notification-preferences.repository.
+ts`), a service that returns defaults when no row exists (`notification-preferences.service.
+ts`, `DEFAULT_NOTIFICATION_PREFERENCES`), a caller's-own `GET`/`PUT` route under
+`v1/organizations/:orgSlug/notification-preferences` guarded by `work.read` (the capability
+INBOX-001 chose, for the same reasons — the route reads `principal.userId` only, never a path
+value), the `tmanage_app` `INSERT, UPDATE` grant (no DELETE), the `schema.ts` mirror, and the
+`TENANT_TABLES` registration.
+
+**Interpretation recorded as a divergence.** The brief said "the channels/kinds 24 names".
+`24-EVENT-CATALOG` names notification-triggering event _types_ (the "kinds") but draws no
+per-kind preference matrix, and `22-SCREEN-BY-SCREEN` TM-27 — the actual settings surface —
+enumerates exactly "notification channels, quiet hours, digest". This table stores those and
+**does not** model a per-event-type opt-out matrix; adding one would invent a contract shape
+neither document draws. If per-kind granularity is wanted, it is a later contract decision.
+
+**Not in scope, and stated so here per the brief.** Honouring these preferences in delivery —
+the bundler/relay reading this table to suppress, defer or batch a notification — is a later
+slice. This slice stores settings; nothing yet reads them to change what is delivered. Quiet
+hours are stored, not applied (INBOX-001 applies them).
+
+**Tests.** `apps/api/test/notif-001-preferences.db.test.ts` (defaults on first read, upsert
+round-trip and single-row replacement, user isolation within a studio, organization isolation
+with the user id held constant) — **UNEXECUTED**: this slice does not own `db-e2e.lock`. Route
+authentication and own-only scoping are a unit test,
+`apps/api/src/modules/notifications/notification-preferences.controller.test.ts` (401 for an
+anonymous caller through the real `SessionAuthGuard`, 200 with the caller's own preferences),
+which runs in the api unit project. Status: **implemented**; `tested` awaits the DB suite.
+
+---
+
 ## 2026-09-13 — status-record truth sweep (slice x22)
 
 Documentation-only. This sweep applied every replacement in
