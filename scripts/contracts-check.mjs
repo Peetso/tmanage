@@ -60,6 +60,10 @@ const EXEMPT = new Map([
   ],
   ['WorkBlockerView', 'No web consumer: same as WorkItemDependencyView.'],
   ['WorkItemHealthView', 'No web consumer: health is computed but no screen reads it yet.'],
+  [
+    'NotificationPreferencesView',
+    'no web consumer yet (NOTIF-001 API-only; pair when the preferences screen lands)',
+  ],
 ]);
 
 // ── 1. Enumerate the API's response projections ─────────────────────────────

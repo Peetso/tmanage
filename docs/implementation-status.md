@@ -179,6 +179,13 @@ authentication and own-only scoping are a unit test,
 anonymous caller through the real `SessionAuthGuard`, 200 with the caller's own preferences),
 which runs in the api unit project. Status: **implemented**; `tested` awaits the DB suite.
 
+- **2026-09-19 (slice x61).** `contracts:check` went red because x54's `NotificationPreferencesView`
+  (`apps/api/src/modules/notifications/notification-preferences.service.ts:31`) had no paired web
+  shape and no exemption. x54 added the API only — `apps/web` has no notification-preferences
+  screen — so it is exempted in `scripts/contracts-check.mjs` with the reason "no web consumer yet
+  (NOTIF-001 API-only; pair when the preferences screen lands)". Pair it exactly when the settings
+  screen is built.
+
 ---
 
 ## 2026-09-13 — status-record truth sweep (slice x22)
