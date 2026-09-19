@@ -10,13 +10,18 @@ import type { CompleteMultipartInput, StoredObject } from '@tmanage/storage';
 import { AppModule } from '../src/app.module.js';
 import { DatabaseModule } from '../src/common/database/database.module.js';
 import { StorageModule } from '../src/common/storage/storage.module.js';
-import { apiConfigFrom } from '../src/common/http/api-config.js';
 import type { ApiConfig } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
-import { startTestDatabase, truncateAll } from './support/test-database.js';
+import { startTestDatabase } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
-import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
+import {
+  reseed,
+  signIn as harnessSignIn,
+  stopHarness,
+  testApiConfig,
+} from './support/http-harness.js';
+import type { InjectedResponse, Session } from './support/http-harness.js';
 
 /**
  * FILE-001 over real HTTP — the upload session, both doors, and the quota a caller sees.
@@ -77,20 +82,7 @@ const DECLARED = 1_000;
 const ORG_LIMIT = 10_000;
 
 const CONFIG: ApiConfig = {
-  ...apiConfigFrom({
-    NODE_ENV: 'test',
-    SESSION_COOKIE_NAME: 'tmanage_session',
-    SESSION_SECRET: 'local_dev_only_session_secret_for_the_files_suite_xxxxx',
-    SESSION_TTL_SECONDS: 900,
-    REFRESH_TTL_SECONDS: 1_209_600,
-    CSRF_SECRET: 'local_dev_only_csrf_secret_for_the_files_suite_xxxxxxxx',
-    AUTH_MFA_SEED_KEYS: '1:local_dev_only_mfa_seed_key_change_me_00000',
-    API_PUBLIC_URL: 'http://localhost:4000',
-    AUTH_MAX_FAILURES_IN_WINDOW: 50,
-    AUTH_FAILURE_WINDOW_SECONDS: 900,
-    AUTH_TOTP_ISSUER: 'TManage',
-    CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: 180,
-  }),
+  ...testApiConfig('the_files_suite'),
   storageOrgBytesLimit: ORG_LIMIT,
   uploadMaxBytes: 5_000,
   uploadUrlTtlSeconds: 900,
@@ -98,47 +90,13 @@ const CONFIG: ApiConfig = {
   uploadMaxOpenSessionsPerUser: 12,
 };
 
-interface InjectedResponse {
-  readonly statusCode: number;
-  readonly body: string;
-  readonly headers: Record<string, unknown>;
-  json<T = unknown>(): T;
-}
-
-interface Session {
-  readonly cookie: string;
-  readonly csrfToken: string;
-}
-
-function setCookies(response: InjectedResponse): readonly string[] {
-  const raw = response.headers['set-cookie'];
-  if (Array.isArray(raw)) return raw as string[];
-  return typeof raw === 'string' ? [raw] : [];
-}
-
-function cookieHeader(cookies: readonly string[]): string {
-  return cookies
-    .map((c) => c.split(';')[0] ?? '')
-    .filter((pair) => pair.split('=').slice(1).join('=').length > 0)
-    .join('; ');
-}
-
 async function observe(sql: string, params: readonly unknown[] = []): Promise<RowDataPacket[]> {
   const [rows] = await db.admin.query<RowDataPacket[]>(sql, params as unknown[]);
   return rows;
 }
 
-async function signIn(userId: string): Promise<Session> {
-  const response = (await app.inject({
-    method: 'POST',
-    url: '/v1/dev/sessions',
-    headers: { 'content-type': 'application/json' },
-    payload: { userId },
-  })) as unknown as InjectedResponse;
-  return {
-    cookie: cookieHeader(setCookies(response)),
-    csrfToken: response.json<{ csrfToken: string }>().csrfToken,
-  };
+function signIn(userId: string): Promise<Session> {
+  return harnessSignIn(app, userId);
 }
 
 async function sendTo(
@@ -295,8 +253,7 @@ beforeAll(async () => {
 }, 300_000);
 
 beforeEach(async () => {
-  await truncateAll(db.admin);
-  world = await seedTwoTenants(db.admin);
+  world = await reseed(db);
   store.began.length = 0;
   store.completed.length = 0;
   store.aborted.length = 0;
@@ -305,8 +262,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await app?.close();
-  await db?.stop();
+  await stopHarness({ app, db });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,16 +1,10 @@
 import 'reflect-metadata';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
 import type { Principal, Role } from '@tmanage/domain';
-import { AppModule } from '../src/app.module.js';
-import { DatabaseModule } from '../src/common/database/database.module.js';
-import { apiConfigFrom } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
-import type { ApiConfig } from '../src/common/http/api-config.js';
 import { TenantDatabase, createTenantContext } from '../src/common/database/tenant-context.js';
 import type { TenantContext, TenantQueryRunner } from '../src/common/database/tenant-context.js';
 import type { ClientRequestRow, WorkItemRow } from '../src/common/database/schema.js';
@@ -25,10 +19,15 @@ import { ClientRequestsService } from '../src/modules/requests/client-requests.s
 import { ClientOrganizationsRepository } from '../src/modules/clients/client-organizations.repository.js';
 import { InboxService, isInboxBundleView } from '../src/modules/inbox/inbox.service.js';
 import { NotificationsRepository } from '../src/modules/inbox/notifications.repository.js';
-import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
-import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld, SeededUser } from './seed-two-tenants.js';
+import {
+  bootHttpHarness,
+  reseed,
+  signIn as harnessSignIn,
+  stopHarness,
+} from './support/http-harness.js';
+import type { InjectedResponse, Session } from './support/http-harness.js';
 
 /**
  * INBOX-001, first half, against a real server — the read surface over NOTIF-001's rows.
@@ -78,64 +77,12 @@ let designer: Principal;
 let clientCtx: TenantContext;
 let clientAdmin: Principal;
 
-const SESSION_SECRET = 'local_dev_only_session_secret_for_the_inbox_suite_xxxxxx';
-const CSRF_SECRET = 'local_dev_only_csrf_secret_for_the_inbox_suite_xxxxxxxxxx';
-
-const CONFIG: ApiConfig = apiConfigFrom({
-  NODE_ENV: 'test',
-  SESSION_COOKIE_NAME: 'tmanage_session',
-  SESSION_SECRET,
-  SESSION_TTL_SECONDS: 900,
-  REFRESH_TTL_SECONDS: 1_209_600,
-  CSRF_SECRET,
-  AUTH_MFA_SEED_KEYS: '1:local_dev_only_mfa_seed_key_change_me_00000',
-  API_PUBLIC_URL: 'http://localhost:4000',
-  AUTH_MAX_FAILURES_IN_WINDOW: 50,
-  AUTH_FAILURE_WINDOW_SECONDS: 900,
-  AUTH_TOTP_ISSUER: 'TManage',
-  CLIENT_MEMBERSHIP_DEFAULT_EXPIRY_DAYS: 180,
-});
-
 const BLOCKED = 'work_item.blocked.v1';
 const SUBMITTED = 'client_request.submitted.v1';
 const TRANSITIONED = 'client_request.transitioned.v1';
 
-interface InjectedResponse {
-  readonly statusCode: number;
-  readonly body: string;
-  readonly headers: Record<string, unknown>;
-  json<T = unknown>(): T;
-}
-
-function setCookies(response: InjectedResponse): readonly string[] {
-  const raw = response.headers['set-cookie'];
-  if (Array.isArray(raw)) return raw as string[];
-  return typeof raw === 'string' ? [raw] : [];
-}
-
-function cookieHeader(cookies: readonly string[]): string {
-  return cookies
-    .map((c) => c.split(';')[0] ?? '')
-    .filter((pair) => pair.split('=').slice(1).join('=').length > 0)
-    .join('; ');
-}
-
-interface Session {
-  readonly cookie: string;
-  readonly csrfToken: string;
-}
-
-async function signIn(userId: string): Promise<Session> {
-  const response = (await app.inject({
-    method: 'POST',
-    url: '/v1/dev/sessions',
-    headers: { 'content-type': 'application/json' },
-    payload: { userId },
-  })) as unknown as InjectedResponse;
-  return {
-    cookie: cookieHeader(setCookies(response)),
-    csrfToken: response.json<{ csrfToken: string }>().csrfToken,
-  };
+function signIn(userId: string): Promise<Session> {
+  return harnessSignIn(app, userId);
 }
 
 async function get(path: string, session: Session): Promise<InjectedResponse> {
@@ -235,9 +182,8 @@ async function createWorkItem(projectId: string, title: string): Promise<string>
 }
 
 beforeAll(async () => {
-  db = await startTestDatabase();
-  await truncateAll(db.admin);
-  world = await seedTwoTenants(db.admin);
+  ({ app, db } = await bootHttpHarness({ secretTag: 'the_inbox_suite' }));
+  world = await reseed(db);
   tenant = new TenantDatabase(db.runtime, { guardMode: 'enforce' });
 
   const org = world.northstar.organizationId;
@@ -287,22 +233,10 @@ beforeAll(async () => {
     new OutboxEventsRepository(),
   );
   inbox = new InboxService(tenant, work, requests, new NotificationsRepository());
-
-  app = await NestFactory.create<NestFastifyApplication>(
-    AppModule.register({
-      config: CONFIG,
-      database: DatabaseModule.forPool({ pool: db.runtime, guardMode: 'enforce' }),
-    }),
-    new FastifyAdapter(),
-    { logger: false, abortOnError: false },
-  );
-  await app.init();
-  await app.getHttpAdapter().getInstance().ready();
 }, 300_000);
 
 afterAll(async () => {
-  await app?.close();
-  await db?.stop();
+  await stopHarness({ app, db });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -25,10 +25,11 @@ import {
   PART_BODY_SLACK_BYTES,
   PART_CONTENT_TYPE,
 } from '../src/common/http/fastify-adapter.js';
-import { startTestDatabase, truncateAll } from './support/test-database.js';
+import { startTestDatabase } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
-import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
+import { reseed, signIn as harnessSignIn, stopHarness } from './support/http-harness.js';
+import type { InjectedResponse, Session } from './support/http-harness.js';
 
 /**
  * FILE-001b over real HTTP — the bytes move, through the API, into the filesystem driver.
@@ -118,18 +119,6 @@ const CONFIG: ApiConfig = {
   uploadPartSizeBytes: PART_SIZE,
 };
 
-interface InjectedResponse {
-  readonly statusCode: number;
-  readonly body: string;
-  readonly headers: Record<string, unknown>;
-  json<T = unknown>(): T;
-}
-
-interface Session {
-  readonly cookie: string;
-  readonly csrfToken: string;
-}
-
 interface UploadSession {
   id: string;
   fileAssetId: string;
@@ -154,35 +143,13 @@ const md5 = (bytes: Buffer) => createHash('md5').update(bytes).digest('hex');
 const bytes = (fill: string, length = PART_SIZE) => Buffer.alloc(length, fill);
 const FILLS = ['a', 'b', 'c', 'd'];
 
-function setCookies(response: InjectedResponse): readonly string[] {
-  const raw = response.headers['set-cookie'];
-  if (Array.isArray(raw)) return raw as string[];
-  return typeof raw === 'string' ? [raw] : [];
-}
-
-function cookieHeader(cookies: readonly string[]): string {
-  return cookies
-    .map((c) => c.split(';')[0] ?? '')
-    .filter((pair) => pair.split('=').slice(1).join('=').length > 0)
-    .join('; ');
-}
-
 async function observe(sql: string, params: readonly unknown[] = []): Promise<RowDataPacket[]> {
   const [rows] = await db.admin.query<RowDataPacket[]>(sql, params as unknown[]);
   return rows;
 }
 
-async function signIn(userId: string): Promise<Session> {
-  const response = (await app.inject({
-    method: 'POST',
-    url: '/v1/dev/sessions',
-    headers: { 'content-type': 'application/json' },
-    payload: { userId },
-  })) as unknown as InjectedResponse;
-  return {
-    cookie: cookieHeader(setCookies(response)),
-    csrfToken: response.json<{ csrfToken: string }>().csrfToken,
-  };
+function signIn(userId: string): Promise<Session> {
+  return harnessSignIn(app, userId);
 }
 
 async function send(
@@ -343,15 +310,13 @@ beforeAll(async () => {
 }, 300_000);
 
 beforeEach(async () => {
-  await truncateAll(db.admin);
-  world = await seedTwoTenants(db.admin);
+  world = await reseed(db);
   clockOffsetMs = 0;
   store.onComplete = null;
 });
 
 afterAll(async () => {
-  await app?.close();
-  await db?.stop();
+  await stopHarness({ app, db });
   if (root) rmSync(root, { recursive: true, force: true, maxRetries: 3 });
 });
 
