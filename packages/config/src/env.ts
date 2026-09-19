@@ -337,8 +337,8 @@ export const envSchema = z
     // Where a completed batch records the time, for a later `relay:status` — or any monitor
     // that can stat a file — to read. Absent means no heartbeat is kept, which is honest on
     // a host with no writable path and leaves backlog age as the only reading.
-    // Empty means "keep no heartbeat", the same shape `OTEL_EXPORTER_OTLP_ENDPOINT` uses for
-    // "exporter off" — normalised to `undefined` so the worker has one absence to test.
+    // Empty means "keep no heartbeat", the same "absent means off" shape `OTEL_EXPORTER_URL` uses
+    // for a disabled exporter — normalised to `undefined` so the worker has one absence to test.
     //
     // `.env.example` ships a real path (`var/worker-heartbeat.json`) rather than an empty one:
     // shipped empty, the reading that separates "drained and idle" from "dead with an empty

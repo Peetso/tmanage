@@ -65,6 +65,46 @@ describe('redactFields', () => {
     expect(serialized).not.toContain('john.doe@example.com');
   });
 
+  it('masks email-family key variants case-insensitively, leaving non-address siblings intact', () => {
+    const record = {
+      userEmail: 'jane.doe@corp.example',
+      EmailAddress: 'ADA@corp.example',
+      inviterEmail: 'ib@corp.example',
+      // Same `email*` prefix, but not an address — must survive rather than be clobbered.
+      emailVerifiedAt: '2026-09-19T00:00:00.000Z',
+      emailed: true,
+    };
+
+    const out = redactFields(record) as Record<string, unknown>;
+
+    expect(out['userEmail']).toBe('j***@corp.example');
+    expect(out['EmailAddress']).toBe('A***@corp.example');
+    expect(out['inviterEmail']).toBe('i***@corp.example');
+    // Non-address siblings under an `email*` key are preserved.
+    expect(out['emailVerifiedAt']).toBe('2026-09-19T00:00:00.000Z');
+    expect(out['emailed']).toBe(true);
+
+    const serialized = JSON.stringify(out);
+    expect(serialized).not.toContain('jane.doe@corp.example');
+    expect(serialized).not.toContain('ADA@corp.example');
+  });
+
+  it('keeps a shared (non-cyclic) reference on both branches while still cutting a real cycle', () => {
+    // One object reached down two independent branches — not a cycle. The ancestor-only guard
+    // must walk it fully both times, not replace the second sighting with the cycle marker.
+    const shared = { name: 'Ada', role: 'owner' };
+    const out = redactFields({ left: shared, right: shared }) as {
+      left: unknown;
+      right: unknown;
+    };
+
+    expect(out.left).toEqual({ name: 'Ada', role: 'owner' });
+    expect(out.right).toEqual({ name: 'Ada', role: 'owner' });
+    // Neither branch was mistaken for a cycle.
+    expect(out.right).not.toBe('[circular]');
+    expect(JSON.stringify(out)).not.toContain('[circular]');
+  });
+
   it('never throws on a circular graph and marks the cycle', () => {
     const cyclic: Record<string, unknown> = { token: 'CIRCULAR-SECRET', label: 'root' };
     cyclic['self'] = cyclic;

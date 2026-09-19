@@ -53,8 +53,19 @@ function isDeniedKey(key: string): boolean {
   return DENIED_SUFFIXES.some((suffix) => lower.endsWith(suffix));
 }
 
+/**
+ * Whether a key names an email address. Matches the `email` family the API actually logs —
+ * `email` itself plus the `email*` / `*email` variants (`emailAddress`, `email_address`,
+ * `userEmail`, `contactEmail`, `inviterEmail`) — case-insensitively. Deliberately NOT the
+ * overloaded generic keys (`to`, `recipient`): in this codebase those carry state-machine
+ * targets and user ids far more often than an address, and masking them would corrupt honest
+ * logs. This stays a fixed family match, not a general PII classifier. The caller masks only
+ * when the value is actually an address string, so sibling keys like `emailVerifiedAt` (a
+ * timestamp) or `emailed` (a flag) pass through untouched.
+ */
 function isEmailKey(key: string): boolean {
-  return key.toLowerCase() === 'email';
+  const lower = key.toLowerCase();
+  return lower.startsWith('email') || lower.endsWith('email');
 }
 
 /**
@@ -79,7 +90,12 @@ function redactValue(value: unknown, depth: number, seen: WeakSet<object>): unkn
   if (Array.isArray(value)) {
     if (seen.has(value)) return '[circular]';
     seen.add(value);
-    return value.map((element) => redactValue(element, depth + 1, seen));
+    const mapped = value.map((element) => redactValue(element, depth + 1, seen));
+    // Unmark on exit: `seen` tracks only the current ancestor path, so a shared (non-cyclic)
+    // reference reached again down a *different* branch is walked normally rather than being
+    // mistaken for a cycle. A genuine back-edge to a still-open ancestor is still caught above.
+    seen.delete(value);
+    return mapped;
   }
 
   if (isPlainRecord(value)) {
@@ -87,7 +103,7 @@ function redactValue(value: unknown, depth: number, seen: WeakSet<object>): unkn
     seen.add(value);
     const result: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(value)) {
-      if (isEmailKey(key)) {
+      if (isEmailKey(key) && typeof child === 'string' && child.includes('@')) {
         result[key] = maskEmail(child);
       } else if (isDeniedKey(key)) {
         result[key] = REDACTED;
@@ -95,6 +111,8 @@ function redactValue(value: unknown, depth: number, seen: WeakSet<object>): unkn
         result[key] = redactValue(child, depth + 1, seen);
       }
     }
+    // Unmark on exit — see the array branch above.
+    seen.delete(value);
     return result;
   }
 
