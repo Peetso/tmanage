@@ -202,7 +202,7 @@ export interface AcceptClientRequestInput {
   };
 }
 
-export interface AcceptedClientRequest {
+export interface AcceptedClientRequestView {
   readonly request: ClientRequestView;
   /** The work the acceptance is carried out through, whether created here or linked. */
   readonly workItemId: string;
@@ -595,7 +595,7 @@ export class ClientRequestsService {
     clientRequestId: string,
     expectedVersion: number,
     input: AcceptClientRequestInput,
-  ): Promise<AcceptedClientRequest> {
+  ): Promise<AcceptedClientRequestView> {
     const before = await this.readForMove(context, principal, clientRequestId, 'accepted');
 
     // Either link work that exists, or be allowed to create some. Never neither — and the

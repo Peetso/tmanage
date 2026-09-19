@@ -96,7 +96,7 @@ function toView(row: InvitationRow): InvitationView {
   };
 }
 
-export interface IssuedInvitation {
+export interface IssuedInvitationView {
   readonly invitation: InvitationView;
   /**
    * Shown once, to the issuer. `22-SCREEN-BY-SCREEN` §3 ON-06 builds the link from it.
@@ -125,7 +125,7 @@ export interface IssuedInvitation {
  * names no project, `0005_invitations.sql` has no column for one and `23-ERD` §9 does not give
  * it one, so the screen says which organization and which role and does not invent one.
  */
-export interface InvitationPreview {
+export interface InvitationPreviewView {
   readonly organizationName: string;
   readonly inviterName: string;
   readonly inviterEmail: string;
@@ -137,7 +137,7 @@ export interface InvitationPreview {
   readonly expiresAt: string;
 }
 
-export interface AcceptedInvitation {
+export interface AcceptedInvitationView {
   readonly organizationId: string;
   readonly membershipId: string;
   readonly clientOrganizationId: string | null;
@@ -193,7 +193,7 @@ export class InvitationsService {
       readonly clientOrganizationId?: string | null;
     },
     now: Date = new Date(),
-  ): Promise<IssuedInvitation> {
+  ): Promise<IssuedInvitationView> {
     const clientOrganizationId = input.clientOrganizationId ?? null;
     this.requireInviteCapability(principal, context, 'invitation.issue', clientOrganizationId);
 
@@ -259,7 +259,7 @@ export class InvitationsService {
     invitationId: string,
     input: { readonly role?: string },
     now: Date = new Date(),
-  ): Promise<IssuedInvitation> {
+  ): Promise<IssuedInvitationView> {
     this.requireInviteCapability(principal, context, 'invitation.reissue');
 
     const { token, tokenHash } = issueInvitationToken();
@@ -341,7 +341,11 @@ export class InvitationsService {
    * `email` is *not* required to match that account's address — see `0005_invitations.sql` —
    * and both facts end up on the row.
    */
-  async accept(token: string, userId: string, correlationId: string): Promise<AcceptedInvitation> {
+  async accept(
+    token: string,
+    userId: string,
+    correlationId: string,
+  ): Promise<AcceptedInvitationView> {
     if (!looksLikeInvitationToken(token)) {
       // Same refusal as a token that does not exist. A malformed one learns nothing extra.
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_malformed');
@@ -462,7 +466,7 @@ export class InvitationsService {
    * message. A preview that distinguished "revoked" from "never existed" would become the oracle
    * `accept` deliberately is not.
    */
-  async preview(token: string, correlationId: string): Promise<InvitationPreview> {
+  async preview(token: string, correlationId: string): Promise<InvitationPreviewView> {
     if (!looksLikeInvitationToken(token)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_malformed');
     }
