@@ -100,8 +100,8 @@
 --     project_clients, work_items, conversation_memberships, outbox_events,
 --     idempotency_records
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
---     notifications, work_blockers, usage_counters, file_assets, file_versions,
---     upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
+--     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
+--     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
 --   · `INSERT, DELETE` on: work_item_dependencies
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries
@@ -208,6 +208,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app
 -- NOTIF-001. UPDATE is for marking read — the trigger in 0010 confines it to `read_at`,
 -- forward only. DELETE withheld: "was this person told" must stay answerable.
 GRANT INSERT, UPDATE         ON `tmanage`.`notifications`        TO 'tmanage_app'@'%';
+-- NOTIF-001 preferences. INSERT to create a person's settings row and UPDATE to replace it in
+-- place — the `INSERT ... ON DUPLICATE KEY UPDATE` upsert needs both. **No DELETE**: settings
+-- are replaced, never removed, and a row that could vanish is a person quietly reverted to
+-- defaults they did not choose. The worker gets nothing here — this table is the API's alone
+-- until a delivery slice reads it, and the read grant it would then need is added with that
+-- slice, per this file's rule that a grant names a statement that exists.
+GRANT INSERT, UPDATE         ON `tmanage`.`notification_preferences` TO 'tmanage_app'@'%';
 -- WORK-003. A dependency is a removable planning edge — the second DELETE this file
 -- grants, and like the first (idempotency housekeeping) it destroys no history the audit
 -- trail does not keep: the removal is audited. A blocker is a ledger: INSERT to raise,

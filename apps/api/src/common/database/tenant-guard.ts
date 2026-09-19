@@ -104,6 +104,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // NOTIF-001. Tenant-owned: a notification names a tenant object, and an unscoped read of
   // it would be a feed of what is happening inside every studio on the server.
   notifications: 'organization_id',
+  // NOTIF-001 preferences. Tenant-owned: a person's channel, digest and quiet-hours settings
+  // are per studio, and an unscoped read would be every person's settings in every studio.
+  notification_preferences: 'organization_id',
   // FILE-001. All four are tenant-owned. The counter is a customer's bill in progress;
   // the asset, its versions and the session name a project and carry an object key, and
   // an unscoped read of any of them would be an inventory of every studio's files.
