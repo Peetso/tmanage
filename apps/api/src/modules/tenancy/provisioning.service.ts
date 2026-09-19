@@ -95,6 +95,43 @@ export interface ProvisionedOrganization {
   readonly role: string;
 }
 
+/**
+ * The wire body `POST /v1/organizations` returns — `ON-01`'s created organization, as the
+ * browser reads it (`apps/web/src/lib/api/organizations.ts CreatedOrganization`).
+ *
+ * Distinct from {@link ProvisionedOrganization}, the service's own result: the wire renames
+ * `organizationId` → `id` and drops `membershipId`, which no screen reads. The controller
+ * already builds exactly these five fields; naming the shape here lets `contracts:check` pair
+ * it with the web declaration and lives beside its sibling {@link OrganizationSummaryView}
+ * because `v1/organizations` has no dedicated service — the routes are the tenancy surface.
+ */
+export interface CreatedOrganizationView {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly workspaceId: string;
+  readonly role: string;
+}
+
+/**
+ * One row of the wire body `GET /v1/organizations` returns — `ID-04`'s directory entry, as the
+ * browser reads it (`apps/web/src/lib/api/organizations.ts OrganizationSummary`).
+ *
+ * The rows come from {@link OrganizationDirectoryRepository.listForUser} as
+ * `OrganizationMembershipSummary` (which names the id `organizationId`); the controller maps
+ * that to `id` and returns exactly these six fields. Co-located here for the same reason as
+ * {@link CreatedOrganizationView}: the organization routes have no read service of their own,
+ * and `contracts:check` enumerates response views under `*.service.ts`.
+ */
+export interface OrganizationSummaryView {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly audience: 'internal' | 'client';
+  readonly role: string;
+  readonly clientOrganizationName: string | null;
+}
+
 export { OrganizationSlugTakenError };
 
 export class ProvisioningService {

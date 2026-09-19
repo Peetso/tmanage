@@ -420,7 +420,15 @@ now carry their unions and their assertions are `Exact`, so `contracts:check` re
 were removed. Still open: 48 of `apps/web`'s 63 response shapes have no API `…View` behind them, and
 `CONTRACT-001` proper (generating `packages/contracts`) is **not** closed — only the false signal
 and the three loose views are. Typecheck (api/web/e2e), `contracts:check` and lint pass; no database
-suite is involved.
+suite is involved. **x78 — CONTRACT-001 class-3 (2026-09-19):** the inline object literals for
+`GET`/`POST /v1/organizations`, `GET /v1/auth/factors` and `POST …/realtime/tickets` are now named,
+exported `*View` shapes beside the code that returns them (`OrganizationSummaryView`,
+`CreatedOrganizationView` in `provisioning.service.ts`; `EnrolledFactorView` in
+`authentication.service.ts`; `RealtimeTicketView` in `realtime.controller.ts`), typed at the return
+sites with zero change to the response bytes, and the first three paired `Exact`, taking
+`contracts:check` to 36 views, 27 paired (26 exact, 1 narrowing), 9 exempt. `RealtimeTicketView`'s
+pair is deferred: `RealtimeModule` is providerless so the view has no `*.service.ts` home, and the
+coverage guard enumerates service files only until x77 extends it to controller-declared views.
 
 ### x13 — the grant script narrows on re-apply, R10 (branch `x13-grant-revokes`, not merged)
 

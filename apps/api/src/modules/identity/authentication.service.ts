@@ -201,6 +201,23 @@ export interface CredentialChange {
   readonly occurredAt: Date;
 }
 
+/**
+ * One factor as `GET /v1/auth/factors` returns it on the wire — the shape `apps/web` reads
+ * (`apps/web/src/lib/api/auth.ts EnrolledFactor`).
+ *
+ * Distinct from what {@link AuthenticationService.listFactors} returns internally, whose
+ * `confirmedAt` is a `Date`: the controller serialises that to an ISO string (or `null` while
+ * enrolment is unfinished), and this view names the serialised shape so `contracts:check` can
+ * pair it. Naming it here rather than in the controller keeps it under `*.service.ts`, which is
+ * where the gate enumerates response views.
+ */
+export interface EnrolledFactorView {
+  readonly id: string;
+  readonly kind: string;
+  readonly label: string;
+  readonly confirmedAt: string | null;
+}
+
 /** How much history the receipt carries. Bounded here rather than by the caller. */
 export const CREDENTIAL_CHANGE_LIMIT = 50;
 

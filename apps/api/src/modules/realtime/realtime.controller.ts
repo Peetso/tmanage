@@ -20,6 +20,24 @@ import type { TenantContext } from '../../common/database/tenant-context.js';
  * ever send it. The ticket still confers nothing by itself — every subscription is checked
  * against current rows at the socket.
  */
+/**
+ * The wire body `POST …/realtime/tickets` returns — RT-001's mint, as the browser reads it
+ * (`apps/web/src/lib/api/realtime.ts RealtimeTicket`).
+ *
+ * Authored here rather than in a service because `RealtimeModule` is providerless by design
+ * ("one controller, no providers — the mint has no state of its own"); there is no
+ * `*.service.ts` to hold it. `contracts:check` enumerates response views under `*.service.ts`
+ * only, so it does not yet see this one — its Exact pair in `e2e/contracts/api-web-shapes.ts`
+ * is deferred until the check also enumerates controller-declared views (x77). The compile-time
+ * assertion still holds the moment that pair is added; nothing about the wire changes here.
+ */
+export interface RealtimeTicketView {
+  readonly ticket: string;
+  readonly expiresAt: string;
+  /** Where the socket lives, or `null` where no live socket exists — the client's cue. */
+  readonly socketUrl: string | null;
+}
+
 @Controller('v1/organizations/:orgSlug/realtime')
 export class RealtimeController {
   constructor(@Inject(API_CONFIG) private readonly config: ApiConfig) {}
@@ -27,12 +45,7 @@ export class RealtimeController {
   @Post('tickets')
   @RequireCapability('conversation.read')
   @HttpCode(201)
-  mint(@Ctx() context: TenantContext): {
-    readonly ticket: string;
-    readonly expiresAt: string;
-    /** Where the socket lives, or `null` where no live socket exists — the client's cue. */
-    readonly socketUrl: string | null;
-  } {
+  mint(@Ctx() context: TenantContext): RealtimeTicketView {
     const expiresAt = Date.now() + this.config.realtimeTicketTtlSeconds * 1000;
     return {
       ticket: signRealtimeTicket(
