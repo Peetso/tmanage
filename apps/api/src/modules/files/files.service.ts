@@ -797,7 +797,7 @@ export class FilesService {
         );
         if (!moved) return null;
 
-        await this.counters.commit(
+        const counterCommitted = await this.counters.commit(
           tx,
           context,
           STORAGE_BYTES_METRIC,
@@ -856,7 +856,11 @@ export class FilesService {
         // Completion is two counter moves: the reservation retired and the used bytes added
         // (the counter's `commit` UPDATE changes both columns). Each is its own ledger row,
         // both citing the one committed event, so summing `delta` per counter still holds.
-        if (committedEventId) {
+        // Guarded on `counterCommitted` exactly as the release path guards on `counterMoved`:
+        // a drifted reservation that refused the commit (`counterCommitted === false`) moved
+        // neither column, so no ledger row is written and the per-counter sum still equals the
+        // counter.
+        if (committedEventId && counterCommitted) {
           await this.ledger?.record(tx, context, {
             uploadSessionId: session.id,
             counter: 'reserved',

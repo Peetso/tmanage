@@ -30,7 +30,25 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
-## 2026-09-13 — status-record truth sweep (slice x22)
+## 2026-09-19 — USAGE-001 slice 2 ledger divergences (slice x48)
+
+Recorded, not fixed — the divergences the append-only usage ledger (slice 2, branch
+`x48-usage-001-ledger`, **not merged**) takes from the USAGE-001 plan, both decided under Peter's
+delegation (2026-09-05: take the recommended option), captured here because the migration and
+schema headers alone are not the register.
+
+- **Q8 — the ledger keys its rows on a `counter` column, not the plan's shape.** Each row carries
+  `counter ENUM('used','reserved')` with a signed `delta BIGINT`, so a completion's two counter
+  moves and a session's later release are separate rows summing per counter to `usage_counters`,
+  rather than the plan's one-shape-per-metric row. The recommended option: it mirrors the counter's
+  own two columns and keeps the "ledger sums to the counter" invariant provable by a single
+  `GROUP BY counter`.
+- **The migration is `0021_usage_ledger_entries.sql`, not the plan's `0018`.** `0018`–`0020` were
+  taken by intervening slices, so the ledger takes the next free number; the earlier status entries
+  that named `0017`/`0018`/`0019`/`0020` for this migration are superseded by `0021`.
+
+The database suite that would prove the invariant (`usage-001-ledger.db.test.ts`) is written and
+**unexecuted** (no `mysqld` this run).
 
 Documentation-only. This sweep applied every replacement in
 `resume-2026-09-12-1212/STATUS-RECORD-AUDIT.md` (the overstated lines O1–O8 and the stale lines
