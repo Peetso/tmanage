@@ -66,6 +66,8 @@ export const USAGE_LEDGER_REPOSITORY = Symbol.for('tmanage.UsageLedgerRepository
 export const FILES_SERVICE = Symbol.for('tmanage.FilesService');
 /** USAGE-001. The expiry sweeper — resolved by `sweep.ts`, never by a controller. */
 export const UPLOAD_SESSION_SWEEPER = Symbol.for('tmanage.UploadSessionSweeper');
+/** USAGE-001 slice 3. The counter reconciler — resolved by `reconcile.ts`, never by a controller. */
+export const USAGE_RECONCILER = Symbol.for('tmanage.UsageReconciler');
 /** FILE-002. The verification pass — resolved by `verify.ts`, never by a controller. */
 export const FILE_VERIFIER = Symbol.for('tmanage.FileVerifier');
 /** FILE-002 slice B. The scan pass — resolved by `verify.ts` after the verifier, on the same tick. */

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { usageLedgerEntries } from '../../common/database/schema.js';
@@ -84,5 +84,39 @@ export class UsageLedgerRepository {
         createdAt: sql`current_timestamp(3)`,
       })
       .onDuplicateKeyUpdate({ set: { id: sql`id` } });
+  }
+
+  /**
+   * The per-counter sum of this tenant's ledger — USAGE-001 slice 3's one read of the ledger.
+   * The reconciler ({@link ./usage-reconciler.ts}) compares it against `usage_counters`, so it
+   * must be read inside the same transaction that holds the counter row's lock. `SUM` over the
+   * signed `delta` returns the current used and reserved totals; an absent counter (no rows for
+   * that dimension) is zero, so a missing group is read as zero rather than as unknown.
+   *
+   * `SUM(BIGINT)` comes back as a decimal string from the driver; coerced to a number to match
+   * the `mode: 'number'` the counter columns already use — storage byte totals are well inside
+   * the safe integer range, the same assumption `usage_counters` makes.
+   */
+  async sumByCounter(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<{ readonly used: number; readonly reserved: number }> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        counter: usageLedgerEntries.counter,
+        total: sql<string | null>`sum(${usageLedgerEntries.delta})`,
+      })
+      .from(usageLedgerEntries)
+      .where(eq(usageLedgerEntries.organizationId, context.organizationId))
+      .groupBy(usageLedgerEntries.counter);
+
+    let used = 0;
+    let reserved = 0;
+    for (const row of rows) {
+      const total = Number(row.total ?? 0);
+      if (row.counter === 'used') used = total;
+      else if (row.counter === 'reserved') reserved = total;
+    }
+    return { used, reserved };
   }
 }

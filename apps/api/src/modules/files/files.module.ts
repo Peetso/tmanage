@@ -17,6 +17,7 @@ import {
   UPLOAD_SESSION_SWEEPER,
   USAGE_COUNTERS_REPOSITORY,
   USAGE_LEDGER_REPOSITORY,
+  USAGE_RECONCILER,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -36,6 +37,7 @@ import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
 import { PortalFileDownloadsController } from './portal-file-downloads.controller.js';
 import { UploadSessionSweeper } from './upload-session-sweeper.js';
+import { UsageReconciler } from './usage-reconciler.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
 import { PortalUploadSessionsController } from './portal-upload-sessions.controller.js';
 import { UploadPartsController } from './upload-parts.controller.js';
@@ -122,6 +124,22 @@ export class FilesModule {
       ) => new UploadSessionSweeper(database, sessions, files),
     };
 
+    // USAGE-001 slice 3. The counter reconciler is a job too: exported so `reconcile.ts` can
+    // resolve it, built on the same counters and ledger repositories the routes and the sweeper
+    // use, and on the same audit service — its drift correction and the audit row that explains
+    // it commit in one transaction, and a copy without the audit would repair a tenant's quota
+    // counter with no trace of the repair.
+    const reconciler: Provider = {
+      provide: USAGE_RECONCILER,
+      inject: [TENANT_DATABASE, USAGE_COUNTERS_REPOSITORY, USAGE_LEDGER_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        counters: UsageCountersRepository,
+        ledger: UsageLedgerRepository,
+        audit: AuditService,
+      ) => new UsageReconciler(database, counters, ledger, audit),
+    };
+
     // FILE-002. The verification pass is a job too: exported so `verify.ts` can resolve
     // it, built on the same store the uploads went into and the same audit and outbox
     // the service writes through — a copy without the outbox would reject files nobody is
@@ -193,8 +211,8 @@ export class FilesModule {
 
     return {
       module: FilesModule,
-      providers: [...repositories, service, sweeper, verifier, scanner, downloads],
-      exports: [service, sweeper, verifier, scanner, downloads],
+      providers: [...repositories, service, sweeper, reconciler, verifier, scanner, downloads],
+      exports: [service, sweeper, reconciler, verifier, scanner, downloads],
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,

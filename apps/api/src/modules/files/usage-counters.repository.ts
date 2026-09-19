@@ -1,9 +1,31 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { usageCounters } from '../../common/database/schema.js';
 import type { UsageCounterRow } from '../../common/database/schema.js';
-import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import type {
+  BootstrapQueryRunner,
+  QueryRows,
+  TenantContext,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
+
+/** What {@link UsageCountersRepository.lockForReconcile} reads under the row lock. */
+export interface LockedCounter {
+  readonly id: string;
+  readonly usedValue: number;
+  readonly reservedValue: number;
+  readonly version: number;
+}
+
+/** The correction {@link UsageCountersRepository.correct} applies on drift. */
+export interface CorrectCounterInput {
+  readonly metricKey: string;
+  readonly usedValue: number;
+  readonly reservedValue: number;
+  /** The version read under the lock; the repair is refused if it moved (CONC-06). */
+  readonly expectedVersion: number;
+}
 
 /**
  * The quota counter — `49-PRICING-ENTITLEMENTS-AND-STORAGE-POLICY` §6, as four statements.
@@ -160,5 +182,108 @@ export class UsageCountersRepository {
         ),
       );
     return result[0].affectedRows === 1;
+  }
+
+  // ── USAGE-001 slice 3: reconciliation ──────────────────────────────────────
+
+  /**
+   * Which organizations hold a counter row for the metric — the reconciler's cross-tenant
+   * scan. The one read on this table with no tenant predicate, so it takes a
+   * {@link BootstrapQueryRunner}: the caller declares the reason and the `usage_counters`
+   * allowlist, and the escape hatch refuses anything but a select. Ordered so a pass is
+   * deterministic.
+   */
+  async organizationsWithCounter(
+    runner: BootstrapQueryRunner,
+    metricKey: string,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ organizationId: usageCounters.organizationId })
+      .from(usageCounters)
+      .where(eq(usageCounters.metricKey, metricKey))
+      .orderBy(asc(usageCounters.organizationId));
+    return rows.map((row) => row.organizationId);
+  }
+
+  /**
+   * Read the counter under its own row lock — USAGE-001 slice 3, CONC-06. Drizzle's proxy
+   * dialect has no `.for('update')` and the lock is the point of the statement (no reserve,
+   * commit or release may move the row between this read and the repair), so it is written
+   * out. **Must be called inside a transaction**; on an autocommit connection the lock would
+   * be released at once, reopening the race it exists to close. `null` when the organization
+   * has no row for the metric.
+   */
+  async lockForReconcile(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+  ): Promise<LockedCounter | null> {
+    const rows = await runner.execute<QueryRows>(
+      `select id, used_value, reserved_value, version from usage_counters
+        where organization_id = ? and metric_key = ?
+        for update`,
+      [context.organizationId, metricKey],
+    );
+    const row = rows[0];
+    if (row === undefined) return null;
+    return {
+      id: row['id'] as string,
+      usedValue: Number(row['used_value']),
+      reservedValue: Number(row['reserved_value']),
+      version: Number(row['version']),
+    };
+  }
+
+  /**
+   * Correct a drifted counter to the ledger sums — USAGE-001 slice 3. Version-conditional
+   * (CONC-06): the `version` read under {@link lockForReconcile} must still hold, so a move
+   * that somehow slipped between the lock and here cannot be silently overwritten. Bumps
+   * `version` (this is a value change) and stamps `reconciled_at`. `true` when the one locked
+   * row was corrected.
+   */
+  async correct(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: CorrectCounterInput,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(usageCounters)
+      .set({
+        usedValue: input.usedValue,
+        reservedValue: input.reservedValue,
+        version: sql`version + 1`,
+        reconciledAt: sql`current_timestamp(3)`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, input.metricKey),
+          eq(usageCounters.version, input.expectedVersion),
+        ),
+      );
+    return result[0].affectedRows === 1;
+  }
+
+  /**
+   * Stamp `reconciled_at` on a counter the reconciler proved already matched its ledger —
+   * USAGE-001 slice 3 §b, so the column records the last time the row was checked whether or
+   * not it drifted. No `version` bump: nothing about the counter's value changed. Called under
+   * the same lock {@link lockForReconcile} took, so it needs no version guard of its own.
+   */
+  async touchReconciledAt(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    metricKey: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(usageCounters)
+      .set({ reconciledAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(usageCounters.organizationId, context.organizationId),
+          eq(usageCounters.metricKey, metricKey),
+        ),
+      );
   }
 }

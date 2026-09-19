@@ -44,6 +44,45 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-19 — USAGE-001 slice 3, reconciled counters (slice x53)
+
+Built on branch `x53-usage-001-reconcile` (off x48's approved HEAD `573b5ec`), **not merged**.
+The reconciler that closes the loop the append-only ledger (slice 2) opened: per organization,
+sum `usage_ledger_entries` per counter under the counter row's own lock, compare with
+`usage_counters`, and on drift repair the counter **towards the ledger** — the ledger is the
+source of truth (`49-PRICING` §6), so this pass never writes it.
+
+- New `apps/api/src/modules/files/usage-reconciler.ts` — the pure `reconcileCounter(counter,
+ledger)` diff (unit-tested) plus the `UsageReconciler` job. Per organization, in one
+  transaction: `SELECT … FOR UPDATE` the counter (CONC-06, so no reserve/commit/release moves
+  it under the read), sum the ledger, and either correct + bump `version` + stamp
+  `reconciled_at` + write one audit row on drift, or stamp `reconciled_at` alone when clean.
+  `reconciled_at` (the column exists since 0015 and nothing wrote it) is written on **every**
+  run. Cross-tenant scan is the audited escape hatch the expiry sweeper uses, read-only,
+  allowlisted to `usage_counters`.
+- `usage-ledger.repository.ts` gains `sumByCounter` (the slice's one read of the ledger);
+  `usage-counters.repository.ts` gains `organizationsWithCounter`, `lockForReconcile`,
+  `correct` (version-conditional), and `touchReconciledAt`.
+- `packages/domain/src/policies/audit.ts` adds the `usage_counter.drift_corrected` action
+  (`object_type` `usage_counter`, actor null — the system case, as an expiry's row is).
+- Wired like the sweeper: `USAGE_RECONCILER` token, a `FilesModule` provider built on the same
+  counters/ledger/audit, entry point `apps/api/src/reconcile.ts` (`--once`) and a
+  `reconcile:once` script. Adding `reconcile:once` to the external cron tick (after
+  `verify:once`) and to `e2e/setup/stack.ts` is a follow-up left to the integrator — the job
+  is resolvable and runnable but not yet on the tick.
+
+**Divergence from the pre-build note (recorded, not a defect).** The USAGE-001 pre-build note
+for slice 3 (this file, "Reconciled counters") named "a correcting ledger row and an audit row
+on drift". The brief supersedes that: the ledger is the source of truth, so a correcting ledger
+row would make the check circular (it would edit the very thing being reconciled against). This
+slice therefore writes **only** an audit row on drift and corrects the counter to the ledger
+sum, never the ledger. Under Peter's delegation (2026-09-05: take the recommended option).
+
+The database suite that would prove it (`apps/api/test/usage-001-reconcile.db.test.ts`, four
+acceptance cases: drift corrected, `reconciled_at` written, no-drift no-op, tenant isolation) is
+written and **unexecuted** (no `mysqld` this run; this agent does not own `db-e2e.lock`). The
+pure diff is proven by `usage-reconciler.test.ts` (unit, executed).
+
 ## 2026-09-19 — USAGE-001 slice 2 ledger divergences (slice x48)
 
 Recorded, not fixed — the divergences the append-only usage ledger (slice 2, branch
