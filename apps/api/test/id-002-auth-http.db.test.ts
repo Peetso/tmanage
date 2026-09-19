@@ -321,18 +321,30 @@ describe('POST /v1/auth/password', () => {
     expect(response.json<{ error: { code: string } }>().error.code).toBe('validation_failed');
   });
 
-  it('answers 429 once the window is full', async () => {
+  it('locks out a further wrong password once the window is full, yet still admits the right one', async () => {
     await setPasswordFor(owner().id);
     for (let attempt = 0; attempt < CONFIG.maxFailuresInWindow; attempt += 1) {
       await post('/v1/auth/password', { email: owner().email, password: 'wrong' });
     }
 
-    const response = await post('/v1/auth/password', {
+    // C-1 (verify first, then charge): only the failing path consults the durable window, so a
+    // *wrong* password once the window is full is what the lockout refuses — 429 rate_limited.
+    const lockedOut = await post('/v1/auth/password', {
+      email: owner().email,
+      password: 'wrong',
+    });
+    expect(lockedOut.statusCode).toBe(429);
+    expect(lockedOut.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+
+    // The DoS-resistance property C-1 exists for: the account holder's *correct* password is
+    // admitted whatever the window says — it is never charged and can never trip a lockout, so
+    // a wrong password from a hostile source can no longer deny the right one.
+    const admitted = await post('/v1/auth/password', {
       email: owner().email,
       password: PASSWORD,
     });
-    expect(response.statusCode).toBe(429);
-    expect(response.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+    expect(admitted.statusCode).toBe(200);
+    expect(admitted.json<{ status: string }>().status).toBe('authenticated');
   });
 
   /**

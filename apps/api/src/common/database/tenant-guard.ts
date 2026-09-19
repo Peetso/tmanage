@@ -111,6 +111,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   file_assets: 'organization_id',
   file_versions: 'organization_id',
   upload_sessions: 'organization_id',
+  // USAGE-001 slice 2 (migration 0021). Tenant-owned like `usage_counters`, whose every
+  // move it records: `organization_id` is NOT NULL and it carries the `(organization_id, id)`
+  // key every tenant table has. An unscoped read would be a per-organization ledger of every
+  // studio's storage spend, so the guard must scope its READS.
+  usage_ledger_entries: 'organization_id',
 });
 
 /**
