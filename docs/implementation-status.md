@@ -484,7 +484,17 @@ longer one-directional — `contracts:check` now also enumerates `…View` inter
 the `client.ts`/`errors.ts` transport, and literal `type` unions), pairing each against
 `api-web-shapes.ts` or a reasoned `WEB_EXEMPT` entry, and prints a second line
 `33 API response views — 24 paired … / 31 web response shapes — 22 paired, 9 exempt`, so a web shape
-with no API counterpart can no longer hide.
+with no API counterpart can no longer hide. **x79 (branch `x79-contract-001-class1-lift`, not
+merged):** the four class-1-lift shapes x77 had to exempt are now paired — `members.controller`
+`MemberView`, `workspaces.controller` `WorkspaceView`, and `authentication.controller`
+`EstablishedView`/`ChallengeResponseView` (renamed from `EstablishedBody`/`ChallengeResponseBody`)
+are exported and asserted `Exact` against `apps/web`'s `MemberSummary`, `WorkspaceSummary`,
+`AuthenticatedResponse` and `MfaRequiredResponse`, their four `WEB_EXEMPT` entries deleted; and the
+`Request` suffix is no longer dropped blindly (review-x77 Important-2) — request-side `*Request`
+shapes are named in an explicit `WEB_REQUEST_SHAPES` list (empty today), so response nouns
+`ClientRequest`/`AcceptedClientRequest` are enumerated and paired. `contracts:check` now reports
+`37 API response views — 28 paired … / 33 web response shapes — 28 paired, 5 exempt`; zero runtime
+change.
 
 ### x13 — the grant script narrows on re-apply, R10 (branch `x13-grant-revokes`, not merged)
 

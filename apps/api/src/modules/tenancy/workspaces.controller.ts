@@ -26,7 +26,7 @@ import type { WorkspacesRepository } from './workspaces.repository.js';
  * with no screen behind them is how an API surface grows faster than anything can exercise it.
  */
 
-interface WorkspaceView {
+export interface WorkspaceView {
   readonly id: string;
   readonly name: string;
   readonly createdAt: string;

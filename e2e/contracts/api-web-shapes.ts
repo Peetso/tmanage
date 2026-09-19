@@ -31,17 +31,20 @@
 import type { AcceptedClientRequestView as ApiAcceptedClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
+import type { ChallengeResponseView as ApiChallengeResponseView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { ClientRequestClientView as ApiClientRequestClientView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { ConvertMessageResultView as ApiConvertMessageResultView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
+import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { InboxBundleView as ApiInboxBundleView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InboxPageView as ApiInboxPageView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InboxUsageNoticeView as ApiInboxUsageNoticeView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
+import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
@@ -53,8 +56,13 @@ import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/p
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
+import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
+import type {
+  AuthenticatedResponse as WebAuthenticatedResponse,
+  MfaRequiredResponse as WebMfaRequiredResponse,
+} from '../../apps/web/src/lib/api/auth';
 import type {
   AcceptedClientRequest as WebAcceptedClientRequest,
   ClientRequestHistoryEntry as WebClientRequestHistoryEntry,
@@ -78,6 +86,7 @@ import type {
   InvitationSummary as WebInvitationSummary,
   IssuedInvitation as WebIssuedInvitation,
 } from '../../apps/web/src/lib/api/invitations';
+import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type {
   ClientRequest as WebClientRequest,
   PortalInboxBundle as WebPortalInboxBundle,
@@ -85,7 +94,10 @@ import type {
   PortalProject as WebPortalProject,
   PortalWorkItem as WebPortalWorkItem,
 } from '../../apps/web/src/lib/api/portal';
-import type { ProjectSummary as WebProjectSummary } from '../../apps/web/src/lib/api/projects';
+import type {
+  ProjectSummary as WebProjectSummary,
+  WorkspaceSummary as WebWorkspaceSummary,
+} from '../../apps/web/src/lib/api/projects';
 import type {
   EstablishedSession as WebEstablishedSession,
   SessionSummary as WebSessionSummary,
@@ -204,3 +216,24 @@ type _establishedSession = Assert<Exact<ApiEstablishedSessionView, WebEstablishe
 
 /** `GET /v1/sessions/current/devices` — one device row, ISO-string dates on the wire. */
 type _sessionSummary = Assert<Exact<ApiSessionSummaryView, WebSessionSummary>>;
+
+/**
+ * CONTRACT-001 class-1-lift (x79). The four controller-level response bodies x77 had to exempt
+ * on the web side because their API interface was declared but not `export`ed: the member and
+ * workspace directory rows, and the two arms of the sign-in response. Each interface is now
+ * exported from the controller that serialises it — `EstablishedBody`/`ChallengeResponseBody`
+ * renamed to the house `…View` suffix so the coverage gate enumerates them on the API side too —
+ * with no change to the object any handler builds, so the web shapes pair Exact.
+ */
+
+/** `GET …/members` — one active-member directory row. */
+type _member = Assert<Exact<ApiMemberView, WebMemberSummary>>;
+
+/** `GET …/workspaces` — one workspace row, ISO-string `createdAt` on the wire. */
+type _workspace = Assert<Exact<ApiWorkspaceView, WebWorkspaceSummary>>;
+
+/** `POST /v1/auth/password|mfa|recovery-code` — the established-session arm. */
+type _authenticated = Assert<Exact<ApiEstablishedView, WebAuthenticatedResponse>>;
+
+/** `POST /v1/auth/password` — the MFA-required arm of the sign-in response. */
+type _mfaRequired = Assert<Exact<ApiChallengeResponseView, WebMfaRequiredResponse>>;
