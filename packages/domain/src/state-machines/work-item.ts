@@ -13,6 +13,15 @@ export const WORK_ITEM_STATES = [
 
 export type WorkItemState = (typeof WORK_ITEM_STATES)[number];
 
+/**
+ * Whether a raw string — a value read from the `varchar` state column — is one the machine
+ * defines. Lets a response projection narrow `string` to {@link WorkItemState} rather than
+ * asserting it, so the API cannot type a field as the union while returning a value outside it.
+ */
+export function isWorkItemState(value: string): value is WorkItemState {
+  return (WORK_ITEM_STATES as readonly string[]).includes(value);
+}
+
 const definition: StateMachineDefinition<WorkItemState> = {
   name: 'work_item',
   initial: 'backlog',

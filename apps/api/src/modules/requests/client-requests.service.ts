@@ -4,6 +4,7 @@ import {
   MANAGER_ONLY_CLIENT_REQUEST_TRANSITIONS,
   authorize,
   clientRequestStateMachine,
+  isClientRequestState,
 } from '@tmanage/domain';
 import type { Audience, ClientRequestState, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -88,7 +89,7 @@ export interface ClientRequestView {
   readonly urgencyReason: string | null;
   /** What the client asked for. Never a commitment — US-B01. */
   readonly desiredAt: string | null;
-  readonly state: string;
+  readonly state: ClientRequestState;
   readonly clarificationQuestion: string | null;
   readonly clientVisibleReason: string | null;
   readonly clientSafeScopeSummary: string | null;
@@ -208,6 +209,12 @@ export interface AcceptedClientRequest {
 }
 
 function toView(row: ClientRequestRow, clientOrganizationName: string | null): ClientRequestView {
+  // The column is `VARCHAR(32)`, but only `clientRequestStateMachine` ever writes it. A value
+  // outside the union means a corrupt row, which is a 500 — never a shape the internal view admits.
+  if (!isClientRequestState(row.state)) {
+    throw new Error(`client request ${row.id} has an unrecognised state: ${row.state}`);
+  }
+  const state = row.state;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -219,7 +226,7 @@ function toView(row: ClientRequestRow, clientOrganizationName: string | null): C
     description: row.description,
     urgencyReason: row.urgencyReason,
     desiredAt: row.desiredAt,
-    state: row.state,
+    state,
     clarificationQuestion: row.clarificationQuestion,
     clientVisibleReason: row.clientVisibleReason,
     clientSafeScopeSummary: row.clientSafeScopeSummary,

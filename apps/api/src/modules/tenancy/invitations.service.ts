@@ -69,7 +69,7 @@ export interface InvitationView {
   readonly email: string;
   readonly role: string;
   readonly clientOrganizationId: string | null;
-  readonly status: string;
+  readonly status: 'pending' | 'accepted' | 'expired' | 'revoked';
   readonly expiresAt: string;
   readonly invitedByUserId: string;
   readonly acceptedByUserId: string | null;

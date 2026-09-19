@@ -1,4 +1,4 @@
-import { authorize, workItemStateMachine } from '@tmanage/domain';
+import { authorize, isWorkItemState, workItemStateMachine } from '@tmanage/domain';
 import type { Audience, Principal, WorkItemState } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -71,7 +71,7 @@ export interface WorkItemView {
   readonly projectId: string;
   readonly type: string;
   readonly title: string;
-  readonly state: string;
+  readonly state: WorkItemState;
   readonly ownerUserId: string | null;
   readonly audience: Audience;
   readonly startAt: string | null;
@@ -94,12 +94,18 @@ export interface WorkItemView {
  * conversations module, and a second projection there would be a copy free to drift.
  */
 export function toWorkItemView(row: WorkItemRow): WorkItemView {
+  // The column is `VARCHAR(32)`, but only `workItemStateMachine` ever writes it. A value outside
+  // the union means a corrupt row, which is a 500 — never a shape the response contract admits.
+  if (!isWorkItemState(row.state)) {
+    throw new Error(`work item ${row.id} has an unrecognised state: ${row.state}`);
+  }
+  const state = row.state;
   return {
     id: row.id,
     projectId: row.projectId,
     type: row.type,
     title: row.title,
-    state: row.state,
+    state,
     ownerUserId: row.ownerUserId,
     audience: row.audience,
     startAt: row.startAt ? row.startAt.toISOString() : null,

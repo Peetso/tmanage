@@ -6,6 +6,22 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
+**Last updated:** 2026-09-19 (**x60 — CONTRACT-001 first slice: the three loose API views tightened
+to Exact**, branch `x60-contract-001-exact-views` off `master` `80c0c59`) — `WorkItemView.state`,
+`ClientRequestView.state` and `InvitationView.status` no longer type a lifecycle column as bare
+`string`. The first two carry their `@tmanage/domain` unions (`WorkItemState`, `ClientRequestState`)
+and the third the `pending|accepted|expired|revoked` union, guarded at each projection where a raw
+`varchar` is read (new `isWorkItemState` / `isClientRequestState` domain guards; `InvitationRow.status`
+is already the schema enum, so it needs none). The three assertions in `e2e/contracts/api-web-shapes.ts`
+flip `Narrows` → `Exact`, and the now-dead `Narrows`/`SameKeys` helpers are removed, so
+`pnpm contracts:check` reports **15 paired (15 exact, 0 narrowing)** — the API can no longer return a
+state outside the web's union unnoticed. SHA-256 revert proof on `WorkItemView.state` recorded (retyped
+to `string` → `api-web-shapes.ts` fails naming the drift → restored byte-identical → green). Typecheck
+(api/web/worker/e2e), api unit (591), lint and format:check green; `contracts:check`'s only remaining
+coverage failure is x54's unpaired `NotificationPreferencesView` (pre-existing at `80c0c59`, owned by
+x61 — not this slice's to add). Left for later: the 48 `apps/web` shapes with no API `…View`, and
+generating `packages/contracts` (R12). **Not merged, not pushed.** Earlier:
+
 **Last updated:** 2026-09-19 (**x55 chain-5 TESTDB red fixes**, branch `x55-chain5-testdb-fixes` off
 `master` `a310dc9`) — the two database-suite reds chain 5 found on master, both fixed. (1) Migration 0021's
 `usage_ledger_entries` (merged with x48) carries an `organization_id` column but was never registered in the
@@ -255,13 +271,16 @@ accordingly; they are **not** re-validated by the replacement). Replaced by `pnp
 counterpart in `e2e/contracts/api-web-shapes.ts` or carried in a named exemption, then compiles the
 pairings — 15 paired (12 exact, 3 narrowing), 9 exempt for want of a web consumer. Demonstrated by
 SHA-256-verified revert: a renamed API field, a `string` retyped to `number`, and a new unpaired
-view each fail with a message naming the drift and revert to green. **Open, surfaced by the
-reconciliation:** three API projections are looser than the endpoint can return and `apps/web`
-declares the correct union — `WorkItemView.state`, `ClientRequestView.state`,
-`InvitationView.status` should be their unions (asserted with `Narrows`, not papered over); and 48
-of `apps/web`'s 63 response shapes have no API `…View` behind them. `CONTRACT-001` (generating
-`packages/contracts`) is **not** closed; the false signal is. Typecheck (api/web/e2e),
-`contracts:check` and lint pass; no database suite is involved.
+view each fail with a message naming the drift and revert to green. **Surfaced by the
+reconciliation, and now partly closed:** three API projections were looser than the endpoint can
+return while `apps/web` declared the correct union — `WorkItemView.state`, `ClientRequestView.state`
+and `InvitationView.status`. **Closed 2026-09-19 by the CONTRACT-001 first slice (x60):** all three
+now carry their unions and their assertions are `Exact`, so `contracts:check` reports 15 paired
+(15 exact, 0 narrowing); the `Narrows`/`SameKeys` helpers, unused once the last narrowing pair went,
+were removed. Still open: 48 of `apps/web`'s 63 response shapes have no API `…View` behind them, and
+`CONTRACT-001` proper (generating `packages/contracts`) is **not** closed — only the false signal
+and the three loose views are. Typecheck (api/web/e2e), `contracts:check` and lint pass; no database
+suite is involved.
 
 ### x13 — the grant script narrows on re-apply, R10 (branch `x13-grant-revokes`, not merged)
 

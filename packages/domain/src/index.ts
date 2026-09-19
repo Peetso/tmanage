@@ -7,12 +7,17 @@ export type {
   TransitionResult,
 } from './state-machines/state-machine.js';
 
-export { workItemStateMachine, WORK_ITEM_STATES } from './state-machines/work-item.js';
+export {
+  workItemStateMachine,
+  WORK_ITEM_STATES,
+  isWorkItemState,
+} from './state-machines/work-item.js';
 export type { WorkItemState } from './state-machines/work-item.js';
 
 export {
   clientRequestStateMachine,
   CLIENT_REQUEST_STATES,
+  isClientRequestState,
   CLIENT_ALLOWED_CLIENT_REQUEST_TRANSITIONS,
   MANAGER_ONLY_CLIENT_REQUEST_TRANSITIONS,
 } from './state-machines/client-request.js';
