@@ -254,16 +254,29 @@ describe('one row per counter move, joined to its outbox row', () => {
 
     rows = await ledgerFor(world.northstar.organizationId);
     expect(rows).toHaveLength(3);
+    // Completion appends two rows in one transaction — the reservation retired and the used
+    // bytes added — each its own row citing the one committed event. Their relative order has
+    // no business meaning: production reads the ledger only through the per-counter SUM
+    // (`UsageLedgerRepository.sumByCounter`), and the ordering key `usage_ledger_entries.id`
+    // (UUIDv7) is monotonic only across milliseconds, so two rows written in the same
+    // millisecond have no defined `order by id`. Assert the pair as a set — both rows present
+    // with the right counter/delta/reason/idempotency key — rather than as a sequence.
     const committed = rows.slice(1);
-    expect(committed).toEqual([
-      expect.objectContaining({ counter: 'reserved', delta: -DECLARED, reason: 'commit_release' }),
-      expect.objectContaining({ counter: 'used', delta: DECLARED, reason: 'commit' }),
-    ]);
+    const release = committed.find((r) => r.reason === 'commit_release');
+    const commit = committed.find((r) => r.reason === 'commit');
+    expect(release).toMatchObject({
+      counter: 'reserved',
+      delta: -DECLARED,
+      reason: 'commit_release',
+    });
+    expect(release!.idempotencyKey).toBe(`${session.id}:commit_release`);
+    expect(commit).toMatchObject({ counter: 'used', delta: DECLARED, reason: 'commit' });
+    expect(commit!.idempotencyKey).toBe(`${session.id}:commit`);
     // Both completion rows cite the one committed event, and it is joinable in-tenant.
-    expect(committed[0]!.sourceEventId).toBe(committed[1]!.sourceEventId);
+    expect(release!.sourceEventId).toBe(commit!.sourceEventId);
     const committedEvent = await observe(
       `select type from outbox_events where organization_id = ? and id = ?`,
-      [world.northstar.organizationId, committed[0]!.sourceEventId],
+      [world.northstar.organizationId, release!.sourceEventId],
     );
     expect(committedEvent[0]?.['type']).toBe('usage.storage_committed.v1');
   });
