@@ -91,3 +91,5 @@ export const FILE_SCANNER = Symbol.for('tmanage.FileScanner');
 export const FILE_DOWNLOAD_SERVICE = Symbol.for('tmanage.FileDownloadService');
 /** FILE-002 slice B. The malware scanner port, provided by `ScannerModule`. */
 export const MALWARE_SCANNER = Symbol.for('tmanage.MalwareScanner');
+/** INS-01. The insights read service — a read-only reporting surface over the `work` data. */
+export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');

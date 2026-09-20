@@ -27,6 +27,7 @@ import { ScannerModule } from './common/scan/scanner.module.js';
 import { PlatformModule } from './modules/platform/platform.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { FilesModule } from './modules/files/files.module.js';
+import { InsightsModule } from './modules/insights/insights.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -144,6 +145,10 @@ export class AppModule {
         // requests module: a session names a project and, for a client, a request, and a
         // caller who names one that is not theirs gets 404 rather than a foreign-key 500.
         FilesModule.register(),
+        // INS-01. After `WorkModule`: the insights read reuses `WorkItemsRepository` read-only to
+        // roll a project's work items up by workflow status. Read-only, behind `work.read`; it
+        // constructs its own repository handle (see its doc) so its position here is by subject.
+        InsightsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

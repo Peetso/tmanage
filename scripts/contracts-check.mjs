@@ -90,6 +90,10 @@ const EXEMPT = new Map([
     'No web consumer: UNIT-12 project health roll-up is authored ready for the screen; no screen reads it yet (x86 follow-up).',
   ],
   [
+    'DeliveryFlowView',
+    'No web consumer: INS-01 delivery-flow read is authored ready for the /insights screen; no screen reads it yet (x89 follow-up).',
+  ],
+  [
     'NotificationPreferencesView',
     'no web consumer yet (NOTIF-001 API-only; pair when the preferences screen lands)',
   ],
