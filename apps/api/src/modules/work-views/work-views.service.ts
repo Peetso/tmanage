@@ -4,7 +4,9 @@ import { logUnrecognisedRowState } from '../../common/observability/logger.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
+import { ProjectNotFoundError, ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkTimelineRepository } from './timeline.repository.js';
+import { WorkCalendarRepository } from './calendar.repository.js';
 
 /**
  * WK-04 Work timeline — a read-only *view* over WORK-001 and WORK-003, composed here.
@@ -66,10 +68,75 @@ export interface WorkTimelineView {
  */
 const CLIENT_AUDIENCES: readonly Audience[] = ['client_visible', 'client_action_required'];
 
+/**
+ * WK-05 Work calendar — a read-only *view* over WORK-001, composed here like the timeline.
+ *
+ * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §Work WK-05 asks for a calendar of the project's work.
+ * Every fact it needs — a work item's dates — is already stored and already read, so this view
+ * adds no table, no migration and no read method to the work module: it buckets the same
+ * {@link WorkCalendarRepository}-composed `list` the timeline and list screens run.
+ *
+ * ## The rules it owns
+ *
+ * - **The project is resolved tenant-scoped first.** An org-wide caller passes the per-item
+ *   read below, so a projectId that is unknown or belongs to another organization must be
+ *   turned away as **404** here rather than silently returning an empty calendar (FAST-PROTOCOL
+ *   known trap — resolve any named project id before the relation check).
+ * - **`mayRead` per item, belt-and-braces to the tenant-scoped SQL**, plus the client-audience
+ *   pre-filter — identical to `projectTimeline`, so a cross-tenant or unreadable item never
+ *   reaches a day cell and a client sees only client-audience items.
+ *
+ * ## The bucket, the range, the order, and the empty value
+ *
+ * Each item is placed on **one** day — its *anchor day*, the UTC calendar day of `dueAt`, or of
+ * `startAt` when it has no due date. A work calendar answers "what is due on this day"; an item
+ * with a due date belongs on it, and one with only a start date belongs on the day it begins.
+ * An item with **no date at all** is not placed on any day (the documented rule for a dateless
+ * item), and an item whose anchor day falls outside the requested `[from, to]` range is excluded
+ * (day granularity, both ends inclusive). Only days that carry at least one item are emitted, in
+ * ascending date order; within a day, items are ordered by `startAt`, then `dueAt`, then `id`.
+ * A project with no in-range readable items is the documented empty value: `days: []`.
+ */
+
+/** One item on the calendar: its dates and state. No `View` suffix — the paired shape is {@link WorkCalendarView}. */
+export interface WorkCalendarItem {
+  readonly id: string;
+  readonly title: string;
+  readonly state: WorkItemState;
+  readonly startAt: string | null;
+  readonly dueAt: string | null;
+}
+
+/** One day cell: the `YYYY-MM-DD` date and the items anchored on it, deterministically ordered. */
+export interface WorkCalendarDay {
+  readonly date: string;
+  readonly items: readonly WorkCalendarItem[];
+}
+
+/** The requested range, echoed so the screen can lay out a grid the response only fills. */
+export interface WorkCalendarRange {
+  readonly from: string;
+  readonly to: string;
+}
+
+/**
+ * The calendar read's response — WK-05's `WorkCalendarView`, paired in
+ * `e2e/contracts/api-web-shapes.ts` with the web shape the accessible Calendar screen consumes
+ * (CONTRACT-001). `organizationId` is absent: the caller already knows which organization and
+ * project they asked about.
+ */
+export interface WorkCalendarView {
+  readonly projectId: string;
+  readonly range: WorkCalendarRange;
+  readonly days: readonly WorkCalendarDay[];
+}
+
 export class WorkViewsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly timeline: WorkTimelineRepository = new WorkTimelineRepository(),
+    private readonly calendar: WorkCalendarRepository = new WorkCalendarRepository(),
+    private readonly projects: ProjectsRepository = new ProjectsRepository(),
   ) {}
 
   /**
@@ -113,6 +180,63 @@ export class WorkViewsService {
 
     items.sort(compareForTimeline);
     return { projectId, items };
+  }
+
+  /**
+   * The project's open work items bucketed by their anchor day into the requested range, scoped
+   * to what this principal may read. A pure read: no write, no new column, no schedule.
+   *
+   * The named project is resolved inside this tenant **before** anything is bucketed — an
+   * unknown or cross-tenant id is a 404 (`ProjectNotFoundError`), not a misleading empty
+   * calendar, closing the trap an org-wide caller would otherwise drive through the per-item read.
+   */
+  async projectCalendar(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    range: WorkCalendarRange,
+  ): Promise<WorkCalendarView> {
+    const resolved = await this.database.read(context, async (runner) => {
+      const project = await this.projects.findById(runner, context, projectId);
+      if (!project) return null;
+      const rows = await this.calendar.listProjectItems(runner, context, projectId, {
+        ...(principal.kind === 'client' ? { audiences: CLIENT_AUDIENCES } : {}),
+      });
+      return { rows };
+    });
+
+    // Resolve-before-relation-check: a projectId that names nothing in this tenant is not found.
+    if (resolved === null) throw new ProjectNotFoundError(projectId);
+
+    const byDay = new Map<string, WorkCalendarItem[]>();
+    for (const item of resolved.rows) {
+      // Belt-and-braces to the tenant-scoped SQL: a cross-tenant or unrelated row is refused here
+      // as well as by the query, and a client sees only client-audience items.
+      if (!this.mayRead(principal, item)) continue;
+
+      // A calendar answers "what is due on this day": anchor on the due date, or the start date
+      // when there is no due date. An item with neither is not on the calendar at all.
+      const anchor = item.dueAt ?? item.startAt;
+      if (anchor === null) continue;
+      const day = anchor.toISOString().slice(0, 10);
+      if (day < range.from || day > range.to) continue; // Out of the requested range.
+
+      const cell = byDay.get(day) ?? [];
+      cell.push({
+        id: item.id,
+        title: item.title,
+        state: this.stateOf(item, context),
+        startAt: item.startAt ? item.startAt.toISOString() : null,
+        dueAt: item.dueAt ? item.dueAt.toISOString() : null,
+      });
+      byDay.set(day, cell);
+    }
+
+    const days: WorkCalendarDay[] = [...byDay.keys()]
+      .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+      .map((date) => ({ date, items: (byDay.get(date) ?? []).sort(compareForCalendar) }));
+
+    return { projectId, range, days };
   }
 
   /** The row's state as the domain union, failing closed on a corrupt row exactly as the view maps do. */
@@ -171,6 +295,19 @@ export class WorkViewsService {
  * in chronological order — and ids are compared as strings, which is their creation order.
  */
 function compareForTimeline(left: WorkTimelineItem, right: WorkTimelineItem): number {
+  const byStart = compareNullableIso(left.startAt, right.startAt);
+  if (byStart !== 0) return byStart;
+  const byDue = compareNullableIso(left.dueAt, right.dueAt);
+  if (byDue !== 0) return byDue;
+  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+}
+
+/**
+ * The order within a day cell: by `startAt`, then `dueAt`, then `id`, with a missing date
+ * sorting last within its key — the same rule the timeline uses, so two items on the same day
+ * read in a stable, meaningful order rather than the database's id order alone.
+ */
+function compareForCalendar(left: WorkCalendarItem, right: WorkCalendarItem): number {
   const byStart = compareNullableIso(left.startAt, right.startAt);
   if (byStart !== 0) return byStart;
   const byDue = compareNullableIso(left.dueAt, right.dueAt);

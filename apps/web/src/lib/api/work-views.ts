@@ -44,3 +44,64 @@ export async function getWorkTimeline(
   });
   return data;
 }
+
+/**
+ * WK-05 Work calendar — the calendar read.
+ *
+ * A read-only composition the API serves at `GET .../work-views/calendar/:projectId?from&to`,
+ * behind the same `work.read` capability as the work list and timeline. The only inputs are the
+ * project id in the path and the required `from`/`to` days in the query — there is no body.
+ */
+
+/**
+ * One item on the calendar. Not exported: the contracts gate enumerates every exported response
+ * shape in this folder, and the calendar is a single paired response (`WorkCalendarView`). The
+ * screen reaches a day and its items through indexed access, not a second projection.
+ */
+interface WorkCalendarItem {
+  readonly id: string;
+  readonly title: string;
+  readonly state: WorkItemState;
+  readonly startAt: string | null;
+  readonly dueAt: string | null;
+}
+
+/** One day cell: its `YYYY-MM-DD` date and the items anchored on it. Not exported (see above). */
+interface WorkCalendarDay {
+  readonly date: string;
+  readonly items: readonly WorkCalendarItem[];
+}
+
+/** The requested range, echoed by the API. Not exported (see above). */
+interface WorkCalendarRange {
+  readonly from: string;
+  readonly to: string;
+}
+
+/** The calendar read's response — paired Exact with the API's `WorkCalendarView` in the contracts gate. */
+export interface WorkCalendarView {
+  readonly projectId: string;
+  readonly range: WorkCalendarRange;
+  readonly days: readonly WorkCalendarDay[];
+}
+
+/** One calendar day, for the screen — an indexed access, so it is not a second enumerated shape. */
+export type WorkCalendarDayRow = WorkCalendarView['days'][number];
+
+export interface WorkCalendarRangeInput {
+  readonly from: string;
+  readonly to: string;
+}
+
+export async function getWorkCalendar(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  range: WorkCalendarRangeInput,
+): Promise<WorkCalendarView> {
+  const parameters = new URLSearchParams({ from: range.from, to: range.to });
+  const { data } = await client.request<WorkCalendarView>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-views/calendar/${encodeURIComponent(projectId)}?${parameters.toString()}`,
+  });
+  return data;
+}

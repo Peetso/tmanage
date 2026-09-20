@@ -6789,6 +6789,18 @@ can adopt it verbatim when it catches up.
    accessible list (WK-04's "accessible list"); the Gantt canvas, WK-06 Workload, WK-07 Forms,
    WK-08 Saved views and the calendar view remain follow-ups. Capability `work.read` is **reused**
    (a dedicated work-views capability is deferred, off the shared capability files).
+7. **WK-05 Work calendar is built as a read + accessible screen** (x103) — the same `work-views`
+   module composes `WorkItemsRepository.list` read-only (no edit to the work module, no migration)
+   behind `GET …/work-views/calendar/:projectId?from&to`. It resolves the named project
+   tenant-scoped first — an unknown or cross-tenant id is 404, not an empty calendar (the
+   resolve-before-relation-check trap) — then buckets each readable item onto one day, its `dueAt`
+   day or, lacking one, its `startAt` day; a dateless or out-of-range item is excluded, days carry
+   at least one item and are ascending, and within a day items order by start, then due, then id.
+   The empty value is `days: []`. `mayRead` and the client-audience pre-filter are identical to
+   the timeline's. `WorkCalendarScreen` renders the accessible list (day headings + per-day
+   tables), paired Exact as `WorkCalendarView` (CONTRACT-001). Meetings are **not** folded in this
+   slice (work items only — the smallest useful calendar; the meetings module stays disjoint).
+   Capability `work.read` is **reused**. The month-grid canvas and WK-07/WK-08 remain follow-ups.
 
 ---
 

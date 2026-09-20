@@ -62,6 +62,7 @@ import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
+import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
@@ -118,6 +119,7 @@ import type {
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
+import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -198,6 +200,13 @@ type _myDay = Assert<Exact<ApiMyDayView, WebMyDay>>;
  * `state` is the same `WORK_ITEM_STATES` union as the work list's.
  */
 type _workTimeline = Assert<Exact<ApiWorkTimelineView, WebWorkTimelineView>>;
+
+/**
+ * WK-05 (x103). `GET .../work-views/calendar/:projectId?from&to` — the accessible Work calendar.
+ * The `WorkCalendarScreen` reads exactly this response, so the pair is Exact; the nested item's
+ * `state` is the same `WORK_ITEM_STATES` union as the work list's and the timeline's.
+ */
+type _workCalendar = Assert<Exact<ApiWorkCalendarView, WebWorkCalendarView>>;
 
 /** `ClientRequestView.state` ↔ the nine states of `23-ERD` §6. */
 type _clientRequest = Assert<Exact<ApiClientRequestView, WebClientRequestRecord>>;

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { WorkViewsService } from './work-views.service.js';
 import type { TimelineItemRow, WorkTimelineRepository } from './timeline.repository.js';
+import type { WorkCalendarRepository } from './calendar.repository.js';
 import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
+import { ProjectNotFoundError } from '../projects/projects.repository.js';
+import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 
@@ -150,5 +153,100 @@ describe('WorkViewsService.projectTimeline', () => {
     const view = await service.projectTimeline(context, member([PROJECT]), PROJECT);
 
     expect(view).toEqual({ projectId: PROJECT, items: [] });
+  });
+});
+
+/**
+ * WK-05 Work calendar: `projectCalendar` resolves the project, buckets the work read by anchor
+ * day into a requested range, and authorizes each item — all over fakes, DB-free, because the
+ * underlying `list` is already DB-proven (brief §Gates: no DB test).
+ */
+
+const DAY_OUT = new Date('2026-03-01T09:00:00.000Z');
+const RANGE = { from: '2026-02-01', to: '2026-02-28' } as const;
+
+/**
+ * A calendar service whose project resolves (or not) and whose work read returns exactly `rows`,
+ * unscoped — so `mayRead` must drop the foreign one and the project resolve must 404 when absent.
+ */
+function calendarServiceWith(
+  rows: readonly WorkItemRow[],
+  options: { projectExists?: boolean } = {},
+): WorkViewsService {
+  const database = {
+    read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+  } as unknown as TenantDatabase;
+  const timeline = {} as unknown as WorkTimelineRepository;
+  const calendar = {
+    listProjectItems: async () => rows,
+  } as unknown as WorkCalendarRepository;
+  const projects = {
+    findById: async () => ((options.projectExists ?? true) ? {} : null),
+  } as unknown as ProjectsRepository;
+  return new WorkViewsService(database, timeline, calendar, projects);
+}
+
+describe('WorkViewsService.projectCalendar', () => {
+  it('buckets items by anchor day in range order, drops a cross-tenant item, and excludes dateless and out-of-range items', async () => {
+    // Anchor = dueAt, or startAt when there is no due date.
+    const dueDayOne = item({ id: 'work-a-0000000000-0000-000000000001', dueAt: DAY_ONE });
+    const startDayOne = item({
+      id: 'work-c-0000000000-0000-000000000003',
+      startAt: DAY_ONE,
+      dueAt: null,
+    });
+    const dueDayTwo = item({ id: 'work-b-0000000000-0000-000000000002', dueAt: DAY_TWO });
+    const undated = item({ id: 'work-u-0000000000-0000-000000000004', startAt: null, dueAt: null });
+    const outOfRange = item({ id: 'work-o-0000000000-0000-000000000005', dueAt: DAY_OUT });
+    const foreign = item({
+      id: 'work-z-0000000000-0000-000000000009',
+      organizationId: OTHER_ORG,
+      dueAt: DAY_ONE,
+    });
+
+    const service = calendarServiceWith([
+      dueDayOne,
+      startDayOne,
+      dueDayTwo,
+      undated,
+      outOfRange,
+      foreign,
+    ]);
+
+    const view = await service.projectCalendar(context, member([PROJECT]), PROJECT, RANGE);
+
+    expect(view.projectId).toBe(PROJECT);
+    expect(view.range).toEqual(RANGE);
+    // Only the two in-range days that carry an item, ascending.
+    expect(view.days.map((day) => day.date)).toEqual(['2026-02-01', '2026-02-02']);
+    // Within day one, the started item sorts before the due-only item (start, then due, then id).
+    expect(view.days[0]?.items.map((row) => row.id)).toEqual([startDayOne.id, dueDayOne.id]);
+    expect(view.days[1]?.items.map((row) => row.id)).toEqual([dueDayTwo.id]);
+    // Dates are serialised.
+    expect(view.days[1]?.items[0]?.dueAt).toBe(DAY_TWO.toISOString());
+    // The other tenant's row never contributes; neither does a dateless or out-of-range item.
+    expect(JSON.stringify(view)).not.toContain(OTHER_ORG);
+    const allIds = view.days.flatMap((day) => day.items.map((row) => row.id));
+    expect(allIds).not.toContain(undated.id);
+    expect(allIds).not.toContain(outOfRange.id);
+    expect(allIds).not.toContain(foreign.id);
+  });
+
+  it('is 404, not an empty calendar, for an unknown or cross-tenant project id', async () => {
+    // An org-wide caller passes the per-item read, so an unknown project must be turned away by
+    // the tenant-scoped resolve before anything is bucketed (FAST-PROTOCOL known trap).
+    const service = calendarServiceWith([], { projectExists: false });
+
+    await expect(
+      service.projectCalendar(context, member([PROJECT]), 'project-does-not-exist', RANGE),
+    ).rejects.toBeInstanceOf(ProjectNotFoundError);
+  });
+
+  it('returns the documented empty value for a project with no in-range readable items', async () => {
+    const service = calendarServiceWith([]);
+
+    const view = await service.projectCalendar(context, member([PROJECT]), PROJECT, RANGE);
+
+    expect(view).toEqual({ projectId: PROJECT, range: RANGE, days: [] });
   });
 });
