@@ -256,6 +256,34 @@ export const projectMemberships = mysqlTable(
   ],
 );
 
+/**
+ * CAL-01 / MTG-01 (x90). A project meeting — a title, a start instant and an agenda note.
+ *
+ * Tenant-scoped and project-owned like `conversations`. `startsAt` is a `DATETIME(3)` instant,
+ * not a `DATE`: a meeting starts at a point in time that is meant to move with the reader's
+ * zone, unlike `projects.forecastAt` (a calendar date). No decisions/actions linkage yet — doc
+ * 38's "closes with linked decisions and actions" is the next slice. `0029_meetings.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const meetings = mysqlTable(
+  'meetings',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    startsAt: datetime('starts_at', { mode: 'date', fsp: 3 }).notNull(),
+    agendaNote: text('agenda_note'),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meetings_org_id').on(table.organizationId, table.id),
+    index('ix_meetings_org_project').on(table.organizationId, table.projectId, table.startsAt),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1435,6 +1463,7 @@ export type ClientMembershipRow = typeof clientMemberships.$inferSelect;
 export type ProjectClientRow = typeof projectClients.$inferSelect;
 export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
+export type MeetingRow = typeof meetings.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

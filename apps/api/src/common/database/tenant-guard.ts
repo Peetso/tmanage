@@ -129,6 +129,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // NULL and it carries the `(organization_id, id)` key every tenant table has, so the guard
   // scopes its reads and writes.
   import_jobs: 'organization_id',
+  // CAL-01 / MTG-01 (x90). Tenant-owned: a meeting names a project, and an unscoped
+  // `SELECT ... FROM meetings` would be every studio's calendar on the server. The guard must
+  // scope its reads and its writes.
+  meetings: 'organization_id',
 });
 
 /**

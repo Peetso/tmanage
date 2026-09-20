@@ -317,4 +317,10 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  *          'validated_with_errors', totalCount, validCount, invalidCount, errors: { row, errors:
  *          { field, message }[] }[] }`. Commits no target entity; `jobId` is the persisted
  *          `import_jobs` anchor.
+ *
+ * CAL-01 / MTG-01 (x90). `MeetingView` (`GET`/`POST …/meetings`, request body + response) has no
+ * web counterpart this slice — no calendar screen exists yet — so it is not paired here but
+ * listed in `scripts/contracts-check.mjs`'s EXEMPT with the "No web consumer" reason, the same
+ * treatment `ProjectHealthView` (x86) has. Replace this note with an `Assert<Exact<…>>` pair when
+ * the calendar screen and its `apps/web` shape land.
  */

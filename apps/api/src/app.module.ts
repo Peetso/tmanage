@@ -22,6 +22,7 @@ import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
+import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -154,6 +155,10 @@ export class AppModule {
         // a caller who names one that is not theirs should get 404 rather than a foreign-key
         // violation surfacing as 500.
         ConversationsModule.register(),
+        // CAL-01 / MTG-01 (x90). After `ProjectsModule` for the same reason as conversations: a
+        // meeting names a project, and the composite foreign key means a caller who names one
+        // that is not theirs gets a refusal rather than a foreign-key 500.
+        CalendarModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
         // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the
