@@ -33,6 +33,7 @@ import { PlatformModule } from './modules/platform/platform.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { FilesModule } from './modules/files/files.module.js';
 import { ImportModule } from './modules/import/import.module.js';
+import { InsightsModule } from './modules/insights/insights.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -173,6 +174,10 @@ export class AppModule {
         // ON-09. Onboarding import (validate / dry-run). An org-level admin action reusing
         // `org.manage` (ADM-10); it persists an `import_jobs` row and commits no target entity.
         ImportModule.register(),
+        // INS-01. After `WorkModule`: the insights read reuses `WorkItemsRepository` read-only to
+        // roll a project's work items up by workflow status. Read-only, behind `work.read`; it
+        // constructs its own repository handle (see its doc) so its position here is by subject.
+        InsightsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

@@ -12671,3 +12671,39 @@ team could use for a week:
    `DEL-001`, `APPR-001` and `FILE-001` are those aggregates, and none has started.
 
 - 2026-09-20 — HOME-03 (My Day, slice x93): the acting user's own open work across every project, read-only over `work_items` by org+owner (ix_work_items_org_owner_state_due), behind `work.read`, ranked overdue → due-soon (by due_at) → the rest (by id); replaces the HOME-001 stub with `MyDayScreen`. Paged My Day, HOME-01 hero/Pulse/Focus, HOME-04 Waiting and HOME-05 Saved are the follow-ups.
+
+---
+
+## INS-01 — insights, first vertical slice: the delivery-flow read (x89)
+
+The `/insights` module was a stub — the largest of the still-unbuilt product modules the
+whole-project audit names. Its first vertical slice is a **read model, no table**: a project's
+**delivery flow**, the count of its work items in each workflow status (`backlog … archived`,
+`23-ERD` §5's lifecycle). It is deliberately distinct from x86's project-health roll-up, which
+counts `on_track`/`at_risk`/`blocked`; this counts the raw lifecycle states — the movement of
+work across the board.
+
+`apps/api/src/modules/insights/` follows the `work`/`requests` module pattern —
+`insights.module.ts` (`.register()`, wired in `app.module.ts`), `insights.controller.ts`,
+`insights.service.ts`, `delivery-flow.repository.ts`. `GET
+…/insights/projects/:projectId/delivery-flow` returns `DeliveryFlowView` (counts by status,
+`itemCount`, `computedAt`). `DeliveryFlowRepository` reuses `WorkItemsRepository` **read-only**
+— the work module is never edited (x88 owns work edits) — walking the tenant-scoped, project-
+filtered, keyset-paginated `list` and tallying each readable row. A pure read: no column, no
+write, no schedule. An empty project is the documented empty value: every count 0, `itemCount` 0.
+
+**Capability — reuse `work.read`, not a new `insights.read`.** The read sits behind `work.read`,
+the same internal-read capability x86's project-health roll-up uses. This is a deliberate
+decision recorded here: reusing it avoids editing `CAPABILITIES` and x82's role/operation grid,
+so the slice needs no migration and stays parallel-safe. A dedicated `insights.read` is the
+clean follow-up once the module grows — and would then require the capability-table + grid edits
+x90/x91 make. The service applies the _relation_ half of `work.read` per row (`mayRead`, the
+same rule `WorkItemsService` applies), so a caller with the role but no relation to the project's
+items — or a cross-tenant row — contributes nothing.
+
+**No web surface this slice.** Nothing consumes the endpoint yet, so `DeliveryFlowView` is
+exempt in `scripts/contracts-check.mjs` (matching x86's `ProjectHealthView` posture); the
+`/insights` screen is the follow-up. The read is proved over the module's fakes
+(`delivery-flow.repository.test.ts`): a mix of statuses rolls up to the expected counts, an
+empty project to the empty value, and a cross-tenant item is excluded. No DB test — the
+underlying work reads are already DB-proven.

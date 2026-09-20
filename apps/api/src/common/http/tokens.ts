@@ -105,3 +105,5 @@ export const MALWARE_SCANNER = Symbol.for('tmanage.MalwareScanner');
 export const IMPORT_SERVICE = Symbol.for('tmanage.ImportService');
 /** ON-09. The `import_jobs` repository — the durable anchor for a validation attempt. */
 export const IMPORT_JOBS_REPOSITORY = Symbol.for('tmanage.ImportJobsRepository');
+/** INS-01. The insights read service — a read-only reporting surface over the `work` data. */
+export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');
