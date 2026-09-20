@@ -6644,10 +6644,14 @@ can adopt it verbatim when it catches up.
    predecessor always costs the claim — the stricter reading.
 2. **"Critical" predecessors are not distinguished.** §63 says "critical predecessor";
    every edge counts today, stricter again.
-3. **Project-level health (UNIT-12's subject) is not built** — this is per-item health; a
-   project roll-up is a read over it that no scheduled screen consumes yet.
-4. **No web surface.** The board and detail drawing of blockers and health is screen
-   work; the four new endpoints are ready for it.
+3. **Project-level health (UNIT-12's subject) is built as a read** (x86) — `projectHealthOf`
+   / `GET …/work-items/project-health/:projectId` rolls per-item health up across a project
+   (counts by `on_track`/`at_risk`/`blocked` and a derived project state) by re-using the
+   per-item rule via a shared `deriveHealth`, not a second copy. A pure read: no column, no
+   write, no schedule; an empty project is `on_track`, all counts zero, `itemCount` 0. No
+   scheduled screen consumes it yet — see gap 4.
+4. **No web surface.** The board and detail drawing of blockers and health — and the project
+   health roll-up — is screen work; the endpoints are ready for it.
 5. **Blocker edit is refusal-only.** A typo in a reason is fixed by resolving with a note
    and raising anew — the ledger stance, stated so nobody adds UPDATE later without
    noticing what it costs.

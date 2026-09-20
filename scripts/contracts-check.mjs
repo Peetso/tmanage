@@ -86,6 +86,10 @@ const EXEMPT = new Map([
   ['WorkBlockerView', 'No web consumer: same as WorkItemDependencyView.'],
   ['WorkItemHealthView', 'No web consumer: health is computed but no screen reads it yet.'],
   [
+    'ProjectHealthView',
+    'No web consumer: UNIT-12 project health roll-up is authored ready for the screen; no screen reads it yet (x86 follow-up).',
+  ],
+  [
     'NotificationPreferencesView',
     'no web consumer yet (NOTIF-001 API-only; pair when the preferences screen lands)',
   ],

@@ -17,6 +17,7 @@ import { ApiError } from '../../common/http/errors.js';
 import { WORK_ITEMS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type {
+  ProjectHealthView,
   WorkBlockerView,
   WorkItemDependencyView,
   WorkItemHealthView,
@@ -347,6 +348,22 @@ export class WorkItemsController {
     @Param('workItemId') workItemId: string,
   ): Promise<WorkItemHealthView> {
     return this.workItems.healthOf(context, principal, workItemId);
+  }
+
+  /**
+   * UNIT-12's project subject: the project's health rolled up over per-item health. Behind
+   * `work.read`, the same capability every read here uses, so a caller without it is refused
+   * exactly as the sibling reads refuse. Authored ready for the screen; no web surface consumes
+   * it yet (recorded as the follow-up in implementation-status).
+   */
+  @Get('project-health/:projectId')
+  @RequireCapability('work.read')
+  async projectHealth(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<ProjectHealthView> {
+    return this.workItems.projectHealthOf(context, principal, projectId);
   }
 }
 
