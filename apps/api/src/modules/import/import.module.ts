@@ -11,6 +11,7 @@ import { ImportRowsRepository } from './import-rows.repository.js';
 import { ImportService } from './import.service.js';
 import { ImportController } from './import.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { WorkspacesRepository } from '../tenancy/workspaces.repository.js';
 
 /**
  * ON-09. The onboarding-import module — validate / dry-run half (x95) plus the commit half (x100).
@@ -31,7 +32,13 @@ export class ImportModule {
       provide: IMPORT_SERVICE,
       inject: [TENANT_DATABASE, IMPORT_JOBS_REPOSITORY],
       useFactory: (database: TenantDatabase, jobs: ImportJobsRepository) =>
-        new ImportService(database, jobs, new ImportRowsRepository(), new ProjectsRepository()),
+        new ImportService(
+          database,
+          jobs,
+          new ImportRowsRepository(),
+          new ProjectsRepository(),
+          new WorkspacesRepository(),
+        ),
     };
 
     return {

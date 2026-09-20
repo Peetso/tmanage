@@ -6,6 +6,7 @@ import type { CommitImportJobInput } from './import-jobs.repository.js';
 import type { ImportJobsRepository } from './import-jobs.repository.js';
 import type { CreateImportRowInput, ImportRowsRepository } from './import-rows.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
+import type { WorkspacesRepository } from '../tenancy/workspaces.repository.js';
 import type { SourceMapping, SourceRow } from './import-validation.js';
 import type { ImportJobRow, ProjectRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -40,6 +41,14 @@ function projectRow(over: Record<string, unknown> = {}): SourceRow {
     ...over,
   };
 }
+
+/**
+ * A well-formed workspace id (passes the `<= 36` string validation) that the fake workspace
+ * lookup resolves to `null` — a workspace that does not exist in this tenant, or belongs to
+ * another. The commit must record such a row as a `failed` receipt, not let it reach the
+ * projects foreign key inside the transaction and abort the whole batch.
+ */
+const MISSING_WORKSPACE_ID = '00000000-0000-4000-8000-0000000000ff';
 
 /** An owner principal: holds `org.manage` (the route gate) and `project.create` (the row gate). */
 function ownerPrincipal(): Principal {
@@ -115,8 +124,15 @@ function makeService(job: ImportJobRow | null): Fakes {
     },
   } as unknown as ProjectsRepository;
 
+  // A tenant-scoped workspace lookup: every workspace resolves except the sentinel
+  // MISSING_WORKSPACE_ID, which stands in for a well-formed but unknown / cross-tenant id.
+  const workspaces = {
+    findById: async (_r: unknown, _c: TenantContext, workspaceId: string): Promise<unknown> =>
+      workspaceId === MISSING_WORKSPACE_ID ? null : { id: workspaceId },
+  } as unknown as WorkspacesRepository;
+
   return {
-    service: new ImportService(database, jobs, rows, projects),
+    service: new ImportService(database, jobs, rows, projects, workspaces),
     created,
     receipts,
     committed,
@@ -252,5 +268,41 @@ describe('ImportService.commit', () => {
     await expect(
       service.commit(CONTEXT, ownerPrincipal(), commitRequest([projectRow()])),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('records a row naming an unknown workspace as a failure and still commits the good rows', async () => {
+    // A well-formed but unknown / cross-tenant workspace id passes row validation and the
+    // create authorize, but resolves to no workspace in this tenant. It must become a `failed`
+    // receipt — not reach the projects foreign key inside the transaction, where it would raise
+    // a 500 and roll back the rows committed before it. The valid row on either side proves the
+    // batch is not aborted: partial commit is preserved.
+    const { service, created, receipts, committed } = makeService(
+      validatedJob({ status: 'validated' }),
+    );
+
+    const view = await service.commit(
+      CONTEXT,
+      ownerPrincipal(),
+      commitRequest([
+        projectRow(), // 0 valid, known workspace
+        projectRow({ Workspace: MISSING_WORKSPACE_ID }), // 1 unknown workspace -> failed
+        projectRow(), // 2 valid, known workspace
+      ]),
+    );
+
+    expect(view.status).toBe('committed_with_errors');
+    expect(view.committedCount).toBe(2);
+    expect(view.failedCount).toBe(1);
+    // Only the two good rows created entities; the unknown-workspace row did not.
+    expect(created).toHaveLength(2);
+    const failed = view.rows.find((r) => r.outcome === 'failed');
+    expect(failed?.sourceIndex).toBe(1);
+    expect(failed?.createdEntityId).toBeNull();
+    expect(failed?.error).toContain('workspace');
+    // The failed receipt was still written (the batch was not rolled back).
+    expect(receipts.find((r) => r.sourceIndex === 1)?.outcome).toBe('failed');
+    expect(committed).toEqual([
+      { status: 'committed_with_errors', committedCount: 2, failedCount: 1 },
+    ]);
   });
 });

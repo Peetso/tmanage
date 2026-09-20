@@ -18,7 +18,7 @@ import { ImportJobsRepository } from './import-jobs.repository.js';
 import { ImportRowsRepository } from './import-rows.repository.js';
 import type { ImportRowOutcome } from './import-rows.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
-import type { CreateProjectInput } from '../projects/projects.repository.js';
+import { WorkspacesRepository } from '../tenancy/workspaces.repository.js';
 
 /**
  * ON-09's validate / dry-run service.
@@ -108,6 +108,7 @@ export class ImportService {
     private readonly jobs: ImportJobsRepository = new ImportJobsRepository(),
     private readonly rows: ImportRowsRepository = new ImportRowsRepository(),
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    private readonly workspaces: WorkspacesRepository = new WorkspacesRepository(),
   ) {}
 
   async validate(
@@ -232,11 +233,34 @@ export class ImportService {
           continue;
         }
 
-        const created = await this.projects.create(
-          tx,
-          context,
-          projectCreateInput(request.mapping, row),
-        );
+        // The row passed validation and the create authorize. Resolve the named workspace
+        // tenant-scoped BEFORE the insert: a well-formed but unknown or cross-tenant workspace
+        // id otherwise reaches the projects composite foreign key inside the transaction,
+        // turning one bad row into a 500 that rolls back the whole batch and every receipt
+        // written before it. Resolved here it becomes a per-row `failed` receipt instead, and
+        // partial commit is preserved (FAST-PROTOCOL known trap: resolve a named parent
+        // tenant-scoped before the write, so a missing / cross-tenant id is a row failure and
+        // never a 500).
+        const values = projectCommitValues(request.mapping, row);
+        const workspace = await this.workspaces.findById(tx, context, values.workspaceId);
+        if (!workspace) {
+          written.push(
+            await this.recordFailure(
+              tx,
+              context,
+              request.jobId,
+              index,
+              'workspaceId: no such workspace in this organization',
+            ),
+          );
+          continue;
+        }
+
+        const created = await this.projects.create(tx, context, {
+          workspaceId: values.workspaceId,
+          name: values.name,
+          ...(values.forecastAt === undefined ? {} : { forecastAt: values.forecastAt }),
+        });
         const receipt = await this.rows.create(tx, context, {
           jobId: request.jobId,
           sourceIndex: index,
@@ -291,16 +315,6 @@ export class ImportService {
     });
     return { sourceIndex, outcome: 'failed', createdEntityId: null, error: errorDetail };
   }
-}
-
-/** The `CreateProjectInput` a validated `project` row commits as. */
-function projectCreateInput(mapping: SourceMapping, row: SourceRow): CreateProjectInput {
-  const values = projectCommitValues(mapping, row);
-  return {
-    workspaceId: values.workspaceId,
-    name: values.name,
-    ...(values.forecastAt === undefined ? {} : { forecastAt: values.forecastAt }),
-  };
 }
 
 /** A compact, column-bounded summary of a row's field errors for the receipt. */
