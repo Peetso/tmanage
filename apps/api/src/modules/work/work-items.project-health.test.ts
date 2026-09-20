@@ -71,10 +71,17 @@ function member(projectIds: readonly string[]): Principal {
  * tenant scope, so a cross-tenant row reaches the service and the roll-up must drop it through
  * its own `mayRead` — belt-and-braces to the tenant-scoped SQL, exactly as `list` does per row.
  */
+/** Counts the batched graph reads so a test can prove the roll-up does not fan out per item. */
+interface GraphCallSpy {
+  blockerCalls: number;
+  predecessorCalls: number;
+}
+
 function serviceWith(
   rows: readonly WorkItemRow[],
   blockers: Readonly<Record<string, WorkBlockerRow | null>> = {},
   predecessors: Readonly<Record<string, readonly PredecessorHealthRow[]>> = {},
+  spy?: GraphCallSpy,
 ): WorkItemsService {
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -92,11 +99,28 @@ function serviceWith(
           (options.after === undefined || row.id > options.after),
       ),
   } as unknown as WorkItemsRepository;
+  // The roll-up reads the graph in batch: one call per page per relation, taking the readable
+  // item ids and returning maps keyed by item id. The fakes mirror that shape.
   const graph = {
-    findActiveBlocker: async (_runner: unknown, _context: unknown, id: string) =>
-      blockers[id] ?? null,
-    listPredecessors: async (_runner: unknown, _context: unknown, id: string) =>
-      predecessors[id] ?? [],
+    findActiveBlockersByItem: async (
+      _runner: unknown,
+      _context: unknown,
+      ids: readonly string[],
+    ) => {
+      if (spy) spy.blockerCalls += 1;
+      const map = new Map<string, WorkBlockerRow>();
+      for (const id of ids) {
+        const blocker = blockers[id];
+        if (blocker) map.set(id, blocker);
+      }
+      return map;
+    },
+    listPredecessorsByItem: async (_runner: unknown, _context: unknown, ids: readonly string[]) => {
+      if (spy) spy.predecessorCalls += 1;
+      const map = new Map<string, readonly PredecessorHealthRow[]>();
+      for (const id of ids) map.set(id, predecessors[id] ?? []);
+      return map;
+    },
   } as unknown as WorkGraphRepository;
   return new WorkItemsService(database, workItems, undefined, undefined, undefined, graph);
 }
@@ -129,6 +153,30 @@ describe('projectHealthOf roll-up', () => {
     expect(typeof health.computedAt).toBe('string');
     // The other tenant's row never contributes.
     expect(JSON.stringify(health)).not.toContain(OTHER_ORG);
+  });
+
+  it('batches the graph reads across the item set: one blocker call and one predecessor call for a multi-item page, tallies unchanged', async () => {
+    const spy: GraphCallSpy = { blockerCalls: 0, predecessorCalls: 0 };
+    const onTrack = item({ id: 'work-a-0000000000-0000-000000000001' });
+    const atRisk = item({ id: 'work-b-0000000000-0000-000000000002' });
+    const blocked = item({ id: 'work-c-0000000000-0000-000000000003' });
+
+    const service = serviceWith(
+      [onTrack, atRisk, blocked],
+      { [blocked.id]: activeBlocker() },
+      { [atRisk.id]: [latePredecessor()] },
+      spy,
+    );
+
+    const health = await service.projectHealthOf(context, member([PROJECT]), PROJECT);
+
+    // One page of three items resolves in a single batched read per relation, not one per item.
+    expect(spy.blockerCalls).toBe(1);
+    expect(spy.predecessorCalls).toBe(1);
+    // The batched read is behaviour-preserving: the same tallies the per-item walk produced.
+    expect(health.counts).toEqual({ on_track: 1, at_risk: 1, blocked: 1 });
+    expect(health.itemCount).toBe(3);
+    expect(health.status).toBe('blocked');
   });
 
   it('rolls an empty project up to zero counts and on_track', async () => {

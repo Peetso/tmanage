@@ -792,10 +792,17 @@ export class WorkItemsService {
           limit: MAX_PAGE_SIZE,
         });
 
-        for (const row of page) {
-          if (!this.mayRead(principal, row)) continue;
-          const blocker = await this.graph.findActiveBlocker(runner, context, row.id);
-          const predecessors = await this.graph.listPredecessors(runner, context, row.id);
+        // Batch the two graph reads across the readable rows of this page, so the walk issues a
+        // bounded number of queries (two per page) rather than two per item (review-x86 F3). The
+        // per-item rule below is unchanged: each row is scored by the same `deriveHealth`.
+        const readable = page.filter((row) => this.mayRead(principal, row));
+        const ids = readable.map((row) => row.id);
+        const blockers = await this.graph.findActiveBlockersByItem(runner, context, ids);
+        const predecessorsByItem = await this.graph.listPredecessorsByItem(runner, context, ids);
+
+        for (const row of readable) {
+          const blocker = blockers.get(row.id) ?? null;
+          const predecessors = predecessorsByItem.get(row.id) ?? [];
           const { status } = this.deriveHealth(context, principal, blocker, predecessors, now);
           counts[status] += 1;
         }

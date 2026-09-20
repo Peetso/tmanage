@@ -1340,3 +1340,64 @@ describe('GET /v1/auth/security-activity', () => {
     expect(response.statusCode).toBe(401);
   });
 });
+
+/**
+ * The guard refusals actually land — the one DB confirmation review-x83 left UNEXECUTED (x88).
+ *
+ * `session-auth.guard` records `missing_session` and `csrf.guard` records `csrf_failed`, each
+ * through the best-effort {@link DatabaseAuthenticationEventRecorder}. The unit suites prove the
+ * recorder is *called* once with the fixed reason; this proves the row it writes has the shape the
+ * whole design depends on — `user_id NULL`, `outcome='failed'` — so a guard refusal is evidence
+ * that names no account and, by `countRecentFailures`'s `user_id` equality, can never inflate a
+ * user's D08 lockout counter. The recorder is fire-and-forget (the refusal never waits on the
+ * insert), so the row is read behind a short poll rather than immediately.
+ */
+describe('guard refusals land in the authentication log as user-less failed rows', () => {
+  async function waitForGuardRow(action: string, timeoutMs = 5_000): Promise<RowDataPacket[]> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const [rows] = await db.admin.query<RowDataPacket[]>(
+        `select user_id, action, outcome, reason from authentication_events
+          where action = ? order by occurred_at, id`,
+        [action],
+      );
+      if (rows.length > 0 || Date.now() > deadline) return rows;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+
+  it('records a missing session and a failed CSRF check, each once, attributed to no user', async () => {
+    // Missing session: a read behind the session guard with no cookie is refused 401, and the
+    // guard appends exactly one `missing_session` row.
+    const noSession = (await app.inject({
+      method: 'GET',
+      url: '/v1/auth/factors',
+      headers: {},
+    })) as unknown as InjectedResponse;
+    expect(noSession.statusCode).toBe(401);
+
+    // Failed CSRF: an authenticated session mutating without its token is refused 403, and the
+    // guard appends exactly one `csrf_failed` row — user-less despite the live session, because
+    // the refusal presents no credential the row should be attributed to.
+    const session = await developmentSession(owner().id);
+    const badCsrf = await post(
+      '/v1/auth/password/set',
+      { password: PASSWORD },
+      { cookie: session.cookie },
+    );
+    expect(badCsrf.statusCode).toBe(403);
+    expect(badCsrf.json<{ error: { code: string } }>().error.code).toBe('csrf_failed');
+
+    const missing = await waitForGuardRow('session_guard');
+    expect(missing).toHaveLength(1);
+    expect(missing[0]!['reason']).toBe('missing_session');
+    expect(missing[0]!['outcome']).toBe('failed');
+    expect(missing[0]!['user_id']).toBeNull();
+
+    const csrf = await waitForGuardRow('csrf_guard');
+    expect(csrf).toHaveLength(1);
+    expect(csrf[0]!['reason']).toBe('csrf_failed');
+    expect(csrf[0]!['outcome']).toBe('failed');
+    expect(csrf[0]!['user_id']).toBeNull();
+  });
+});
