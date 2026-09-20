@@ -12,6 +12,7 @@ import {
   MALWARE_SCANNER,
   OBJECT_STORE,
   OUTBOX_EVENTS_REPOSITORY,
+  QUARANTINE_CLEANUP_JOB,
   TENANT_DATABASE,
   UPLOAD_SESSIONS_REPOSITORY,
   UPLOAD_SESSION_SWEEPER,
@@ -40,6 +41,7 @@ import { FileDownloadsController } from './file-downloads.controller.js';
 import { PortalFileDownloadsController } from './portal-file-downloads.controller.js';
 import { UploadSessionSweeper } from './upload-session-sweeper.js';
 import { UsageReconciler } from './usage-reconciler.js';
+import { QuarantineCleanupJob } from './quarantine-cleanup.js';
 import { UsageService } from './usage.service.js';
 import { UsageController } from './usage.controller.js';
 import { UploadSessionsController } from './upload-sessions.controller.js';
@@ -167,6 +169,21 @@ export class FilesModule {
         ),
     };
 
+    // FILE-003. The retention-lifecycle job: exported so `cleanup.ts` can resolve it, built on
+    // the same FilesService the routes and the sweeper use — its purge deletes through the same
+    // object store, moves the same counter and appends to the same outbox and audit a route's
+    // write would, so a copy built without the outbox could not exist here.
+    const cleanup: Provider = {
+      provide: QUARANTINE_CLEANUP_JOB,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, FILES_SERVICE, API_CONFIG],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        files: FilesService,
+        config: ApiConfig,
+      ) => new QuarantineCleanupJob(database, assets, files, config.fileRetentionRejectedDays),
+    };
+
     // USAGE-001 slice 5. The read behind the billing screen (§8): the same counters repository
     // the write paths use, plus the config that carries the effective quota. A read-only service —
     // no store, no outbox, no audit — because it moves no counter and appends no event.
@@ -257,11 +274,12 @@ export class FilesModule {
         usage,
         sweeper,
         reconciler,
+        cleanup,
         verifier,
         scanner,
         downloads,
       ],
-      exports: [service, usage, sweeper, reconciler, verifier, scanner, downloads],
+      exports: [service, usage, sweeper, reconciler, cleanup, verifier, scanner, downloads],
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,

@@ -12,6 +12,7 @@ import type {
   PartSink,
   PromoteObjectInput,
   Promotion,
+  RemoveObjectInput,
   StoredObject,
   WithdrawObjectInput,
 } from '@tmanage/storage';
@@ -79,6 +80,9 @@ class UnavailableObjectStore implements ObjectStore {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
   withdraw(_input: WithdrawObjectInput): Promise<void> {
+    return Promise.reject(new ObjectStoreUnavailableError());
+  }
+  remove(_input: RemoveObjectInput): Promise<void> {
     return Promise.reject(new ObjectStoreUnavailableError());
   }
 }

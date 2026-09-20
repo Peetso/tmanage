@@ -30,11 +30,14 @@ export type UsageLedgerCounter = (typeof USAGE_LEDGER_COUNTERS)[number];
  * - `commit_release` — the reservation retired by that same completion (`-reserved`).
  * - `cancelled` / `expired` / `failed` — the reservation given back (`-reserved`), named by
  *   the cause so a completion and a release of one session never share an idempotency key.
+ * - `purged` — FILE-003's retention deletion of a rejected object's committed bytes
+ *   (`-used`), keyed on the file version so it never shares a key with the session's moves.
  */
 export const USAGE_LEDGER_REASON = {
   reserve: 'reserve',
   commit: 'commit',
   commitRelease: 'commit_release',
+  purged: 'purged',
 } as const;
 
 /**

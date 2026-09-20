@@ -640,6 +640,14 @@ export const fileAssets = mysqlTable(
     rejectionCode: varchar('rejection_code', { length: 64 }),
     /** FILE-002 slice B. The scan pass's claim on a `scanning` row; stale after fifteen minutes. */
     scanClaimedAt: datetime('scan_claimed_at', { mode: 'date', fsp: 3 }),
+    /**
+     * FILE-003 (0025). When the retention-lifecycle job deleted this rejected object's provider
+     * bytes and gave the counted bytes back — NULL until then, so the job's selection and its
+     * one-shot claim both turn on `purged_at IS NULL`. The row itself is never deleted
+     * (`49-PRICING` §6: never delete customer data automatically); this column is the record
+     * that its bytes were removed, and the evidence trail stays.
+     */
+    purgedAt: datetime('purged_at', { mode: 'date', fsp: 3 }),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -653,6 +661,13 @@ export const fileAssets = mysqlTable(
       table.createdAt,
     ),
     index('ix_file_assets_org_object').on(table.organizationId, table.objectId),
+    /**
+     * FILE-003's retention scan: which rejected assets are past their window and not yet
+     * purged. `(status, updated_at)` serves both the cross-tenant "which organizations hold
+     * one" read and the per-organization list — `updated_at` is when the asset was rejected
+     * (its last transition), so the range predicate lands on the index rather than a scan.
+     */
+    index('ix_file_assets_status_updated').on(table.status, table.updatedAt),
   ],
 );
 

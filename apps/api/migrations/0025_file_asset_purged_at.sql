@@ -1,0 +1,41 @@
+-- 0025_file_asset_purged_at — the retention-lifecycle marker on file assets (FILE-003).
+--
+-- Governing sources: 49-PRICING-ENTITLEMENTS-AND-STORAGE-POLICY §5 ("recoverable trash until
+-- its documented expiry"; a rejected object's bytes stay counted until FILE-003 deletes them)
+-- and §6 step 8 ("A physical version deletion reduces usage only after provider deletion is
+-- confirmed and retention/hold rules allow it"; "Never delete customer data automatically");
+-- 26-THREAT-MODELS-AND-DATA-FLOWS §5 (the File DFD's quarantine lifecycle); migration 0015
+-- (`file_assets`, the row this column lives on).
+--
+-- ## What this column is
+--
+-- One nullable DATETIME(3) recording when the retention-lifecycle job deleted this rejected /
+-- quarantined object's provider bytes and decremented the organization's storage counter. It is
+-- NULL for every asset until the job takes it, which is what makes the job idempotent: the scan
+-- selects `status = 'rejected' AND purged_at IS NULL`, and the one-shot claim sets `purged_at`
+-- conditionally on it still being NULL, so a second pass over an already-purged object finds
+-- nothing to do.
+--
+-- ## Why the row is not deleted
+--
+-- §6's last line forbids automatic deletion of customer data. FILE-003 deletes the *provider
+-- bytes* — the object in the quarantine zone — never the `file_assets` / `file_versions` rows:
+-- the rejection, the digest and the size stay as the evidence a disputed rejection is settled
+-- by, and this column is the only record that the bytes behind them are gone.
+--
+-- ## Backfill
+--
+-- Existing rows are NULL, which is correct: no object has been purged before this migration, and
+-- a NULL reads as "still holding its bytes" for every asset whether rejected or not.
+--
+-- ## The index
+--
+-- `(status, updated_at)` serves the retention scan. `updated_at` is stamped by every state
+-- transition, so for a `rejected` asset it is the instant it was rejected — the age the retention
+-- window is measured against. Both the cross-tenant "which organizations hold a purgeable asset"
+-- read and the per-organization list use it, so the window's range predicate lands on the index
+-- rather than a table scan.
+
+ALTER TABLE `file_assets`
+  ADD COLUMN `purged_at` DATETIME(3) NULL AFTER `scan_claimed_at`,
+  ADD INDEX `ix_file_assets_status_updated` (`status`, `updated_at`);

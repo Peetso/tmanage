@@ -238,6 +238,14 @@ interface Draft {
   readonly input: CreateUploadInput;
 }
 
+/** FILE-003. What {@link FilesService.purge} did to one rejected object. */
+export interface PurgeOutcome {
+  /** `false` when the row had already been purged (a concurrent pass) — nothing was touched. */
+  readonly purged: boolean;
+  /** Meaningful only when purged. `false` is the counter drift the audit row records. */
+  readonly counterMoved: boolean;
+}
+
 /** USAGE-001. What {@link FilesService.expire} did to one session. */
 export interface ExpiryOutcome {
   /** `false` when the session had already left `reserved` — nothing was touched. */
@@ -1017,6 +1025,100 @@ export class FilesService {
   }
 
   /**
+   * FILE-003 — purge one rejected/quarantined object: delete its provider bytes, then give the
+   * counted bytes back. `49-PRICING` §6 step 8's order is the whole point of the method: the
+   * provider delete is confirmed *before* the transaction that reduces usage, so a crash
+   * between the two re-deletes an object already gone (idempotent) on the next pass and only
+   * then reduces the counter, and a delete that fails reduces nothing (the caller records the
+   * failure and the row waits — `purged_at` is still NULL).
+   *
+   * Called by `QuarantineCleanupJob` under a service context bound to the object's
+   * organization. The provider delete names the `quarantine` zone: a rejected asset never
+   * reached `private`, and {@link FileAssetsRepository.listPurgeable} returns only quarantine
+   * versions, so this never removes a promoted object.
+   *
+   * The transaction claims the row (`purged_at`, conditional on it still being NULL — the
+   * idempotency AC), decrements `used`, appends `file.purged.v1`, records the ledger row that
+   * keeps the append-only sum equal to the decremented counter, and writes exactly one
+   * `file_asset.purged` audit row (`actorUserId: null`, the system case). A drifted counter
+   * that refused the decrement (`counterMoved === false`) records the drift on the audit row
+   * and writes no ledger row, exactly as the expiry release does.
+   */
+  async purge(
+    context: TenantContext,
+    asset: FileAssetRow,
+    version: FileVersionRow,
+  ): Promise<PurgeOutcome> {
+    if (asset.organizationId !== context.organizationId) {
+      // The pass selected the row under this context; the delete below is bound to nothing
+      // but the key, so a row from anywhere else is refused before the provider hears of it.
+      throw new AssetOutsideContextError(asset.id);
+    }
+    // §6 step 8: provider deletion is confirmed first. Idempotent, so a re-run after a crash
+    // between here and the transaction finds the object already gone and carries on.
+    await this.store.remove({ zone: 'quarantine', objectKey: version.objectKey });
+
+    let counterMoved = false;
+    const purged = await this.writing(() =>
+      this.database.transaction(context, async (tx) => {
+        const claimed = await this.assets.claimPurged(tx, context, asset);
+        // Already purged by an earlier pass (or a concurrent one): nothing to reduce, and the
+        // object is gone. Counted `skipped`, the counter untouched — the idempotency AC.
+        if (!claimed) return false;
+
+        counterMoved = await this.counters.releaseUsed(
+          tx,
+          context,
+          STORAGE_BYTES_METRIC,
+          version.sizeBytes,
+        );
+        const purgedEventId = await this.outbox?.append(tx, context, {
+          type: 'file.purged.v1',
+          aggregateId: asset.id,
+          payload: {
+            fileAssetId: asset.id,
+            fileVersionId: version.id,
+            projectId: asset.projectId,
+            metricKey: STORAGE_BYTES_METRIC,
+            deltaBytes: version.sizeBytes,
+          },
+        });
+        // Only when the counter actually gave the bytes back: a drifted counter that refused
+        // records no move, so the ledger records none either and its sum still equals the
+        // counter. Keyed on the version — a purge and the session's own moves never collide.
+        if (purgedEventId && counterMoved) {
+          await this.ledger?.record(tx, context, {
+            uploadSessionId: version.id,
+            counter: 'used',
+            deltaBytes: -version.sizeBytes,
+            reason: USAGE_LEDGER_REASON.purged,
+            sourceEventId: purgedEventId,
+          });
+        }
+        await this.audit?.record(tx, context, {
+          action: 'file_asset.purged',
+          objectId: asset.id,
+          result: 'allowed',
+          actorUserId: null,
+          metadata: {
+            project_id: asset.projectId,
+            file_version_id: version.id,
+            purpose: asset.purpose,
+            size_bytes: version.sizeBytes,
+            // A fixed token, never the rejection_code or any detection name (AC3): the
+            // rejection is already on `file_asset.rejected`, and this row is why the *bytes*
+            // were removed — the retention window elapsed — not what the file was.
+            reason: 'retention_expired',
+            counter_drift: !counterMoved,
+          },
+        });
+        return true;
+      }),
+    );
+    return { purged, counterMoved };
+  }
+
+  /**
    * Ask the provider to abandon the upload. `true` when it did; `false` only in
    * `best-effort` mode, when it refused and the caller carries on regardless.
    */
@@ -1409,6 +1511,14 @@ export class SessionOutsideContextError extends Error {
   constructor(readonly uploadSessionId: string) {
     super(`upload session ${uploadSessionId} does not belong to the organization in context`);
     this.name = 'SessionOutsideContextError';
+  }
+}
+
+/** FILE-003: an asset handed to the purge under a context bound to another organization. */
+export class AssetOutsideContextError extends Error {
+  constructor(readonly fileAssetId: string) {
+    super(`file asset ${fileAssetId} does not belong to the organization in context`);
+    this.name = 'AssetOutsideContextError';
   }
 }
 

@@ -27,6 +27,7 @@ export type {
   OpenedObject,
   PromoteObjectInput,
   Promotion,
+  RemoveObjectInput,
   StoredObject,
   TrustZone,
   UploadTarget,

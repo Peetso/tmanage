@@ -441,6 +441,24 @@ export const AUDIT_ACTION_CATALOG = {
       'metadata; 27-TEST-CATALOG SEC-06; 26-THREAT-MODELS §79 immutable verdicts',
   },
   /**
+   * FILE-003. The retention-lifecycle job's one row per rejected/quarantined object whose
+   * provider bytes it deleted, `actorUserId: null` (a job under a service context, as an
+   * expiry's and a drift correction's are). It is the only trace that a tenant's counted
+   * bytes were physically removed and its quota counter decremented — `49-PRICING` §6 step 8:
+   * "A physical version deletion reduces usage only after provider deletion is confirmed". The
+   * metadata is ids, the size, the counter answer and a fixed `reason` token
+   * (`retention_expired`); never the `rejection_code` or any detection name — the rejection is
+   * already recorded on `file_asset.rejected`, and re-stating why the file was quarantined here
+   * would put the detection's name on a second row this job writes with no actor.
+   */
+  'file_asset.purged': {
+    objectType: 'file_asset',
+    clause:
+      "§12 — a system-initiated deletion of a tenant's stored bytes with no actor is exactly " +
+      'what the log exists to explain; 49-PRICING §6 step 8 (delete then reduce usage), §5 ' +
+      '(rejected bytes counted until FILE-003); 26-THREAT-MODELS §5 quarantine lifecycle',
+  },
+  /**
    * USAGE-001. The sweeper's one row per session it expires. Nobody acted — the actor is
    * null, the documented system case — and it is the only trace that a leaver's abandoned
    * reservation was cleaned rather than left counted against the tenant forever

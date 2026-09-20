@@ -259,6 +259,16 @@ export const envSchema = z
      * One seam reads it: `storageLimitsFor` in the API's files module.
      */
     STORAGE_ORG_BYTES_LIMIT_BYTES: positiveInt.default(524_288_000),
+    /**
+     * FILE-003. How long a rejected / quarantined object's bytes are kept before the
+     * retention-lifecycle job deletes the provider bytes and gives the counted bytes back —
+     * `49-PRICING` §5's "recoverable trash until its documented expiry". The pack names no
+     * value (decision F4 is delegated); thirty days is the default, long enough for a
+     * disputed rejection to be looked at and short enough that a tenant is not billed for
+     * quarantined evidence indefinitely. `FILE_RETENTION_*` so a later object class (aborted
+     * parts, derived previews) adds its own window as a sibling rather than a schema change.
+     */
+    FILE_RETENTION_REJECTED_DAYS: positiveInt.default(30),
 
     // Sessions and cryptography
     SESSION_COOKIE_NAME: nonEmpty('SESSION_COOKIE_NAME').default(SESSION_COOKIE_NAME_DEFAULT),
