@@ -30,3 +30,32 @@ export async function getMyDay(client: ApiClient, organizationSlug: string): Pro
   });
   return data;
 }
+
+/**
+ * The Home / Waiting read — HOME-04's one readable bucket: approvals pending on the acting user
+ * as a reviewer. Behind `approval.read` on the API, gated by the reviewer relation, and taking no
+ * request body: the acting user is the session's. The response is already ranked by the API.
+ *
+ * The delegated bucket (`41-...-MATRIX` HOME-04) is deferred — `work_items` has no assignee/
+ * creator column — so every entry is the `'approval'` kind for now. The discriminant keeps the
+ * shape open for a second kind without a breaking change.
+ */
+export type WaitingReason = 'approval_requested' | 'approval_viewed';
+
+export interface Waiting {
+  readonly items: readonly {
+    readonly kind: 'approval';
+    readonly reason: WaitingReason;
+    readonly approvalId: string;
+    readonly deliverableId: string;
+    readonly projectId: string;
+    readonly requestedAt: string;
+  }[];
+}
+
+export async function getWaiting(client: ApiClient, organizationSlug: string): Promise<Waiting> {
+  const { data } = await client.request<Waiting>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/waiting`,
+  });
+  return data;
+}

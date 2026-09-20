@@ -1,10 +1,11 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { WorkItemRow } from '../../common/database/schema.js';
+import type { ApprovalRow, WorkItemRow } from '../../common/database/schema.js';
 import { toWorkItemView } from '../work/work-items.service.js';
 import type { WorkItemView } from '../work/work-items.service.js';
 import { MyDayRepository } from './my-day.repository.js';
+import { WaitingRepository } from './waiting.repository.js';
 
 /**
  * HOME-03 "Personal work" — the first vertical slice of Home / My Day.
@@ -98,10 +99,105 @@ export function rankMyDay(
   }));
 }
 
+/**
+ * HOME-04 "Waiting" — the second vertical slice of Home / My Day.
+ *
+ * This slice ships the one load-bearing bucket that is readable today: **approvals pending on me
+ * as a reviewer**. The read returns the acting user's pending approvals across every project, each
+ * carrying the single reason it is waiting on them, ranked for a Waiting list. It reuses the
+ * `approval.read` capability (the controller's coarse guard) and the reviewer relation as the real
+ * gate (AUTH-08); it adds nothing to the approvals module and edits neither `capabilities.ts` nor
+ * the role grid.
+ *
+ * The **delegated** bucket (`41-...-MATRIX` HOME-04) is deliberately absent, not stubbed: the
+ * `work_items` table has a single `owner_user_id` and no creator/assignee column, so "work I
+ * delegated elsewhere" is not representable and is a data-model item for scoping. The shape is
+ * kept extensible — a discriminated `kind` on every entry — so a second bucket slots in without a
+ * breaking change.
+ */
+
+/**
+ * Why an approval is on the Waiting list. The order below is the list's rank order: an approval
+ * the reviewer has not yet opened (`requested`) outranks one they have opened but not decided
+ * (`viewed`) — an untouched request needs a first look before one already in hand.
+ */
+export type WaitingReason = 'approval_requested' | 'approval_viewed';
+
+/**
+ * One Waiting row. `kind` is a discriminant so a later bucket (e.g. `'delegated'`, carrying a
+ * work item rather than an approval) is an added arm, never a reshape of this one. Deliberately
+ * **not** suffixed `View`, so CONTRACT-001 counts the one response projection — {@link WaitingView}
+ * — and the entry pairs with the web client structurally through it, as `MyDayEntry` does.
+ *
+ * Dates are ISO strings, the shape `JSON.stringify` emits on the wire.
+ */
+export interface WaitingEntry {
+  readonly kind: 'approval';
+  readonly reason: WaitingReason;
+  readonly approvalId: string;
+  readonly deliverableId: string;
+  readonly projectId: string;
+  /** When the review was requested — `approvals.created_at`, the "waiting since". */
+  readonly requestedAt: string;
+}
+
+/** HOME-04's response: the acting user's pending approvals, ranked for Waiting. */
+export interface WaitingView {
+  readonly items: readonly WaitingEntry[];
+}
+
+/** The order value each waiting reason sorts by. Smaller ranks higher on the list. */
+const WAITING_REASON_RANK: Readonly<Record<WaitingReason, number>> = {
+  approval_requested: 0,
+  approval_viewed: 1,
+};
+
+/** `requested` and `viewed` are the only states {@link WaitingRepository.listPending} returns. */
+function waitingReasonFor(row: ApprovalRow): WaitingReason {
+  return row.state === 'requested' ? 'approval_requested' : 'approval_viewed';
+}
+
+function toWaitingEntry(row: ApprovalRow, reason: WaitingReason): WaitingEntry {
+  return {
+    kind: 'approval',
+    reason,
+    approvalId: row.id,
+    deliverableId: row.deliverableId,
+    projectId: row.projectId,
+    requestedAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Rank a set of the caller's pending approvals into Waiting order: not-yet-opened (`requested`)
+ * first, then opened-not-decided (`viewed`); within a group the oldest request leads (the one
+ * kept waiting longest), ties falling back to id so the order is total and stable.
+ *
+ * Pure over its rows — no clock, no database — so the ranking is provable over fakes. Unlike My
+ * Day the reason is the approval's own lifecycle state, not a function of `now`, so no clock is
+ * taken here.
+ */
+export function rankWaiting(rows: readonly ApprovalRow[]): readonly WaitingEntry[] {
+  const withReason = rows.map((row) => ({ row, reason: waitingReasonFor(row) }));
+
+  withReason.sort((a, b) => {
+    if (WAITING_REASON_RANK[a.reason] !== WAITING_REASON_RANK[b.reason]) {
+      return WAITING_REASON_RANK[a.reason] - WAITING_REASON_RANK[b.reason];
+    }
+    const at = a.row.createdAt.getTime();
+    const bt = b.row.createdAt.getTime();
+    if (at !== bt) return at - bt;
+    return compareId(a.row.id, b.row.id);
+  });
+
+  return withReason.map(({ row, reason }) => toWaitingEntry(row, reason));
+}
+
 export class HomeService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly myDay: MyDayRepository = new MyDayRepository(),
+    private readonly waiting: WaitingRepository = new WaitingRepository(),
   ) {}
 
   /**
@@ -137,6 +233,50 @@ export class HomeService {
           : row.state === 'archived'
             ? ('archived' as const)
             : ('active' as const),
+      },
+    }).allowed;
+  }
+
+  /**
+   * The acting user's Waiting section — the approvals pending on them as a reviewer.
+   *
+   * The tenant-scoped SQL narrows to this org's pending approvals; this then keeps only the ones
+   * the caller is an assigned reviewer of (the real gate, AUTH-08) and may read, so an approval a
+   * caller is not a reviewer of never appears even though it is pending in their tenant. Ranked
+   * for the Waiting list by {@link rankWaiting}.
+   */
+  async waitingOf(context: TenantContext, principal: Principal): Promise<WaitingView> {
+    const rows = await this.database.read(context, (runner) =>
+      this.waiting.listPending(runner, context),
+    );
+    const mine = rows.filter(
+      (row) => this.isAssignedReviewer(principal, row) && this.mayReadApproval(principal, row),
+    );
+    return { items: rankWaiting(mine) };
+  }
+
+  /**
+   * The reviewer relation — the real gate (AUTH-08). The same predicate x92's decide flow feeds
+   * to `authorize()`'s `isAssignedReviewer`: a user not in `reviewer_ids` never sees the approval.
+   */
+  private isAssignedReviewer(principal: Principal, row: ApprovalRow): boolean {
+    return row.reviewerIds.includes(principal.userId);
+  }
+
+  /**
+   * Belt-and-braces above the tenant-scoped SQL and the reviewer filter, exactly as `mayRead`
+   * guards the My Day rows: the same `authorize()` every sibling read applies, so a caller who has
+   * lost project access never sees the approval even while still named a reviewer on it.
+   */
+  private mayReadApproval(principal: Principal, row: ApprovalRow): boolean {
+    return authorize({
+      principal,
+      capability: 'approval.read',
+      resource: {
+        organizationId: row.organizationId,
+        projectId: row.projectId,
+        audience: 'client_visible',
+        lifecycle: 'active',
       },
     }).allowed;
   }
