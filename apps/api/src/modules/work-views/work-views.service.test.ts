@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { WorkViewsService } from './work-views.service.js';
 import type { TimelineItemRow, WorkTimelineRepository } from './timeline.repository.js';
+import type { WorkloadRepository } from './workload.repository.js';
 import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
+import { ProjectNotFoundError } from '../projects/projects.repository.js';
+import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 
@@ -72,6 +75,24 @@ function serviceWith(rows: readonly TimelineItemRow[]): WorkViewsService {
     listProjectTimeline: async () => rows,
   } as unknown as WorkTimelineRepository;
   return new WorkViewsService(database, timeline);
+}
+
+/**
+ * A service whose workload repository returns exactly `rows`, unscoped, so `mayRead` must drop the
+ * foreign one. The rows are the open items the underlying (open-state-filtered) query would return;
+ * the grouping, counting and ordering are the service's, which is what these cases prove.
+ */
+function workloadServiceWith(
+  rows: readonly WorkItemRow[],
+  projects: Partial<ProjectsRepository> = { requireById: async () => ({ id: PROJECT }) as never },
+): WorkViewsService {
+  const database = {
+    read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+  } as unknown as TenantDatabase;
+  const workload = {
+    listOpenProjectItems: async () => rows,
+  } as unknown as WorkloadRepository;
+  return new WorkViewsService(database, undefined, workload, projects as ProjectsRepository);
 }
 
 const context = {
@@ -150,5 +171,90 @@ describe('WorkViewsService.projectTimeline', () => {
     const view = await service.projectTimeline(context, member([PROJECT]), PROJECT);
 
     expect(view).toEqual({ projectId: PROJECT, items: [] });
+  });
+});
+
+const OWNER_A = 'user-0000-0000-0000-0000-0000000000aa';
+const OWNER_B = 'user-0000-0000-0000-0000-0000000000bb';
+
+describe('WorkViewsService.projectWorkload', () => {
+  it('groups open items by owner with counts and derived load, ordered heaviest first, unassigned last', async () => {
+    const service = workloadServiceWith([
+      // Owner A: three open items, two on the calendar (one has a start, one a due).
+      item({ id: 'work-a-0000000000-0000-000000000001', ownerUserId: OWNER_A, startAt: DAY_ONE }),
+      item({ id: 'work-a-0000000000-0000-000000000002', ownerUserId: OWNER_A, dueAt: DAY_TWO }),
+      item({ id: 'work-a-0000000000-0000-000000000003', ownerUserId: OWNER_A }),
+      // Owner B: one open item, none scheduled.
+      item({ id: 'work-b-0000000000-0000-000000000001', ownerUserId: OWNER_B }),
+      // Unassigned: two open items, one scheduled.
+      item({ id: 'work-u-0000000000-0000-000000000001', ownerUserId: null, dueAt: DAY_ONE }),
+      item({ id: 'work-u-0000000000-0000-000000000002', ownerUserId: null }),
+    ]);
+
+    const view = await service.projectWorkload(context, member([PROJECT]), PROJECT);
+
+    expect(view.projectId).toBe(PROJECT);
+    // Heaviest first (A:3), then the unassigned pile and B tie at… no: unassigned has 2, B has 1,
+    // and the unassigned pile sorts after a real owner only within the same count — here its count
+    // is higher, so it precedes B.
+    expect(view.groups).toEqual([
+      { ownerUserId: OWNER_A, openItemCount: 3, scheduledItemCount: 2 },
+      { ownerUserId: null, openItemCount: 2, scheduledItemCount: 1 },
+      { ownerUserId: OWNER_B, openItemCount: 1, scheduledItemCount: 0 },
+    ]);
+  });
+
+  it('sorts a real owner ahead of the unassigned pile when their open-item counts tie', async () => {
+    const service = workloadServiceWith([
+      item({ id: 'work-u-0000000000-0000-000000000001', ownerUserId: null, dueAt: DAY_ONE }),
+      item({ id: 'work-b-0000000000-0000-000000000001', ownerUserId: OWNER_B, dueAt: DAY_ONE }),
+    ]);
+
+    const view = await service.projectWorkload(context, member([PROJECT]), PROJECT);
+
+    // Both have one open item, one scheduled; the named owner leads, "nobody yet" trails it.
+    expect(view.groups.map((group) => group.ownerUserId)).toEqual([OWNER_B, null]);
+  });
+
+  it('drops a cross-tenant item from the workload — it never contributes to a count', async () => {
+    const service = workloadServiceWith([
+      item({ id: 'work-a-0000000000-0000-000000000001', ownerUserId: OWNER_A }),
+      // Another tenant's row, returned unscoped by the fake: `mayRead` must refuse it.
+      item({
+        id: 'work-z-0000000000-0000-000000000009',
+        ownerUserId: OWNER_A,
+        organizationId: OTHER_ORG,
+      }),
+    ]);
+
+    const view = await service.projectWorkload(context, member([PROJECT]), PROJECT);
+
+    // Owner A carries only the in-tenant item; the foreign row is gone, count and load unaffected.
+    expect(view.groups).toEqual([
+      { ownerUserId: OWNER_A, openItemCount: 1, scheduledItemCount: 0 },
+    ]);
+    expect(JSON.stringify(view)).not.toContain(OTHER_ORG);
+  });
+
+  it('returns the documented empty value for a project with no readable open items', async () => {
+    const service = workloadServiceWith([]);
+
+    const view = await service.projectWorkload(context, member([PROJECT]), PROJECT);
+
+    expect(view).toEqual({ projectId: PROJECT, groups: [] });
+  });
+
+  it('rejects with ProjectNotFoundError (→ 404) for an unknown or cross-tenant project id', async () => {
+    // The project resolve fails before any workload work — a missing or cross-tenant id is a 404,
+    // never a 500 (no FK/lookup miss reaches the caller) and never a misleading empty workload.
+    const service = workloadServiceWith([], {
+      requireById: async () => {
+        throw new ProjectNotFoundError('project-unknown');
+      },
+    });
+
+    await expect(
+      service.projectWorkload(context, member([PROJECT]), 'project-unknown'),
+    ).rejects.toBeInstanceOf(ProjectNotFoundError);
   });
 });

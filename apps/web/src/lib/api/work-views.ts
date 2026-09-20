@@ -44,3 +44,39 @@ export async function getWorkTimeline(
   });
   return data;
 }
+
+/**
+ * WK-06 Workload — one assignee's slice of a project's open work. Not exported as its own
+ * interface, for the same reason {@link WorkTimelineItem} is not: the contracts gate enumerates
+ * every exported response shape in this folder, and the workload is a single paired response
+ * (`WorkloadView`). The screen reaches a group through {@link WorkloadRow} instead, an indexed
+ * access, not a second projection.
+ */
+interface WorkloadAssignee {
+  /** The owner, or `null` for the project's unassigned open work. */
+  readonly ownerUserId: string | null;
+  /** How many open items this assignee carries in the project. */
+  readonly openItemCount: number;
+  /** Of those, how many are on the calendar — have a start or a due date. Derived load. */
+  readonly scheduledItemCount: number;
+}
+
+/** The workload read's response — paired Exact with the API's `WorkloadView` in the contracts gate. */
+export interface WorkloadView {
+  readonly projectId: string;
+  readonly groups: readonly WorkloadAssignee[];
+}
+
+/** One workload group, for the screen — an indexed access, so it is not a second enumerated shape. */
+export type WorkloadRow = WorkloadView['groups'][number];
+
+export async function getWorkWorkload(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<WorkloadView> {
+  const { data } = await client.request<WorkloadView>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-views/workload/${encodeURIComponent(projectId)}`,
+  });
+  return data;
+}

@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { TENANT_DATABASE, WORK_VIEWS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkTimelineRepository } from './timeline.repository.js';
+import { WorkloadRepository } from './workload.repository.js';
 import { WorkViewsService } from './work-views.service.js';
 import { WorkViewsController } from './work-views.controller.js';
 
@@ -21,7 +23,12 @@ export class WorkViewsModule {
       provide: WORK_VIEWS_SERVICE,
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) =>
-        new WorkViewsService(database, new WorkTimelineRepository()),
+        new WorkViewsService(
+          database,
+          new WorkTimelineRepository(),
+          new WorkloadRepository(),
+          new ProjectsRepository(),
+        ),
     };
 
     return {
