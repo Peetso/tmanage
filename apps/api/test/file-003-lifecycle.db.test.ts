@@ -261,7 +261,7 @@ describe('a rejected object past its retention window', () => {
     expect(audit[0]?.['a']).toBeNull();
     expect(audit[0]?.['r']).toBe('allowed');
     const metadata = audit[0]?.['m'] as Record<string, unknown>;
-    expect(metadata).toMatchObject({ reason: 'retention_expired', size_bytes: DECLARED });
+    expect(metadata).toMatchObject({ cause: 'retention_expired', size_bytes: DECLARED });
     // The detection name is never re-stated on this row (AC3).
     expect(JSON.stringify(metadata)).not.toContain('malware');
     // The row itself is kept — only the bytes are deleted (§6: never delete customer data).
@@ -319,6 +319,15 @@ describe('the trigger is rejection status and retention age alone', () => {
     const fresh = await openAndComplete('northstar-studio', studio, world.northstar.projectId);
     await reject(fresh, 1); // rejected yesterday — inside the 30-day window
     const ready = await openAndComplete('northstar-studio', studio, world.northstar.projectId);
+    // Promote the latest version the way the scanner does (clean verdict, private zone) so the
+    // `trg_file_assets_ready_requires_clean_version` trigger admits `ready`; a bare status flip
+    // is refused by the engine (0019). This is a `ready` asset the purge must leave untouched.
+    const readyVersion = await latestVersion(ready);
+    await db.admin.execute(
+      `update file_versions set scan_verdict = 'clean', scanned_at = ?, scanner = 'stub',
+         trust_zone = 'private' where id = ?`,
+      [new Date(), readyVersion.id],
+    );
     await db.admin.execute(`update file_assets set status = 'ready' where id = ?`, [ready]);
 
     const report = await job.cleanup();
