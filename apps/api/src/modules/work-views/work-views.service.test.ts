@@ -113,6 +113,37 @@ describe('WorkViewsService.projectTimeline', () => {
     expect(view.items.some((row) => row.id === foreign.id)).toBe(false);
   });
 
+  it('drops an unreadable predecessor id and a soft-deleted edge while the item itself stays', async () => {
+    const OTHER_PROJECT = 'project-0000-0000-0000-0000-000000000002';
+    const dependent = item({ id: 'work-d-0000000000-0000-000000000004', startAt: DAY_ONE });
+    // A predecessor in the caller's own project: readable, its id is listed.
+    const readablePred = predecessor({ workItemId: 'work-pred-000000000-0000-000000000001' });
+    // A predecessor in a project the member is not on: its id must not leak (R01 / audit F3).
+    const unreadablePred = predecessor({
+      workItemId: 'work-pred-000000000-0000-000000000002',
+      projectId: OTHER_PROJECT,
+    });
+    // A soft-deleted edge is not a live dependency and is dropped before authorization.
+    const deletedPred = predecessor({
+      workItemId: 'work-pred-000000000-0000-000000000003',
+      deletedAt: DAY_ONE,
+    });
+
+    const service = serviceWith([
+      { item: dependent, predecessors: [readablePred, unreadablePred, deletedPred] },
+    ]);
+
+    const view = await service.projectTimeline(context, member([PROJECT]), PROJECT);
+
+    // The item itself stays even though two of its three predecessors are redacted.
+    expect(view.items.map((row) => row.id)).toEqual([dependent.id]);
+    // Only the readable, live predecessor id is present; neither redacted id leaks.
+    expect(view.items[0]?.predecessorIds).toEqual([readablePred.workItemId]);
+    expect(view.items[0]?.predecessorIds).not.toContain(unreadablePred.workItemId);
+    expect(view.items[0]?.predecessorIds).not.toContain(deletedPred.workItemId);
+    expect(JSON.stringify(view)).not.toContain(OTHER_PROJECT);
+  });
+
   it('returns the documented empty value for a project with no readable items', async () => {
     const service = serviceWith([]);
 
