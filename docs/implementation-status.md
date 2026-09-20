@@ -12463,3 +12463,5 @@ team could use for a week:
 3. **Approving, requesting changes and uploading are still in the position requests were in.**
    `approval.decide` and `file.upload` are in client ceilings with nothing behind them.
    `DEL-001`, `APPR-001` and `FILE-001` are those aggregates, and none has started.
+
+- 2026-09-20 — HOME-03 (My Day, slice x93): the acting user's own open work across every project, read-only over `work_items` by org+owner (ix_work_items_org_owner_state_due), behind `work.read`, ranked overdue → due-soon (by due_at) → the rest (by id); replaces the HOME-001 stub with `MyDayScreen`. Paged My Day, HOME-01 hero/Pulse/Focus, HOME-04 Waiting and HOME-05 Saved are the follow-ups.

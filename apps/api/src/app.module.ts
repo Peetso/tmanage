@@ -15,6 +15,7 @@ import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
+import { HomeModule } from './modules/home/home.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
@@ -120,6 +121,9 @@ export class AppModule {
           : IdentityModule.register(),
         ProjectsModule.register(),
         WorkModule.register(),
+        // HOME-03: the My Day personal-work read. Read-only over `work_items` by owner; reuses
+        // `work.read` and the work module's `WorkItemView`, adds nothing to the work module.
+        HomeModule.register(),
         // After `WorkModule`: REQ-001 reads a work item to answer 422 rather than 500 when an
         // acceptance links to one that is not in this tenant.
         RequestsModule.register(),
