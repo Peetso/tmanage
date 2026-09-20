@@ -3,7 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { INSIGHTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { DeliveryFlowView, InsightsService } from './insights.service.js';
+import type { ApprovalCycleView, DeliveryFlowView, InsightsService } from './insights.service.js';
 
 /**
  * INS-01's HTTP surface — the insights module's first read.
@@ -33,5 +33,21 @@ export class InsightsController {
     @Param('projectId') projectId: string,
   ): Promise<DeliveryFlowView> {
     return this.insights.projectDeliveryFlow(context, principal, projectId);
+  }
+
+  /**
+   * A project's approval cycle — approval counts by terminal outcome and, for the decided ones,
+   * the requested→decided durations. Behind `approval.read`, x92's approvals capability: a caller
+   * without it is refused by the same `CapabilityGuard` that refuses the sibling `approvals`
+   * reads. Tenant-scoped by `orgSlug`, authorized per approval by the service.
+   */
+  @Get('projects/:projectId/approval-cycle')
+  @RequireCapability('approval.read')
+  async approvalCycle(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<ApprovalCycleView> {
+    return this.insights.projectApprovalCycle(context, principal, projectId);
   }
 }

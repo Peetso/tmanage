@@ -59,6 +59,7 @@ import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/p
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
+import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
@@ -113,6 +114,7 @@ import type {
   SessionSummary as WebSessionSummary,
 } from '../../apps/web/src/lib/api/session';
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
+import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 
 // ── The assertions themselves ───────────────────────────────────────────────
@@ -171,6 +173,14 @@ type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRe
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
+
+/**
+ * INS-02 — `GET …/insights/projects/:projectId/approval-cycle`. A project's approvals rolled up by
+ * terminal outcome (`approved`/`changes_requested`/`invalidated`): per outcome the count, the
+ * decided count, and the summed requested→decided duration. Paired with a real web consumer —
+ * INS-02 ships `InsightsApprovalCycleScreen`, so this is a live `Exact` pair, not an exemption.
+ */
+type _approvalCycle = Assert<Exact<ApiApprovalCycleView, WebApprovalCycle>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API
