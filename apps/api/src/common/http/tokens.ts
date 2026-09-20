@@ -47,6 +47,7 @@ export const PROJECT_MEMBERSHIPS_REPOSITORY = Symbol.for('tmanage.ProjectMembers
 export const PROJECT_MEMBERSHIPS_SERVICE = Symbol.for('tmanage.ProjectMembershipsService');
 export const WORK_ITEMS_REPOSITORY = Symbol.for('tmanage.WorkItemsRepository');
 export const WORK_ITEMS_SERVICE = Symbol.for('tmanage.WorkItemsService');
+export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepository');
 export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService');
 export const CONVERSATIONS_REPOSITORY = Symbol.for('tmanage.ConversationsRepository');

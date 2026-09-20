@@ -1,0 +1,123 @@
+import { describe, expect, it } from 'vitest';
+import type { Principal } from '@tmanage/domain';
+import { WorkViewsService } from './work-views.service.js';
+import type { TimelineItemRow, WorkTimelineRepository } from './timeline.repository.js';
+import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { WorkItemRow } from '../../common/database/schema.js';
+
+/**
+ * WK-04 Work timeline: `projectTimeline` composes the work + work-graph reads into an ordered,
+ * authorized, accessible-list view. Database-free proofs over fakes — the underlying reads are
+ * already DB-proven, so the composition needs no `.db.test.ts` (NEXT-SCOPES §x94 budget).
+ */
+
+const ORG = 'organization-0000-0000-0000-000000000001';
+const OTHER_ORG = 'organization-0000-0000-0000-000000000002';
+const PROJECT = 'project-0000-0000-0000-0000-000000000001';
+
+const DAY_ONE = new Date('2026-02-01T09:00:00.000Z');
+const DAY_TWO = new Date('2026-02-02T09:00:00.000Z');
+
+/** Only the fields the timeline reads (id, tenancy/audience for `mayRead`, dates, title, state). */
+function item(overrides: Partial<WorkItemRow>): WorkItemRow {
+  return {
+    id: 'work-x-0000000000-0000-000000000000',
+    organizationId: ORG,
+    projectId: PROJECT,
+    audience: 'internal',
+    state: 'in_progress',
+    title: 'a task',
+    startAt: null,
+    dueAt: null,
+    deletedAt: null,
+    ...overrides,
+  } as unknown as WorkItemRow;
+}
+
+function predecessor(overrides: Partial<PredecessorHealthRow>): PredecessorHealthRow {
+  return {
+    dependencyId: 'dep-0000-0000-0000-0000-000000000001',
+    workItemId: 'work-pred-000000000-0000-000000000099',
+    projectId: PROJECT,
+    audience: 'internal',
+    title: 'an upstream task',
+    state: 'in_progress',
+    dueAt: null,
+    deletedAt: null,
+    ...overrides,
+  };
+}
+
+function member(projectIds: readonly string[]): Principal {
+  return {
+    userId: 'user-0000-0000-0000-0000-000000000001',
+    organizationId: ORG,
+    kind: 'internal',
+    role: 'member',
+    membershipId: 'membership-0000-0000-000000000001',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds,
+    hasOrgWideScope: false,
+  };
+}
+
+/** A service whose repository returns exactly `rows`, unscoped, so `mayRead` must drop the foreign one. */
+function serviceWith(rows: readonly TimelineItemRow[]): WorkViewsService {
+  const database = {
+    read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+  } as unknown as TenantDatabase;
+  const timeline = {
+    listProjectTimeline: async () => rows,
+  } as unknown as WorkTimelineRepository;
+  return new WorkViewsService(database, timeline);
+}
+
+const context = {
+  organizationId: ORG,
+  correlationId: 'correlation-0000-0000-0000-000000000001',
+} as unknown as TenantContext;
+
+describe('WorkViewsService.projectTimeline', () => {
+  it('orders items by start then due then id, carries the dependency edge, and drops a cross-tenant item', async () => {
+    const later = item({ id: 'work-a-0000000000-0000-000000000001', startAt: DAY_TWO });
+    const earlier = item({ id: 'work-b-0000000000-0000-000000000002', startAt: DAY_ONE });
+    const undated = item({
+      id: 'work-c-0000000000-0000-000000000003',
+      startAt: null,
+      dueAt: DAY_ONE,
+    });
+    const foreign = item({ id: 'work-z-0000000000-0000-000000000009', organizationId: OTHER_ORG });
+
+    const service = serviceWith([
+      // `later` depends on `earlier`.
+      { item: later, predecessors: [predecessor({ workItemId: earlier.id })] },
+      { item: earlier, predecessors: [] },
+      { item: undated, predecessors: [] },
+      { item: foreign, predecessors: [] },
+    ]);
+
+    const view = await service.projectTimeline(context, member([PROJECT]), PROJECT);
+
+    expect(view.projectId).toBe(PROJECT);
+    // Sorted: earlier (day1 start), later (day2 start), undated (null start sorts last).
+    expect(view.items.map((row) => row.id)).toEqual([earlier.id, later.id, undated.id]);
+    // The edge is carried on the dependent item.
+    expect(view.items[1]?.predecessorIds).toEqual([earlier.id]);
+    expect(view.items[0]?.predecessorIds).toEqual([]);
+    // Dates are serialised; the earlier item carries its start.
+    expect(view.items[0]?.startAt).toBe(DAY_ONE.toISOString());
+    // The other tenant's row never contributes.
+    expect(JSON.stringify(view)).not.toContain(OTHER_ORG);
+    expect(view.items.some((row) => row.id === foreign.id)).toBe(false);
+  });
+
+  it('returns the documented empty value for a project with no readable items', async () => {
+    const service = serviceWith([]);
+
+    const view = await service.projectTimeline(context, member([PROJECT]), PROJECT);
+
+    expect(view).toEqual({ projectId: PROJECT, items: [] });
+  });
+});

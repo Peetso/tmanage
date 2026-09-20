@@ -60,6 +60,7 @@ import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
+import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
@@ -114,6 +115,7 @@ import type {
 } from '../../apps/web/src/lib/api/session';
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
+import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -180,6 +182,13 @@ type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
 
 /** `WorkItemView.state` ↔ `WORK_ITEM_STATES` (`@tmanage/domain`). */
 type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
+
+/**
+ * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The
+ * `WorkTimelineScreen` reads exactly this response, so the pair is Exact; the nested item's
+ * `state` is the same `WORK_ITEM_STATES` union as the work list's.
+ */
+type _workTimeline = Assert<Exact<ApiWorkTimelineView, WebWorkTimelineView>>;
 
 /** `ClientRequestView.state` ↔ the nine states of `23-ERD` §6. */
 type _clientRequest = Assert<Exact<ApiClientRequestView, WebClientRequestRecord>>;

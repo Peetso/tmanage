@@ -6655,6 +6655,15 @@ can adopt it verbatim when it catches up.
 5. **Blocker edit is refusal-only.** A typo in a reason is fixed by resolving with a note
    and raising anew — the ledger stance, stated so nobody adds UPDATE later without
    noticing what it costs.
+6. **WK-04 Work timeline is built as a read + accessible list** (x94) — a new `work-views`
+   module composes the existing `WorkItemsRepository.list` and `WorkGraphRepository.listPredecessors`
+   read-only (no edit to the work module, no migration) behind `GET …/work-views/timeline/:projectId`.
+   It returns a project's items with `startAt`/`dueAt` and each item's readable predecessor ids,
+   ordered by start, then due, then id; cross-tenant and unreadable predecessors are redacted by
+   the same `authorize('work.read')` rule the health signal uses. `WorkTimelineScreen` renders the
+   accessible list (WK-04's "accessible list"); the Gantt canvas, WK-06 Workload, WK-07 Forms,
+   WK-08 Saved views and the calendar view remain follow-ups. Capability `work.read` is **reused**
+   (a dedicated work-views capability is deferred, off the shared capability files).
 
 ---
 

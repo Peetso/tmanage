@@ -15,6 +15,7 @@ import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
+import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
@@ -120,6 +121,10 @@ export class AppModule {
           : IdentityModule.register(),
         ProjectsModule.register(),
         WorkModule.register(),
+        // WK-04. The Work views read layer — a read-only composition of the work + work-graph
+        // reads (timeline). After `WorkModule` by subject, though it depends only on the
+        // database and never on the work service, so it does not couple to that module's wiring.
+        WorkViewsModule.register(),
         // After `WorkModule`: REQ-001 reads a work item to answer 422 rather than 500 when an
         // acceptance links to one that is not in this tenant.
         RequestsModule.register(),
