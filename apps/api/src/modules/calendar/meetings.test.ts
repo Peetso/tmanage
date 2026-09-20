@@ -3,6 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { MeetingsService } from './meetings.service.js';
 import type { MeetingsRepository } from './meetings.repository.js';
+import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MeetingRow } from '../../common/database/schema.js';
 
@@ -20,6 +21,8 @@ import type { MeetingRow } from '../../common/database/schema.js';
 const ORG = 'organization-0000-0000-0000-000000000001';
 const OTHER_ORG = 'organization-0000-0000-0000-000000000002';
 const PROJECT = 'project-0000-0000-0000-0000-000000000001';
+/** A project id that resolves to no row inside the tenant (unknown or another tenant's). */
+const UNKNOWN_PROJECT = 'project-0000-0000-0000-0000-0000000000ff';
 const USER = 'user-0000-0000-0000-0000-000000000001';
 
 function member(projectIds: readonly string[], hasOrgWideScope = false): Principal {
@@ -38,8 +41,18 @@ function member(projectIds: readonly string[], hasOrgWideScope = false): Princip
 
 const context = { organizationId: ORG, userId: USER } as unknown as TenantContext;
 
-/** A service over an in-memory store whose `list` omits the tenant scope on purpose. */
-function serviceWith(seed: readonly MeetingRow[] = []): {
+/**
+ * A service over an in-memory store whose `list` omits the tenant scope on purpose.
+ *
+ * `knownProjectIds` is the set of project ids the fake `ProjectsRepository.findById` resolves
+ * inside the tenant; anything else returns `null`, standing in for an unknown or cross-tenant
+ * project. `create` resolves the named project first, so a project must be known for a create to
+ * reach the write.
+ */
+function serviceWith(
+  seed: readonly MeetingRow[] = [],
+  knownProjectIds: readonly string[] = [PROJECT],
+): {
   service: MeetingsService;
   store: MeetingRow[];
 } {
@@ -86,7 +99,11 @@ function serviceWith(seed: readonly MeetingRow[] = []): {
       return row;
     },
   } as unknown as MeetingsRepository;
-  return { service: new MeetingsService(database, repository), store };
+  const projects = {
+    findById: async (_runner: unknown, _ctx: unknown, projectId: string) =>
+      knownProjectIds.includes(projectId) ? ({ id: projectId } as unknown) : null,
+  } as unknown as ProjectsRepository;
+  return { service: new MeetingsService(database, repository, projects), store };
 }
 
 const STARTS_AT = new Date('2026-10-01T14:00:00.000Z');
@@ -167,6 +184,24 @@ describe('MeetingsService', () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(404);
     // Nothing was written.
+    expect(store).toHaveLength(0);
+  });
+
+  it('refuses a create naming an unknown or cross-tenant project as not-found for an organization-wide caller, and writes nothing', async () => {
+    // An org-wide role (owner) passes the relation gate, so before the fix an unknown projectId
+    // fell through to the composite foreign key and surfaced as a 500. The tenant-scoped project
+    // resolution now maps the lookup miss to 404 with no write, matching ConversationsService.
+    const { service, store } = serviceWith();
+    const error = await service
+      .create(context, member([], true), {
+        projectId: UNKNOWN_PROJECT,
+        title: 'No such project',
+        startsAt: STARTS_AT,
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
     expect(store).toHaveLength(0);
   });
 });

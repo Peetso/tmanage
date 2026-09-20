@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MeetingsRepository } from './meetings.repository.js';
 import type { CreateMeetingInput, ListMeetingsOptions } from './meetings.repository.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { MeetingRow } from '../../common/database/schema.js';
 
 /**
@@ -67,6 +68,15 @@ export class MeetingsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly meetings: MeetingsRepository = new MeetingsRepository(),
+    /**
+     * Read-only, and used for one thing: proving the project a new meeting names exists **inside
+     * this tenant** before the insert is attempted, exactly as `ConversationsService` does. The
+     * composite foreign key already refuses another tenant's project, but it surfaces as a 500;
+     * an organization-wide caller skips the relation gate, so without this pre-resolution a
+     * missing or cross-tenant `projectId` would fall through to that foreign key. A stateless
+     * repository is cheap to own a second handle on (the reasoning `ConversationsModule` records).
+     */
+    private readonly projects: ProjectsRepository = new ProjectsRepository(),
   ) {}
 
   /**
@@ -107,17 +117,32 @@ export class MeetingsService {
   /**
    * Create a meeting in a project the principal may write to.
    *
-   * The relation check runs before the write: a caller who names a project they are not a member
-   * of gets **not found**, never forbidden — 403 would confirm the project exists, and which
-   * projects a studio runs is exactly what a non-member must not be able to enumerate (the
-   * reasoning `ProjectsService.get` gives). An organization-wide role passes the relation check
-   * and the composite foreign key is what refuses a project from another tenant.
+   * Two checks precede the write, both surfacing the same **not found** so a caller can tell
+   * neither which projects exist nor which ones they are barred from:
+   *
+   * 1. The named project is resolved inside this tenant first (`findById` is tenant-scoped). A
+   *    projectId that is unknown or belongs to another organization returns `null` → 404, exactly
+   *    as `ConversationsService.create` does. Without it an organization-wide caller — who passes
+   *    the relation check below — would drive an unknown or cross-tenant id into the composite
+   *    foreign key, which refuses the row but surfaces as a 500 rather than a not-found.
+   * 2. The relation check: a caller who names a project they are not a member of gets not found,
+   *    never forbidden — 403 would confirm the project exists, and which projects a studio runs is
+   *    exactly what a non-member must not be able to enumerate (the reasoning `ProjectsService.get`
+   *    gives). An organization-wide role passes it and reaches the tenant-resolved project above.
    */
   async create(
     context: TenantContext,
     principal: Principal,
     input: Omit<CreateMeetingInput, 'createdByUserId'>,
   ): Promise<MeetingView> {
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, input.projectId),
+    );
+
+    if (!project) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+
     const permitted = authorize({
       principal,
       capability: 'work.create',
