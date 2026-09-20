@@ -5,8 +5,10 @@ import { ApiError, MESSAGES } from '../errors.js';
 import { IS_PUBLIC } from '../decorators.js';
 import { CSRF_HEADER, isSafeMethod, verifyCsrfToken } from '../csrf.js';
 import { requireRequestState } from '../request-state.js';
-import { API_CONFIG } from '../tokens.js';
+import { API_CONFIG, AUTHENTICATION_EVENT_RECORDER } from '../tokens.js';
 import type { ApiConfig } from '../api-config.js';
+import { GUARD_REFUSAL_ACTIONS, GUARD_REFUSAL_REASONS } from '../authentication-event-recorder.js';
+import type { AuthenticationEventRecorder } from '../authentication-event-recorder.js';
 
 /**
  * CSRF for cookie-authenticated mutations — `04-SECURITY-PRIVACY` §3, SEC-03.
@@ -39,11 +41,14 @@ export class CsrfGuard implements CanActivate {
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
+    @Inject(AUTHENTICATION_EVENT_RECORDER)
+    private readonly events: AuthenticationEventRecorder,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<{
       readonly method: string;
+      readonly ip?: string;
       readonly headers: Record<string, string | string[] | undefined>;
     }>();
 
@@ -68,6 +73,23 @@ export class CsrfGuard implements CanActivate {
     const token = typeof presented === 'string' ? presented : undefined;
 
     if (!verifyCsrfToken(token, session.sessionId, this.config.csrfSecret)) {
+      // Record the denied mutation before refusing — status defect 4. Best-effort by the seam's
+      // contract, so the 403 below keeps its status, body and timing whether or not the row is
+      // written. The precise cause (`csrf_token_mismatch` / `csrf_token_absent`) still travels
+      // to the log on `auditCode`; the table carries only the fixed `csrf_failed` reason. The
+      // `try` is defence in depth: the refusal is the control and no recorder may take its place.
+      try {
+        const userAgent = request.headers['user-agent'];
+        this.events.recordGuardRefusal({
+          action: GUARD_REFUSAL_ACTIONS.csrf,
+          reason: GUARD_REFUSAL_REASONS.csrfFailed,
+          ip: request.ip ?? null,
+          userAgent: typeof userAgent === 'string' ? userAgent : null,
+          correlationId: state.correlationId,
+        });
+      } catch {
+        // A recording failure is never the caller's problem; the 403 stands.
+      }
       throw new ApiError(
         403,
         'csrf_failed',

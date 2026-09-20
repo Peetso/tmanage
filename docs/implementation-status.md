@@ -9472,7 +9472,9 @@ leaves anywhere in the system. It is asserted.
 
 The gap is **narrowed, not closed**: a bad CSRF token and an unresolvable organization slug
 still leave no row, because those denials happen in the HTTP guards rather than in this
-service. That remains open.
+service. That remains open. **Closed (x83, 2026-09-20):** the two guard-side denials now write
+a row through a thin `AuthenticationEventRecorder` that reuses this recorder — see defect 4
+below; the unresolvable-slug case was already recorded by `MembershipResolver`.
 
 ### Four tables, and why not three columns on `users`
 
@@ -11172,6 +11174,14 @@ the capability that was refused.
    rather than in an identity service, and an unresolvable organization slug is refused by
    `MembershipResolver`. None of the three writes anywhere. Extending
    `authentication_events` to cover the guards is the obvious next step and is not ID-002.
+   **Closed (x83, 2026-09-20):** all three now write a row. The unresolvable-slug refusal is
+   recorded by `membership-resolver.repository.ts`; the missing-session refusal
+   (`SessionAuthGuard`, reason `missing_session`) and the bad/absent-CSRF refusal (`CsrfGuard`,
+   reason `csrf_failed`) go through a thin `AuthenticationEventRecorder`
+   (`common/http/authentication-event-recorder.ts`) that reuses the DB-proven
+   `recordAuthenticationEvent`. The write is best-effort — off the refusal's critical path, and
+   unattributed (`user_id NULL`) so it cannot feed the per-user lockout counter — so the
+   original 401/403 is unchanged in status, body and timing whether or not the row lands.
 5. **`project_memberships.role` is unconstrained at the database.** See defect 3 above.
    `VARCHAR(64) NOT NULL DEFAULT 'member'` accepts any string, so a typo in a future caller
    that bypasses the TypeScript union persists silently. Correcting it is a migration and is

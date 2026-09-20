@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   API_CONFIG,
+  AUTHENTICATION_EVENT_RECORDER,
   AUTHENTICATION_SERVICE,
   SESSION_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { DatabaseAuthenticationEventRecorder } from '../../common/http/authentication-event-recorder.js';
 import { SessionService } from './session.service.js';
 import { DevelopmentSignInController, SessionController } from './session.controller.js';
 import { AuthenticationService } from './authentication.service.js';
@@ -80,10 +82,25 @@ export class IdentityModule {
         ),
     };
 
+    // The guard recorder — status defect 4. Bound here because this module already holds its
+    // dependencies (`TenantDatabase` and a `CredentialsRepository`), and exported so the global
+    // `SessionAuthGuard` and `CsrfGuard` in `AppModule` can inject it. It reuses the sign-in
+    // path's own recorder rather than a second write path; the cipher it constructs is unused by
+    // `recordAuthenticationEvent` but is what a `CredentialsRepository` requires to exist.
+    const authenticationEventRecorder: Provider = {
+      provide: AUTHENTICATION_EVENT_RECORDER,
+      inject: [TENANT_DATABASE, API_CONFIG],
+      useFactory: (database: TenantDatabase, config: ApiConfig) =>
+        new DatabaseAuthenticationEventRecorder(
+          database,
+          new CredentialsRepository(createSeedCipher(config.mfaSeedKeys)),
+        ),
+    };
+
     return {
       module: IdentityModule,
-      providers: [sessionService, authenticationService],
-      exports: [sessionService, authenticationService],
+      providers: [sessionService, authenticationService, authenticationEventRecorder],
+      exports: [sessionService, authenticationService, authenticationEventRecorder],
       controllers: [SessionController, AuthenticationController, CredentialsController],
     };
   }
