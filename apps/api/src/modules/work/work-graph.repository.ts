@@ -243,6 +243,55 @@ export class WorkGraphRepository {
     return rows;
   }
 
+  /**
+   * The predecessors of many items at once, grouped by the depending item — the batched form
+   * of {@link listPredecessors} for the project-health roll-up, so a project's walk issues one
+   * query rather than one per item (x88 / review-x86 F3). Each group preserves the same
+   * oldest-edge-first order {@link listPredecessors} returns; an item with no edges is absent
+   * from the map (the caller reads it as an empty list).
+   */
+  async listPredecessorsByItem(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemIds: readonly string[],
+  ): Promise<Map<string, readonly PredecessorHealthRow[]>> {
+    const grouped = new Map<string, PredecessorHealthRow[]>();
+    if (workItemIds.length === 0) return grouped;
+    const rows = await tenantDrizzle(runner)
+      .select({
+        dependentId: workItemDependencies.workItemId,
+        dependencyId: workItemDependencies.id,
+        workItemId: workItems.id,
+        projectId: workItems.projectId,
+        audience: workItems.audience,
+        title: workItems.title,
+        state: workItems.state,
+        dueAt: workItems.dueAt,
+        deletedAt: workItems.deletedAt,
+      })
+      .from(workItemDependencies)
+      .innerJoin(
+        workItems,
+        and(
+          eq(workItems.organizationId, workItemDependencies.organizationId),
+          eq(workItems.id, workItemDependencies.dependsOnWorkItemId),
+        ),
+      )
+      .where(
+        and(
+          eq(workItemDependencies.organizationId, context.organizationId),
+          inArray(workItemDependencies.workItemId, workItemIds),
+        ),
+      )
+      .orderBy(asc(workItemDependencies.workItemId), asc(workItemDependencies.id));
+    for (const { dependentId, ...predecessor } of rows) {
+      const list = grouped.get(dependentId);
+      if (list) list.push(predecessor);
+      else grouped.set(dependentId, [predecessor]);
+    }
+    return grouped;
+  }
+
   // ── Blockers ───────────────────────────────────────────────────────────────
 
   /** Raise a blocker. The engine refuses a second active one; see the class doc. */
@@ -317,6 +366,33 @@ export class WorkGraphRepository {
       )
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /**
+   * The active blocker of many items at once, keyed by item — the batched form of
+   * {@link findActiveBlocker} for the project-health roll-up (x88 / review-x86 F3). One active
+   * blocker per item is the engine's invariant (0011), so each item maps to at most one row; an
+   * unblocked item is absent from the map (the caller reads it as `null`).
+   */
+  async findActiveBlockersByItem(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemIds: readonly string[],
+  ): Promise<Map<string, WorkBlockerRow>> {
+    const byItem = new Map<string, WorkBlockerRow>();
+    if (workItemIds.length === 0) return byItem;
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(workBlockers)
+      .where(
+        and(
+          eq(workBlockers.organizationId, context.organizationId),
+          inArray(workBlockers.workItemId, workItemIds),
+          isNull(workBlockers.resolvedAt),
+        ),
+      );
+    for (const row of rows) byItem.set(row.workItemId, row);
+    return byItem;
   }
 
   /** The whole ledger for one item, oldest first — US-B04's history of raised and resolved. */
