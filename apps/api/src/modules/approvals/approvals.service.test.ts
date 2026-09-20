@@ -15,7 +15,9 @@ import type { ApprovalDecisionFacts } from './approvals.repository.js';
 import type { ApprovalsRepository } from './approvals.repository.js';
 import { DeliverableVersionNotFoundError } from './deliverable-versions.repository.js';
 import type { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
+import { ClientProjectionNotFoundError } from './client-projections.repository.js';
 import type { ClientProjectionsRepository } from './client-projections.repository.js';
+import type { ClientProjectionRow } from '../../common/database/schema.js';
 
 /**
  * FR-05's decision behaviour, with fakes for the two repositories.
@@ -108,6 +110,17 @@ class FakeApprovals {
 
   async requireById(_tx: never, _c: TenantContext, id: string): Promise<ApprovalRow> {
     if (id !== this.row.id) throw new ApprovalNotFoundError(id);
+    return { ...this.row };
+  }
+
+  async requireByVersion(
+    _tx: never,
+    _c: TenantContext,
+    deliverableVersionId: string,
+  ): Promise<ApprovalRow> {
+    if (deliverableVersionId !== this.row.deliverableVersionId) {
+      throw new ApprovalNotFoundError(deliverableVersionId);
+    }
     return { ...this.row };
   }
 
@@ -310,6 +323,203 @@ describe('ApprovalsService.decide', () => {
     expect((error as ApiError).message).toBe(MESSAGES.notFound);
     expect((error as ApiError).details).toBeUndefined();
     expect(approvals.current().state).toBe('requested');
+  });
+});
+
+// ── Client deep-link decide (x101) ────────────────────────────────────────────
+
+const CLIENT_ORG = '00000000-0000-7000-8000-0000000000c9';
+const CLIENT_CONTACT = '00000000-0000-7000-8000-0000000000f9';
+const OTHER_CLIENT_CONTACT = '00000000-0000-7000-8000-0000000000fa';
+
+/**
+ * A client reviewer. Holds `approval.decide` in its ceiling; the object-layer gate is the
+ * project relation (`projectIds`) plus the projection's approved-contacts allowlist.
+ */
+function clientReviewer(
+  userId: string,
+  overrides: Partial<Principal> = {},
+): Principal {
+  return {
+    userId,
+    organizationId: ORG,
+    kind: 'client',
+    role: 'client_reviewer',
+    membershipId: '00000000-0000-7000-8000-000000000009',
+    membershipStatus: 'active',
+    clientOrganizationId: CLIENT_ORG,
+    projectIds: [PROJECT],
+    hasOrgWideScope: false,
+    ...overrides,
+  };
+}
+
+function projectionRow(approvedContacts: readonly string[]): ClientProjectionRow {
+  return {
+    id: '00000000-0000-7000-8000-000000000cc1',
+    organizationId: ORG,
+    projectId: PROJECT,
+    deliverableId: DELIVERABLE,
+    deliverableVersionId: VERSION,
+    contentHash: HASH_A,
+    projection: {
+      title: 'Homepage hero',
+      summary: null,
+      milestoneState: null,
+      forecastDate: null,
+      publishedRisk: null,
+      decision: null,
+      approvedContacts: [...approvedContacts],
+    },
+    publishedByUserId: REVIEWER,
+    publishedAt: new Date('2026-09-20T00:00:00.000Z'),
+  };
+}
+
+/** An in-memory projections repository keyed on the governed version, like the real one. */
+class FakeProjections {
+  constructor(private readonly row: ClientProjectionRow | null) {}
+  async requireByVersion(
+    _tx: never,
+    _c: TenantContext,
+    deliverableVersionId: string,
+  ): Promise<ClientProjectionRow> {
+    if (!this.row || deliverableVersionId !== this.row.deliverableVersionId) {
+      throw new ClientProjectionNotFoundError(deliverableVersionId);
+    }
+    return this.row;
+  }
+}
+
+function clientService(
+  approvals: FakeApprovals,
+  versions: FakeVersions,
+  projections: FakeProjections,
+): ApprovalsService {
+  return new ApprovalsService(
+    fakeDatabase(),
+    approvals as unknown as ApprovalsRepository,
+    versions as unknown as DeliverableVersionsRepository,
+    projections as unknown as ClientProjectionsRepository,
+  );
+}
+
+describe('ApprovalsService.clientDecide', () => {
+  it('persists an approval when an approved client contact on the relation decides', async () => {
+    const approvals = new FakeApprovals(approvalRow());
+    const svc = clientService(
+      approvals,
+      new FakeVersions(versionRow(HASH_A)),
+      new FakeProjections(projectionRow([CLIENT_CONTACT])),
+    );
+
+    const view = await svc.clientDecide(context, clientReviewer(CLIENT_CONTACT), VERSION, {
+      decision: 'approve',
+    });
+
+    expect(view.state).toBe('approved');
+    expect(view.deliverableVersionId).toBe(VERSION);
+    expect(view.decidedAt).not.toBeNull();
+    // The actor is recorded on the row as the client contact — via the existing decide fields.
+    expect(approvals.current().state).toBe('approved');
+    expect(approvals.current().decidedByUserId).toBe(CLIENT_CONTACT);
+  });
+
+  it('records the note when a client requests changes', async () => {
+    const approvals = new FakeApprovals(approvalRow());
+    const svc = clientService(
+      approvals,
+      new FakeVersions(versionRow(HASH_A)),
+      new FakeProjections(projectionRow([CLIENT_CONTACT])),
+    );
+
+    const view = await svc.clientDecide(context, clientReviewer(CLIENT_CONTACT), VERSION, {
+      decision: 'request_changes',
+      feedback: 'Please soften the headline.',
+    });
+
+    expect(view.state).toBe('changes_requested');
+    expect(view.feedback).toBe('Please soften the headline.');
+    expect(approvals.current().state).toBe('changes_requested');
+  });
+
+  it('refuses a client who is not on the project relation, writing nothing (object layer)', async () => {
+    const approvals = new FakeApprovals(approvalRow());
+    const svc = clientService(
+      approvals,
+      new FakeVersions(versionRow(HASH_A)),
+      new FakeProjections(projectionRow([CLIENT_CONTACT])),
+    );
+
+    const error = await svc
+      .clientDecide(context, clientReviewer(CLIENT_CONTACT, { projectIds: [] }), VERSION, {
+        decision: 'approve',
+      })
+      .catch((e: unknown) => e);
+
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).auditCode).toBe('not_project_member');
+    expect(approvals.current().state).toBe('requested');
+    expect(approvals.current().decidedByUserId).toBeNull();
+  });
+
+  it('refuses a client on the relation who is not an approved contact (reviewer relation)', async () => {
+    const approvals = new FakeApprovals(approvalRow());
+    const svc = clientService(
+      approvals,
+      new FakeVersions(versionRow(HASH_A)),
+      // The allowlist names a different contact; this caller is on the project but not approved.
+      new FakeProjections(projectionRow([OTHER_CLIENT_CONTACT])),
+    );
+
+    const error = await svc
+      .clientDecide(context, clientReviewer(CLIENT_CONTACT), VERSION, { decision: 'approve' })
+      .catch((e: unknown) => e);
+
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).auditCode).toBe('not_assigned_reviewer');
+    expect(approvals.current().state).toBe('requested');
+  });
+
+  it('maps a cross-tenant client with an unknown version to 404, never a 500, and writes nothing (Known trap)', async () => {
+    const approvals = new FakeApprovals(approvalRow());
+    const svc = clientService(
+      approvals,
+      new FakeVersions(versionRow(HASH_A)),
+      new FakeProjections(projectionRow([CLIENT_CONTACT])),
+    );
+
+    const error = await svc
+      .clientDecide(
+        context,
+        clientReviewer(CLIENT_CONTACT, { organizationId: OTHER_ORG }),
+        '00000000-0000-7000-8000-0000000000ee',
+        { decision: 'approve' },
+      )
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).code).toBe('not_found');
+    expect((error as ApiError).message).toBe(MESSAGES.notFound);
+    expect((error as ApiError).details).toBeUndefined();
+    expect(approvals.current().state).toBe('requested');
+  });
+
+  it('refuses a second decision on an already-decided version (append-only)', async () => {
+    const approvals = new FakeApprovals(approvalRow({ state: 'approved', version: 3 }));
+    const svc = clientService(
+      approvals,
+      new FakeVersions(versionRow(HASH_A)),
+      new FakeProjections(projectionRow([CLIENT_CONTACT])),
+    );
+
+    const error = await svc
+      .clientDecide(context, clientReviewer(CLIENT_CONTACT), VERSION, { decision: 'approve' })
+      .catch((e: unknown) => e);
+
+    expect((error as ApiError).status).toBe(409);
+    expect((error as ApiError).auditCode).toBe('approval_terminal');
   });
 });
 

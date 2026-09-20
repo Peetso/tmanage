@@ -8,6 +8,7 @@ import type { ClientProjectionPayload } from '../../common/database/schema.js';
 import type {
   ApprovalDecisionView,
   ApprovalsService,
+  ClientDecideView,
   ClientProjectionView,
 } from './approvals.service.js';
 
@@ -37,6 +38,11 @@ interface OpenApprovalBody {
 interface DecisionBody {
   readonly decision?: unknown;
   readonly version?: unknown;
+  readonly feedback?: unknown;
+}
+
+interface ClientDecisionBody {
+  readonly decision?: unknown;
   readonly feedback?: unknown;
 }
 
@@ -217,5 +223,42 @@ export class ApprovalsController {
     @Param('deliverableVersionId') deliverableVersionId: string,
   ): Promise<ClientProjectionView> {
     return this.approvals.readProjection(context, principal, deliverableVersionId);
+  }
+
+  /**
+   * Decide from the client deep link — approve or request changes on a published version.
+   *
+   * Version-addressed, matching the projection read above: the client names the
+   * `deliverableVersionId` it is looking at, not an internal approval id. `@RequireCapability`
+   * `('approval.read')` is the coarse UX ceiling every client decider role holds, exactly as the
+   * reviewer decide route uses it; the real gate is the service's `authorize()` on `approval.decide`
+   * against the client's project relation and the projection's approved-contacts allowlist. The
+   * response is the client-safe {@link ClientDecideView}, never the internal decision record.
+   */
+  @Post('projections/:deliverableVersionId/decision')
+  @HttpCode(200)
+  @RequireCapability('approval.read')
+  async clientDecide(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('deliverableVersionId') deliverableVersionId: string,
+    @Body() body: ClientDecisionBody,
+  ): Promise<ClientDecideView> {
+    if (body.decision !== 'approve' && body.decision !== 'request_changes') {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'decision', message: 'must be approve or request_changes' },
+      ]);
+    }
+
+    if (body.feedback !== undefined && typeof body.feedback !== 'string') {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'feedback', message: 'must be a string' },
+      ]);
+    }
+
+    return this.approvals.clientDecide(context, principal, deliverableVersionId, {
+      decision: body.decision,
+      ...(typeof body.feedback === 'string' ? { feedback: body.feedback } : {}),
+    });
   }
 }

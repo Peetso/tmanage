@@ -84,6 +84,36 @@ export interface ApprovalDecisionInput {
   readonly feedback?: string;
 }
 
+/**
+ * The client's decision from the deep-link screen. `feedback` is required for `request_changes`.
+ *
+ * There is no `expectedVersion`: the client reads the allowlisted projection, which does not (and
+ * must not) carry the internal approval's optimistic-concurrency token. The append-only lifecycle
+ * is the correctness guard instead — a version-guarded transition inside one transaction, and a
+ * terminal approval that refuses a second decision — so a client cannot decide twice or race a
+ * reviewer to two outcomes.
+ */
+export interface ClientDecisionInput {
+  readonly decision: 'approve' | 'request_changes';
+  readonly feedback?: string;
+}
+
+/**
+ * The client-safe confirmation of a decision — CONTRACT-001's `ClientDecideView`.
+ *
+ * Deliberately **not** {@link ApprovalDecisionView}: that record carries `reviewerIds`,
+ * `decidedByUserId`, `contentHash` and the internal `deliverableId`, none of which a client route
+ * may return (25 §7 forbids handing a client the internal record). This is the version the client
+ * decided on, the resulting lifecycle `state`, and — for a change request — the note they wrote.
+ * `decidedAt` is an ISO string, the shape `JSON.stringify` emits on the wire.
+ */
+export interface ClientDecideView {
+  readonly deliverableVersionId: string;
+  readonly state: ApprovalState;
+  readonly decidedAt: string | null;
+  readonly feedback: string | null;
+}
+
 function toView(row: ApprovalRow): ApprovalDecisionView {
   return {
     id: row.id,
@@ -123,6 +153,15 @@ export interface PublishProjectionInput {
   readonly deliverableVersionId: string;
   /** The client-safe payload — allowlisted at the controller (12-PERMISSION-MATRIX §1). */
   readonly projection: ClientProjectionPayload;
+}
+
+function toClientDecideView(row: ApprovalRow): ClientDecideView {
+  return {
+    deliverableVersionId: row.deliverableVersionId,
+    state: row.state as ApprovalState,
+    decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
+    feedback: row.feedback,
+  };
 }
 
 function toProjectionView(row: ClientProjectionRow): ClientProjectionView {
@@ -302,6 +341,122 @@ export class ApprovalsService {
     );
 
     return toView(row);
+  }
+
+  /**
+   * Decide from the client deep link — FR-05's client-facing approve / request-changes.
+   *
+   * The client route is **version-addressed**: it names the `deliverableVersionId` of the
+   * projection the client is looking at, never an internal approval id. The version-scoped
+   * projection and its approval are therefore resolved tenant-scoped *first* (the Known trap:
+   * a missing or cross-tenant id must be a 404 from `requireByVersion`, never a 500), and only
+   * then is the decision authorized.
+   *
+   * ## The client relation is the gate, and the projection names its deciders
+   *
+   * `approval.decide` is reviewer-gated (`authorize()` `REVIEWER_GATED`), which for a client means
+   * two object facts must both hold: the project is one shared with the client organization
+   * (`projectIds`, 12-PERMISSION-MATRIX §1) *and* the client is a designated decider. A client's
+   * "reviewer relation" is the published projection's allowlisted `approvedContacts` — 12 §1's
+   * "approved contacts" — so a client on the relation who is not an approved contact is refused
+   * exactly as an unassigned internal reviewer is. Nothing here reads `reviewer_ids`: that is the
+   * internal reviewers' list, and a client is never on it. The refusal is 404, not 403, for the
+   * reason the reviewer decide gives — a refusal must not confirm the row exists.
+   *
+   * The decision itself is x92's transition, unchanged: the same `viewed` advance, the same
+   * INT-16/INT-17 hash re-check against the current governed version, and the same append-only
+   * write. The response is the client-safe {@link ClientDecideView}, never the internal record.
+   */
+  async clientDecide(
+    context: TenantContext,
+    principal: Principal,
+    deliverableVersionId: string,
+    input: ClientDecisionInput,
+  ): Promise<ClientDecideView> {
+    if (input.decision === 'request_changes' && (input.feedback ?? '').trim() === '') {
+      throw new ApiError(422, 'validation_failed', 'Requesting changes requires feedback', [
+        { field: 'feedback', message: 'must not be empty' },
+      ]);
+    }
+
+    const row = await this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        // Known trap: resolve the version-addressed resources tenant-scoped BEFORE authorize, so a
+        // missing or cross-tenant id is a typed not-found (→ 404), never an unhandled 500. The
+        // projection read proves the version was published to the client (it is the published act).
+        const projection = await this.clientProjections.requireByVersion(
+          tx,
+          context,
+          deliverableVersionId,
+        );
+        const approval = await this.approvals.requireByVersion(tx, context, deliverableVersionId);
+
+        const verdict = authorize({
+          principal,
+          capability: 'approval.decide',
+          resource: {
+            organizationId: context.organizationId,
+            projectId: projection.projectId,
+            audience: 'client_visible',
+            isPublished: true,
+            // A client's reviewer relation is the projection's allowlisted approved contacts.
+            isAssignedReviewer: projection.projection.approvedContacts.includes(principal.userId),
+            lifecycle: 'active',
+          },
+        });
+        if (!verdict.allowed) {
+          throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+        }
+
+        // Append-only: a decided (or otherwise terminal) approval cannot be re-decided.
+        if (approvalStateMachine.isTerminal(approval.state as ApprovalState)) {
+          throw new ApiError(
+            409,
+            'conflict',
+            'This approval has already been resolved and cannot be decided again',
+            undefined,
+            'approval_terminal',
+          );
+        }
+
+        // The client has necessarily seen the version: advance `requested -> viewed` first.
+        let current = approval;
+        if (current.state === 'requested') {
+          current = await this.approvals.transition(
+            tx,
+            context,
+            approval.id,
+            current.version,
+            'viewed',
+          );
+        }
+
+        // The hash re-check (INT-16/INT-17): a governed change under the client invalidates.
+        const governed = await this.deliverableVersions.latestForDeliverable(
+          tx,
+          context,
+          current.deliverableId,
+        );
+        const hashMatches =
+          governed !== null && contentHashEquals(governed.contentHash, current.contentHash);
+
+        if (!hashMatches) {
+          return this.approvals.transition(tx, context, approval.id, current.version, 'invalidated', {
+            invalidationReason: 'governed content changed before the decision',
+          });
+        }
+
+        const to: ApprovalState = input.decision === 'approve' ? 'approved' : 'changes_requested';
+        return this.approvals.transition(tx, context, approval.id, current.version, to, {
+          decidedByUserId: principal.userId,
+          decidedAt: new Date(),
+          contentHash: current.contentHash,
+          ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
+        });
+      }),
+    );
+
+    return toClientDecideView(row);
   }
 
   /**
