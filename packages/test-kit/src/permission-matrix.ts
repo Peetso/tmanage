@@ -69,6 +69,11 @@
  * guest). Recorded in `packages/domain/src/policies/capabilities.ts`; every meeting line below
  * cites that decision rather than a §2 cell.
  *
+ * `doc.read` and `doc.write` (x91) are the same shape of decision: doc 12 has no document row,
+ * a document is internal project content of the same kind a work item and a meeting are, so
+ * `doc.read` mirrors `work.read`'s roles and `doc.write` mirrors `work.create`'s (internal minus
+ * guest). Recorded in the same capabilities file; every doc line below cites that decision.
+ *
  * ## How the qualifying words in §2 are read
  *
  * §2's cells are not booleans. A ceiling is "is this role categorically barred?", so:
@@ -130,6 +135,10 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // work.read roles, write = work.create roles). Recorded in capabilities.ts.
       'meeting.read',
       'meeting.write',
+      // x91: documents have no §2 row either; ceiling mirrors internal work (read = work.read,
+      // write = work.create). Recorded in capabilities.ts.
+      'doc.read',
+      'doc.write',
       'org.manage', // Billing/ownership: "Full"
       'org.security.manage', // Org security/SSO: "Full"
       'workspace.manage', // Workspace settings: "Full"
@@ -173,6 +182,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: mirrors internal work (read = work.read, write = work.create). See owner.
       'meeting.read',
       'meeting.write',
+      // x91: documents mirror internal work too (read = work.read, write = work.create). See owner.
+      'doc.read',
+      'doc.write',
       'org.manage', // Billing/ownership: "Policy"
       'org.security.manage', // Org security/SSO: "Full"
       'workspace.manage', // Workspace settings: "Full"
@@ -215,6 +227,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: mirrors internal work (read = work.read, write = work.create). See owner.
       'meeting.read',
       'meeting.write',
+      // x91: documents mirror internal work too (read = work.read, write = work.create). See owner.
+      'doc.read',
+      'doc.write',
       'workspace.manage', // Workspace settings: "Full"
       'project.create', // Create project: "Yes"
       'project.manage', // Workspace settings: "Full"
@@ -260,6 +275,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: mirrors internal work (read = work.read, write = work.create). See owner.
       'meeting.read',
       'meeting.write',
+      // x91: documents mirror internal work too (read = work.read, write = work.create). See owner.
+      'doc.read',
+      'doc.write',
       'project.create', // Create project: "Policy"
       'project.manage', // Workspace settings: "Limited" — project-level half
       'project.member.manage', // Manage project members: "Yes"
@@ -303,6 +321,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: mirrors internal work (read = work.read, write = work.create). See owner.
       'meeting.read',
       'meeting.write',
+      // x91: documents mirror internal work too (read = work.read, write = work.create). See owner.
+      'doc.read',
+      'doc.write',
       'project.member.manage', // Manage project members: "Policy"
       'conversation.read', // View internal project: "Member"
       'conversation.write', // Moderate messages: "Project"
@@ -346,6 +367,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: mirrors internal work (read = work.read, write = work.create). See owner.
       'meeting.read',
       'meeting.write',
+      // x91: documents mirror internal work too (read = work.read, write = work.create). See owner.
+      'doc.read',
+      'doc.write',
       'conversation.read', // View internal project: "Member"
       'conversation.write', // Moderate messages: "Own only" — writing your own is writing
       'work.read', // View internal project: "Member"
@@ -391,6 +415,9 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: a guest reads internal work but does not originate it; meetings follow suit —
       // meeting.read granted, meeting.write denied below. Mirrors work.read / no work.create.
       'meeting.read',
+      // x91: a guest reads internal documents but does not originate them — doc.read granted,
+      // doc.write denied below. Mirrors work.read / no work.create.
+      'doc.read',
       'conversation.read', // View internal project: "Explicit"
       'work.read', // View internal project: "Explicit"
       'work.update', // Create/edit work: "Explicit" — amend the named object
@@ -411,6 +438,7 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       'conversation.moderate', // Moderate messages: "Own only" — no authority over others
       'work.create', // Create/edit work: "Explicit" — amend, not originate
       'meeting.write', // x90: a guest amends but does not originate; no write, mirroring work.create
+      'doc.write', // x91: a guest amends but does not originate; no doc.write, mirroring work.create
       'work.transition', // Create/edit work: "Explicit" — state is the project's, not the guest's
       'client_request.submit', // Submit client request: "No"
       'client_request.triage', // no §2 row; 23-ERD §6 reserves it to the manager tier
@@ -449,6 +477,10 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: meetings are internal; no client projection is defined, so every client role denies both.
       'meeting.read',
       'meeting.write',
+      // x91: documents are internal too; no client projection is defined, so every client role
+      // denies both, the same as meetings.
+      'doc.read',
+      'doc.write',
       'org.manage', // Billing/ownership: "No"
       'org.security.manage', // Org security/SSO: "No"
       'workspace.manage', // Workspace settings: "No"
@@ -487,6 +519,10 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: meetings are internal; no client projection is defined. See client_admin.
       'meeting.read',
       'meeting.write',
+      // x91: documents are internal too; no client projection is defined, so every client role
+      // denies both, the same as meetings.
+      'doc.read',
+      'doc.write',
       'org.manage', // Billing/ownership: "No"
       'org.security.manage', // Org security/SSO: "No"
       'workspace.manage', // Workspace settings: "No"
@@ -531,6 +567,10 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: meetings are internal; no client projection is defined. See client_admin.
       'meeting.read',
       'meeting.write',
+      // x91: documents are internal too; no client projection is defined, so every client role
+      // denies both, the same as meetings.
+      'doc.read',
+      'doc.write',
       'org.manage', // Billing/ownership: "No"
       'org.security.manage', // Org security/SSO: "No"
       'workspace.manage', // Workspace settings: "No"
@@ -575,6 +615,10 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
       // x90: meetings are internal; no client projection is defined. See client_admin.
       'meeting.read',
       'meeting.write',
+      // x91: documents are internal too; no client projection is defined, so every client role
+      // denies both, the same as meetings.
+      'doc.read',
+      'doc.write',
       'org.manage', // Billing/ownership: "No"
       'org.security.manage', // Org security/SSO: "No"
       'workspace.manage', // Workspace settings: "No"

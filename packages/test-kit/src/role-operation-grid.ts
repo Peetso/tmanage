@@ -188,6 +188,22 @@ export const GUARDED_OPERATIONS: readonly GuardedOperation[] = [
     declaredAt: 'calendar/meetings.controller.ts @Post() meeting.write',
   },
   {
+    capability: 'doc.read',
+    method: 'GET',
+    path: '/documents',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'docs/documents.controller.ts @Get() doc.read',
+  },
+  {
+    capability: 'doc.write',
+    method: 'POST',
+    path: '/documents',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'docs/documents.controller.ts @Post() doc.write',
+  },
+  {
     capability: 'client_request.triage',
     method: 'GET',
     path: '/client-requests',

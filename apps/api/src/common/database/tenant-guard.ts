@@ -133,6 +133,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `SELECT ... FROM meetings` would be every studio's calendar on the server. The guard must
   // scope its reads and its writes.
   meetings: 'organization_id',
+  // DOC-01 (x91). Tenant-owned: a document names a project, and an unscoped
+  // `SELECT ... FROM documents` would be every studio's knowledge base on the server. The guard
+  // must scope its reads and its writes.
+  documents: 'organization_id',
 });
 
 /**

@@ -43,6 +43,18 @@ export const CAPABILITIES = [
   'meeting.read',
   'meeting.write',
   /**
+   * DOC-01 (x91). Documents have no row in `12-PERMISSION-MATRIX.md` §2, so their ceiling is not
+   * a transcription but a decision, recorded here and mirrored in the hand-written fixture: a
+   * document is internal project content of exactly the kind a work item (and a meeting) is, so
+   * `doc.read` is granted to the roles that hold `work.read` and `doc.write` to the roles that
+   * hold `work.create` (internal, minus guest, who may read internal work but not originate it).
+   * Both are internal-only (see below): doc 38 marks docs "collaboration later" and no client
+   * projection of a document is defined, so no client role holds either. Widening client access
+   * would be a `12-PERMISSION-MATRIX` / `25 §4` edit and a product decision, not this slice.
+   */
+  'doc.read',
+  'doc.write',
+  /**
    * CLIENT-002. `12-PERMISSION-MATRIX` §1 has a "View client projection" row and this
    * codebase had no capability for it, so the one surface every client role exists to read
    * could not be authorized at all.
@@ -155,6 +167,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     // work.create roles.
     'meeting.read',
     'meeting.write',
+    // x91: documents mirror the internal work ceiling too (read = work.read, write = work.create).
+    'doc.read',
+    'doc.write',
     // §2 "View client projection: Scope" — an internal admin can read what a client reads,
     // which is how anybody checks what was published before a client sees it.
     'client_projection.read',
@@ -190,6 +205,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     // x90: meetings mirror the internal work ceiling (read = work.read, write = work.create).
     'meeting.read',
     'meeting.write',
+    // x91: documents mirror the internal work ceiling too (read = work.read, write = work.create).
+    'doc.read',
+    'doc.write',
     // §2 "View client projection: Project".
     'client_projection.read',
     'client_request.triage',
@@ -217,6 +235,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     // x90: meetings mirror the internal work ceiling (read = work.read, write = work.create).
     'meeting.read',
     'meeting.write',
+    // x91: documents mirror the internal work ceiling too (read = work.read, write = work.create).
+    'doc.read',
+    'doc.write',
     // §2 "View client projection: Project".
     'client_projection.read',
     // §2 "Publish to client: Optional" — off unless organization policy enables it.
@@ -239,6 +260,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     // x90: meetings mirror the internal work ceiling (read = work.read, write = work.create).
     'meeting.read',
     'meeting.write',
+    // x91: documents mirror the internal work ceiling too (read = work.read, write = work.create).
+    'doc.read',
+    'doc.write',
     // §2 "View client projection: Project".
     'client_projection.read',
     'deliverable.create',
@@ -262,6 +286,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     // x90: a guest reads internal work (`work.read`) but does not originate it (no
     // `work.create`); meetings follow the same line — read yes, write no.
     'meeting.read',
+    // x91: documents follow the same line — a guest reads internal documents (`doc.read`) but
+    // does not originate them (no `doc.write`), mirroring `work.read` / no `work.create`.
+    'doc.read',
     // §2 "View client projection: Explicit" — the relation check carries all of the weight.
     'client_projection.read',
     'approval.read',
@@ -383,6 +410,11 @@ export const INTERNAL_ONLY_CAPABILITIES: readonly Capability[] = [
   // default, the belt-and-braces second guard `authorize.ts` applies over the ceiling table.
   'meeting.read',
   'meeting.write',
+  // x91: documents are internal too — doc 38 marks docs "collaboration later" and no client
+  // projection of a document is defined, so deny client access by default, the same belt-and-
+  // braces second guard `authorize.ts` applies over the ceiling table.
+  'doc.read',
+  'doc.write',
   'client_request.triage',
   'deliverable.create',
   'deliverable.review',
