@@ -89,6 +89,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // decisions.
   deliverable_versions: 'organization_id',
   approvals: 'organization_id',
+  // FR-05 (0031, x97). Tenant-owned: a client projection is one studio's immutable client-facing
+  // view of a governed version, and an unscoped read would leak another studio's — or another
+  // client's — published content. The application already scopes its queries, but the guard is the
+  // layer that catches a forgotten predicate, so the table must be registered here.
+  client_projections: 'organization_id',
   // CHAT-001. All three are tenant-owned, and `messages` is the table in this system whose
   // content is most obviously somebody else's: an unscoped `SELECT ... FROM messages` is a
   // transcript of every studio on the server.
