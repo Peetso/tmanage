@@ -279,3 +279,11 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  * treatment `ProjectHealthView` (x86) has. Replace this note with an `Assert<Exact<…>>` pair when
  * the calendar screen and its `apps/web` shape land.
  */
+
+/**
+ * DOC-01 (x91). `DocumentView` (`GET`/`POST …/documents`, request body + response) has no web
+ * counterpart this slice — no docs screen exists yet — so it is not paired here but listed in
+ * `scripts/contracts-check.mjs`'s EXEMPT with the "No web consumer" reason, the same treatment
+ * `MeetingView` (x90) has. Replace this note with an `Assert<Exact<…>>` pair when the docs hub
+ * screen (DOC-01) and its `apps/web` shape land.
+ */

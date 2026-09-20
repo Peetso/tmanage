@@ -97,6 +97,10 @@ const EXEMPT = new Map([
     'MeetingView',
     'No web consumer: CAL-01/MTG-01 (x90) ships the API meeting read/write with no screen this slice; pair when the calendar screen lands (x90 follow-up).',
   ],
+  [
+    'DocumentView',
+    'No web consumer: DOC-01 (x91) ships the API document read/write with no screen this slice; pair when the docs hub screen lands (x91 follow-up).',
+  ],
 ]);
 
 /**

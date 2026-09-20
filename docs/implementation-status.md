@@ -11623,6 +11623,43 @@ reason, the same treatment `ProjectHealthView` (x86) has.
 
 ---
 
+## DOC-01 — the first docs & knowledge slice (x91)
+
+The `/docs` route was a stub and nothing in the schema could hold a document (audit "ten largest
+remaining" #3). This slice makes a **document** a durable, tenant-scoped, role-gated record:
+migration `0030_documents.sql` creates `documents` (org + project columns, a `title` and a
+plain-text `body`), and a new `apps/api/src/modules/docs/` module (`docs.module.ts`,
+`documents.controller.ts`, `documents.service.ts`, `documents.repository.ts`) exposes
+`POST /v1/organizations/:orgSlug/documents` behind `@RequireCapability('doc.write')` and
+`GET …/documents?projectId=` (list) plus `GET …/documents/:documentId` (one) behind
+`@RequireCapability('doc.read')`, following the `calendar`/`requests` pattern. No wiki tree,
+templates, decision register, versioning/history or Context Lens yet — doc 38 marks the module
+"MVP-lite; collaboration later", and each is a later slice.
+
+Two new capabilities, `doc.read` and `doc.write`, were added to `CAPABILITIES`. Doc 12
+(`12-PERMISSION-MATRIX`) has no document row, so their ceiling is a **decision**, not a
+transcription: a document is internal project content of the same kind a work item (and a meeting)
+is, so `doc.read` mirrors the roles that hold `work.read` (all seven internal roles) and
+`doc.write` mirrors those that hold `work.create` (internal minus guest). Both are in
+`INTERNAL_ONLY_CAPABILITIES` — no client projection of a document is defined, so client access is
+denied by default; widening it would be a `12-PERMISSION-MATRIX` / `25 §4` edit and a product
+decision. Both are registered in `GUARDED_OPERATIONS` (`packages/test-kit/src/role-operation-grid.ts`)
+so `assertCatalogCoversEveryCapability()` stays satisfied, and transcribed by hand into
+`packages/test-kit/src/permission-matrix.ts` for all eleven roles.
+
+The service's object-level relation check reuses the sibling relation-gated `work.read` /
+`work.create` capabilities (equal by construction to `doc.read` / `doc.write` for every role)
+rather than adding `doc.*` to `authorize.ts`'s `RELATION_GATED`, keeping the security core
+untouched this slice — a follow-up may relation-gate `doc.*` directly.
+
+**Follow-ups (out of this slice):** no wiki/templates/decision-register/glossary and no Context
+Lens (each a later slice with its own tables); no rich-text `body` or versioning/history; no audit
+event yet (needs a `doc.*` entry in the `AuditAction` catalog, a domain change); and no web screen,
+so `DocumentView` is listed in `scripts/contracts-check.mjs`'s EXEMPT with a "No web consumer"
+reason, the same treatment `MeetingView` (x90) has.
+
+---
+
 ## Component status
 
 | Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                                                                                                                           |

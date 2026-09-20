@@ -284,6 +284,33 @@ export const meetings = mysqlTable(
   ],
 );
 
+/**
+ * DOC-01 (x91). A project document — a title and a plain-text body.
+ *
+ * Tenant-scoped and project-owned like `conversations` and `meetings` (0029). `body` is `TEXT` and
+ * `NOT NULL`, the choice `conversations.body` made: a document is prose a person types. No wiki
+ * tree, templates, decision register, versioning/history or Context Lens yet — doc 38 marks the
+ * module "MVP-lite; collaboration later", and each is a later slice. `0030_documents.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const documents = mysqlTable(
+  'documents',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    body: text('body').notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_documents_org_id').on(table.organizationId, table.id),
+    index('ix_documents_org_project').on(table.organizationId, table.projectId, table.id),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1348,6 +1375,7 @@ export type ProjectClientRow = typeof projectClients.$inferSelect;
 export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
+export type DocumentRow = typeof documents.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

@@ -476,6 +476,87 @@ describe('0029: meetings is a tenant-scoped, project-owned, forward-only table',
   });
 });
 
+describe('0030: documents is a tenant-scoped, project-owned, forward-only table', () => {
+  beforeAll(freshDatabase);
+
+  it('applies, holds a scoped round-trip, and refuses a cross-tenant or identity change', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'documents'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'body',
+        'created_at',
+        'created_by_user_id',
+        'id',
+        'organization_id',
+        'project_id',
+        'title',
+        'updated_at',
+      ].sort(),
+    );
+    // A document body is prose a person types — TEXT, and NOT NULL like conversations.body.
+    expect(String(byName.get('body')?.['type'])).toBe('text');
+    expect(String(byName.get('body')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('project_id')?.['nullable'])).toBe('NO');
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'doc', 'D')`, [
+      id('b1'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('b2'), id('b1')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('b3'), id('b1'), id('b2')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'doc@e.test', 'D')`,
+      [id('b4')],
+    );
+
+    // A tenant-scoped insert/select round-trips, and the body is preserved.
+    await connection.query(
+      `INSERT INTO documents (id, organization_id, project_id, title, body, created_by_user_id)
+       VALUES (?, ?, ?, 'Brief', 'the body prose', ?)`,
+      [id('b5'), id('b1'), id('b3'), id('b4')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT title, body FROM documents WHERE organization_id = ? AND id = ?`,
+      [id('b1'), id('b5')],
+    );
+    expect(rows[0]?.['title']).toBe('Brief');
+    expect(rows[0]?.['body']).toBe('the body prose');
+
+    // The composite foreign key refuses a project id from outside the document's tenant: the
+    // pair (a non-existent org, this project) does not exist even though the project id does.
+    await expect(
+      connection.query(
+        `INSERT INTO documents (id, organization_id, project_id, title, body, created_by_user_id)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, 'X', 'y', ?)`,
+        [id('b6'), id('b3'), id('b4')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // organization_id is immutable at the engine, not just in the application.
+    await expect(
+      connection.query(
+        `UPDATE documents SET organization_id = 'ffffffff-0000-4000-8000-000000000001' WHERE id = ?`,
+        [id('b5')],
+      ),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });
