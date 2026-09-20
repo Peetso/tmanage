@@ -6,6 +6,73 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
+**Last updated:** 2026-09-20 (**x87 — status-doc truth-up: the frontier is x86**, branch
+`x87-status-doc-truth-up` off `master` `d6ccc9a`) — this changelog is a reverse-chronological
+append-log and it had drifted. The top entry read **x80** while `master` had reached **x86**
+(`8365bad`, project-health roll-up, in `d6ccc9a`'s first-parent history), and slices **x61–x79** and
+**x81–x86** — including **x72** and **x82** — never prepended a line. This entry states today's
+truth; per-slice detail lives in the dated sections below and is not restated here.
+
+**Corrections against the code (both 2026-09-20 audits). These supersede the earlier "pending / not
+wired / not done / narrowed" wording still preserved verbatim in the dated review tables below —
+several were in fact already resolved in later dated sections of this file (noted per item):**
+
+- **`RATE_LIMIT_*` is wired** (already recorded in "The security review acted on …" section below;
+  the earlier "Half done, not wired" cell is a preserved 2026-09-05 snapshot): `apps/api/src/main.ts:54`
+  `admitClient: createFixedWindowLimiter(...)`, consulted in the octet-stream parser at
+  `apps/api/src/common/http/fastify-adapter.ts:164`.
+- **The email-channel opt-out is applied**: the usage-threshold mail path (x74) reads `email_enabled`
+  and skips an opted-out recipient — `apps/worker/src/consumers/usage-threshold-mail.ts:125,162`, via
+  `apps/worker/src/common/database/notifications-store.ts:258`. (In-app opt-out, per-kind opt-outs and
+  digests are still not read at delivery.)
+- **ON-04 / ID-03 are wired** (already recorded in the "ON-04 and ID-03, wired" section below):
+  `apps/web/src/components/screens/InviteTeamScreen.tsx:124` (`issueInvitation`),
+  `apps/web/src/components/screens/InvitationScreen.tsx:76` (`acceptInvitation`).
+- **Denials before tenant resolution are recorded** (already closed in the sections below): the
+  unresolvable-org-slug refusal by `apps/api/src/modules/tenancy/membership-resolver.repository.ts`,
+  and — closed by **x83** — the missing-session (`SessionAuthGuard`, `missing_session`) and
+  bad/absent-CSRF (`CsrfGuard`, `csrf_failed`) refusals via `AuthenticationEventRecorder`, each with
+  `user_id NULL` and `outcome = 'failed'`.
+- **`unwrapQueryError` no longer leaks `sql`** (already "Closed" below): the driver's `sql` is dropped
+  from the cause on the way out of the database layer — `apps/api/src/common/database/query-error.ts:46`
+  `Reflect.deleteProperty(cause, 'sql')`.
+- **`WORKER_DATABASE_URL` is compared by parsed user, and the worker uses it** (already "Closed"
+  below): `packages/config/src/env.ts` compares `databaseUser(...)` (L604, L616–621);
+  `apps/worker/src/main.ts:153` `env.WORKER_DATABASE_URL ?? env.DATABASE_URL`.
+- **Contracts count**: at this base `contracts-check` reports **43 API response views — 33 paired (32
+  exact, 1 narrowing), 10 exempt** and **35 web response shapes — 33 paired, 2 exempt**. The doc's
+  earlier "27 paired" and the audits' "42 / 9" both predate x86's `ProjectHealthView`, which added one
+  API view and one exemption.
+
+**Changelog lines the append-log had skipped (one per slice; sha = merge into `master`):**
+
+- **x72** (`26b26b2`): fixed three x63-caused usage defects — band-100-by-acceptance, migrator
+  `0025 → 0024` renumber, threshold hysteresis (chain-8 reds).
+- **x73** (`b58cf64`): converted six DB suites to the shared HTTP harness (net −308 lines; refactor,
+  no coverage change).
+- **x74** (`b336f53`): USAGE-001 threshold mail with quiet-hours deferral and band-100 bypass (reads
+  `email_enabled`).
+- **x75** (`5391124`): mark usage-threshold notices read in the inbox (organization_usage bundle + web
+  control).
+- **x76** (`0c4c11d`): DB coverage for the band-100 over-quota emit and audit path.
+- **x77** (`7b448e3`): contracts-check enumerates web response shapes and controller views.
+- **x78** (`fa0201d`): CONTRACT-001 class-3 — named and paired the inline organization / realtime /
+  MFA response views.
+- **x79** (`f81734a`): CONTRACT-001 class-1 lift — exported and paired four controller views, retired
+  four `WEB_EXEMPT`.
+- **x80** (`e370d70`): FILE-003 quarantine / rejected-object retention lifecycle; migration `0025`
+  (detailed in the dated section immediately below).
+- **x81** (`b3f147a`): aggregate IPv6 sign-in abuse-control keys by /64.
+- **x82** (`d4611f4`): TEST-001 generated role × operation permission grid.
+- **x83** (`493e8e1`): record missing-session and CSRF guard refusals as authentication events.
+- **x84** (`fd94f41`): constrain `project_memberships.role` with a CHECK; migration `0026` (renumbered
+  after x80's `0025`); binary-collation compare.
+- **x85** (`d6ccc9a`): scheduled `sweep:invitations` worker job; `tmanage_worker` `SELECT, UPDATE` on
+  `invitations`.
+- **x86** (`8365bad`): project-level health roll-up read, behind `work.read`.
+
+Earlier:
+
 **Last updated:** 2026-09-20 (**x80 — FILE-003: quarantine / rejected-object deletion & retention
 lifecycle**, branch `x80-file-003-lifecycle` off `master` `e23deb0`) — the deletion lifecycle that
 closes decision F4: a rejected object's committed bytes stay counted against the tenant's quota
@@ -322,8 +389,11 @@ deliberately **not** a member of the domain `OUTBOX_EVENT_CATALOG`; `outbox_even
 (`isValidTimeZone`) and rejects a start without an end or an end without a start.
 
 **Not in scope, stated per the brief.** Honouring channel opt-outs (`in_app_enabled`,
-`email_enabled`) and per-kind opt-outs — still not applied; digests — still not applied; any
-migration — none, the columns already exist.
+`email_enabled`) and per-kind opt-outs — not applied when this slice landed; digests — still not
+applied; any migration — none, the columns already exist. **Update (x74):** the usage-threshold mail
+path now reads `email_enabled` and skips an opted-out recipient
+(`apps/worker/src/consumers/usage-threshold-mail.ts:125,162`); `in_app_enabled`, per-kind opt-outs
+and digests remain unapplied at delivery.
 
 **Tests.** `packages/domain/src/notifications/quiet-hours.test.ts` (window inside a day, crossing
 midnight, timezone offset, no window, the urgent bypass, the resume time) and one route case added
