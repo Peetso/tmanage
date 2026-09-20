@@ -172,6 +172,22 @@ export const GUARDED_OPERATIONS: readonly GuardedOperation[] = [
     declaredAt: 'work/work-items.controller.ts @Post(:workItemId/transitions) work.transition',
   },
   {
+    capability: 'meeting.read',
+    method: 'GET',
+    path: '/meetings',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'calendar/meetings.controller.ts @Get() meeting.read',
+  },
+  {
+    capability: 'meeting.write',
+    method: 'POST',
+    path: '/meetings',
+    surface: 'internal',
+    collection: true,
+    declaredAt: 'calendar/meetings.controller.ts @Post() meeting.write',
+  },
+  {
     capability: 'client_request.triage',
     method: 'GET',
     path: '/client-requests',

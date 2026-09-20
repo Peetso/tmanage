@@ -392,6 +392,90 @@ describe('0026: project_memberships.role is constrained to the internal role set
   });
 });
 
+describe('0029: meetings is a tenant-scoped, project-owned, forward-only table', () => {
+  beforeAll(freshDatabase);
+
+  it('applies, holds a scoped round-trip, and refuses a cross-tenant or identity change', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'meetings'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'agenda_note',
+        'created_at',
+        'created_by_user_id',
+        'id',
+        'organization_id',
+        'project_id',
+        'starts_at',
+        'title',
+        'updated_at',
+      ].sort(),
+    );
+    // A meeting's start is an instant, not a DATE (that is the projects.forecast_at distinction).
+    expect(String(byName.get('starts_at')?.['type'])).toBe('datetime');
+    expect(String(byName.get('agenda_note')?.['nullable'])).toBe('YES');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'mtg', 'M')`, [
+      id('a1'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('a2'), id('a1')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('a3'), id('a1'), id('a2')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'mtg@e.test', 'M')`,
+      [id('a4')],
+    );
+
+    // A tenant-scoped insert/select round-trips, and the instant is preserved.
+    await connection.query(
+      `INSERT INTO meetings (id, organization_id, project_id, title, starts_at, agenda_note, created_by_user_id)
+       VALUES (?, ?, ?, 'Kickoff', '2026-10-01 14:00:00.000', 'agenda', ?)`,
+      [id('a5'), id('a1'), id('a3'), id('a4')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT title, agenda_note AS note,
+              DATE_FORMAT(starts_at, '%Y-%m-%d %H:%i:%s') AS s
+         FROM meetings WHERE organization_id = ? AND id = ?`,
+      [id('a1'), id('a5')],
+    );
+    expect(rows[0]?.['title']).toBe('Kickoff');
+    expect(rows[0]?.['note']).toBe('agenda');
+    expect(rows[0]?.['s']).toBe('2026-10-01 14:00:00');
+
+    // The composite foreign key refuses a project id from outside the meeting's tenant: the
+    // pair (a non-existent org, this project) does not exist even though the project id does.
+    await expect(
+      connection.query(
+        `INSERT INTO meetings (id, organization_id, project_id, title, starts_at, created_by_user_id)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, 'X', '2026-10-01 14:00:00.000', ?)`,
+        [id('a6'), id('a3'), id('a4')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // organization_id is immutable at the engine, not just in the application.
+    await expect(
+      connection.query(
+        `UPDATE meetings SET organization_id = 'ffffffff-0000-4000-8000-000000000001' WHERE id = ?`,
+        [id('a5')],
+      ),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

@@ -31,6 +31,18 @@ export const CAPABILITIES = [
   'work.update',
   'work.transition',
   /**
+   * CAL-01 / MTG-01 (x90). Meetings have no row in `12-PERMISSION-MATRIX.md` §2, so their
+   * ceiling is not a transcription but a decision, recorded here and mirrored in the
+   * hand-written fixture: a meeting is internal project content of exactly the kind a work
+   * item is, so `meeting.read` is granted to the roles that hold `work.read` and
+   * `meeting.write` to the roles that hold `work.create` (internal, minus guest, who may read
+   * internal work but not originate it). Both are internal-only (see below); no client
+   * projection of a meeting is defined, so no client role holds either. Widening client access
+   * would be a `12-PERMISSION-MATRIX` / `25 §4` edit and a product decision, not this slice.
+   */
+  'meeting.read',
+  'meeting.write',
+  /**
    * CLIENT-002. `12-PERMISSION-MATRIX` §1 has a "View client projection" row and this
    * codebase had no capability for it, so the one surface every client role exists to read
    * could not be authorized at all.
@@ -139,6 +151,10 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'work.create',
     'work.update',
     'work.transition',
+    // x90: meetings mirror the internal work ceiling. read = work.read roles, write =
+    // work.create roles.
+    'meeting.read',
+    'meeting.write',
     // §2 "View client projection: Scope" — an internal admin can read what a client reads,
     // which is how anybody checks what was published before a client sees it.
     'client_projection.read',
@@ -171,6 +187,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'work.create',
     'work.update',
     'work.transition',
+    // x90: meetings mirror the internal work ceiling (read = work.read, write = work.create).
+    'meeting.read',
+    'meeting.write',
     // §2 "View client projection: Project".
     'client_projection.read',
     'client_request.triage',
@@ -195,6 +214,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'work.create',
     'work.update',
     'work.transition',
+    // x90: meetings mirror the internal work ceiling (read = work.read, write = work.create).
+    'meeting.read',
+    'meeting.write',
     // §2 "View client projection: Project".
     'client_projection.read',
     // §2 "Publish to client: Optional" — off unless organization policy enables it.
@@ -214,6 +236,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'work.create',
     'work.update',
     'work.transition',
+    // x90: meetings mirror the internal work ceiling (read = work.read, write = work.create).
+    'meeting.read',
+    'meeting.write',
     // §2 "View client projection: Project".
     'client_projection.read',
     'deliverable.create',
@@ -234,6 +259,9 @@ const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
     'conversation.read',
     'work.read',
     'work.update',
+    // x90: a guest reads internal work (`work.read`) but does not originate it (no
+    // `work.create`); meetings follow the same line — read yes, write no.
+    'meeting.read',
     // §2 "View client projection: Explicit" — the relation check carries all of the weight.
     'client_projection.read',
     'approval.read',
@@ -351,6 +379,10 @@ export const INTERNAL_ONLY_CAPABILITIES: readonly Capability[] = [
   'work.create',
   'work.update',
   'work.transition',
+  // x90: meetings are internal — no client projection is defined, so deny client access by
+  // default, the belt-and-braces second guard `authorize.ts` applies over the ceiling table.
+  'meeting.read',
+  'meeting.write',
   'client_request.triage',
   'deliverable.create',
   'deliverable.review',

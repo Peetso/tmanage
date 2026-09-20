@@ -1,0 +1,160 @@
+import { and, asc, eq, gt, sql } from 'drizzle-orm';
+import { uuidv7 } from '@tmanage/domain';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { meetings } from '../../common/database/schema.js';
+import type { MeetingRow } from '../../common/database/schema.js';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+
+/**
+ * The meetings repository — CAL-01 / MTG-01 (x90), following the `projects` pattern.
+ *
+ * `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md` §6 is honoured structurally, exactly as the
+ * projects repository honours it:
+ *
+ * 1. **No unscoped read/write.** Every method's first two parameters are the
+ *    `TenantQueryRunner` for the current unit of work and the `TenantContext`. There is no
+ *    overload without a context, so a caller that never established a tenant is a type error.
+ * 2. **The tenant comes from the context, never the DTO.** {@link CreateMeetingInput} has no
+ *    `organizationId` field, so a request body cannot choose the tenant it writes into.
+ * 3. **The tenant predicate is on every statement**, built with Drizzle and executed through
+ *    the guard (`drizzle.ts`), so a forgotten predicate throws rather than leaking rows.
+ *
+ * The runner is a parameter, not a field: the repository holds no connection and no state, so a
+ * command composes several writes on one connection inside one transaction that
+ * `TenantDatabase.transaction()` owns.
+ */
+
+export class MeetingNotFoundError extends Error {
+  constructor(readonly meetingId: string) {
+    // No organization id in the message: a not-found returned to a caller must not let a probe
+    // for another tenant's meeting tell "does not exist" from "exists elsewhere" (spec §4).
+    super(`Meeting ${meetingId} was not found`);
+    this.name = 'MeetingNotFoundError';
+  }
+}
+
+/**
+ * Note what is absent: `organizationId`. It is taken from the context, so there is no field for
+ * a request body to populate and no code path that could prefer one over the other.
+ */
+export interface CreateMeetingInput {
+  readonly projectId: string;
+  readonly title: string;
+  /** A point in time, stored as a UTC instant (the column is `DATETIME(3)`). */
+  readonly startsAt: Date;
+  readonly agendaNote?: string | null;
+  /** The person creating the meeting — the service passes `context.userId`. */
+  readonly createdByUserId: string;
+}
+
+export interface ListMeetingsOptions {
+  /** Required: this slice lists one project's meetings, never a whole tenant's. */
+  readonly projectId: string;
+  /** Keyset pagination. Cursors are ids, and the sort is `id` (UUIDv7 ≈ creation order). */
+  readonly after?: string;
+  readonly limit?: number;
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+
+export function effectivePageSize(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+}
+
+export class MeetingsRepository {
+  /**
+   * List one project's meetings, within the acting tenant.
+   *
+   * Both `organization_id` and `project_id` predicates are present. Keyset rather than offset
+   * pagination on `id`, the way the projects repository walks pages: `(organization_id, id)` is
+   * a key the schema carries, and UUIDv7 ids sort in creation order so the walk is chronological
+   * without a second sort column.
+   */
+  async list(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: ListMeetingsOptions,
+  ): Promise<readonly MeetingRow[]> {
+    const limit = effectivePageSize(options.limit);
+    const db = tenantDrizzle(runner);
+
+    const predicates = [
+      eq(meetings.organizationId, context.organizationId),
+      eq(meetings.projectId, options.projectId),
+    ];
+    if (options.after) predicates.push(gt(meetings.id, options.after));
+
+    return db
+      .select()
+      .from(meetings)
+      .where(and(...predicates))
+      .orderBy(asc(meetings.id))
+      .limit(limit);
+  }
+
+  /**
+   * Fetch one meeting by id, within the acting tenant.
+   *
+   * No `findById(id)` without a context: on MySQL that would return another customer's row,
+   * which is why ADR-0001 exists and this signature has no unscoped form.
+   */
+  async findById(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    meetingId: string,
+  ): Promise<MeetingRow | null> {
+    const db = tenantDrizzle(runner);
+    const rows = await db
+      .select()
+      .from(meetings)
+      .where(and(eq(meetings.organizationId, context.organizationId), eq(meetings.id, meetingId)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async requireById(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    meetingId: string,
+  ): Promise<MeetingRow> {
+    const found = await this.findById(runner, context, meetingId);
+    if (!found) throw new MeetingNotFoundError(meetingId);
+    return found;
+  }
+
+  /**
+   * Create a meeting.
+   *
+   * The id is generated here (UUIDv7, `07-DATA-MODEL`) so a command knows it before the insert
+   * commits. `organization_id` comes from the context, never from `input`. The project is *not*
+   * checked to belong to the tenant here: `fk_meetings_project_tenant` is a composite foreign
+   * key including `organization_id`, so the database refuses a project from another tenant — a
+   * service-layer check would duplicate a guarantee that already cannot be bypassed.
+   */
+  async create(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: CreateMeetingInput,
+  ): Promise<MeetingRow> {
+    const db = tenantDrizzle(runner);
+    const id = uuidv7();
+
+    await db.insert(meetings).values({
+      id,
+      // From the context. Not from `input` — there is no such field.
+      organizationId: context.organizationId,
+      projectId: input.projectId,
+      title: input.title,
+      startsAt: input.startsAt,
+      agendaNote: input.agendaNote ?? null,
+      createdByUserId: input.createdByUserId,
+      createdAt: sql`current_timestamp(3)`,
+      updatedAt: sql`current_timestamp(3)`,
+    });
+
+    // Read back rather than reconstruct: the row now carries server-generated timestamps, and
+    // returning a hand-assembled object would let the two disagree.
+    return this.requireById(runner, context, id);
+  }
+}

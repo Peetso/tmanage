@@ -93,6 +93,10 @@ const EXEMPT = new Map([
     'NotificationPreferencesView',
     'no web consumer yet (NOTIF-001 API-only; pair when the preferences screen lands)',
   ],
+  [
+    'MeetingView',
+    'No web consumer: CAL-01/MTG-01 (x90) ships the API meeting read/write with no screen this slice; pair when the calendar screen lands (x90 follow-up).',
+  ],
 ]);
 
 /**

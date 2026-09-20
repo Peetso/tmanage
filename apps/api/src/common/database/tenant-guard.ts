@@ -119,6 +119,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // key every tenant table has. An unscoped read would be a per-organization ledger of every
   // studio's storage spend, so the guard must scope its READS.
   usage_ledger_entries: 'organization_id',
+  // CAL-01 / MTG-01 (x90). Tenant-owned: a meeting names a project, and an unscoped
+  // `SELECT ... FROM meetings` would be every studio's calendar on the server. The guard must
+  // scope its reads and its writes.
+  meetings: 'organization_id',
 });
 
 /**

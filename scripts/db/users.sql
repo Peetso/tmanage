@@ -104,7 +104,7 @@
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
 --   · `INSERT, DELETE` on: work_item_dependencies
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
---     authentication_events, usage_ledger_entries
+--     authentication_events, usage_ledger_entries, meetings
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -244,6 +244,12 @@ GRANT INSERT                 ON `tmanage`.`usage_ledger_entries` TO 'tmanage_app
 GRANT INSERT, UPDATE         ON `tmanage`.`file_assets`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`file_versions`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`upload_sessions`  TO 'tmanage_app'@'%';
+-- CAL-01 / MTG-01 (x90). A meeting is created (INSERT) and read (the database-wide SELECT) and,
+-- this slice, never edited or removed: there is no update or delete endpoint, so **no UPDATE and
+-- no DELETE** — least privilege, and the 0029 trigger pins organization_id/project_id immutable
+-- for every credential besides. When an edit surface lands, UPDATE is added with the code that
+-- writes it, per this file's rule that a grant names a statement that exists.
+GRANT INSERT                 ON `tmanage`.`meetings`         TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

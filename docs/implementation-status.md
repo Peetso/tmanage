@@ -11588,6 +11588,41 @@ module migration cannot add a tenant table that the guard silently ignores.
 
 ---
 
+## CAL-01 / MTG-01 — the first calendar slice (x90)
+
+The `/calendar` route was a stub and nothing in the schema could hold a meeting (audit "ten
+largest remaining" #2). This slice makes a **meeting** a durable, tenant-scoped, role-gated
+record: migration `0029_meetings.sql` creates `meetings` (org + project columns, a title, a
+`starts_at` instant and an optional agenda note), and a new `apps/api/src/modules/calendar/`
+module (`calendar.module.ts`, `meetings.controller.ts`, `meetings.service.ts`,
+`meetings.repository.ts`) exposes `POST /v1/organizations/:orgSlug/meetings` behind
+`@RequireCapability('meeting.write')` and `GET …/meetings?projectId=` behind
+`@RequireCapability('meeting.read')`, following the `projects`/`requests` pattern.
+
+Two new capabilities, `meeting.read` and `meeting.write`, were added to `CAPABILITIES`. Doc 12
+(`12-PERMISSION-MATRIX`) has no meeting row, so their ceiling is a **decision**, not a
+transcription: a meeting is internal project content of the same kind a work item is, so
+`meeting.read` mirrors the roles that hold `work.read` (all seven internal roles) and
+`meeting.write` mirrors those that hold `work.create` (internal minus guest). Both are in
+`INTERNAL_ONLY_CAPABILITIES` — no client projection of a meeting is defined, so client access is
+denied by default; widening it would be a `12-PERMISSION-MATRIX` / `25 §4` edit and a product
+decision. Both are registered in `GUARDED_OPERATIONS` (`packages/test-kit/src/role-operation-grid.ts`)
+so `assertCatalogCoversEveryCapability()` stays satisfied, and transcribed by hand into
+`packages/test-kit/src/permission-matrix.ts` for all eleven roles.
+
+The service's object-level relation check reuses the sibling relation-gated `work.read` /
+`work.create` capabilities (equal by construction to `meeting.read` / `meeting.write` for every
+role) rather than adding `meeting.*` to `authorize.ts`'s `RELATION_GATED`, keeping the security
+core untouched this slice — a follow-up may relation-gate `meeting.*` directly.
+
+**Follow-ups (out of this slice):** no live-call/companion surface and no decisions/actions
+linkage (doc 38's "closes with linked decisions and actions" is the next slice); no audit event
+yet (needs a `meeting.*` entry in the `AuditAction` catalog, a domain change); and no web screen,
+so `MeetingView` is listed in `scripts/contracts-check.mjs`'s EXEMPT with a "No web consumer"
+reason, the same treatment `ProjectHealthView` (x86) has.
+
+---
+
 ## Component status
 
 | Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                                                                                                                           |
