@@ -93,6 +93,10 @@ const EXEMPT = new Map([
     'NotificationPreferencesView',
     'no web consumer yet (NOTIF-001 API-only; pair when the preferences screen lands)',
   ],
+  [
+    'ImportValidationView',
+    'No web consumer yet: ON-09 import is API-only this slice (validate/dry-run); the ON-09 screen is a follow-up. Pair it when that screen lands.',
+  ],
 ]);
 
 /**

@@ -392,6 +392,71 @@ describe('0026: project_memberships.role is constrained to the internal role set
   });
 });
 
+describe('0028: import_jobs applies and round-trips within a tenant', () => {
+  beforeAll(freshDatabase);
+
+  it('creates the table and a tenant-scoped job insert/select round-trips; a cross-tenant read finds nothing', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    const orgA = id('b1');
+    const orgB = id('b2');
+    const user = id('b3');
+    const jobA = id('b4');
+
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'imp-a', 'A')`, [
+      orgA,
+    ]);
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'imp-b', 'B')`, [
+      orgB,
+    ]);
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'imp@e.test', 'I')`,
+      [user],
+    );
+
+    // A validate-with-errors attempt in org A: the durable anchor for progress/receipt.
+    await connection.query(
+      `INSERT INTO import_jobs
+          (id, organization_id, created_by_user_id, source_kind, status,
+           total_count, valid_count, invalid_count)
+        VALUES (?, ?, ?, 'project', 'validated_with_errors', 3, 2, 1)`,
+      [jobA, orgA, user],
+    );
+
+    // The tenant-scoped read the repository issues round-trips the row exactly.
+    const [ownRows] = await connection.query<RowDataPacket[]>(
+      `SELECT status AS s, total_count AS t, valid_count AS v, invalid_count AS i
+         FROM import_jobs WHERE organization_id = ? AND id = ?`,
+      [orgA, jobA],
+    );
+    expect(ownRows).toHaveLength(1);
+    expect(String(ownRows[0]?.['s'])).toBe('validated_with_errors');
+    expect(Number(ownRows[0]?.['t'])).toBe(3);
+    expect(Number(ownRows[0]?.['v'])).toBe(2);
+    expect(Number(ownRows[0]?.['i'])).toBe(1);
+
+    // The same id read under another tenant returns nothing — a cross-tenant job never appears.
+    const [foreign] = await connection.query<RowDataPacket[]>(
+      `SELECT id FROM import_jobs WHERE organization_id = ? AND id = ?`,
+      [orgB, jobA],
+    );
+    expect(foreign).toHaveLength(0);
+
+    // The composite foreign key binds the row to its own tenant: a job citing org B's id but
+    // org A's (nonexistent-in-B) shape cannot be inserted against a missing organization.
+    await expect(
+      connection.query(
+        `INSERT INTO import_jobs
+            (id, organization_id, created_by_user_id, source_kind, status,
+             total_count, valid_count, invalid_count)
+          VALUES (?, ?, ?, 'project', 'validated', 0, 0, 0)`,
+        [id('b5'), id('ee'), user],
+      ),
+    ).rejects.toThrow(/foreign key|constraint/i);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

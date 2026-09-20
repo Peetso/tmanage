@@ -123,6 +123,28 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-20 — ON-09 onboarding import, validate/dry-run half (slice x95)
+
+Built on branch `x95-onboarding-import` (off `master` after pass 11, `d6ccc9a`), **not merged**.
+The first vertical slice of ON-09 (`41 §Onboarding`) / ADM-10 (`41 §Admin`): the **validate /
+dry-run** half. A new module `apps/api/src/modules/import/` accepts a source mapping and a batch
+of source rows, validates each row against the target shape, and returns a validation report
+(valid/invalid counts + per-row errors) that surfaces **partial failure** — `status =
+'validated_with_errors'` with the offending rows listed, not an all-or-nothing rejection. It
+**commits no target entity**: the service holds only the tenant database and the `import_jobs`
+repository, so the one write it can make is the attempt row (migration `0028_import_jobs`, the
+durable anchor for ON-09 "progress" / ADM-10 "receipt"). `POST
+/v1/organizations/:orgSlug/imports/validations` is tenant-scoped and gated by the **reused**
+`org.manage` capability (import is an org-level admin action per ADM-10; no new `import.run`
+capability, deferred to keep off `capabilities.ts`/`role-operation-grid.ts`). Untrusted input is
+bounded at the boundary (`parseImportValidationBody`, `MAX_IMPORT_ROWS`). Status: **implemented**;
+unit-tested (validation outcomes + parse + service persist with fakes). The **commit** half
+(creating projects/work from a validated job, + an `import_rows` child) and the **ON-09 screen**
+are the follow-ups. DB round-trip proof: `apps/api/test/migrator.db.test.ts` (`0028: import_jobs`)
+— executed only if the slice held `db-e2e.lock`, otherwise recorded UNEXECUTED in the x95 report.
+
+---
+
 ## 2026-09-19 — USAGE-001 slice 4c, the threshold mail + quiet-hours bypass (slice x74)
 
 Built on branch `x74-usage-threshold-mail` (off x68's HEAD `1526f6b`), **not merged**. Completes

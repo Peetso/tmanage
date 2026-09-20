@@ -271,3 +271,20 @@ type _enrolledFactor = Assert<Exact<ApiEnrolledFactorView, WebEnrolledFactor>>;
 
 /** `POST …/realtime/tickets` — a minted realtime ticket; `expiresAt` an ISO string, `socketUrl` `null` where no live socket exists. */
 type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
+
+/**
+ * CONTRACT-001 (ON-09, x95) — the onboarding-import validate/dry-run pair, recorded here but
+ * not asserted against an `apps/web` type: there is no web consumer this slice (the ON-09 screen
+ * is a follow-up), so `ImportValidationView` is carried in `scripts/contracts-check.mjs` EXEMPT
+ * rather than paired. This block is the documented shape both sides must match when the screen
+ * lands; pair it with the web declaration then and retire the exemption.
+ *
+ * Request  `POST /v1/organizations/:orgSlug/imports/validations` (`org.manage`), body
+ *          `{ sourceKind: 'project', mapping: Record<targetField, sourceColumn>, rows: object[] }`
+ *          (`ImportValidationRequest` in import.service.ts; bounded/parsed by
+ *          `parseImportValidationBody`, MAX_IMPORT_ROWS rows).
+ * Response `ImportValidationView` — `{ jobId, sourceKind, status: 'validated' |
+ *          'validated_with_errors', totalCount, validCount, invalidCount, errors: { row, errors:
+ *          { field, message }[] }[] }`. Commits no target entity; `jobId` is the persisted
+ *          `import_jobs` anchor.
+ */

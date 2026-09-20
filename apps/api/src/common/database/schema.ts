@@ -1255,6 +1255,38 @@ export const credentialChangeNotices = mysqlTable(
 );
 
 /**
+ * ON-09 (0028). The durable anchor for an onboarding-import attempt.
+ *
+ * This slice is the validate / dry-run half: one row per validation attempt, recording who ran
+ * it, the source kind, the outcome (`validated` / `validated_with_errors`), and the counts.
+ * `41 §ON-09`'s "progress" and `41 §ADM-10`'s "receipt" read from here; the commit half that
+ * creates projects/work from a validated attempt is the follow-up and will add its own columns
+ * (and an `import_rows` child) rather than reshape this one. Org-scoped like every tenant table:
+ * `(organization_id, id)` is unique so a future child can reference a job without a cross-tenant
+ * path.
+ */
+export const importJobs = mysqlTable(
+  'import_jobs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    /** One of `IMPORT_SOURCE_KINDS` (`import-validation.ts`); VARCHAR so a new kind is a value. */
+    sourceKind: varchar('source_kind', { length: 32 }).notNull(),
+    /** `validated` | `validated_with_errors` — the dry-run outcome. */
+    status: varchar('status', { length: 32 }).notNull(),
+    totalCount: int('total_count', { unsigned: true }).notNull(),
+    validCount: int('valid_count', { unsigned: true }).notNull(),
+    invalidCount: int('invalid_count', { unsigned: true }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_import_jobs_org_id').on(table.organizationId, table.id),
+    index('ix_import_jobs_org_created').on(table.organizationId, table.createdAt),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -1297,6 +1329,7 @@ export const TABLES = {
   user_recovery_codes: userRecoveryCodes,
   authentication_events: authenticationEvents,
   credential_change_notices: credentialChangeNotices,
+  import_jobs: importJobs,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -1334,3 +1367,4 @@ export type UserMfaFactorRow = typeof userMfaFactors.$inferSelect;
 export type UserRecoveryCodeRow = typeof userRecoveryCodes.$inferSelect;
 export type AuthenticationEventRow = typeof authenticationEvents.$inferSelect;
 export type CredentialChangeNoticeRow = typeof credentialChangeNotices.$inferSelect;
+export type ImportJobRow = typeof importJobs.$inferSelect;

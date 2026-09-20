@@ -293,6 +293,13 @@ GRANT INSERT ON `tmanage`.`authentication_events` TO 'tmanage_app'@'%';
 -- `least-privilege.db.test.ts` will need the pair asserted the way the outbox's are.
 GRANT INSERT ON `tmanage`.`credential_change_notices` TO 'tmanage_app'@'%';
 
+-- `import_jobs` (ON-09) gets INSERT and nothing else this slice. The validate/dry-run half is
+-- the producer: it appends one attempt row per validation and never amends it, so UPDATE and
+-- DELETE are withheld. `SELECT` it already holds database-wide (line 60), which the job read-back
+-- uses. The commit half that transitions a job (e.g. to 'committed') will add UPDATE here and
+-- assert the pair the way the outbox's are.
+GRANT INSERT ON `tmanage`.`import_jobs` TO 'tmanage_app'@'%';
+
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it
 -- applied, which is the property `pnpm db:status` depends on to be trustworthy.
