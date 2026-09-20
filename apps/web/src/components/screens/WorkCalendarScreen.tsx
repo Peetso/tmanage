@@ -9,7 +9,12 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { getWorkCalendar } from '../../lib/api/work-views';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
-import { formatDay, formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
+import {
+  formatDay,
+  formatInstant,
+  stateCapsule,
+  stateLabel,
+} from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface WorkCalendarScreenProps {
@@ -156,7 +161,11 @@ export function WorkCalendarScreen({
         </LoadingRegion>
       ) : null}
 
-      {projectId !== '' && rangeValid && !calendar.isPending && !calendar.isError && days.length === 0 ? (
+      {projectId !== '' &&
+      rangeValid &&
+      !calendar.isPending &&
+      !calendar.isError &&
+      days.length === 0 ? (
         <InlineAlert tone="neutral" title="Nothing on this calendar yet">
           This project has no dated work you can see in this range. Widen the range, or add dates
           from the work item.

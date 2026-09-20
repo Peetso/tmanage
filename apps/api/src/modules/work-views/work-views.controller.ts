@@ -4,11 +4,7 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { WORK_VIEWS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type {
-  WorkCalendarView,
-  WorkTimelineView,
-  WorkViewsService,
-} from './work-views.service.js';
+import type { WorkCalendarView, WorkTimelineView, WorkViewsService } from './work-views.service.js';
 
 /** A calendar range is bounded by `YYYY-MM-DD` date-only strings; the day is the calendar bucket. */
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -19,7 +15,11 @@ function parseDay(
   raw: unknown,
   details: { field: string; message: string }[],
 ): string | undefined {
-  if (typeof raw !== 'string' || !DATE_ONLY.test(raw) || Number.isNaN(Date.parse(`${raw}T00:00:00Z`))) {
+  if (
+    typeof raw !== 'string' ||
+    !DATE_ONLY.test(raw) ||
+    Number.isNaN(Date.parse(`${raw}T00:00:00Z`))
+  ) {
     details.push({ field, message: 'must be a YYYY-MM-DD date' });
     return undefined;
   }
