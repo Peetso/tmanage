@@ -30,6 +30,7 @@ import { ScannerModule } from './common/scan/scanner.module.js';
 import { PlatformModule } from './modules/platform/platform.module.js';
 import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { FilesModule } from './modules/files/files.module.js';
+import { ImportModule } from './modules/import/import.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -159,6 +160,9 @@ export class AppModule {
         // requests module: a session names a project and, for a client, a request, and a
         // caller who names one that is not theirs gets 404 rather than a foreign-key 500.
         FilesModule.register(),
+        // ON-09. Onboarding import (validate / dry-run). An org-level admin action reusing
+        // `org.manage` (ADM-10); it persists an `import_jobs` row and commits no target entity.
+        ImportModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

@@ -97,6 +97,10 @@ const EXEMPT = new Map([
     'ApprovalDecisionView',
     'No web consumer: FR-05 x92 authors the decide endpoint API-only; the client deep-link decision screen and its projection are x92-b, and pair then (matching the ProjectHealthView posture).',
   ],
+  [
+    'ImportValidationView',
+    'No web consumer yet: ON-09 import is API-only this slice (validate/dry-run); the ON-09 screen is a follow-up. Pair it when that screen lands.',
+  ],
 ]);
 
 /**

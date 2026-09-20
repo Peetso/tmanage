@@ -95,3 +95,7 @@ export const FILE_SCANNER = Symbol.for('tmanage.FileScanner');
 export const FILE_DOWNLOAD_SERVICE = Symbol.for('tmanage.FileDownloadService');
 /** FILE-002 slice B. The malware scanner port, provided by `ScannerModule`. */
 export const MALWARE_SCANNER = Symbol.for('tmanage.MalwareScanner');
+/** ON-09. The onboarding-import validate/dry-run service. */
+export const IMPORT_SERVICE = Symbol.for('tmanage.ImportService');
+/** ON-09. The `import_jobs` repository — the durable anchor for a validation attempt. */
+export const IMPORT_JOBS_REPOSITORY = Symbol.for('tmanage.ImportJobsRepository');
