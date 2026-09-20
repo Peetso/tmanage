@@ -3,8 +3,13 @@ import type { ApprovalPolicy, ApprovalState, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ApprovalRow } from '../../common/database/schema.js';
-import { ApprovalTransitionError, ApprovalVersionConflictError } from './approvals.repository.js';
+import {
+  ApprovalNotFoundError,
+  ApprovalTransitionError,
+  ApprovalVersionConflictError,
+} from './approvals.repository.js';
 import type { ApprovalsRepository } from './approvals.repository.js';
+import { DeliverableVersionNotFoundError } from './deliverable-versions.repository.js';
 import type { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
 
 /**
@@ -113,36 +118,38 @@ export class ApprovalsService {
       ]);
     }
 
-    const row = await this.database.transaction(context, async (tx) => {
-      const version = await this.deliverableVersions.requireById(
-        tx,
-        context,
-        input.deliverableVersionId,
-      );
+    const row = await this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const version = await this.deliverableVersions.requireById(
+          tx,
+          context,
+          input.deliverableVersionId,
+        );
 
-      const verdict = authorize({
-        principal,
-        capability: 'deliverable.review',
-        resource: {
-          organizationId: context.organizationId,
+        const verdict = authorize({
+          principal,
+          capability: 'deliverable.review',
+          resource: {
+            organizationId: context.organizationId,
+            projectId: version.projectId,
+            audience: 'client_visible',
+            lifecycle: 'active',
+          },
+        });
+        if (!verdict.allowed) {
+          throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+        }
+
+        return this.approvals.open(tx, context, {
           projectId: version.projectId,
-          audience: 'client_visible',
-          lifecycle: 'active',
-        },
-      });
-      if (!verdict.allowed) {
-        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
-      }
-
-      return this.approvals.open(tx, context, {
-        projectId: version.projectId,
-        deliverableId: version.deliverableId,
-        deliverableVersionId: version.id,
-        contentHash: version.contentHash,
-        reviewerIds: input.reviewerIds,
-        ...(input.policy ? { policy: input.policy } : {}),
-      });
-    });
+          deliverableId: version.deliverableId,
+          deliverableVersionId: version.id,
+          contentHash: version.contentHash,
+          reviewerIds: input.reviewerIds,
+          ...(input.policy ? { policy: input.policy } : {}),
+        });
+      }),
+    );
 
     return toView(row);
   }
@@ -166,8 +173,8 @@ export class ApprovalsService {
       ]);
     }
 
-    try {
-      const row = await this.database.transaction(context, async (tx) => {
+    const row = await this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
         const approval = await this.approvals.requireById(tx, context, approvalId);
 
         // Object-layer authorization: the reviewer relation is the real gate (AUTH-08). A
@@ -245,10 +252,43 @@ export class ApprovalsService {
           contentHash: current.contentHash,
           ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
         });
-      });
+      }),
+    );
 
-      return toView(row);
+    return toView(row);
+  }
+
+  /**
+   * Translate the repositories' thrown domain errors into the caller-facing envelope, in one
+   * place, exactly as `ClientRequestsService.writing` does for its module.
+   *
+   * The global {@link HttpExceptionFilter} maps only the `Project*` errors, so without this the
+   * approvals repositories' own throws — an absent approval, an absent deliverable version, a
+   * version conflict, a refused transition — would fall through to a generic 500 `unhandled`,
+   * contradicting the 404 the object-layer refusals here already promise. A not-found (a genuinely
+   * absent row) and a cross-tenant scoped-read miss (another tenant's row, which `requireById`
+   * reports as absent) both arrive as `ApprovalNotFoundError`/`DeliverableVersionNotFoundError`
+   * and so render an identical 404 body — the same indistinguishability `MembershipResolver` keeps.
+   * `auditCode` is logged, never serialised (see `errors.ts`), so it can name the precise cause
+   * without leaking it. An {@link ApiError} thrown inside `work` (the authorize refusals, the
+   * terminal-approval 409) is not a domain error and passes through unchanged.
+   */
+  private async guarding<T>(work: () => Promise<T>): Promise<T> {
+    try {
+      return await work();
     } catch (error) {
+      if (error instanceof ApprovalNotFoundError) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'approval_not_found');
+      }
+      if (error instanceof DeliverableVersionNotFoundError) {
+        throw new ApiError(
+          404,
+          'not_found',
+          MESSAGES.notFound,
+          undefined,
+          'deliverable_version_not_found',
+        );
+      }
       if (error instanceof ApprovalVersionConflictError) {
         throw new ApiError(409, 'conflict', MESSAGES.conflict, undefined, 'version_conflict');
       }

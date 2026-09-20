@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { approvalStateMachine } from '@tmanage/domain';
 import type { ApprovalState } from '@tmanage/domain';
-import { ApiError } from '../../common/http/errors.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ApprovalRow, DeliverableVersionRow } from '../../common/database/schema.js';
 import { ApprovalsService } from './approvals.service.js';
@@ -13,6 +13,7 @@ import {
 } from './approvals.repository.js';
 import type { ApprovalDecisionFacts } from './approvals.repository.js';
 import type { ApprovalsRepository } from './approvals.repository.js';
+import { DeliverableVersionNotFoundError } from './deliverable-versions.repository.js';
 import type { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
 
 /**
@@ -153,8 +154,10 @@ class FakeVersions {
   async latestForDeliverable(): Promise<DeliverableVersionRow | null> {
     return this.latest;
   }
-  async requireById(): Promise<DeliverableVersionRow> {
-    if (!this.latest) throw new Error('no version');
+  async requireById(_tx: never, _c: TenantContext, id: string): Promise<DeliverableVersionRow> {
+    // Faithful to the real repository: an absent (or cross-tenant, scoped-out) version is a
+    // typed not-found, not a bare Error — that is what the service maps to 404.
+    if (!this.latest) throw new DeliverableVersionNotFoundError(id);
     return this.latest;
   }
 }
@@ -280,5 +283,50 @@ describe('ApprovalsService.decide', () => {
     // authorize() denies on tenant mismatch before any object reasoning; the service maps it to 404.
     expect((error as ApiError).status).toBe(404);
     expect(approvals.current().state).toBe('requested');
+  });
+
+  it('maps a missing or cross-tenant approval to a 404 ApiError, not a raw 500 (requireById miss)', async () => {
+    // The row exists under id …aa1; the caller names a different id — a genuine not-found, and
+    // the same path a cross-tenant caller hits since the scoped read reports another tenant's
+    // row as absent. Before the fix this ApprovalNotFoundError escaped to the filter's 500.
+    const approvals = new FakeApprovals(approvalRow());
+    const svc = service(approvals, new FakeVersions(versionRow(HASH_A)));
+
+    const error = await svc
+      .decide(context, reviewer(REVIEWER), '00000000-0000-7000-8000-0000000000ff', {
+        decision: 'approve',
+        expectedVersion: 1,
+      })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).code).toBe('not_found');
+    // The body is indistinguishable from any other not-found: the shared message, no details.
+    expect((error as ApiError).message).toBe(MESSAGES.notFound);
+    expect((error as ApiError).details).toBeUndefined();
+    expect(approvals.current().state).toBe('requested');
+  });
+});
+
+describe('ApprovalsService.open', () => {
+  it('maps a missing or cross-tenant deliverable version to a 404 ApiError, not a raw 500', async () => {
+    // The version read is tenant-scoped, so another tenant's version — or a nonexistent one —
+    // is a typed not-found. Before the fix open had no catch and it escaped to the filter's 500.
+    const approvals = new FakeApprovals(approvalRow());
+    const svc = service(approvals, new FakeVersions(null));
+
+    const error = await svc
+      .open(context, reviewer(REVIEWER), {
+        deliverableVersionId: VERSION,
+        reviewerIds: [REVIEWER],
+      })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).code).toBe('not_found');
+    expect((error as ApiError).message).toBe(MESSAGES.notFound);
+    expect((error as ApiError).details).toBeUndefined();
   });
 });
