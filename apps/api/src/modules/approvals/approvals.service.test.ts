@@ -15,6 +15,7 @@ import type { ApprovalDecisionFacts } from './approvals.repository.js';
 import type { ApprovalsRepository } from './approvals.repository.js';
 import { DeliverableVersionNotFoundError } from './deliverable-versions.repository.js';
 import type { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
+import type { ClientProjectionsRepository } from './client-projections.repository.js';
 
 /**
  * FR-05's decision behaviour, with fakes for the two repositories.
@@ -163,10 +164,13 @@ class FakeVersions {
 }
 
 function service(approvals: FakeApprovals, versions: FakeVersions): ApprovalsService {
+  // These cases exercise decide/open only; the client-projections repository is never reached,
+  // so a bare stand-in keeps the fakes-only posture without a query path.
   return new ApprovalsService(
     fakeDatabase(),
     approvals as unknown as ApprovalsRepository,
     versions as unknown as DeliverableVersionsRepository,
+    {} as unknown as ClientProjectionsRepository,
   );
 }
 

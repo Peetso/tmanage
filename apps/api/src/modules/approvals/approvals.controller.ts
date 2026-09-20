@@ -1,10 +1,15 @@
-import { Body, Controller, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
 import type { ApprovalPolicy, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { APPROVALS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { ApprovalDecisionView, ApprovalsService } from './approvals.service.js';
+import type { ClientProjectionPayload } from '../../common/database/schema.js';
+import type {
+  ApprovalDecisionView,
+  ApprovalsService,
+  ClientProjectionView,
+} from './approvals.service.js';
 
 /**
  * FR-05's surface — open a review request, and decide one.
@@ -35,6 +40,11 @@ interface DecisionBody {
   readonly feedback?: unknown;
 }
 
+interface PublishBody {
+  readonly deliverableVersionId?: unknown;
+  readonly projection?: unknown;
+}
+
 function requireString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -42,6 +52,58 @@ function requireString(value: unknown, field: string): string {
     ]);
   }
   return value;
+}
+
+/** A field that is a string, explicit null, or omitted — normalised to `string | null`. */
+function optionalStringOrNull(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      { field, message: 'must be a string or null' },
+    ]);
+  }
+  return value;
+}
+
+/**
+ * Build the client-safe payload from an allowlist — 12-PERMISSION-MATRIX §1 and nothing else.
+ *
+ * The payload is assembled field by field from the known allowlisted keys, so a caller cannot
+ * smuggle a forbidden internal field (cost, estimates, staff review, private threads, risk
+ * rationale, security metadata, other-client data — 25 §7) into the stored projection: anything
+ * not named here is dropped, never persisted. This is why the store is not
+ * `serializeInternalObject(); delete fields`, which 25 §7 forbids by name.
+ */
+function requireProjectionPayload(value: unknown): ClientProjectionPayload {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      { field: 'projection', message: 'must be an object' },
+    ]);
+  }
+  const raw = value as Record<string, unknown>;
+
+  let approvedContacts: readonly string[] = [];
+  if (raw['approvedContacts'] !== undefined) {
+    if (
+      !Array.isArray(raw['approvedContacts']) ||
+      raw['approvedContacts'].some((entry) => typeof entry !== 'string')
+    ) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'projection.approvedContacts', message: 'must be an array of strings' },
+      ]);
+    }
+    approvedContacts = raw['approvedContacts'] as string[];
+  }
+
+  return {
+    title: requireString(raw['title'], 'projection.title'),
+    summary: optionalStringOrNull(raw['summary'], 'projection.summary'),
+    milestoneState: optionalStringOrNull(raw['milestoneState'], 'projection.milestoneState'),
+    forecastDate: optionalStringOrNull(raw['forecastDate'], 'projection.forecastDate'),
+    publishedRisk: optionalStringOrNull(raw['publishedRisk'], 'projection.publishedRisk'),
+    decision: optionalStringOrNull(raw['decision'], 'projection.decision'),
+    approvedContacts: [...approvedContacts],
+  };
 }
 
 @Controller('v1/organizations/:orgSlug/approvals')
@@ -113,5 +175,47 @@ export class ApprovalsController {
       expectedVersion: body.version,
       ...(typeof body.feedback === 'string' ? { feedback: body.feedback } : {}),
     });
+  }
+
+  /**
+   * Publish a governed version to the client — freeze its immutable client-safe projection.
+   *
+   * `@RequireCapability('deliverable.publish')` is the coarse UX ceiling (25 §3): it admits the
+   * internal roles that may publish and is meaningless to a client, whose ceiling never holds this
+   * internal-only capability. The real decision — the project relation and the internal-only guard
+   * — is the service's `authorize()` with the version loaded, exactly as `decide` defers to the
+   * reviewer relation.
+   */
+  @Post('projections')
+  @HttpCode(201)
+  @RequireCapability('deliverable.publish')
+  async publish(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: PublishBody,
+  ): Promise<ClientProjectionView> {
+    const deliverableVersionId = requireString(body.deliverableVersionId, 'deliverableVersionId');
+    const projection = requireProjectionPayload(body.projection);
+
+    return this.approvals.publish(context, principal, { deliverableVersionId, projection });
+  }
+
+  /**
+   * Read the immutable client projection for a governed version.
+   *
+   * `@RequireCapability('client_projection.read')` is the coarse ceiling — the one read every
+   * client role holds (capabilities.ts) — and the service's `authorize()` against the client
+   * relation is the real gate. A caller outside the relation, or in another tenant, gets the same
+   * 404 as a version that was never published.
+   */
+  @Get('projections/:deliverableVersionId')
+  @HttpCode(200)
+  @RequireCapability('client_projection.read')
+  async readProjection(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('deliverableVersionId') deliverableVersionId: string,
+  ): Promise<ClientProjectionView> {
+    return this.approvals.readProjection(context, principal, deliverableVersionId);
   }
 }

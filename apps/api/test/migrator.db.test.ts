@@ -392,6 +392,76 @@ describe('0026: project_memberships.role is constrained to the internal role set
   });
 });
 
+describe('0031: client_projections is tenant-scoped, append-only and immutable', () => {
+  beforeAll(freshDatabase);
+
+  const id = (n: string) => `00000000-0000-4000-8000-0000000003${n}`;
+
+  it('creates the table and refuses a re-publish and any update at the engine', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // Minimal parents the composite FKs require: a project in a tenant, a user, a version.
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'cp', 'CP')`, [
+      id('01'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('02'), id('01')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('03'), id('01'), id('02')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'cp@e.test', 'CP')`,
+      [id('04')],
+    );
+    const hash = 'a'.repeat(64);
+    await connection.query(
+      `INSERT INTO deliverable_versions
+         (id, organization_id, project_id, deliverable_id, content_hash, created_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id('05'), id('01'), id('03'), id('06'), hash, id('04')],
+    );
+
+    const projection = JSON.stringify({
+      title: 'Concept',
+      summary: null,
+      milestoneState: null,
+      forecastDate: null,
+      publishedRisk: null,
+      decision: null,
+      approvedContacts: [],
+    });
+    await connection.query(
+      `INSERT INTO client_projections
+         (id, organization_id, project_id, deliverable_id, deliverable_version_id,
+          content_hash, projection, published_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id('07'), id('01'), id('03'), id('06'), id('05'), hash, projection, id('04')],
+    );
+
+    // Append-only: a second projection of the same version is a duplicate-key error, not a row.
+    await expect(
+      connection.query(
+        `INSERT INTO client_projections
+           (id, organization_id, project_id, deliverable_id, deliverable_version_id,
+            content_hash, projection, published_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id('08'), id('01'), id('03'), id('06'), id('05'), hash, projection, id('04')],
+      ),
+    ).rejects.toThrow(/[Dd]uplicate/);
+
+    // Immutable: the trigger refuses any UPDATE outright.
+    await expect(
+      connection.query(`UPDATE client_projections SET content_hash = ? WHERE id = ?`, [
+        'b'.repeat(64),
+        id('07'),
+      ]),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

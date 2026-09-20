@@ -285,3 +285,18 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  * posture. x92-b adds the client deep-link decision screen and its `apps/web` shape, and this
  * comment becomes a real `Assert<Exact<ApiApprovalDecisionView, WebApprovalDecision>>` then.
  */
+
+/**
+ * CONTRACT-001 client projection (FR-05, x97). The `ClientProjectionView` pair.
+ *
+ * Request: `POST …/approvals/projections` — `{ deliverableVersionId: string, projection: {…} }`
+ * (the allowlisted client-safe payload, 12-PERMISSION-MATRIX §1). Read:
+ * `GET …/approvals/projections/:deliverableVersionId`. Response: `ClientProjectionView` in
+ * `apps/api/src/modules/approvals/approvals.service.ts` — the immutable client projection
+ * (`contentHash`, `projection`, `publishedByUserId`, `publishedAt`).
+ *
+ * No `Assert<Exact<…>>` pair yet: there is no web consumer this slice, so `ClientProjectionView`
+ * is carried in `scripts/contracts-check.mjs`'s EXEMPT list, matching the `ApprovalDecisionView`
+ * posture above. x97-b adds the client deep-link screen that renders it and its `apps/web` shape,
+ * and this comment becomes a real `Assert<Exact<ApiClientProjectionView, WebClientProjection>>` then.
+ */

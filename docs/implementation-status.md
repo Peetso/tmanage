@@ -123,6 +123,33 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-20 — FR-05 Approvals 2nd slice: publish → immutable client projection + authorized read (slice x97)
+
+Built on branch `x97-approvals-client-projection` (off x92's `9b6f1e5`), **not merged**. The second
+vertical slice of FR-05: an internal `deliverable.publish` freezes a governed `deliverable_versions`
+row into an immutable **`client_projections`** row, and a `client_projection.read` returns it to the
+client through the client relation. Migration **`0031_client_projections.sql`** (kept at 0031 per the
+scoping reservation; the integrator renumbers if 0028–0030 land first) creates one tenant-scoped
+table: id, org, project/deliverable/version refs, frozen `content_hash`, a client-safe `projection`
+JSON (only 12-PERMISSION-MATRIX §1's allowlist — title, summary, milestone state, forecast date,
+published risk, decision, approved contacts — built from an allowlist at the controller so a
+forbidden internal field cannot reach it, 25 §7), `published_by_user_id`, `published_at`. Append-only:
+UNIQUE (organization_id, deliverable_version_id) refuses a re-publish at the engine (409), a BEFORE
+UPDATE trigger refuses every change, and the runtime credential is granted INSERT only. New endpoints
+on `ApprovalsController` — `POST …/approvals/projections` (publish) and
+`GET …/approvals/projections/:deliverableVersionId` (read) — with the coarse `@RequireCapability`
+UX ceiling and the real object-layer `authorize()`: `deliverable.publish` (internal-only) freezing
+the version's own hash to publish, `client_projection.read` against the client `projectIds` relation
+to read; a caller outside the relation or in another tenant gets the same 404 as an unpublished
+version. New `client-projections.repository.ts`; `approvals.service.ts` gains `publish`/`readProjection`
+and maps the two new domain errors. CONTRACT-001 `ClientProjectionView` is authored API-only and
+exempted in `scripts/contracts-check.mjs` (no web consumer this slice — x97-b adds the client
+deep-link screen). **DB proof:** `apps/api/test/approvals-002-client-projection.db.test.ts` (migration
+applies + tenant-scoped publish→read round-trip with the frozen hash + append-only + cross-tenant
+non-resolution) and `migrator.db.test.ts` 0031 (shape, append-only, immutable); execution state
+recorded in the x97 report. Deferred: x97-b client deep-link approve/change-request screen; x92-c
+Playwright E2E-05.
+
 ## 2026-09-20 — FR-05 Approvals: persist and decide over a content-hashed version (slice x92)
 
 Built on branch `x92-approvals-decide` (off `master` after pass 11, `d6ccc9a`), **not merged**.
