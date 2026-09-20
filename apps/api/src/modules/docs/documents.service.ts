@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { DocumentsRepository } from './documents.repository.js';
 import type { CreateDocumentInput, ListDocumentsOptions } from './documents.repository.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { DocumentRow } from '../../common/database/schema.js';
 
 /**
@@ -64,6 +65,7 @@ export class DocumentsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly documents: DocumentsRepository = new DocumentsRepository(),
+    private readonly projects: ProjectsRepository = new ProjectsRepository(),
   ) {}
 
   /**
@@ -142,17 +144,30 @@ export class DocumentsService {
   /**
    * Create a document in a project the principal may write to.
    *
-   * The relation check runs before the write: a caller who names a project they are not a member
-   * of gets **not found**, never forbidden — 403 would confirm the project exists, and which
-   * projects a studio runs is exactly what a non-member must not be able to enumerate (the
-   * reasoning `ProjectsService.get` gives). An organization-wide role passes the relation check
-   * and the composite foreign key is what refuses a project from another tenant.
+   * Two checks run before the write, both surfacing as **not found**, never forbidden — 403 would
+   * confirm the project exists, and which projects a studio runs is exactly what a non-member must
+   * not be able to enumerate (the reasoning `ProjectsService.get` gives, and the shape
+   * `ConversationsService.create` uses):
+   *
+   * 1. The project is resolved tenant-scoped. A missing id, or one that belongs to another tenant,
+   *    is 404. Without this an organization-wide role (which passes the relation check below
+   *    regardless of the project) would fall through to the composite foreign key and surface a
+   *    **500** — the defect the x90/x92 reviews found in the sibling modules.
+   * 2. The relation check: a member without organization-wide scope may write only to a project
+   *    they belong to.
    */
   async create(
     context: TenantContext,
     principal: Principal,
     input: Omit<CreateDocumentInput, 'createdByUserId'>,
   ): Promise<DocumentView> {
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, input.projectId),
+    );
+    if (!project) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+
     const permitted = authorize({
       principal,
       capability: 'work.create',

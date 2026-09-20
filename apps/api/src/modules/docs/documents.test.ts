@@ -3,6 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { DocumentsService } from './documents.service.js';
 import type { DocumentsRepository } from './documents.repository.js';
+import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { DocumentRow } from '../../common/database/schema.js';
 
@@ -85,7 +86,15 @@ function serviceWith(seed: readonly DocumentRow[] = []): {
       return row;
     },
   } as unknown as DocumentsRepository;
-  return { service: new DocumentsService(database, repository), store };
+  // A tenant-scoped project lookup: `PROJECT` exists in the acting tenant, everything else is
+  // absent (a missing id, or one that belongs to another tenant, resolves to null). This is the
+  // resolution `DocumentsService.create` does before the relation check so an org-wide caller
+  // naming a non-existent project gets 404 rather than a foreign-key 500.
+  const projects = {
+    findById: async (_runner: unknown, _ctx: unknown, projectId: string) =>
+      projectId === PROJECT ? { id: PROJECT, organizationId: ORG } : null,
+  } as unknown as ProjectsRepository;
+  return { service: new DocumentsService(database, repository, projects), store };
 }
 
 describe('DocumentsService', () => {
@@ -161,6 +170,23 @@ describe('DocumentsService', () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(404);
     // Nothing was written.
+    expect(store).toHaveLength(0);
+  });
+
+  it('refuses a create naming a project that does not exist as not-found (not 500), even for an org-wide role', async () => {
+    // An org-wide role passes the relation check regardless of the project, so without the
+    // tenant-scoped project resolution this would fall through to the composite foreign key and
+    // surface as a 500 — the x90/x92 defect. `MISSING_PROJECT` is not `PROJECT`, so the fake
+    // project lookup returns null and the service must 404 before any insert.
+    const MISSING_PROJECT = 'project-0000-0000-0000-0000-0000000000ff';
+    const { service, store } = serviceWith();
+    const error = await service
+      .create(context, member([], true), { projectId: MISSING_PROJECT, title: 'Ghost', body: 'x' })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    // Nothing was written — the resolution ran before the transaction.
     expect(store).toHaveLength(0);
   });
 });
