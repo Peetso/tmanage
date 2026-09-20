@@ -137,6 +137,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `SELECT ... FROM documents` would be every studio's knowledge base on the server. The guard
   // must scope its reads and its writes.
   documents: 'organization_id',
+  // CAL-01 / MTG-01 second slice (x105). Tenant-owned: a note cites a meeting, and an unscoped
+  // `SELECT ... FROM meeting_notes` would be every studio's meeting record on the server. The
+  // guard must scope its reads and its writes.
+  meeting_notes: 'organization_id',
 });
 
 /**

@@ -1,10 +1,11 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { MEETINGS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { MeetingView, MeetingsService } from './meetings.service.js';
+import type { MeetingNoteView, MeetingView, MeetingsService } from './meetings.service.js';
+import type { MeetingNoteKind } from './meeting-notes.repository.js';
 
 /**
  * CAL-01 / MTG-01 (x90). The first calendar endpoints: create a project meeting, and list a
@@ -29,6 +30,14 @@ interface CreateMeetingBody {
 const MAX_TITLE_LENGTH = 300;
 /** `meetings.agenda_note` is `TEXT`; this is a form field, not a document. */
 const MAX_AGENDA_LENGTH = 8_000;
+/** `meeting_notes.body` is `TEXT`; a note or a decision is prose a person types, not a document. */
+const MAX_NOTE_BODY_LENGTH = 8_000;
+const NOTE_KINDS: readonly MeetingNoteKind[] = ['note', 'decision'];
+
+interface CreateMeetingNoteBody {
+  readonly kind?: unknown;
+  readonly body?: unknown;
+}
 
 @Controller('v1/organizations/:orgSlug/meetings')
 export class MeetingsController {
@@ -105,6 +114,86 @@ export class MeetingsController {
       title,
       startsAt,
       ...(agendaNote === undefined ? {} : { agendaNote }),
+    });
+  }
+
+  /**
+   * List a meeting's captured notes and decisions (x105). The meeting is named by the path — the
+   * service resolves it tenant-scoped and relation-checks the caller before the read, so an
+   * unknown or unreadable meeting is a 404, never an empty list that would confirm existence.
+   */
+  @Get(':meetingId/notes')
+  @RequireCapability('meeting.read')
+  async listNotes(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+    @Query('after') after?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ readonly notes: readonly MeetingNoteView[] }> {
+    if (typeof meetingId !== 'string' || meetingId === '') {
+      throw new ApiError(400, 'validation_failed', 'meetingId is required', [
+        { field: 'meetingId', message: 'must be a non-empty string' },
+      ]);
+    }
+
+    const parsedLimit = limit === undefined ? undefined : Number(limit);
+    if (parsedLimit !== undefined && !Number.isSafeInteger(parsedLimit)) {
+      throw new ApiError(400, 'validation_failed', 'limit must be an integer', [
+        { field: 'limit', message: 'must be an integer' },
+      ]);
+    }
+
+    return {
+      notes: await this.meetings.listNotes(context, principal, {
+        meetingId,
+        ...(after ? { after } : {}),
+        ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
+      }),
+    };
+  }
+
+  /**
+   * Capture a note or a decision against a meeting (x105). The meeting is named by the path and
+   * resolved tenant-scoped before the relation check (the Known-trap order), so an unknown or
+   * cross-tenant meeting id is a 404 with no write, never a 500.
+   */
+  @Post(':meetingId/notes')
+  @RequireCapability('meeting.write')
+  @HttpCode(201)
+  async createNote(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+    @Body() body: CreateMeetingNoteBody,
+  ): Promise<MeetingNoteView> {
+    const kind =
+      typeof body?.kind === 'string' && (NOTE_KINDS as readonly string[]).includes(body.kind)
+        ? (body.kind as MeetingNoteKind)
+        : undefined;
+    const noteBody = typeof body?.body === 'string' ? body.body.trim() : undefined;
+
+    const details = [
+      ...(meetingId ? [] : [{ field: 'meetingId', message: 'must be a non-empty string' }]),
+      ...(kind ? [] : [{ field: 'kind', message: "must be 'note' or 'decision'" }]),
+      ...(noteBody ? [] : [{ field: 'body', message: 'must be a non-empty string' }]),
+      ...(noteBody && noteBody.length > MAX_NOTE_BODY_LENGTH
+        ? [{ field: 'body', message: `must be ${MAX_NOTE_BODY_LENGTH} characters or fewer` }]
+        : []),
+    ];
+
+    if (details.length > 0) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+    // Narrowed by the `details.length` check above, which TypeScript cannot see through.
+    if (!meetingId || !kind || !noteBody) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+
+    return this.meetings.createNote(context, principal, {
+      meetingId,
+      kind,
+      body: noteBody,
     });
   }
 }

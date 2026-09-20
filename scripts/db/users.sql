@@ -104,7 +104,7 @@
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
 --   · `INSERT, DELETE` on: work_item_dependencies
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
---     authentication_events, usage_ledger_entries, meetings, documents
+--     authentication_events, usage_ledger_entries, meetings, documents, meeting_notes
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -266,6 +266,13 @@ GRANT INSERT                 ON `tmanage`.`meetings`         TO 'tmanage_app'@'%
 -- surface lands, UPDATE is added with the code that writes it, per this file's rule that a grant
 -- names a statement that exists (the same treatment `meetings` has above).
 GRANT INSERT                 ON `tmanage`.`documents`        TO 'tmanage_app'@'%';
+-- CAL-01 / MTG-01 second slice (x105). A note or decision is captured (INSERT) and read (the
+-- database-wide SELECT); this slice has no edit or delete endpoint, so **no UPDATE and no
+-- DELETE** — least privilege, and 0033's trigger refuses UPDATE for every credential besides. A
+-- captured note is an append-only record. When a decision-lifecycle surface lands (x105-b),
+-- UPDATE is added with the code that writes it, per this file's rule that a grant names a
+-- statement that exists (the same treatment `meetings` and `documents` have above).
+GRANT INSERT                 ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
