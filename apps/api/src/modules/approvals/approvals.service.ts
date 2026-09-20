@@ -352,16 +352,22 @@ export class ApprovalsService {
    * a missing or cross-tenant id must be a 404 from `requireByVersion`, never a 500), and only
    * then is the decision authorized.
    *
-   * ## The client relation is the gate, and the projection names its deciders
+   * ## The client relation is the gate
    *
-   * `approval.decide` is reviewer-gated (`authorize()` `REVIEWER_GATED`), which for a client means
-   * two object facts must both hold: the project is one shared with the client organization
-   * (`projectIds`, 12-PERMISSION-MATRIX §1) *and* the client is a designated decider. A client's
-   * "reviewer relation" is the published projection's allowlisted `approvedContacts` — 12 §1's
-   * "approved contacts" — so a client on the relation who is not an approved contact is refused
-   * exactly as an unassigned internal reviewer is. Nothing here reads `reviewer_ids`: that is the
-   * internal reviewers' list, and a client is never on it. The refusal is 404, not 403, for the
-   * reason the reviewer decide gives — a refusal must not confirm the row exists.
+   * `approval.decide` is reviewer-gated (`authorize()` `REVIEWER_GATED`), but the reviewer relation
+   * it checks — `reviewer_ids` — is the *internal* reviewers' list, and a client is never on it
+   * (12-PERMISSION-MATRIX §1: `reviewer_ids` are staff). A client's authority to decide is instead
+   * the **project relation**: the version's project is one shared with the client organization
+   * (`projectIds`), which `authorize()` enforces for a client before the reviewer sub-check. So a
+   * client on the relation whose role holds `approval.decide` (client admin / reviewer / member —
+   * a client viewer does not) is a valid decider, and the reviewer sub-check is satisfied on their
+   * behalf: `isAssignedReviewer: true` says "the relation is this client's reviewer authority",
+   * not "a staff member assigned them". A client not on the relation is denied `not_project_member`;
+   * a role without `approval.decide` is denied at the ceiling. Every refusal is 404, not 403 — a
+   * refusal must not confirm the row exists.
+   *
+   * The published projection is required first: a client may only decide on a version that was
+   * actually published to them, so its absence (or a cross-tenant id) is the same 404.
    *
    * The decision itself is x92's transition, unchanged: the same `viewed` advance, the same
    * INT-16/INT-17 hash re-check against the current governed version, and the same append-only
@@ -399,8 +405,9 @@ export class ApprovalsService {
             projectId: projection.projectId,
             audience: 'client_visible',
             isPublished: true,
-            // A client's reviewer relation is the projection's allowlisted approved contacts.
-            isAssignedReviewer: projection.projection.approvedContacts.includes(principal.userId),
+            // For a client the project relation IS the reviewer authority (see the doc comment):
+            // `reviewer_ids` is the internal staff list, which a client is never on.
+            isAssignedReviewer: true,
             lifecycle: 'active',
           },
         });
@@ -441,9 +448,16 @@ export class ApprovalsService {
           governed !== null && contentHashEquals(governed.contentHash, current.contentHash);
 
         if (!hashMatches) {
-          return this.approvals.transition(tx, context, approval.id, current.version, 'invalidated', {
-            invalidationReason: 'governed content changed before the decision',
-          });
+          return this.approvals.transition(
+            tx,
+            context,
+            approval.id,
+            current.version,
+            'invalidated',
+            {
+              invalidationReason: 'governed content changed before the decision',
+            },
+          );
         }
 
         const to: ApprovalState = input.decision === 'approve' ? 'approved' : 'changes_requested';

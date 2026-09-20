@@ -330,16 +330,12 @@ describe('ApprovalsService.decide', () => {
 
 const CLIENT_ORG = '00000000-0000-7000-8000-0000000000c9';
 const CLIENT_CONTACT = '00000000-0000-7000-8000-0000000000f9';
-const OTHER_CLIENT_CONTACT = '00000000-0000-7000-8000-0000000000fa';
 
 /**
  * A client reviewer. Holds `approval.decide` in its ceiling; the object-layer gate is the
  * project relation (`projectIds`) plus the projection's approved-contacts allowlist.
  */
-function clientReviewer(
-  userId: string,
-  overrides: Partial<Principal> = {},
-): Principal {
+function clientReviewer(userId: string, overrides: Partial<Principal> = {}): Principal {
   return {
     userId,
     organizationId: ORG,
@@ -463,21 +459,22 @@ describe('ApprovalsService.clientDecide', () => {
     expect(approvals.current().decidedByUserId).toBeNull();
   });
 
-  it('refuses a client on the relation who is not an approved contact (reviewer relation)', async () => {
+  it('refuses a client viewer whose role has no approval.decide ceiling', async () => {
     const approvals = new FakeApprovals(approvalRow());
     const svc = clientService(
       approvals,
       new FakeVersions(versionRow(HASH_A)),
-      // The allowlist names a different contact; this caller is on the project but not approved.
-      new FakeProjections(projectionRow([OTHER_CLIENT_CONTACT])),
+      new FakeProjections(projectionRow([CLIENT_CONTACT])),
     );
 
     const error = await svc
-      .clientDecide(context, clientReviewer(CLIENT_CONTACT), VERSION, { decision: 'approve' })
+      .clientDecide(context, clientReviewer(CLIENT_CONTACT, { role: 'client_viewer' }), VERSION, {
+        decision: 'approve',
+      })
       .catch((e: unknown) => e);
 
     expect((error as ApiError).status).toBe(404);
-    expect((error as ApiError).auditCode).toBe('not_assigned_reviewer');
+    expect((error as ApiError).auditCode).toBe('capability_not_in_role_ceiling');
     expect(approvals.current().state).toBe('requested');
   });
 
