@@ -107,7 +107,13 @@ describe('applying the real migrations', () => {
   it('is a no-op on a second run', async () => {
     const report = await migrate(connection, { directory: migrationsDirectory });
     expect(report.applied).toEqual([]);
-    expect(report.alreadyApplied).toEqual(realMigrations.map((_file, index) => index + 1));
+    // `alreadyApplied` reports the version parsed from each filename, not a 1..n position, so
+    // the assertion is derived the same way the migrator derives it. Migration numbering may
+    // legitimately have gaps (a version reserved by a parallel branch, e.g. 0025), and the
+    // migrator treats versions as a set; an `index + 1` expectation would encode a
+    // contiguity the format never promises — exactly the hard-coded-number trap this file
+    // avoids elsewhere.
+    expect(report.alreadyApplied).toEqual(realMigrations.map((name) => Number.parseInt(name, 10)));
   });
 
   it('reports every file as applied', async () => {
@@ -351,13 +357,21 @@ describe('0026: project_memberships.role is constrained to the internal role set
       `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
       [id('a3'), id('a1'), id('a2')],
     );
-    await connection.query(
-      `INSERT INTO users (id, email, display_name) VALUES (?, 'r@e.test', 'R')`,
-      [id('a4')],
-    );
+    // uq_project_memberships_identity is (organization_id, project_id, user_id), so every
+    // membership below needs its own user: one per accepted role, one shared by the rejected
+    // inserts (which never commit), and one for the final accepted 'owner'.
+    const users = INTERNAL_ROLES.map((_, i) => [id(`b${i}`), `r${i}@e.test`, 'R']);
+    users.push([id('c0'), 'rej@e.test', 'R'], [id('c1'), 'ok@e.test', 'R']);
+    await connection.query(`INSERT INTO users (id, email, display_name) VALUES ?`, [users]);
 
-    // Every internal role is accepted (one write, rows built from the union)...
-    const rows = INTERNAL_ROLES.map((role, i) => [id(`1${i}`), id('a1'), id('a3'), id('a4'), role]);
+    // Every internal role is accepted (one write), each on its own (project, user) identity...
+    const rows = INTERNAL_ROLES.map((role, i) => [
+      id(`1${i}`),
+      id('a1'),
+      id('a3'),
+      id(`b${i}`),
+      role,
+    ]);
     await connection.query(
       `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES ?`,
       [rows],
@@ -366,7 +380,7 @@ describe('0026: project_memberships.role is constrained to the internal role set
     await expect(
       connection.query(
         `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'client_admin')`,
-        [id('ff'), id('a1'), id('a3'), id('a4')],
+        [id('ff'), id('a1'), id('a3'), id('c0')],
       ),
     ).rejects.toThrow(/[Cc]heck constraint/);
 
@@ -374,20 +388,20 @@ describe('0026: project_memberships.role is constrained to the internal role set
     await expect(
       connection.query(
         `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'OWNER')`,
-        [id('fe'), id('a1'), id('a3'), id('a4')],
+        [id('fe'), id('a1'), id('a3'), id('c0')],
       ),
     ).rejects.toThrow(/[Cc]heck constraint/);
     // ...and a trailing-pad variant are both rejected, not silently admitted by _unicode_ci.
     await expect(
       connection.query(
         `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'owner ')`,
-        [id('fd'), id('a1'), id('a3'), id('a4')],
+        [id('fd'), id('a1'), id('a3'), id('c0')],
       ),
     ).rejects.toThrow(/[Cc]heck constraint/);
     // The exact lowercase literal still passes, so the binary comparison did not over-tighten.
     await connection.query(
       `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'owner')`,
-      [id('fc'), id('a1'), id('a3'), id('a4')],
+      [id('fc'), id('a1'), id('a3'), id('c1')],
     );
   });
 });
