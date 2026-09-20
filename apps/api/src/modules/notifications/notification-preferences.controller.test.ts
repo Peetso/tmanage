@@ -14,9 +14,11 @@ import type { ApiConfig } from '../../common/http/api-config.js';
 import { ensureRequestState } from '../../common/http/request-state.js';
 import {
   API_CONFIG,
+  AUTHENTICATION_EVENT_RECORDER,
   NOTIFICATION_PREFERENCES_SERVICE,
   SESSION_SERVICE,
 } from '../../common/http/tokens.js';
+import type { AuthenticationEventRecorder } from '../../common/http/authentication-event-recorder.js';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import { NotificationPreferencesController } from './notification-preferences.controller.js';
 import { DEFAULT_NOTIFICATION_PREFERENCES } from './notification-preferences.service.js';
@@ -91,12 +93,16 @@ const sessions = {
 };
 const config = { cookieName: COOKIE_NAME } as unknown as ApiConfig;
 
+/** The session guard records its refusals now (status defect 4); a no-op keeps this test focused. */
+const eventRecorder: AuthenticationEventRecorder = { recordGuardRefusal: () => {} };
+
 @Module({
   controllers: [NotificationPreferencesController],
   providers: [
     { provide: NOTIFICATION_PREFERENCES_SERVICE, useValue: service },
     { provide: SESSION_SERVICE, useValue: sessions },
     { provide: API_CONFIG, useValue: config },
+    { provide: AUTHENTICATION_EVENT_RECORDER, useValue: eventRecorder },
     { provide: APP_GUARD, useClass: SessionAuthGuard },
     { provide: APP_GUARD, useClass: TestContextGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

@@ -19,6 +19,12 @@ export const API_CONFIG = Symbol.for('tmanage.ApiConfig');
 export const SESSION_SERVICE = Symbol.for('tmanage.SessionService');
 export const AUTHENTICATION_SERVICE = Symbol.for('tmanage.AuthenticationService');
 export const MEMBERSHIP_RESOLVER = Symbol.for('tmanage.MembershipResolver');
+/**
+ * The seam the HTTP guards record a refused attempt through — status defect 4. Bound to
+ * `DatabaseAuthenticationEventRecorder` by `IdentityModule`, which already holds the recorder's
+ * dependencies; injected by `SessionAuthGuard` and `CsrfGuard`.
+ */
+export const AUTHENTICATION_EVENT_RECORDER = Symbol.for('tmanage.AuthenticationEventRecorder');
 export const PRINCIPAL_REPOSITORY = Symbol.for('tmanage.PrincipalRepository');
 export const PROVISIONING_SERVICE = Symbol.for('tmanage.ProvisioningService');
 export const WORKSPACES_REPOSITORY = Symbol.for('tmanage.WorkspacesRepository');
