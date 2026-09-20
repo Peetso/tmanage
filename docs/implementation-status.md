@@ -6789,6 +6789,17 @@ can adopt it verbatim when it catches up.
    accessible list (WK-04's "accessible list"); the Gantt canvas, WK-06 Workload, WK-07 Forms,
    WK-08 Saved views and the calendar view remain follow-ups. Capability `work.read` is **reused**
    (a dedicated work-views capability is deferred, off the shared capability files).
+7. **WK-06 Work workload is built as a read + accessible list** (x99) — the same `work-views`
+   module composes `WorkItemsRepository.list` read-only (no edit to the work module, no migration)
+   behind `GET …/work-views/workload/:projectId`. It groups a project's **open** work items
+   (every state except `done` and the terminal `archived`) by `ownerUserId` — `null` for the
+   unassigned pile — with `openItemCount` and a derived `scheduledItemCount` (items with a
+   `startAt` or `dueAt`), ordered heaviest first, ties broken by scheduled load then owner id with
+   the unassigned pile last. The same `authorize('work.read')` belt-and-braces and client-audience
+   pre-filter as the timeline drop cross-tenant and unreadable rows. `WorkWorkloadScreen` renders
+   the accessible list, naming the assignee by id (no name-resolution endpoint) and "Unassigned"
+   for the unowned pile. The capacity chart, WK-07 Forms, WK-08 Saved views and the calendar view
+   remain follow-ups. Capability `work.read` is **reused** (still off the shared capability files).
 
 ---
 

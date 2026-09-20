@@ -64,6 +64,7 @@ import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
+import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
@@ -122,6 +123,7 @@ import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/s
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
+import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -219,6 +221,13 @@ type _waiting = Assert<Exact<ApiWaitingView, WebWaiting>>;
  * `state` is the same `WORK_ITEM_STATES` union as the work list's.
  */
 type _workTimeline = Assert<Exact<ApiWorkTimelineView, WebWorkTimelineView>>;
+
+/**
+ * WK-06 (x99). `GET .../work-views/workload/:projectId` — the accessible Work workload. The
+ * `WorkWorkloadScreen` reads exactly this response, so the pair is Exact; each group's fields
+ * (`ownerUserId`, `openItemCount`, `scheduledItemCount`) line up on both sides.
+ */
+type _workWorkload = Assert<Exact<ApiWorkloadView, WebWorkloadView>>;
 
 /** `ClientRequestView.state` ↔ the nine states of `23-ERD` §6. */
 type _clientRequest = Assert<Exact<ApiClientRequestView, WebClientRequestRecord>>;

@@ -3,7 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { WORK_VIEWS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { WorkTimelineView, WorkViewsService } from './work-views.service.js';
+import type { WorkTimelineView, WorkloadView, WorkViewsService } from './work-views.service.js';
 
 /**
  * WK-04's HTTP surface — the Work views read layer.
@@ -33,5 +33,20 @@ export class WorkViewsController {
     @Param('projectId') projectId: string,
   ): Promise<WorkTimelineView> {
     return this.workViews.projectTimeline(context, principal, projectId);
+  }
+
+  /**
+   * A project's open work grouped by assignee, with per-assignee counts and derived load, ordered
+   * for a workload list. A pure read composed from the existing work read; nothing here writes.
+   * Behind the same reused `work.read` capability as the timeline above.
+   */
+  @Get('workload/:projectId')
+  @RequireCapability('work.read')
+  async workload(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<WorkloadView> {
+    return this.workViews.projectWorkload(context, principal, projectId);
   }
 }
