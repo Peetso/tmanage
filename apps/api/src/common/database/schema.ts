@@ -1279,10 +1279,52 @@ export const importJobs = mysqlTable(
     validCount: int('valid_count', { unsigned: true }).notNull(),
     invalidCount: int('invalid_count', { unsigned: true }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /**
+     * The commit half's terminal transition (0032). NULL until a validated job is committed;
+     * `status` then carries `committed` / `committed_with_errors` and these three carry the
+     * receipt summary. A validate-only job keeps all three NULL.
+     */
+    committedAt: datetime('committed_at', { mode: 'date', fsp: 3 }),
+    committedCount: int('committed_count', { unsigned: true }),
+    failedCount: int('failed_count', { unsigned: true }),
   },
   (table) => [
     uniqueIndex('uq_import_jobs_org_id').on(table.organizationId, table.id),
     index('ix_import_jobs_org_created').on(table.organizationId, table.createdAt),
+  ],
+);
+
+/**
+ * ON-09 commit half (0032). One row per source row in a committed import — the per-row receipt
+ * (ADM-10's "receipt" at row granularity). A valid row carries `outcome = 'created'` with the
+ * created entity id; an invalid or refused row carries `outcome = 'failed'` with `errorDetail`,
+ * in the same job — ON-09's "partial failure" made auditable. Org-scoped, and bound to its
+ * parent job by the composite `(organization_id, job_id)` foreign key so a receipt can never
+ * cite another tenant's job.
+ */
+export const importRows = mysqlTable(
+  'import_rows',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    jobId: char('job_id', { length: 36 }).notNull(),
+    /** Zero-based index of the source row in the committed batch. */
+    sourceIndex: int('source_index', { unsigned: true }).notNull(),
+    /** `created` | `failed`; VARCHAR so a later outcome is a value the code adds. */
+    outcome: varchar('outcome', { length: 32 }).notNull(),
+    /** The id of the entity this row created, or NULL for a failed row. */
+    createdEntityId: char('created_entity_id', { length: 36 }),
+    /** The error that stopped a failed row, or NULL for a created row. */
+    errorDetail: varchar('error_detail', { length: 500 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_import_rows_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_import_rows_job_source').on(
+      table.organizationId,
+      table.jobId,
+      table.sourceIndex,
+    ),
   ],
 );
 
@@ -1330,6 +1372,7 @@ export const TABLES = {
   authentication_events: authenticationEvents,
   credential_change_notices: credentialChangeNotices,
   import_jobs: importJobs,
+  import_rows: importRows,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -1368,3 +1411,4 @@ export type UserRecoveryCodeRow = typeof userRecoveryCodes.$inferSelect;
 export type AuthenticationEventRow = typeof authenticationEvents.$inferSelect;
 export type CredentialChangeNoticeRow = typeof credentialChangeNotices.$inferSelect;
 export type ImportJobRow = typeof importJobs.$inferSelect;
+export type ImportRowRow = typeof importRows.$inferSelect;

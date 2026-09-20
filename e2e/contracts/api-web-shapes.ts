@@ -287,4 +287,16 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  *          'validated_with_errors', totalCount, validCount, invalidCount, errors: { row, errors:
  *          { field, message }[] }[] }`. Commits no target entity; `jobId` is the persisted
  *          `import_jobs` anchor.
+ *
+ * CONTRACT-001 (ON-09, x100) — the commit half, likewise EXEMPT (`ImportCommitView`) with no web
+ * consumer this slice; pair it when the ON-09 screen lands.
+ *
+ * Request  `POST /v1/organizations/:orgSlug/imports/commits` (`org.manage`), body
+ *          `{ jobId, sourceKind: 'project', mapping, rows }` (`ImportCommitRequest`; bounded/parsed
+ *          by `parseImportCommitBody`).
+ * Response `ImportCommitView` — `{ jobId, sourceKind, status: 'committed' |
+ *          'committed_with_errors', committedCount, failedCount, rows: { sourceIndex, outcome:
+ *          'created' | 'failed', createdEntityId: string | null, error: string | null }[] }`.
+ *          Partial commit: valid rows create entities (each through the `project.create`
+ *          authorize), invalid / refused rows are recorded as `failed` receipts, in one job.
  */

@@ -20,6 +20,14 @@ export interface ImportValidationRequest {
   readonly rows: readonly SourceRow[];
 }
 
+/** The commit request adds the id of the validated job to the validation shape. */
+export interface ImportCommitRequest extends ImportValidationRequest {
+  readonly jobId: string;
+}
+
+/** A job id is a UUID (`CHAR(36)`); shaped here rather than trusted from the body. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * The batch ceiling. A dry-run validation walks every row, so an unbounded batch is an
  * unbounded unit of work on a single request — refused here rather than absorbed. The commit
@@ -102,4 +110,30 @@ export function parseImportValidationBody(
   }
 
   return { sourceKind, mapping, rows };
+}
+
+/**
+ * Parse and bound the commit request body. The same untrusted-input boundary as
+ * {@link parseImportValidationBody}, plus a `jobId` that must be a UUID — the id names the
+ * validated job to commit, and a malformed one is refused here rather than turned into a
+ * database round-trip.
+ */
+export function parseImportCommitBody(
+  body: unknown,
+  details: ValidationDetail[],
+): ImportCommitRequest | undefined {
+  const source = isPlainObject(body) ? body : {};
+
+  const jobId = source['jobId'];
+  if (typeof jobId !== 'string' || !UUID.test(jobId)) {
+    details.push({ field: 'jobId', message: 'must be a job id' });
+  }
+
+  const request = parseImportValidationBody(source, details);
+
+  if (details.length > 0 || request === undefined || typeof jobId !== 'string') {
+    return undefined;
+  }
+
+  return { jobId, ...request };
 }

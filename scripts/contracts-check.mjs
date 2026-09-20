@@ -97,6 +97,14 @@ const EXEMPT = new Map([
     'ImportValidationView',
     'No web consumer yet: ON-09 import is API-only this slice (validate/dry-run); the ON-09 screen is a follow-up. Pair it when that screen lands.',
   ],
+  [
+    'ImportCommitView',
+    'No web consumer yet: ON-09 import commit half (x100) is API-only; the ON-09 screen is a follow-up. Pair it with the web declaration when that screen lands.',
+  ],
+  [
+    'ImportCommitRowView',
+    'No web consumer yet: the per-row receipt nested in ImportCommitView (x100), API-only until the ON-09 screen lands.',
+  ],
 ]);
 
 /**

@@ -457,6 +457,99 @@ describe('0028: import_jobs applies and round-trips within a tenant', () => {
   });
 });
 
+describe('0032: import_rows applies and a job commits with a per-row receipt', () => {
+  beforeAll(freshDatabase);
+
+  it('creates import_rows, transitions a job to committed, and binds a receipt to its own tenant', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    const orgA = id('c1');
+    const orgB = id('c2');
+    const user = id('c3');
+    const jobA = id('c4');
+    const rowA = id('c5');
+
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'cmt-a', 'A')`, [
+      orgA,
+    ]);
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'cmt-b', 'B')`, [
+      orgB,
+    ]);
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'cmt@e.test', 'C')`,
+      [user],
+    );
+
+    // A validated attempt in org A, then the commit-half transition: status moves to a terminal
+    // committed value and the receipt-summary columns 0032 adds are stamped in place (UPDATE).
+    await connection.query(
+      `INSERT INTO import_jobs
+          (id, organization_id, created_by_user_id, source_kind, status,
+           total_count, valid_count, invalid_count)
+        VALUES (?, ?, ?, 'project', 'validated_with_errors', 2, 1, 1)`,
+      [jobA, orgA, user],
+    );
+    await connection.query(
+      `UPDATE import_jobs
+          SET status = 'committed_with_errors', committed_count = 1, failed_count = 1,
+              committed_at = CURRENT_TIMESTAMP(3)
+        WHERE organization_id = ? AND id = ?`,
+      [orgA, jobA],
+    );
+
+    // One created receipt and one failed receipt for the job, the per-row anchor ADM-10 reads.
+    await connection.query(
+      `INSERT INTO import_rows
+          (id, organization_id, job_id, source_index, outcome, created_entity_id)
+        VALUES (?, ?, ?, 0, 'created', ?)`,
+      [rowA, orgA, jobA, id('c6')],
+    );
+    await connection.query(
+      `INSERT INTO import_rows
+          (id, organization_id, job_id, source_index, outcome, error_detail)
+        VALUES (?, ?, ?, 1, 'failed', 'name: must be a non-empty string')`,
+      [id('c7'), orgA, jobA],
+    );
+
+    // The tenant-scoped read round-trips the transitioned job and both receipts, in source order.
+    const [jobRows] = await connection.query<RowDataPacket[]>(
+      `SELECT status AS s, committed_count AS c, failed_count AS f
+         FROM import_jobs WHERE organization_id = ? AND id = ?`,
+      [orgA, jobA],
+    );
+    expect(String(jobRows[0]?.['s'])).toBe('committed_with_errors');
+    expect(Number(jobRows[0]?.['c'])).toBe(1);
+    expect(Number(jobRows[0]?.['f'])).toBe(1);
+
+    const [receiptRows] = await connection.query<RowDataPacket[]>(
+      `SELECT outcome AS o FROM import_rows
+         WHERE organization_id = ? AND job_id = ? ORDER BY source_index`,
+      [orgA, jobA],
+    );
+    expect(receiptRows.map((r) => String(r['o']))).toEqual(['created', 'failed']);
+
+    // The same job id read under another tenant returns no receipts — never a cross-tenant path.
+    const [foreign] = await connection.query<RowDataPacket[]>(
+      `SELECT id FROM import_rows WHERE organization_id = ? AND job_id = ?`,
+      [orgB, jobA],
+    );
+    expect(foreign).toHaveLength(0);
+
+    // The composite (organization_id, job_id) foreign key binds a receipt to a job of the SAME
+    // tenant: a receipt in org B citing org A's job is refused, so a receipt can never cite
+    // another organization's job.
+    await expect(
+      connection.query(
+        `INSERT INTO import_rows
+            (id, organization_id, job_id, source_index, outcome)
+          VALUES (?, ?, ?, 0, 'created')`,
+        [id('c8'), orgB, jobA],
+      ),
+    ).rejects.toThrow(/foreign key|constraint/i);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });
