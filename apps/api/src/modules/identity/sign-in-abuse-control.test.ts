@@ -477,6 +477,52 @@ describe('the sign-in abuse control', () => {
 });
 
 /**
+ * D08 follow-up 6. The source key aggregates IPv6 to its /64 network, so the 2^64 addresses one
+ * /64 holds can no longer each buy their own budget. IPv4 is untouched, an IPv4-mapped IPv6
+ * source meets the bare IPv4 it carries, and a source `isIP` cannot parse falls back to the
+ * clamped literal it always used — never merged with a real network.
+ */
+describe('the sign-in abuse control aggregates IPv6 sources by /64 (D08 follow-up 6)', () => {
+  const refusal = {
+    admitted: false as const,
+    reason: 'source_throttled' as SignInAbuseReason,
+    firstRefusalInWindow: true,
+  };
+
+  it('shares one budget across a /64 and keeps distinct /64s independent', () => {
+    const control = createControl({ maxPerSource: 1, now: () => 5_000 });
+    // Two addresses in 2001:db8::/64, differing only past the /64 boundary and in casing.
+    expect(control.admit({ ip: '2001:db8::1' }).admitted).toBe(true);
+    expect(control.admit({ ip: '2001:DB8:0:0:ffff::2' })).toEqual(refusal);
+    // A different /64 carries its own window — the aggregation is per-network, not global.
+    expect(control.admit({ ip: '2001:db8:0:1::1' }).admitted).toBe(true);
+  });
+
+  it('leaves IPv4 keyed on the full address, unaffected by the /64 rule', () => {
+    const control = createControl({ maxPerSource: 1, now: () => 5_000 });
+    expect(control.admit({ ip: '198.51.100.7' }).admitted).toBe(true);
+    // A neighbouring IPv4 is a distinct key — IPv4 is never aggregated.
+    expect(control.admit({ ip: '198.51.100.8' }).admitted).toBe(true);
+  });
+
+  it('keys an IPv4-mapped IPv6 source as the IPv4 it carries', () => {
+    const control = createControl({ maxPerSource: 1, now: () => 5_000 });
+    expect(control.admit({ ip: '203.0.113.9' }).admitted).toBe(true);
+    // Same host, so it meets the bare IPv4 in one budget rather than the ::ffff:0:0/96 sink.
+    expect(control.admit({ ip: '::ffff:203.0.113.9' })).toEqual(refusal);
+  });
+
+  it('falls back to the clamped literal for a malformed source, never merged with a network', () => {
+    const control = createControl({ maxPerSource: 1, now: () => 5_000 });
+    expect(control.admit({ ip: 'not:an:address' }).admitted).toBe(true);
+    // A real IPv6 /64 alongside it keeps its own window: the fallback is never a network key.
+    expect(control.admit({ ip: '2001:db8::1' }).admitted).toBe(true);
+    // The same malformed literal is refused by the very key it created — it still buckets.
+    expect(control.admit({ ip: 'not:an:address' })).toEqual(refusal);
+  });
+});
+
+/**
  * `C-1` — the durable per-user lockout's ordering, extracted from `authentication.service.ts`
  * so the one property that closes the finding is provable without a database: verify first,
  * charge only on failure. A correct password is admitted regardless of the window, so a wrong

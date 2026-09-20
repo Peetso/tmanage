@@ -701,6 +701,7 @@ reversed]`, walks it while the entries are trusted, returns the first untrusted 
   _scarce_. An IPv6 /64 still holds 2^64 addresses that rotate for free, so the source key can
   still be rotated by anybody who holds one, with no proxy involved. Canonicalising the address
   and keying IPv6 at /64 needs a slice of its own.
+  - **Closed by x81 (2026-09-20).** `sourceComponent` in `sign-in-abuse-control.ts` now keys every IPv6 source on its canonical /64 network (IPv4-mapped `::ffff:a.b.c.d` as the IPv4 it carries, IPv4 unchanged, malformed input falling back to the clamped literal), so one /64 buys one source budget instead of 2^64; proved by unit cases, no DB test needed.
 - **Not run:** e2e, the visual-regression baselines, the least-privilege suite, the rest of the
   `database` project, and the web typecheck. Nothing in the slice reaches a rendered surface.
 

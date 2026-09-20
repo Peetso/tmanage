@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 import {
   createTwoPhaseFixedWindowLimiter,
   FIXED_WINDOW_DEFAULT_MAX_KEYS,
@@ -87,16 +88,20 @@ import {
  * catches a grind against a named account. The remedy is deployment-side and is written down for
  * the operator, with the measured table behind it, in `docs/runbooks/deploy.md`.
  *
- * One part of that weakness **outlives D09**, and the paragraphs above would be read too kindly
- * without it. The source key is the address string as fastify hands it over, trimmed and
- * clamped and otherwise verbatim: there is no canonicalisation and no aggregation. So
- * `2001:DB8::1`, `2001:db8::1`, `::ffff:203.0.113.9` and `203.0.113.9` are four keys for what
- * may be one or two hosts, and — the part that matters — a caller on a single IPv6 /64 holds
- * 2^64 distinct source keys and can rotate through them for free now that proxy headers are no
- * longer believed. D09 made the source key *authentic*; it did not make it *scarce*. The
- * candidate fix is to canonicalise the address and key IPv6 at /64. It is **still open**, and
- * it is recorded as follow-up 6 in `docs/implementation-status.md` rather than left here as
- * the only mention.
+ * One part of that weakness **outlived D09** until follow-up 6, and the paragraphs above would
+ * be read too kindly without knowing which. The source key used to be the address string as
+ * fastify handed it over, trimmed and clamped and otherwise verbatim, with no canonicalisation
+ * and no aggregation — so `2001:DB8::1`, `2001:db8::1` and `::ffff:203.0.113.9` were three keys
+ * for what may be one host, and, the part that mattered, a caller on a single IPv6 /64 held 2^64
+ * distinct source keys and could rotate through them for free now that proxy headers are no
+ * longer believed. D09 made the source key *authentic*; it did not make it *scarce*. **Follow-up
+ * 6 makes it scarce** (`sourceComponent` below): every IPv6 source now keys on its /64
+ * network in canonical form, an IPv4-mapped `::ffff:a.b.c.d` keys as the IPv4 it carries, IPv4
+ * is keyed on the full address exactly as before, and a source `isIP` cannot parse falls back to
+ * the clamped literal it always used — never merged with a real network. So the three literals
+ * above collapse to one key, and one /64 now buys one budget instead of 2^64. What a /64 cannot
+ * be split *below* is the residual: an attacker who genuinely holds one /64 still has one source
+ * budget, which is the standard IPv6 allocation boundary and the point of aggregating there.
  *
  * ## Why the account arrives as a hash
  *
@@ -198,15 +203,16 @@ import {
  *    admitted attempts a second to deny anybody else.
  *
  * What is left is deployment-shaped rather than code-shaped, and D09 is what made it so. One
- * attacker can still look like thousands of addresses — from behind a misconfigured trusted
- * proxy (one that forwards the client's `X-Forwarded-For` untouched, one that prepends its own
- * observation instead of appending it, or a trusted range broad enough to contain real clients),
- * or across an IPv6 /64 they genuinely hold (follow-up 6) — and every one of those attempts is
- * admitted by its own source key. That is the one route to the global refusal. A caller with no
- * trusted proxy in front of them no longer has it: their address is the socket peer, and their
- * own source key refuses them thirty attempts in. Configuring the proxy into one of the shapes
- * `docs/runbooks/deploy.md` measures — an appending proxy, over a trusted list naming only the
- * hops — closes the first half; nothing here closes the second.
+ * attacker can still look like thousands of addresses from behind a misconfigured trusted proxy:
+ * one that forwards the client's `X-Forwarded-For` untouched, one that prepends its own
+ * observation instead of appending it, or a trusted range broad enough to contain real clients —
+ * and every one of those attempts is admitted by its own source key. That is the one route left
+ * to the global refusal. A caller with no trusted proxy in front of them no longer has it: their
+ * address is the socket peer, and their own source key refuses them thirty attempts in. Holding a
+ * whole IPv6 /64 no longer buys the route either — follow-up 6 keys every IPv6 source on its /64,
+ * so the 2^64 addresses in one now share one source budget and refuse together. Configuring the
+ * proxy into one of the shapes `docs/runbooks/deploy.md` measures — an appending proxy, over a
+ * trusted list naming only the hops — closes what remains.
  */
 
 export interface SignInAbuseOptions {
@@ -360,6 +366,96 @@ const createBudget = (options: {
 };
 
 /**
+ * The eight 16-bit groups of an IPv6 literal `isIP` has already accepted, or `undefined` if it
+ * cannot be parsed into exactly eight. Handles `::` compression and an embedded IPv4 tail
+ * (`::ffff:1.2.3.4`); anything else falls back to the clamped literal at the call site, so a
+ * parser miss degrades to today's behaviour rather than throwing into the sign-in path.
+ */
+type Ipv6Groups = readonly [number, number, number, number, number, number, number, number];
+
+const ipv6Groups = (address: string): Ipv6Groups | undefined => {
+  let text = address;
+  // An embedded IPv4 tail becomes its two hextets before the `::` expansion below.
+  if (text.includes('.')) {
+    const cut = text.lastIndexOf(':');
+    const octets = text.slice(cut + 1).split('.');
+    if (octets.length !== 4) return undefined;
+    const bytes = octets.map((octet) => Number(octet));
+    if (bytes.some((byte) => !Number.isInteger(byte) || byte < 0 || byte > 255)) return undefined;
+    const [a, b, c, d] = bytes as [number, number, number, number];
+    const hi = ((a << 8) | b).toString(16);
+    const lo = ((c << 8) | d).toString(16);
+    text = `${text.slice(0, cut + 1)}${hi}:${lo}`;
+  }
+  const halves = text.split('::');
+  if (halves.length > 2) return undefined;
+  const headText = halves[0] ?? '';
+  const tailText = halves.length === 2 ? (halves[1] ?? '') : '';
+  const head = headText === '' ? [] : headText.split(':');
+  const tail = tailText === '' ? [] : tailText.split(':');
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (halves.length === 2 ? fill < 1 : head.length !== 8) return undefined;
+  const parts = [...head, ...(Array(Math.max(fill, 0)).fill('0') as string[]), ...tail];
+  if (parts.length !== 8) return undefined;
+  const groups = parts.map((part) =>
+    /^[0-9a-fA-F]{1,4}$/.test(part) ? Number.parseInt(part, 16) : -1,
+  );
+  return groups.some((group) => group < 0) ? undefined : (groups as unknown as Ipv6Groups);
+};
+
+/** RFC 5952 canonical text for eight groups: lowercase, no leading zeros, longest zero run `::`. */
+const compressIpv6 = (groups: readonly number[]): string => {
+  let runStart = -1;
+  let runLen = 0;
+  let bestStart = -1;
+  let bestLen = 0;
+  for (let i = 0; i <= 8; i += 1) {
+    if (i < 8 && groups[i] === 0) {
+      if (runStart === -1) runStart = i;
+      runLen += 1;
+    } else {
+      if (runLen > bestLen) {
+        bestLen = runLen;
+        bestStart = runStart;
+      }
+      runStart = -1;
+      runLen = 0;
+    }
+  }
+  const hex = groups.map((group) => group.toString(16));
+  if (bestLen < 2) return hex.join(':');
+  return `${hex.slice(0, bestStart).join(':')}::${hex.slice(bestStart + bestLen).join(':')}`;
+};
+
+/**
+ * The source component of the budget keys, hardened for D08 **follow-up 6**.
+ *
+ * IPv4 is returned verbatim — byte-for-byte the key it always was. An IPv4-mapped IPv6 source
+ * (`::ffff:a.b.c.d`, in either dotted or hex form) collapses to the IPv4 it carries, so it and
+ * the bare IPv4 share one budget rather than the whole `::ffff:0:0/96` sink collapsing to one
+ * key. Every other IPv6 source aggregates to its /64 network in canonical form, so the 2^64
+ * addresses one /64 holds can no longer each buy their own budget. Anything `isIP` rejects falls
+ * back to the existing clamped literal and is never merged with a real network — a canonical
+ * network is always a valid literal, which a malformed source by definition is not.
+ */
+const sourceComponent = (address: string): string => {
+  switch (isIP(address)) {
+    case 4:
+      return address;
+    case 6: {
+      const groups = ipv6Groups(address);
+      if (groups === undefined) return address.slice(0, MAX_SOURCE_KEY_LENGTH);
+      if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+        return `${groups[6] >> 8}.${groups[6] & 0xff}.${groups[7] >> 8}.${groups[7] & 0xff}`;
+      }
+      return compressIpv6([groups[0], groups[1], groups[2], groups[3], 0, 0, 0, 0]);
+    }
+    default:
+      return address.slice(0, MAX_SOURCE_KEY_LENGTH);
+  }
+};
+
+/**
  * The account, normalised the way `findUserIdByEmail` normalises it, then hashed.
  *
  * Returns `undefined` for an account that is empty once trimmed: there is nothing to key on,
@@ -396,9 +492,7 @@ export function createSignInAbuseControl(options: SignInAbuseOptions): SignInAbu
       const at = shared.now();
       const trimmed = ip?.trim();
       const address =
-        trimmed === undefined || trimmed === ''
-          ? UNKNOWN_SOURCE
-          : trimmed.slice(0, MAX_SOURCE_KEY_LENGTH);
+        trimmed === undefined || trimmed === '' ? UNKNOWN_SOURCE : sourceComponent(trimmed);
       const bucket = account === undefined ? undefined : accountBucket(account);
       const accountKey = bucket === undefined ? undefined : `sa:${address}:${bucket}`;
       const sourceKey = `s:${address}`;
