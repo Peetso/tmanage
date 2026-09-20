@@ -6486,6 +6486,34 @@ a row the table cannot hold. That is not a defect — it is `25-AUTH` §3's own 
 cell whose allowed half is answered by a deeper layer, so the row is out and the reasoning
 stands as a comment where the row would be.
 
+### x82 — the operation axis, made generated (branch `x82-permission-grid`)
+
+`test-001-role-matrix.db.test.ts` above drives the role axis, but over a **hand-maintained**
+list of four route families: add a capability to `25-AUTH` §4 and that list does not grow, so
+the new capability is never exercised and the suite stays green while a matrix column goes
+untested. x82 removes that silent pass. `packages/test-kit/src/role-operation-grid.ts` builds
+the grid from the domain's real `CAPABILITIES` and role tables and **throws** unless every one
+of the 28 capabilities is either mapped to a representative guarded route (`GUARDED_OPERATIONS`,
+15 today) or recorded as unguarded with the reason (`UNGUARDED_CAPABILITIES`, 13 — object-layer
+`authorize()` enforcement, or a capability §4 declares ahead of any surface). A newly declared
+capability lands in neither list and fails the generator, its unit test, and the DB suite at
+once. The new `apps/api/test/test-001-role-grid.db.test.ts` drives all 11 roles × 15 operations
+(165 cells) over real HTTP.
+
+Two design points carried from the finding above: each cell is judged by the guard's
+`security.capability_denied` row (the guard is its only writer), not by status — so the
+owner/org_admin blanket-grant seam on portal routes is an allowed-by-guard cell here (no new
+row) rather than an excluded row; and each verdict comes from the **transcription**
+(`expectedCeilingGrants`), not `hasCapability`, so the D18/C1 tautology stays fixed. The
+mutation check §Item-3 AC3 asks for — flip a ceiling cell, the corresponding grid cell goes
+red — is proved without a database in `packages/test-kit/src/role-operation-grid.test.ts`,
+because the transcription does not move with the flip.
+
+**DB suite unexecuted (no `db-e2e.lock` on this slice).** Command:
+`pnpm --filter @tmanage/api test:db -- test/test-001-role-grid.db.test.ts`. The generator and
+its unit test run in the test-kit package and the api unit project; the DB grid is left for the
+lock owner (chain 10/11) to run.
+
 ---
 
 ## Verification actually run — 2026-08-30, the WORK-002 re-derivation, same session

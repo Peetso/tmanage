@@ -24,3 +24,25 @@ export {
   expectedCeilingGrants,
 } from './permission-matrix.js';
 export type { CeilingDivergence, RolePermissionRow } from './permission-matrix.js';
+
+/**
+ * The generated role × operation grid for TEST-001's §11 harness. Built from the domain's real
+ * capability and role tables, so a newly declared capability with no operation fails loudly
+ * rather than going untested. See `role-operation-grid.ts` for the design and why each cell's
+ * verdict comes from the transcription above rather than the live ceiling.
+ */
+export {
+  GRID_ROLES,
+  GUARDED_OPERATIONS,
+  UNGUARDED_CAPABILITIES,
+  assertCatalogCoversEveryCapability,
+  buildRoleOperationGrid,
+  expectedGuardDenialCount,
+} from './role-operation-grid.js';
+export type {
+  GuardedOperation,
+  HttpMethod,
+  OperationSurface,
+  RoleOperationCell,
+  UnguardedCapability,
+} from './role-operation-grid.js';
