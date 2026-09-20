@@ -27,6 +27,15 @@ describe('selectWorkerCommand', () => {
     expect(selectWorkerCommand(['node', 'main'])).toEqual({ kind: 'loop' });
   });
 
+  it('selects the invitation-expiry sweep, winning over --once so one invocation does one thing', () => {
+    expect(selectWorkerCommand(['node', 'main', '--sweep-invitations'])).toEqual({
+      kind: 'sweep-invitations',
+    });
+    expect(selectWorkerCommand(['node', 'main', '--sweep-invitations', '--once'])).toEqual({
+      kind: 'sweep-invitations',
+    });
+  });
+
   it('unparks a named event id', () => {
     expect(selectWorkerCommand(['node', 'main', '--unpark', 'evt-1'])).toEqual({
       kind: 'unpark',
@@ -59,6 +68,7 @@ describe('workerModeFor', () => {
     expect(workerModeFor({ kind: 'status' })).toBe('batch');
     expect(workerModeFor({ kind: 'unpark', selector: null })).toBe('batch');
     expect(workerModeFor({ kind: 'unpark-invalid' })).toBe('batch');
+    expect(workerModeFor({ kind: 'sweep-invitations' })).toBe('batch');
   });
 });
 

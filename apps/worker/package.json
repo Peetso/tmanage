@@ -20,7 +20,8 @@
     "start": "node dist/main.js",
     "relay:once": "node dist/main.js --once",
     "relay:status": "node dist/main.js --status",
-    "relay:unpark": "node dist/main.js --unpark"
+    "relay:unpark": "node dist/main.js --unpark",
+    "sweep:invitations": "node dist/main.js --sweep-invitations"
   },
   "dependencies": {
     "@tmanage/config": "workspace:*",
