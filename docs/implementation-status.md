@@ -12707,3 +12707,47 @@ exempt in `scripts/contracts-check.mjs` (matching x86's `ProjectHealthView` post
 (`delivery-flow.repository.test.ts`): a mix of statuses rolls up to the expected counts, an
 empty project to the empty value, and a cross-tenant item is excluded. No DB test — the
 underlying work reads are already DB-proven.
+
+## INS-02 — insights, second vertical slice: the approval-cycle read (x96)
+
+The counterpart to INS-01's delivery flow, over the `approvals` table (x92, FR-05) instead of
+`work`. A project's **approval cycle** is its approvals rolled up by terminal outcome — `approved`,
+`changes_requested`, `invalidated` (`23-ERD` §8) — with, for the decided ones, the requested→
+decided duration (from the row's `created_at`, the moment x92 persists it at `requested`, to
+`decided_at`). Still a **read model, no table**: a pure read, no column, no write, no schedule, no
+migration.
+
+`GET …/insights/projects/:projectId/approval-cycle` returns `ApprovalCycleView` — per outcome the
+`count`, the `decidedCount` (how many carry a decision time and so contribute a duration), and the
+summed `totalDurationMs`; plus `approvalCount` and `computedAt`. The sum-and-count form is
+deliberate: the sum is exact integer milliseconds, so a consumer derives the mean
+(`totalDurationMs / decidedCount`) with no rounding baked into the read. An `invalidated` row
+records a reason but no decision time (§8), so it counts but adds no duration — `decidedCount` is
+how a consumer tells "no approvals" from "approvals with no measured duration" apart. An empty
+project is the documented empty value: every outcome `{ count: 0, decidedCount: 0,
+totalDurationMs: 0 }`, `approvalCount` 0.
+
+`ApprovalCycleRepository` owns its own read-only handle on `approvals` through
+`InsightsApprovalsReader` — a tenant-scoped, project-filtered, id-keyset `SELECT`, mirroring
+`WorkItemsRepository.listQuery`. x92's `ApprovalsRepository` exposes no list read, so, exactly as
+x89 gave insights its own `WorkItemsRepository` handle rather than import the owning module, this
+module reads `approvals` itself and never edits the approvals module. The walk pages to exhaustion
+so a count never stops short; its two-page continuation (`after = last.id`) is proved over fakes,
+closing the gap x89-review Minor-1 flagged for delivery-flow.
+
+**Capability — reuse `approval.read`, not a new `insights.read`.** The read sits behind
+`approval.read`, x92's own approvals capability (granted, in `CAPABILITIES` and x82's grid), so
+the slice needs no capability-table or grid edit and no migration, and stays parallel-safe. The
+service applies the _relation_ half of `approval.read` per row (`mayReadApproval`, the same
+`authorize()` shape x92's `ApprovalsService` uses — `client_visible`/`active`, as approvals carry
+no audience column), so a caller with the role but no relation to the project — or a cross-tenant
+row — contributes nothing.
+
+**Web surface this slice.** Unlike INS-01, INS-02 ships the screen: `InsightsApprovalCycleScreen`
+reads the endpoint via `apps/web/src/lib/api/approval-cycle.ts` at
+`/insights/projects/:projectId/approval-cycle`, so `ApprovalCycleView` is a live `Exact` pair in
+`e2e/contracts/api-web-shapes.ts`, not an exemption. The read is proved over the module's fakes
+(`approval-cycle.repository.test.ts`): a mix of decided/pending approvals across outcomes rolls up
+to the expected counts and durations, pending and cross-tenant rows are excluded, a multi-page
+project counts each row once, and an empty project rolls up to the empty value. No DB test — the
+underlying approvals reads are already DB-proven (x92).
