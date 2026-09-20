@@ -45,6 +45,7 @@ import type { InboxPageView as ApiInboxPageView } from '../../apps/api/src/modul
 import type { InboxUsageNoticeView as ApiInboxUsageNoticeView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { MyDayView as ApiMyDayView } from '../../apps/api/src/modules/home/home.service.js';
 import type { WaitingView as ApiWaitingView } from '../../apps/api/src/modules/home/home.service.js';
+import type { HomeSummaryView as ApiHomeSummaryView } from '../../apps/api/src/modules/home/home.service.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -69,6 +70,7 @@ import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modul
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
 import type { MyDay as WebMyDay } from '../../apps/web/src/lib/api/home';
 import type { Waiting as WebWaiting } from '../../apps/web/src/lib/api/home';
+import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/home';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -195,13 +197,22 @@ type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
 type _myDay = Assert<Exact<ApiMyDayView, WebMyDay>>;
 
 /**
- * HOME-04 Waiting (x98). `GET .../home/waiting` — the approvals pending on the acting user as a
- * reviewer. One projection; its per-row entry is inlined on both sides (a `WaitingEntry` API
- * interface with no `View` suffix, an inline object on the web), each a discriminated `kind:
- * 'approval'` so a later delegated bucket is an added arm, not a reshape. The `MyDayScreen`
- * Waiting section reads exactly this response, so the pair is Exact.
+ * HOME-04 Waiting (x98 approvals; x102 client-wait + stale). `GET .../home/waiting` — approvals
+ * pending on the caller as a reviewer, client requests awaiting their triage, and stale client
+ * follow-ups. One projection; its per-row entry is a discriminated union inlined on both sides (a
+ * `WaitingEntry = ApprovalWaitingEntry | ClientRequestWaitingEntry` API union with no `View`
+ * suffix, an inline object union on the web), the `kind` discriminant keeping a later delegated
+ * bucket an added arm, not a reshape. The `MyDayScreen` Waiting section reads exactly this
+ * response, so the pair is Exact.
  */
 type _waiting = Assert<Exact<ApiWaitingView, WebWaiting>>;
+
+/**
+ * HOME-01 hero summary (x102). `GET .../home/summary` — the derived counts the My Day hero shows,
+ * aggregated by the API from the same My Day and Waiting reads. The `MyDayScreen` hero reads
+ * exactly this response, so the pair is Exact.
+ */
+type _homeSummary = Assert<Exact<ApiHomeSummaryView, WebHomeSummary>>;
 
 /**
  * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The

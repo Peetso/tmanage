@@ -1,7 +1,7 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { ApprovalRow, WorkItemRow } from '../../common/database/schema.js';
+import type { ApprovalRow, ClientRequestRow, WorkItemRow } from '../../common/database/schema.js';
 import { toWorkItemView } from '../work/work-items.service.js';
 import type { WorkItemView } from '../work/work-items.service.js';
 import { MyDayRepository } from './my-day.repository.js';
@@ -100,40 +100,51 @@ export function rankMyDay(
 }
 
 /**
- * HOME-04 "Waiting" — the second vertical slice of Home / My Day.
+ * HOME-04 "Waiting" — the second vertical slice of Home / My Day, now over three buckets.
  *
- * This slice ships the one load-bearing bucket that is readable today: **approvals pending on me
- * as a reviewer**. The read returns the acting user's pending approvals across every project, each
- * carrying the single reason it is waiting on them, ranked for a Waiting list. It reuses the
- * `approval.read` capability (the controller's coarse guard) and the reviewer relation as the real
- * gate (AUTH-08); it adds nothing to the approvals module and edits neither `capabilities.ts` nor
- * the role grid.
+ * x98 shipped the first bucket — **approvals pending on me as a reviewer**. This slice (x102-b)
+ * adds the two remaining buckets that need no new column and slot into x98's discriminated `kind`
+ * union without reshaping it:
  *
- * The **delegated** bucket (`41-...-MATRIX` HOME-04) is deliberately absent, not stubbed: the
- * `work_items` table has a single `owner_user_id` and no creator/assignee column, so "work I
- * delegated elsewhere" is not representable and is a data-model item for scoping. The shape is
- * kept extensible — a discriminated `kind` on every entry — so a second bucket slots in without a
- * breaking change.
+ * - **client-wait** (`kind: 'client_request'`) — open client requests awaiting the acting user's
+ *   action: those in `submitted` (needs a first triage) or `triage` (needs a decision). Read
+ *   read-only from `client_requests`, org-scoped, gated per row by the same `client_request.triage`
+ *   relation the requests module's own reads enforce.
+ * - **stale follow-up** (`kind: 'client_request'`, reason `'stale_follow_up'`) — a request in
+ *   `needs_clarification` (waiting on the *client* to answer) that has sat there past
+ *   {@link STALE_FOLLOW_UP_WINDOW_MS}, so the acting user should chase it. Derived from the
+ *   existing `updated_at`, no new column. A *fresh* `needs_clarification` request is deliberately
+ *   absent from every bucket: it is genuinely waiting on the client and needs no nudge yet.
+ *
+ * The **delegated** bucket (`41-...-MATRIX` HOME-04) is still deliberately absent, not stubbed:
+ * `work_items` has a single `owner_user_id` and no creator/assignee column, so "work I delegated
+ * elsewhere" is not representable and is a carried data-model item for scoping (Needs-Peter).
+ *
+ * It adds nothing to the approvals, requests or clients modules and edits neither `capabilities.ts`
+ * nor the role grid: `client_request.triage`'s holders (owner, org_admin, workspace_admin, manager)
+ * are all a subset of `approval.read`'s, so the controller's `approval.read` ceiling still admits
+ * every reader of either bucket, and the real gate stays per row.
  */
 
-/**
- * Why an approval is on the Waiting list. The order below is the list's rank order: an approval
- * the reviewer has not yet opened (`requested`) outranks one they have opened but not decided
- * (`viewed`) — an untouched request needs a first look before one already in hand.
- */
-export type WaitingReason = 'approval_requested' | 'approval_viewed';
+/** Why an approval is on the Waiting list. See {@link WAITING_REASON_RANK} for the order. */
+export type ApprovalWaitingReason = 'approval_requested' | 'approval_viewed';
+
+/** Why a client request is on the Waiting list. See {@link WAITING_REASON_RANK} for the order. */
+export type ClientWaitingReason = 'client_submitted' | 'client_triage' | 'stale_follow_up';
+
+/** Every reason a row can be waiting, across the buckets. */
+export type WaitingReason = ApprovalWaitingReason | ClientWaitingReason;
 
 /**
- * One Waiting row. `kind` is a discriminant so a later bucket (e.g. `'delegated'`, carrying a
- * work item rather than an approval) is an added arm, never a reshape of this one. Deliberately
- * **not** suffixed `View`, so CONTRACT-001 counts the one response projection — {@link WaitingView}
- * — and the entry pairs with the web client structurally through it, as `MyDayEntry` does.
+ * The approvals bucket's row: an approval pending on the caller as a reviewer. Field-for-field as
+ * x98 shipped it — the `kind: 'approval'` discriminant is what lets the client-request arm below
+ * be an *added* arm rather than a reshape.
  *
  * Dates are ISO strings, the shape `JSON.stringify` emits on the wire.
  */
-export interface WaitingEntry {
+export interface ApprovalWaitingEntry {
   readonly kind: 'approval';
-  readonly reason: WaitingReason;
+  readonly reason: ApprovalWaitingReason;
   readonly approvalId: string;
   readonly deliverableId: string;
   readonly projectId: string;
@@ -141,23 +152,70 @@ export interface WaitingEntry {
   readonly requestedAt: string;
 }
 
-/** HOME-04's response: the acting user's pending approvals, ranked for Waiting. */
+/**
+ * The client-request bucket's row — client-wait and stale-follow-up both. `reason` says which:
+ * `client_submitted`/`client_triage` are the client-wait bucket, `stale_follow_up` the stale one.
+ * `waitingSince` is `client_requests.updated_at`, the instant the request entered its current
+ * waiting state (equal to `created_at` for a fresh submission, since the submit writes both).
+ */
+export interface ClientRequestWaitingEntry {
+  readonly kind: 'client_request';
+  readonly reason: ClientWaitingReason;
+  readonly clientRequestId: string;
+  readonly projectId: string;
+  /** The request's own title — the studio reads its subject, not a generic label. */
+  readonly title: string;
+  /** `client_requests.updated_at`, the instant it entered this waiting state. */
+  readonly waitingSince: string;
+}
+
+/**
+ * One Waiting row: a discriminated union over the buckets. A later bucket (e.g. `'delegated'`) is
+ * one more arm, never a reshape of an existing one. Deliberately **not** suffixed `View`, so
+ * CONTRACT-001 counts the one response projection — {@link WaitingView} — and the entry pairs with
+ * the web client structurally through it, as `MyDayEntry` does.
+ */
+export type WaitingEntry = ApprovalWaitingEntry | ClientRequestWaitingEntry;
+
+/** HOME-04's response: the acting user's waiting rows across the buckets, ranked. */
 export interface WaitingView {
   readonly items: readonly WaitingEntry[];
 }
 
-/** The order value each waiting reason sorts by. Smaller ranks higher on the list. */
+/**
+ * The order value each waiting reason sorts by. Smaller ranks higher on the list.
+ *
+ * The buckets group by what the caller can do about the row *now*. The two approval reasons and
+ * the two client-wait reasons are all "waiting on **you** to act" — an untouched approval request
+ * before one already opened, a new client request before one already in triage — so they lead.
+ * `stale_follow_up` is "you have acted; you are waiting on the **client**, go nudge them" — a
+ * lower-priority chase, so it trails. Within a reason the oldest row leads (see {@link rankWaiting}).
+ */
 const WAITING_REASON_RANK: Readonly<Record<WaitingReason, number>> = {
   approval_requested: 0,
   approval_viewed: 1,
+  client_submitted: 2,
+  client_triage: 3,
+  stale_follow_up: 4,
 };
 
+/**
+ * How long a `needs_clarification` request may sit before it reads as a stale follow-up. Seven
+ * days: long enough that a client has plainly had a working week to answer, short enough that the
+ * thread has not gone cold. A request younger than this is not on any bucket — it is genuinely
+ * waiting on the client and needs no nudge. Mirrors {@link DUE_SOON_WINDOW_MS}'s house style.
+ */
+export const STALE_FOLLOW_UP_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** `requested` and `viewed` are the only states {@link WaitingRepository.listPending} returns. */
-function waitingReasonFor(row: ApprovalRow): WaitingReason {
+function approvalWaitingReasonFor(row: ApprovalRow): ApprovalWaitingReason {
   return row.state === 'requested' ? 'approval_requested' : 'approval_viewed';
 }
 
-function toWaitingEntry(row: ApprovalRow, reason: WaitingReason): WaitingEntry {
+function toApprovalWaitingEntry(
+  row: ApprovalRow,
+  reason: ApprovalWaitingReason,
+): ApprovalWaitingEntry {
   return {
     kind: 'approval',
     reason,
@@ -169,28 +227,88 @@ function toWaitingEntry(row: ApprovalRow, reason: WaitingReason): WaitingEntry {
 }
 
 /**
- * Rank a set of the caller's pending approvals into Waiting order: not-yet-opened (`requested`)
- * first, then opened-not-decided (`viewed`); within a group the oldest request leads (the one
- * kept waiting longest), ties falling back to id so the order is total and stable.
- *
- * Pure over its rows — no clock, no database — so the ranking is provable over fakes. Unlike My
- * Day the reason is the approval's own lifecycle state, not a function of `now`, so no clock is
- * taken here.
+ * The reason a client request is waiting, or `null` when it is on no bucket. `submitted` and
+ * `triage` are the client-wait bucket; a `needs_clarification` request joins the stale bucket only
+ * once it has aged past {@link STALE_FOLLOW_UP_WINDOW_MS}. Any other state (in progress or terminal)
+ * is off the list. The clock enters only here, so the age test is provable over fakes.
  */
-export function rankWaiting(rows: readonly ApprovalRow[]): readonly WaitingEntry[] {
-  const withReason = rows.map((row) => ({ row, reason: waitingReasonFor(row) }));
+function clientWaitingReasonFor(row: ClientRequestRow, now: Date): ClientWaitingReason | null {
+  switch (row.state) {
+    case 'submitted':
+      return 'client_submitted';
+    case 'triage':
+      return 'client_triage';
+    case 'needs_clarification':
+      return now.getTime() - row.updatedAt.getTime() >= STALE_FOLLOW_UP_WINDOW_MS
+        ? 'stale_follow_up'
+        : null;
+    default:
+      return null;
+  }
+}
 
-  withReason.sort((a, b) => {
+function toClientRequestWaitingEntry(
+  row: ClientRequestRow,
+  reason: ClientWaitingReason,
+): ClientRequestWaitingEntry {
+  return {
+    kind: 'client_request',
+    reason,
+    clientRequestId: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    waitingSince: row.updatedAt.toISOString(),
+  };
+}
+
+/** The instant a built entry has been waiting since — its `requestedAt`/`waitingSince`. */
+function waitingSinceOf(entry: WaitingEntry): number {
+  return Date.parse(entry.kind === 'approval' ? entry.requestedAt : entry.waitingSince);
+}
+
+/** A built entry's id, for the stable tiebreak. */
+function waitingIdOf(entry: WaitingEntry): string {
+  return entry.kind === 'approval' ? entry.approvalId : entry.clientRequestId;
+}
+
+/**
+ * Rank the caller's already-built waiting entries into one Waiting order across the buckets:
+ * by {@link WAITING_REASON_RANK} first, then oldest-waiting first (the row kept waiting longest),
+ * ties falling back to id so the order is total and stable.
+ *
+ * Pure over its entries — the clock was applied upstream when each entry's reason was decided — so
+ * the ranking is provable over fakes.
+ */
+export function rankWaiting(entries: readonly WaitingEntry[]): readonly WaitingEntry[] {
+  return [...entries].sort((a, b) => {
     if (WAITING_REASON_RANK[a.reason] !== WAITING_REASON_RANK[b.reason]) {
       return WAITING_REASON_RANK[a.reason] - WAITING_REASON_RANK[b.reason];
     }
-    const at = a.row.createdAt.getTime();
-    const bt = b.row.createdAt.getTime();
+    const at = waitingSinceOf(a);
+    const bt = waitingSinceOf(b);
     if (at !== bt) return at - bt;
-    return compareId(a.row.id, b.row.id);
+    return compareId(waitingIdOf(a), waitingIdOf(b));
   });
+}
 
-  return withReason.map(({ row, reason }) => toWaitingEntry(row, reason));
+/**
+ * HOME-01's hero summary — a pure aggregation over the two reads above, no new read table.
+ *
+ * Every count is derived from the actual ranked lists {@link HomeService.myDayOf} and
+ * {@link HomeService.waitingOf} produce, so the hero can show no number the lists do not.
+ */
+export interface HomeSummaryView {
+  readonly personalWork: {
+    readonly total: number;
+    readonly overdue: number;
+    readonly dueSoon: number;
+  };
+  readonly waiting: {
+    readonly total: number;
+    readonly approvals: number;
+    readonly clientRequests: number;
+    readonly staleFollowUps: number;
+  };
 }
 
 export class HomeService {
@@ -238,21 +356,76 @@ export class HomeService {
   }
 
   /**
-   * The acting user's Waiting section — the approvals pending on them as a reviewer.
+   * The acting user's Waiting section across the three buckets — approvals pending on them as a
+   * reviewer, client requests awaiting their triage, and stale client follow-ups.
    *
-   * The tenant-scoped SQL narrows to this org's pending approvals; this then keeps only the ones
-   * the caller is an assigned reviewer of (the real gate, AUTH-08) and may read, so an approval a
-   * caller is not a reviewer of never appears even though it is pending in their tenant. Ranked
-   * for the Waiting list by {@link rankWaiting}.
+   * One read of each tenant-scoped source, then the per-bucket real gate: for approvals, the
+   * reviewer relation (AUTH-08) plus `approval.read`; for client requests, the same
+   * `client_request.triage` relation the requests module enforces on its own reads. A row a caller
+   * has no relation to never appears even though it is pending in their tenant. The client-request
+   * reason (and so whether a `needs_clarification` row is a stale follow-up at all) is decided with
+   * `now`, then all buckets are merged and ranked by {@link rankWaiting}.
+   *
+   * `now` is a parameter so the stale-age test can be exercised without waiting; the running
+   * application takes the default.
    */
-  async waitingOf(context: TenantContext, principal: Principal): Promise<WaitingView> {
-    const rows = await this.database.read(context, (runner) =>
-      this.waiting.listPending(runner, context),
-    );
-    const mine = rows.filter(
-      (row) => this.isAssignedReviewer(principal, row) && this.mayReadApproval(principal, row),
-    );
-    return { items: rankWaiting(mine) };
+  async waitingOf(
+    context: TenantContext,
+    principal: Principal,
+    now: Date = new Date(),
+  ): Promise<WaitingView> {
+    const { approvalRows, clientRows } = await this.database.read(context, async (runner) => ({
+      approvalRows: await this.waiting.listPending(runner, context),
+      clientRows: await this.waiting.listOpenClientRequests(runner, context),
+    }));
+
+    const approvals = approvalRows
+      .filter(
+        (row) => this.isAssignedReviewer(principal, row) && this.mayReadApproval(principal, row),
+      )
+      .map((row) => toApprovalWaitingEntry(row, approvalWaitingReasonFor(row)));
+
+    const clientRequests = clientRows
+      .filter((row) => this.mayTriageClientRequest(principal, row))
+      .flatMap((row) => {
+        const reason = clientWaitingReasonFor(row, now);
+        return reason === null ? [] : [toClientRequestWaitingEntry(row, reason)];
+      });
+
+    return { items: rankWaiting([...approvals, ...clientRequests]) };
+  }
+
+  /**
+   * HOME-01's hero summary — the derived counts the hero shows, aggregated purely from the two
+   * reads above. Reuses {@link myDayOf} and {@link waitingOf} rather than re-querying, so every
+   * count is a fact about the same ranked lists the sections render — the hero can invent no number.
+   */
+  async summaryOf(
+    context: TenantContext,
+    principal: Principal,
+    now: Date = new Date(),
+  ): Promise<HomeSummaryView> {
+    const [myDay, waiting] = await Promise.all([
+      this.myDayOf(context, principal, now),
+      this.waitingOf(context, principal, now),
+    ]);
+
+    const isClientWait = (entry: WaitingEntry): boolean =>
+      entry.kind === 'client_request' && entry.reason !== 'stale_follow_up';
+
+    return {
+      personalWork: {
+        total: myDay.items.length,
+        overdue: myDay.items.filter((entry) => entry.reason === 'overdue').length,
+        dueSoon: myDay.items.filter((entry) => entry.reason === 'due_soon').length,
+      },
+      waiting: {
+        total: waiting.items.length,
+        approvals: waiting.items.filter((entry) => entry.kind === 'approval').length,
+        clientRequests: waiting.items.filter(isClientWait).length,
+        staleFollowUps: waiting.items.filter((entry) => entry.reason === 'stale_follow_up').length,
+      },
+    };
   }
 
   /**
@@ -261,6 +434,29 @@ export class HomeService {
    */
   private isAssignedReviewer(principal: Principal, row: ApprovalRow): boolean {
     return row.reviewerIds.includes(principal.userId);
+  }
+
+  /**
+   * The client-request triage relation — the real gate, identical to `ClientRequestsService`'s own
+   * `mayTriage`: `authorize()` under `client_request.triage` against the row's resource. A caller
+   * with no triage relation to the row's project never sees it, exactly as the requests module's
+   * list refuses it, so this read reveals nothing that module's read would not.
+   *
+   * `audience` mirrors `ClientRequestsService.audienceOf`: `needs_clarification` is
+   * `client_action_required`, every other state `client_visible`.
+   */
+  private mayTriageClientRequest(principal: Principal, row: ClientRequestRow): boolean {
+    return authorize({
+      principal,
+      capability: 'client_request.triage',
+      resource: {
+        organizationId: row.organizationId,
+        projectId: row.projectId,
+        audience: row.state === 'needs_clarification' ? 'client_action_required' : 'client_visible',
+        clientOrganizationId: row.clientOrganizationId,
+        lifecycle: 'active',
+      },
+    }).allowed;
   }
 
   /**
