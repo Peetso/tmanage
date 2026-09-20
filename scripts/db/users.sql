@@ -172,6 +172,16 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_items`           TO 'tmanage_app
 -- trace that it was ever made. UPDATE is needed for the lifecycle and for nothing else; the
 -- immutability trigger in 0006 refuses the four columns that say what the request *is*.
 GRANT INSERT, UPDATE         ON `tmanage`.`client_requests`      TO 'tmanage_app'@'%';
+-- FR-05 (x92) deliverable versions. **INSERT only** — a governed version is immutable: FR-05's
+-- "changed governed content creates new version" is a new row, never an edit, and the trigger in
+-- 0027 refuses UPDATE for every credential. No DELETE: the exact bytes a reviewer saw are the
+-- evidence an approval binds to, so a runtime credential must not be able to erase them.
+GRANT INSERT                 ON `tmanage`.`deliverable_versions`  TO 'tmanage_app'@'%';
+-- FR-05 (x92) approvals. **No DELETE**, and for the same reason as client_requests: a decision is
+-- the record that it was taken. UPDATE is needed for the lifecycle (view, decide, invalidate) and
+-- for nothing else — the trigger in 0027 refuses the identity columns and refuses any change to a
+-- terminal row, so "append-only" holds for the runtime credential specifically (INT-16).
+GRANT INSERT, UPDATE         ON `tmanage`.`approvals`             TO 'tmanage_app'@'%';
 -- TEN-003 invitations. **No DELETE**, and that is the point of listing it separately: an
 -- invitation is never removed, it moves to `accepted`, `revoked` or `expired`. "Who invited
 -- this person, when, and who withdrew it" is the trail a role change is investigated by, and a

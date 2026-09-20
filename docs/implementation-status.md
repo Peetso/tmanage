@@ -123,6 +123,37 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-20 — FR-05 Approvals: persist and decide over a content-hashed version (slice x92)
+
+Built on branch `x92-approvals-decide` (off `master` after pass 11, `d6ccc9a`), **not merged**.
+The first vertical slice of the approval aggregate — until now domain-only
+(`packages/domain/src/state-machines/approval.ts`) with no persistence and no HTTP. Migration
+**`0027_deliverable_versions_and_approvals.sql`** (the base tops out at `0026`, so this is the next
+contiguous number — NEXT-SCOPES-5's "0029" assumed x90/x91 had landed first, which they have not on
+this base) creates two tenant-scoped tables: immutable `deliverable_versions` (id, org, project,
+deliverable ref, `content_hash`, creator; INSERT-only, a trigger refuses any UPDATE) and append-only
+`approvals` (bound version + captured `content_hash`, `state` from `APPROVAL_STATES`, `reviewer_ids`,
+`policy`, `decided_by_user_id`/`decided_at`/`feedback`; a trigger refuses re-deciding a terminal row
+and refuses a decision without actor+time or a `changes_requested` without feedback). New module
+`apps/api/src/modules/approvals/` (module/controller/service + two repositories). **Authorization is
+object-layer, not a route guard:** `approval.decide`/`approval.read`/`deliverable.*` stay in
+`UNGUARDED_CAPABILITIES` and out of `GUARDED_OPERATIONS`; the decide route carries the coarse
+`@RequireCapability('approval.read')` (UX only, mirroring `moderateMessage`→`conversation.read`) and
+the service calls `authorize()` with the loaded row — `deliverable.review` (internal-only) to open
+and `approval.decide` with `isAssignedReviewer` from `reviewer_ids` to decide (AUTH-08). The decide
+transaction re-checks the captured hash against the deliverable's current governed version
+(`contentHashEquals`) and moves the approval to `invalidated` on a mismatch rather than deciding
+(INT-16/INT-17); a decided approval records the immutable actor, time and hash (US-C03).
+CONTRACT-001 `ApprovalDecisionView` is authored API-only and exempted in `scripts/contracts-check.mjs`
+(no web consumer this slice — x92-b adds the client deep-link screen and projection, x92-c the E2E-05
+journey). **Gates green and recorded:** `@tmanage/api` typecheck, the unit project (647 pass, 7 new
+approvals cases), `pnpm lint`, `pnpm format:check`, `pnpm contracts:check`. Revert proof on the
+decide source proved the AUTH-08 denial and the hash-mismatch invalidation load-bearing (SHA-256
+restored byte-identical). **DB proof:** `apps/api/test/approvals-001-decide.db.test.ts` (migration
+applies + tenant-scoped open→decide round-trip with the hash re-check + cross-tenant non-resolution)
+is written; its execution state is recorded in the x92 report (deferred unless `db-e2e.lock` was
+held). Status: `tested` (unit) / DB `implemented`, pending the DB suite.
+
 ## 2026-09-19 — USAGE-001 slice 4c, the threshold mail + quiet-hours bypass (slice x74)
 
 Built on branch `x74-usage-threshold-mail` (off x68's HEAD `1526f6b`), **not merged**. Completes

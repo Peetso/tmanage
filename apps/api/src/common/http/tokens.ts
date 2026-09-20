@@ -49,6 +49,8 @@ export const WORK_ITEMS_REPOSITORY = Symbol.for('tmanage.WorkItemsRepository');
 export const WORK_ITEMS_SERVICE = Symbol.for('tmanage.WorkItemsService');
 export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepository');
 export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService');
+/** FR-05 (x92). The approvals aggregate — deliverable versions and the decide path. */
+export const APPROVALS_SERVICE = Symbol.for('tmanage.ApprovalsService');
 export const CONVERSATIONS_REPOSITORY = Symbol.for('tmanage.ConversationsRepository');
 export const CONVERSATIONS_SERVICE = Symbol.for('tmanage.ConversationsService');
 export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');

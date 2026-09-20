@@ -97,6 +97,10 @@ const EXEMPT = new Map([
     'NotificationPreferencesView',
     'no web consumer yet (NOTIF-001 API-only; pair when the preferences screen lands)',
   ],
+  [
+    'ApprovalDecisionView',
+    'No web consumer: FR-05 x92 authors the decide endpoint API-only; the client deep-link decision screen and its projection are x92-b, and pair then (matching the ProjectHealthView posture).',
+  ],
 ]);
 
 /**
