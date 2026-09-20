@@ -40,6 +40,10 @@ import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../.
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
+import type {
+  ImportCommitRowView as ApiImportCommitRowView,
+  ImportCommitView as ApiImportCommitView,
+} from '../../apps/api/src/modules/import/import.service.js';
 import type { InboxBundleView as ApiInboxBundleView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InboxPageView as ApiInboxPageView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InboxUsageNoticeView as ApiInboxUsageNoticeView } from '../../apps/api/src/modules/inbox/inbox.service.js';
@@ -103,6 +107,10 @@ import type {
   PortalProject as WebPortalProject,
   PortalWorkItem as WebPortalWorkItem,
 } from '../../apps/web/src/lib/api/portal';
+import type {
+  ImportReceipt as WebImportReceipt,
+  ImportReceiptRow as WebImportReceiptRow,
+} from '../../apps/web/src/lib/api/imports';
 import type {
   ProjectSummary as WebProjectSummary,
   WorkspaceSummary as WebWorkspaceSummary,
@@ -171,6 +179,14 @@ type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRe
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
+
+/**
+ * ON-09 / ADM-10 import receipt (x104). The commit half (x100) shipped `ImportCommitView` /
+ * `ImportCommitRowView` API-only (EXEMPT); the receipt read + `ImportReceiptScreen` now consume
+ * them at `GET …/imports/:jobId/receipt`, so the pair is exact and the EXEMPT entries are retired.
+ */
+type _importReceipt = Assert<Exact<ApiImportCommitView, WebImportReceipt>>;
+type _importReceiptRow = Assert<Exact<ApiImportCommitRowView, WebImportReceiptRow>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API

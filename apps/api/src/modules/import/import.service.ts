@@ -99,6 +99,15 @@ export interface ImportCommitView {
 /** The `import_jobs` statuses a job must be in to be committable (the validate-half outcomes). */
 const COMMITTABLE_STATUSES: ReadonlySet<string> = new Set(['validated', 'validated_with_errors']);
 
+/**
+ * The terminal statuses a job carries once it has been committed — the only states in which a
+ * receipt exists to read. A validate-only job (`validated` / `validated_with_errors`) has no
+ * `import_rows` and no committed/failed summary yet, so it has no receipt; the read reports that
+ * as a 404 rather than inventing an empty one, which also keeps {@link ImportCommitView.status}
+ * honest (it is exactly one of these two).
+ */
+const COMMITTED_STATUSES: ReadonlySet<string> = new Set(['committed', 'committed_with_errors']);
+
 /** A field-error summary bounded to the receipt column width, for a row that failed re-validation. */
 const MAX_ERROR_DETAIL = 500;
 
@@ -271,6 +280,55 @@ export class ImportService {
       committedCount: receipts.committedCount,
       failedCount: receipts.failedCount,
       rows: receipts.written,
+    };
+  }
+
+  /**
+   * Read a committed job's receipt — ON-09 "progress" / ADM-10 "receipt" (x104): the terminal
+   * job status, its committed / failed counts, and the per-row `import_rows` outcomes in source
+   * order. Pure read; it creates and re-runs nothing.
+   *
+   * ## Tenant-scoped resolve before anything else (FAST-PROTOCOL "Known trap")
+   *
+   * The job is named by id. It is loaded tenant-scoped first, so a job that does not exist or
+   * belongs to another tenant reads as `null` (the repository's predicate) and surfaces as a
+   * **404** — never a 500 the `HttpExceptionFilter` cannot map, and never a foreign tenant's
+   * receipt. The per-row read is filtered by the same tenant and parent job, so a receipt can
+   * only cite rows of the caller's own job.
+   *
+   * A job that has not been committed yet has no receipt (no `import_rows`, no committed/failed
+   * summary), so it is a 404 as well rather than an empty, misleading receipt.
+   */
+  async getReceipt(context: TenantContext, jobId: string): Promise<ImportCommitView> {
+    const found = await this.database.read(context, async (runner) => {
+      const job = await this.jobs.findById(runner, context, jobId);
+      // Resolve the named job tenant-scoped BEFORE any further read. A missing or cross-tenant
+      // id stops here — no receipt rows are read for a job the caller cannot see.
+      if (!job) return null;
+      const rows = await this.rows.listByJob(runner, context, jobId);
+      return { job, rows };
+    });
+
+    if (!found || !COMMITTED_STATUSES.has(found.job.status)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'import_receipt_not_visible');
+    }
+
+    return {
+      jobId: found.job.id,
+      sourceKind: found.job.sourceKind as ImportSourceKind,
+      // Guarded by COMMITTED_STATUSES above, so the cast is a narrowing the check has proven.
+      status: found.job.status as ImportCommitStatus,
+      // Non-null once committed (0032 stamps all three in the commit transition); `?? 0` is a
+      // defensive floor, not an expected path.
+      committedCount: found.job.committedCount ?? 0,
+      failedCount: found.job.failedCount ?? 0,
+      // Already ordered by source index in the repository.
+      rows: found.rows.map((row) => ({
+        sourceIndex: row.sourceIndex,
+        outcome: row.outcome as ImportRowOutcome,
+        createdEntityId: row.createdEntityId,
+        error: row.errorDetail,
+      })),
     };
   }
 

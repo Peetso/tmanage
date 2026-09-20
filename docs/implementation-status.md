@@ -186,6 +186,42 @@ UNEXECUTED in the x100 report.
 
 ---
 
+## 2026-09-20 — ON-09 onboarding import, receipt read + screen (slice x104)
+
+Built on branch `x104-import-receipt` (off x100's commit half `292277a`), **not merged**. The third
+vertical slice of ON-09 (`41 §Onboarding`, "progress" / partial failure) / ADM-10 (`41 §Admin`,
+"receipt"): the **receipt read + screen** x100 deferred. `GET
+/v1/organizations/:orgSlug/imports/:jobId/receipt` is a **pure read** — no migration, no new table,
+no commit or re-run — returning a committed job's terminal status, its committed / failed counts,
+and the per-row `import_rows` outcomes (created entity id / error) in source order. It composes
+`ImportJobsRepository.findById` + `ImportRowsRepository.listByJob` (both already tenant-scoped and
+source-ordered from x100 — **reused, not widened**); the import write path is untouched. The route
+capability is the **reused** `org.manage` — the same coarse gate the validate and commit halves use
+(no `capabilities.ts` / `role-operation-grid.ts` edit).
+
+**Tenant-scoped resolve before anything else** (FAST-PROTOCOL "Known trap"): the job is named by id,
+so `getReceipt` loads it tenant-scoped **first** — a missing or cross-tenant id reads as null and
+surfaces as **404** (`import_receipt_not_visible`), never a 500 the `HttpExceptionFilter` cannot map
+and never a foreign tenant's receipt; no receipt rows are read for a job the caller cannot see. A
+job not yet committed has no receipt (no `import_rows`, no summary), so it is a 404 too rather than
+an empty one — which also keeps `ImportCommitView.status` honest (exactly `committed` /
+`committed_with_errors`).
+
+Web: `ImportReceiptScreen` (route `[orgSlug]/onboarding/import/[jobId]`, no rail item, like the
+billing screen) renders the status, the counts, and the per-row list as an accessible `<table>`
+(column headers, a row header on the source index); the API's `org.manage` refusal is shown as a
+line, never a blank page. CONTRACT-001: `ImportCommitView` / `ImportCommitRowView` are now
+**paired** (exact) with `ImportReceipt` / `ImportReceiptRow` in `e2e/contracts/api-web-shapes.ts`
+and the two EXEMPT entries retired — `contracts:check` green, no longer exempt.
+
+Status: **implemented**; unit-tested (`import-receipt.test.ts`: committed_with_errors returns
+per-row created ids + error rows in order, all-valid returns zero errors, unknown/cross-tenant id →
+404 with no row read, not-yet-committed → 404) and web-tested (`import-receipt.test.tsx`: status +
+counts + ordered rows with no axe violations, all-committed, 403 and 404 refusals rendered). Pure
+read over x95/x100's DB-proven `import_jobs` / `import_rows`; **no DB test** this slice.
+
+---
+
 ## 2026-09-19 — USAGE-001 slice 4c, the threshold mail + quiet-hours bypass (slice x74)
 
 Built on branch `x74-usage-threshold-mail` (off x68's HEAD `1526f6b`), **not merged**. Completes
