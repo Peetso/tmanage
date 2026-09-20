@@ -6,6 +6,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
   effectivePageSize,
+  MAX_PAGE_SIZE,
   WorkItemNotFoundError,
   WorkItemsRepository,
   WorkItemTransitionError,
@@ -191,6 +192,31 @@ export type WorkItemHealthSignal =
 export interface WorkItemHealthView {
   readonly status: 'blocked' | 'at_risk' | 'on_track';
   readonly signals: readonly WorkItemHealthSignal[];
+  readonly computedAt: string;
+}
+
+/**
+ * UNIT-12's project subject: the health of a whole project, rolled up over the per-item rule.
+ *
+ * `counts` tallies each readable item by the status {@link WorkItemsService.healthOf} would give
+ * it, and `status` derives the project's own state by the same precedence a single item uses —
+ * one `blocked` item makes the project `blocked`, one `at_risk` item (and none blocked) makes it
+ * `at_risk`, otherwise `on_track`. It is computed, never stored: a read over the same rule, with
+ * no new column, no write and no schedule.
+ *
+ * An empty project — one with no items the caller may read — is the documented empty value:
+ * `itemCount` 0, every count 0, and `status` `on_track`, because nothing is blocked or at risk.
+ * `itemCount` lets a consumer tell that apart from a project full of healthy work.
+ */
+export interface ProjectHealthView {
+  readonly projectId: string;
+  readonly status: 'blocked' | 'at_risk' | 'on_track';
+  readonly counts: {
+    readonly on_track: number;
+    readonly at_risk: number;
+    readonly blocked: number;
+  };
+  readonly itemCount: number;
   readonly computedAt: string;
 }
 
@@ -729,7 +755,76 @@ export class WorkItemsService {
       predecessors: await this.graph.listPredecessors(runner, context, workItemId),
     }));
 
+    return this.deriveHealth(context, principal, blocker, predecessors, new Date());
+  }
+
+  /**
+   * UNIT-12's project subject: roll per-item health up across a project (`09-MVP-PRD` §63).
+   *
+   * A pure read over the same rule {@link healthOf} applies to one item — no new column, no
+   * write, no schedule. It is exposed behind `work.read`, the sibling reads' capability; a
+   * caller without it is refused by the same guard, so the roll-up is never a way around it.
+   *
+   * The walk is `list`'s: the tenant-scoped, project-filtered query returns rows in id order,
+   * each row is kept only if `mayRead` allows it — a cross-tenant row is refused there as well
+   * as by the query, and a client sees only client-audience items — and every readable item's
+   * status is computed by {@link deriveHealth}, the very code path `healthOf` uses, so the
+   * roll-up cannot drift from the per-item answer. Every project item is visited, page by page,
+   * because a count that stops early is a wrong count, not a short one.
+   */
+  async projectHealthOf(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<ProjectHealthView> {
+    const scoped: ListWorkItemsOptions =
+      principal.kind === 'client' ? { projectId, audiences: CLIENT_AUDIENCES } : { projectId };
+
     const now = new Date();
+    const counts = { on_track: 0, at_risk: 0, blocked: 0 };
+
+    await this.database.read(context, async (runner) => {
+      let after: string | undefined;
+      for (;;) {
+        const page = await this.workItems.list(runner, context, {
+          ...scoped,
+          ...(after === undefined ? {} : { after }),
+          limit: MAX_PAGE_SIZE,
+        });
+
+        for (const row of page) {
+          if (!this.mayRead(principal, row)) continue;
+          const blocker = await this.graph.findActiveBlocker(runner, context, row.id);
+          const predecessors = await this.graph.listPredecessors(runner, context, row.id);
+          const { status } = this.deriveHealth(context, principal, blocker, predecessors, now);
+          counts[status] += 1;
+        }
+
+        const last = page[page.length - 1];
+        if (page.length < MAX_PAGE_SIZE || last === undefined) break;
+        after = last.id;
+      }
+    });
+
+    const itemCount = counts.on_track + counts.at_risk + counts.blocked;
+    const status = counts.blocked > 0 ? 'blocked' : counts.at_risk > 0 ? 'at_risk' : 'on_track';
+    return { projectId, status, counts, itemCount, computedAt: now.toISOString() };
+  }
+
+  /**
+   * The per-item health rule — `09-MVP-PRD` §63 made a read — in one place, so that the single
+   * read ({@link healthOf}) and the project roll-up ({@link projectHealthOf}) share it rather
+   * than keep two copies that can disagree. A blocker makes the item `blocked`; a non-landed
+   * predecessor that is blocked or late makes it `at_risk` (named, or redacted when the caller
+   * may not read the predecessor — R01 / audit F3); otherwise `on_track`.
+   */
+  private deriveHealth(
+    context: TenantContext,
+    principal: Principal,
+    blocker: WorkBlockerRow | null,
+    predecessors: readonly PredecessorHealthRow[],
+    now: Date,
+  ): WorkItemHealthView {
     const signals: WorkItemHealthSignal[] = [];
 
     if (blocker) {
