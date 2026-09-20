@@ -1,4 +1,4 @@
--- 0025_project_membership_role_check — constrain `project_memberships.role` at the database.
+-- 0026_project_membership_role_check — constrain `project_memberships.role` at the database.
 --
 -- Governing sources: 12-PERMISSION-MATRIX.md §2 (the role set; §1 names the internal
 -- principals) and 25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md §11 (the role/operation

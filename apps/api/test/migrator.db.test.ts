@@ -323,14 +323,14 @@ describe('0012: calendar dates survive the DATETIME -> DATE conversion', () => {
   });
 });
 
-describe('0025: project_memberships.role is constrained to the internal role set', () => {
+describe('0026: project_memberships.role is constrained to the internal role set', () => {
   beforeAll(freshDatabase);
 
   it('admits exactly INTERNAL_ROLES and rejects any other string', async () => {
     // Anti-drift: the CHECK values are read from the migration, never restated here, so the
     // constraint and the packages/domain union cannot become two independently edited copies.
     const sql = await readFile(
-      join(migrationsDirectory, '0025_project_membership_role_check.sql'),
+      join(migrationsDirectory, '0026_project_membership_role_check.sql'),
       'utf8',
     );
     const check = sql.slice(sql.indexOf('CHECK (role IN ('));
