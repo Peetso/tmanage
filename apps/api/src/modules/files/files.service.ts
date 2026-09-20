@@ -1107,8 +1107,11 @@ export class FilesService {
             size_bytes: version.sizeBytes,
             // A fixed token, never the rejection_code or any detection name (AC3): the
             // rejection is already on `file_asset.rejected`, and this row is why the *bytes*
-            // were removed — the retention window elapsed — not what the file was.
-            reason: 'retention_expired',
+            // were removed — the retention window elapsed — not what the file was. The key is
+            // `cause` (the codebase's classification-key convention, e.g. file-scanner/verifier):
+            // `reason` is a forbidden audit-metadata segment (`assertSafeAuditMetadata`), so the
+            // audit row would be refused and the whole purge would throw.
+            cause: 'retention_expired',
             counter_drift: !counterMoved,
           },
         });
