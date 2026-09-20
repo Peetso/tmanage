@@ -532,6 +532,83 @@ export const clientRequests = mysqlTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Approvals — FR-05 (0027)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `23-ERD-AND-STATE-MACHINES` §8: how multiple reviewers combine (domain `ApprovalPolicy`). */
+export const APPROVAL_POLICIES = ['all_required', 'any_one', 'ordered_sequence'] as const;
+
+/**
+ * FR-05. The immutable identity of governed content: an exact deliverable at an exact
+ * `contentHash`. There is no `deliverables` table yet (the aggregate is domain-only), so
+ * `deliverableId` is a logical reference, not a foreign key. A version is immutable — the
+ * repository has no update path and `0027`'s trigger refuses one — so a governed content change
+ * is a new row, never an edit.
+ */
+export const deliverableVersions = mysqlTable(
+  'deliverable_versions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    deliverableId: char('deliverable_id', { length: 36 }).notNull(),
+    /** A lowercase hex SHA-256 digest (`content-hash.ts`). */
+    contentHash: char('content_hash', { length: 64 }).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_deliverable_versions_org_id').on(table.organizationId, table.id),
+    index('ix_deliverable_versions_org_deliverable').on(
+      table.organizationId,
+      table.deliverableId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * FR-05. One reviewer request bound to exactly one immutable version and the `contentHash`
+ * captured at request time. The decision transaction re-checks that captured hash against the
+ * deliverable's current governed version and invalidates rather than deciding on a mismatch
+ * (INT-16/INT-17); `0027`'s trigger keeps the row append-only once terminal.
+ *
+ * `state` carries no `.default()` — the column has no `DEFAULT` in `0027`; see the note in the
+ * client-requests table above.
+ */
+export const approvals = mysqlTable(
+  'approvals',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    deliverableId: char('deliverable_id', { length: 36 }).notNull(),
+    deliverableVersionId: char('deliverable_version_id', { length: 36 }).notNull(),
+    contentHash: char('content_hash', { length: 64 }).notNull(),
+    state: varchar('state', { length: 32 }).notNull(),
+    policy: mysqlEnum('policy', APPROVAL_POLICIES).notNull().default('all_required'),
+    /** The reviewer relation — the real gate (AUTH-08). A JSON array of user ids. */
+    reviewerIds: json('reviewer_ids').$type<string[]>().notNull(),
+    decidedByUserId: char('decided_by_user_id', { length: 36 }),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    feedback: text('feedback'),
+    invalidationReason: varchar('invalidation_reason', { length: 500 }),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_approvals_org_id').on(table.organizationId, table.id),
+    index('ix_approvals_org_deliverable_state').on(
+      table.organizationId,
+      table.deliverableId,
+      table.state,
+      table.createdAt,
+    ),
+  ],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Files — FILE-001 (0015)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1277,6 +1354,8 @@ export const TABLES = {
   work_item_dependencies: workItemDependencies,
   work_blockers: workBlockers,
   client_requests: clientRequests,
+  deliverable_versions: deliverableVersions,
+  approvals,
   conversations,
   conversation_memberships: conversationMemberships,
   messages,
@@ -1308,6 +1387,10 @@ export type NewProjectRow = typeof projects.$inferInsert;
 export type WorkItemRow = typeof workItems.$inferSelect;
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type ClientRequestRow = typeof clientRequests.$inferSelect;
+export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
+export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;
+export type ApprovalRow = typeof approvals.$inferSelect;
+export type NewApprovalRow = typeof approvals.$inferInsert;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type ConversationMembershipRow = typeof conversationMemberships.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;

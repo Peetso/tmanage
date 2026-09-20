@@ -271,3 +271,17 @@ type _enrolledFactor = Assert<Exact<ApiEnrolledFactorView, WebEnrolledFactor>>;
 
 /** `POST …/realtime/tickets` — a minted realtime ticket; `expiresAt` an ISO string, `socketUrl` `null` where no live socket exists. */
 type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
+
+/**
+ * CONTRACT-001 approvals (FR-05, x92). The `ApprovalDecisionView` pair.
+ *
+ * Request: `POST …/approvals/:approvalId/decision` — `{ decision: 'approve' | 'request_changes',
+ * version: number, feedback?: string }`. Response: `ApprovalDecisionView` in
+ * `apps/api/src/modules/approvals/approvals.service.ts` — the immutable decision record
+ * (`decidedByUserId`, `decidedAt`, `contentHash`, `state`), decision fields null until decided.
+ *
+ * No `Assert<Exact<…>>` pair yet: there is no web consumer this slice, so `ApprovalDecisionView`
+ * is carried in `scripts/contracts-check.mjs`'s EXEMPT list, matching x86's `ProjectHealthView`
+ * posture. x92-b adds the client deep-link decision screen and its `apps/web` shape, and this
+ * comment becomes a real `Assert<Exact<ApiApprovalDecisionView, WebApprovalDecision>>` then.
+ */
