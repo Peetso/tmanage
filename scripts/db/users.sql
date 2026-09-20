@@ -110,15 +110,17 @@
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
 --
 -- **`tmanage_worker`** — the outbox relay.
---   · `SELECT` on exactly fifteen tables: outbox_events, client_requests, users,
+--   · `SELECT` on exactly sixteen tables: outbox_events, client_requests, users,
 --     organizations, projects, memberships, project_memberships, client_memberships,
 --     project_clients, conversations, conversation_memberships, notifications, work_items,
---     idempotency_records, credential_change_notices — and on **no** others, which is the
---     whole of D07
+--     idempotency_records, credential_change_notices, invitations — and on **no** others,
+--     which is the whole of D07 (invitations added for TEN-003/ON-04's `--sweep-invitations`)
 --   · `INSERT, UPDATE` on: outbox_events, idempotency_records
 --   · `UPDATE` on: credential_change_notices — x31 drains it; the row is never created or
 --     destroyed by the relay, only claimed, stamped and (on failure) rescheduled
---   · `UPDATE` on: work_items, client_requests
+--   · `UPDATE` on: work_items, client_requests, invitations — the sweep moves overdue
+--     `pending` -> `expired`; no INSERT and no DELETE, an invitation is never created or
+--     removed by the relay
 --   · `INSERT` on: audit_events, notifications
 --   · `DELETE` nowhere, no database-wide grant of any kind, and nothing whatever on
 --     `user_passwords`, `user_mfa_factors`, `user_recovery_codes` or
@@ -365,6 +367,9 @@ GRANT SELECT ON `tmanage`.`conversation_memberships` TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`notifications`            TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`work_items`               TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`idempotency_records`      TO 'tmanage_worker'@'%';
+-- TEN-003/ON-04 invitation sweep. Read where it writes: `--sweep-invitations`
+-- (`invitations-sweep-store.ts`) filters by `status` and `expires_at`. No DELETE.
+GRANT SELECT ON `tmanage`.`invitations`              TO 'tmanage_worker'@'%';
 
 -- `audit_events` is the one table the relay writes and cannot read, and the asymmetry is
 -- deliberate: it appends system audit rows (`lifecycle-store.ts`) and never reads one back,
@@ -376,6 +381,10 @@ GRANT INSERT, UPDATE ON `tmanage`.`outbox_events`       TO 'tmanage_worker'@'%';
 GRANT UPDATE         ON `tmanage`.`credential_change_notices` TO 'tmanage_worker'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`idempotency_records` TO 'tmanage_worker'@'%';
 GRANT UPDATE         ON `tmanage`.`work_items`          TO 'tmanage_worker'@'%';
+-- TEN-003/ON-04 invitation sweep. UPDATE only — `--sweep-invitations` moves overdue
+-- `pending` -> `expired` across all tenants by the DB clock; DELETE withheld, an
+-- invitation is never removed (the trigger in 0005 pins the two immutable columns).
+GRANT UPDATE         ON `tmanage`.`invitations`          TO 'tmanage_worker'@'%';
 GRANT INSERT         ON `tmanage`.`audit_events`        TO 'tmanage_worker'@'%';
 -- PLAT-004's lifecycle consumer: when committed work starts, the linked request moves
 -- accepted->planned; when the work is done, planned->delivered (23-ERD §6). UPDATE only —
