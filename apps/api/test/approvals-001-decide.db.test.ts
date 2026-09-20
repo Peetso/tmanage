@@ -7,7 +7,7 @@ import type { TenantContext } from '../src/common/database/tenant-context.js';
 import { ApprovalsRepository } from '../src/modules/approvals/approvals.repository.js';
 import { DeliverableVersionsRepository } from '../src/modules/approvals/deliverable-versions.repository.js';
 import { ApprovalsService } from '../src/modules/approvals/approvals.service.js';
-import { ApprovalNotFoundError } from '../src/modules/approvals/approvals.repository.js';
+import { ApiError } from '../src/common/http/errors.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { seedTwoTenants } from './seed-two-tenants.js';
@@ -193,11 +193,29 @@ describe('FR-05 open→decide over a content-hashed version (0027)', () => {
       true,
     );
 
-    await expect(
-      service.decide(twin, foreign, opened.id, {
+    // The service maps the repository's ApprovalNotFoundError to a 404 that does not
+    // leak the approval's existence across tenants — it must never resolve.
+    const error = await service
+      .decide(twin, foreign, opened.id, {
         decision: 'approve',
         expectedVersion: opened.version,
-      }),
-    ).rejects.toBeInstanceOf(ApprovalNotFoundError);
+      })
+      .then(
+        () => {
+          throw new Error('cross-tenant decide resolved — it must reject');
+        },
+        (caught: unknown) => caught,
+      );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).code).toBe('not_found');
+    expect((error as ApiError).auditCode).toBe('approval_not_found');
+
+    // Nothing was written: the approval is untouched in its own tenant.
+    const rows = await observe('SELECT state, decided_by_user_id FROM approvals WHERE id = ?', [
+      opened.id,
+    ]);
+    expect(rows[0]?.['state']).toBe('requested');
+    expect(rows[0]?.['decided_by_user_id']).toBeNull();
   });
 });

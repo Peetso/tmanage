@@ -1464,6 +1464,8 @@ export const TABLES = {
   authentication_events: authenticationEvents,
   credential_change_notices: credentialChangeNotices,
   import_jobs: importJobs,
+  meetings,
+  documents,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
