@@ -43,6 +43,7 @@ import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/m
 import type { InboxBundleView as ApiInboxBundleView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InboxPageView as ApiInboxPageView } from '../../apps/api/src/modules/inbox/inbox.service.js';
 import type { InboxUsageNoticeView as ApiInboxUsageNoticeView } from '../../apps/api/src/modules/inbox/inbox.service.js';
+import type { MyDayView as ApiMyDayView } from '../../apps/api/src/modules/home/home.service.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -64,6 +65,7 @@ import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modul
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
+import type { MyDay as WebMyDay } from '../../apps/web/src/lib/api/home';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -180,6 +182,13 @@ type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
 
 /** `WorkItemView.state` ↔ `WORK_ITEM_STATES` (`@tmanage/domain`). */
 type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
+
+/**
+ * HOME-03 My Day. The response is one projection — its per-row entry is inlined on both sides
+ * (an `MyDayEntry` API interface with no `View` suffix, an inline object on the web), so this
+ * pair covers it structurally through the nested `WorkItemView`↔`WorkItemSummary` shape above.
+ */
+type _myDay = Assert<Exact<ApiMyDayView, WebMyDay>>;
 
 /** `ClientRequestView.state` ↔ the nine states of `23-ERD` §6. */
 type _clientRequest = Assert<Exact<ApiClientRequestView, WebClientRequestRecord>>;
