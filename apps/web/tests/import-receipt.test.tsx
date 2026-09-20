@@ -105,7 +105,13 @@ describe('ImportReceiptScreen', () => {
 
   it('renders a not-found receipt as an error line, not a blank page', async () => {
     mount(
-      { error: { code: 'not_found', message: 'The requested resource was not found', correlationId: 'c' } },
+      {
+        error: {
+          code: 'not_found',
+          message: 'The requested resource was not found',
+          correlationId: 'c',
+        },
+      },
       404,
     );
     await waitFor(() =>

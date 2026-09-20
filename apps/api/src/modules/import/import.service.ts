@@ -310,7 +310,13 @@ export class ImportService {
     });
 
     if (!found || !COMMITTED_STATUSES.has(found.job.status)) {
-      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'import_receipt_not_visible');
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.notFound,
+        undefined,
+        'import_receipt_not_visible',
+      );
     }
 
     return {

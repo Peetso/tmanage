@@ -77,8 +77,7 @@ export function ImportReceiptScreen({
 }
 
 function ReceiptPanel({ receipt }: { receipt: ImportReceipt }) {
-  const statusText =
-    receipt.status === 'committed' ? 'Committed' : 'Committed with errors';
+  const statusText = receipt.status === 'committed' ? 'Committed' : 'Committed with errors';
   const statusState = receipt.status === 'committed' ? 'done' : 'blocked';
 
   return (
