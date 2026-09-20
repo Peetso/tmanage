@@ -18,6 +18,7 @@ import { WorkModule } from './modules/work/work.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
+import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
@@ -132,6 +133,11 @@ export class AppModule {
         // After `WorkModule`: REQ-001 reads a work item to answer 422 rather than 500 when an
         // acceptance links to one that is not in this tenant.
         RequestsModule.register(),
+        // FR-05 (x92). After `ProjectsModule`: an approval binds a deliverable version to a
+        // project, and a caller naming one that is not theirs should get 404 rather than a
+        // foreign-key 500. Authorization is object-layer only (the reviewer relation), so this
+        // module adds no route guard to the shared capability files.
+        ApprovalsModule.register(),
         // INBOX-001. Every notification's object is resolved through `WorkItemsService.get`
         // and `ClientRequestsService.get` — the same authorized reads those modules serve —
         // never through a read path of the inbox's own. The module constructs its own
