@@ -46,6 +46,7 @@ import type { InboxUsageNoticeView as ApiInboxUsageNoticeView } from '../../apps
 import type { MyDayView as ApiMyDayView } from '../../apps/api/src/modules/home/home.service.js';
 import type { WaitingView as ApiWaitingView } from '../../apps/api/src/modules/home/home.service.js';
 import type { HomeSummaryView as ApiHomeSummaryView } from '../../apps/api/src/modules/home/home.service.js';
+import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src/modules/home/home.service.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -71,6 +72,7 @@ import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib
 import type { MyDay as WebMyDay } from '../../apps/web/src/lib/api/home';
 import type { Waiting as WebWaiting } from '../../apps/web/src/lib/api/home';
 import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/home';
+import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api/home';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -213,6 +215,15 @@ type _waiting = Assert<Exact<ApiWaitingView, WebWaiting>>;
  * exactly this response, so the pair is Exact.
  */
 type _homeSummary = Assert<Exact<ApiHomeSummaryView, WebHomeSummary>>;
+
+/**
+ * HOME-05 saved/pinned context (x110). `GET/POST/DELETE .../home/saved-context` — the caller's pins
+ * grouped by project. One projection; its group and item entries are inlined on both sides (an
+ * `SavedContextView` API interface with no `View`-suffixed nested type, an inline object on the
+ * web), so this pair covers them structurally, and the `entityType` union (`message|doc|work|file`)
+ * must match exactly. The `MyDayScreen` Saved section reads exactly this response.
+ */
+type _savedContext = Assert<Exact<ApiSavedContextView, WebSavedContext>>;
 
 /**
  * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The

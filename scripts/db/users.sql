@@ -102,7 +102,7 @@
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
---   · `INSERT, DELETE` on: work_item_dependencies
+--   · `INSERT, DELETE` on: work_item_dependencies, saved_context
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
@@ -254,6 +254,11 @@ GRANT INSERT                 ON `tmanage`.`usage_ledger_entries` TO 'tmanage_app
 GRANT INSERT, UPDATE         ON `tmanage`.`file_assets`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`file_versions`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`upload_sessions`  TO 'tmanage_app'@'%';
+-- HOME-05 (0035) saved/pinned context. INSERT to pin and DELETE to unpin, and **no UPDATE**: a
+-- pin is created and removed, never edited, so the missing privilege is the control that keeps it
+-- so (there is no immutability trigger and none is needed). Reading is the database-wide SELECT
+-- above. The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, DELETE         ON `tmanage`.`saved_context`    TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

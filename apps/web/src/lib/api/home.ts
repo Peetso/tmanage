@@ -104,3 +104,72 @@ export async function getHomeSummary(
   });
   return data;
 }
+
+/**
+ * The Home / Saved-context endpoints — HOME-05's saved/pinned context.
+ *
+ * Behind `work.read` on the API and taking no `userId`: a pin is always the acting user's own. A
+ * pin is a *reference* — its kind and id, grouped by project — never a copy of the entity; resolving
+ * each pin to a live title/preview is the deferred follow-up, so the screen renders the reference by
+ * type and project. The pin write resolves the ids tenant-scoped before authorizing, so an unknown
+ * or cross-tenant id is a 404.
+ */
+export type SavedContextEntityType = 'message' | 'doc' | 'work' | 'file';
+
+/**
+ * The caller's pins grouped by project. Each group and item is inlined rather than a second
+ * exported shape, so the API↔web pairing is the one `SavedContext` projection.
+ */
+export interface SavedContext {
+  readonly groups: readonly {
+    readonly projectId: string;
+    readonly items: readonly {
+      readonly id: string;
+      readonly entityType: SavedContextEntityType;
+      readonly entityId: string;
+      readonly createdAt: string;
+    }[];
+  }[];
+}
+
+/** The body of a pin request. `Input` suffix marks it request-side, not a response projection. */
+export interface PinContextInput {
+  readonly entityType: SavedContextEntityType;
+  readonly entityId: string;
+  readonly projectId: string;
+}
+
+export async function getSavedContext(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<SavedContext> {
+  const { data } = await client.request<SavedContext>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/saved-context`,
+  });
+  return data;
+}
+
+export async function pinContext(
+  client: ApiClient,
+  organizationSlug: string,
+  input: PinContextInput,
+): Promise<SavedContext> {
+  const { data } = await client.request<SavedContext>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/saved-context`,
+    body: input,
+  });
+  return data;
+}
+
+export async function unpinContext(
+  client: ApiClient,
+  organizationSlug: string,
+  savedContextId: string,
+): Promise<SavedContext> {
+  const { data } = await client.request<SavedContext>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/saved-context/${encodeURIComponent(savedContextId)}`,
+  });
+  return data;
+}

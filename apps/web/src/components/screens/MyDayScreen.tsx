@@ -7,8 +7,8 @@ import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui'
 import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { getHomeSummary, getMyDay, getWaiting } from '../../lib/api/home';
-import type { MyDayReason, WaitingReason } from '../../lib/api/home';
+import { getHomeSummary, getMyDay, getSavedContext, getWaiting } from '../../lib/api/home';
+import type { MyDayReason, SavedContextEntityType, WaitingReason } from '../../lib/api/home';
 import { listProjects } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
@@ -55,6 +55,11 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
     queryFn: () => getHomeSummary(api, organizationSlug),
   });
 
+  const saved = useQuery({
+    queryKey: ['home', 'saved-context', organizationSlug],
+    queryFn: () => getSavedContext(api, organizationSlug),
+  });
+
   // Names for the project each item belongs to — My Day spans every project, so an id alone
   // would not tell the reader which one. One directory, resolved through a map, no fetch per row.
   const projects = useQuery({
@@ -70,6 +75,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
 
   const items = myDay.data?.items ?? [];
   const waitingItems = waiting.data?.items ?? [];
+  const savedGroups = saved.data?.groups ?? [];
 
   return (
     <AppShell
@@ -280,8 +286,81 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           </div>
         ) : null}
       </section>
+
+      <section className="tm-panel tm-stack" aria-labelledby="tm-my-day-saved">
+        <h2 id="tm-my-day-saved" className="tm-eyebrow">
+          Saved
+        </h2>
+
+        {saved.isError ? (
+          <InlineAlert tone="danger" title="Could not load your saved items" live>
+            {describeSavedError(saved.error)}
+          </InlineAlert>
+        ) : null}
+
+        {saved.isPending ? (
+          <LoadingRegion label="Loading your saved items.">
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
+
+        {!saved.isPending && !saved.isError && savedGroups.length === 0 ? (
+          <InlineAlert tone="neutral" title="Nothing saved yet">
+            Messages, docs, work and files you pin are kept here, grouped by project, so you can
+            return to them from any screen.
+          </InlineAlert>
+        ) : null}
+
+        {savedGroups.length > 0 ? (
+          <div className="tm-stack">
+            {savedGroups.map((group) => (
+              <div key={group.projectId} className="tm-stack">
+                <h3 className="tm-heading-3">
+                  {projectNames.get(group.projectId) ?? 'Another project'}
+                </h3>
+                <ul
+                  className="tm-list"
+                  aria-label={`Saved in ${projectNames.get(group.projectId) ?? 'another project'}`}
+                >
+                  {group.items.map((item) => (
+                    <li key={item.id}>
+                      {item.entityType === 'work' ? (
+                        <Link href={`/${organizationSlug}/work/${item.entityId}`}>
+                          {savedTypeLabel(item.entityType)}
+                        </Link>
+                      ) : (
+                        <span>{savedTypeLabel(item.entityType)}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
     </AppShell>
   );
+}
+
+/** The word each pinned reference shows. The live title/preview is the deferred read-fan-out. */
+function savedTypeLabel(entityType: SavedContextEntityType): string {
+  switch (entityType) {
+    case 'message':
+      return 'Saved message';
+    case 'doc':
+      return 'Saved document';
+    case 'work':
+      return 'Saved work item';
+    case 'file':
+      return 'Saved file';
+  }
+}
+
+function describeSavedError(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.message;
+  if (error instanceof NetworkError) return 'The network dropped before your saved items loaded.';
+  return 'Something went wrong loading your saved items.';
 }
 
 /** The word each ranking reason shows — the capsule is never colour alone. */

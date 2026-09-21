@@ -406,6 +406,67 @@ describe('0026: project_memberships.role is constrained to the internal role set
   });
 });
 
+describe('0035: saved_context is tenant- and user-scoped (HOME-05)', () => {
+  beforeAll(freshDatabase);
+
+  it('creates the pin table with the tenant key, the idempotency key and the entity-type enum', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // Columns, nullability and the key types. project_id is the only nullable column (a future
+    // org-level pin); everything else that identifies the pin is NOT NULL.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS c, is_nullable AS n, data_type AS d
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'saved_context'
+        ORDER BY ordinal_position`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['c']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'created_at',
+        'entity_id',
+        'entity_type',
+        'id',
+        'organization_id',
+        'project_id',
+        'user_id',
+      ].sort(),
+    );
+    expect(byName.get('project_id')?.['n']).toBe('YES');
+    for (const notNull of [
+      'id',
+      'organization_id',
+      'user_id',
+      'entity_type',
+      'entity_id',
+      'created_at',
+    ]) {
+      expect(byName.get(notNull)?.['n'], notNull).toBe('NO');
+    }
+    expect(String(byName.get('entity_type')?.['d'])).toBe('enum');
+
+    // The enum admits exactly the four kinds HOME-05 names — read from the migration so the
+    // constraint and the schema union cannot drift into two independently edited copies.
+    const sql = await readFile(join(migrationsDirectory, '0035_saved_context.sql'), 'utf8');
+    const enumDef = sql.slice(sql.indexOf("ENUM('message'"));
+    const kinds = [...enumDef.slice(0, enumDef.indexOf(')')).matchAll(/'([a-z]+)'/g)].map(
+      (m) => m[1],
+    );
+    expect(kinds.sort()).toEqual(['doc', 'file', 'message', 'work']);
+
+    // The two unique keys: the composite tenant key every tenant table carries, and the
+    // idempotency key that makes a re-pin collide rather than duplicate.
+    const [indexes] = await connection.query<RowDataPacket[]>(
+      `SELECT DISTINCT index_name AS i
+         FROM information_schema.statistics
+        WHERE table_schema = DATABASE() AND table_name = 'saved_context' AND non_unique = 0`,
+    );
+    const uniqueNames = indexes.map((row) => String(row['i']));
+    expect(uniqueNames).toContain('uq_saved_context_org_id');
+    expect(uniqueNames).toContain('uq_saved_context_pin');
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });
