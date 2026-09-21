@@ -59,7 +59,8 @@ export function MeetingNotesScreen({
   });
 
   const rows = useMemo(() => notes.data?.notes ?? [], [notes.data]);
-  const notFound = notes.isError && notes.error instanceof ApiRequestError && notes.error.status === 404;
+  const notFound =
+    notes.isError && notes.error instanceof ApiRequestError && notes.error.status === 404;
 
   return (
     <AppShell
