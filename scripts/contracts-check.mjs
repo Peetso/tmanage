@@ -113,6 +113,10 @@ const EXEMPT = new Map([
     'DocumentView',
     'No web consumer: DOC-01 (x91) ships the API document read/write with no screen this slice; pair when the docs hub screen lands (x91 follow-up).',
   ],
+  [
+    'ClientProjectionView',
+    'No web consumer: FR-05 x97 authors publish + read of the client projection API-only; the client deep-link screen that renders it is x97-b (deferred), and pairs then (matching the ApprovalDecisionView posture).',
+  ],
 ]);
 
 /**

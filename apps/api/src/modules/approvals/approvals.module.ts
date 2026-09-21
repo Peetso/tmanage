@@ -4,6 +4,7 @@ import { APPROVALS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js'
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApprovalsRepository } from './approvals.repository.js';
 import { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
+import { ClientProjectionsRepository } from './client-projections.repository.js';
 import { ApprovalsService } from './approvals.service.js';
 import { ApprovalsController } from './approvals.controller.js';
 
@@ -26,6 +27,7 @@ export class ApprovalsModule {
           database,
           new ApprovalsRepository(),
           new DeliverableVersionsRepository(),
+          new ClientProjectionsRepository(),
         ),
     };
 

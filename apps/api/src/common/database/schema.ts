@@ -663,6 +663,65 @@ export const approvals = mysqlTable(
   ],
 );
 
+/**
+ * The client-safe payload of a published projection — 12-PERMISSION-MATRIX §1's allowlist and no
+ * more. Held as JSON (`0031`), built from an allowlist at the service so a forbidden internal field
+ * (cost, estimates, staff review, private threads, risk rationale, security metadata, other-client
+ * data — 25 §7) can never reach it. `deliverableVersion` is the bound version's identity, carried
+ * as the row's typed columns rather than duplicated here.
+ */
+export interface ClientProjectionPayload {
+  /** 12 §1 "public/client title". */
+  readonly title: string;
+  readonly summary: string | null;
+  /** 12 §1 "milestone state". */
+  readonly milestoneState: string | null;
+  /** 12 §1 "committed/forecast date" — an ISO calendar date, or null. */
+  readonly forecastDate: string | null;
+  /** 12 §1 "published risk" — the client-visible risk, never the internal rationale. */
+  readonly publishedRisk: string | null;
+  /** 12 §1 "decision". */
+  readonly decision: string | null;
+  /** 12 §1 "approved contacts". */
+  readonly approvedContacts: readonly string[];
+}
+
+/**
+ * FR-05 (x97). The immutable client-facing view of one governed `deliverable_versions` row. An
+ * internal `deliverable.publish` freezes the version's exact `content_hash` with a client-safe
+ * `projection` payload (25 §7); a client reads it through `client_projection.read` and never the
+ * internal record. One projection per version — `0031`'s UNIQUE (organization_id,
+ * deliverable_version_id) is the append-only guard, and its trigger refuses every UPDATE.
+ */
+export const clientProjections = mysqlTable(
+  'client_projections',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    deliverableId: char('deliverable_id', { length: 36 }).notNull(),
+    deliverableVersionId: char('deliverable_version_id', { length: 36 }).notNull(),
+    /** The governed version's frozen lowercase hex SHA-256 digest (`content-hash.ts`). */
+    contentHash: char('content_hash', { length: 64 }).notNull(),
+    /** The client-safe allowlisted payload (12 §1). */
+    projection: json('projection').$type<ClientProjectionPayload>().notNull(),
+    publishedByUserId: char('published_by_user_id', { length: 36 }).notNull(),
+    publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_client_projections_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_client_projections_org_version').on(
+      table.organizationId,
+      table.deliverableVersionId,
+    ),
+    index('ix_client_projections_org_deliverable').on(
+      table.organizationId,
+      table.deliverableId,
+      table.publishedAt,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Files — FILE-001 (0015)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1481,6 +1540,8 @@ export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
 export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;
 export type ApprovalRow = typeof approvals.$inferSelect;
 export type NewApprovalRow = typeof approvals.$inferInsert;
+export type ClientProjectionRow = typeof clientProjections.$inferSelect;
+export type NewClientProjectionRow = typeof clientProjections.$inferInsert;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type ConversationMembershipRow = typeof conversationMemberships.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;

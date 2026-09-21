@@ -6,6 +6,7 @@ import { TenantDatabase, createTenantContext } from '../src/common/database/tena
 import type { TenantContext } from '../src/common/database/tenant-context.js';
 import { ApprovalsRepository } from '../src/modules/approvals/approvals.repository.js';
 import { DeliverableVersionsRepository } from '../src/modules/approvals/deliverable-versions.repository.js';
+import { ClientProjectionsRepository } from '../src/modules/approvals/client-projections.repository.js';
 import { ApprovalsService } from '../src/modules/approvals/approvals.service.js';
 import { ApiError } from '../src/common/http/errors.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
@@ -100,7 +101,12 @@ beforeAll(async () => {
     world.northstar.manager.membershipId,
   );
   twin = contextFor(world.twin.organizationId, world.twin.owner.id, world.twin.owner.membershipId);
-  service = new ApprovalsService(tenant, approvalsRepo, versions);
+  service = new ApprovalsService(
+    tenant,
+    approvalsRepo,
+    versions,
+    new ClientProjectionsRepository(),
+  );
 });
 
 afterAll(async () => {

@@ -2,7 +2,11 @@ import { approvalStateMachine, authorize, contentHashEquals } from '@tmanage/dom
 import type { ApprovalPolicy, ApprovalState, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { ApprovalRow } from '../../common/database/schema.js';
+import type {
+  ApprovalRow,
+  ClientProjectionPayload,
+  ClientProjectionRow,
+} from '../../common/database/schema.js';
 import {
   ApprovalNotFoundError,
   ApprovalTransitionError,
@@ -11,6 +15,11 @@ import {
 import type { ApprovalsRepository } from './approvals.repository.js';
 import { DeliverableVersionNotFoundError } from './deliverable-versions.repository.js';
 import type { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
+import {
+  ClientProjectionAlreadyExistsError,
+  ClientProjectionNotFoundError,
+} from './client-projections.repository.js';
+import type { ClientProjectionsRepository } from './client-projections.repository.js';
 
 /**
  * FR-05's application service — the immutable-decision heart, authorized at the object layer.
@@ -92,11 +101,48 @@ function toView(row: ApprovalRow): ApprovalDecisionView {
   };
 }
 
+/**
+ * The immutable client projection — x97's `ClientProjectionView`.
+ *
+ * The response for both publishing a version and reading its projection. `projection` carries only
+ * the allowlisted client-safe fields (12-PERMISSION-MATRIX §1); `publishedAt` is an ISO string, the
+ * shape `JSON.stringify` emits on the wire.
+ */
+export interface ClientProjectionView {
+  readonly id: string;
+  readonly deliverableId: string;
+  readonly deliverableVersionId: string;
+  readonly contentHash: string;
+  readonly projection: ClientProjectionPayload;
+  readonly publishedByUserId: string;
+  readonly publishedAt: string;
+}
+
+/** What publishing supplies. The tenant and the frozen hash are not the caller's. */
+export interface PublishProjectionInput {
+  readonly deliverableVersionId: string;
+  /** The client-safe payload — allowlisted at the controller (12-PERMISSION-MATRIX §1). */
+  readonly projection: ClientProjectionPayload;
+}
+
+function toProjectionView(row: ClientProjectionRow): ClientProjectionView {
+  return {
+    id: row.id,
+    deliverableId: row.deliverableId,
+    deliverableVersionId: row.deliverableVersionId,
+    contentHash: row.contentHash,
+    projection: row.projection,
+    publishedByUserId: row.publishedByUserId,
+    publishedAt: row.publishedAt.toISOString(),
+  };
+}
+
 export class ApprovalsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly approvals: ApprovalsRepository,
     private readonly deliverableVersions: DeliverableVersionsRepository,
+    private readonly clientProjections: ClientProjectionsRepository,
   ) {}
 
   /**
@@ -259,6 +305,103 @@ export class ApprovalsService {
   }
 
   /**
+   * Publish a governed version to the client — freeze its immutable client-safe projection.
+   *
+   * Authorized with `deliverable.publish`, which is internal-only (25 §4, capabilities.ts), so a
+   * client principal is refused here exactly as `open` refuses one for `deliverable.review`: a
+   * client is published *to*, it does not publish. The version is read tenant-scoped first, so a
+   * caller naming another tenant's version gets 404, and the projection freezes the version's own
+   * `content_hash` — 25 §7's "publishing transactionally creates an immutable client-safe version",
+   * never a hash from the request body. A second publish of the same version is refused
+   * (append-only): `0031`'s UNIQUE key raises it at the engine and this maps it to 409.
+   */
+  async publish(
+    context: TenantContext,
+    principal: Principal,
+    input: PublishProjectionInput,
+  ): Promise<ClientProjectionView> {
+    const row = await this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const version = await this.deliverableVersions.requireById(
+          tx,
+          context,
+          input.deliverableVersionId,
+        );
+
+        const verdict = authorize({
+          principal,
+          capability: 'deliverable.publish',
+          resource: {
+            organizationId: context.organizationId,
+            projectId: version.projectId,
+            audience: 'client_visible',
+            lifecycle: 'active',
+          },
+        });
+        if (!verdict.allowed) {
+          throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+        }
+
+        return this.clientProjections.publish(tx, context, {
+          projectId: version.projectId,
+          deliverableId: version.deliverableId,
+          deliverableVersionId: version.id,
+          contentHash: version.contentHash,
+          projection: input.projection,
+          publishedByUserId: principal.userId,
+        });
+      }),
+    );
+
+    return toProjectionView(row);
+  }
+
+  /**
+   * Read the immutable client projection for a governed version — FR-05's authorized client read.
+   *
+   * Authorized with `client_projection.read` against the client relation: `authorize` admits a
+   * client principal only when the projection's project is one the client organization may reach
+   * (its `projectIds`) and the audience is client-visible, and an internal reader with the ceiling
+   * may preview what the client sees (12-PERMISSION-MATRIX §2). The projection is read
+   * tenant-scoped first, so a caller in another tenant gets 404 rather than a refusal that confirms
+   * the row exists; `isPublished: true` because a `client_projections` row *is* the published act.
+   */
+  async readProjection(
+    context: TenantContext,
+    principal: Principal,
+    deliverableVersionId: string,
+  ): Promise<ClientProjectionView> {
+    const row = await this.guarding(() =>
+      this.database.transaction(context, async (tx) => {
+        const projection = await this.clientProjections.requireByVersion(
+          tx,
+          context,
+          deliverableVersionId,
+        );
+
+        const verdict = authorize({
+          principal,
+          capability: 'client_projection.read',
+          resource: {
+            organizationId: context.organizationId,
+            projectId: projection.projectId,
+            audience: 'client_visible',
+            isPublished: true,
+            lifecycle: 'active',
+          },
+        });
+        if (!verdict.allowed) {
+          throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+        }
+
+        return projection;
+      }),
+    );
+
+    return toProjectionView(row);
+  }
+
+  /**
    * Translate the repositories' thrown domain errors into the caller-facing envelope, in one
    * place, exactly as `ClientRequestsService.writing` does for its module.
    *
@@ -287,6 +430,25 @@ export class ApprovalsService {
           MESSAGES.notFound,
           undefined,
           'deliverable_version_not_found',
+        );
+      }
+      if (error instanceof ClientProjectionNotFoundError) {
+        throw new ApiError(
+          404,
+          'not_found',
+          MESSAGES.notFound,
+          undefined,
+          'client_projection_not_found',
+        );
+      }
+      if (error instanceof ClientProjectionAlreadyExistsError) {
+        // Append-only: the governed version already has a projection. A conflict, not a 500.
+        throw new ApiError(
+          409,
+          'conflict',
+          'This version has already been published to the client',
+          undefined,
+          'client_projection_exists',
         );
       }
       if (error instanceof ApprovalVersionConflictError) {
