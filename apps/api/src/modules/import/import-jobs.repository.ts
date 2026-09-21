@@ -28,6 +28,18 @@ export interface CreateImportJobInput {
   readonly invalidCount: number;
 }
 
+/**
+ * The commit half's terminal transition. `status` moves to `committed` /
+ * `committed_with_errors`, and the receipt summary (`committedAt`, `committedCount`,
+ * `failedCount`) is stamped in the same statement. No `organizationId`: it is the tenant
+ * predicate, not a value the caller supplies.
+ */
+export interface CommitImportJobInput {
+  readonly status: string;
+  readonly committedCount: number;
+  readonly failedCount: number;
+}
+
 export class ImportJobsRepository {
   /** Record one import attempt and read it back with its server-generated timestamp. */
   async create(
@@ -77,5 +89,47 @@ export class ImportJobsRepository {
     const found = await this.findById(runner, context, id);
     if (!found) throw new Error(`Import job ${id} was not found`);
     return found;
+  }
+
+  /**
+   * Transition a validated job to its terminal committed state, within the acting tenant.
+   *
+   * The `status IS NULL`-style guard is a status predicate, not an existence one: the update
+   * only touches a job whose current `status` is one of the validate-half outcomes, so a job
+   * that has already been committed matches zero rows and the caller learns it cannot be
+   * committed twice. The tenant predicate is on the statement, so a job of another tenant
+   * matches nothing here either.
+   */
+  async markCommitted(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    id: string,
+    input: CommitImportJobInput,
+  ): Promise<ImportJobRow> {
+    const db = tenantDrizzle(runner);
+
+    const result = await db
+      .update(importJobs)
+      .set({
+        status: input.status,
+        committedCount: input.committedCount,
+        failedCount: input.failedCount,
+        committedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(importJobs.organizationId, context.organizationId),
+          eq(importJobs.id, id),
+          // Only a job still in a validate-half state can be committed. An already-committed
+          // job (status 'committed' / 'committed_with_errors') matches nothing.
+          sql`${importJobs.status} in ('validated', 'validated_with_errors')`,
+        ),
+      );
+
+    if (result[0].affectedRows === 0) {
+      throw new Error(`Import job ${id} is not in a committable state`);
+    }
+
+    return this.requireById(runner, context, id);
   }
 }

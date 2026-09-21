@@ -177,6 +177,10 @@ function fakeJobs(): { repo: ImportJobsRepository; created: CreateImportJobInput
         validCount: input.validCount,
         invalidCount: input.invalidCount,
         createdAt: new Date(),
+        // Commit-half columns (0032): NULL for a validate-only job.
+        committedAt: null,
+        committedCount: null,
+        failedCount: null,
       } satisfies ImportJobRow;
     },
   } as unknown as ImportJobsRepository;

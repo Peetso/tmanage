@@ -272,6 +272,47 @@ are the follow-ups. DB round-trip proof: `apps/api/test/migrator.db.test.ts` (`0
 
 ---
 
+## 2026-09-20 — ON-09 onboarding import, commit half (slice x100)
+
+Built on branch `x100-import-commit` (off x95's approved commit `3a337d5`), **not merged**. The
+second vertical slice of ON-09 (`41 §Onboarding`) / ADM-10 (`41 §Admin`): the **commit** half that
+creates target entities from a validated job. `POST /v1/organizations/:orgSlug/imports/commits`
+takes the id of a validated `import_jobs` row plus the batch to commit, **re-validates** it
+(`import_jobs` records the validation _outcome_, not the row payloads), and creates a **project**
+per row that passes — projects being the first source kind x95's validators cover. Each row
+additionally passes the **object-layer `project.create` `authorize()`** so a commit is no broader
+than a manual create; the route capability is the **reused** `org.manage` (no new `import.run`
+capability, still deferred off `capabilities.ts`/`role-operation-grid.ts`).
+
+**Partial commit, per Peter's delegated decision** (ON-09 partial failure / ADM-10 receipt, not
+all-or-nothing): valid rows create entities, invalid or authorize-refused rows are recorded as
+`failed` receipts, all in one transaction — the job lands on `committed` or
+`committed_with_errors`. The per-row receipt is a new table `import_rows` (migration
+`0032_import_rows`: `outcome`, `created_entity_id`, `error_detail`, bound to its parent job by the
+composite `(organization_id, job_id)` foreign key so a receipt can never cite another tenant's
+job). `0032` also adds `committed_at` / `committed_count` / `failed_count` to `import_jobs` and
+reuses the existing `status` VARCHAR for the new terminal values (0028 reserved exactly this).
+Grants: `tmanage_app` gains `UPDATE` on `import_jobs` (the transition) and `INSERT` on `import_rows`
+(the receipt); `projects` already had `INSERT`.
+
+Status: **implemented**; unit-tested (`import-commit.test.ts`: all-valid → committed, mixed →
+committed_with_errors with a `failed` receipt, a per-row `project.create` denial recorded as a
+failure, non-committable/cross-tenant/source-kind refusals). CONTRACT-001: `ImportCommitView` is
+API-only this slice (EXEMPT in `scripts/contracts-check.mjs`, documented in
+`e2e/contracts/api-web-shapes.ts`); pair it when the ON-09 screen lands.
+
+**Known gap (deferred):** the commit creates projects through `ProjectsRepository` directly rather
+than `ProjectsService`, so a `project.created` audit event is **not** written per imported project
+(the manual create path writes one). Closing it means threading the audit writer through the
+import service; recorded here rather than widened into this slice.
+
+DB round-trip proof: `apps/api/test/import-002-commit.db.test.ts` (validate→commit persists
+projects + receipts, cross-tenant 404, re-commit 409) and `migrator.db.test.ts`
+(`0032: import_rows`) — executed only if the slice held `db-e2e.lock`, otherwise recorded
+UNEXECUTED in the x100 report.
+
+---
+
 ## 2026-09-19 — USAGE-001 slice 4c, the threshold mail + quiet-hours bypass (slice x74)
 
 Built on branch `x74-usage-threshold-mail` (off x68's HEAD `1526f6b`), **not merged**. Completes

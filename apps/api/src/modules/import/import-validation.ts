@@ -79,6 +79,29 @@ function valueFor(field: string, mapping: SourceMapping, row: SourceRow): unknow
   return row[column];
 }
 
+/**
+ * The target-field values one **validated** `project` row commits as.
+ *
+ * The commit half re-validates a batch and calls this only for rows that passed, so the two
+ * required strings are present and the date, when present, is well-formed. Trimmed to match
+ * what {@link requireBoundedString} accepts, so the stored name is the value that was validated
+ * rather than one with leading spaces the check ignored.
+ */
+export interface ProjectCommitValues {
+  readonly name: string;
+  readonly workspaceId: string;
+  /** `YYYY-MM-DD`, or omitted when the row maps no target date. */
+  readonly forecastAt?: string;
+}
+
+export function projectCommitValues(mapping: SourceMapping, row: SourceRow): ProjectCommitValues {
+  const name = String(valueFor('name', mapping, row)).trim();
+  const workspaceId = String(valueFor('workspaceId', mapping, row)).trim();
+  const rawDate = valueFor('targetDate', mapping, row);
+  const forecastAt = typeof rawDate === 'string' && rawDate !== '' ? rawDate : undefined;
+  return { name, workspaceId, ...(forecastAt === undefined ? {} : { forecastAt }) };
+}
+
 /** A required, non-empty, length-bounded string target field. */
 function requireBoundedString(
   field: string,

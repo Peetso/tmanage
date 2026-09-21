@@ -321,12 +321,18 @@ GRANT INSERT ON `tmanage`.`authentication_events` TO 'tmanage_app'@'%';
 -- `least-privilege.db.test.ts` will need the pair asserted the way the outbox's are.
 GRANT INSERT ON `tmanage`.`credential_change_notices` TO 'tmanage_app'@'%';
 
--- `import_jobs` (ON-09) gets INSERT and nothing else this slice. The validate/dry-run half is
--- the producer: it appends one attempt row per validation and never amends it, so UPDATE and
--- DELETE are withheld. `SELECT` it already holds database-wide (line 60), which the job read-back
--- uses. The commit half that transitions a job (e.g. to 'committed') will add UPDATE here and
--- assert the pair the way the outbox's are.
-GRANT INSERT ON `tmanage`.`import_jobs` TO 'tmanage_app'@'%';
+-- `import_jobs` (ON-09) gets INSERT for the validate/dry-run half (one attempt row per
+-- validation) and UPDATE for the commit half (x100): committing a validated job transitions its
+-- `status` to 'committed' / 'committed_with_errors' and stamps `committed_at` / `committed_count`
+-- / `failed_count` in place — a single UPDATE on an existing row, not a new one. DELETE stays
+-- withheld: an attempt, once recorded, is history. `SELECT` it already holds database-wide (line
+-- 60), which the job read-back uses.
+GRANT INSERT, UPDATE ON `tmanage`.`import_jobs` TO 'tmanage_app'@'%';
+-- `import_rows` (ON-09 commit half, x100) gets INSERT and nothing else. It is the per-row receipt
+-- (ADM-10): the commit appends one row per source row — created or failed — and never amends it,
+-- so UPDATE and DELETE are withheld the way the append-only ledgers above are. `SELECT` is the
+-- database-wide grant (line 60), which the receipt read-back uses.
+GRANT INSERT ON `tmanage`.`import_rows` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it
