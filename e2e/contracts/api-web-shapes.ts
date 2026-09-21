@@ -37,6 +37,7 @@ import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/s
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { ConvertMessageResultView as ApiConvertMessageResultView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
+import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -83,6 +84,7 @@ import type {
   MessageRevisionSummary as WebMessageRevisionSummary,
   MessageSummary as WebMessageSummary,
 } from '../../apps/web/src/lib/api/conversations';
+import type { DocumentView as WebDocumentView } from '../../apps/web/src/lib/api/documents';
 import type {
   InboxBundle as WebInboxBundle,
   InboxPage as WebInboxPage,
@@ -198,6 +200,14 @@ type _myDay = Assert<Exact<ApiMyDayView, WebMyDay>>;
  * `state` is the same `WORK_ITEM_STATES` union as the work list's.
  */
 type _workTimeline = Assert<Exact<ApiWorkTimelineView, WebWorkTimelineView>>;
+
+/**
+ * DOC-01 / DOC-03 (x106). `GET .../documents` (list) and `GET .../documents/:documentId` (read)
+ * return `DocumentView`; the `DocsHubScreen` and `DocumentViewScreen` read exactly that shape, so
+ * the pair is Exact. `organizationId` is on neither side — the API never echoes the tenant id
+ * into a response body. This retired x91's EXEMPT entry for `DocumentView`.
+ */
+type _document = Assert<Exact<ApiDocumentView, WebDocumentView>>;
 
 /** `ClientRequestView.state` ↔ the nine states of `23-ERD` §6. */
 type _clientRequest = Assert<Exact<ApiClientRequestView, WebClientRequestRecord>>;
@@ -323,12 +333,4 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  * listed in `scripts/contracts-check.mjs`'s EXEMPT with the "No web consumer" reason, the same
  * treatment `ProjectHealthView` (x86) has. Replace this note with an `Assert<Exact<…>>` pair when
  * the calendar screen and its `apps/web` shape land.
- */
-
-/**
- * DOC-01 (x91). `DocumentView` (`GET`/`POST …/documents`, request body + response) has no web
- * counterpart this slice — no docs screen exists yet — so it is not paired here but listed in
- * `scripts/contracts-check.mjs`'s EXEMPT with the "No web consumer" reason, the same treatment
- * `MeetingView` (x90) has. Replace this note with an `Assert<Exact<…>>` pair when the docs hub
- * screen (DOC-01) and its `apps/web` shape land.
  */
