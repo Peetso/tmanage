@@ -23,7 +23,11 @@ function mount(body: unknown, status = 200) {
   const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={query}>
-      <AdminAuditScreen organizationSlug="northstar" organizationName="Northstar Studio" client={client} />
+      <AdminAuditScreen
+        organizationSlug="northstar"
+        organizationName="Northstar Studio"
+        client={client}
+      />
     </QueryClientProvider>,
   );
 }
@@ -55,7 +59,8 @@ describe('AdminAuditScreen', () => {
   it('renders the filter form and a row per event, and is accessible', async () => {
     const { container } = mount(EVENTS);
 
-    expect(await screen.findByText('project.created')).toBeTruthy();
+    // An allowed event's summary equals its action, so the string appears twice (action + summary).
+    expect((await screen.findAllByText('project.created')).length).toBe(2);
     expect(screen.getByText('membership.revoked (denied)')).toBeTruthy();
     // A system-initiated event shows "system" rather than an empty actor cell.
     expect(screen.getByText('system')).toBeTruthy();

@@ -107,7 +107,10 @@ describe('AuditService.listForViewer', () => {
       row({ id: idAt(9), organizationId: OTHER_ORG, action: 'secret.thing' }),
     ]);
 
-    const events = await service.listForViewer(context, principal('owner', { hasOrgWideScope: true }));
+    const events = await service.listForViewer(
+      context,
+      principal('owner', { hasOrgWideScope: true }),
+    );
 
     // Newest (highest id) first; the foreign row is absent.
     expect(events.map((e) => e.id)).toEqual([idAt(3), idAt(1)]);
@@ -189,9 +192,9 @@ describe('AuditService.listForViewer', () => {
     const owner = principal('owner', { hasOrgWideScope: true });
 
     // A cross-tenant actorId is a filter, not a lookup: it resolves to nothing in this tenant.
-    await expect(
-      service.listForViewer(context, owner, { actorId: OTHER_ACTOR }),
-    ).resolves.toEqual([]);
+    await expect(service.listForViewer(context, owner, { actorId: OTHER_ACTOR })).resolves.toEqual(
+      [],
+    );
     // An unknown entityId likewise — no throw, no cross-tenant read.
     await expect(
       service.listForViewer(context, owner, { entityId: 'project-does-not-exist' }),

@@ -39,7 +39,11 @@ interface AppliedFilters {
  *    so a page boundary can never repeat or skip a row; a full page (`MAX_AUDIT_PAGE`) is the
  *    only signal that more may exist.
  */
-export function AdminAuditScreen({ organizationSlug, organizationName, client }: AdminAuditScreenProps) {
+export function AdminAuditScreen({
+  organizationSlug,
+  organizationName,
+  client,
+}: AdminAuditScreenProps) {
   const api = client ?? browserApiClient();
 
   const [actorInput, setActorInput] = useState('');
@@ -74,7 +78,11 @@ export function AdminAuditScreen({ organizationSlug, organizationName, client }:
       title="Audit log"
       description="Who did what in this organization, newest first."
     >
-      <form className="tm-stack tm-stack--tight" onSubmit={onApply} aria-label="Filter the audit log">
+      <form
+        className="tm-stack tm-stack--tight"
+        onSubmit={onApply}
+        aria-label="Filter the audit log"
+      >
         <Field
           label="Actor ID"
           value={actorInput}
