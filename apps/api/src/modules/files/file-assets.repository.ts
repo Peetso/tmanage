@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { uploadStateMachine, uuidv7 } from '@tmanage/domain';
 import type { Audience, UploadState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -570,6 +570,64 @@ export class FileAssetsRepository {
       .limit(1);
     const row = rows[0];
     return row ? { asset: row.asset, version: row.version ?? null } : null;
+  }
+
+  /**
+   * x114. The client-visible files attached to one deliverable, each with its **latest**
+   * version — the client portal's per-deliverable file list.
+   *
+   * Every predicate here is a security boundary, and each is in the query rather than a filter
+   * afterwards (`25-AUTH` §7's rule about never carrying an internal row you then remember to
+   * drop):
+   *
+   * - `organization_id` — the tenant, from the context.
+   * - `purpose = 'deliverable'` and `object_id = deliverableId` — the files of *this* deliverable
+   *   and no other row kind (`0016`'s purpose/object pairing).
+   * - `audience IN (client_visible, client_action_required)` — never an `internal` file. A
+   *   deliverable upload is `internal` by default (`purpose-policy.ts`); only a file explicitly
+   *   marked client-facing is a file "shared to the client".
+   * - `client_organization_id = clientOrganizationId` — `04-SECURITY-PRIVACY` §5: one client
+   *   never sees another client organization's file, even inside a project both can read.
+   * - `status = 'ready'` — `23-ERD` §10: a file is invisible until it is verified, scanned clean
+   *   and promoted. A draft, scanning or rejected asset is not a shared file.
+   *
+   * The join is the same correlated-latest shape as {@link findWithLatestVersion}; the version is
+   * present for every `ready` asset (an asset reaches `ready` only through a clean version), but
+   * it is typed nullable and the caller drops any row without one rather than assume it.
+   * Newest-first by `created_at`, then `id`, so the list is deterministic.
+   */
+  async listClientVisibleForDeliverable(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: { readonly deliverableId: string; readonly clientOrganizationId: string },
+  ): Promise<readonly { readonly asset: FileAssetRow; readonly version: FileVersionRow | null }[]> {
+    const clientAudiences: readonly Audience[] = ['client_visible', 'client_action_required'];
+    const rows = await tenantDrizzle(runner)
+      .select({ asset: fileAssets, version: fileVersions })
+      .from(fileAssets)
+      .leftJoin(
+        fileVersions,
+        and(
+          eq(fileVersions.organizationId, fileAssets.organizationId),
+          eq(fileVersions.fileAssetId, fileAssets.id),
+          eq(
+            fileVersions.versionNo,
+            sql`(select max(l.version_no) from file_versions l where l.organization_id = ${fileAssets.organizationId} and l.file_asset_id = ${fileAssets.id})`,
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.purpose, 'deliverable'),
+          eq(fileAssets.objectId, input.deliverableId),
+          inArray(fileAssets.audience, clientAudiences),
+          eq(fileAssets.clientOrganizationId, input.clientOrganizationId),
+          eq(fileAssets.status, 'ready'),
+        ),
+      )
+      .orderBy(desc(fileAssets.createdAt), desc(fileAssets.id));
+    return rows.map((row) => ({ asset: row.asset, version: row.version ?? null }));
   }
 
   /**

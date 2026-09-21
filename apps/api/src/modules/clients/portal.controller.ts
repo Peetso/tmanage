@@ -9,7 +9,13 @@ import {
 } from '../../common/http/tokens.js';
 import type { InvitationView, InvitationsService } from '../tenancy/invitations.service.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { PortalProjectView, PortalService, PortalWorkItemView } from './portal.service.js';
+import type {
+  PortalDeliverableFileView,
+  PortalDeliverableView,
+  PortalProjectView,
+  PortalService,
+  PortalWorkItemView,
+} from './portal.service.js';
 import type {
   ClientRequestClientView,
   ClientRequestsService,
@@ -77,6 +83,43 @@ export class PortalController {
         ...(projectId ? { projectId } : {}),
       }),
     };
+  }
+
+  /**
+   * The published deliverables the client may see in one project — x114, `CL-03`.
+   *
+   * `projectId` is in the path and resolved **tenant + client-membership scoped before** the
+   * projection is read (FAST-PROTOCOL Known trap): an unknown or cross-tenant id is a `404` from
+   * the service's `mayRead`, never a 500. Every field returned is from the x97 client-projection
+   * allowlist; an unpublished deliverable has no projection and so does not appear.
+   */
+  @Get('projects/:projectId/deliverables')
+  @RequireCapability('client_projection.read')
+  async deliverables(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<{ readonly deliverables: readonly PortalDeliverableView[] }> {
+    return { deliverables: await this.portal.deliverablesFor(context, principal, projectId) };
+  }
+
+  /**
+   * The client-visible files attached to one client-visible deliverable — x114, `CL-03`.
+   *
+   * `deliverableId` is resolved tenant-scoped first (its published projection), then its project
+   * is run through the client relation check; a deliverable a client cannot see — unknown,
+   * cross-tenant, unpublished, or another client's — is a `404`. Only `ready`, client-audience
+   * files scoped to the caller's own client organization are returned; the bytes are a later
+   * ticket (the download proxy).
+   */
+  @Get('deliverables/:deliverableId/files')
+  @RequireCapability('client_projection.read')
+  async deliverableFiles(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('deliverableId') deliverableId: string,
+  ): Promise<{ readonly files: readonly PortalDeliverableFileView[] }> {
+    return { files: await this.portal.filesForDeliverable(context, principal, deliverableId) };
   }
 
   /**
