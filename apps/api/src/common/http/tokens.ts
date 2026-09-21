@@ -107,3 +107,6 @@ export const IMPORT_SERVICE = Symbol.for('tmanage.ImportService');
 export const IMPORT_JOBS_REPOSITORY = Symbol.for('tmanage.ImportJobsRepository');
 /** INS-01. The insights read service — a read-only reporting surface over the `work` data. */
 export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');
+/** SRCH-01 (x111). Global tenant-scoped search over work items, documents and meetings. */
+export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
+export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');

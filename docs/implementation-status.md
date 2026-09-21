@@ -11873,6 +11873,39 @@ reason, the same treatment `MeetingView` (x90) has.
 
 ---
 
+## SRCH-01 — the first search slice (x111)
+
+Search was one of the large unbuilt surfaces the 2026-09-20 audit named: the `search.use`
+capability already existed in `CAPABILITIES` but **no `search` module or route existed anywhere**.
+This slice ships the smallest useful unit — one read that returns a unified, tenant-scoped result
+set the client renders. No migration and no schema change: it reads only tables already registered
+(`work_items`, `documents` 0030, `meetings` 0029).
+
+A new `apps/api/src/modules/search/` module (`search.module.ts`, `search.controller.ts`,
+`search.service.ts`, `search.repository.ts`) exposes `GET /v1/organizations/:orgSlug/search?q=&projectId?=&limit?=`
+behind `@RequireCapability('search.use')`. The repository runs a case-insensitive, tenant-scoped
+`LIKE` over the `title` columns of the three tables (their existing indexes; no full-text index or
+new table this slice). The service adds the security spine of a cross-module read: **every hit is
+relation-gated with `work.read` against the hit's own organization/project/audience** (the same
+resource the direct reads use — `meeting.read`/`doc.read` are declared ceiling-mirrors of
+`work.read`), so a search never surfaces an item the item's own direct read would deny. Results are
+deterministic (kind → title → id) and bounded (default 20, max 50, the x93/x98 precedent). An
+optional `projectId` filter is resolved tenant-scoped **before** the search (FAST-PROTOCOL
+Known-trap): an unknown or cross-tenant id is 404, not an empty set and never a 500.
+
+The web side ships a real consumer — `SearchScreen.tsx` (a search landmark, grouped accessible
+results, work-item hits linked to their detail page) at `/[orgSlug]/search`, plus
+`apps/web/src/lib/api/search.ts` — so `SearchResultView` is **paired Exact** with the web
+`SearchResult` in the contracts gate, not exempt. No capability, `authorize.ts`,
+`role-operation-grid` or `permission-matrix` change: `search.use` already exists and is
+internal-only, so a client principal never holds it and is refused at the guard.
+
+**Follow-ups (out of this slice):** ranking/relevance scoring, a full-text index,
+conversation/note bodies (so `snippet` is null this slice, title-only match), per-document and
+per-meeting deep links, a global search-bar nav entry, and AI answer synthesis → NEXT-SCOPES-9/10.
+
+---
+
 ## Component status
 
 | Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -12751,6 +12784,7 @@ team could use for a week:
 
 - 2026-09-20 — HOME-03 (My Day, slice x93): the acting user's own open work across every project, read-only over `work_items` by org+owner (ix_work_items_org_owner_state_due), behind `work.read`, ranked overdue → due-soon (by due_at) → the rest (by id); replaces the HOME-001 stub with `MyDayScreen`. Paged My Day, HOME-01 hero/Pulse/Focus, HOME-04 Waiting and HOME-05 Saved are the follow-ups.
 - 2026-09-20 — HOME-04 (Waiting, slice x98): the approvals-pending bucket only — the acting user's pending approvals across every project, read-only over `approvals` by org + pending-state (`requested`/`viewed`, `PENDING_APPROVAL_STATES`), filtered to rows where the user is in `reviewer_ids` (the reviewer relation, AUTH-08 — a non-reviewer never sees the approval) and re-checked with `approve.read`/`authorize`; behind `approval.read` (coarse route ceiling, reviewer relation the real gate); ranked not-yet-opened → opened (by requested-at, then id); adds a Waiting section to `MyDayScreen`. **Deferred:** the **delegated** bucket — `41-...-MATRIX` HOME-04's "work I delegated elsewhere" — is not representable: `work_items` has a single `owner_user_id` and no created-by/assignee column, so it is a data-model item for scoping (a Needs-Peter), not built here. Client-wait, stale-follow-up, HOME-01 hero/Pulse/Focus and HOME-05 Saved remain follow-ups.
+
 ---
 
 ## INS-01 — insights, first vertical slice: the delivery-flow read (x89)
