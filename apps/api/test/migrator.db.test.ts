@@ -799,6 +799,103 @@ describe('0032: import_rows applies and a job commits with a per-row receipt', (
   });
 });
 
+describe('0036: document_versions is tenant-scoped, append-only and forward-only', () => {
+  beforeAll(freshDatabase);
+
+  const id = (n: string) => `00000000-0000-4000-8000-0000000004${n}`;
+
+  it('applies, round-trips a scoped version, and refuses cross-tenant, mutation and identity change', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table has exactly the columns the Drizzle schema mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'document_versions'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'body',
+        'created_at',
+        'document_id',
+        'edited_by_user_id',
+        'id',
+        'organization_id',
+        'version_no',
+      ].sort(),
+    );
+    expect(String(byName.get('body')?.['type'])).toBe('text');
+    expect(String(byName.get('body')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('version_no')?.['nullable'])).toBe('NO');
+
+    // Minimal parents the composite FK requires: a project in a tenant, a user, and a document.
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'dv', 'DV')`, [
+      id('01'),
+    ]);
+    await connection.query(`INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`, [
+      id('02'),
+      id('01'),
+    ]);
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('03'), id('01'), id('02')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'dv@e.test', 'DV')`,
+      [id('04')],
+    );
+    await connection.query(
+      `INSERT INTO documents (id, organization_id, project_id, title, body, created_by_user_id)
+       VALUES (?, ?, ?, 'Brief', 'v0', ?)`,
+      [id('05'), id('01'), id('03'), id('04')],
+    );
+
+    // A tenant-scoped version insert/select round-trips, and the body is preserved.
+    await connection.query(
+      `INSERT INTO document_versions
+         (id, organization_id, document_id, version_no, body, edited_by_user_id)
+       VALUES (?, ?, ?, 1, 'first save', ?)`,
+      [id('06'), id('01'), id('05'), id('04')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT version_no AS v, body AS b FROM document_versions
+        WHERE organization_id = ? AND document_id = ? ORDER BY version_no DESC`,
+      [id('01'), id('05')],
+    );
+    expect(Number(rows[0]?.['v'])).toBe(1);
+    expect(String(rows[0]?.['b'])).toBe('first save');
+
+    // Forward-only: a second version at the same number for the same document is a duplicate-key
+    // error (the concurrency guard), not a silent second row.
+    await expect(
+      connection.query(
+        `INSERT INTO document_versions
+           (id, organization_id, document_id, version_no, body, edited_by_user_id)
+         VALUES (?, ?, ?, 1, 'clash', ?)`,
+        [id('07'), id('01'), id('05'), id('04')],
+      ),
+    ).rejects.toThrow(/[Dd]uplicate/);
+
+    // The composite foreign key refuses a document id from outside the version's tenant: the pair
+    // (a non-existent org, this document) does not exist even though the document id does. So a
+    // version can never reference another tenant's document.
+    await expect(
+      connection.query(
+        `INSERT INTO document_versions
+           (id, organization_id, document_id, version_no, body, edited_by_user_id)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, 1, 'x', ?)`,
+        [id('08'), id('05'), id('04')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // Immutable: the trigger refuses any UPDATE outright — history is append-only.
+    await expect(
+      connection.query(`UPDATE document_versions SET body = 'tamper' WHERE id = ?`, [id('06')]),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

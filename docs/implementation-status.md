@@ -11871,6 +11871,30 @@ event yet (needs a `doc.*` entry in the `AuditAction` catalog, a domain change);
 so `DocumentView` is listed in `scripts/contracts-check.mjs`'s EXEMPT with a "No web consumer"
 reason, the same treatment `MeetingView` (x90) has.
 
+## DOC-02 / DOC-03 — the document editor and version history (x112)
+
+The write half of the docs module, on top of DOC-01. Migration `0036_document_versions.sql` adds an
+append-only `document_versions` table (`id`, `organization_id`, `document_id`, `version_no`, `body`,
+`edited_by_user_id`, `created_at`) — a composite tenant FK to `documents (organization_id, id)`, a
+`(organization_id, document_id, version_no)` unique key that is both the newest-first list index and
+the racing-save concurrency guard, and a trigger that refuses every UPDATE so history is immutable.
+A new `document-versions.repository.ts` and four endpoints on `documents.controller.ts` expose
+`POST …/documents/:id/versions` and `POST …/documents/:id/restore` behind `@RequireCapability('doc.write')`,
+and `GET …/documents/:id/versions` plus `GET …/documents/:id/versions/:versionNo` behind
+`doc.read`. A save appends an immutable snapshot and bumps `documents.body` in one transaction (so
+the `documents` grant gains `UPDATE`; the 0030 trigger still pins the identity columns); restore is
+a **forward-append** — a new version equal to a prior snapshot, never a mutation of history. Every
+route resolves the document **tenant-scoped before** the relation check (Known-trap: org-wide caller
++ unknown/cross-tenant id → 404, no write), and `document_versions` is registered in `TENANT_TABLES`,
+`schema.ts` and the `users.sql` grant with a named `migrator.db.test.ts` 0036 case. Web:
+`DocumentEditorScreen.tsx` (edit + save, version list, compare pane, restore) at
+`/[orgSlug]/docs/[documentId]/edit`, disjoint from the DOC-01 hub/read screens (x106); its
+`DocumentVersionView` ↔ `DocumentVersionSummary` pair is Exact in the contracts gate. Deferred to
+NEXT-SCOPES-9: three-way merge/diff rendering, DOC-04 templates, client projection of docs.
+
+**Migration number:** the highest migration on this slice's base was 0032; 0033–0035 are reserved on
+other in-flight branches, so this is `0036` and the integrator renumbers if the merge order differs.
+
 ---
 
 ## Component status
