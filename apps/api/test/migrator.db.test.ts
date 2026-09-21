@@ -636,6 +636,121 @@ describe('0030: documents is a tenant-scoped, project-owned, forward-only table'
   });
 });
 
+describe('0034: saved_views is a tenant- and owner-scoped, forward-only table', () => {
+  beforeAll(freshDatabase);
+
+  it('applies, holds a scoped round-trip (project-scoped and org-wide), and refuses a cross-tenant or identity change', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'saved_views'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'config',
+        'created_at',
+        'id',
+        'name',
+        'organization_id',
+        'owner_user_id',
+        'project_id',
+        'shared',
+        'updated_at',
+      ].sort(),
+    );
+    // config is JSON; project_id is NULL-able (an org-wide view names no project); owner and org are not.
+    expect(String(byName.get('config')?.['type'])).toBe('json');
+    expect(String(byName.get('project_id')?.['nullable'])).toBe('YES');
+    expect(String(byName.get('owner_user_id')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'sv', 'S')`, [
+      id('c1'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('c2'), id('c1')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('c3'), id('c1'), id('c2')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'sv@e.test', 'S')`,
+      [id('c4')],
+    );
+
+    // A project-scoped view round-trips and its JSON config is preserved.
+    await connection.query(
+      `INSERT INTO saved_views (id, organization_id, owner_user_id, project_id, name, config, shared)
+       VALUES (?, ?, ?, ?, 'Scoped', ?, 1)`,
+      [
+        id('c5'),
+        id('c1'),
+        id('c4'),
+        id('c3'),
+        JSON.stringify({ filters: [], grouping: null, columns: ['title'] }),
+      ],
+    );
+    // An org-wide view (NULL project_id) is allowed — the composite FK skips a NULL under MATCH SIMPLE.
+    await connection.query(
+      `INSERT INTO saved_views (id, organization_id, owner_user_id, project_id, name, config, shared)
+       VALUES (?, ?, ?, NULL, 'Org-wide', ?, 0)`,
+      [id('c6'), id('c1'), id('c4'), JSON.stringify({ filters: [], grouping: null, columns: [] })],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT name, project_id AS pid, JSON_UNQUOTE(JSON_EXTRACT(config, '$.columns[0]')) AS col
+         FROM saved_views WHERE organization_id = ? AND id = ?`,
+      [id('c1'), id('c5')],
+    );
+    expect(rows[0]?.['name']).toBe('Scoped');
+    expect(rows[0]?.['pid']).toBe(id('c3'));
+    // JSON_UNQUOTE yields the string value the config remembers; mysql2 parses a bare
+    // JSON_EXTRACT result to the same string, so unquoting keeps the assertion driver-independent.
+    expect(String(rows[0]?.['col'])).toBe('title');
+
+    // The composite foreign key refuses a project id from outside the view's tenant: the pair
+    // (a non-existent org, this project) does not exist even though the project id does.
+    await expect(
+      connection.query(
+        `INSERT INTO saved_views (id, organization_id, owner_user_id, project_id, name, config, shared)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, ?, 'X', ?, 0)`,
+        [
+          id('c7'),
+          id('c4'),
+          id('c3'),
+          JSON.stringify({ filters: [], grouping: null, columns: [] }),
+        ],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // owner_user_id is immutable at the engine, not just in the application.
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'sv2@e.test', 'S2')`,
+      [id('c8')],
+    );
+    await expect(
+      connection.query(`UPDATE saved_views SET owner_user_id = ? WHERE id = ?`, [
+        id('c8'),
+        id('c5'),
+      ]),
+    ).rejects.toThrow(/immutable/);
+
+    // organization_id is immutable too.
+    await expect(
+      connection.query(
+        `UPDATE saved_views SET organization_id = 'ffffffff-0000-4000-8000-000000000001' WHERE id = ?`,
+        [id('c5')],
+      ),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

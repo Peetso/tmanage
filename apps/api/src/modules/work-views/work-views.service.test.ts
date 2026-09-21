@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { WorkViewsService } from './work-views.service.js';
+import type { SavedViewInput } from './work-views.service.js';
 import type { TimelineItemRow, WorkTimelineRepository } from './timeline.repository.js';
+import type {
+  CreateSavedViewInput,
+  SavedViewsRepository,
+  UpdateSavedViewInput,
+} from './saved-views.repository.js';
 import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
+import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { WorkItemRow } from '../../common/database/schema.js';
+import type { ProjectRow, SavedViewRow, WorkItemRow } from '../../common/database/schema.js';
 
 /**
  * WK-04 Work timeline: `projectTimeline` composes the work + work-graph reads into an ordered,
@@ -150,5 +157,241 @@ describe('WorkViewsService.projectTimeline', () => {
     const view = await service.projectTimeline(context, member([PROJECT]), PROJECT);
 
     expect(view).toEqual({ projectId: PROJECT, items: [] });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WK-08 saved views (x107): create / update / list over fakes, with the real ownership
+// rule and the Known-trap project resolution. Database-free proofs; the repository's tenant
+// scoping is DB-proven in work-008-saved-views.db.test.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OWNER = 'user-0000-0000-0000-0000-000000000001';
+const OTHER_USER = 'user-0000-0000-0000-0000-000000000002';
+
+const SAMPLE_CONFIG: SavedViewInput['config'] = {
+  filters: [{ field: 'state', value: 'in_progress' }],
+  grouping: null,
+  columns: ['title', 'state'],
+};
+
+/** A member of `PROJECT`, org-wide scope off — the ordinary caller. */
+function ownerMember(): Principal {
+  return { ...member([PROJECT]), userId: OWNER };
+}
+
+/** An org-wide caller (passes the relation gate) — the Known-trap's subject. */
+function orgWideCaller(): Principal {
+  return { ...member([]), userId: OWNER, role: 'owner', hasOrgWideScope: true };
+}
+
+/** An in-memory saved-views repository: enough of the real one to prove the service's rules. */
+class FakeSavedViews {
+  readonly rows: SavedViewRow[] = [];
+  createCalls = 0;
+  updateCalls = 0;
+
+  seed(row: Partial<SavedViewRow>): SavedViewRow {
+    const full = savedViewRow(row);
+    this.rows.push(full);
+    return full;
+  }
+
+  async findById(_r: unknown, _c: unknown, id: string): Promise<SavedViewRow | null> {
+    return this.rows.find((row) => row.id === id) ?? null;
+  }
+
+  async listForViewer(_r: unknown, _c: unknown, viewer: string): Promise<readonly SavedViewRow[]> {
+    return this.rows
+      .filter((row) => row.ownerUserId === viewer || row.shared)
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1));
+  }
+
+  async create(_r: unknown, _c: unknown, input: CreateSavedViewInput): Promise<SavedViewRow> {
+    this.createCalls += 1;
+    const row = savedViewRow({
+      id: `saved-000000000000-0000-00000000000${this.rows.length + 1}`,
+      ownerUserId: input.ownerUserId,
+      projectId: input.projectId,
+      name: input.name,
+      config: input.config,
+      shared: input.shared,
+    });
+    this.rows.push(row);
+    return row;
+  }
+
+  async update(
+    _r: unknown,
+    _c: unknown,
+    id: string,
+    input: UpdateSavedViewInput,
+  ): Promise<SavedViewRow> {
+    this.updateCalls += 1;
+    const existing = this.rows.find((row) => row.id === id);
+    if (!existing) throw new Error(`no such row ${id}`);
+    const updated = savedViewRow({ ...existing, ...input });
+    this.rows.splice(this.rows.indexOf(existing), 1, updated);
+    return updated;
+  }
+}
+
+function savedViewRow(overrides: Partial<SavedViewRow>): SavedViewRow {
+  return {
+    id: 'saved-000000000000-0000-000000000001',
+    organizationId: ORG,
+    ownerUserId: OWNER,
+    projectId: null,
+    name: 'My view',
+    config: SAMPLE_CONFIG,
+    shared: false,
+    createdAt: DAY_ONE,
+    updatedAt: DAY_ONE,
+    ...overrides,
+  } as SavedViewRow;
+}
+
+/** A service wired to fakes: `project` is what `ProjectsRepository.findById` returns (or null). */
+function savedViewService(project: ProjectRow | null): {
+  service: WorkViewsService;
+  saved: FakeSavedViews;
+} {
+  const database = {
+    read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+    transaction: async (_context: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
+  } as unknown as TenantDatabase;
+  const saved = new FakeSavedViews();
+  const projects = { findById: async () => project } as unknown as ProjectsRepository;
+  const service = new WorkViewsService(
+    database,
+    {} as unknown as WorkTimelineRepository,
+    saved as unknown as SavedViewsRepository,
+    projects,
+  );
+  return { service, saved };
+}
+
+const PROJECT_ROW = { id: PROJECT, organizationId: ORG } as unknown as ProjectRow;
+
+describe('WorkViewsService saved views', () => {
+  it('persists the caller’s own view and lists it back (org-wide, no project)', async () => {
+    const { service } = savedViewService(null);
+    const input: SavedViewInput = {
+      projectId: null,
+      name: 'My view',
+      config: SAMPLE_CONFIG,
+      shared: false,
+    };
+
+    const created = await service.createSavedView(context, ownerMember(), input);
+    expect(created.ownerUserId).toBe(OWNER);
+    expect(created.projectId).toBeNull();
+    expect(created.config).toEqual(SAMPLE_CONFIG);
+
+    const listed = await service.listSavedViews(context, ownerMember());
+    expect(listed.map((view) => view.id)).toEqual([created.id]);
+  });
+
+  it('lists a colleague’s shared view but not their private one', async () => {
+    const { service, saved } = savedViewService(null);
+    saved.seed({ id: 'saved-a', ownerUserId: OTHER_USER, name: 'Shared', shared: true });
+    saved.seed({ id: 'saved-b', ownerUserId: OTHER_USER, name: 'Private', shared: false });
+    saved.seed({ id: 'saved-c', ownerUserId: OWNER, name: 'Mine', shared: false });
+
+    const listed = await service.listSavedViews(context, ownerMember());
+    const ids = listed.map((view) => view.id);
+    expect(ids).toContain('saved-a');
+    expect(ids).toContain('saved-c');
+    expect(ids).not.toContain('saved-b');
+  });
+
+  it('resolves an unknown/cross-tenant project to 404 with no write, even for an org-wide caller (Known-trap)', async () => {
+    const { service, saved } = savedViewService(null); // findById → null: unknown or cross-tenant.
+    const input: SavedViewInput = {
+      projectId: PROJECT,
+      name: 'Scoped',
+      config: SAMPLE_CONFIG,
+      shared: false,
+    };
+
+    await expect(service.createSavedView(context, orgWideCaller(), input)).rejects.toMatchObject({
+      status: 404,
+      code: 'not_found',
+    });
+    expect(saved.createCalls).toBe(0);
+  });
+
+  it('refuses to scope a view to a project the caller cannot read (404, no write)', async () => {
+    const { service, saved } = savedViewService(PROJECT_ROW);
+    // A member of no project: the project exists in the tenant but the relation gate denies read.
+    const stranger: Principal = { ...member([]), userId: OWNER };
+    const input: SavedViewInput = {
+      projectId: PROJECT,
+      name: 'Scoped',
+      config: SAMPLE_CONFIG,
+      shared: false,
+    };
+
+    await expect(service.createSavedView(context, stranger, input)).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(saved.createCalls).toBe(0);
+  });
+
+  it('lets the owner edit their own view', async () => {
+    const { service, saved } = savedViewService(null);
+    const seeded = saved.seed({ id: 'saved-own', ownerUserId: OWNER, name: 'Before' });
+
+    const updated = await service.updateSavedView(context, ownerMember(), seeded.id, {
+      projectId: null,
+      name: 'After',
+      config: SAMPLE_CONFIG,
+      shared: true,
+    });
+    expect(updated.name).toBe('After');
+    expect(updated.shared).toBe(true);
+    expect(saved.updateCalls).toBe(1);
+  });
+
+  it('refuses an off-owner edit at the object layer (403 for a shared view, no write)', async () => {
+    const { service, saved } = savedViewService(null);
+    saved.seed({ id: 'saved-theirs', ownerUserId: OTHER_USER, name: 'Theirs', shared: true });
+
+    await expect(
+      service.updateSavedView(context, ownerMember(), 'saved-theirs', {
+        projectId: null,
+        name: 'Hijack',
+        config: SAMPLE_CONFIG,
+        shared: true,
+      }),
+    ).rejects.toMatchObject({ status: 403, code: 'forbidden' });
+    expect(saved.updateCalls).toBe(0);
+  });
+
+  it('hides a private view the caller does not own behind a 404 on edit (no write)', async () => {
+    const { service, saved } = savedViewService(null);
+    saved.seed({ id: 'saved-hidden', ownerUserId: OTHER_USER, name: 'Hidden', shared: false });
+
+    await expect(
+      service.updateSavedView(context, ownerMember(), 'saved-hidden', {
+        projectId: null,
+        name: 'Peek',
+        config: SAMPLE_CONFIG,
+        shared: false,
+      }),
+    ).rejects.toMatchObject({ status: 404, code: 'not_found' });
+    expect(saved.updateCalls).toBe(0);
+  });
+
+  it('returns 404 when the view does not exist in the tenant', async () => {
+    const { service } = savedViewService(null);
+    await expect(
+      service.updateSavedView(context, ownerMember(), 'saved-missing', {
+        projectId: null,
+        name: 'X',
+        config: SAMPLE_CONFIG,
+        shared: false,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
   });
 });

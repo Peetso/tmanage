@@ -62,6 +62,7 @@ import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
+import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
@@ -118,6 +119,7 @@ import type {
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
+import type { SavedViewView as WebSavedViewView } from '../../apps/web/src/lib/api/work-views';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -198,6 +200,13 @@ type _myDay = Assert<Exact<ApiMyDayView, WebMyDay>>;
  * `state` is the same `WORK_ITEM_STATES` union as the work list's.
  */
 type _workTimeline = Assert<Exact<ApiWorkTimelineView, WebWorkTimelineView>>;
+
+/**
+ * WK-08 (x107). `GET/POST .../work-views/saved` and `PUT .../work-views/saved/:id` — the saved
+ * Work view. `WorkSavedViewsScreen` reads exactly this response (config included), so the pair is
+ * Exact; the nested `config` is the same filter/grouping/columns shape on both sides.
+ */
+type _savedView = Assert<Exact<ApiSavedViewView, WebSavedViewView>>;
 
 /** `ClientRequestView.state` ↔ the nine states of `23-ERD` §6. */
 type _clientRequest = Assert<Exact<ApiClientRequestView, WebClientRequestRecord>>;

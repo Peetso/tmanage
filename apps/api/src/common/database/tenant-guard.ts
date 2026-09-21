@@ -137,6 +137,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `SELECT ... FROM documents` would be every studio's knowledge base on the server. The guard
   // must scope its reads and its writes.
   documents: 'organization_id',
+  // WK-08 (x107). Tenant-owned: a saved view belongs to a studio and a person, and an unscoped
+  // `SELECT ... FROM saved_views` would be every studio's saved Work views on the server. The
+  // guard must scope its reads and its writes.
+  saved_views: 'organization_id',
 });
 
 /**

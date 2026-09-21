@@ -6786,9 +6786,20 @@ can adopt it verbatim when it catches up.
    It returns a project's items with `startAt`/`dueAt` and each item's readable predecessor ids,
    ordered by start, then due, then id; cross-tenant and unreadable predecessors are redacted by
    the same `authorize('work.read')` rule the health signal uses. `WorkTimelineScreen` renders the
-   accessible list (WK-04's "accessible list"); the Gantt canvas, WK-06 Workload, WK-07 Forms,
-   WK-08 Saved views and the calendar view remain follow-ups. Capability `work.read` is **reused**
+   accessible list (WK-04's "accessible list"); the Gantt canvas, WK-07 Forms and the calendar view
+   remain follow-ups. Capability `work.read` is **reused**
    (a dedicated work-views capability is deferred, off the shared capability files).
+
+7. **WK-08 Saved views is built as persist / list / apply** (x107) — the same `work-views` module
+   gains a `saved_views` table (migration 0034), owner- and tenant-scoped, with a NULL-able
+   `project_id` (a view is project-scoped or org-wide), a JSON `config` (filters/grouping/columns)
+   and a private/shared flag. `POST/GET …/work-views/saved` and `PUT …/work-views/saved/:id` sit
+   behind the reused `work.read` capability; the write is authorized object-layer as the acting
+   user editing their **own** view (owner_user_id = principal), and a project a view names is
+   resolved tenant-scoped before that check so an unknown/cross-tenant id is a 404, never a 500.
+   Apply is the client's: `config` is echoed back to drive the existing list/board reads.
+   `WorkSavedViewsScreen` is the editor. Cross-user share governance beyond own-org + the flag, and
+   column-level ACLs, are deferred (NEXT-SCOPES-9).
 
 ---
 

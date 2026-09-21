@@ -311,6 +311,55 @@ export const documents = mysqlTable(
   ],
 );
 
+/** One remembered filter: a field name and the value the saved view pins it to. */
+export interface SavedViewFilter {
+  readonly field: string;
+  readonly value: string;
+}
+
+/**
+ * WK-08. The filter/grouping/columns configuration a saved view remembers. It is echoed back to
+ * the client to drive the *existing* list/board reads — this slice adds no server-side filtering
+ * beyond what WORK-001/WORK-003 already expose — so it is stored, not interpreted, here.
+ */
+export interface SavedViewConfig {
+  readonly filters: readonly SavedViewFilter[];
+  /** The field the view groups by, or `null` for a flat list. */
+  readonly grouping: string | null;
+  /** The columns the view shows, in order. */
+  readonly columns: readonly string[];
+}
+
+/**
+ * WK-08 (x107). A saved Work view — a named, reusable filter/grouping/columns configuration.
+ *
+ * Owner- and tenant-scoped: `ownerUserId` is who may edit it and `organizationId` scopes it to
+ * the studio. `projectId` is NULL-able — a view is scoped to one project or is an org-wide view.
+ * `config` is the remembered configuration, echoed to the client rather than interpreted here.
+ * `shared` is a single flag (private to the owner, or visible to the owning studio); column-level
+ * ACLs and cross-org sharing are NEXT-SCOPES-9. `0034_saved_views.sql` is the source of truth;
+ * this is its typed mirror.
+ */
+export const savedViews = mysqlTable(
+  'saved_views',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    ownerUserId: char('owner_user_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    name: varchar('name', { length: 300 }).notNull(),
+    config: json('config').$type<SavedViewConfig>().notNull(),
+    shared: boolean('shared').notNull().default(false),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_saved_views_org_id').on(table.organizationId, table.id),
+    index('ix_saved_views_org_owner').on(table.organizationId, table.ownerUserId, table.id),
+    index('ix_saved_views_org_shared').on(table.organizationId, table.shared, table.id),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1464,6 +1513,7 @@ export const TABLES = {
   authentication_events: authenticationEvents,
   credential_change_notices: credentialChangeNotices,
   import_jobs: importJobs,
+  saved_views: savedViews,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -1492,6 +1542,7 @@ export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
+export type SavedViewRow = typeof savedViews.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
