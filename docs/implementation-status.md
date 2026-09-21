@@ -70,6 +70,11 @@ several were in fact already resolved in later dated sections of this file (note
 - **x85** (`d6ccc9a`): scheduled `sweep:invitations` worker job; `tmanage_worker` `SELECT, UPDATE` on
   `invitations`.
 - **x86** (`8365bad`): project-level health roll-up read, behind `work.read`.
+- **x115** (branch `x115-admin-audit-viewer`, off `master` `10aab0c`, PENDING — not merged): ADM
+  audit-event viewer — `GET .../audit/events` behind `audit.read`, tenant-scoped, keyset-paginated
+  (default 20 / max 50), narrow `AdminAuditEventView` (no metadata/correlationId) + `AdminAuditScreen`.
+  No migration, no DB change (`audit_events` already registered; `tmanage_app` already holds
+  database-wide `SELECT`). Cross-tenant exclusion unit-proven; contract paired Exact.
 
 Earlier:
 

@@ -88,6 +88,68 @@ function toView(row: AuditEventRow): AuditEventView {
   };
 }
 
+/**
+ * ADM audit-viewer (x115). The narrow projection the Administration audit screen renders.
+ *
+ * Deliberately **narrower** than {@link AuditEventView}: it carries neither `metadata` nor
+ * `correlationId` nor `effectiveActorId`. The rich view is safe by construction, but the viewer
+ * is a broad, admin-facing list and the metadata column is the one place a producer's payload
+ * lands — the x49/x58 OBS-001 redaction rule keeps request bodies, tokens and secrets out of a
+ * broad read, so this projection omits the column entirely rather than trusting each writer. Every
+ * field here is a stable identifier or a derived, non-sensitive `summary`; nothing a caller could
+ * not already infer from the action they are entitled to see.
+ */
+export interface AdminAuditEventView {
+  readonly id: string;
+  /** The server's commit time, ISO-8601. `AuditEventView.createdAt` under the viewer's name. */
+  readonly occurredAt: string;
+  /** Who acted, or `null` for a system-initiated event. */
+  readonly actorId: string | null;
+  readonly action: string;
+  /** The kind of object the action names — `AuditEventView.objectType`. */
+  readonly entityType: string;
+  /** The object the action names, or `null` when the action is not about a row. */
+  readonly entityId: string | null;
+  /** A one-line, non-sensitive gloss derived from the action and its result. */
+  readonly summary: string;
+}
+
+/**
+ * The viewer's inputs. `actorId`/`entityId` are the caller's own vocabulary for the columns the
+ * repository filters on (`actorUserId`/`objectId`); `before` is the keyset cursor and `limit` is
+ * bounded by {@link AuditService.listForViewer}, not here. Named `…Options`, so the contracts gate
+ * treats it as request-side and never enumerates it as a response shape.
+ */
+export interface AuditViewerListOptions {
+  readonly limit?: number;
+  readonly before?: string;
+  readonly actorId?: string;
+  readonly entityId?: string;
+}
+
+/**
+ * Narrow a rich {@link AuditEventView} to the {@link AdminAuditEventView} the viewer renders.
+ *
+ * The `summary` is derived here rather than stored: an allowed event reads as its action, a
+ * non-allowed one names its result in parentheses so a denial is legible at a glance in the list.
+ * It carries no metadata, so it cannot leak what the projection deliberately dropped.
+ */
+function toAdminAuditView(view: AuditEventView): AdminAuditEventView {
+  return {
+    id: view.id,
+    occurredAt: view.createdAt,
+    actorId: view.actorUserId,
+    action: view.action,
+    entityType: view.objectType,
+    entityId: view.objectId,
+    summary: view.result === 'allowed' ? view.action : `${view.action} (${view.result})`,
+  };
+}
+
+/** The viewer's page size — bounded far below the repository's ceiling. `x93`/`x98` precedent. */
+const VIEWER_DEFAULT_PAGE_SIZE = 20;
+const VIEWER_MAX_PAGE_SIZE = 50;
+
 /** What the exception filter knows about a refusal. Not a domain event; a security one. */
 export interface DenialRecord {
   /** The capability the route declared, when it declared one. */
@@ -187,6 +249,44 @@ export class AuditService {
       this.events.list(runner, context, scoped),
     );
     return rows.map(toView);
+  }
+
+  /**
+   * The Administration audit viewer — ADM (x115). A tenant-scoped, keyset-paginated, newest-first
+   * read behind `audit.read`, projected to the narrow {@link AdminAuditEventView}.
+   *
+   * It composes {@link view} rather than re-querying: the capability gate (403 for a caller
+   * without `audit.read`), the tenant scoping and the own-activity narrowing for a non-org-wide
+   * caller all live there and are not restated here. Two things are this method's own:
+   *
+   *   - **The page is bounded to the viewer's ceiling**, `[1, 50]` with a default of 20 — narrower
+   *     than the repository's own `[1, 200]`, because a broad admin list should not fetch a page
+   *     that large in one read (`x93`/`x98` bounded-list precedent).
+   *   - **The filters are tenant-safe by construction.** `actorId`/`entityId` become the
+   *     repository's `actorUserId`/`objectId` equality predicates, each `AND`ed onto the
+   *     non-optional tenant predicate. An unknown or cross-tenant filter id therefore yields an
+   *     empty page — never a cross-tenant row and never a 500 — because there is no id resolution
+   *     to miss (FAST-PROTOCOL Known trap): the id is a filter, not a lookup.
+   */
+  async listForViewer(
+    context: TenantContext,
+    principal: Principal,
+    options: AuditViewerListOptions = {},
+  ): Promise<readonly AdminAuditEventView[]> {
+    const limit = Math.min(
+      Math.max(options.limit ?? VIEWER_DEFAULT_PAGE_SIZE, 1),
+      VIEWER_MAX_PAGE_SIZE,
+    );
+
+    const listOptions: ListAuditEventsOptions = {
+      limit,
+      ...(options.before ? { before: options.before } : {}),
+      ...(options.actorId ? { actorUserId: options.actorId } : {}),
+      ...(options.entityId ? { objectId: options.entityId } : {}),
+    };
+
+    const rows = await this.view(context, principal, listOptions);
+    return rows.map(toAdminAuditView);
   }
 
   /** Everything recorded about one object, subject to the same narrowing as {@link view}. */
