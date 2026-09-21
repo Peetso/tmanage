@@ -24,6 +24,7 @@ import { NotificationPreferencesModule } from './modules/notifications/notificat
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { DocsModule } from './modules/docs/docs.module.js';
+import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -165,6 +166,11 @@ export class AppModule {
         // a document names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
         DocsModule.register(),
+        // DEC-01 (x113). The cross-meeting decision register. After `ProjectsModule` and
+        // `CalendarModule` for the same reason: a decision names a project and, optionally, a
+        // meeting, and the composite foreign keys mean a caller who names one that is not theirs
+        // gets a refusal rather than a foreign-key 500.
+        DecisionsModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
         // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the

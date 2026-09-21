@@ -104,7 +104,7 @@
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
 --   · `INSERT, DELETE` on: work_item_dependencies
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
---     authentication_events, usage_ledger_entries, meetings, documents
+--     authentication_events, usage_ledger_entries, meetings, documents, decisions
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -333,6 +333,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`import_jobs` TO 'tmanage_app'@'%';
 -- so UPDATE and DELETE are withheld the way the append-only ledgers above are. `SELECT` is the
 -- database-wide grant (line 60), which the receipt read-back uses.
 GRANT INSERT ON `tmanage`.`import_rows` TO 'tmanage_app'@'%';
+-- `decisions` (DEC-01, x113) gets INSERT and nothing else. A decision is authored (INSERT) and
+-- read (the database-wide SELECT, line 60); this slice has no edit surface and the row is
+-- append-only (the 0037 trigger refuses every UPDATE at the engine), so UPDATE and DELETE are
+-- withheld the way `meetings`, `documents` and the append-only ledgers above are. When the
+-- decision lifecycle lands (NEXT-SCOPES-9) the columns it may change get their UPDATE then.
+GRANT INSERT ON `tmanage`.`decisions` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

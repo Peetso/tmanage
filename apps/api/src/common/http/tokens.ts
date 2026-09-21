@@ -55,6 +55,9 @@ export const MEETINGS_SERVICE = Symbol.for('tmanage.MeetingsService');
 /** DOC-01 (x91). The docs module's document read/write. */
 export const DOCUMENTS_REPOSITORY = Symbol.for('tmanage.DocumentsRepository');
 export const DOCUMENTS_SERVICE = Symbol.for('tmanage.DocumentsService');
+/** DEC-01 (x113). The decisions module's decision register author/list. */
+export const DECISIONS_REPOSITORY = Symbol.for('tmanage.DecisionsRepository');
+export const DECISIONS_SERVICE = Symbol.for('tmanage.DecisionsService');
 export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepository');
 export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService');
 /** FR-05 (x92). The approvals aggregate — deliverable versions and the decide path. */

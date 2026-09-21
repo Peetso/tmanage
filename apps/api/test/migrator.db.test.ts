@@ -799,6 +799,116 @@ describe('0032: import_rows applies and a job commits with a per-row receipt', (
   });
 });
 
+describe('0037: decisions is a tenant-scoped, project-owned, append-only register', () => {
+  beforeAll(freshDatabase);
+
+  const id = (n: string) => `00000000-0000-4000-8000-0000000037${n}`;
+
+  it('applies, round-trips, guards the nullable meeting link, and refuses any update', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'decisions'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'created_at',
+        'decided_at',
+        'decided_by',
+        'id',
+        'meeting_id',
+        'organization_id',
+        'project_id',
+        'statement',
+        'status',
+        'title',
+      ].sort(),
+    );
+    // A decision's statement is prose a person types — TEXT, and NOT NULL like documents.body.
+    expect(String(byName.get('statement')?.['type'])).toBe('text');
+    expect(String(byName.get('statement')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('status')?.['type'])).toBe('enum');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('project_id')?.['nullable'])).toBe('NO');
+    // The meeting link is optional.
+    expect(String(byName.get('meeting_id')?.['nullable'])).toBe('YES');
+
+    // Minimal parents the composite FKs require.
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'dec', 'D')`, [
+      id('01'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('02'), id('01')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('03'), id('01'), id('02')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'dec@e.test', 'D')`,
+      [id('04')],
+    );
+    await connection.query(
+      `INSERT INTO meetings (id, organization_id, project_id, title, starts_at, created_by_user_id)
+       VALUES (?, ?, ?, 'M', '2026-10-01 14:00:00.000', ?)`,
+      [id('05'), id('01'), id('03'), id('04')],
+    );
+
+    // A tenant-scoped insert/select round-trips, with the meeting linked.
+    await connection.query(
+      `INSERT INTO decisions
+         (id, organization_id, project_id, meeting_id, title, statement, status, decided_by, decided_at)
+       VALUES (?, ?, ?, ?, 'Ship v1', 'we ship', 'accepted', ?, '2026-06-01 09:00:00.000')`,
+      [id('06'), id('01'), id('03'), id('05'), id('04')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT title, status, meeting_id FROM decisions WHERE organization_id = ? AND id = ?`,
+      [id('01'), id('06')],
+    );
+    expect(rows[0]?.['title']).toBe('Ship v1');
+    expect(rows[0]?.['status']).toBe('accepted');
+    expect(rows[0]?.['meeting_id']).toBe(id('05'));
+
+    // A decision with no meeting is allowed — the nullable half of the composite key is not checked.
+    await connection.query(
+      `INSERT INTO decisions
+         (id, organization_id, project_id, title, statement, status, decided_by, decided_at)
+       VALUES (?, ?, ?, 'No meeting', 'decided by email', 'proposed', ?, '2026-06-02 09:00:00.000')`,
+      [id('07'), id('01'), id('03'), id('04')],
+    );
+
+    // The composite foreign key refuses a project id from outside the decision's tenant.
+    await expect(
+      connection.query(
+        `INSERT INTO decisions
+           (id, organization_id, project_id, title, statement, status, decided_by, decided_at)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, 'X', 'y', 'proposed', ?, '2026-06-02 09:00:00.000')`,
+        [id('08'), id('03'), id('04')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // A non-null meeting id that does not exist in this tenant is refused by the guarded composite.
+    await expect(
+      connection.query(
+        `INSERT INTO decisions
+           (id, organization_id, project_id, meeting_id, title, statement, status, decided_by, decided_at)
+         VALUES (?, ?, ?, 'ffffffff-0000-4000-8000-000000000002', 'X', 'y', 'proposed', ?, '2026-06-02 09:00:00.000')`,
+        [id('09'), id('01'), id('03'), id('04')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // Append-only: the trigger refuses any UPDATE outright.
+    await expect(
+      connection.query(`UPDATE decisions SET status = 'superseded' WHERE id = ?`, [id('06')]),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

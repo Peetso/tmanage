@@ -311,6 +311,45 @@ export const documents = mysqlTable(
   ],
 );
 
+/**
+ * DEC-01 (x113). The statuses a decision on the register may hold. Set at creation this slice; the
+ * transitions between them are the deferred lifecycle (NEXT-SCOPES-9). `0037_decisions.sql` is the
+ * source of truth; this mirrors its `ENUM`.
+ */
+export const DECISION_STATUSES = ['proposed', 'accepted', 'superseded'] as const;
+
+/**
+ * DEC-01 (x113). A project's decision register — the cross-meeting record of what a project has
+ * decided: a title, the decision in words, its status, who took it and when, and an optional link to
+ * the meeting it was taken in.
+ *
+ * Tenant-scoped and project-owned like `meetings` (0029) and `documents` (0030). `meetingId` is
+ * nullable — a decision may be taken outside any meeting — and, when set, is bound to the same
+ * tenant by the composite foreign key. `decidedAt` is a `DATETIME(3)` instant like
+ * `meetings.startsAt`, not a calendar `DATE`. Append-only this slice (no edit surface); the
+ * lifecycle (status transitions, supersede edges, linked actions) is a later slice.
+ * `0037_decisions.sql` is the source of truth; this is its typed mirror.
+ */
+export const decisions = mysqlTable(
+  'decisions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }),
+    title: varchar('title', { length: 300 }).notNull(),
+    statement: text('statement').notNull(),
+    status: mysqlEnum('status', DECISION_STATUSES).notNull().default('proposed'),
+    decidedBy: char('decided_by', { length: 36 }).notNull(),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_decisions_org_id').on(table.organizationId, table.id),
+    index('ix_decisions_org_project').on(table.organizationId, table.projectId, table.decidedAt),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1598,6 +1637,7 @@ export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
+export type DecisionRow = typeof decisions.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
