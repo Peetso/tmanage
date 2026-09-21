@@ -113,10 +113,9 @@ const EXEMPT = new Map([
     'DocumentView',
     'No web consumer: DOC-01 (x91) ships the API document read/write with no screen this slice; pair when the docs hub screen lands (x91 follow-up).',
   ],
-  [
-    'MeetingNoteView',
-    'No web consumer: CAL-01/MTG-01 second slice (x105) ships the API meeting notes/decisions capture+read with no screen this slice; pair when the calendar/meeting screen lands (x105-b follow-up).',
-  ],
+  // MeetingNoteView (CAL-01/MTG-01 second slice, x105) was exempt here while the API read had no
+  // screen. x108 ships MeetingNotesScreen and pairs it Exact in e2e/contracts/api-web-shapes.ts, so
+  // the entry was retired — the shape is now paired, not exempt.
 ]);
 
 /**
