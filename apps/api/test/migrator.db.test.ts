@@ -703,6 +703,9 @@ describe('0031: client_projections is tenant-scoped, append-only and immutable',
         id('07'),
       ]),
     ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('0032: import_rows applies and a job commits with a per-row receipt', () => {
   beforeAll(freshDatabase);
 
