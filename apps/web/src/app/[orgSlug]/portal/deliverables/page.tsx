@@ -1,16 +1,18 @@
 'use client';
 
 import { use } from 'react';
-import { PlannedPortalScreen } from '../../../../components/screens/PlannedPortalScreen';
+import { ClientPortalDeliverablesScreen } from '../../../../components/screens/ClientPortalDeliverablesScreen';
 import { FIXTURE_CLIENT_NAME, FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
 
 /**
- * **Deliverables** — the third destination on the client portal nav (`22-SCREEN-BY-SCREEN` §1).
+ * **CL-03 Deliverables** — the third destination on the client portal nav (`22-SCREEN-BY-SCREEN` §1).
  *
- * The client's deliverables are the allowlisted projection `PUB-001` builds from the internal
- * deliverable record; that projection does not exist yet, so this route names `PUB-001` and
- * shows no deliverables rather than reusing the internal work-item list, which would leak the
- * internal view the projection exists to withhold.
+ * The client's deliverables are the allowlisted x97 projection each `deliverable.publish` freezes
+ * (`12-PERMISSION-MATRIX` §1), read through `client_projection.read` and never the internal
+ * record. x114 built that read, so this route now renders it rather than the planned placeholder.
+ *
+ * Two names are still fixtures — the client organization's own name and the studio's — the same
+ * `ON-04` gap `ClientOverviewScreen` records; the deliverables on the screen are real.
  */
 export default function PortalDeliverablesPage({
   params,
@@ -20,17 +22,10 @@ export default function PortalDeliverablesPage({
   const { orgSlug } = use(params);
 
   return (
-    <PlannedPortalScreen
+    <ClientPortalDeliverablesScreen
       organizationSlug={orgSlug}
       clientName={FIXTURE_CLIENT_NAME}
       providerName={FIXTURE_ORGANIZATION_NAME}
-      activeNavigationId="deliverables"
-      title="Deliverables"
-      description={`What ${FIXTURE_ORGANIZATION_NAME} has delivered to you.`}
-      ticket="PUB-001"
-    >
-      Deliverables is the client-safe projection of what has been delivered. It is not built yet;
-      until it is, this tab opens here rather than answering with a 404.
-    </PlannedPortalScreen>
+    />
   );
 }

@@ -360,7 +360,8 @@ describe('PortalService.deliverablesFor (x114)', () => {
     );
 
     expect(result).toHaveLength(1);
-    const [view] = result;
+    const view = result[0];
+    if (!view) throw new Error('expected one deliverable');
     // Projection discipline: every content key is on the allowlist, no field is outside it, and
     // no forbidden client field (objectKey, cost, ownerUserId's kin, …) appears anywhere.
     expect(Object.keys(view).sort()).toEqual(
@@ -500,11 +501,13 @@ describe('PortalService.filesForDeliverable (x114)', () => {
       userId: 'staff-1',
       organizationId: ORG,
       kind: 'internal',
-      role: 'admin',
+      role: 'owner',
       membershipId: 'm-1',
       membershipStatus: 'active',
+      clientOrganizationId: null,
+      projectIds: [],
       hasOrgWideScope: true,
-    } as Principal;
+    };
 
     const service = new PortalService(
       fakeDatabase(),

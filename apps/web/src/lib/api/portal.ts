@@ -63,6 +63,67 @@ export async function listPortalWorkItems(
   return data.workItems;
 }
 
+/**
+ * One published deliverable version, as the client is allowed to see it — CLIENT-002 (x114).
+ *
+ * Every content field is the x97 client-projection allowlist (`12-PERMISSION-MATRIX` §1) and no
+ * more: no owner, no internal state, no draft, no content hash. `id` is the frozen version's own
+ * id and `deliverableId` is what {@link listPortalDeliverableFiles} names. The absence is the
+ * point, exactly as `PortalWorkItem`'s is — a screen cannot render what it was never given.
+ */
+export interface PortalDeliverable {
+  readonly id: string;
+  readonly deliverableId: string;
+  readonly publishedAt: string;
+  /** `12-PERMISSION-MATRIX` §1's "public/client title". */
+  readonly title: string;
+  readonly summary: string | null;
+  /** `12-PERMISSION-MATRIX` §1's "milestone state". */
+  readonly milestoneState: string | null;
+  /** An ISO calendar date, or null. */
+  readonly forecastDate: string | null;
+  /** The client-visible risk, never the internal rationale. */
+  readonly publishedRisk: string | null;
+  readonly decision: string | null;
+  readonly approvedContacts: readonly string[];
+}
+
+/**
+ * One client-visible file attached to a deliverable — CLIENT-002 (x114).
+ *
+ * The metadata a list needs and no internal handle: no object key, no owner, no status. The
+ * bytes are a later ticket (the portal download proxy); this says which files exist and how big.
+ */
+export interface PortalDeliverableFile {
+  readonly id: string;
+  readonly name: string;
+  readonly sizeBytes: number;
+  readonly mimeType: string | null;
+  readonly updatedAt: string;
+}
+
+export async function listPortalDeliverables(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly PortalDeliverable[]> {
+  const { data } = await client.request<{ deliverables: readonly PortalDeliverable[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/deliverables`,
+  });
+  return data.deliverables;
+}
+
+export async function listPortalDeliverableFiles(
+  client: ApiClient,
+  organizationSlug: string,
+  deliverableId: string,
+): Promise<readonly PortalDeliverableFile[]> {
+  const { data } = await client.request<{ files: readonly PortalDeliverableFile[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/deliverables/${encodeURIComponent(deliverableId)}/files`,
+  });
+  return data.files;
+}
+
 export interface InviteClientMemberInput {
   readonly email: string;
   readonly role: string;
