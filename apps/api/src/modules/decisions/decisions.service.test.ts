@@ -243,11 +243,9 @@ describe('DecisionsService', () => {
   it('refuses a meeting that belongs to a different project of the same tenant, and writes nothing', async () => {
     // The meeting resolves inside the tenant but on OTHER_PROJECT; a decision links a meeting of
     // its own project, so this is a 404 with no write.
-    const { service, store } = serviceWith(
-      [],
-      [PROJECT, OTHER_PROJECT],
-      { [MEETING]: OTHER_PROJECT },
-    );
+    const { service, store } = serviceWith([], [PROJECT, OTHER_PROJECT], {
+      [MEETING]: OTHER_PROJECT,
+    });
     const error = await service
       .create(context, member([], true), {
         projectId: PROJECT,

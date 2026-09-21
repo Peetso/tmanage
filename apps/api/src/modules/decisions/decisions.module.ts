@@ -33,7 +33,12 @@ export class DecisionsModule {
       provide: DECISIONS_SERVICE,
       inject: [TENANT_DATABASE, DECISIONS_REPOSITORY],
       useFactory: (database: TenantDatabase, decisions: DecisionsRepository) =>
-        new DecisionsService(database, decisions, new ProjectsRepository(), new MeetingsRepository()),
+        new DecisionsService(
+          database,
+          decisions,
+          new ProjectsRepository(),
+          new MeetingsRepository(),
+        ),
     };
 
     return {

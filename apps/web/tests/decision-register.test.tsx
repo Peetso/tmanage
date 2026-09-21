@@ -118,11 +118,20 @@ describe('DecisionRegisterScreen', () => {
     const { client, calls } = clientOver((call) => {
       if (call.method === 'POST' && call.url.includes('/decisions')) {
         created = true;
-        return json(decision('d-new', String((call.body as { title: string }).title), '2026-07-01T00:00:00.000Z'), 201);
+        return json(
+          decision(
+            'd-new',
+            String((call.body as { title: string }).title),
+            '2026-07-01T00:00:00.000Z',
+          ),
+          201,
+        );
       }
       if (call.url.includes('/decisions'))
         return json({
-          decisions: created ? [decision('d-new', 'Adopt the plan', '2026-07-01T00:00:00.000Z')] : [],
+          decisions: created
+            ? [decision('d-new', 'Adopt the plan', '2026-07-01T00:00:00.000Z')]
+            : [],
         });
       if (call.url.includes('/projects'))
         return json({ projects: [{ id: PROJECT_ID, name: 'Northstar' }] });
@@ -144,7 +153,7 @@ describe('DecisionRegisterScreen', () => {
     expect(await screen.findByText(/no decisions yet/i)).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/^Decision$/i), 'Adopt the plan');
+    await user.type(screen.getByLabelText(/^Decision/i), 'Adopt the plan');
     await user.type(screen.getByLabelText(/in words/i), 'We will adopt the plan.');
     await user.click(screen.getByRole('button', { name: /record decision/i }));
 
