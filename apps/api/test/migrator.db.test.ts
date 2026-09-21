@@ -833,10 +833,10 @@ describe('0036: document_versions is tenant-scoped, append-only and forward-only
     await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'dv', 'DV')`, [
       id('01'),
     ]);
-    await connection.query(`INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`, [
-      id('02'),
-      id('01'),
-    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('02'), id('01')],
+    );
     await connection.query(
       `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
       [id('03'), id('01'), id('02')],

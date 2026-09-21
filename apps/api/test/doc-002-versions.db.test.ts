@@ -104,9 +104,7 @@ describe('a tenant-scoped version round-trips and bumps the parent', () => {
     expect(second.versionNo).toBe(2);
 
     // Newest-first list.
-    const listed = await tenant.read(northstar, (tx) =>
-      versions.list(tx, northstar, document.id),
-    );
+    const listed = await tenant.read(northstar, (tx) => versions.list(tx, northstar, document.id));
     expect(listed.map((row) => row.versionNo)).toEqual([2, 1]);
 
     // Compare reads one snapshot by number.

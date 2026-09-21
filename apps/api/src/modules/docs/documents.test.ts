@@ -113,9 +113,7 @@ function serviceWith(
   const versions = {
     list: async (_runner: unknown, ctx: TenantContext, documentId: string) =>
       versionStore
-        .filter(
-          (row) => row.organizationId === ctx.organizationId && row.documentId === documentId,
-        )
+        .filter((row) => row.organizationId === ctx.organizationId && row.documentId === documentId)
         .sort((a, b) => b.versionNo - a.versionNo),
     findByVersionNo: async (
       _runner: unknown,
@@ -132,12 +130,17 @@ function serviceWith(
     append: async (
       _runner: unknown,
       ctx: TenantContext,
-      input: { readonly documentId: string; readonly body: string; readonly editedByUserId: string },
+      input: {
+        readonly documentId: string;
+        readonly body: string;
+        readonly editedByUserId: string;
+      },
     ) => {
       const versionNo =
         versionStore
           .filter(
-            (row) => row.organizationId === ctx.organizationId && row.documentId === input.documentId,
+            (row) =>
+              row.organizationId === ctx.organizationId && row.documentId === input.documentId,
           )
           .reduce((max, row) => Math.max(max, row.versionNo), 0) + 1;
       const row = {
@@ -311,7 +314,9 @@ describe('DocumentsService versions (DOC-02/DOC-03)', () => {
     expect(store.find((d) => d.id === DOCUMENT)?.body).toBe('first save');
     // History is intact: three rows, versions 1..3, and v1/v2 are unchanged.
     expect(versionStore).toHaveLength(3);
-    expect(versionStore.find((r: DocumentVersionRow) => r.versionNo === 1)?.body).toBe('first save');
+    expect(versionStore.find((r: DocumentVersionRow) => r.versionNo === 1)?.body).toBe(
+      'first save',
+    );
     expect(versionStore.find((r: DocumentVersionRow) => r.versionNo === 2)?.body).toBe(
       'second save',
     );

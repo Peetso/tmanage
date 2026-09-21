@@ -203,7 +203,12 @@ export class DocumentsController {
     @Body() body: RestoreBody,
   ): Promise<DocumentVersionView> {
     requireDocumentId(documentId);
-    return this.documents.restore(context, principal, documentId, requireVersionNo(body?.versionNo));
+    return this.documents.restore(
+      context,
+      principal,
+      documentId,
+      requireVersionNo(body?.versionNo),
+    );
   }
 }
 

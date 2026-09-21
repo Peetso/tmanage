@@ -77,7 +77,8 @@ function version(versionNo: number, body: string) {
 function screenOver(versions: readonly ReturnType<typeof version>[]) {
   const client = clientOver((call) => {
     if (call.url.includes(`/documents/${DOCUMENT_ID}/versions/`)) return json(versions[0] ?? {});
-    if (call.url.includes(`/documents/${DOCUMENT_ID}/restore`)) return json(version(99, 'restored'));
+    if (call.url.includes(`/documents/${DOCUMENT_ID}/restore`))
+      return json(version(99, 'restored'));
     if (call.url.includes(`/documents/${DOCUMENT_ID}/versions`)) {
       if (call.method === 'POST') return json(version(versions.length + 1, 'saved'));
       return json({ versions });

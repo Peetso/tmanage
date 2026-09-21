@@ -181,7 +181,10 @@ export function DocumentEditorScreen({
         </section>
       ) : null}
 
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-doc-history-heading">
+      <section
+        className="tm-panel tm-panel--quiet tm-stack"
+        aria-labelledby="tm-doc-history-heading"
+      >
         <h2 id="tm-doc-history-heading" className="tm-eyebrow">
           Version history
         </h2>

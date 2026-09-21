@@ -11885,12 +11885,13 @@ and `GET …/documents/:id/versions` plus `GET …/documents/:id/versions/:versi
 the `documents` grant gains `UPDATE`; the 0030 trigger still pins the identity columns); restore is
 a **forward-append** — a new version equal to a prior snapshot, never a mutation of history. Every
 route resolves the document **tenant-scoped before** the relation check (Known-trap: org-wide caller
-+ unknown/cross-tenant id → 404, no write), and `document_versions` is registered in `TENANT_TABLES`,
-`schema.ts` and the `users.sql` grant with a named `migrator.db.test.ts` 0036 case. Web:
-`DocumentEditorScreen.tsx` (edit + save, version list, compare pane, restore) at
-`/[orgSlug]/docs/[documentId]/edit`, disjoint from the DOC-01 hub/read screens (x106); its
-`DocumentVersionView` ↔ `DocumentVersionSummary` pair is Exact in the contracts gate. Deferred to
-NEXT-SCOPES-9: three-way merge/diff rendering, DOC-04 templates, client projection of docs.
+
+- unknown/cross-tenant id → 404, no write), and `document_versions` is registered in `TENANT_TABLES`,
+  `schema.ts` and the `users.sql` grant with a named `migrator.db.test.ts` 0036 case. Web:
+  `DocumentEditorScreen.tsx` (edit + save, version list, compare pane, restore) at
+  `/[orgSlug]/docs/[documentId]/edit`, disjoint from the DOC-01 hub/read screens (x106); its
+  `DocumentVersionView` ↔ `DocumentVersionSummary` pair is Exact in the contracts gate. Deferred to
+  NEXT-SCOPES-9: three-way merge/diff rendering, DOC-04 templates, client projection of docs.
 
 **Migration number:** the highest migration on this slice's base was 0032; 0033–0035 are reserved on
 other in-flight branches, so this is `0036` and the integrator renumbers if the merge order differs.
@@ -12775,6 +12776,7 @@ team could use for a week:
 
 - 2026-09-20 — HOME-03 (My Day, slice x93): the acting user's own open work across every project, read-only over `work_items` by org+owner (ix_work_items_org_owner_state_due), behind `work.read`, ranked overdue → due-soon (by due_at) → the rest (by id); replaces the HOME-001 stub with `MyDayScreen`. Paged My Day, HOME-01 hero/Pulse/Focus, HOME-04 Waiting and HOME-05 Saved are the follow-ups.
 - 2026-09-20 — HOME-04 (Waiting, slice x98): the approvals-pending bucket only — the acting user's pending approvals across every project, read-only over `approvals` by org + pending-state (`requested`/`viewed`, `PENDING_APPROVAL_STATES`), filtered to rows where the user is in `reviewer_ids` (the reviewer relation, AUTH-08 — a non-reviewer never sees the approval) and re-checked with `approve.read`/`authorize`; behind `approval.read` (coarse route ceiling, reviewer relation the real gate); ranked not-yet-opened → opened (by requested-at, then id); adds a Waiting section to `MyDayScreen`. **Deferred:** the **delegated** bucket — `41-...-MATRIX` HOME-04's "work I delegated elsewhere" — is not representable: `work_items` has a single `owner_user_id` and no created-by/assignee column, so it is a data-model item for scoping (a Needs-Peter), not built here. Client-wait, stale-follow-up, HOME-01 hero/Pulse/Focus and HOME-05 Saved remain follow-ups.
+
 ---
 
 ## INS-01 — insights, first vertical slice: the delivery-flow read (x89)
