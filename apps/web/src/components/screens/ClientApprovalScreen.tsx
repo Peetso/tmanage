@@ -26,8 +26,8 @@ export interface ClientApprovalScreenProps {
 /**
  * **FR-05 client deep link.** A client opens the governed, published version, reads the
  * allowlisted projection (`client_projection.read`), and decides — approve, or request changes
- * with a note (`approval.decide`, gated at the object layer on the client's project relation and
- * the projection's approved-contacts allowlist).
+ * with a note (`approval.decide`, gated at the object layer on the role ceiling and the client's
+ * project relation; the projection's `approvedContacts` is a display field, not part of the gate).
  *
  * ## Only the projection is rendered
  *

@@ -332,8 +332,9 @@ const CLIENT_ORG = '00000000-0000-7000-8000-0000000000c9';
 const CLIENT_CONTACT = '00000000-0000-7000-8000-0000000000f9';
 
 /**
- * A client reviewer. Holds `approval.decide` in its ceiling; the object-layer gate is the
- * project relation (`projectIds`) plus the projection's approved-contacts allowlist.
+ * A client reviewer. Holds `approval.decide` in its ceiling; the object-layer gate is the role
+ * ceiling plus the project relation (`projectIds`). The projection's `approvedContacts` is a
+ * client-visible display field, not an authorization list, so it does not gate the decision.
  */
 function clientReviewer(userId: string, overrides: Partial<Principal> = {}): Principal {
   return {

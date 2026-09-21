@@ -232,8 +232,10 @@ export class ApprovalsController {
    * `deliverableVersionId` it is looking at, not an internal approval id. `@RequireCapability`
    * `('approval.read')` is the coarse UX ceiling every client decider role holds, exactly as the
    * reviewer decide route uses it; the real gate is the service's `authorize()` on `approval.decide`
-   * against the client's project relation and the projection's approved-contacts allowlist. The
-   * response is the client-safe {@link ClientDecideView}, never the internal decision record.
+   * against the client's project relation (the role ceiling plus `projectIds`). The projection's
+   * `approvedContacts` is a client-visible display field (12 §1), not an authorization list, so it is
+   * deliberately not part of the gate. The response is the client-safe {@link ClientDecideView},
+   * never the internal decision record.
    */
   @Post('projections/:deliverableVersionId/decision')
   @HttpCode(200)
