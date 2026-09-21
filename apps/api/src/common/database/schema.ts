@@ -1606,6 +1606,7 @@ export const TABLES = {
   import_jobs: importJobs,
   meetings,
   documents,
+  decisions,
   import_rows: importRows,
 } as const;
 
