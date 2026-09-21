@@ -311,6 +311,37 @@ export const documents = mysqlTable(
   ],
 );
 
+/**
+ * DOC-02/DOC-03 (x112). The append-only version history behind a `documents` row.
+ *
+ * Each save appends one immutable snapshot (the body as it stood, and who saved it) and bumps the
+ * parent `documents.body` to match, in one transaction. A restore appends a new version whose body
+ * equals a prior snapshot — forward-append, never a rewrite — so history survives. `version_no`
+ * counts a document's saves from 1, monotonic per document, and the `(organization_id, document_id,
+ * version_no)` unique key is the list/compare index and the racing-save concurrency guard.
+ * `0036_document_versions.sql` is the source of truth; this is its typed mirror.
+ */
+export const documentVersions = mysqlTable(
+  'document_versions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    documentId: char('document_id', { length: 36 }).notNull(),
+    versionNo: int('version_no', { unsigned: true }).notNull(),
+    body: text('body').notNull(),
+    editedByUserId: char('edited_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_document_versions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_document_versions_org_doc_version').on(
+      table.organizationId,
+      table.documentId,
+      table.versionNo,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1567,6 +1598,7 @@ export const TABLES = {
   import_jobs: importJobs,
   meetings,
   documents,
+  document_versions: documentVersions,
   import_rows: importRows,
 } as const;
 
@@ -1598,6 +1630,8 @@ export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
+export type DocumentVersionRow = typeof documentVersions.$inferSelect;
+export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

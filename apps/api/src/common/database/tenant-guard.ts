@@ -142,6 +142,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `SELECT ... FROM documents` would be every studio's knowledge base on the server. The guard
   // must scope its reads and its writes.
   documents: 'organization_id',
+  // DOC-02/DOC-03 (0036, x112). Tenant-owned: a version is the body a document held at a moment,
+  // and an unscoped `SELECT ... FROM document_versions` would be every studio's document history on
+  // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
+  // tenant table has, so the guard scopes its reads and writes.
+  document_versions: 'organization_id',
   // ON-09 commit half (migration 0032). Tenant-owned: the per-row commit receipt (ADM-10)
   // names one organization and its parent job, and an unscoped read would be every studio's
   // import outcomes. `organization_id` is NOT NULL and it carries the `(organization_id, id)`
