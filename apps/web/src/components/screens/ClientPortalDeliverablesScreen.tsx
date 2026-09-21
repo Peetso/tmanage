@@ -232,9 +232,7 @@ function DeliverablePanel({ api, organizationSlug, deliverable }: DeliverablePan
       ) : null}
 
       {deliverable.approvedContacts.length > 0 ? (
-        <p className="tm-prose">
-          Your contacts: {deliverable.approvedContacts.join(', ')}
-        </p>
+        <p className="tm-prose">Your contacts: {deliverable.approvedContacts.join(', ')}</p>
       ) : null}
 
       <p>

@@ -12751,6 +12751,7 @@ team could use for a week:
 
 - 2026-09-20 — HOME-03 (My Day, slice x93): the acting user's own open work across every project, read-only over `work_items` by org+owner (ix_work_items_org_owner_state_due), behind `work.read`, ranked overdue → due-soon (by due_at) → the rest (by id); replaces the HOME-001 stub with `MyDayScreen`. Paged My Day, HOME-01 hero/Pulse/Focus, HOME-04 Waiting and HOME-05 Saved are the follow-ups.
 - 2026-09-20 — HOME-04 (Waiting, slice x98): the approvals-pending bucket only — the acting user's pending approvals across every project, read-only over `approvals` by org + pending-state (`requested`/`viewed`, `PENDING_APPROVAL_STATES`), filtered to rows where the user is in `reviewer_ids` (the reviewer relation, AUTH-08 — a non-reviewer never sees the approval) and re-checked with `approve.read`/`authorize`; behind `approval.read` (coarse route ceiling, reviewer relation the real gate); ranked not-yet-opened → opened (by requested-at, then id); adds a Waiting section to `MyDayScreen`. **Deferred:** the **delegated** bucket — `41-...-MATRIX` HOME-04's "work I delegated elsewhere" — is not representable: `work_items` has a single `owner_user_id` and no created-by/assignee column, so it is a data-model item for scoping (a Needs-Peter), not built here. Client-wait, stale-follow-up, HOME-01 hero/Pulse/Focus and HOME-05 Saved remain follow-ups.
+
 ---
 
 ## INS-01 — insights, first vertical slice: the delivery-flow read (x89)
@@ -12830,3 +12831,42 @@ reads the endpoint via `apps/web/src/lib/api/approval-cycle.ts` at
 to the expected counts and durations, pending and cross-tenant rows are excluded, a multi-page
 project counts each row once, and an empty project rolls up to the empty value. No DB test — the
 underlying approvals reads are already DB-proven (x92).
+
+## CLIENT-002 — client portal deliverables + files read (x114)
+
+The portal's last unbuilt read surfaces. `PortalController` served projects, work-items,
+requests and client-members; the deliverables a client role exists to review, and the files
+attached to them, could not be read. x114 adds two reads behind `client_projection.read`, no
+migration and no new table (`deliverable_versions` is 0027, `client_projections` is x97's 0031,
+`file_*` are 0015–0019).
+
+`GET …/portal/projects/:projectId/deliverables` returns the **published** deliverable versions
+of one project — one row per x97 `client_projections` row, newest first — each carried as
+`PortalDeliverableView`: built field by field from the x97 allowlist (`ClientProjectionPayload`,
+`12-PERMISSION-MATRIX` §1) plus three navigation-only identity fields (`id`, `deliverableId`,
+`publishedAt`). Never the internal deliverable record, never a draft — an unpublished deliverable
+has no projection row and so does not appear.
+
+`GET …/portal/deliverables/:deliverableId/files` returns `PortalDeliverableFileView[]` — the
+`ready`, client-audience `deliverable` files scoped to the caller's own client organization
+(`04-SECURITY-PRIVACY` §5). Metadata only (`id`, `name`, `sizeBytes`, `mimeType`, `updatedAt`);
+never the object key or any owner. The bytes are deferred to the portal download proxy
+(NEXT-SCOPES-9), reusing the `file.download` path.
+
+**Known trap (FAST-PROTOCOL 19:55).** Both routes resolve the parent tenant-scoped **before** the
+client relation check: the deliverables route runs `authorize()` (`mayRead`) on the `projectId`
+first, and the files route resolves the deliverable's projection (organization-scoped) then
+`mayRead` on its project — so an unknown, cross-tenant, unpublished or another-client id is a
+`404`, never a 500 and never a 403 a probe could read. Unit-proven in `portal.service.test.ts`
+(client on the project sees only allowlisted fields; client of another org → 404; unknown
+deliverable → 404 before any file read; internal caller with no client org → 404). Projection
+discipline is a regression guard: the response keys equal exactly the allowlist plus the three
+identity fields, and `findForbiddenClientFields` finds nothing.
+
+**Web.** `ClientPortalDeliverablesScreen` replaces `PlannedPortalScreen` on `…/portal/deliverables`:
+one section per shared project, each deliverable showing its published projection, with files
+reached through a disclosure that fetches on open. `PortalDeliverableView`/`PortalDeliverableFileView`
+are live `Exact` pairs (CONTRACT-001). Screen + axe proven in `portal-deliverables-flow.test.tsx`.
+
+Portal deliverables cross-client exclusion: unit-proven, no schema change. Deferred to
+NEXT-SCOPES-9: the portal file download proxy; timeline/updates/people portal pages.

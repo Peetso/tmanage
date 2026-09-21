@@ -399,7 +399,9 @@ export class PortalService {
       }),
     );
     return rows
-      .filter((row): row is { asset: FileAssetRow; version: FileVersionRow } => row.version !== null)
+      .filter(
+        (row): row is { asset: FileAssetRow; version: FileVersionRow } => row.version !== null,
+      )
       .map((row) => toDeliverableFileView(row.asset, row.version));
   }
 

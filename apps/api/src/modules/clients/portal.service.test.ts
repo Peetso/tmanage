@@ -6,7 +6,7 @@ import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import type { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import type { FileAssetsRepository } from '../files/file-assets.repository.js';
-import { ApiError } from '../../common/http/errors.js';
+import type { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type {
   ClientProjectionPayload,
@@ -465,7 +465,11 @@ describe('PortalService.filesForDeliverable (x114)', () => {
     );
 
     await expect(
-      service.filesForDeliverable(context, clientPrincipal(READABLE_PROJECT), 'no-such-deliverable'),
+      service.filesForDeliverable(
+        context,
+        clientPrincipal(READABLE_PROJECT),
+        'no-such-deliverable',
+      ),
     ).rejects.toMatchObject({ status: 404 } satisfies Partial<ApiError>);
     expect(filesQueried).toBe(false);
   });
@@ -517,9 +521,9 @@ describe('PortalService.filesForDeliverable (x114)', () => {
       fakeFiles([]),
     );
 
-    await expect(
-      service.filesForDeliverable(context, internal, DELIVERABLE),
-    ).rejects.toMatchObject({ status: 404 } satisfies Partial<ApiError>);
+    await expect(service.filesForDeliverable(context, internal, DELIVERABLE)).rejects.toMatchObject(
+      { status: 404 } satisfies Partial<ApiError>,
+    );
     expect(resolved).toBe(false);
   });
 });
