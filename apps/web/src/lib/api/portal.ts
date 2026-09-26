@@ -298,6 +298,36 @@ export async function createProjectRisk(
   return data;
 }
 
+/**
+ * A member of a project as the portal is told them — x142, `22-SCREEN-BY-SCREEN` §1 People.
+ *
+ * What is absent is the point, the same way it is for `PortalUpdate`: there is no email, no id,
+ * no "last seen". `12-PERMISSION-MATRIX` §4 excludes staff from the client projection and gives
+ * the client "approved contacts" — a name and a role, which is all a screen could render even if
+ * it wanted more.
+ */
+export interface PortalPerson {
+  readonly displayName: string;
+  readonly role: string;
+}
+
+/**
+ * The client-visible team of one of the client's projects.
+ *
+ * The project is named in the path. The API answers 404 — not an empty list — for a project the
+ * client cannot read, so the caller must treat a not-found as "not yours", never as "no people".
+ */
+export async function listPortalPeople(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly PortalPerson[]> {
+  const { data } = await client.request<{ people: readonly PortalPerson[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/people`,
+  });
+  return data.people;
+}
+
 export async function listPortalProjects(
   client: ApiClient,
   organizationSlug: string,
