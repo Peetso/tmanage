@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Optional, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Optional,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';

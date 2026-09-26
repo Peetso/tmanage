@@ -81,9 +81,7 @@ class FakeHomePinsRepository {
     return Promise.resolve(
       this.rows.find(
         (row) =>
-          row.membershipId === membershipId &&
-          row.targetKind === kind &&
-          row.targetId === targetId,
+          row.membershipId === membershipId && row.targetKind === kind && row.targetId === targetId,
       ),
     );
   }
@@ -117,9 +115,7 @@ class FakeHomePinsRepository {
     return Promise.resolve(
       this.rows
         .filter((row) => row.membershipId === membershipId)
-        .sort(
-          (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || a.id.localeCompare(b.id),
-        ),
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || a.id.localeCompare(b.id)),
     );
   }
 }

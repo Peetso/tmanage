@@ -11,7 +11,7 @@ import type { ApiClient } from '../../lib/api/client';
 
 export interface HomePinnedSectionProps {
   organizationSlug: string;
-  client?: ApiClient;
+  client?: ApiClient | undefined;
 }
 
 /**
@@ -55,8 +55,8 @@ export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectio
 
       {!pins.isPending && !pins.isError && items.length === 0 ? (
         <InlineAlert tone="neutral" title="Nothing pinned yet">
-          Work, projects and documents you pin are kept here, newest first, so you can return to them
-          from any screen.
+          Work, projects and documents you pin are kept here, newest first, so you can return to
+          them from any screen.
         </InlineAlert>
       ) : null}
 
