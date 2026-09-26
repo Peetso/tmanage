@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { HomePinnedSection } from './HomePinnedSection';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getHomeSummary, getMyDay, getSavedContext, getWaiting } from '../../lib/api/home';
 import type { MyDayReason, SavedContextEntityType, WaitingReason } from '../../lib/api/home';
@@ -339,6 +340,8 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           </div>
         ) : null}
       </section>
+
+      <HomePinnedSection organizationSlug={organizationSlug} client={client} />
     </AppShell>
   );
 }

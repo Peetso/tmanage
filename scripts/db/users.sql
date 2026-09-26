@@ -103,7 +103,7 @@
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
---   · `INSERT, DELETE` on: work_item_dependencies, saved_context
+--   · `INSERT, DELETE` on: work_item_dependencies, saved_context, home_pinned_items
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     decision_supersessions, document_templates
@@ -293,6 +293,11 @@ GRANT INSERT, UPDATE          ON `tmanage`.`saved_views`      TO 'tmanage_app'@'
 -- so (there is no immutability trigger and none is needed). Reading is the database-wide SELECT
 -- above. The worker gets nothing here — this table is the API's alone.
 GRANT INSERT, DELETE         ON `tmanage`.`saved_context`    TO 'tmanage_app'@'%';
+-- HOME-05 follow-up (0050, x144) membership-scoped Home pins. INSERT to pin and DELETE to unpin, and
+-- **no UPDATE**: a pin is created and removed, never edited, so the missing privilege is the control
+-- (no immutability trigger, none needed). Reading is the database-wide SELECT above. The worker gets
+-- nothing here — this table is the API's alone, the `saved_context` posture above.
+GRANT INSERT, DELETE         ON `tmanage`.`home_pinned_items` TO 'tmanage_app'@'%';
 -- DOC-02/DOC-03 (x112) document versions. **INSERT only** — a version is an immutable snapshot of
 -- the body at a save: DOC-03's restore is a new row (forward-append), never an edit, and the 0036
 -- trigger refuses UPDATE for every credential. No DELETE: a document's history is the record of how

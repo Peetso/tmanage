@@ -1016,6 +1016,51 @@ export const savedContext = mysqlTable(
   ],
 );
 
+/**
+ * The three coarse Home targets HOME-05's follow-up can pin. Exported so the controller validates a
+ * request against the same source of truth the column's ENUM is built from.
+ */
+export const HOME_PIN_TARGET_KINDS = ['work', 'project', 'document'] as const;
+export type HomePinTargetKind = (typeof HOME_PIN_TARGET_KINDS)[number];
+
+/**
+ * HOME-05 follow-up — membership-scoped Home pins (migration 0050, x144).
+ *
+ * One row per pin: a per-membership, per-tenant *reference* to a work item, project or document an
+ * acting member keeps on their Home. It stores the reference only (`target_kind` + `target_id`),
+ * never a copy of the target — resolving each pin to a live title/preview is the deferred read
+ * fan-out. `target_id` carries no FK (the target table depends on `target_kind`); tenant safety
+ * rests on the service resolving `target_id` tenant-scoped before the write. Created and deleted,
+ * never updated — no `version`, no `updatedAt`, and the runtime credential holds INSERT and DELETE
+ * alone. The unique pin key turns a duplicate into an engine collision the service maps to a 409.
+ */
+export const homePinnedItems = mysqlTable(
+  'home_pinned_items',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    targetKind: mysqlEnum('target_kind', HOME_PIN_TARGET_KINDS).notNull(),
+    targetId: char('target_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_home_pinned_items_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_home_pinned_items_pin').on(
+      table.organizationId,
+      table.membershipId,
+      table.targetKind,
+      table.targetId,
+    ),
+    index('ix_home_pinned_items_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -1834,6 +1879,7 @@ export const TABLES = {
   meeting_notes: meetingNotes,
   saved_views: savedViews,
   saved_context: savedContext,
+  home_pinned_items: homePinnedItems,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -1876,6 +1922,7 @@ export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
+export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;

@@ -179,6 +179,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // acting tenant, and an unscoped read would be every studio's supersede chain. `organization_id`
   // is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes its reads/writes.
   decision_supersessions: 'organization_id',
+  // HOME-05 follow-up (x144, migration 0050). Tenant-owned: a pin names a tenant target and belongs
+  // to one membership in one studio, and an unscoped read would be a map of what every member in
+  // every studio keeps on their Home. The layer-3 guard fails OPEN on an unregistered table, so
+  // registering it here is what scopes the pin reads and writes; tenant-isolation.db.test.ts
+  // enforces the entry.
+  home_pinned_items: 'organization_id',
 });
 
 /**
