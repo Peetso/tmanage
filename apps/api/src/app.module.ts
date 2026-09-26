@@ -29,6 +29,7 @@ import { DocumentTemplateVariablesModule } from './modules/docs/document-templat
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
+import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -196,6 +197,11 @@ export class AppModule {
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.
         OrgObjectivesModule.register(),
+        // PROJ / module 8 (x137). The read-only portfolio roll-up across the caller's visible
+        // projects. After `ProjectsModule`: it reuses `ProjectsRepository` to list the tenant's
+        // projects for the relation filter, and aggregates `work_items` + `project_objectives`
+        // (x124). Mounted at `…/projects/portfolio`, a static segment matched before `:projectId`.
+        ProjectPortfolioModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
         // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the

@@ -13683,3 +13683,26 @@ resolves it **tenant-scoped before** the authorize check and the write: an unkno
 objectives in creation order, and mark each open one met or missed. `OrgObjectiveView` is a live
 `Exact` pair with the web `OrgObjectiveSummary` (CONTRACT-001). Screen + axe proven in
 `org-objectives.test.tsx`.
+
+## PROJ / module 8 — portfolio roll-up (read) (x137)
+
+The projects-owned health roll-up the audit recorded as absent: `38-MODULE-MAP` §Projects asks for a
+portfolio view across the caller's projects, and before x137 there was no cross-project route or
+screen in projects (grep clean; distinct from `InsightsPortfolioScreen`, which is insights
+delivery-flow). x137 adds a **read** only — no new table.
+
+**API.** `GET …/projects/portfolio` (`work.read`), a static segment matched before
+`…/projects/:projectId`. `ProjectPortfolioService` lists the tenant's projects, applies the same
+`authorize()` relation filter as `ProjectsService.list` (Known-trap: tenant + project-visibility
+first), then hands **only the surviving ids** to `ProjectPortfolioRepository`, which aggregates
+`work_items` (open count = non-deleted, not `done`/`archived`; latest activity = `max(updated_at)`)
+and `project_objectives` (x124) tallied by status. A cross-tenant project never appears and a project
+the caller may not see contributes nothing. Deterministic `id`-ascending order, bounded page. It is
+not a health score — no grade, RAG model, or filters — those are deferred to NS-13. Unit-proven with
+real `authorize()` over fakes in `portfolio.controller.test.ts` (roll-up folds counts; relation
+filter; cross-tenant exclusion; empty allowlist short-circuit; `work.read` ceiling).
+
+**Web.** `ProjectPortfolioScreen` on `…/projects/portfolio`: one card per visible project with its
+open-work count, objective tallies, status, and last activity — counts, not a score, like
+`ProjectOverviewScreen`. `ProjectPortfolioView` is a live `Exact` pair with the web
+`ProjectPortfolioSummary` (CONTRACT-001). Screen + axe proven in `project-portfolio.test.tsx`.

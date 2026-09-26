@@ -89,6 +89,7 @@ import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/s
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
+import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
@@ -133,6 +134,7 @@ import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../.
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
+import type { ProjectPortfolioSummary as WebProjectPortfolioSummary } from '../../apps/web/src/lib/api/project-portfolio';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -288,6 +290,14 @@ type _projectObjective = Assert<Exact<ApiProjectObjectiveView, WebProjectObjecti
  * pair. The `status` union (`open | met | missed`) is the same on both sides.
  */
 type _orgObjective = Assert<Exact<ApiOrgObjectiveView, WebOrgObjectiveSummary>>;
+
+/**
+ * PROJ / module 8 (x137). `ProjectPortfolioView` (`GET …/projects/portfolio`) — one project's
+ * read-only roll-up: open-work count, x124 objective tallies by status, and latest activity. Paired
+ * with a live web consumer: `ProjectPortfolioScreen` reads exactly this response, so this is a real
+ * `Exact` pair, including the nested `objectiveCounts` object, which is the same shape on both sides.
+ */
+type _projectPortfolio = Assert<Exact<ApiProjectPortfolioView, WebProjectPortfolioSummary>>;
 
 /**
  * CAL-01 / MTG-01 third slice (x108). `GET .../meetings/:meetingId/notes` — a meeting's captured

@@ -73,6 +73,9 @@ export const PROJECT_OBJECTIVES_SERVICE = Symbol.for('tmanage.ProjectObjectivesS
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');
+/** PROJ / module 8 (x137). The read-only portfolio roll-up across the caller's visible projects. */
+export const PROJECT_PORTFOLIO_REPOSITORY = Symbol.for('tmanage.ProjectPortfolioRepository');
+export const PROJECT_PORTFOLIO_SERVICE = Symbol.for('tmanage.ProjectPortfolioService');
 export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepository');
 export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService');
 /** FR-05 (x92). The approvals aggregate — deliverable versions and the decide path. */
