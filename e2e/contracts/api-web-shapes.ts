@@ -57,6 +57,7 @@ import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
+import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
@@ -116,6 +117,7 @@ import type {
   InvitationSummary as WebInvitationSummary,
   IssuedInvitation as WebIssuedInvitation,
 } from '../../apps/web/src/lib/api/invitations';
+import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type {
   CreatedOrganization as WebCreatedOrganization,
@@ -202,6 +204,14 @@ type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
 type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRequest>>;
+
+/**
+ * CAL-01 / MTG-01 third slice (x108). `GET .../meetings/:meetingId/notes` — a meeting's captured
+ * notes and decisions, read by `MeetingNotesScreen`. x105 landed the API read/write with no web
+ * consumer (the view was carried EXEMPT in `scripts/contracts-check.mjs`); this slice ships the
+ * read screen and its `apps/web` shape, so the exemption was retired and the view is paired Exact.
+ */
+type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
@@ -428,12 +438,9 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  */
 
 /**
- * CAL-01 / MTG-01 second slice (x105). `MeetingNoteView` (`GET`/`POST …/meetings/:meetingId/notes`,
- * response) captures and reads a meeting's notes and decisions and has no web counterpart this
- * slice — no calendar/meeting screen exists yet — so it is not paired here but listed in
- * `scripts/contracts-check.mjs`'s EXEMPT with the "No web consumer" reason, the same treatment
- * `MeetingView` (x90) has. Replace this note with an `Assert<Exact<…>>` pair when the meeting
- * screen (x105-b) and its `apps/web` shape land.
+ * DocumentView (DOC-01/DOC-03, x106) and MeetingNoteView (CAL-01/MTG-01, x108) are now paired
+ * above (`_document`, `_meetingNote`); their earlier EXEMPT notes were retired when their screens
+ * landed.
  */
 
 /**
