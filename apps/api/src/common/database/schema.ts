@@ -460,6 +460,41 @@ export const decisions = mysqlTable(
   ],
 );
 
+/**
+ * DEC-01-b / DEC-02 (x117). The decision supersede-chain edge — the record of *by which* decision a
+ * decision was superseded. 0037 has the `superseded` status value but nothing that says what
+ * superseded it; this table is that "by which".
+ *
+ * Both ends are decisions of the acting tenant, bound by composite foreign keys on
+ * `(organization_id, decision_id)` and `(organization_id, superseded_by_decision_id)`, so an edge
+ * can never cross a tenant boundary. A decision is superseded at most once
+ * (`uq_decision_supersessions_org_decision`) and can never supersede itself
+ * (`chk_decision_supersessions_not_self`). Immutable once written, like the decision it records.
+ * `0038_decision_supersessions.sql` is the source of truth; this is its typed mirror.
+ */
+export const decisionSupersessions = mysqlTable(
+  'decision_supersessions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    decisionId: char('decision_id', { length: 36 }).notNull(),
+    supersededByDecisionId: char('superseded_by_decision_id', { length: 36 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_decision_supersessions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_decision_supersessions_org_decision').on(
+      table.organizationId,
+      table.decisionId,
+    ),
+    index('ix_decision_supersessions_org_by').on(
+      table.organizationId,
+      table.supersededByDecisionId,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1766,6 +1801,7 @@ export const TABLES = {
   documents,
   document_versions: documentVersions,
   decisions,
+  decision_supersessions: decisionSupersessions,
   import_rows: importRows,
   meeting_notes: meetingNotes,
   saved_views: savedViews,
@@ -1805,6 +1841,7 @@ export type SavedViewRow = typeof savedViews.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
+export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

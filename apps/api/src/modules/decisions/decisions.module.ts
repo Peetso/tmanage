@@ -7,6 +7,7 @@ import {
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { DecisionsRepository } from './decisions.repository.js';
+import { DecisionSupersessionsRepository } from './decision-supersessions.repository.js';
 import { DecisionsService } from './decisions.service.js';
 import { DecisionsController } from './decisions.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
@@ -38,6 +39,7 @@ export class DecisionsModule {
           decisions,
           new ProjectsRepository(),
           new MeetingsRepository(),
+          new DecisionSupersessionsRepository(),
         ),
     };
 

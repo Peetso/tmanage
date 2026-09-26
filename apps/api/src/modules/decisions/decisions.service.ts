@@ -4,9 +4,10 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { DecisionsRepository } from './decisions.repository.js';
 import type { CreateDecisionInput } from './decisions.repository.js';
+import { DecisionSupersessionsRepository } from './decision-supersessions.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MeetingsRepository } from '../calendar/meetings.repository.js';
-import type { DecisionRow } from '../../common/database/schema.js';
+import type { DecisionRow, DecisionSupersessionRow } from '../../common/database/schema.js';
 import type { DecisionStatus } from './decisions.repository.js';
 
 /**
@@ -46,6 +47,24 @@ export interface DecisionView {
   readonly createdAt: string;
 }
 
+/** One end of a supersede edge, on the wire. Inline and anonymous, not a named `…View`. */
+interface SupersedeEdgeView {
+  /** The other decision on the edge — never the tenant id. */
+  readonly decisionId: string;
+  /** When the supersession was recorded, an ISO-8601 instant. */
+  readonly at: string;
+}
+
+/**
+ * DEC-02 decision detail: a decision plus its supersede chain — the one decision that superseded it
+ * (`supersededBy`, at most one) and the decisions it superseded (`supersedes`). Extends the summary
+ * projection; `organization_id` is absent for the reason {@link DecisionView} gives.
+ */
+export interface DecisionDetailView extends DecisionView {
+  readonly supersededBy: SupersedeEdgeView | null;
+  readonly supersedes: readonly SupersedeEdgeView[];
+}
+
 /**
  * An explicit projection, not a serialised row (`25-AUTH-AND-TENANT-ISOLATION` §7). Listing the
  * fields means a column added to `decisions` in a future migration is invisible to every caller
@@ -62,6 +81,26 @@ function toView(row: DecisionRow): DecisionView {
     decidedBy: row.decidedBy,
     decidedAt: row.decidedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toDetailView(
+  row: DecisionRow,
+  supersededBy: DecisionSupersessionRow | null,
+  supersedes: readonly DecisionSupersessionRow[],
+): DecisionDetailView {
+  return {
+    ...toView(row),
+    supersededBy: supersededBy
+      ? {
+          decisionId: supersededBy.supersededByDecisionId,
+          at: supersededBy.createdAt.toISOString(),
+        }
+      : null,
+    supersedes: supersedes.map((edge) => ({
+      decisionId: edge.decisionId,
+      at: edge.createdAt.toISOString(),
+    })),
   };
 }
 
@@ -83,7 +122,185 @@ export class DecisionsService {
      * a 404, not a foreign-key 500.
      */
     private readonly meetings: MeetingsRepository = new MeetingsRepository(),
+    /**
+     * DEC-01-b / DEC-02 (x117). Writes and reads the supersede-chain edge. Stateless like the
+     * others; the runner it uses is the one the service hands it inside a read or a transaction.
+     */
+    private readonly supersessions: DecisionSupersessionsRepository = new DecisionSupersessionsRepository(),
   ) {}
+
+  /**
+   * Resolve a decision the principal may write to, tenant- and relation-scoped, or throw the
+   * not-found that both an unknown id and a non-member's probe must earn (the Known-trap order:
+   * resolve tenant-scoped BEFORE the relation check, so neither surfaces as a 500 or a 403).
+   *
+   * Shared by {@link accept} and {@link supersede}: both name a decision by id and both write, so
+   * both resolve it the same way before anything else.
+   */
+  private async requireWritableDecision(
+    context: TenantContext,
+    principal: Principal,
+    decisionId: string,
+  ): Promise<DecisionRow> {
+    const decision = await this.database.read(context, (runner) =>
+      this.decisions.findById(runner, context, decisionId),
+    );
+    if (!decision) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'decision_not_visible');
+    }
+    const permitted = authorize({
+      principal,
+      capability: 'work.create',
+      resource: {
+        organizationId: decision.organizationId,
+        projectId: decision.projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+    if (!permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'decision_not_visible');
+    }
+    return decision;
+  }
+
+  /**
+   * DEC-01-b (x117). Accept a decision: `proposed → accepted`, a guarded transition.
+   *
+   * The decision is resolved writable first (Known-trap). The state machine allows accept only from
+   * `proposed`; accepting an already-accepted or a superseded decision is an illegal transition —
+   * a 409 with no write, not a silent no-op that would report success for a change that did not
+   * happen. On the allowed transition, `status` is the only column written (the `0038` trigger pins
+   * every other), so who decided the decision and when stay exactly as authored.
+   */
+  async accept(
+    context: TenantContext,
+    principal: Principal,
+    decisionId: string,
+  ): Promise<DecisionView> {
+    const decision = await this.requireWritableDecision(context, principal, decisionId);
+    if (decision.status !== 'proposed') {
+      throw new ApiError(
+        409,
+        'conflict',
+        'A decision can only be accepted while it is proposed',
+        [{ field: 'status', message: `cannot accept a decision that is ${decision.status}` }],
+        'illegal_transition',
+      );
+    }
+    const row = await this.database.transaction(context, (tx) =>
+      this.decisions.updateStatus(tx, context, decisionId, 'accepted'),
+    );
+    return toView(row);
+  }
+
+  /**
+   * DEC-01-b / DEC-02 (x117). Supersede a decision **by another decision**.
+   *
+   * Both ids are resolved tenant- and project-scoped BEFORE the write (Known-trap): the superseded
+   * decision is resolved writable; the superseding one must resolve inside the tenant and belong to
+   * the **same project** — a decision is superseded by one of its own project's decisions, and a
+   * non-member must not be able to probe which decisions exist elsewhere, so an unknown,
+   * cross-tenant or cross-project `supersededById` is a 404. A decision may not supersede itself
+   * (422), and an already-superseded decision cannot be superseded again (409). In one transaction
+   * the edge is written and the superseded decision's `status` is flipped to `superseded`.
+   */
+  async supersede(
+    context: TenantContext,
+    principal: Principal,
+    decisionId: string,
+    supersededById: string,
+  ): Promise<DecisionDetailView> {
+    if (decisionId === supersededById) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'A decision cannot supersede itself',
+        [{ field: 'supersededById', message: 'must be a different decision' }],
+        'self_supersede',
+      );
+    }
+
+    const decision = await this.requireWritableDecision(context, principal, decisionId);
+
+    const superseder = await this.database.read(context, (runner) =>
+      this.decisions.findById(runner, context, supersededById),
+    );
+    // Unknown / cross-tenant, or a decision on a different project of this tenant: not found. The
+    // superseding decision must be one of the superseded decision's own project.
+    if (!superseder || superseder.projectId !== decision.projectId) {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.notFound,
+        undefined,
+        'superseding_decision_not_visible',
+      );
+    }
+
+    if (decision.status === 'superseded') {
+      throw new ApiError(
+        409,
+        'conflict',
+        'That decision has already been superseded',
+        [{ field: 'status', message: 'the decision is already superseded' }],
+        'already_superseded',
+      );
+    }
+
+    await this.database.transaction(context, async (tx) => {
+      await this.supersessions.create(tx, context, {
+        decisionId,
+        supersededByDecisionId: supersededById,
+        createdBy: context.userId,
+      });
+      await this.decisions.updateStatus(tx, context, decisionId, 'superseded');
+    });
+
+    return this.detail(context, principal, decisionId);
+  }
+
+  /**
+   * DEC-02 (x117). One decision's detail, including its supersede chain.
+   *
+   * Read-gated by relation (`work.read`) with the row's project in hand, exactly as {@link list}
+   * filters: an unknown or cross-tenant id, and a non-member's probe, both earn the same not-found.
+   * The edges are read tenant-scoped: `supersededBy` is the at-most-one decision that superseded
+   * this one; `supersedes` is the decisions this one superseded.
+   */
+  async detail(
+    context: TenantContext,
+    principal: Principal,
+    decisionId: string,
+  ): Promise<DecisionDetailView> {
+    const decision = await this.database.read(context, (runner) =>
+      this.decisions.findById(runner, context, decisionId),
+    );
+    if (!decision) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'decision_not_visible');
+    }
+    const permitted = authorize({
+      principal,
+      capability: 'work.read',
+      resource: {
+        organizationId: decision.organizationId,
+        projectId: decision.projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+    if (!permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'decision_not_visible');
+    }
+
+    const [supersededBy, supersedes] = await this.database.read(context, async (runner) => {
+      const by = await this.supersessions.findSupersededBy(runner, context, decisionId);
+      const of = await this.supersessions.listSupersedes(runner, context, decisionId);
+      return [by, of] as const;
+    });
+
+    return toDetailView(decision, supersededBy, supersedes);
+  }
 
   /**
    * List a project's decisions the principal may read, most recently decided first.

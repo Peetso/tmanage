@@ -3,10 +3,11 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { DecisionsService } from './decisions.service.js';
 import type { DecisionsRepository } from './decisions.repository.js';
+import type { DecisionSupersessionsRepository } from './decision-supersessions.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { MeetingsRepository } from '../calendar/meetings.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { DecisionRow } from '../../common/database/schema.js';
+import type { DecisionRow, DecisionSupersessionRow } from '../../common/database/schema.js';
 
 /**
  * DEC-01 (x113) service proofs, database-free over the module's fakes. The migration and the
@@ -62,8 +63,10 @@ function serviceWith(
 ): {
   service: DecisionsService;
   store: DecisionRow[];
+  edges: DecisionSupersessionRow[];
 } {
   const store: DecisionRow[] = [...seed];
+  const edges: DecisionSupersessionRow[] = [];
   let seq = store.length;
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -74,6 +77,24 @@ function serviceWith(
       store
         .filter((row) => row.projectId === options.projectId)
         .sort((a, b) => b.decidedAt.getTime() - a.decidedAt.getTime()),
+    // Tenant-scoped like the real repository: a row of another org resolves to null here.
+    findById: async (_runner: unknown, ctx: TenantContext, decisionId: string) =>
+      store.find((row) => row.id === decisionId && row.organizationId === ctx.organizationId) ??
+      null,
+    updateStatus: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      decisionId: string,
+      status: DecisionRow['status'],
+    ) => {
+      const row = store.find(
+        (candidate) =>
+          candidate.id === decisionId && candidate.organizationId === ctx.organizationId,
+      );
+      if (!row) throw new Error(`decision ${decisionId} not found`);
+      row.status = status;
+      return row;
+    },
     create: async (
       _runner: unknown,
       ctx: TenantContext,
@@ -113,7 +134,43 @@ function serviceWith(
         ? ({ id: meetingId, projectId: knownMeetings[meetingId] } as unknown)
         : null,
   } as unknown as MeetingsRepository;
-  return { service: new DecisionsService(database, repository, projects, meetings), store };
+  const supersessions = {
+    create: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      input: {
+        readonly decisionId: string;
+        readonly supersededByDecisionId: string;
+        readonly createdBy: string;
+      },
+    ) => {
+      const row = {
+        id: `supersession-0000-0000-0000-00000000000${++seq}`,
+        organizationId: ctx.organizationId,
+        decisionId: input.decisionId,
+        supersededByDecisionId: input.supersededByDecisionId,
+        createdBy: input.createdBy,
+        createdAt: new Date(),
+      } as DecisionSupersessionRow;
+      edges.push(row);
+      return row;
+    },
+    findSupersededBy: async (_runner: unknown, ctx: TenantContext, decisionId: string) =>
+      edges.find(
+        (edge) => edge.decisionId === decisionId && edge.organizationId === ctx.organizationId,
+      ) ?? null,
+    listSupersedes: async (_runner: unknown, ctx: TenantContext, supersededByDecisionId: string) =>
+      edges.filter(
+        (edge) =>
+          edge.supersededByDecisionId === supersededByDecisionId &&
+          edge.organizationId === ctx.organizationId,
+      ),
+  } as unknown as DecisionSupersessionsRepository;
+  return {
+    service: new DecisionsService(database, repository, projects, meetings, supersessions),
+    store,
+    edges,
+  };
 }
 
 describe('DecisionsService', () => {
@@ -260,6 +317,113 @@ describe('DecisionsService', () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(404);
     expect(store).toHaveLength(0);
+  });
+});
+
+describe('DecisionsService lifecycle (DEC-01-b / DEC-02)', () => {
+  const PROPOSED = decisionRow('decision-proposed', PROJECT, DECIDED_AT);
+  const OTHER = decisionRow('decision-other', PROJECT, DECIDED_AT);
+
+  it('accepts a proposed decision (proposed → accepted)', async () => {
+    const { service, store } = serviceWith([{ ...PROPOSED }]);
+    const view = await service.accept(context, member([PROJECT]), PROPOSED.id);
+    expect(view.status).toBe('accepted');
+    expect(store.find((row) => row.id === PROPOSED.id)?.status).toBe('accepted');
+  });
+
+  it('refuses accepting a non-proposed decision as a 409, with no write', async () => {
+    const accepted = {
+      ...decisionRow('decision-accepted', PROJECT, DECIDED_AT),
+      status: 'accepted' as const,
+    };
+    const { service, store } = serviceWith([accepted]);
+    const error = await service
+      .accept(context, member([PROJECT]), accepted.id)
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(409);
+    expect(store.find((row) => row.id === accepted.id)?.status).toBe('accepted');
+  });
+
+  it('refuses accepting an unknown/cross-tenant decision as 404 for an org-wide caller', async () => {
+    const { service } = serviceWith([{ ...PROPOSED }]);
+    const error = await service
+      .accept(context, member([], true), 'decision-0000-0000-0000-0000000000ff')
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
+  });
+
+  it('hides a decision from a non-member on accept, as not-found', async () => {
+    const { service, store } = serviceWith([{ ...PROPOSED }]);
+    const error = await service
+      .accept(context, member([]), PROPOSED.id)
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
+    expect(store.find((row) => row.id === PROPOSED.id)?.status).toBe('proposed');
+  });
+
+  it('supersedes a decision by another, writing the edge and flipping status in one call', async () => {
+    const { service, store, edges } = serviceWith([{ ...PROPOSED }, { ...OTHER }]);
+    const detail = await service.supersede(context, member([PROJECT]), PROPOSED.id, OTHER.id);
+    expect(store.find((row) => row.id === PROPOSED.id)?.status).toBe('superseded');
+    expect(edges).toHaveLength(1);
+    expect(detail.supersededBy?.decisionId).toBe(OTHER.id);
+    // Read the superseder's detail: it lists what it supersedes.
+    const superseder = await service.detail(context, member([PROJECT]), OTHER.id);
+    expect(superseder.supersedes.map((edge) => edge.decisionId)).toEqual([PROPOSED.id]);
+  });
+
+  it('refuses a decision superseding itself as 422, with no write', async () => {
+    const { service, store, edges } = serviceWith([{ ...PROPOSED }]);
+    const error = await service
+      .supersede(context, member([PROJECT]), PROPOSED.id, PROPOSED.id)
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(422);
+    expect(edges).toHaveLength(0);
+    expect(store.find((row) => row.id === PROPOSED.id)?.status).toBe('proposed');
+  });
+
+  it('refuses superseding by a decision of another project as 404, with no write', async () => {
+    const foreign = decisionRow('decision-otherproject', OTHER_PROJECT, DECIDED_AT);
+    const { service, store, edges } = serviceWith(
+      [{ ...PROPOSED }, foreign],
+      [PROJECT, OTHER_PROJECT],
+    );
+    const error = await service
+      .supersede(context, member([], true), PROPOSED.id, foreign.id)
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
+    expect(edges).toHaveLength(0);
+    expect(store.find((row) => row.id === PROPOSED.id)?.status).toBe('proposed');
+  });
+
+  it('refuses superseding by an unknown/cross-tenant decision as 404 (Known-trap)', async () => {
+    const { service, edges } = serviceWith([{ ...PROPOSED }]);
+    const error = await service
+      .supersede(context, member([], true), PROPOSED.id, 'decision-0000-0000-0000-0000000000ff')
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
+    expect(edges).toHaveLength(0);
+  });
+
+  it('refuses superseding an already-superseded decision as 409', async () => {
+    const superseded = {
+      ...decisionRow('decision-super', PROJECT, DECIDED_AT),
+      status: 'superseded' as const,
+    };
+    const { service, edges } = serviceWith([superseded, { ...OTHER }]);
+    const error = await service
+      .supersede(context, member([PROJECT]), superseded.id, OTHER.id)
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(409);
+    expect(edges).toHaveLength(0);
+  });
+
+  it('hides a decision’s detail from a non-member, as not-found', async () => {
+    const { service } = serviceWith([{ ...PROPOSED }]);
+    const error = await service
+      .detail(context, member([]), PROPOSED.id)
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
   });
 });
 

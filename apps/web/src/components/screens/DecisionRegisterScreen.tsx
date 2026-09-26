@@ -6,7 +6,12 @@ import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tm
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
-import { createDecision, listDecisions } from '../../lib/api/decisions';
+import {
+  acceptDecision,
+  createDecision,
+  listDecisions,
+  supersedeDecision,
+} from '../../lib/api/decisions';
 import type { DecisionStatus, DecisionSummary } from '../../lib/api/decisions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -89,8 +94,28 @@ export function DecisionRegisterScreen({
     },
   });
 
+  async function refetchRegister() {
+    await queryClient.invalidateQueries({
+      queryKey: ['decisions', organizationSlug, projectId],
+    });
+  }
+
+  // DEC-01-b lifecycle. Accept moves proposed → accepted; supersede records the chain edge and
+  // flips the superseded decision's status. Both refetch the register on success; the API is the
+  // authority on whether the transition is legal, and its refusal is shown, never guessed here.
+  const accept = useMutation({
+    mutationFn: (decisionId: string) => acceptDecision(api, organizationSlug, decisionId),
+    onSuccess: refetchRegister,
+  });
+  const supersede = useMutation({
+    mutationFn: (vars: { decisionId: string; supersededById: string }) =>
+      supersedeDecision(api, organizationSlug, vars.decisionId, vars.supersededById),
+    onSuccess: refetchRegister,
+  });
+
   const rows = useMemo(() => register.data ?? [], [register.data]);
   const canSubmit = projectId !== '' && title.trim() !== '' && statement.trim() !== '';
+  const lifecycleError = accept.error ?? supersede.error;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -235,6 +260,12 @@ export function DecisionRegisterScreen({
         </InlineAlert>
       ) : null}
 
+      {rows.length > 0 && lifecycleError ? (
+        <InlineAlert tone="danger" title="Could not update the decision" live>
+          {describeError(lifecycleError)}
+        </InlineAlert>
+      ) : null}
+
       {rows.length > 0 ? (
         <section className="tm-panel tm-stack" aria-labelledby="tm-decisions-heading">
           <h2 id="tm-decisions-heading" className="tm-eyebrow">
@@ -258,11 +289,21 @@ export function DecisionRegisterScreen({
                   <th scope="col">Decision</th>
                   <th scope="col">Status</th>
                   <th scope="col">Decided</th>
+                  <th scope="col">Lifecycle</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((decision) => (
-                  <DecisionRow key={decision.id} decision={decision} />
+                  <DecisionRow
+                    key={decision.id}
+                    decision={decision}
+                    candidates={rows}
+                    onAccept={(id) => accept.mutate(id)}
+                    onSupersede={(id, byId) =>
+                      supersede.mutate({ decisionId: id, supersededById: byId })
+                    }
+                    busy={accept.isPending || supersede.isPending}
+                  />
                 ))}
               </tbody>
             </table>
@@ -273,7 +314,27 @@ export function DecisionRegisterScreen({
   );
 }
 
-function DecisionRow({ decision }: { decision: DecisionSummary }) {
+function DecisionRow({
+  decision,
+  candidates,
+  onAccept,
+  onSupersede,
+  busy,
+}: {
+  decision: DecisionSummary;
+  candidates: readonly DecisionSummary[];
+  onAccept: (decisionId: string) => void;
+  onSupersede: (decisionId: string, supersededById: string) => void;
+  busy: boolean;
+}) {
+  const [supersededById, setSupersededById] = useState('');
+  // A decision may be superseded by another of the same register, never by itself, and a decision
+  // already superseded is a dead end.
+  const options = candidates.filter(
+    (other) => other.id !== decision.id && other.status !== 'superseded',
+  );
+  const superseder = `tm-supersede-${decision.id}`;
+
   return (
     <tr>
       <th scope="row" className="tm-table__title">
@@ -281,6 +342,55 @@ function DecisionRow({ decision }: { decision: DecisionSummary }) {
       </th>
       <td>{statusLabel(decision.status)}</td>
       <td className="tm-mono">{formatMoment(decision.decidedAt)}</td>
+      <td>
+        {decision.status === 'superseded' ? (
+          <span className="tm-field__hint">No further action.</span>
+        ) : (
+          <div className="tm-stack tm-stack--tight">
+            {decision.status === 'proposed' ? (
+              <Button
+                type="button"
+                tone="ink"
+                size="accessible"
+                onClick={() => onAccept(decision.id)}
+                disabled={busy}
+              >
+                Accept
+              </Button>
+            ) : null}
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor={superseder}>
+                Supersede with
+              </label>
+              <select
+                id={superseder}
+                className="tm-field__control"
+                value={supersededById}
+                onChange={(event) => setSupersededById(event.target.value)}
+                disabled={busy || options.length === 0}
+              >
+                <option value="">Choose a decision…</option>
+                {options.map((other) => (
+                  <option key={other.id} value={other.id}>
+                    {other.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button
+              type="button"
+              tone="outline"
+              size="accessible"
+              onClick={() => {
+                if (supersededById !== '') onSupersede(decision.id, supersededById);
+              }}
+              disabled={busy || supersededById === ''}
+            >
+              Supersede
+            </Button>
+          </div>
+        )}
+      </td>
     </tr>
   );
 }
