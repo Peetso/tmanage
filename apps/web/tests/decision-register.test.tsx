@@ -266,4 +266,47 @@ describe('DecisionRegisterScreen', () => {
       expect(post?.body).toMatchObject({ supersededById: 'd-new' });
     });
   });
+
+  it('locks a decision through POST and reflects the seal (x150)', async () => {
+    const { client, calls } = clientOver((call) => {
+      if (call.method === 'POST' && call.url.includes('/lock')) {
+        return json(
+          {
+            id: 'lock-1',
+            decisionId: 'd-1',
+            lockedBy: 'user-1',
+            lockedAt: '2026-07-02T00:00:00.000Z',
+          },
+          201,
+        );
+      }
+      if (call.url.includes('/decisions'))
+        return json({ decisions: [decision('d-1', 'Adopt the plan', '2026-07-01T00:00:00.000Z')] });
+      if (call.url.includes('/projects'))
+        return json({ projects: [{ id: PROJECT_ID, name: 'Northstar' }] });
+      return json({}, 404);
+    });
+
+    render(
+      withQuery(
+        <DecisionRegisterScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          initialProjectId={PROJECT_ID}
+          client={client}
+        />,
+      ),
+    );
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /^lock$/i }));
+
+    await waitFor(() => {
+      const post = calls.find((c) => c.method === 'POST' && c.url.includes('/lock'));
+      expect(post?.url).toContain('/decisions/d-1/lock');
+    });
+
+    // The seal is reflected: the lifecycle controls give way to the locked state.
+    expect(await screen.findByText(/locked\. no further changes\./i)).toBeInTheDocument();
+  });
 });

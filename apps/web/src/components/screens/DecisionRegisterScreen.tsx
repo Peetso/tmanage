@@ -10,6 +10,7 @@ import {
   acceptDecision,
   createDecision,
   listDecisions,
+  lockDecision,
   supersedeDecision,
 } from '../../lib/api/decisions';
 import type { DecisionStatus, DecisionSummary } from '../../lib/api/decisions';
@@ -64,6 +65,10 @@ export function DecisionRegisterScreen({
   const [title, setTitle] = useState('');
   const [statement, setStatement] = useState('');
   const [status, setStatus] = useState<DecisionStatus>('proposed');
+  // SEC / Decisions (x150). The register list does not carry lock state, so the ids a caller has
+  // locked this session are tracked here to reflect the seal immediately. The server is the authority
+  // (a locked decision refuses every later write); this is the minimal additive surface.
+  const [lockedIds, setLockedIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
@@ -112,10 +117,18 @@ export function DecisionRegisterScreen({
       supersedeDecision(api, organizationSlug, vars.decisionId, vars.supersededById),
     onSuccess: refetchRegister,
   });
+  // SEC / Decisions (x150). Lock seals a decision against every further lifecycle write. On success the
+  // id is remembered so the row reflects the seal at once; the API refuses a re-lock and any later write.
+  const lock = useMutation({
+    mutationFn: (decisionId: string) => lockDecision(api, organizationSlug, decisionId),
+    onSuccess: (locked) => {
+      setLockedIds((current) => new Set(current).add(locked.decisionId));
+    },
+  });
 
   const rows = useMemo(() => register.data ?? [], [register.data]);
   const canSubmit = projectId !== '' && title.trim() !== '' && statement.trim() !== '';
-  const lifecycleError = accept.error ?? supersede.error;
+  const lifecycleError = accept.error ?? supersede.error ?? lock.error;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -298,11 +311,13 @@ export function DecisionRegisterScreen({
                     key={decision.id}
                     decision={decision}
                     candidates={rows}
+                    locked={lockedIds.has(decision.id)}
                     onAccept={(id) => accept.mutate(id)}
                     onSupersede={(id, byId) =>
                       supersede.mutate({ decisionId: id, supersededById: byId })
                     }
-                    busy={accept.isPending || supersede.isPending}
+                    onLock={(id) => lock.mutate(id)}
+                    busy={accept.isPending || supersede.isPending || lock.isPending}
                   />
                 ))}
               </tbody>
@@ -317,14 +332,19 @@ export function DecisionRegisterScreen({
 function DecisionRow({
   decision,
   candidates,
+  locked,
   onAccept,
   onSupersede,
+  onLock,
   busy,
 }: {
   decision: DecisionSummary;
   candidates: readonly DecisionSummary[];
+  /** SEC / Decisions (x150): the decision has been sealed this session; no further write is offered. */
+  locked: boolean;
   onAccept: (decisionId: string) => void;
   onSupersede: (decisionId: string, supersededById: string) => void;
+  onLock: (decisionId: string) => void;
   busy: boolean;
 }) {
   const [supersededById, setSupersededById] = useState('');
@@ -345,6 +365,9 @@ function DecisionRow({
       <td>
         {decision.status === 'superseded' ? (
           <span className="tm-field__hint">No further action.</span>
+        ) : locked ? (
+          // Sealed: the lifecycle controls are gone, and the row states the seal (x150).
+          <span className="tm-field__hint">Locked. No further changes.</span>
         ) : (
           <div className="tm-stack tm-stack--tight">
             {decision.status === 'proposed' ? (
@@ -387,6 +410,15 @@ function DecisionRow({
               disabled={busy || supersededById === ''}
             >
               Supersede
+            </Button>
+            <Button
+              type="button"
+              tone="outline"
+              size="accessible"
+              onClick={() => onLock(decision.id)}
+              disabled={busy}
+            >
+              Lock
             </Button>
           </div>
         )}

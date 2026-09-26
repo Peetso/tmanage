@@ -13925,3 +13925,33 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## SEC / Decisions — decision lock (immutable once locked) (x150, module 12)
+
+**What landed.** The Decisions audit was "Partial; decision lock deferred": a decision could be moved
+through its lifecycle (`proposed → accepted`, `→ superseded`) even after the project considered it
+settled. This slice adds a `decision_locks` table (migration `0056`) — an append-only record that a
+decision has been sealed, carrying `locked_by` and `locked_at` — and the endpoint `POST
+/v1/organizations/:orgSlug/decisions/:decisionId/lock` (`meeting.write`, the register's reused
+capability; no `capabilities.ts` edit). Locking a decision seals it: **every mutating decision route
+(`accept`, `supersede`) refuses a write to a locked decision — 409, no write** — enforced in
+`decisions.service` (`assertNotLocked`), not the controller only. The immutable lock row (who and
+when) is the durable audit of the seal; a dedicated `decision.*` `AuditAction` stays deferred with the
+sibling register/lifecycle events.
+
+**Known-trap order.** `decisionId` is resolved tenant- and relation-scoped _before_ authorize/write:
+an unknown or cross-tenant id, and a non-member's probe, are all a 404 with no write. A re-lock is a
+409 with **no second row** (a read-then-insert check, with `uq_decision_locks_org_decision` as the
+engine backstop). The new table is registered in all four places — `schema.ts` def + `TABLES`,
+tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT only; the row is immutable and never lifted),
+and the on-disk migration `0056` the readdir migrator applies. `DecisionLockView` never echoes
+`organization_id`.
+
+**Surfaces.** `DecisionLockView` (`decisions.service.ts`) is a live `Exact` pair with the web's
+`DecisionLock` (`apps/web/src/lib/api/decisions.ts`) in `e2e/contracts/api-web-shapes.ts`. A minimal
+additive lock control on `DecisionRegisterScreen` seals a decision and reflects the locked state
+(axe-clean). Proved database-free with the real `authorize` (`decision-lock.controller.test.ts`):
+lock→locked; a subsequent lifecycle write → 409 with no write; a re-lock → 409 with no second row; a
+cross-tenant/unknown/non-member `decisionId` → 404 with no write; and the lock route is guarded by
+`meeting.write` (a role without it is a 403 at `CapabilityGuard`). Deferred to NEXT-SCOPES-13: an
+unlock workflow (needs approval).

@@ -446,6 +446,11 @@ GRANT INSERT, UPDATE ON `tmanage`.`decisions` TO 'tmanage_app'@'%';
 -- trigger refuses every UPDATE) and never removed, so UPDATE and DELETE are withheld the way the
 -- append-only edges and ledgers above are.
 GRANT INSERT ON `tmanage`.`decision_supersessions` TO 'tmanage_app'@'%';
+-- `decision_locks` (SEC / Decisions, x150) gets INSERT and nothing else. A lock is authored once
+-- (INSERT), read (the database-wide SELECT, line 60) to enforce the write boundary and to refuse a
+-- re-lock; it is immutable (the 0056 trigger refuses every UPDATE) and never lifted this slice, so
+-- UPDATE and DELETE are withheld the way the append-only edges and ledgers above are.
+GRANT INSERT ON `tmanage`.`decision_locks` TO 'tmanage_app'@'%';
 -- `project_objectives` (PROJ / module 8, x124) gets INSERT and UPDATE. An objective is created
 -- (INSERT), read (the database-wide SELECT, line 60), and moved through its lifecycle (UPDATE):
 -- `open → met` or `open → missed`. UPDATE writes exactly `status`; the 0040 column-pinning trigger
