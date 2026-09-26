@@ -10,7 +10,15 @@ import {
   WorkItemsRepository,
   effectivePageSize as workItemPageSize,
 } from '../work/work-items.repository.js';
-import type { ProjectRow, WorkItemRow } from '../../common/database/schema.js';
+import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
+import { FileAssetsRepository } from '../files/file-assets.repository.js';
+import type {
+  ClientProjectionRow,
+  FileAssetRow,
+  FileVersionRow,
+  ProjectRow,
+  WorkItemRow,
+} from '../../common/database/schema.js';
 
 /**
  * How many repository pages one portal list may walk while filling a page of readable rows.
@@ -90,8 +98,92 @@ export interface PortalWorkItemView {
   readonly updatedAt: string;
 }
 
+/**
+ * One published deliverable version, as the client is allowed to see it — x114.
+ *
+ * Built **field by field** from the x97 client projection allowlist ({@link ClientProjectionPayload},
+ * `12-PERMISSION-MATRIX` §1) and nothing else. A column added to `client_projections` or a key
+ * added to the payload is invisible here until somebody adds it below on purpose — the safe
+ * direction `25-AUTH` §7 requires, and the reason this is not `{ ...row.projection }`.
+ *
+ * The three identity fields carry no content: `id` is the frozen version's own id (a stable React
+ * key and the immutable identity x97 froze), `deliverableId` is the id the files sub-route names,
+ * and `publishedAt` is when the client was given this view. None is an internal record field —
+ * there is no owner, no internal state, no content hash, no draft.
+ */
+export interface PortalDeliverableView {
+  /** The published version's id — its immutable identity (x97), and the list's stable key. */
+  readonly id: string;
+  /** The deliverable this version belongs to — the id `GET …/deliverables/:id/files` names. */
+  readonly deliverableId: string;
+  /** When this view was published to the client. */
+  readonly publishedAt: string;
+  /** 12 §1 "public/client title". */
+  readonly title: string;
+  readonly summary: string | null;
+  /** 12 §1 "milestone state". */
+  readonly milestoneState: string | null;
+  /** 12 §1 "committed/forecast date" — an ISO calendar date, or null. */
+  readonly forecastDate: string | null;
+  /** 12 §1 "published risk" — never the internal rationale. */
+  readonly publishedRisk: string | null;
+  /** 12 §1 "decision". */
+  readonly decision: string | null;
+  /** 12 §1 "approved contacts". */
+  readonly approvedContacts: readonly string[];
+}
+
+/**
+ * One client-visible file attached to a deliverable — x114.
+ *
+ * The metadata a file list needs and no internal handle: never `objectKey` (a
+ * `FORBIDDEN_CLIENT_FIELDS` name), never the owner, audience, status, trust zone or scan
+ * verdict. The bytes are a later ticket (the download proxy, NEXT-SCOPES-9); this is the list
+ * that says which files exist and how big they are.
+ */
+export interface PortalDeliverableFileView {
+  /** The file asset's id — the future download route's parameter, and the list's key. */
+  readonly id: string;
+  readonly name: string;
+  /** The provider's counted size of the latest version, in bytes. */
+  readonly sizeBytes: number;
+  /** The detected content type of the latest version, or null when none was detected. */
+  readonly mimeType: string | null;
+  readonly updatedAt: string;
+}
+
 /** The audiences a client may ever see. `internal` is not among them and never will be. */
 const CLIENT_AUDIENCES: readonly Audience[] = ['client_visible', 'client_action_required'];
+
+function toDeliverableView(row: ClientProjectionRow): PortalDeliverableView {
+  const projection = row.projection;
+  return {
+    id: row.deliverableVersionId,
+    deliverableId: row.deliverableId,
+    publishedAt: row.publishedAt.toISOString(),
+    // Field by field from the §1 allowlist — never a spread of the payload.
+    title: projection.title,
+    summary: projection.summary,
+    milestoneState: projection.milestoneState,
+    forecastDate: projection.forecastDate,
+    publishedRisk: projection.publishedRisk,
+    decision: projection.decision,
+    approvedContacts: projection.approvedContacts,
+  };
+}
+
+function toDeliverableFileView(
+  asset: FileAssetRow,
+  version: FileVersionRow,
+): PortalDeliverableFileView {
+  return {
+    id: asset.id,
+    name: asset.name,
+    sizeBytes: version.sizeBytes,
+    mimeType: version.detectedMimeType,
+    updatedAt: asset.updatedAt.toISOString(),
+  };
+}
 
 function toProjectView(row: ProjectRow): PortalProjectView {
   return {
@@ -141,6 +233,8 @@ export class PortalService {
     private readonly database: TenantDatabase,
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     private readonly workItems: WorkItemsRepository = new WorkItemsRepository(),
+    private readonly projections: ClientProjectionsRepository = new ClientProjectionsRepository(),
+    private readonly files: FileAssetsRepository = new FileAssetsRepository(),
   ) {}
 
   /**
@@ -237,6 +331,78 @@ export class PortalService {
     });
 
     return readable.map(toWorkItemView);
+  }
+
+  /**
+   * The published deliverable versions the client may see in one project — x114.
+   *
+   * The relation check runs **first and tenant-scoped** (FAST-PROTOCOL Known trap): `mayRead`
+   * is `authorize()`'s rule about this principal and this project, and for a client it refuses
+   * any project outside `principal.projectIds` — so an unknown, cross-tenant or not-their-project
+   * `projectId` is `404, not_found` here, before any row is read, never a 500. Only then does the
+   * query run, and it reads `client_projections` alone: an unpublished deliverable has no row and
+   * so is invisible, and every field returned comes from the x97 allowlisted payload.
+   */
+  async deliverablesFor(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<readonly PortalDeliverableView[]> {
+    if (!this.mayRead(principal, projectId)) {
+      // 404, not 403. A client probing project ids must not learn which of them are real.
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+
+    const rows = await this.database.read(context, (runner) =>
+      this.projections.listByProject(runner, context, projectId),
+    );
+    return rows.map(toDeliverableView);
+  }
+
+  /**
+   * The client-visible files attached to one client-visible deliverable — x114.
+   *
+   * Resolution order is the Known trap's: the deliverable is resolved **tenant-scoped first**
+   * (`findLatestByDeliverable`, organization-scoped), and a deliverable with no published
+   * projection — unknown id, cross-tenant id, or one never published — is absent, which becomes a
+   * `404` here. Its project is then run through `mayRead`, so a deliverable in a project this
+   * client cannot read (another client's, in the same tenant) is a `404` too. Every refusal is
+   * the same not-found, never a 500 and never a 403 a probe could read.
+   *
+   * The file query is scoped to this client's own organization, so one client never sees
+   * another's file even inside a project both can read; it returns only `ready`, client-audience
+   * `deliverable` files. This route is for a client member — an internal caller has no single
+   * client organization to scope to and is answered `404`, the internal file surface being the
+   * studio's own download route.
+   */
+  async filesForDeliverable(
+    context: TenantContext,
+    principal: Principal,
+    deliverableId: string,
+  ): Promise<readonly PortalDeliverableFileView[]> {
+    const clientOrganizationId = principal.clientOrganizationId;
+    if (!clientOrganizationId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+
+    const projection = await this.database.read(context, (runner) =>
+      this.projections.findLatestByDeliverable(runner, context, deliverableId),
+    );
+    if (!projection || !this.mayRead(principal, projection.projectId)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+
+    const rows = await this.database.read(context, (runner) =>
+      this.files.listClientVisibleForDeliverable(runner, context, {
+        deliverableId,
+        clientOrganizationId,
+      }),
+    );
+    return rows
+      .filter(
+        (row): row is { asset: FileAssetRow; version: FileVersionRow } => row.version !== null,
+      )
+      .map((row) => toDeliverableFileView(row.asset, row.version));
   }
 
   /**

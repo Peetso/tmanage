@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
+import { findForbiddenClientFields } from '@tmanage/domain';
 import { PortalService, progressOf } from './portal.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
+import type { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
+import type { FileAssetsRepository } from '../files/file-assets.repository.js';
+import type { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { ProjectRow, WorkItemRow } from '../../common/database/schema.js';
+import type {
+  ClientProjectionPayload,
+  ClientProjectionRow,
+  FileAssetRow,
+  FileVersionRow,
+  ProjectRow,
+  WorkItemRow,
+} from '../../common/database/schema.js';
 
 /**
  * R07 — the portal must not stop before accessible records.
@@ -202,5 +213,317 @@ describe('progressOf', () => {
     for (const state of OPEN_STATES) {
       expect(progressOf(rowWith(state, 'client_visible')), state).toBe('in_progress');
     }
+  });
+});
+
+/**
+ * x114 — the client portal's deliverables and files reads.
+ *
+ * Two properties matter and both are proved over fakes with the **real** `authorize()` inside
+ * `mayRead`: a client sees only the published, x97-allowlisted projection of a deliverable in a
+ * project shared with them and only files scoped to their own client organization; anything they
+ * cannot see — another client's project, an unpublished or unknown deliverable, a caller with no
+ * client organization — is a `404`, never a 500 and never a leak (FAST-PROTOCOL Known trap).
+ */
+
+const READABLE_PROJECT = 'project-readable';
+const OTHER_PROJECT = 'project-not-shared';
+const DELIVERABLE = 'deliverable-1';
+
+/** The full x97 allowlist — the only content keys a deliverable view may carry (12 §1). */
+const PROJECTION_ALLOWLIST = [
+  'title',
+  'summary',
+  'milestoneState',
+  'forecastDate',
+  'publishedRisk',
+  'decision',
+  'approvedContacts',
+] as const;
+
+/** The identity keys the portal adds for navigation — none is an internal record field. */
+const DELIVERABLE_IDENTITY_KEYS = ['id', 'deliverableId', 'publishedAt'] as const;
+
+function projectionPayload(): ClientProjectionPayload {
+  return {
+    title: 'Homepage redesign',
+    summary: 'The first cut of the new homepage.',
+    milestoneState: 'in_review',
+    forecastDate: '2026-10-01',
+    publishedRisk: 'Copy is still being finalised.',
+    decision: null,
+    approvedContacts: ['Dana at the studio'],
+  };
+}
+
+function projectionRow(
+  deliverableId: string,
+  projectId: string,
+  overrides: Partial<ClientProjectionRow> = {},
+): ClientProjectionRow {
+  return {
+    id: `cp-${deliverableId}`,
+    organizationId: ORG,
+    projectId,
+    deliverableId,
+    deliverableVersionId: `dv-${deliverableId}`,
+    contentHash: 'a'.repeat(64),
+    projection: projectionPayload(),
+    publishedByUserId: 'staff-1',
+    publishedAt: new Date('2026-09-14T00:00:00.000Z'),
+    ...overrides,
+  } as ClientProjectionRow;
+}
+
+function fileAsset(id: string, overrides: Partial<FileAssetRow> = {}): FileAssetRow {
+  return {
+    id,
+    organizationId: ORG,
+    projectId: READABLE_PROJECT,
+    clientOrganizationId: CLIENT_ORG,
+    ownerUserId: 'staff-1',
+    name: `${id}.pdf`,
+    purpose: 'deliverable',
+    objectId: DELIVERABLE,
+    audience: 'client_visible',
+    status: 'ready',
+    rejectionCode: null,
+    scanClaimedAt: null,
+    purgedAt: null,
+    version: 1,
+    createdAt: new Date('2026-09-14T00:00:00.000Z'),
+    updatedAt: new Date('2026-09-15T00:00:00.000Z'),
+    ...overrides,
+  } as FileAssetRow;
+}
+
+function fileVersion(fileAssetId: string, overrides: Partial<FileVersionRow> = {}): FileVersionRow {
+  return {
+    id: `fv-${fileAssetId}`,
+    organizationId: ORG,
+    fileAssetId,
+    versionNo: 1,
+    objectKey: 'private/secret-key-never-shown',
+    sizeBytes: 2048,
+    declaredMimeType: 'application/pdf',
+    detectedMimeType: 'application/pdf',
+    contentHash: 'b'.repeat(64),
+    scanVerdict: 'clean',
+    scannedAt: new Date('2026-09-14T01:00:00.000Z'),
+    scanner: 'test',
+    trustZone: 'private',
+    etag: 'etag-1',
+    createdAt: new Date('2026-09-14T00:00:00.000Z'),
+    ...overrides,
+  } as FileVersionRow;
+}
+
+function fakeProjections(rows: readonly ClientProjectionRow[]): ClientProjectionsRepository {
+  return {
+    listByProject: (_r: never, _c: TenantContext, projectId: string) =>
+      Promise.resolve(rows.filter((row) => row.projectId === projectId)),
+    findLatestByDeliverable: (_r: never, _c: TenantContext, deliverableId: string) =>
+      Promise.resolve(rows.find((row) => row.deliverableId === deliverableId) ?? null),
+  } as unknown as ClientProjectionsRepository;
+}
+
+function fakeFiles(
+  rows: readonly { asset: FileAssetRow; version: FileVersionRow | null }[],
+  onQuery?: (input: { deliverableId: string; clientOrganizationId: string }) => void,
+): FileAssetsRepository {
+  return {
+    listClientVisibleForDeliverable: (
+      _r: never,
+      _c: TenantContext,
+      input: { deliverableId: string; clientOrganizationId: string },
+    ) => {
+      onQuery?.(input);
+      return Promise.resolve(rows);
+    },
+  } as unknown as FileAssetsRepository;
+}
+
+describe('PortalService.deliverablesFor (x114)', () => {
+  it('returns only the x97-allowlisted projection fields for a project the client can read', async () => {
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      fakeProjections([projectionRow(DELIVERABLE, READABLE_PROJECT)]),
+      fakeFiles([]),
+    );
+
+    const result = await service.deliverablesFor(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+
+    expect(result).toHaveLength(1);
+    const view = result[0];
+    if (!view) throw new Error('expected one deliverable');
+    // Projection discipline: every content key is on the allowlist, no field is outside it, and
+    // no forbidden client field (objectKey, cost, ownerUserId's kin, …) appears anywhere.
+    expect(Object.keys(view).sort()).toEqual(
+      [...PROJECTION_ALLOWLIST, ...DELIVERABLE_IDENTITY_KEYS].sort(),
+    );
+    expect(findForbiddenClientFields(view)).toEqual([]);
+    expect(view).toMatchObject({
+      id: 'dv-deliverable-1',
+      deliverableId: DELIVERABLE,
+      title: 'Homepage redesign',
+      approvedContacts: ['Dana at the studio'],
+    });
+  });
+
+  it('404s for a project the client is not on (client of another org), reading no rows', async () => {
+    let listed = false;
+    const projections = {
+      listByProject: () => {
+        listed = true;
+        return Promise.resolve([]);
+      },
+      findLatestByDeliverable: () => Promise.resolve(null),
+    } as unknown as ClientProjectionsRepository;
+
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      projections,
+      fakeFiles([]),
+    );
+
+    // The client's only shared project is READABLE_PROJECT; asking for OTHER_PROJECT is a probe.
+    await expect(
+      service.deliverablesFor(context, clientPrincipal(READABLE_PROJECT), OTHER_PROJECT),
+    ).rejects.toMatchObject({ status: 404 } satisfies Partial<ApiError>);
+    expect(listed).toBe(false);
+  });
+
+  it('shows no unpublished deliverable — an empty list, not an error', async () => {
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      fakeProjections([]),
+      fakeFiles([]),
+    );
+
+    const result = await service.deliverablesFor(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+    expect(result).toEqual([]);
+  });
+});
+
+describe('PortalService.filesForDeliverable (x114)', () => {
+  it('returns client-safe file metadata scoped to the caller client organization', async () => {
+    let seen: { deliverableId: string; clientOrganizationId: string } | undefined;
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      fakeProjections([projectionRow(DELIVERABLE, READABLE_PROJECT)]),
+      fakeFiles(
+        [{ asset: fileAsset('file-1'), version: fileVersion('file-1') }],
+        (input) => (seen = input),
+      ),
+    );
+
+    const result = await service.filesForDeliverable(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      DELIVERABLE,
+    );
+
+    // The query was scoped to this client's own organization — never a sibling client's.
+    expect(seen).toEqual({ deliverableId: DELIVERABLE, clientOrganizationId: CLIENT_ORG });
+    expect(result).toEqual([
+      {
+        id: 'file-1',
+        name: 'file-1.pdf',
+        sizeBytes: 2048,
+        mimeType: 'application/pdf',
+        updatedAt: '2026-09-15T00:00:00.000Z',
+      },
+    ]);
+    // Never the internal object key, nor any other forbidden field.
+    expect(findForbiddenClientFields(result)).toEqual([]);
+  });
+
+  it('404s on an unknown deliverable id before any file is read (Known trap)', async () => {
+    let filesQueried = false;
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      fakeProjections([]),
+      fakeFiles([], () => (filesQueried = true)),
+    );
+
+    await expect(
+      service.filesForDeliverable(
+        context,
+        clientPrincipal(READABLE_PROJECT),
+        'no-such-deliverable',
+      ),
+    ).rejects.toMatchObject({ status: 404 } satisfies Partial<ApiError>);
+    expect(filesQueried).toBe(false);
+  });
+
+  it('404s when the deliverable lives in a project the client cannot read', async () => {
+    let filesQueried = false;
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      // The deliverable is real and published, but in OTHER_PROJECT — one this client is not on.
+      fakeProjections([projectionRow(DELIVERABLE, OTHER_PROJECT)]),
+      fakeFiles([], () => (filesQueried = true)),
+    );
+
+    await expect(
+      service.filesForDeliverable(context, clientPrincipal(READABLE_PROJECT), DELIVERABLE),
+    ).rejects.toMatchObject({ status: 404 } satisfies Partial<ApiError>);
+    expect(filesQueried).toBe(false);
+  });
+
+  it('404s a caller with no client organization (an internal principal), reading nothing', async () => {
+    let resolved = false;
+    const projections = {
+      findLatestByDeliverable: () => {
+        resolved = true;
+        return Promise.resolve(projectionRow(DELIVERABLE, READABLE_PROJECT));
+      },
+      listByProject: () => Promise.resolve([]),
+    } as unknown as ClientProjectionsRepository;
+
+    const internal: Principal = {
+      userId: 'staff-1',
+      organizationId: ORG,
+      kind: 'internal',
+      role: 'owner',
+      membershipId: 'm-1',
+      membershipStatus: 'active',
+      clientOrganizationId: null,
+      projectIds: [],
+      hasOrgWideScope: true,
+    };
+
+    const service = new PortalService(
+      fakeDatabase(),
+      {} as unknown as ProjectsRepository,
+      {} as unknown as WorkItemsRepository,
+      projections,
+      fakeFiles([]),
+    );
+
+    await expect(service.filesForDeliverable(context, internal, DELIVERABLE)).rejects.toMatchObject(
+      { status: 404 } satisfies Partial<ApiError>,
+    );
+    expect(resolved).toBe(false);
   });
 });

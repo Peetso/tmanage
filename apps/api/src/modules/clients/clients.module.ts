@@ -28,6 +28,8 @@ import { ClientsController } from './clients.controller.js';
 import { PortalService } from './portal.service.js';
 import { PortalController } from './portal.controller.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
+import { FileAssetsRepository } from '../files/file-assets.repository.js';
 import { InvitationsRepository } from '../tenancy/invitations.repository.js';
 import { InvitationsService } from '../tenancy/invitations.service.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
@@ -102,10 +104,17 @@ export class ClientsModule {
       provide: PORTAL_SERVICE,
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) =>
-        // Both repositories constructed here, for the reason the service above constructs its
+        // Every repository constructed here, for the reason the service above constructs its
         // own `ProjectsRepository`: they are stateless collections of queries, and reaching
-        // for another module's provider would register that dynamic module twice.
-        new PortalService(database, new ProjectsRepository(), new WorkItemsRepository()),
+        // for another module's provider would register that dynamic module twice. x114 adds the
+        // read-only client-projection and file-asset repositories for the deliverables surface.
+        new PortalService(
+          database,
+          new ProjectsRepository(),
+          new WorkItemsRepository(),
+          new ClientProjectionsRepository(),
+          new FileAssetsRepository(),
+        ),
     };
 
     /**

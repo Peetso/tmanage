@@ -68,6 +68,8 @@ import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../ap
 import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
+import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../apps/api/src/modules/clients/portal.service.js';
+import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
@@ -133,6 +135,8 @@ import type {
   ClientRequest as WebClientRequest,
   PortalInboxBundle as WebPortalInboxBundle,
   PortalInboxPage as WebPortalInboxPage,
+  PortalDeliverable as WebPortalDeliverable,
+  PortalDeliverableFile as WebPortalDeliverableFile,
   PortalProject as WebPortalProject,
   PortalWorkItem as WebPortalWorkItem,
 } from '../../apps/web/src/lib/api/portal';
@@ -209,6 +213,10 @@ type _portalInboxBundle = Assert<Exact<ApiPortalInboxBundleView, WebPortalInboxB
 type _portalInboxPage = Assert<Exact<ApiPortalInboxPageView, WebPortalInboxPage>>;
 type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
+// CONTRACT-001 (x114): the client portal's deliverables and their file lists. The screen reads
+// exactly these responses, so both pairs are Exact.
+type _portalDeliverable = Assert<Exact<ApiPortalDeliverableView, WebPortalDeliverable>>;
+type _portalDeliverableFile = Assert<Exact<ApiPortalDeliverableFileView, WebPortalDeliverableFile>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
 type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRequest>>;

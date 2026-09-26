@@ -13057,3 +13057,42 @@ surface a lookup miss as a 500, and the tenant scope is the only leak boundary.
 project shows every count at zero with no invented numbers, a `work.read` refusal shows in the
 delivery-flow panel while the approval panel still renders, and the mounted document is
 axe-clean.
+
+## CLIENT-002 — client portal deliverables + files read (x114)
+
+The portal's last unbuilt read surfaces. `PortalController` served projects, work-items,
+requests and client-members; the deliverables a client role exists to review, and the files
+attached to them, could not be read. x114 adds two reads behind `client_projection.read`, no
+migration and no new table (`deliverable_versions` is 0027, `client_projections` is x97's 0031,
+`file_*` are 0015–0019).
+
+`GET …/portal/projects/:projectId/deliverables` returns the **published** deliverable versions
+of one project — one row per x97 `client_projections` row, newest first — each carried as
+`PortalDeliverableView`: built field by field from the x97 allowlist (`ClientProjectionPayload`,
+`12-PERMISSION-MATRIX` §1) plus three navigation-only identity fields (`id`, `deliverableId`,
+`publishedAt`). Never the internal deliverable record, never a draft — an unpublished deliverable
+has no projection row and so does not appear.
+
+`GET …/portal/deliverables/:deliverableId/files` returns `PortalDeliverableFileView[]` — the
+`ready`, client-audience `deliverable` files scoped to the caller's own client organization
+(`04-SECURITY-PRIVACY` §5). Metadata only (`id`, `name`, `sizeBytes`, `mimeType`, `updatedAt`);
+never the object key or any owner. The bytes are deferred to the portal download proxy
+(NEXT-SCOPES-9), reusing the `file.download` path.
+
+**Known trap (FAST-PROTOCOL 19:55).** Both routes resolve the parent tenant-scoped **before** the
+client relation check: the deliverables route runs `authorize()` (`mayRead`) on the `projectId`
+first, and the files route resolves the deliverable's projection (organization-scoped) then
+`mayRead` on its project — so an unknown, cross-tenant, unpublished or another-client id is a
+`404`, never a 500 and never a 403 a probe could read. Unit-proven in `portal.service.test.ts`
+(client on the project sees only allowlisted fields; client of another org → 404; unknown
+deliverable → 404 before any file read; internal caller with no client org → 404). Projection
+discipline is a regression guard: the response keys equal exactly the allowlist plus the three
+identity fields, and `findForbiddenClientFields` finds nothing.
+
+**Web.** `ClientPortalDeliverablesScreen` replaces `PlannedPortalScreen` on `…/portal/deliverables`:
+one section per shared project, each deliverable showing its published projection, with files
+reached through a disclosure that fetches on open. `PortalDeliverableView`/`PortalDeliverableFileView`
+are live `Exact` pairs (CONTRACT-001). Screen + axe proven in `portal-deliverables-flow.test.tsx`.
+
+Portal deliverables cross-client exclusion: unit-proven, no schema change. Deferred to
+NEXT-SCOPES-9: the portal file download proxy; timeline/updates/people portal pages.

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { clientProjections } from '../../common/database/schema.js';
@@ -126,5 +126,58 @@ export class ClientProjectionsRepository {
     const found = await this.findByVersion(runner, context, deliverableVersionId);
     if (!found) throw new ClientProjectionNotFoundError(deliverableVersionId);
     return found;
+  }
+
+  /**
+   * x114. Every published projection in one project, newest first — the client portal's
+   * deliverables read.
+   *
+   * Scoped by `context.organizationId`; a projection in another tenant is absent, never an
+   * error, exactly as {@link findByVersion} is. One row per *published version*, because a
+   * projection is frozen per version (`0031`), and that is what the client is meant to review.
+   * `publishedAt DESC, id DESC` gives a deterministic newest-first order the screen can page on.
+   * There is no relation predicate here — the caller checks `authorize()` per project before it
+   * asks, the same division of labour {@link PortalService} keeps for projects and work items.
+   */
+  async listByProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<readonly ClientProjectionRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(clientProjections)
+      .where(
+        and(
+          eq(clientProjections.organizationId, context.organizationId),
+          eq(clientProjections.projectId, projectId),
+        ),
+      )
+      .orderBy(desc(clientProjections.publishedAt), desc(clientProjections.id));
+  }
+
+  /**
+   * x114. The most recently published projection of one deliverable, or null — how the portal
+   * resolves a `deliverableId` to the project it lives in *tenant-scoped* before the relation
+   * check (FAST-PROTOCOL Known trap). A deliverable with no projection is an unpublished
+   * deliverable a client must not learn exists, so the caller maps null to 404.
+   */
+  async findLatestByDeliverable(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    deliverableId: string,
+  ): Promise<ClientProjectionRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(clientProjections)
+      .where(
+        and(
+          eq(clientProjections.organizationId, context.organizationId),
+          eq(clientProjections.deliverableId, deliverableId),
+        ),
+      )
+      .orderBy(desc(clientProjections.publishedAt), desc(clientProjections.id))
+      .limit(1);
+    return rows[0] ?? null;
   }
 }
