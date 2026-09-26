@@ -65,6 +65,7 @@ import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
+import type { MeetingAgendaView as ApiMeetingAgendaView } from '../../apps/api/src/modules/calendar/meeting-agenda.controller.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type {
   MemberOffboardingImpactView as ApiMemberOffboardingImpactView,
@@ -145,6 +146,7 @@ import type {
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
+import type { MeetingAgendaView as WebMeetingAgendaView } from '../../apps/web/src/lib/api/meeting-agenda';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type { ProjectMemberSummary as WebProjectMemberSummary } from '../../apps/web/src/lib/api/project-members';
 import type {
@@ -320,6 +322,14 @@ type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
  * internal `membershipId`; paired Exact, so a rename or retype on either side fails the gate.
  */
 type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeView>>;
+
+/**
+ * CAL agenda / day view (x127). `GET .../meetings/agenda?from&to` — the tenant's meetings grouped by
+ * their start day, read by `MeetingAgendaScreen`. A read-only composition over `meetings` with no
+ * new table; the view lives on the controller (no service, like the shape it composes). Paired Exact
+ * with the web `MeetingAgendaView`; the nested day/entry shapes are inlined on both sides.
+ */
+type _meetingAgenda = Assert<Exact<ApiMeetingAgendaView, WebMeetingAgendaView>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
