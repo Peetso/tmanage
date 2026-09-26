@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { HomeHeroSection } from './HomeHeroSection';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getHomeSummary, getMyDay, getSavedContext, getWaiting } from '../../lib/api/home';
 import type { MyDayReason, SavedContextEntityType, WaitingReason } from '../../lib/api/home';
@@ -85,6 +86,8 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
       title="Home"
       description="What needs you today, across every project."
     >
+      <HomeHeroSection organizationSlug={organizationSlug} client={client} />
+
       <section className="tm-panel tm-stack" aria-labelledby="tm-my-day-hero">
         <h2 id="tm-my-day-hero" className="tm-eyebrow">
           Today at a glance

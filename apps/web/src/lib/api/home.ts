@@ -106,6 +106,30 @@ export async function getHomeSummary(
 }
 
 /**
+ * The Home / Pulse read — HOME-01's Focus summary: the acting user's four headline counts. Behind
+ * `work.read` on the API and taking no request body. `openWork` and `dueToday` are the caller's own
+ * open work (`dueToday` a subset of `openWork`); `waitingOnYou` is the Waiting list total; and
+ * `meetingsToday` is the meetings that start today in a project the caller may read. Every number is
+ * the API's, gated per row, so the Focus capsule shows nothing the sections below it do not.
+ */
+export interface HomePulse {
+  readonly openWork: number;
+  readonly dueToday: number;
+  readonly waitingOnYou: number;
+  readonly meetingsToday: number;
+}
+
+export async function getHomePulse(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<HomePulse> {
+  const { data } = await client.request<HomePulse>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/pulse`,
+  });
+  return data;
+}
+
+/**
  * The Home / Saved-context endpoints — HOME-05's saved/pinned context.
  *
  * Behind `work.read` on the API and taking no `userId`: a pin is always the acting user's own. A
