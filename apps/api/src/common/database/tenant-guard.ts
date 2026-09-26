@@ -216,6 +216,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // has, so the guard must scope its reads and its writes. The layer-3 guard fails OPEN on an
   // unregistered table, so this entry is what scopes the objective reads and writes.
   org_objectives: 'organization_id',
+  // PROJ / module 8 (x138, migration 0047). Tenant-owned: the edge names an objective and a work
+  // item, both tenant rows, and an unscoped `SELECT ... FROM objective_work_links` would be a map of
+  // which studio linked what to which objective. `organization_id` is NOT NULL and it carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
+  // writes. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes the
+  // link reads and writes.
+  objective_work_links: 'organization_id',
 });
 
 /**

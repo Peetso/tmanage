@@ -30,6 +30,7 @@ import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
+import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-links.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -202,6 +203,11 @@ export class AppModule {
         // projects for the relation filter, and aggregates `work_items` + `project_objectives`
         // (x124). Mounted at `…/projects/portfolio`, a static segment matched before `:projectId`.
         ProjectPortfolioModule.register(),
+        // PROJ / module 8 (x138). The objective→work-item linkage (link/list/unlink). After
+        // `ProjectObjectivesModule` and `WorkModule`: an edge names an objective and a work item, and
+        // the composite foreign keys mean a caller who names one that is not theirs gets a refusal
+        // rather than a foreign-key 500.
+        ObjectiveWorkLinksModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
         // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the

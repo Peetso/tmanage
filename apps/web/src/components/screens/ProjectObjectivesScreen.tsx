@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ObjectiveWorkLinksPanel } from './ObjectiveWorkLinksPanel';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createProjectObjective,
@@ -57,6 +58,11 @@ export function ProjectObjectivesScreen({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [target, setTarget] = useState('');
+  /** The objective whose linked-work panel is open, if any (x138). */
+  const [selectedObjective, setSelectedObjective] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const objectives = useQuery({
     queryKey: ['project-objectives', organizationSlug, projectId],
@@ -219,6 +225,7 @@ export function ProjectObjectivesScreen({
                   <th scope="col">Target</th>
                   <th scope="col">Status</th>
                   <th scope="col">Outcome</th>
+                  <th scope="col">Linked work</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,12 +237,29 @@ export function ProjectObjectivesScreen({
                       transition.mutate({ objectiveId: objective.id, status })
                     }
                     busy={transition.isPending}
+                    selected={selectedObjective?.id === objective.id}
+                    onToggleLinks={() =>
+                      setSelectedObjective((current) =>
+                        current?.id === objective.id
+                          ? null
+                          : { id: objective.id, name: objective.name },
+                      )
+                    }
                   />
                 ))}
               </tbody>
             </table>
           </div>
         </section>
+      ) : null}
+
+      {selectedObjective ? (
+        <ObjectiveWorkLinksPanel
+          organizationSlug={organizationSlug}
+          objectiveId={selectedObjective.id}
+          objectiveName={selectedObjective.name}
+          {...(client ? { client } : {})}
+        />
       ) : null}
     </AppShell>
   );
@@ -245,10 +269,14 @@ function ObjectiveRow({
   objective,
   onTransition,
   busy,
+  selected,
+  onToggleLinks,
 }: {
   objective: ProjectObjectiveSummary;
   onTransition: (status: ProjectObjectiveOutcome) => void;
   busy: boolean;
+  selected: boolean;
+  onToggleLinks: () => void;
 }) {
   return (
     <tr>
@@ -285,6 +313,17 @@ function ObjectiveRow({
         ) : (
           <span className="tm-field__hint">No further action.</span>
         )}
+      </td>
+      <td>
+        <Button
+          type="button"
+          tone="outline"
+          size="accessible"
+          onClick={onToggleLinks}
+          aria-pressed={selected}
+        >
+          {selected ? 'Hide linked work' : 'Linked work'}
+        </Button>
       </td>
     </tr>
   );
