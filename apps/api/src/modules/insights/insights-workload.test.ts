@@ -3,7 +3,10 @@ import type { Principal } from '@tmanage/domain';
 import { InsightsService } from './insights.service.js';
 import type { DeliveryFlowRepository } from './delivery-flow.repository.js';
 import type { ApprovalCycleRepository } from './approval-cycle.repository.js';
-import type { ListOpenProjectItemsOptions, WorkloadRepository } from '../work-views/workload.repository.js';
+import type {
+  ListOpenProjectItemsOptions,
+  WorkloadRepository,
+} from '../work-views/workload.repository.js';
 import type { ListProjectsOptions, ProjectsRepository } from '../projects/projects.repository.js';
 import type { ProjectRow, WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -155,11 +158,26 @@ describe('InsightsService.orgWorkload', () => {
     const projectRows = [project({ id: PROJECT_A }), project({ id: PROJECT_B })];
     const itemRows = [
       // Project A: three open items — two on the calendar, owned by two people.
-      item({ id: 'work-a1-000000000-0000-000000000001', projectId: PROJECT_A, ownerUserId: 'u1', startAt: DATED }),
-      item({ id: 'work-a2-000000000-0000-000000000002', projectId: PROJECT_A, ownerUserId: 'u2', dueAt: DATED }),
+      item({
+        id: 'work-a1-000000000-0000-000000000001',
+        projectId: PROJECT_A,
+        ownerUserId: 'u1',
+        startAt: DATED,
+      }),
+      item({
+        id: 'work-a2-000000000-0000-000000000002',
+        projectId: PROJECT_A,
+        ownerUserId: 'u2',
+        dueAt: DATED,
+      }),
       item({ id: 'work-a3-000000000-0000-000000000003', projectId: PROJECT_A, ownerUserId: null }),
       // Project A: a done item is not open work and must not inflate the count.
-      item({ id: 'work-a4-000000000-0000-000000000004', projectId: PROJECT_A, state: 'done', ownerUserId: 'u9' }),
+      item({
+        id: 'work-a4-000000000-0000-000000000004',
+        projectId: PROJECT_A,
+        state: 'done',
+        ownerUserId: 'u9',
+      }),
       // Project B: one open item, owned by u1 again (counted once org-wide).
       item({ id: 'work-b1-000000000-0000-000000000001', projectId: PROJECT_B, ownerUserId: 'u1' }),
     ];
@@ -198,7 +216,12 @@ describe('InsightsService.orgWorkload', () => {
     const itemRows = [
       item({ id: 'work-a1-000000000-0000-000000000001', projectId: PROJECT_A, ownerUserId: 'u1' }),
       // Even if the foreign project's items were reachable, it never enters the aggregate.
-      item({ id: 'work-f1-000000000-0000-000000000001', projectId: FOREIGN_PROJECT, organizationId: OTHER_ORG, ownerUserId: 'u5' }),
+      item({
+        id: 'work-f1-000000000-0000-000000000001',
+        projectId: FOREIGN_PROJECT,
+        organizationId: OTHER_ORG,
+        ownerUserId: 'u5',
+      }),
     ];
 
     const view = await serviceWith(projectRows, itemRows).orgWorkload(context, orgWide());
@@ -224,7 +247,9 @@ describe('InsightsService.orgWorkload', () => {
 
   it('returns an empty roll-up (not a refusal) for a principal off every project', async () => {
     const projectRows = [project({ id: PROJECT_A }), project({ id: PROJECT_B })];
-    const itemRows = [item({ id: 'work-a1-000000000-0000-000000000001', projectId: PROJECT_A, ownerUserId: 'u1' })];
+    const itemRows = [
+      item({ id: 'work-a1-000000000-0000-000000000001', projectId: PROJECT_A, ownerUserId: 'u1' }),
+    ];
 
     const view = await serviceWith(projectRows, itemRows).orgWorkload(context, member([]));
 
@@ -242,7 +267,12 @@ describe('InsightsService.orgWorkload', () => {
     const itemRows = [
       // client-readable audience, so the audience filter alone would not exclude it — the
       // internal-only work.read ceiling is what does, at the project relation check.
-      item({ id: 'work-a1-000000000-0000-000000000001', projectId: PROJECT_A, audience: 'client_visible', ownerUserId: 'u1' }),
+      item({
+        id: 'work-a1-000000000-0000-000000000001',
+        projectId: PROJECT_A,
+        audience: 'client_visible',
+        ownerUserId: 'u1',
+      }),
     ];
 
     const view = await serviceWith(projectRows, itemRows).orgWorkload(context, client());

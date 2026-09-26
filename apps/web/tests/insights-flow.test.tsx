@@ -6,16 +6,21 @@ import { InsightsScreen } from '../src/components/screens/InsightsScreen';
 import { expectNoAxeViolations } from './axe';
 
 /**
- * INS-03 — the project insights dashboard (x109). The screen reads two endpoints; the fake fetch
- * routes by path so each read can be given its own body and status independently, the way a caller
- * with one capability but not the other actually experiences them.
+ * INS-03 — the project insights dashboard (x109). The screen reads three endpoints (INS-05 added
+ * the org-wide workload roll-up); the fake fetch routes by path so each read can be given its own
+ * body and status independently, the way a caller with one capability but not the other actually
+ * experiences them.
  */
 type Reply = { body: unknown; status?: number };
 
-function mount(replies: { deliveryFlow: Reply; approvalCycle: Reply }) {
+function mount(replies: { deliveryFlow: Reply; approvalCycle: Reply; workload: Reply }) {
   const routed: typeof globalThis.fetch = ((input: RequestInfo | URL) => {
     const url = String(input);
-    const reply = url.includes('/delivery-flow') ? replies.deliveryFlow : replies.approvalCycle;
+    const reply = url.includes('/delivery-flow')
+      ? replies.deliveryFlow
+      : url.includes('/workload')
+        ? replies.workload
+        : replies.approvalCycle;
     return Promise.resolve(
       new Response(JSON.stringify(reply.body), {
         status: reply.status ?? 200,
@@ -97,6 +102,22 @@ const EMPTY_CYCLE = {
   computedAt: '2026-09-20T10:00:00.000Z',
 };
 
+// INS-05 — the org-wide workload roll-up the screen reads alongside the two per-project reads.
+const WORKLOAD = {
+  projects: [
+    { projectId: 'project-1', openItemCount: 6, scheduledItemCount: 4, assigneeCount: 3 },
+    { projectId: 'project-2', openItemCount: 2, scheduledItemCount: 1, assigneeCount: 1 },
+  ],
+  totals: { projectCount: 2, assigneeCount: 3, openItemCount: 8, scheduledItemCount: 5 },
+  computedAt: '2026-09-20T10:00:00.000Z',
+};
+
+const EMPTY_WORKLOAD = {
+  projects: [],
+  totals: { projectCount: 0, assigneeCount: 0, openItemCount: 0, scheduledItemCount: 0 },
+  computedAt: '2026-09-20T10:00:00.000Z',
+};
+
 function refusal(message: string) {
   return { body: { error: { code: 'forbidden', message, correlationId: 'c' } }, status: 403 };
 }
@@ -106,6 +127,7 @@ describe('InsightsScreen', () => {
     const { container } = mount({
       deliveryFlow: { body: DELIVERY_FLOW },
       approvalCycle: { body: APPROVAL_CYCLE },
+      workload: { body: WORKLOAD },
     });
 
     const deliveryTable = (await screen.findByRole('table', {
@@ -124,11 +146,23 @@ describe('InsightsScreen', () => {
     expect(approval.getByRole('row', { name: /Changes requested 1 1 1 h/i })).toBeTruthy();
     expect(approval.getByRole('row', { name: /Invalidated 1 0 —/i })).toBeTruthy();
 
+    // INS-05 — the org-wide workload roll-up renders as its own table, heaviest first, with the
+    // aggregate in the footer.
+    const workloadTable = screen.getByRole('table', { name: /open work by project/i });
+    const workload = within(workloadTable);
+    expect(workload.getByRole('row', { name: /project-1 6 4 3/i })).toBeTruthy();
+    expect(workload.getByRole('row', { name: /project-2 2 1 1/i })).toBeTruthy();
+    expect(workload.getByRole('row', { name: /All projects \(2\) 8 5 3/i })).toBeTruthy();
+
     await expectNoAxeViolations(container);
   });
 
   it('shows every count at zero for an empty project — no invented numbers', async () => {
-    mount({ deliveryFlow: { body: EMPTY_FLOW }, approvalCycle: { body: EMPTY_CYCLE } });
+    mount({
+      deliveryFlow: { body: EMPTY_FLOW },
+      approvalCycle: { body: EMPTY_CYCLE },
+      workload: { body: EMPTY_WORKLOAD },
+    });
 
     expect(await screen.findByText(/No work items you can read in this project yet/i)).toBeTruthy();
     expect(
@@ -142,6 +176,7 @@ describe('InsightsScreen', () => {
     mount({
       deliveryFlow: refusal('You need work.read.'),
       approvalCycle: { body: APPROVAL_CYCLE },
+      workload: { body: WORKLOAD },
     });
 
     expect(await screen.findByText('You need work.read.')).toBeTruthy();

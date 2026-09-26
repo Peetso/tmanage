@@ -75,9 +75,7 @@ test.describe('INS-05 — the insights workload roll-up journey', () => {
 
     // The roll-up renders as an accessible table with its aggregate footer — the shape holds
     // whether the live portfolio has open work or not (the empty state renders the same table).
-    await expect(
-      reader.page.getByRole('table', { name: 'Open work by project' }),
-    ).toBeVisible();
+    await expect(reader.page.getByRole('table', { name: 'Open work by project' })).toBeVisible();
     await expect(reader.page.getByRole('rowheader', { name: /^All projects \(/ })).toBeVisible();
 
     await reader.context.close();
