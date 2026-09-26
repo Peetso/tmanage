@@ -13532,3 +13532,25 @@ service (real `authorize`) proves create→list→expand, the cross-tenant 404, 
 the no-`meeting.write` 403; `apps/web/tests/meeting-series-screen.test.tsx` (jsdom + axe) proves the
 list/create surface and axe-cleanliness. No DB test / no new e2e journey in-slice (the chain owns
 both).
+
+- **x131** (branch `x131-doc-export`, off `master` `f3fe700`): DOC export (module 10) —
+  document **Markdown download**, `GET .../documents/:documentId/export.md` behind `doc.read`.
+  Read-only: the current-version body under a YAML title front-matter block, served as
+  `text/markdown` from a `StreamableFile` (`attachment`, `nosniff`, `private, no-store`). The
+  document is resolved through `DocumentsService.get` — tenant-scoped **before** the relation check
+  (x91) — so an unknown id, a cross-tenant id and a non-member's id all answer the same **404**,
+  never a 403 that would confirm existence and never a foreign-key 500; the export reuses that
+  authorized read whole and only serializes it, so it can neither widen access nor mutate. Docs are
+  **internal-only**: `doc.read` is an internal-only capability, so `CapabilityGuard` refuses a
+  client principal (and any role whose ceiling lacks `doc.read`) with the ordinary 403 before the
+  handler runs — widening client access stays a `12-PERMISSION-MATRIX` edit (deferred → NS-13, with
+  PDF/HTML and version selection). No schema change, no new table, no new capability. Export body is
+  bytes → no new `View` shape, contracts unchanged. A second controller
+  (`document-export.controller.ts`) on the `documents` base path keeps the bytes response mode apart
+  from the JSON reads; the pure renderer (`document-export.ts`) folds a title's line breaks and
+  escapes its quotes so it cannot break out of the front-matter. Proved in `document-export.test.ts`
+  (renderer + real-`authorize` controller: markdown out, cross-tenant → 404, route gated on the
+  internal-only `doc.read`). Web: `DocumentExportButton` (a plain download link — the JSON client
+  reads every body as JSON, so the download deliberately bypasses it), wired into
+  `DocumentViewScreen` once the document loads; `document-export.test.tsx` (jsdom + axe): the link
+  points at the endpoint, appears only with a loaded document, and the page stays axe-clean.
