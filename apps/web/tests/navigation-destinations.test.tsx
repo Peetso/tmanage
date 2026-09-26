@@ -25,7 +25,7 @@ import { expectNoAxeViolations } from './axe';
  * In the app router a route resolves exactly when a `page` file exists at its path and 404s
  * when one does not. The href a nav item carries is a suffix under `[orgSlug]`
  * (`AppShell`/`ClientPortalShell` supply the slug), so the file that answers `/home` is
- * `src/app/[orgSlug]/home/page.tsx`. This walk turns each of the fifteen destinations back
+ * `src/app/[orgSlug]/home/page.tsx`. This walk turns each of the sixteen destinations back
  * into that path and asserts the file is there and exports a default — which is precisely what
  * separates a resolving route from a 404. It reads the tree the way `ticket-ids.test.ts` does,
  * from `process.cwd()`, which the config leaves at `apps/web`.
@@ -48,8 +48,9 @@ describe('every navigation destination resolves to a page', () => {
   it('walks a full navigation, not an empty one', () => {
     // A mapping bug that matched nothing would make every case below vacuously pass.
     expect(INTERNAL_NAVIGATION.length).toBe(8);
-    expect(CLIENT_NAVIGATION.length).toBe(7);
-    expect(ALL_DESTINATIONS.length).toBe(15);
+    // Portal risks (x140) added the "Risks" client destination (/portal/risks).
+    expect(CLIENT_NAVIGATION.length).toBe(8);
+    expect(ALL_DESTINATIONS.length).toBe(16);
   });
 
   it.each(ALL_DESTINATIONS.map((item) => [item.label, item] as const))(
