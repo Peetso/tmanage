@@ -379,6 +379,14 @@ GRANT INSERT ON `tmanage`.`decision_supersessions` TO 'tmanage_app'@'%';
 -- name, description, target and authorship are immutable for the runtime credential specifically.
 -- **No DELETE**: an objective is the durable record of what the project set out to do.
 GRANT INSERT, UPDATE ON `tmanage`.`project_objectives` TO 'tmanage_app'@'%';
+-- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
+-- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
+-- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes
+-- exactly `status`; the 0046 column-pinning trigger (`trg_org_objectives_pin_columns`) refuses every
+-- other column at the engine, so an objective's name, description, target and authorship are
+-- immutable for the runtime credential specifically. **No DELETE**: an objective is the durable
+-- record of what the organization set out to do.
+GRANT INSERT, UPDATE ON `tmanage`.`org_objectives` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

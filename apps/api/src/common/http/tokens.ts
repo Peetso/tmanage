@@ -61,6 +61,9 @@ export const DECISIONS_SERVICE = Symbol.for('tmanage.DecisionsService');
 /** PROJ / module 8 (x124). A project's objectives — create/list/transition. */
 export const PROJECT_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.ProjectObjectivesRepository');
 export const PROJECT_OBJECTIVES_SERVICE = Symbol.for('tmanage.ProjectObjectivesService');
+/** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
+export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
+export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');
 export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepository');
 export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService');
 /** FR-05 (x92). The approvals aggregate — deliverable versions and the decide path. */

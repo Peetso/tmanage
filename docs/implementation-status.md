@@ -13139,3 +13139,38 @@ relation gate) and against a real server in `apps/api/test/proj-001-objectives.d
 project's objectives in creation order, and mark each open one met or missed. `ProjectObjectiveView`
 is a live `Exact` pair with the web `ProjectObjectiveSummary` (CONTRACT-001). Screen + axe proven in
 `project-objectives.test.tsx`.
+
+## PROJ / module 8 — organization objectives / OKRs create/list/transition (x136)
+
+Module 8 was still **Partial** for the org OKRs NEXT-SCOPES-11 deferred: x124 shipped *project*
+objectives, but the map's org-level objectives had no table and no route (grep clean). x136 ships the
+org-scoped counterpart — not key results, metrics, or an objective→project cascade, which stay
+deferred (NEXT-SCOPES-13).
+
+Migration **0046** creates `org_objectives`: tenant-scoped like `project_objectives` (0040) but with
+**no `project_id`** — an org objective belongs to the tenant, not a project. Columns `id`,
+`organization_id`, `name`, optional `description`/`target`, a `status` enum (`open|met|missed`,
+default `open`), `created_by`, `created_at`; FK `fk_org_objectives_org` to `organizations`. Same
+lifecycle as the project objective, so `status` may move and a `BEFORE UPDATE` column-pinning trigger
+(`trg_org_objectives_pin_columns`) pins every other column at the engine. Registered in all four
+places (Known trap): `schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `users.sql` grant
+(`INSERT, UPDATE`; `SELECT` is database-wide), and the migration file itself. Per pass-20 rules the
+DB proof is the chain's, not in-slice.
+
+`POST …/organizations/:orgSlug/objectives` (`project.manage`) and `GET …/objectives` (`work.read`)
+create and list; `PATCH …/objectives/:objectiveId` (`project.manage`) transitions `open → met | missed`
+— a guarded state machine (an illegal transition is a 409 with no write; a non-met/missed body is a
+422). Org-scoped, so authorization is on the role ceiling (`authorize()` with `projectId: null`, no
+relation gate); a role without `project.manage` gets a 403 on a write — no project to hide, so a 403,
+not a 404.
+
+**Known trap (FAST-PROTOCOL 19:55).** PATCH names the objective by id, so `OrgObjectivesService`
+resolves it **tenant-scoped before** the authorize check and the write: an unknown or cross-tenant
+`objectiveId` is a `404`, never a foreign-key 500. Unit-proven with real `authorize()` over fakes in
+`org-objectives.controller.test.ts` (create→list→transition; 409 illegal transition; 404 cross-tenant;
+403 without `project.manage`).
+
+**Web.** `OrgObjectivesScreen` on `…/[orgSlug]/objectives`: set an objective, list the organization's
+objectives in creation order, and mark each open one met or missed. `OrgObjectiveView` is a live
+`Exact` pair with the web `OrgObjectiveSummary` (CONTRACT-001). Screen + axe proven in
+`org-objectives.test.tsx`.
