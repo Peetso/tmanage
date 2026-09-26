@@ -45,7 +45,7 @@ const FIRST = 'Adopt the staging pipeline';
 const SECOND = 'Adopt the blue/green pipeline';
 
 async function recordDecision(page: Page, title: string): Promise<void> {
-  await page.getByLabel(/^Decision/).fill(title);
+  await page.getByRole('textbox', { name: /^Decision/ }).fill(title);
   await page.getByLabel(/in words/i).fill(`${title} — recorded by the decision journey.`);
   await page.getByRole('button', { name: /record decision/i }).click();
   await expect(page.getByRole('rowheader', { name: title })).toBeVisible();

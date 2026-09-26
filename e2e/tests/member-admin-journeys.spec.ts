@@ -59,8 +59,12 @@ test.describe.serial('the project member-admin journeys', () => {
     await admin.page.goto(membersUrl(world().northstar.projectId));
 
     // The roster names come from the directory, not from raw ids.
-    await expect(admin.page.getByText(world().northstar.manager.displayName)).toBeVisible();
-    await expect(admin.page.getByText(world().northstar.designer.displayName)).toBeVisible();
+    await expect(
+      admin.page.getByText(world().northstar.manager.displayName, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      admin.page.getByText(world().northstar.designer.displayName, { exact: true }),
+    ).toBeVisible();
 
     // Re-role the designer, a compare-and-swap on their current role.
     await admin.page
@@ -94,7 +98,9 @@ test.describe.serial('the project member-admin journeys', () => {
     const manager = await openAs(browser, world().northstar.manager.id);
     await manager.page.goto(membersUrl(world().northstar.projectId));
 
-    await expect(manager.page.getByText(world().northstar.manager.displayName)).toBeVisible();
+    await expect(
+      manager.page.getByText(world().northstar.manager.displayName, { exact: true }),
+    ).toBeVisible();
     await manager.page
       .getByLabel(`Role for ${world().northstar.manager.displayName}`)
       .selectOption({ label: 'Workspace admin' });
