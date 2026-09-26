@@ -107,7 +107,7 @@
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
---     decision_supersessions, document_templates
+--     document_comments, decision_supersessions, document_templates
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -314,6 +314,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`saved_context`    TO 'tmanage_app'@'%
 -- it changed, so a runtime credential must not be able to erase it (the `deliverable_versions`
 -- posture above).
 GRANT INSERT                 ON `tmanage`.`document_versions` TO 'tmanage_app'@'%';
+-- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
+-- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
+-- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
+-- that adds the privilege with the code that writes it. No DELETE.
+GRANT INSERT                 ON `tmanage`.`document_comments` TO 'tmanage_app'@'%';
 -- DOC-04/ADM-06 (x119) document templates. **INSERT only** — a template is created (INSERT) and
 -- read (the database-wide SELECT). This slice ships no editor and no removal path, and the 0039
 -- trigger pins organization_id/created_by_user_id immutable for every credential; an editor is a

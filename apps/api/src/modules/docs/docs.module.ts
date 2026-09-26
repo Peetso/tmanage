@@ -3,6 +3,7 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   DOCUMENTS_REPOSITORY,
   DOCUMENTS_SERVICE,
+  DOCUMENT_COMMENTS_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -10,6 +11,8 @@ import { DocumentsRepository } from './documents.repository.js';
 import { DocumentsService } from './documents.service.js';
 import { DocumentsController } from './documents.controller.js';
 import { DocumentExportController } from './document-export.controller.js';
+import { DocumentCommentsService } from './document-comments.service.js';
+import { DocumentCommentsController } from './document-comments.controller.js';
 
 /**
  * DOC-01 (x91). The docs module's first vertical slice: document read/write.
@@ -18,6 +21,11 @@ import { DocumentExportController } from './document-export.controller.js';
  * service that takes the tenant database and the repository, and one controller. The service
  * needs no audit or outbox dependency this slice (see `DocumentsService`), so its `inject` list
  * is just the database and the repository.
+ *
+ * Docs "collaboration later" (x132) adds the document-comments controller/service beside it. The
+ * comments service resolves the document tenant-scoped through its own `DocumentsRepository` (the
+ * Known-trap order) and appends/lists through its `DocumentCommentsRepository`, both constructed with
+ * their defaults, so it needs only the tenant database injected.
  */
 @Module({})
 export class DocsModule {
@@ -32,14 +40,19 @@ export class DocsModule {
       useFactory: (database: TenantDatabase, documents: DocumentsRepository) =>
         new DocumentsService(database, documents),
     };
+    const commentsService: Provider = {
+      provide: DOCUMENT_COMMENTS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new DocumentCommentsService(database),
+    };
 
     return {
       module: DocsModule,
-      providers: [repository, service],
-      exports: [service],
+      providers: [repository, service, commentsService],
+      exports: [service, commentsService],
       // DOC export (x131): a second controller on the same `documents` base path, serving the
       // read-only Markdown download. It resolves the same `DOCUMENTS_SERVICE` this module provides.
-      controllers: [DocumentsController, DocumentExportController],
+      controllers: [DocumentsController, DocumentExportController, DocumentCommentsController],
     };
   }
 }
