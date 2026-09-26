@@ -67,6 +67,8 @@ import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/a
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalUpdateView as ApiPortalUpdateView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
+import type { ProjectRiskView as ApiProjectRiskView } from '../../apps/api/src/modules/clients/project-risks.projection.js';
+import type { ClientRiskView as ApiClientRiskView } from '../../apps/api/src/modules/clients/project-risks.projection.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
@@ -132,6 +134,8 @@ import type {
   PortalProject as WebPortalProject,
   PortalUpdate as WebPortalUpdate,
   PortalWorkItem as WebPortalWorkItem,
+  ProjectRisk as WebProjectRisk,
+  ClientRisk as WebClientRisk,
 } from '../../apps/web/src/lib/api/portal';
 import type {
   ImportReceipt as WebImportReceipt,
@@ -205,6 +209,8 @@ type _portalInboxBundle = Assert<Exact<ApiPortalInboxBundleView, WebPortalInboxB
 type _portalInboxPage = Assert<Exact<ApiPortalInboxPageView, WebPortalInboxPage>>;
 type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
 type _portalUpdate = Assert<Exact<ApiPortalUpdateView, WebPortalUpdate>>;
+type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
+type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;

@@ -298,6 +298,14 @@ GRANT INSERT, DELETE         ON `tmanage`.`saved_context`    TO 'tmanage_app'@'%
 -- it, per this file's rule that a grant names a statement that exists (the same treatment
 -- `meetings` and `documents` have above).
 GRANT INSERT                 ON `tmanage`.`project_updates`  TO 'tmanage_app'@'%';
+-- Portal risks (x140, 0049). A risk is recorded (INSERT) and read (the database-wide SELECT above);
+-- `severity`, `status`, `internal_note`, `client_summary` and `published` are set at INSERT time, and
+-- this slice ships no edit/unpublish endpoint, so **no UPDATE and no DELETE** — least privilege, and
+-- the 0049 trigger pins organization_id/project_id/created_by_user_id immutable for every credential
+-- besides. When the edit/unpublish lifecycle lands (NEXT-SCOPES-13), UPDATE is added with the code
+-- that writes it, per this file's rule that a grant names a statement that exists (the same treatment
+-- `project_updates`, `project_milestones`, `meetings` and `documents` have above).
+GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

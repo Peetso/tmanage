@@ -12,6 +12,7 @@ import {
   OUTBOX_EVENTS_REPOSITORY,
   PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
+  PROJECT_RISKS_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
@@ -29,6 +30,12 @@ import { PortalService } from './portal.service.js';
 import { PortalController } from './portal.controller.js';
 import { ProjectUpdatesController } from './project-updates.controller.js';
 import { ProjectUpdatesRepository } from './project-updates.repository.js';
+import {
+  PortalRisksController,
+  ProjectRisksController,
+  ProjectRisksService,
+} from './project-risks.controller.js';
+import { ProjectRisksRepository } from './project-risks.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { InvitationsRepository } from '../tenancy/invitations.repository.js';
 import { InvitationsService } from '../tenancy/invitations.service.js';
@@ -186,11 +193,38 @@ export class ClientsModule {
         ),
     };
 
+    /**
+     * SEC / Portal risks (x140). The repositories are constructed here, like the `portal` provider
+     * above: they are stateless collections of queries, and reaching for another module's provider
+     * would register that dynamic module twice.
+     */
+    const risks: Provider = {
+      provide: PROJECT_RISKS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new ProjectRisksService(database, new ProjectsRepository(), new ProjectRisksRepository()),
+    };
+
     return {
       module: ClientsModule,
-      providers: [organizations, memberships, shares, service, portal, invitations, clientRequests],
+      providers: [
+        organizations,
+        memberships,
+        shares,
+        service,
+        portal,
+        invitations,
+        clientRequests,
+        risks,
+      ],
       exports: [service, portal],
-      controllers: [ClientsController, PortalController, ProjectUpdatesController],
+      controllers: [
+        ClientsController,
+        PortalController,
+        ProjectUpdatesController,
+        ProjectRisksController,
+        PortalRisksController,
+      ],
     };
   }
 }

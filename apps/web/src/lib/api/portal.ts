@@ -102,6 +102,107 @@ export async function postProjectUpdate(
   return data;
 }
 
+/** The risk severities a client is shown — 12-PERMISSION-MATRIX §4's "published risk". */
+export type RiskSeverity = 'low' | 'medium' | 'high';
+/** The risk lifecycle states a client is shown. */
+export type RiskStatus = 'open' | 'mitigated' | 'closed';
+
+/**
+ * A risk as the portal is told it — SEC / Portal risks (x140).
+ *
+ * What is absent is the point, the same way it is for `PortalUpdate` and `ClientMilestone`: there is
+ * no title, no internal note, no author and no publish flag. §4 excludes staff and the internal note
+ * from the client projection, and a client only ever receives published risks — so the client is
+ * shown the client-facing summary, the severity and the status, and nothing else.
+ */
+export interface ClientRisk {
+  readonly id: string;
+  readonly projectId: string;
+  readonly severity: RiskSeverity;
+  readonly status: RiskStatus;
+  readonly clientSummary: string;
+  readonly createdAt: string;
+}
+
+/**
+ * A risk as an internal manager is shown it — the full record behind `project.manage`.
+ *
+ * `title`, `internalNote`, `createdByUserId` and `published` are here because the internal
+ * compose/list surface renders them; the client read never returns them.
+ */
+export interface ProjectRisk {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly severity: RiskSeverity;
+  readonly status: RiskStatus;
+  readonly internalNote: string | null;
+  readonly clientSummary: string;
+  readonly published: boolean;
+  readonly createdByUserId: string;
+  readonly createdAt: string;
+}
+
+/**
+ * The published risks for one of the client's projects — SEC / Portal risks (x140).
+ *
+ * The project is named in the path. The API answers 404 — not an empty list — for a project the
+ * client cannot read, so the caller must treat a not-found as "not yours", never as "no risks".
+ */
+export async function listPortalRisks(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly ClientRisk[]> {
+  const { data } = await client.request<{ risks: readonly ClientRisk[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/risks`,
+  });
+  return data.risks;
+}
+
+/** The full internal risks list for a project — behind `project.manage`, on the `projects` path. */
+export async function listProjectRisks(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly ProjectRisk[]> {
+  const { data } = await client.request<{ risks: readonly ProjectRisk[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/risks`,
+  });
+  return data.risks;
+}
+
+export interface CreateProjectRiskInput {
+  readonly title: string;
+  readonly severity: RiskSeverity;
+  readonly status: RiskStatus;
+  /** Optional internal-only detail; stored as null when omitted or empty. */
+  readonly internalNote?: string | null;
+  readonly clientSummary: string;
+  /** Optional; the API defaults to `true` — a risk recorded here is meant to be seen. */
+  readonly published?: boolean;
+}
+
+/**
+ * The internal write — a manager recording a risk on a client's project.
+ *
+ * On the internal `projects` path, not `/portal`: recording is behind `project.manage`, which no
+ * client role holds. The tenant and the author come from the session, never this body.
+ */
+export async function createProjectRisk(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  input: CreateProjectRiskInput,
+): Promise<ProjectRisk> {
+  const { data } = await client.request<ProjectRisk>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/risks`,
+    body: input,
+  });
+  return data;
+}
+
 export async function listPortalProjects(
   client: ApiClient,
   organizationSlug: string,
