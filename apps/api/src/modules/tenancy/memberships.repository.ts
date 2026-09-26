@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, like, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, like, ne, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { InternalRole } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -465,5 +465,42 @@ export class MembershipsRepository {
     }
 
     return this.requireById(runner, context, membershipId);
+  }
+
+  /**
+   * Count active memberships whose role is one of `roles`, optionally excluding one membership.
+   *
+   * The last-owner guard for offboarding (ADM-13, x121) is expressed with this: offboarding a
+   * member whose role holds `org.manage` is refused when they are the last active holder, so
+   * the caller counts the *other* active holders and refuses at zero. The exclusion is a
+   * predicate here rather than a subtraction at the call site because the member being
+   * offboarded may or may not be an org.manage holder themselves — passing their id makes the
+   * count "everyone else" whether or not they are in the set.
+   *
+   * Scoped to the acting tenant exactly as every read here is: `organization_id = ?` is bound
+   * from the context, never a parameter. An empty `roles` returns 0 without a query — an
+   * `IN ()` is a syntax error in MySQL, and the honest answer to "how many hold none of no
+   * roles" is none.
+   */
+  async countActiveHoldersOfRoles(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    roles: readonly string[],
+    excludeMembershipId?: string,
+  ): Promise<number> {
+    if (roles.length === 0) return 0;
+
+    const predicates = [
+      eq(memberships.organizationId, context.organizationId),
+      eq(memberships.status, 'active'),
+      inArray(memberships.role, [...roles]),
+    ];
+    if (excludeMembershipId) predicates.push(ne(memberships.id, excludeMembershipId));
+
+    const rows = await tenantDrizzle(runner)
+      .select({ holders: sql<number>`count(*)` })
+      .from(memberships)
+      .where(and(...predicates));
+    return Number(rows[0]?.holders ?? 0);
   }
 }

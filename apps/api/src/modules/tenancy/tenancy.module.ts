@@ -7,6 +7,7 @@ import {
   INVITATIONS_SERVICE,
   MEMBERSHIP_RESOLVER,
   MEMBERSHIPS_REPOSITORY,
+  OFFBOARDING_SERVICE,
   ORGANIZATION_DIRECTORY_REPOSITORY,
   PRINCIPAL_REPOSITORY,
   PROVISIONING_SERVICE,
@@ -22,6 +23,8 @@ import { InvitationsRepository } from './invitations.repository.js';
 import { InvitationsService } from './invitations.service.js';
 import { MembersController } from './members.controller.js';
 import { MembershipsRepository } from './memberships.repository.js';
+import { OffboardingController } from './offboarding.controller.js';
+import { OffboardingService } from './offboarding.service.js';
 import { MembershipResolver } from './membership-resolver.repository.js';
 import { OrganizationDirectoryRepository } from './organization-directory.repository.js';
 import { OrganizationsController } from './organizations.controller.js';
@@ -87,6 +90,20 @@ export class TenancyModule {
       useFactory: () => new InvitationsRepository(),
     };
 
+    // ADM-12/13 (x121). The offboarding service reuses the memberships repository the module
+    // already provides and the audit service `ProvisioningService` already depends on; its two
+    // read-only repositories (project memberships, work items) are stateless and constructed by
+    // the service itself, the same way `MeetingsService` owns the handles it only reads through.
+    const offboardingService: Provider = {
+      provide: OFFBOARDING_SERVICE,
+      inject: [TENANT_DATABASE, MEMBERSHIPS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (
+        database: TenantDatabase,
+        memberships: MembershipsRepository,
+        audit: AuditService,
+      ) => new OffboardingService(database, memberships, audit),
+    };
+
     const invitationsService: Provider = {
       provide: INVITATIONS_SERVICE,
       inject: [TENANT_DATABASE, INVITATIONS_REPOSITORY, AUDIT_SERVICE, INVITATION_MAILER],
@@ -121,6 +138,7 @@ export class TenancyModule {
         membershipsRepository,
         invitationsRepository,
         invitationsService,
+        offboardingService,
       ],
       exports: [
         resolver,
@@ -135,6 +153,7 @@ export class TenancyModule {
         OrganizationsController,
         WorkspacesController,
         MembersController,
+        OffboardingController,
         InvitationsController,
         // The route with no tenant. Its own controller so that `@NoTenant()` sits on a class
         // whose whole purpose is the pre-membership path, rather than on one method of a

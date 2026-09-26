@@ -64,6 +64,10 @@ import type { InvitationView as ApiInvitationView } from '../../apps/api/src/mod
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
+import type {
+  MemberOffboardingImpactView as ApiMemberOffboardingImpactView,
+  OffboardedMemberView as ApiOffboardedMemberView,
+} from '../../apps/api/src/modules/tenancy/offboarding.service.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
@@ -135,6 +139,10 @@ import type {
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type { ProjectMemberSummary as WebProjectMemberSummary } from '../../apps/web/src/lib/api/project-members';
+import type {
+  OffboardingImpactView as WebOffboardingImpactView,
+  OffboardedMember as WebOffboardedMember,
+} from '../../apps/web/src/lib/api/offboarding';
 import type {
   CreatedOrganization as WebCreatedOrganization,
   OrganizationSummary as WebOrganizationSummary,
@@ -472,6 +480,14 @@ type _sessionSummary = Assert<Exact<ApiSessionSummaryView, WebSessionSummary>>;
 
 /** `GET …/members` — one active-member directory row. */
 type _member = Assert<Exact<ApiMemberView, WebMemberSummary>>;
+
+/**
+ * `GET …/members/:userId/offboarding-impact` and `POST …/members/:userId/offboard` — ADM-12/13
+ * (x121). `OffboardingScreen` reads both responses exactly as the API projects them, so each pairs
+ * Exact; `organizationId` is on neither side.
+ */
+type _offboardingImpact = Assert<Exact<ApiMemberOffboardingImpactView, WebOffboardingImpactView>>;
+type _offboardedMember = Assert<Exact<ApiOffboardedMemberView, WebOffboardedMember>>;
 
 /** `GET …/workspaces` — one workspace row, ISO-string `createdAt` on the wire. */
 type _workspace = Assert<Exact<ApiWorkspaceView, WebWorkspaceSummary>>;
