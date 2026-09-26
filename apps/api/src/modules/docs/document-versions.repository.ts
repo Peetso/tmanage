@@ -36,13 +36,22 @@ export interface AppendVersionInput {
   readonly editedByUserId: string;
 }
 
+/**
+ * The newest-first list is bounded: each row carries the full `body` (TEXT), so a document with a
+ * long edit history must not return an unbounded response. Mirrors `documents` repository's
+ * `MAX_PAGE_SIZE`; older snapshots remain reachable by number via {@link
+ * DocumentVersionsRepository.findByVersionNo}.
+ */
+const MAX_VERSIONS_LISTED = 200;
+
 export class DocumentVersionsRepository {
   /**
    * List one document's versions, newest first, within the acting tenant.
    *
    * Both `organization_id` and `document_id` predicates are present. The order is `version_no`
    * descending — a document's most recent save leads — which is an ordered walk of the
-   * `(organization_id, document_id, version_no)` unique key.
+   * `(organization_id, document_id, version_no)` unique key. Bounded to the newest
+   * `MAX_VERSIONS_LISTED` so a long history cannot return an unbounded body-bearing response.
    */
   async list(
     runner: TenantQueryRunner,
@@ -59,7 +68,8 @@ export class DocumentVersionsRepository {
           eq(documentVersions.documentId, documentId),
         ),
       )
-      .orderBy(desc(documentVersions.versionNo));
+      .orderBy(desc(documentVersions.versionNo))
+      .limit(MAX_VERSIONS_LISTED);
   }
 
   /**
