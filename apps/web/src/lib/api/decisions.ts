@@ -67,3 +67,57 @@ export async function createDecision(
   });
   return data;
 }
+
+/**
+ * DEC-02 (x117). A decision's detail plus its supersede chain: the decision that superseded it
+ * (`supersededBy`, at most one) and the decisions it superseded (`supersedes`). Mirrors the API's
+ * `DecisionDetailView`, returned by `GET …/decisions/:id` and `POST …/decisions/:id/supersede`.
+ *
+ * The edge shape (`{ decisionId, at }`) is inline and unexported on purpose: a named exported edge
+ * type would be enumerated by `contracts:check` as its own web response projection needing a pair,
+ * and it is not one — it is a member of this detail.
+ */
+export interface DecisionDetail extends DecisionSummary {
+  readonly supersededBy: { readonly decisionId: string; readonly at: string } | null;
+  readonly supersedes: readonly { readonly decisionId: string; readonly at: string }[];
+}
+
+export async function getDecision(
+  client: ApiClient,
+  organizationSlug: string,
+  decisionId: string,
+): Promise<DecisionDetail> {
+  const { data } = await client.request<DecisionDetail>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/decisions/${encodeURIComponent(decisionId)}`,
+  });
+  return data;
+}
+
+/** DEC-01-b (x117). Accept a decision: `proposed → accepted`. */
+export async function acceptDecision(
+  client: ApiClient,
+  organizationSlug: string,
+  decisionId: string,
+): Promise<DecisionSummary> {
+  const { data } = await client.request<DecisionSummary>({
+    method: 'PATCH',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/decisions/${encodeURIComponent(decisionId)}`,
+    body: { status: 'accepted' },
+  });
+  return data;
+}
+
+/** DEC-01-b / DEC-02 (x117). Supersede a decision by another decision. */
+export async function supersedeDecision(
+  client: ApiClient,
+  organizationSlug: string,
+  decisionId: string,
+  supersededById: string,
+): Promise<DecisionDetail> {
+  const { data } = await client.request<DecisionDetail>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/decisions/${encodeURIComponent(decisionId)}/supersede`,
+    body: { supersededById },
+  });
+  return data;
+}

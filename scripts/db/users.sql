@@ -101,10 +101,11 @@
 --     idempotency_records
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
---     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
+--     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
+--     decisions
 --   · `INSERT, DELETE` on: work_item_dependencies
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
---     authentication_events, usage_ledger_entries, meetings, documents, decisions
+--     authentication_events, usage_ledger_entries, meetings, documents, decision_supersessions
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -333,12 +334,18 @@ GRANT INSERT, UPDATE ON `tmanage`.`import_jobs` TO 'tmanage_app'@'%';
 -- so UPDATE and DELETE are withheld the way the append-only ledgers above are. `SELECT` is the
 -- database-wide grant (line 60), which the receipt read-back uses.
 GRANT INSERT ON `tmanage`.`import_rows` TO 'tmanage_app'@'%';
--- `decisions` (DEC-01, x113) gets INSERT and nothing else. A decision is authored (INSERT) and
--- read (the database-wide SELECT, line 60); this slice has no edit surface and the row is
--- append-only (the 0037 trigger refuses every UPDATE at the engine), so UPDATE and DELETE are
--- withheld the way `meetings`, `documents` and the append-only ledgers above are. When the
--- decision lifecycle lands (NEXT-SCOPES-9) the columns it may change get their UPDATE then.
-GRANT INSERT ON `tmanage`.`decisions` TO 'tmanage_app'@'%';
+-- `decisions` (DEC-01, x113) gets INSERT, and now UPDATE (DEC-01-b, x117). A decision is authored
+-- (INSERT), read (the database-wide SELECT, line 60), and moved through its lifecycle (UPDATE):
+-- `proposed → accepted` on accept and `→ superseded` on supersede. UPDATE writes exactly `status`;
+-- the 0038 column-pinning trigger (`trg_decisions_immutable`) refuses every other column at the
+-- engine, so "a decision's substance is immutable" holds for the runtime credential specifically.
+-- **No DELETE**: a decision on the register is the durable record of a choice the project made.
+GRANT INSERT, UPDATE ON `tmanage`.`decisions` TO 'tmanage_app'@'%';
+-- `decision_supersessions` (DEC-01-b / DEC-02, x117) gets INSERT and nothing else. The supersede
+-- edge is authored once (INSERT) and read (the database-wide SELECT); it is immutable (the 0038
+-- trigger refuses every UPDATE) and never removed, so UPDATE and DELETE are withheld the way the
+-- append-only edges and ledgers above are.
+GRANT INSERT ON `tmanage`.`decision_supersessions` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

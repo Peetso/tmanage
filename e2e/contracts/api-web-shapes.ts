@@ -38,6 +38,7 @@ import type { ConversationView as ApiConversationView } from '../../apps/api/src
 import type { ConvertMessageResultView as ApiConvertMessageResultView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
+import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -83,6 +84,7 @@ import type {
 } from '../../apps/web/src/lib/api/client-requests';
 import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
+import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -188,6 +190,14 @@ type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRe
  * superseded`) is the same on both sides; a value one side does not contain cannot be typed here.
  */
 type _decision = Assert<Exact<ApiDecisionView, WebDecisionSummary>>;
+
+/**
+ * DEC-01-b / DEC-02 (x117). `DecisionDetailView` (`GET …/decisions/:id` and the `POST
+ * …/decisions/:id/supersede` response) — a decision plus its supersede chain (`supersededBy` /
+ * `supersedes`). Paired with a live web consumer: `DecisionRegisterScreen` reads exactly this to
+ * render a decision's detail and lifecycle controls, so this is a real `Exact` pair.
+ */
+type _decisionDetail = Assert<Exact<ApiDecisionDetailView, WebDecisionDetail>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;

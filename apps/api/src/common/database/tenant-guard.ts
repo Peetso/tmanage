@@ -152,6 +152,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // register on the server. `organization_id` is NOT NULL and it carries the `(organization_id,
   // id)` key every tenant table has, so the guard must scope its reads and its writes.
   decisions: 'organization_id',
+  // DEC-01-b / DEC-02 (x117, migration 0038). Tenant-owned: an edge names two decisions of the
+  // acting tenant, and an unscoped read would be every studio's supersede chain. `organization_id`
+  // is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes its reads/writes.
+  decision_supersessions: 'organization_id',
 });
 
 /**

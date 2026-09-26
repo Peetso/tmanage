@@ -171,4 +171,89 @@ describe('DecisionRegisterScreen', () => {
     // The register refetches and shows the new decision.
     expect(await screen.findByRole('rowheader', { name: /adopt the plan/i })).toBeInTheDocument();
   });
+
+  it('accepts a proposed decision through PATCH and refetches', async () => {
+    let accepted = false;
+    const { client, calls } = clientOver((call) => {
+      if (call.method === 'PATCH' && call.url.includes('/decisions/')) {
+        accepted = true;
+        return json(decision('d-1', 'Adopt the plan', '2026-07-01T00:00:00.000Z', 'accepted'));
+      }
+      if (call.url.includes('/decisions'))
+        return json({
+          decisions: [
+            decision('d-1', 'Adopt the plan', '2026-07-01T00:00:00.000Z', accepted ? 'accepted' : 'proposed'),
+          ],
+        });
+      if (call.url.includes('/projects'))
+        return json({ projects: [{ id: PROJECT_ID, name: 'Northstar' }] });
+      return json({}, 404);
+    });
+
+    render(
+      withQuery(
+        <DecisionRegisterScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          initialProjectId={PROJECT_ID}
+          client={client}
+        />,
+      ),
+    );
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /^accept$/i }));
+
+    await waitFor(() => {
+      const patch = calls.find((c) => c.method === 'PATCH');
+      expect(patch?.url).toContain('/decisions/d-1');
+      expect(patch?.body).toMatchObject({ status: 'accepted' });
+    });
+  });
+
+  it('supersedes a decision by another through POST and refetches', async () => {
+    let superseded = false;
+    const { client, calls } = clientOver((call) => {
+      if (call.method === 'POST' && call.url.includes('/supersede')) {
+        superseded = true;
+        return json({
+          ...decision('d-old', 'The old way', '2026-07-01T00:00:00.000Z', 'superseded'),
+          supersededBy: { decisionId: 'd-new', at: '2026-07-02T00:00:00.000Z' },
+          supersedes: [],
+        });
+      }
+      if (call.url.includes('/decisions'))
+        return json({
+          decisions: [
+            decision('d-new', 'The new way', '2026-07-02T00:00:00.000Z', 'accepted'),
+            decision('d-old', 'The old way', '2026-07-01T00:00:00.000Z', superseded ? 'superseded' : 'proposed'),
+          ],
+        });
+      if (call.url.includes('/projects'))
+        return json({ projects: [{ id: PROJECT_ID, name: 'Northstar' }] });
+      return json({}, 404);
+    });
+
+    render(
+      withQuery(
+        <DecisionRegisterScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          initialProjectId={PROJECT_ID}
+          client={client}
+        />,
+      ),
+    );
+
+    const user = userEvent.setup();
+    const oldRow = await screen.findByRole('row', { name: /the old way/i });
+    await user.selectOptions(within(oldRow).getByLabelText(/supersede with/i), 'd-new');
+    await user.click(within(oldRow).getByRole('button', { name: /^supersede$/i }));
+
+    await waitFor(() => {
+      const post = calls.find((c) => c.method === 'POST' && c.url.includes('/supersede'));
+      expect(post?.url).toContain('/decisions/d-old/supersede');
+      expect(post?.body).toMatchObject({ supersededById: 'd-new' });
+    });
+  });
 });

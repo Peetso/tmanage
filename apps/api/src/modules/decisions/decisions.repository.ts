@@ -162,4 +162,29 @@ export class DecisionsRepository {
     // Read back rather than reconstruct: the row now carries a server-generated `created_at`.
     return this.requireById(runner, context, id);
   }
+
+  /**
+   * Move a decision to a new lifecycle status within the acting tenant, and read it back.
+   *
+   * DEC-01-b (x117). This is the only mutation the register has: the `0038` column-pinning trigger
+   * refuses every column but `status`, and `users.sql` grants the runtime credential UPDATE for
+   * exactly this. The predicate carries both `organization_id` and `id`, so a cross-tenant id
+   * updates nothing. The *transition* is guarded in the service (an illegal one is a 409 with no
+   * write); this method writes the status the service already decided is legal.
+   */
+  async updateStatus(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    decisionId: string,
+    status: DecisionStatus,
+  ): Promise<DecisionRow> {
+    const db = tenantDrizzle(runner);
+    await db
+      .update(decisions)
+      .set({ status })
+      .where(
+        and(eq(decisions.organizationId, context.organizationId), eq(decisions.id, decisionId)),
+      );
+    return this.requireById(runner, context, decisionId);
+  }
 }

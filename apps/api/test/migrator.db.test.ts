@@ -804,7 +804,7 @@ describe('0037: decisions is a tenant-scoped, project-owned, append-only registe
 
   const id = (n: string) => `00000000-0000-4000-8000-0000000037${n}`;
 
-  it('applies, round-trips, guards the nullable meeting link, and refuses any update', async () => {
+  it('applies, round-trips, guards the nullable meeting link, and pins its identity columns', async () => {
     await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
 
     // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
@@ -902,9 +902,118 @@ describe('0037: decisions is a tenant-scoped, project-owned, append-only registe
       ),
     ).rejects.toThrow(/foreign key/i);
 
-    // Append-only: the trigger refuses any UPDATE outright.
+    // After 0038 the trigger is a column-pinning one: `status` may move (that is the lifecycle),
+    // but the decision's substance is pinned at the engine. A title rewrite is refused.
     await expect(
-      connection.query(`UPDATE decisions SET status = 'superseded' WHERE id = ?`, [id('06')]),
+      connection.query(`UPDATE decisions SET title = 'Rewritten' WHERE id = ?`, [id('06')]),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
+describe('0038: decision_supersessions is the tenant-scoped supersede-chain edge', () => {
+  beforeAll(freshDatabase);
+
+  const id = (n: string) => `00000000-0000-4000-8000-0000000038${n}`;
+
+  it('applies, relaxes the decisions trigger to status, and refuses a cross-tenant or self edge', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'decision_supersessions'`,
+    );
+    expect(columns.map((row) => String(row['col'])).sort()).toEqual(
+      [
+        'created_at',
+        'created_by',
+        'decision_id',
+        'id',
+        'organization_id',
+        'superseded_by_decision_id',
+      ].sort(),
+    );
+
+    // Minimal parents.
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'sup', 'S')`, [
+      id('01'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('02'), id('01')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('03'), id('01'), id('02')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'sup@e.test', 'S')`,
+      [id('04')],
+    );
+    // Two decisions of the same tenant/project: one to supersede, one that supersedes it.
+    await connection.query(
+      `INSERT INTO decisions
+         (id, organization_id, project_id, title, statement, status, decided_by, decided_at)
+       VALUES (?, ?, ?, 'Old', 'the old way', 'accepted', ?, '2026-06-01 09:00:00.000')`,
+      [id('05'), id('01'), id('03'), id('04')],
+    );
+    await connection.query(
+      `INSERT INTO decisions
+         (id, organization_id, project_id, title, statement, status, decided_by, decided_at)
+       VALUES (?, ?, ?, 'New', 'the new way', 'accepted', ?, '2026-06-02 09:00:00.000')`,
+      [id('06'), id('01'), id('03'), id('04')],
+    );
+
+    // A tenant-scoped edge round-trips, and the superseded decision's status flips — proving the
+    // relaxed trigger admits a status UPDATE that 0037's refused outright.
+    await connection.query(
+      `INSERT INTO decision_supersessions
+         (id, organization_id, decision_id, superseded_by_decision_id, created_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [id('07'), id('01'), id('05'), id('06'), id('04')],
+    );
+    await connection.query(`UPDATE decisions SET status = 'superseded' WHERE id = ?`, [id('05')]);
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT status FROM decisions WHERE organization_id = ? AND id = ?`,
+      [id('01'), id('05')],
+    );
+    expect(rows[0]?.['status']).toBe('superseded');
+
+    // A decision is superseded at most once: a second edge for the same decision is refused.
+    await expect(
+      connection.query(
+        `INSERT INTO decision_supersessions
+           (id, organization_id, decision_id, superseded_by_decision_id, created_by)
+         VALUES (?, ?, ?, ?, ?)`,
+        [id('08'), id('01'), id('05'), id('06'), id('04')],
+      ),
+    ).rejects.toThrow(/duplicate/i);
+
+    // A decision cannot supersede itself (the CHECK constraint).
+    await expect(
+      connection.query(
+        `INSERT INTO decision_supersessions
+           (id, organization_id, decision_id, superseded_by_decision_id, created_by)
+         VALUES (?, ?, ?, ?, ?)`,
+        [id('09'), id('01'), id('06'), id('06'), id('04')],
+      ),
+    ).rejects.toThrow(/check constraint/i);
+
+    // The composite foreign key refuses an edge naming a decision id from outside this tenant.
+    await expect(
+      connection.query(
+        `INSERT INTO decision_supersessions
+           (id, organization_id, decision_id, superseded_by_decision_id, created_by)
+         VALUES (?, ?, 'ffffffff-0000-4000-8000-000000000001', ?, ?)`,
+        [id('0a'), id('01'), id('06'), id('04')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // The edge is itself immutable.
+    await expect(
+      connection.query(`UPDATE decision_supersessions SET created_by = ? WHERE id = ?`, [
+        id('04'),
+        id('07'),
+      ]),
     ).rejects.toThrow(/immutable/);
   });
 });

@@ -1,11 +1,11 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { DECISIONS_SERVICE } from '../../common/http/tokens.js';
 import { DECISION_STATUSES } from '../../common/database/schema.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { DecisionView, DecisionsService } from './decisions.service.js';
+import type { DecisionDetailView, DecisionView, DecisionsService } from './decisions.service.js';
 import type { DecisionStatus } from './decisions.repository.js';
 
 /**
@@ -124,6 +124,91 @@ export class DecisionsController {
       decidedAt,
     });
   }
+
+  /**
+   * DEC-02 (x117). One decision's detail, including its supersede chain. Gated on `meeting.read`;
+   * the relation gate and the not-found for an unknown/cross-tenant/non-member id are the service's.
+   */
+  @Get(':decisionId')
+  @RequireCapability('meeting.read')
+  async detail(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('decisionId') decisionId: string,
+  ): Promise<DecisionDetailView> {
+    if (typeof decisionId !== 'string' || decisionId === '') {
+      throw new ApiError(400, 'validation_failed', 'decisionId is required', [
+        { field: 'decisionId', message: 'must be a non-empty string' },
+      ]);
+    }
+    return this.decisions.detail(context, principal, decisionId);
+  }
+
+  /**
+   * DEC-01-b (x117). Move a decision through its lifecycle. This slice supports one transition,
+   * `proposed → accepted`, so the body's only accepted `status` is `accepted`; the guarded state
+   * machine (an illegal transition is a 409 with no write) lives in the service.
+   */
+  @Patch(':decisionId')
+  @RequireCapability('meeting.write')
+  async patch(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('decisionId') decisionId: string,
+    @Body() body: PatchDecisionBody,
+  ): Promise<DecisionView> {
+    if (typeof decisionId !== 'string' || decisionId === '') {
+      throw new ApiError(400, 'validation_failed', 'decisionId is required', [
+        { field: 'decisionId', message: 'must be a non-empty string' },
+      ]);
+    }
+    if (body?.status !== 'accepted') {
+      throw new ApiError(422, 'validation_failed', 'Only accepting a decision is supported', [
+        { field: 'status', message: "must be 'accepted'" },
+      ]);
+    }
+    return this.decisions.accept(context, principal, decisionId);
+  }
+
+  /**
+   * DEC-01-b / DEC-02 (x117). Supersede a decision by another decision, recording the chain edge and
+   * flipping the superseded decision's status in one transaction. Gated on `meeting.write`; the
+   * tenant/project resolution of both ids, the self- and already-superseded checks, and the not-found
+   * for an unknown/cross-tenant/cross-project superseding id are the service's.
+   */
+  @Post(':decisionId/supersede')
+  @HttpCode(200)
+  @RequireCapability('meeting.write')
+  async supersede(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('decisionId') decisionId: string,
+    @Body() body: SupersedeDecisionBody,
+  ): Promise<DecisionDetailView> {
+    if (typeof decisionId !== 'string' || decisionId === '') {
+      throw new ApiError(400, 'validation_failed', 'decisionId is required', [
+        { field: 'decisionId', message: 'must be a non-empty string' },
+      ]);
+    }
+    const supersededById =
+      typeof body?.supersededById === 'string' && body.supersededById !== ''
+        ? body.supersededById
+        : undefined;
+    if (supersededById === undefined) {
+      throw new ApiError(400, 'validation_failed', 'supersededById is required', [
+        { field: 'supersededById', message: 'must be a non-empty string' },
+      ]);
+    }
+    return this.decisions.supersede(context, principal, decisionId, supersededById);
+  }
+}
+
+interface PatchDecisionBody {
+  readonly status?: unknown;
+}
+
+interface SupersedeDecisionBody {
+  readonly supersededById?: unknown;
 }
 
 /**
