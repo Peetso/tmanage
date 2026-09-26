@@ -23,6 +23,7 @@ import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { NotificationsFeedModule } from './modules/notifications/notifications-feed.module.js';
+import { NotificationKindPrefsModule } from './modules/notifications/notification-kind-prefs.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
@@ -172,6 +173,10 @@ export class AppModule {
         // preferences modules so the notifications slices stay file-disjoint; it depends on
         // nothing but the database — the feed echoes the reference envelope and resolves no object.
         NotificationsFeedModule.register(),
+        // Per-kind notification opt-out (x152) — the finer sibling of the coarse preferences above.
+        // A module of its own so it stays file-disjoint from that slice; depends on nothing but the
+        // `@Global` database, so its position here is by subject, not by need.
+        NotificationKindPrefsModule.register(),
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),

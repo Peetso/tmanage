@@ -275,6 +275,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `(organization_id, id)` key every tenant table has, so the guard scopes the ranked read (and
   // the reindex writes) — the Known-trap anchor that keeps a cross-tenant row from ever ranking.
   search_index: 'organization_id',
+  // Per-kind notification opt-out (x152, migration 0057). Tenant-owned: a row belongs to one
+  // membership in one studio, and an unscoped read would be every member's opt-outs across every
+  // studio. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes the
+  // per-kind reads and the upsert; tenant-isolation.db.test.ts enforces the entry.
+  notification_kind_prefs: 'organization_id',
 });
 
 /**
