@@ -10,6 +10,7 @@ import { MeetingsRepository } from './meetings.repository.js';
 import { MeetingNotesRepository } from './meeting-notes.repository.js';
 import { MeetingsService } from './meetings.service.js';
 import { MeetingsController } from './meetings.controller.js';
+import { MeetingIcsController } from './meeting-ics.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 
 /**
@@ -46,7 +47,7 @@ export class CalendarModule {
       module: CalendarModule,
       providers: [repository, service],
       exports: [service],
-      controllers: [MeetingsController],
+      controllers: [MeetingsController, MeetingIcsController],
     };
   }
 }
