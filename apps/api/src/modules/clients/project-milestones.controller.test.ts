@@ -150,7 +150,11 @@ describe('ProjectMilestonesService (x139)', () => {
     // The author is the context user, never a body field.
     expect(store.created[0]?.createdByUserId).toBe(INTERNAL_USER);
     // The internal view carries the full record.
-    expect(created).toMatchObject({ status: 'planned', published: true, createdByUserId: INTERNAL_USER });
+    expect(created).toMatchObject({
+      status: 'planned',
+      published: true,
+      createdByUserId: INTERNAL_USER,
+    });
 
     const listed = await service.listInternal(context, internalManager(), PROJECT);
     expect(listed.map((m) => m.title)).toEqual(['Design sign-off']);
@@ -242,8 +246,8 @@ describe('ProjectMilestonesService (x139)', () => {
  * is the chain's e2e; this pins the wiring the guard depends on.
  */
 describe('milestones route capabilities', () => {
-  const capabilityOf = (target: object, key: string): unknown =>
-    Reflect.getMetadata(REQUIRED_CAPABILITY, target, key);
+  const capabilityOf = (proto: object, key: string): unknown =>
+    Reflect.getMetadata(REQUIRED_CAPABILITY, (proto as Record<string, unknown>)[key] as object);
 
   it('guards the internal create and list with project.manage', () => {
     expect(capabilityOf(ProjectMilestonesController.prototype, 'create')).toBe('project.manage');

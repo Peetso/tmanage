@@ -8,7 +8,11 @@ import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
-import { createProjectMilestone, listProjectMilestones, postProjectUpdate } from '../../lib/api/portal';
+import {
+  createProjectMilestone,
+  listProjectMilestones,
+  postProjectUpdate,
+} from '../../lib/api/portal';
 import type { MilestoneStatus, ProjectMilestone } from '../../lib/api/portal';
 import { listProjectShares } from '../../lib/api/clients';
 import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
@@ -412,7 +416,9 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
       void queries.invalidateQueries({
         queryKey: ['project-milestones', organizationSlug, projectId],
       });
-      void queries.invalidateQueries({ queryKey: ['portal-milestones', organizationSlug, projectId] });
+      void queries.invalidateQueries({
+        queryKey: ['portal-milestones', organizationSlug, projectId],
+      });
       setTitle('');
       setDueOn('');
       setStatus('planned');
@@ -441,13 +447,18 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
             <li key={milestone.id} className="tm-stack tm-stack--tight">
               <div className="tm-row tm-row--wrap">
                 <h3 className="tm-heading-3">{milestone.title}</h3>
-                <StateCapsule state={milestoneCapsuleState(milestone.status)} className="tm-push-end">
+                <StateCapsule
+                  state={milestoneCapsuleState(milestone.status)}
+                  className="tm-push-end"
+                >
                   {milestone.status}
                 </StateCapsule>
                 {!milestone.published ? <StateCapsule state="neutral">Draft</StateCapsule> : null}
               </div>
               <p className="tm-field__hint">
-                {milestone.dueOn === null ? 'No date committed' : `Due ${formatDay(milestone.dueOn)}`}
+                {milestone.dueOn === null
+                  ? 'No date committed'
+                  : `Due ${formatDay(milestone.dueOn)}`}
               </p>
             </li>
           ))}

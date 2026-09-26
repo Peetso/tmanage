@@ -83,13 +83,19 @@ export class ProjectMilestonesRepository {
     ];
     if (options.publishedOnly) predicates.push(eq(projectMilestones.published, true));
 
-    return db
-      .select()
-      .from(projectMilestones)
-      .where(and(...predicates))
-      // `due_on` is nullable; a null date sorts last so committed milestones lead the timeline.
-      .orderBy(sql`${projectMilestones.dueOn} is null`, asc(projectMilestones.dueOn), asc(projectMilestones.id))
-      .limit(limit);
+    return (
+      db
+        .select()
+        .from(projectMilestones)
+        .where(and(...predicates))
+        // `due_on` is nullable; a null date sorts last so committed milestones lead the timeline.
+        .orderBy(
+          sql`${projectMilestones.dueOn} is null`,
+          asc(projectMilestones.dueOn),
+          asc(projectMilestones.id),
+        )
+        .limit(limit)
+    );
   }
 
   /**

@@ -16,10 +16,48 @@ import {
   toClientMilestoneView,
   toProjectMilestoneView,
 } from './project-milestones.projection.js';
-import type {
-  ClientMilestoneView,
-  ProjectMilestoneView,
-} from './project-milestones.projection.js';
+
+/**
+ * A milestone as an **internal** principal is shown it — the full record behind `project.manage`.
+ *
+ * Carries `createdByUserId` and `published`: an internal manager may see who created a milestone
+ * and whether it has been published to the client. This view never leaves the internal
+ * `projects` path. Declared here beside the controller that serialises it (and the client view
+ * below) so the contracts check, which enumerates response views from the
+ * service/controller/repository layer, pairs them; the field-by-field mapping lives in
+ * `project-milestones.projection.ts`.
+ */
+export interface ProjectMilestoneView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  /** A 'YYYY-MM-DD' target day, or null when the date is not yet committed. */
+  readonly dueOn: string | null;
+  readonly status: ProjectMilestoneStatus;
+  readonly published: boolean;
+  readonly createdByUserId: string;
+  /** An ISO-8601 instant on the wire. */
+  readonly createdAt: string;
+}
+
+/**
+ * A milestone as a **client** is shown it — the client projection.
+ *
+ * What is absent is the point. **`createdByUserId` is not here** — §4 excludes staff, so which
+ * member of the agency created the milestone is an internal fact a client never learns.
+ * **`published` is not here either**: a client only ever receives published milestones (the read
+ * filters `published = 1`), so the flag would be a constant `true` that leaks the existence of the
+ * unpublished/draft concept. The client is shown the milestone state (`status`) and its date, which
+ * is what 12-PERMISSION-MATRIX §4 names.
+ */
+export interface ClientMilestoneView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly dueOn: string | null;
+  readonly status: ProjectMilestoneStatus;
+  readonly createdAt: string;
+}
 
 /**
  * SEC / Portal milestones (x139) — the internal write/read surface and the client projection.
@@ -196,7 +234,8 @@ function parseCreateBody(projectId: string, body: unknown): CreateMilestoneComma
   const record = (body ?? {}) as Record<string, unknown>;
   const details: { field: string; message: string }[] = [];
 
-  const title = typeof record.title === 'string' ? record.title.trim() : undefined;
+  const rawTitle = record['title'];
+  const title = typeof rawTitle === 'string' ? rawTitle.trim() : undefined;
   if (!title) {
     details.push({ field: 'title', message: 'must be a non-empty string' });
   } else if (title.length > MAX_MILESTONE_TITLE_LENGTH) {
@@ -206,31 +245,34 @@ function parseCreateBody(projectId: string, body: unknown): CreateMilestoneComma
     });
   }
 
+  const rawDueOn = record['dueOn'];
   let dueOn: string | null = null;
-  if (record.dueOn !== undefined && record.dueOn !== null) {
-    if (typeof record.dueOn === 'string' && DUE_ON_PATTERN.test(record.dueOn)) {
-      dueOn = record.dueOn;
+  if (rawDueOn !== undefined && rawDueOn !== null) {
+    if (typeof rawDueOn === 'string' && DUE_ON_PATTERN.test(rawDueOn)) {
+      dueOn = rawDueOn;
     } else {
       details.push({ field: 'dueOn', message: 'must be a YYYY-MM-DD date or null' });
     }
   }
 
   // Defaults to 'planned' — a milestone is set before it is met or missed.
+  const rawStatus = record['status'];
   let status: ProjectMilestoneStatus = 'planned';
-  if (record.status !== undefined) {
-    if (isProjectMilestoneStatus(record.status)) {
-      status = record.status;
+  if (rawStatus !== undefined) {
+    if (isProjectMilestoneStatus(rawStatus)) {
+      status = rawStatus;
     } else {
       details.push({ field: 'status', message: 'must be one of planned, met, missed' });
     }
   }
 
-  if (record.published !== undefined && typeof record.published !== 'boolean') {
+  const rawPublished = record['published'];
+  if (rawPublished !== undefined && typeof rawPublished !== 'boolean') {
     details.push({ field: 'published', message: 'must be a boolean' });
   }
   // Defaults to true — a milestone created on the portal surface is meant to be seen; a draft is
   // the explicit opt-out (`published: false`). The publish/unpublish lifecycle is a later slice.
-  const published = record.published === undefined ? true : (record.published as boolean);
+  const published = rawPublished === undefined ? true : (rawPublished as boolean);
 
   if (details.length > 0 || !title) {
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);

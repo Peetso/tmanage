@@ -72,7 +72,8 @@ export function PortalMilestonesScreen({
 
       {projects.isPending ? (
         <LoadingRegion label="Loading your project">
-          <Skeleton lines={3} />
+          <Skeleton height="var(--row)" />
+          <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : (
         <MilestonesSection
@@ -122,12 +123,13 @@ function MilestonesSection({
         </InlineAlert>
       ) : isPending ? (
         <LoadingRegion label="Loading milestones">
-          <Skeleton lines={3} />
+          <Skeleton height="var(--row)" />
+          <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : milestones.length === 0 ? (
         <p className="tm-prose">
-          {providerName} has not published a milestone yet. When they set the dates for your project,
-          they will appear here in order.
+          {providerName} has not published a milestone yet. When they set the dates for your
+          project, they will appear here in order.
         </p>
       ) : (
         <ol className="tm-list tm-stack">

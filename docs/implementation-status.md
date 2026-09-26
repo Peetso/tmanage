@@ -13002,3 +13002,47 @@ the first and never the second.
 
 **Deferred (NEXT-SCOPES-12).** Milestones and risks surfaces; the portal people page; update
 edit/unpublish/comment lifecycle.
+
+## SEC / Portal milestones (x139)
+
+The companion to CLIENT-003: the _milestones_ half of the portal, built on the same mechanism. A
+**project milestone** — a title, a `due_on` target day, a client-safe `status` (`planned | met |
+missed`) and a `published` flag — is a durable, tenant-scoped, project-owned record
+(`0048_project_milestones.sql`, mirroring `project_updates` 0041: composite `(organization_id,
+project_id)` foreign key, and a `BEFORE UPDATE` trigger pinning
+`organization_id`/`project_id`/`created_by_user_id` immutable so a milestone can never be
+re-pointed into another client's portal). Registered in all four NEW-TABLE places — `schema.ts`
+def **and** the `TABLES` registry, `tenant-guard.ts` `TENANT_TABLES`, the `scripts/db/users.sql`
+grant (INSERT only; `status`/`published` are set at insert and there is no edit/unpublish endpoint
+yet, so no UPDATE per this file's least-privilege rule), and the migration file the migrator
+auto-discovers. No `migrator.db.test.ts` case and no new e2e journey in-slice — the chain owns both
+(NEW RULES 2026-09-26).
+
+**Three routes, on two paths.** The internal `POST` and `GET /projects/:projectId/milestones`
+(`project.manage`, `ProjectMilestonesController`) resolve the project tenant-scoped _before_ the
+authorize check — the Known-trap order, so an unknown or cross-tenant id is 404, never the 500 a
+bare foreign key would surface — the `GET` returns the full internal record. The client read `GET
+/portal/projects/:projectId/milestones` (`client_projection.read`, `PortalMilestonesController`)
+resolves the project relation-scoped first (404, not 403) and selects `published = 1` only, in the
+query. There are **two projections**, built field by field (`project-milestones.projection.ts`):
+`ProjectMilestoneView` (internal, carries `createdByUserId` and `published`) and
+`ClientMilestoneView` (client, carries neither — §4 excludes staff, and a client only ever receives
+published rows). Both controllers and the service live beside the CLIENT-003 files as distinct new
+files; the service is exported from `project-milestones.controller.ts`.
+
+**Web.** `PortalMilestonesScreen` fills the portal Timeline tab (`/portal/timeline`) with the
+published milestones for the client's project, in date order, status capsules, axe-clean
+empty/error states. `ProjectOverviewScreen` gains an internal `MilestoneComposer` behind
+`project.manage` — title, target date, status, and a "Publish to the client now" checkbox (default
+on) — plus the internal milestones list. `ProjectMilestoneView`↔`ProjectMilestone` and
+`ClientMilestoneView`↔`ClientMilestone` are paired in `e2e/contracts/api-web-shapes.ts`.
+
+**Proof.** Unit: `project-milestones.controller.test.ts` over fakes with real `authorize()` —
+internal create→list, client sees published-only projection with no staff identity or publish flag,
+unpublished never projected, unknown/cross-tenant id → 404 no write, non-manager → 404 no write,
+client reading outside scope → 404, plus the route-capability metadata that produces the client →
+403 on the internal path. Client-audience boundary revert-proven (red→green on
+`toClientMilestoneView`). DB round-trip, migrator 0048 proof and live e2e are the chain's.
+
+**Deferred (NEXT-SCOPES-13).** Milestone edit/unpublish lifecycle; portal risks (x140); the portal
+people page (x142).
