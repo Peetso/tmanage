@@ -32,6 +32,8 @@ import type { AcceptedClientRequestView as ApiAcceptedClientRequestView } from '
 import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { ChallengeResponseView as ApiChallengeResponseView } from '../../apps/api/src/modules/identity/authentication.controller.js';
+import type { ClientDecideView as ApiClientDecideView } from '../../apps/api/src/modules/approvals/approvals.service.js';
+import type { ClientProjectionView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientRequestClientView as ApiClientRequestClientView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
@@ -74,6 +76,10 @@ import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
+import type {
+  ClientApprovalView as WebClientApprovalView,
+  ClientDecideResult as WebClientDecideResult,
+} from '../../apps/web/src/lib/api/approvals';
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
 import type { MyDay as WebMyDay } from '../../apps/web/src/lib/api/home';
 import type { Waiting as WebWaiting } from '../../apps/web/src/lib/api/home';
@@ -415,20 +421,20 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  * `apps/api/src/modules/approvals/approvals.service.ts` — the immutable client projection
  * (`contentHash`, `projection`, `publishedByUserId`, `publishedAt`).
  *
- * No `Assert<Exact<…>>` pair yet: there is no web consumer this slice, so `ClientProjectionView`
- * is carried in `scripts/contracts-check.mjs`'s EXEMPT list, matching the `ApprovalDecisionView`
- * posture above. x97-b adds the client deep-link screen that renders it and its `apps/web` shape,
- * and this comment becomes a real `Assert<Exact<ApiClientProjectionView, WebClientProjection>>` then.
- *
- * CONTRACT-001 (ON-09, x100) — the commit half, likewise EXEMPT (`ImportCommitView`) with no web
- * consumer this slice; pair it when the ON-09 screen lands.
- *
- * Request  `POST /v1/organizations/:orgSlug/imports/commits` (`org.manage`), body
- *          `{ jobId, sourceKind: 'project', mapping, rows }` (`ImportCommitRequest`; bounded/parsed
- *          by `parseImportCommitBody`).
- * Response `ImportCommitView` — `{ jobId, sourceKind, status: 'committed' |
- *          'committed_with_errors', committedCount, failedCount, rows: { sourceIndex, outcome:
- *          'created' | 'failed', createdEntityId: string | null, error: string | null }[] }`.
- *          Partial commit: valid rows create entities (each through the `project.create`
- *          authorize), invalid / refused rows are recorded as `failed` receipts, in one job.
+ * x101 adds the client deep-link screen that renders it (`ClientApprovalScreen`) and its `apps/web`
+ * shape `ClientApprovalView`, so `ClientProjectionView` leaves the EXEMPT list and is paired Exact
+ * here. `ApprovalDecisionView` stays exempt: it is the internal reviewer decide record, and x101
+ * ships only the *client* decide, whose response is the separate client-safe `ClientDecideView`.
  */
+
+/** `GET …/approvals/projections/:deliverableVersionId` — the immutable client projection the deep-link screen renders. */
+type _clientProjection = Assert<Exact<ApiClientProjectionView, WebClientApprovalView>>;
+
+/**
+ * `POST …/approvals/projections/:deliverableVersionId/decision` — FR-05's client decide (x101).
+ *
+ * Request: `{ decision: 'approve' | 'request_changes', feedback?: string }`. Response: the
+ * client-safe `ClientDecideView` — the version decided on, the resulting lifecycle `state`,
+ * `decidedAt` (ISO string), and the change-request note — never the internal `ApprovalDecisionView`.
+ */
+type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;

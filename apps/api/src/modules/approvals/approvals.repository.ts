@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { approvalStateMachine, uuidv7 } from '@tmanage/domain';
 import type { ApprovalPolicy, ApprovalState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -142,6 +142,44 @@ export class ApprovalsRepository {
   ): Promise<ApprovalRow> {
     const found = await this.findById(runner, context, approvalId);
     if (!found) throw new ApprovalNotFoundError(approvalId);
+    return found;
+  }
+
+  /**
+   * The approval bound to one governed version — the client deep-link's decide target.
+   *
+   * The client route (FR-05) is version-addressed: it names the `deliverable_version_id` the
+   * client projection was published for, not an approval id the client never sees. An approval is
+   * opened over exactly one immutable version, so this resolves that version's approval; the newest
+   * by creation is taken defensively, and the read is tenant-scoped so another tenant's row is
+   * absent rather than visible — the same not-found the service maps to 404.
+   */
+  async findByVersion(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    deliverableVersionId: string,
+  ): Promise<ApprovalRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.organizationId, context.organizationId),
+          eq(approvals.deliverableVersionId, deliverableVersionId),
+        ),
+      )
+      .orderBy(desc(approvals.createdAt), desc(approvals.id))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async requireByVersion(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    deliverableVersionId: string,
+  ): Promise<ApprovalRow> {
+    const found = await this.findByVersion(runner, context, deliverableVersionId);
+    if (!found) throw new ApprovalNotFoundError(deliverableVersionId);
     return found;
   }
 
