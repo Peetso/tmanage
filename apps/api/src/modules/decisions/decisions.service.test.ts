@@ -138,7 +138,11 @@ function serviceWith(
     create: async (
       _runner: unknown,
       ctx: TenantContext,
-      input: { readonly decisionId: string; readonly supersededByDecisionId: string; readonly createdBy: string },
+      input: {
+        readonly decisionId: string;
+        readonly supersededByDecisionId: string;
+        readonly createdBy: string;
+      },
     ) => {
       const row = {
         id: `supersession-0000-0000-0000-00000000000${++seq}`,
@@ -328,7 +332,10 @@ describe('DecisionsService lifecycle (DEC-01-b / DEC-02)', () => {
   });
 
   it('refuses accepting a non-proposed decision as a 409, with no write', async () => {
-    const accepted = { ...decisionRow('decision-accepted', PROJECT, DECIDED_AT), status: 'accepted' as const };
+    const accepted = {
+      ...decisionRow('decision-accepted', PROJECT, DECIDED_AT),
+      status: 'accepted' as const,
+    };
     const { service, store } = serviceWith([accepted]);
     const error = await service
       .accept(context, member([PROJECT]), accepted.id)
@@ -399,7 +406,10 @@ describe('DecisionsService lifecycle (DEC-01-b / DEC-02)', () => {
   });
 
   it('refuses superseding an already-superseded decision as 409', async () => {
-    const superseded = { ...decisionRow('decision-super', PROJECT, DECIDED_AT), status: 'superseded' as const };
+    const superseded = {
+      ...decisionRow('decision-super', PROJECT, DECIDED_AT),
+      status: 'superseded' as const,
+    };
     const { service, edges } = serviceWith([superseded, { ...OTHER }]);
     const error = await service
       .supersede(context, member([PROJECT]), superseded.id, OTHER.id)

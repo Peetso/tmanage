@@ -57,7 +57,12 @@ afterAll(async () => {
   await db?.stop();
 });
 
-async function seedDecision(context: TenantContext, projectId: string, ownerId: string, title: string) {
+async function seedDecision(
+  context: TenantContext,
+  projectId: string,
+  ownerId: string,
+  title: string,
+) {
   return tenant.transaction(context, (tx) =>
     decisions.create(tx, context, {
       projectId,
@@ -120,12 +125,7 @@ describe('an edge never crosses a tenant boundary', () => {
       world.northstar.owner.id,
       'Mine',
     );
-    const theirs = await seedDecision(
-      twin,
-      world.twin.projectId,
-      world.twin.owner.id,
-      'Theirs',
-    );
+    const theirs = await seedDecision(twin, world.twin.projectId, world.twin.owner.id, 'Theirs');
 
     await expect(
       tenant.transaction(northstar, (tx) =>

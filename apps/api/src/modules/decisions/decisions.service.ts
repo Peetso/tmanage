@@ -92,7 +92,10 @@ function toDetailView(
   return {
     ...toView(row),
     supersededBy: supersededBy
-      ? { decisionId: supersededBy.supersededByDecisionId, at: supersededBy.createdAt.toISOString() }
+      ? {
+          decisionId: supersededBy.supersededByDecisionId,
+          at: supersededBy.createdAt.toISOString(),
+        }
       : null,
     supersedes: supersedes.map((edge) => ({
       decisionId: edge.decisionId,

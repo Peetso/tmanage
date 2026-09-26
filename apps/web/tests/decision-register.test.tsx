@@ -182,7 +182,12 @@ describe('DecisionRegisterScreen', () => {
       if (call.url.includes('/decisions'))
         return json({
           decisions: [
-            decision('d-1', 'Adopt the plan', '2026-07-01T00:00:00.000Z', accepted ? 'accepted' : 'proposed'),
+            decision(
+              'd-1',
+              'Adopt the plan',
+              '2026-07-01T00:00:00.000Z',
+              accepted ? 'accepted' : 'proposed',
+            ),
           ],
         });
       if (call.url.includes('/projects'))
@@ -226,7 +231,12 @@ describe('DecisionRegisterScreen', () => {
         return json({
           decisions: [
             decision('d-new', 'The new way', '2026-07-02T00:00:00.000Z', 'accepted'),
-            decision('d-old', 'The old way', '2026-07-01T00:00:00.000Z', superseded ? 'superseded' : 'proposed'),
+            decision(
+              'd-old',
+              'The old way',
+              '2026-07-01T00:00:00.000Z',
+              superseded ? 'superseded' : 'proposed',
+            ),
           ],
         });
       if (call.url.includes('/projects'))
