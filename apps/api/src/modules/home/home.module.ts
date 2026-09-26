@@ -8,6 +8,7 @@ import { SavedContextRepository } from './saved-context.repository.js';
 import { HomeService } from './home.service.js';
 import { HomeController } from './home.controller.js';
 import { HomePinsController } from './home-pins.controller.js';
+import { OnboardingTourController } from './onboarding-tour.controller.js';
 
 /**
  * The Home module's wiring.
@@ -40,7 +41,7 @@ export class HomeModule {
       module: HomeModule,
       providers: [service],
       exports: [service],
-      controllers: [HomeController, HomePinsController],
+      controllers: [HomeController, HomePinsController, OnboardingTourController],
     };
   }
 }

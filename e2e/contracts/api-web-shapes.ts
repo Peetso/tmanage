@@ -65,6 +65,7 @@ import type { HomePulseView as ApiHomePulseView } from '../../apps/api/src/modul
 import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src/modules/home/home.service.js';
 import type { HomePinView as ApiHomePinView } from '../../apps/api/src/modules/home/home-pins.controller.js';
 import type { NotificationKindPrefView as ApiNotificationKindPrefView } from '../../apps/api/src/modules/notifications/notification-kind-prefs.controller.js';
+import type { OnboardingTourView as ApiOnboardingTourView } from '../../apps/api/src/modules/home/onboarding-tour.controller.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -142,6 +143,7 @@ import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api
 import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
+import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -643,6 +645,8 @@ type _homePins = Assert<Exact<ApiHomePinView, WebHomePinView>>;
 type _notificationKindPrefs = Assert<
   Exact<ApiNotificationKindPrefView, WebNotificationKindPrefView>
 >;
+
+/**
  * Organization settings / policy (x153). `OrgSettingsView` (`GET/PUT …/settings`, response) — the
  * organization's allowlisted key/value settings. Paired with a live web consumer: `OrgSettingsScreen`
  * reads exactly this response to render one labelled field per setting. One projection; its per-entry
@@ -650,6 +654,15 @@ type _notificationKindPrefs = Assert<
  * on the web), so this pair covers it structurally. The wire projection never echoes the tenant id.
  */
 type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
+
+/**
+ * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and
+ * `POST .../onboarding/tour/:step/complete` — the acting member's fixed guided tour, each step with
+ * its completed flag. One projection; its per-step item is inlined on both sides, so this pair covers
+ * it structurally, and the `step` union (`welcome|create_project|invite_team|explore_work|
+ * share_portal`) must match exactly. The `OnboardingTourScreen` reads exactly this response.
+ */
+type _onboardingTour = Assert<Exact<ApiOnboardingTourView, WebOnboardingTourView>>;
 
 /**
  * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The

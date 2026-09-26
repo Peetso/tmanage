@@ -1543,6 +1543,57 @@ export const homePinnedItems = mysqlTable(
 );
 
 /**
+ * The fixed ON-10 guided-tour steps a member's progress can record. Exported so the controller
+ * validates a completion request against the same source of truth the column's ENUM is built from
+ * (`onboarding-tour.steps.ts` re-derives the ordered, labelled list from this set).
+ */
+export const ONBOARDING_TOUR_STEPS = [
+  'welcome',
+  'create_project',
+  'invite_team',
+  'explore_work',
+  'share_portal',
+] as const;
+export type OnboardingTourStep = (typeof ONBOARDING_TOUR_STEPS)[number];
+
+/**
+ * ON-10 guided-tour progress — per-membership completion of the fixed tour steps (migration 0059,
+ * x155).
+ *
+ * One row per (membership, step) the acting member has completed. It stores completion progress only
+ * — the `step` and when it was finished — never anything about the content of a tour step; sample-data
+ * seeding and coach-marks are deferred (NS-13). Progress is private to a membership and idempotent:
+ * every read and the completion upsert are scoped by `membership_id`, and the unique step key turns a
+ * re-completion into an engine conflict the repository swallows rather than a second row. Written by
+ * INSERT alone — no update of a row's identity, no delete — so the runtime credential holds INSERT
+ * only and the withheld privileges are the immutability control.
+ */
+export const onboardingProgress = mysqlTable(
+  'onboarding_progress',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    step: mysqlEnum('step', ONBOARDING_TOUR_STEPS).notNull(),
+    completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_onboarding_progress_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_onboarding_progress_step').on(
+      table.organizationId,
+      table.membershipId,
+      table.step,
+    ),
+    index('ix_onboarding_progress_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.completedAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * The field types a work intake form (0052, x146) can declare. Kept small and closed: a value
  * outside this set is a validation error (`work-forms.validate.ts`), never stored.
  */
@@ -2515,6 +2566,7 @@ export const TABLES = {
   search_index: searchIndex,
   notification_kind_prefs: notificationKindPrefs,
   org_settings: orgSettings,
+  onboarding_progress: onboardingProgress,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2579,6 +2631,7 @@ export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
+export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;
