@@ -59,6 +59,7 @@ import type { InvitationView as ApiInvitationView } from '../../apps/api/src/mod
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
+import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
@@ -121,6 +122,7 @@ import type {
 } from '../../apps/web/src/lib/api/invitations';
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
+import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type {
   CreatedOrganization as WebCreatedOrganization,
@@ -224,6 +226,14 @@ type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
  * shape, so the exemption was retired and the view is paired Exact.
  */
 type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
+
+/**
+ * CAL-01 / MTG-01 attendees + RSVP (x126). `GET`/`POST .../meetings/:meetingId/attendees` and
+ * `PATCH .../attendees/:attendeeId` — a meeting's attendees and their RSVP, read and driven by
+ * `MeetingAttendeesScreen`. The member is named by `userId` (the roster's identity), never the
+ * internal `membershipId`; paired Exact, so a rename or retype on either side fails the gate.
+ */
+type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeView>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;

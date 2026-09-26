@@ -12991,3 +12991,40 @@ project with a normalised ISO instant and refetches the list, and is axe-clean.
 `e2e/tests/calendar-journeys.spec.ts` walks the full create→list→detail path against the real
 stack (module 9's credit-earning proof); it authors and typechecks here, with the live browser run
 carried by the integration chain.
+
+## CAL-01 / MTG-01 — meeting attendees + RSVP (x126)
+
+x122 shipped the meetings list/create screen and x105/x108 the notes; who is invited to a meeting
+and whether they are coming was the deferred half (audit: Calendar Partial; NS-11). This slice adds
+that surface: a `meeting_attendees` table (migration **0042**), the invite/list/RSVP routes under a
+meeting, and `MeetingAttendeesScreen`. No new capability — the routes reuse `meeting.read` /
+`meeting.write`.
+
+**API.** `POST …/meetings/:meetingId/attendees` (invite), `GET …` (list) and
+`PATCH …/attendees/:attendeeId` (set RSVP). The meeting is resolved tenant-scoped **before** the
+relation check and any write (the Known-trap order), so a cross-tenant `meetingId`/`attendeeId` is a
+404 with no write, never a 500; the relation is the meeting's project relation, expressed with the
+`work.read`/`work.create` ceiling-mirrors as `MeetingsService` does. A member is named on the wire by
+`userId` (the roster's identity) and resolved to their `membership_id` — the stored, tenant-composite
+identity — before the insert, so an unknown/cross-tenant user is a clean 400 rather than a foreign-key
+500; a re-invite is a 409 off the `(org, meeting, membership)` unique key; an RSVP outside
+`invited|accepted|declined` is a 409 before the service is reached. `meeting-attendees.repository.ts`,
+`.service.ts`, `.controller.ts` are new; `meeting-attendees.controller.test.ts` proves
+invite→list→RSVP, cross-tenant/cross-meeting id → 404 no write, illegal RSVP → 409, and the
+`meeting.write`/`meeting.read` capability boundary — all with the real `authorize()`.
+
+**New table, four places.** `meeting_attendees` is registered in `schema.ts` (def + `TABLES` +
+`MeetingAttendeeRow`), `tenant-guard.ts` `TENANT_TABLES`, `scripts/db/users.sql` (`INSERT, UPDATE`,
+no `DELETE`), and the `0042_meeting_attendees.sql` migration (auto-discovered by the migrator). RSVP
+is the one mutable column; identity (`organization_id`/`meeting_id`/`membership_id`) is immutable at
+the engine via a `BEFORE UPDATE` trigger. Per the 2026-09-26 rules, no DB test and no new e2e are
+authored in-slice — the chain owns both.
+
+**Contract.** `MeetingAttendeeView` (member named by `userId`, no `membershipId` on the wire) is a
+live `Assert<Exact<…>>` pair (`_meetingAttendee`) in `e2e/contracts/api-web-shapes.ts`.
+`MeetingAttendeesScreen` lists attendees by name (resolving `userId` through the member directory)
+with a distinct RSVP capsule, invites from a picker of not-yet-invited members, and changes an RSVP
+inline; `apps/web/tests/meeting-attendees-screen.test.tsx` (jsdom + axe) proves the render, the
+picker exclusion, the `userId` invite POST and the RSVP PATCH, and is axe-clean. A route page at
+`calendar/meetings/[meetingId]/attendees` mounts it. Email invites and ICS attachments stay deferred
+to NS-13.

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  MEETING_ATTENDEES_REPOSITORY,
+  MEETING_ATTENDEES_SERVICE,
   MEETINGS_REPOSITORY,
   MEETINGS_SERVICE,
   TENANT_DATABASE,
@@ -10,7 +12,11 @@ import { MeetingsRepository } from './meetings.repository.js';
 import { MeetingNotesRepository } from './meeting-notes.repository.js';
 import { MeetingsService } from './meetings.service.js';
 import { MeetingsController } from './meetings.controller.js';
+import { MeetingAttendeesRepository } from './meeting-attendees.repository.js';
+import { MeetingAttendeesService } from './meeting-attendees.service.js';
+import { MeetingAttendeesController } from './meeting-attendees.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 
 /**
  * CAL-01 / MTG-01 (x90). The calendar module's first vertical slice: meeting read/write.
@@ -42,11 +48,32 @@ export class CalendarModule {
         ),
     };
 
+    // CAL-01 / MTG-01 attendees + RSVP (x126). Its own stateless repository under its token and a
+    // service over the tenant database, following the meetings pattern above. The service owns a
+    // read-only `MeetingsRepository` (to resolve the path meeting tenant-scoped before authorize)
+    // and a read-only `MembershipsRepository` (to resolve the invited member) — both stateless, so
+    // a fresh handle is cheaper than injecting the whole owning module.
+    const attendeesRepository: Provider = {
+      provide: MEETING_ATTENDEES_REPOSITORY,
+      useFactory: () => new MeetingAttendeesRepository(),
+    };
+    const attendeesService: Provider = {
+      provide: MEETING_ATTENDEES_SERVICE,
+      inject: [TENANT_DATABASE, MEETING_ATTENDEES_REPOSITORY],
+      useFactory: (database: TenantDatabase, attendees: MeetingAttendeesRepository) =>
+        new MeetingAttendeesService(
+          database,
+          attendees,
+          new MeetingsRepository(),
+          new MembershipsRepository(),
+        ),
+    };
+
     return {
       module: CalendarModule,
-      providers: [repository, service],
-      exports: [service],
-      controllers: [MeetingsController],
+      providers: [repository, service, attendeesRepository, attendeesService],
+      exports: [service, attendeesService],
+      controllers: [MeetingsController, MeetingAttendeesController],
     };
   }
 }

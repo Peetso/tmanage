@@ -341,6 +341,45 @@ export const meetingNotes = mysqlTable(
   ],
 );
 
+export const MEETING_ATTENDEE_RSVPS = ['invited', 'accepted', 'declined'] as const;
+
+/**
+ * CAL-01 / MTG-01 attendees + RSVP (x126). A meeting's invited members and their answer — a
+ * `membershipId` and an `rsvp` (`invited`/`accepted`/`declined`), against an existing meeting
+ * (0029). It is the attendees/RSVP half NS-11 deferred (audit: Calendar Partial).
+ *
+ * An attendee is named by their membership row, not a bare user id — the same identity the roster
+ * uses, kept inside the tenant by the composite FK. The row carries no `projectId`: the relation it
+ * is read and written by is the meeting's, resolved in the service, so the two can never disagree.
+ * Identity (`organizationId`/`meetingId`/`membershipId`) is immutable at the engine; `rsvp` is the
+ * one column the PATCH may change (0042's trigger pins the rest). `0042_meeting_attendees.sql` is
+ * the source of truth; this is its typed mirror.
+ */
+export const meetingAttendees = mysqlTable(
+  'meeting_attendees',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    rsvp: mysqlEnum('rsvp', MEETING_ATTENDEE_RSVPS).notNull().default('invited'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_attendees_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_meeting_attendees_meeting_member').on(
+      table.organizationId,
+      table.meetingId,
+      table.membershipId,
+    ),
+    index('ix_meeting_attendees_org_meeting').on(
+      table.organizationId,
+      table.meetingId,
+      table.id,
+    ),
+  ],
+);
+
 /** One remembered filter: a field name and the value the saved view pins it to. */
 export interface SavedViewFilter {
   readonly field: string;
@@ -1696,6 +1735,7 @@ export const TABLES = {
   documents,
   import_rows: importRows,
   meeting_notes: meetingNotes,
+  meeting_attendees: meetingAttendees,
   saved_views: savedViews,
   saved_context: savedContext,
 } as const;
@@ -1729,6 +1769,7 @@ export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
+export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
