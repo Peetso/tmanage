@@ -84,6 +84,7 @@ import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/s
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
+import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -168,6 +169,7 @@ import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/a
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
 import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/src/lib/api/insights-portfolio';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
+import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -325,6 +327,14 @@ type _insightsPortfolio = Assert<Exact<ApiInsightsPortfolioView, WebInsightsPort
 
 /** `WorkItemView.state` ↔ `WORK_ITEM_STATES` (`@tmanage/domain`). */
 type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
+
+/**
+ * x145. `WorkChecklistItemView` ↔ `WorkChecklistItem` — one work-item checklist / sub-item
+ * (`GET`/`POST …/work-items/:id/checklist`, `PATCH …/checklist/:itemId`). `WorkChecklistPanel`
+ * reads exactly this shape, so the `id`/`workItemId`/`label`/`done`/`position`/`createdAt` pair is
+ * held identical on both sides.
+ */
+type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklistItem>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

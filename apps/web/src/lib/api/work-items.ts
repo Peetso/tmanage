@@ -155,3 +155,59 @@ export async function transitionWorkItem(
   });
   return data;
 }
+
+// ── x145: work item checklist / sub-items ────────────────────────────────────
+
+/**
+ * One checklist item hanging off a work item — x145 (Work module 7). The API projection is
+ * `WorkChecklistItemView`; this is its web mirror, paired `Exact` in `e2e/contracts`.
+ */
+export interface WorkChecklistItem {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly label: string;
+  readonly done: boolean;
+  /** The ordinal the list is read by, ascending. */
+  readonly position: number;
+  readonly createdAt: string;
+}
+
+export async function listChecklist(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<readonly WorkChecklistItem[]> {
+  const { data } = await client.request<{ items: readonly WorkChecklistItem[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/checklist`,
+  });
+  return data.items;
+}
+
+export async function addChecklistItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: { readonly label: string },
+): Promise<WorkChecklistItem> {
+  const { data } = await client.request<WorkChecklistItem>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/checklist`,
+    body: input,
+  });
+  return data;
+}
+
+export async function updateChecklistItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  itemId: string,
+  input: { readonly label?: string; readonly done?: boolean },
+): Promise<WorkChecklistItem> {
+  const { data } = await client.request<WorkChecklistItem>({
+    method: 'PATCH',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/checklist/${encodeURIComponent(itemId)}`,
+    body: input,
+  });
+  return data;
+}

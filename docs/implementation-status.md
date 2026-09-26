@@ -13183,3 +13183,28 @@ axe): rows render with their figures and drill-in links, an empty portfolio says
 projects, a `work.read` refusal shows rather than a blank page, and the document is axe-clean.
 Deferred to NEXT-SCOPES-11: INS-05 workload/INS-06 adoption portfolios, portfolio exports, and the
 People/Automations portfolios (blocked — need new capabilities.ts entries).
+
+## x145 — Work item checklists / sub-items (Work module 7)
+
+**Route + storage this slice.** `work_item_checklist_items` (migration `0051`, registered in the
+four places — `schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `db/users.sql` grant,
+the migration file) is a labelled, ordered list of done/not-done sub-items hanging off one work
+item. Parent- and tenant-owned: the composite FK `fk_work_item_checklist_items_work_item` binds
+`(organization_id, work_item_id)` to `work_items`, so a cross-tenant parent is a non-existent pair,
+and the `0051` `BEFORE UPDATE` trigger pins `organization_id`/`work_item_id` immutable. Three routes
+under `…/work-items/:workItemId/checklist`: `GET` (`work.read`) lists position-ascending and
+bounded; `POST` (`work.update`) appends; `PATCH :itemId` (`work.update`) toggles `done` / renames
+`label`. `WorkChecklistService` resolves the parent tenant-scoped **before** it authorizes or
+writes (the briefed trap): a cross-tenant/unrelated parent is a 404 with no write, a caller who may
+read but not update the item gets a 403. `WorkChecklistItemView` is a live `Exact` pair in
+`e2e/contracts/api-web-shapes.ts`. Proved over module fakes with real `authorize`
+(`work-checklist.controller.test.ts`): add→list→toggle for a related member, a cross-tenant parent
+is 404 writing nothing, an unrelated member's list is 404 (read gate), and an archived item's write
+is 403.
+
+**Web surface this slice.** `WorkChecklistPanel` (`apps/web/src/components/screens/`) is mounted
+additively in `WorkItemDetailScreen` (TM-13's "checklist" section, previously named in
+`BackendPending`): it reads its own query, adds a sub-item, shows the list with a done count, and
+toggles each item; every write invalidates the query. Client shape + fetchers in
+`apps/web/src/lib/api/work-items.ts`. Deferred to NS-13: reorder persistence beyond `position` and
+a per-item assignee.
