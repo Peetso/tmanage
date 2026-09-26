@@ -13167,7 +13167,7 @@ joined to each item's title and state, bounded to 50; `DELETE …/objectives/:ob
 each **tenant- and project-scoped before** the relation check and the write: an unknown or
 cross-tenant `objectiveId`/`workItemId`/`linkId` is a `404`, never a foreign-key 500, and a caller
 who does not manage the objective's project gets the same not-found. On link, the work item must
-belong to the *same project* as the objective (and not be soft-deleted), else the same 404.
+belong to the _same project_ as the objective (and not be soft-deleted), else the same 404.
 Unit-proven with real `authorize()` over fakes in `objective-work-links.controller.test.ts`
 (link→list→unlink; 409 duplicate; 404s incl. cross-project/soft-deleted/foreign-objective; relation
 gate; route ceilings).

@@ -140,7 +140,9 @@ function build(options: {
       objectiveId: string,
     ): Promise<readonly ObjectiveWorkLinkWithItem[]> =>
       store
-        .filter((row) => row.objectiveId === objectiveId && row.organizationId === ctx.organizationId)
+        .filter(
+          (row) => row.objectiveId === objectiveId && row.organizationId === ctx.organizationId,
+        )
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
         .map((link) => {
           const item = workItemsStore.find((w) => w.id === link.workItemId);
@@ -182,12 +184,7 @@ function build(options: {
     },
   } as unknown as ObjectiveWorkLinksRepository;
 
-  const service = new ObjectiveWorkLinksService(
-    database,
-    linksRepo,
-    objectivesRepo,
-    workItemsRepo,
-  );
+  const service = new ObjectiveWorkLinksService(database, linksRepo, objectivesRepo, workItemsRepo);
   return { controller: new ObjectiveWorkLinksController(service), store };
 }
 

@@ -258,7 +258,7 @@ export function ProjectObjectivesScreen({
           organizationSlug={organizationSlug}
           objectiveId={selectedObjective.id}
           objectiveName={selectedObjective.name}
-          client={client}
+          {...(client ? { client } : {})}
         />
       ) : null}
     </AppShell>

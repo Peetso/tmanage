@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { objectiveWorkLinks, workItems } from '../../common/database/schema.js';
@@ -162,6 +162,7 @@ export class ObjectiveWorkLinksRepository {
       objectiveId: input.objectiveId,
       workItemId: input.workItemId,
       createdBy: input.createdBy,
+      createdAt: sql`current_timestamp(3)`,
     });
 
     const created = await this.findById(runner, context, id);

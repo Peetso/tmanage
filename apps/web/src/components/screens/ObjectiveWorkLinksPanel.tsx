@@ -59,7 +59,8 @@ export function ObjectiveWorkLinksPanel({
   }
 
   const linkMutation = useMutation({
-    mutationFn: () => linkWorkItemToObjective(api, organizationSlug, objectiveId, workItemId.trim()),
+    mutationFn: () =>
+      linkWorkItemToObjective(api, organizationSlug, objectiveId, workItemId.trim()),
     onSuccess: async () => {
       setWorkItemId('');
       await refetch();
@@ -88,7 +89,10 @@ export function ObjectiveWorkLinksPanel({
       </h3>
 
       <form className="tm-stack" onSubmit={onSubmit} noValidate>
-        <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={linkMutation.isPending}>
+        <fieldset
+          className="tm-fieldset tm-stack tm-stack--loose"
+          disabled={linkMutation.isPending}
+        >
           <Field
             label="Work item ID"
             name="workItemId"
