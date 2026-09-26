@@ -1168,6 +1168,34 @@ export const workItemChecklistItems = mysqlTable(
   ],
 );
 
+/**
+ * x147. A work item's comments / activity (Work module 7). Append-only, internal-only, and
+ * distinct from the channel-scoped conversation `messages`: a comment is about *this work item*,
+ * authored by a membership of the studio. `fk_work_item_comments_work_item` binds
+ * `(organization_id, work_item_id)` to `work_items (organization_id, id)`, so a cross-tenant
+ * `work_item_id` is a non-existent pair — migration `0053_work_item_comments.sql`.
+ */
+export const workItemComments = mysqlTable(
+  'work_item_comments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_comments_org_id').on(table.organizationId, table.id),
+    index('ix_work_item_comments_item').on(
+      table.organizationId,
+      table.workItemId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2313,6 +2341,7 @@ export const TABLES = {
   work_items: workItems,
   work_item_dependencies: workItemDependencies,
   work_item_checklist_items: workItemChecklistItems,
+  work_item_comments: workItemComments,
   work_blockers: workBlockers,
   client_requests: clientRequests,
   deliverable_versions: deliverableVersions,
@@ -2374,6 +2403,8 @@ export type WorkItemRow = typeof workItems.$inferSelect;
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
+export type WorkItemCommentRow = typeof workItemComments.$inferSelect;
+export type NewWorkItemCommentRow = typeof workItemComments.$inferInsert;
 export type ClientRequestRow = typeof clientRequests.$inferSelect;
 export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
 export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;

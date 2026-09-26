@@ -112,6 +112,7 @@ import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
+import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -226,6 +227,7 @@ import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
+import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -512,6 +514,14 @@ type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
  * held identical on both sides.
  */
 type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklistItem>>;
+
+/**
+ * x147. `WorkCommentView` ↔ `WorkComment` — one work-item comment / activity entry
+ * (`GET`/`POST …/work-items/:id/comments`). `WorkCommentsPanel` reads exactly this shape, so the
+ * `id`/`workItemId`/`authorMembershipId`/`body`/`createdAt` pair is held identical on both sides.
+ * Append-only: there is no edit or delete route, so no update shape to pair.
+ */
+type _workComment = Assert<Exact<ApiWorkCommentView, WebWorkComment>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped
