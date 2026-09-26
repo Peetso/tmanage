@@ -50,11 +50,8 @@ function controllerWith(seed: readonly MeetingSeriesRow[] = []): {
     transaction: async (_context: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
   const repository = {
-    list: async (
-      _runner: unknown,
-      ctx: TenantContext,
-      _options: { readonly after?: string },
-    ) => store.filter((row) => row.organizationId === ctx.organizationId),
+    list: async (_runner: unknown, ctx: TenantContext, _options: { readonly after?: string }) =>
+      store.filter((row) => row.organizationId === ctx.organizationId),
     findById: async (_runner: unknown, ctx: TenantContext, seriesId: string) =>
       store.find((row) => row.organizationId === ctx.organizationId && row.id === seriesId) ?? null,
     create: async (
@@ -123,7 +120,13 @@ describe('MeetingSeriesController', () => {
   it('answers 404 for a cross-tenant or unknown series id, reading nothing', async () => {
     const { controller } = controllerWith();
     const error = await controller
-      .occurrences(context, principal('member'), 'series-does-not-exist', '2026-10-01', '2026-10-05')
+      .occurrences(
+        context,
+        principal('member'),
+        'series-does-not-exist',
+        '2026-10-01',
+        '2026-10-05',
+      )
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(404);

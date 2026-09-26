@@ -100,7 +100,10 @@ export class MeetingSeriesRepository {
       .select()
       .from(meetingSeries)
       .where(
-        and(eq(meetingSeries.organizationId, context.organizationId), eq(meetingSeries.id, seriesId)),
+        and(
+          eq(meetingSeries.organizationId, context.organizationId),
+          eq(meetingSeries.id, seriesId),
+        ),
       )
       .limit(1);
     return rows[0] ?? null;

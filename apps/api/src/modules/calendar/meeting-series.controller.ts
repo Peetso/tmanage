@@ -101,7 +101,7 @@ export class MeetingSeriesController {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
     // Narrowed by the `details.length` check above, which TypeScript cannot see through.
-    if (!title || !freq || interval === undefined) {
+    if (!title || !freq || interval === undefined || until === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
 

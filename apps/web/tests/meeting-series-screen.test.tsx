@@ -77,10 +77,12 @@ describe('MeetingSeriesScreen', () => {
       return json({}, 200);
     });
     const { container } = render(
-      withQuery(<MeetingSeriesScreen organizationSlug="acme" organizationName="Acme" client={client} />),
+      withQuery(
+        <MeetingSeriesScreen organizationSlug="acme" organizationName="Acme" client={client} />,
+      ),
     );
 
-    expect(await screen.findByText('Weekly sync')).toBeTruthy();
+    expect(await screen.findByRole('rowheader', { name: 'Weekly sync' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Create series' })).toBeTruthy();
     await expectNoAxeViolations(container);
   });
@@ -90,14 +92,19 @@ describe('MeetingSeriesScreen', () => {
     const { client } = clientOver((call) => {
       if (call.method === 'POST' && call.url.includes('/meeting-series')) {
         created.push(call);
-        return json(seriesView({ id: 'series-2', title: 'Retro', freq: 'monthly', interval: 2 }), 201);
+        return json(
+          seriesView({ id: 'series-2', title: 'Retro', freq: 'monthly', interval: 2 }),
+          201,
+        );
       }
       if (call.url.includes('/meeting-series')) return json({ series: [] });
       return json({}, 200);
     });
 
     render(
-      withQuery(<MeetingSeriesScreen organizationSlug="acme" organizationName="Acme" client={client} />),
+      withQuery(
+        <MeetingSeriesScreen organizationSlug="acme" organizationName="Acme" client={client} />,
+      ),
     );
 
     // Wait for the empty-series read so the create form is settled.
