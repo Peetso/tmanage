@@ -10,7 +10,15 @@ import {
   WorkItemsRepository,
   effectivePageSize as workItemPageSize,
 } from '../work/work-items.repository.js';
-import type { ProjectRow, WorkItemRow } from '../../common/database/schema.js';
+import {
+  ProjectUpdatesRepository,
+  effectivePageSize as projectUpdatePageSize,
+} from './project-updates.repository.js';
+import type {
+  ProjectRow,
+  ProjectUpdateRow,
+  WorkItemRow,
+} from '../../common/database/schema.js';
 
 /**
  * How many repository pages one portal list may walk while filling a page of readable rows.
@@ -90,6 +98,45 @@ export interface PortalWorkItemView {
   readonly updatedAt: string;
 }
 
+/**
+ * A project update as either principal is shown it — CLIENT-003.
+ *
+ * An explicit projection, not a serialised row (`25-AUTH-AND-TENANT-ISOLATION` §7). What is
+ * absent is the point: **`createdByUserId` is not here.** §4 excludes staff from the client
+ * projection — which member of the agency typed the update is an internal fact, and a client
+ * reading it learns who inside the studio is talking to them. Listing the fields means a column
+ * added to `project_updates` tomorrow is invisible to a client until someone decides otherwise.
+ */
+export interface PortalUpdateView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly body: string;
+  /** The client-visibility gate. A client read only ever returns `true`; an internal read may see `false`. */
+  readonly published: boolean;
+  /** An ISO-8601 instant on the wire. */
+  readonly createdAt: string;
+}
+
+function toUpdateView(row: ProjectUpdateRow): PortalUpdateView {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    body: row.body,
+    published: row.published,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/** What an internal principal posts. The tenant and the author come from the context, never the body. */
+export interface PostProjectUpdateInput {
+  readonly projectId: string;
+  readonly title: string;
+  readonly body: string;
+  readonly published: boolean;
+}
+
 /** The audiences a client may ever see. `internal` is not among them and never will be. */
 const CLIENT_AUDIENCES: readonly Audience[] = ['client_visible', 'client_action_required'];
 
@@ -141,6 +188,13 @@ export class PortalService {
     private readonly database: TenantDatabase,
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     private readonly workItems: WorkItemsRepository = new WorkItemsRepository(),
+    /**
+     * The project-updates store (CLIENT-003). Stateless like the others; owned by this service
+     * because an update is read and written *through a project* — the project is resolved
+     * tenant-scoped and relation-checked here first, and the update store then reads or appends
+     * against it.
+     */
+    private readonly updates: ProjectUpdatesRepository = new ProjectUpdatesRepository(),
   ) {}
 
   /**
@@ -237,6 +291,96 @@ export class PortalService {
     });
 
     return readable.map(toWorkItemView);
+  }
+
+  /**
+   * The published updates for one project this client may read — CLIENT-003, the client half.
+   *
+   * The Known-trap order (FAST-PROTOCOL 19:55): the route names the project by id, so the
+   * project is resolved **relation-scoped first**. {@link mayRead} runs `authorize()` rule 10
+   * for a client — the project must be in `principal.projectIds`, which comes from
+   * `project_clients` and nothing else — and an unknown or cross-tenant or sibling-client
+   * `projectId` fails it. The refusal is **404, not 403**: a client probing project ids must not
+   * learn which of them are real (the reasoning `workItemsFor` gives).
+   *
+   * `published = 1` is a **query predicate** ({@link ProjectUpdatesRepository.list}), not a
+   * `.filter()` afterwards — an unpublished update is never in the result set, so a client can
+   * never be shown one, and never a 500 while trying. The view carries no `createdByUserId`, so
+   * even the published rows leak no staff identity.
+   */
+  async updatesFor(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<readonly PortalUpdateView[]> {
+    if (!this.mayRead(principal, projectId)) {
+      // 404, not 403. A client probing project ids must not learn which of them are real.
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+
+    const limit = projectUpdatePageSize(undefined);
+    const rows = await this.database.read(context, (runner) =>
+      this.updates.list(runner, context, { projectId, publishedOnly: true, limit }),
+    );
+    return rows.map(toUpdateView);
+  }
+
+  /**
+   * Post a project update — CLIENT-003, the internal half. `project.manage`, internal only.
+   *
+   * Two checks precede the write, both surfacing the same **not found** so a caller can tell
+   * neither which projects exist nor which they are barred from — the exact order
+   * `MeetingsService.create` re-learned as the Known trap (FAST-PROTOCOL 19:55):
+   *
+   * 1. The named project is resolved inside this tenant first (`findById` is tenant-scoped). An
+   *    unknown or cross-tenant `projectId` returns `null` → 404. Without it an organization-wide
+   *    caller — who passes the relation check below — would drive the id into the composite
+   *    foreign key, which refuses the row but surfaces as a 500 rather than a not-found.
+   * 2. The relation check with the project in hand: a caller who names a project they cannot
+   *    manage gets 404, never 403 — 403 would confirm the project exists.
+   *
+   * The author is `context.userId`, never a body field, so a caller cannot attribute an update to
+   * someone else. `published` is set at insert; the publish/unpublish lifecycle is a later slice.
+   */
+  async postUpdate(
+    context: TenantContext,
+    principal: Principal,
+    input: PostProjectUpdateInput,
+  ): Promise<PortalUpdateView> {
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, input.projectId),
+    );
+
+    if (!project) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+
+    const permitted = authorize({
+      principal,
+      capability: 'project.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: input.projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+
+    if (!permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.updates.create(tx, context, {
+        projectId: input.projectId,
+        title: input.title,
+        body: input.body,
+        published: input.published,
+        createdByUserId: context.userId,
+      }),
+    );
+
+    return toUpdateView(row);
   }
 
   /**

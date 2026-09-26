@@ -311,6 +311,42 @@ export const documents = mysqlTable(
   ],
 );
 
+/**
+ * CLIENT-003 (x125). A project update — a `title`, a `body`, and whether it is `published` —
+ * against an existing project (0041). Tenant-scoped and project-owned like `documents` (0030):
+ * a client can never be shown, and an internal poster can never write, an update against
+ * another studio's project, because the composite foreign key binds `(organization_id,
+ * project_id)` to `projects`.
+ *
+ * `published` is the client-visibility gate: an update exists as soon as it is posted, but the
+ * portal read selects `published = 1` only — the way `client_projections` (0031) serves
+ * published-only content. Milestones, risks, the portal people page and any update
+ * edit/unpublish/comment lifecycle are later slices (NEXT-SCOPES-12). `0041_project_updates.sql`
+ * is the source of truth; this is its typed mirror.
+ */
+export const projectUpdates = mysqlTable(
+  'project_updates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    body: text('body').notNull(),
+    published: boolean('published').notNull().default(false),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_updates_org_id').on(table.organizationId, table.id),
+    index('ix_project_updates_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const MEETING_NOTE_KINDS = ['note', 'decision'] as const;
 
 /**
@@ -1698,6 +1734,7 @@ export const TABLES = {
   meeting_notes: meetingNotes,
   saved_views: savedViews,
   saved_context: savedContext,
+  project_updates: projectUpdates,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -1728,6 +1765,7 @@ export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
+export type ProjectUpdateRow = typeof projectUpdates.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;

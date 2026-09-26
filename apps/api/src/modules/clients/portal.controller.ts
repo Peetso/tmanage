@@ -9,7 +9,12 @@ import {
 } from '../../common/http/tokens.js';
 import type { InvitationView, InvitationsService } from '../tenancy/invitations.service.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { PortalProjectView, PortalService, PortalWorkItemView } from './portal.service.js';
+import type {
+  PortalProjectView,
+  PortalService,
+  PortalUpdateView,
+  PortalWorkItemView,
+} from './portal.service.js';
 import type {
   ClientRequestClientView,
   ClientRequestsService,
@@ -77,6 +82,25 @@ export class PortalController {
         ...(projectId ? { projectId } : {}),
       }),
     };
+  }
+
+  /**
+   * `CL-03` — the published updates timeline for one of this client's projects (CLIENT-003).
+   *
+   * The project is named in the path. {@link PortalService.updatesFor} resolves it
+   * relation-scoped **before** the read (the Known-trap order) and returns **404** — not an empty
+   * list and not 403 — for an unknown, cross-tenant or sibling-client id, so this route never
+   * doubles as a probe for which projects exist. Only `published = 1` rows come back, and the
+   * view carries no staff identity.
+   */
+  @Get('projects/:projectId/updates')
+  @RequireCapability('client_projection.read')
+  async projectUpdates(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<{ readonly updates: readonly PortalUpdateView[] }> {
+    return { updates: await this.portal.updatesFor(context, principal, projectId) };
   }
 
   /**
