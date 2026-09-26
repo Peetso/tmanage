@@ -361,6 +361,13 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  * `scripts/contracts-check.mjs`'s EXEMPT with the "No web consumer" reason, the same treatment
  * `MeetingView` (x90) has. Replace this note with an `Assert<Exact<…>>` pair when the docs hub
  * screen (DOC-01) and its `apps/web` shape land.
+ *
+ * CAL-01 / MTG-01 second slice (x105). `MeetingNoteView` (`GET`/`POST …/meetings/:meetingId/notes`,
+ * response) captures and reads a meeting's notes and decisions and has no web counterpart this
+ * slice — no calendar/meeting screen exists yet — so it is not paired here but listed in
+ * `scripts/contracts-check.mjs`'s EXEMPT with the "No web consumer" reason, the same treatment
+ * `MeetingView` (x90) has. Replace this note with an `Assert<Exact<…>>` pair when the meeting
+ * screen (x105-b) and its `apps/web` shape land.
  */
 
 /**

@@ -311,6 +311,36 @@ export const documents = mysqlTable(
   ],
 );
 
+export const MEETING_NOTE_KINDS = ['note', 'decision'] as const;
+
+/**
+ * CAL-01 / MTG-01 second slice (x105). A meeting's captured note or decision — a `kind`, a
+ * `body`, an author and a time, against an existing meeting (0029).
+ *
+ * A decision is the same row with `kind='decision'`; a dedicated `decisions` table with its own
+ * approval/lock lifecycle is deferred to x105-b (see `0033_meeting_notes.sql`). The row carries
+ * no `projectId`: the relation it is read and written by is the meeting's, resolved in the
+ * service, so the two can never disagree. Immutable/append-only — `0033`'s trigger refuses every
+ * UPDATE and there is no edit endpoint this slice. `0033_meeting_notes.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const meetingNotes = mysqlTable(
+  'meeting_notes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    kind: mysqlEnum('kind', MEETING_NOTE_KINDS).notNull(),
+    body: text('body').notNull(),
+    authorUserId: char('author_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_notes_org_id').on(table.organizationId, table.id),
+    index('ix_meeting_notes_org_meeting').on(table.organizationId, table.meetingId, table.id),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1569,6 +1599,7 @@ export const TABLES = {
   meetings,
   documents,
   import_rows: importRows,
+  meeting_notes: meetingNotes,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -1599,6 +1630,7 @@ export type InvitationRow = typeof invitations.$inferSelect;
 export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
+export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

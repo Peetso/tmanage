@@ -4,8 +4,13 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MeetingsRepository } from './meetings.repository.js';
 import type { CreateMeetingInput, ListMeetingsOptions } from './meetings.repository.js';
+import { MeetingNotesRepository } from './meeting-notes.repository.js';
+import type {
+  CreateMeetingNoteInput,
+  ListMeetingNotesOptions,
+} from './meeting-notes.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
-import type { MeetingRow } from '../../common/database/schema.js';
+import type { MeetingNoteRow, MeetingRow } from '../../common/database/schema.js';
 
 /**
  * The application service for CAL-01 / MTG-01 (x90) — the object-level decision the route guard
@@ -64,6 +69,33 @@ function toView(row: MeetingRow): MeetingView {
   };
 }
 
+/**
+ * What a caller is allowed to see of a captured note or decision. `organizationId` is
+ * deliberately absent (`25-AUTH-AND-TENANT-ISOLATION` §7); `meetingId` is the parent already in
+ * the caller's hand from the route.
+ */
+export interface MeetingNoteView {
+  readonly id: string;
+  readonly meetingId: string;
+  /** `note` or `decision`. */
+  readonly kind: 'note' | 'decision';
+  readonly body: string;
+  readonly authorUserId: string;
+  /** An ISO-8601 instant on the wire. */
+  readonly createdAt: string;
+}
+
+function toNoteView(row: MeetingNoteRow): MeetingNoteView {
+  return {
+    id: row.id,
+    meetingId: row.meetingId,
+    kind: row.kind,
+    body: row.body,
+    authorUserId: row.authorUserId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export class MeetingsService {
   constructor(
     private readonly database: TenantDatabase,
@@ -77,6 +109,12 @@ export class MeetingsService {
      * repository is cheap to own a second handle on (the reasoning `ConversationsModule` records).
      */
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    /**
+     * The meeting-notes store (x105). Stateless like the others; owned by this service because a
+     * note is read and written *through a meeting* — the meeting is resolved tenant-scoped and
+     * relation-checked here first, and the note store then reads or appends against it.
+     */
+    private readonly notes: MeetingNotesRepository = new MeetingNotesRepository(),
   ) {}
 
   /**
@@ -163,5 +201,95 @@ export class MeetingsService {
     );
 
     return toView(row);
+  }
+
+  /**
+   * Resolve a meeting the principal may act on with `capability`, or throw the same **not found**
+   * a missing meeting throws.
+   *
+   * This is the Known-trap order the calendar module has re-learned (FAST-PROTOCOL 19:55): the
+   * route names the meeting by id, so the meeting is resolved **tenant-scoped first**. An unknown
+   * or cross-tenant `meetingId` is `null` → 404, never a 500 from a foreign key the note insert
+   * would otherwise drive it into. Only then is the relation checked, with the meeting's project
+   * in hand — and a caller off that project relation gets the same 404, never a 403, so a
+   * non-member can tell neither which meetings exist nor which they are barred from (the reasoning
+   * `MeetingsService.create` gives for its project resolution).
+   */
+  private async resolveMeetingFor(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+    capability: 'work.read' | 'work.create',
+  ): Promise<MeetingRow> {
+    const meeting = await this.database.read(context, (runner) =>
+      this.meetings.findById(runner, context, meetingId),
+    );
+
+    if (!meeting) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'meeting_not_visible');
+    }
+
+    const permitted = authorize({
+      principal,
+      capability,
+      resource: {
+        organizationId: meeting.organizationId,
+        projectId: meeting.projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+
+    if (!permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'meeting_not_visible');
+    }
+
+    return meeting;
+  }
+
+  /**
+   * List a meeting's notes and decisions, deterministically ordered, for a caller who may read
+   * the meeting.
+   *
+   * The meeting is resolved and relation-checked first (see {@link resolveMeetingFor}); a caller
+   * who cannot read it gets 404, not an empty list, so the list never doubles as a probe for a
+   * meeting's existence. The repository's `(organization_id, meeting_id, id)` walk is the
+   * deterministic order — no post-read relation filter is needed because the whole meeting was
+   * authorised once, its notes inherit its relation, and every row is already tenant- and
+   * meeting-scoped by the query.
+   */
+  async listNotes(
+    context: TenantContext,
+    principal: Principal,
+    options: ListMeetingNotesOptions,
+  ): Promise<readonly MeetingNoteView[]> {
+    await this.resolveMeetingFor(context, principal, options.meetingId, 'work.read');
+
+    const rows = await this.database.read(context, (runner) =>
+      this.notes.list(runner, context, options),
+    );
+
+    return rows.map(toNoteView);
+  }
+
+  /**
+   * Capture a note or a decision against a meeting the principal may write to.
+   *
+   * The meeting is resolved tenant-scoped and relation-checked before the insert (see
+   * {@link resolveMeetingFor}) — the Known-trap order. The note's author is `context.userId`, not
+   * a body field, so a caller cannot attribute a note to someone else.
+   */
+  async createNote(
+    context: TenantContext,
+    principal: Principal,
+    input: Omit<CreateMeetingNoteInput, 'authorUserId'>,
+  ): Promise<MeetingNoteView> {
+    await this.resolveMeetingFor(context, principal, input.meetingId, 'work.create');
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.notes.create(tx, context, { ...input, authorUserId: context.userId }),
+    );
+
+    return toNoteView(row);
   }
 }

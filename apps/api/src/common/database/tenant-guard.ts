@@ -147,6 +147,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // import outcomes. `organization_id` is NOT NULL and it carries the `(organization_id, id)`
   // key every tenant table has, so the guard scopes its reads and writes.
   import_rows: 'organization_id',
+  // CAL-01 / MTG-01 second slice (x105). Tenant-owned: a note cites a meeting, and an unscoped
+  // `SELECT ... FROM meeting_notes` would be every studio's meeting record on the server. The
+  // guard must scope its reads and its writes.
+  meeting_notes: 'organization_id',
 });
 
 /**

@@ -11836,6 +11836,34 @@ reason, the same treatment `ProjectHealthView` (x86) has.
 
 ---
 
+## CAL-01 / MTG-01 — meeting notes & decisions capture + read (x105)
+
+The x90 meeting carried no notes and no decisions — doc 38's "closes with linked decisions and
+actions" was deferred until a table existed to link to. This slice adds that table: migration
+`0033_meeting_notes.sql` creates `meeting_notes` (org + `meeting_id` columns, a
+`kind ENUM('note','decision')`, a `body`, an `author_user_id` and a `created_at`), tenant-scoped
+and **meeting-owned** — a composite foreign key `(organization_id, meeting_id)` to `meetings`'
+`uq_meetings_org_id` key, so a note can never cite another tenant's meeting. The row is
+append-only: `0033`'s `BEFORE UPDATE` trigger refuses every change and there is no edit endpoint,
+so the `tmanage_app` grant is `INSERT` only.
+
+A decision is the same row with `kind='decision'`; a dedicated `decisions` table with an
+approval/lock lifecycle is deferred to **x105-b** until review shows a distinct lifecycle. The
+calendar module gains `meeting-notes.repository.ts` and two endpoints on the existing controller,
+reusing the meeting's own capabilities: `POST /v1/organizations/:orgSlug/meetings/:meetingId/notes`
+behind `@RequireCapability('meeting.write')` and `GET …/meetings/:meetingId/notes` behind
+`@RequireCapability('meeting.read')`. The service resolves the named meeting **tenant-scoped
+before** the relation check (the Known-trap order), so an unknown or cross-tenant `meetingId` is a
+404 with no write — never a 500 from the foreign key — and a caller off the meeting's project
+relation gets the same 404, never a 403. The note's author is `context.userId`, not a body field.
+
+**Follow-ups (out of this slice):** the decision approval/lock lifecycle and a dedicated meeting
+screen (x105-b); no audit event yet (shares the `meeting.*` `AuditAction` gap x90 recorded); and
+no web screen, so `MeetingNoteView` is listed in `scripts/contracts-check.mjs`'s EXEMPT with a
+"No web consumer" reason, the same treatment `MeetingView` (x90) has.
+
+---
+
 ## DOC-01 — the first docs & knowledge slice (x91)
 
 The `/docs` route was a stub and nothing in the schema could hold a document (audit "ten largest

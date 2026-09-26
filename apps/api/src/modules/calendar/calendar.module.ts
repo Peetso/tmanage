@@ -7,6 +7,7 @@ import {
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { MeetingsRepository } from './meetings.repository.js';
+import { MeetingNotesRepository } from './meeting-notes.repository.js';
 import { MeetingsService } from './meetings.service.js';
 import { MeetingsController } from './meetings.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
@@ -33,7 +34,12 @@ export class CalendarModule {
       provide: MEETINGS_SERVICE,
       inject: [TENANT_DATABASE, MEETINGS_REPOSITORY],
       useFactory: (database: TenantDatabase, meetings: MeetingsRepository) =>
-        new MeetingsService(database, meetings, new ProjectsRepository()),
+        new MeetingsService(
+          database,
+          meetings,
+          new ProjectsRepository(),
+          new MeetingNotesRepository(),
+        ),
     };
 
     return {

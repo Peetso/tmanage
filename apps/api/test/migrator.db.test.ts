@@ -799,6 +799,102 @@ describe('0032: import_rows applies and a job commits with a per-row receipt', (
   });
 });
 
+describe('0033: meeting_notes is a tenant-scoped, meeting-owned, append-only table', () => {
+  beforeAll(freshDatabase);
+
+  it('applies, round-trips a note and a decision, and refuses a cross-tenant meeting or any update', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'meeting_notes'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'author_user_id',
+        'body',
+        'created_at',
+        'id',
+        'kind',
+        'meeting_id',
+        'organization_id',
+      ].sort(),
+    );
+    // `kind` is an ENUM('note','decision'); `body` is TEXT and NOT NULL.
+    expect(String(byName.get('kind')?.['type'])).toBe('enum');
+    expect(String(byName.get('body')?.['type'])).toBe('text');
+    expect(String(byName.get('body')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'note', 'N')`, [
+      id('c1'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('c2'), id('c1')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('c3'), id('c1'), id('c2')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'note@e.test', 'N')`,
+      [id('c4')],
+    );
+    await connection.query(
+      `INSERT INTO meetings (id, organization_id, project_id, title, starts_at, created_by_user_id)
+       VALUES (?, ?, ?, 'Kickoff', '2026-10-01 14:00:00.000', ?)`,
+      [id('c5'), id('c1'), id('c3'), id('c4')],
+    );
+
+    // A tenant-scoped insert/select round-trips a note and a decision.
+    await connection.query(
+      `INSERT INTO meeting_notes (id, organization_id, meeting_id, kind, body, author_user_id)
+       VALUES (?, ?, ?, 'note', 'a loose note', ?)`,
+      [id('c6'), id('c1'), id('c5'), id('c4')],
+    );
+    await connection.query(
+      `INSERT INTO meeting_notes (id, organization_id, meeting_id, kind, body, author_user_id)
+       VALUES (?, ?, ?, 'decision', 'we ship Friday', ?)`,
+      [id('c7'), id('c1'), id('c5'), id('c4')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT kind, body FROM meeting_notes WHERE organization_id = ? AND meeting_id = ? ORDER BY id`,
+      [id('c1'), id('c5')],
+    );
+    expect(rows.map((r) => String(r['kind']))).toEqual(['note', 'decision']);
+    expect(String(rows[0]?.['body'])).toBe('a loose note');
+
+    // The composite foreign key refuses a meeting id from outside the note's tenant: the pair
+    // (a non-existent org, this meeting) does not exist even though the meeting id does.
+    await expect(
+      connection.query(
+        `INSERT INTO meeting_notes (id, organization_id, meeting_id, kind, body, author_user_id)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, 'note', 'x', ?)`,
+        [id('c8'), id('c5'), id('c4')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // The value list is closed: a kind outside the ENUM is rejected by STRICT mode.
+    await expect(
+      connection.query(
+        `INSERT INTO meeting_notes (id, organization_id, meeting_id, kind, body, author_user_id)
+         VALUES (?, ?, ?, 'action', 'x', ?)`,
+        [id('c9'), id('c1'), id('c5'), id('c4')],
+      ),
+    ).rejects.toThrow();
+
+    // A captured note is append-only: the trigger refuses every UPDATE at the engine.
+    await expect(
+      connection.query(`UPDATE meeting_notes SET body = 'edited' WHERE id = ?`, [id('c6')]),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

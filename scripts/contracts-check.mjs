@@ -125,6 +125,10 @@ const EXEMPT = new Map([
     'ImportCommitRowView',
     'No web consumer yet: the per-row receipt nested in ImportCommitView (x100), API-only until the ON-09 screen lands.',
   ],
+  [
+    'MeetingNoteView',
+    'No web consumer: CAL-01/MTG-01 second slice (x105) ships the API meeting notes/decisions capture+read with no screen this slice; pair when the calendar/meeting screen lands (x105-b follow-up).',
+  ],
 ]);
 
 /**
