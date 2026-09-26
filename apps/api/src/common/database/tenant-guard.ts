@@ -81,6 +81,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // ask are internal prose about a studio's work.
   work_item_dependencies: 'organization_id',
   work_blockers: 'organization_id',
+  // x145 (0051). Tenant-owned: a checklist item belongs to one work item of one studio, and an
+  // unscoped `SELECT ... FROM work_item_checklist_items` would be every studio's sub-task lists on
+  // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
+  // tenant table has, so the guard scopes its reads and its writes.
+  work_item_checklist_items: 'organization_id',
   // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
   // NOT NULL, so every row belongs both to a studio and to one of its clients.
   client_requests: 'organization_id',

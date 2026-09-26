@@ -242,6 +242,14 @@ GRANT INSERT, UPDATE         ON `tmanage`.`notification_preferences` TO 'tmanage
 -- UPDATE (confined by 0011's trigger to the one-time resolution) to resolve, DELETE never.
 GRANT INSERT, DELETE         ON `tmanage`.`work_item_dependencies` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE         ON `tmanage`.`work_blockers`          TO 'tmanage_app'@'%';
+-- x145 (0051) work item checklist / sub-items. A checklist item is added (INSERT), read (the
+-- database-wide SELECT) and toggled or renamed in place (UPDATE) — this slice ships add/list/
+-- toggle-rename — so INSERT and UPDATE and **no DELETE**: there is no delete endpoint, least
+-- privilege, and the 0051 trigger pins organization_id and work_item_id immutable for every
+-- credential besides so UPDATE can move `label`/`done`/`position` and nothing that says what the
+-- item *is*. DELETE is added with the code that writes it, per this file's rule that a grant names
+-- a statement that exists.
+GRANT INSERT, UPDATE         ON `tmanage`.`work_item_checklist_items` TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

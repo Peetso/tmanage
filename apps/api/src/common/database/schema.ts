@@ -1098,6 +1098,36 @@ export const workBlockers = mysqlTable(
   ],
 );
 
+/**
+ * x145 (0051). A work item's checklist / sub-items: a labelled, ordered list of done/not-done
+ * entries hanging off one work item. Parent- and tenant-owned — the composite foreign key
+ * `fk_work_item_checklist_items_work_item` binds `(organization_id, work_item_id)` to
+ * `work_items`, so a cross-tenant parent is a non-existent pair rather than a leak. `label`,
+ * `done` and `position` are editable; `organization_id` and `work_item_id` are pinned immutable
+ * by the migration's `BEFORE UPDATE` trigger.
+ */
+export const workItemChecklistItems = mysqlTable(
+  'work_item_checklist_items',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 300 }).notNull(),
+    done: boolean('done').notNull().default(false),
+    position: int('position', { unsigned: true }).notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_checklist_items_org_id').on(table.organizationId, table.id),
+    index('ix_work_item_checklist_items_item').on(
+      table.organizationId,
+      table.workItemId,
+      table.position,
+      table.id,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2203,6 +2233,7 @@ export const TABLES = {
   project_clients: projectClients,
   work_items: workItems,
   work_item_dependencies: workItemDependencies,
+  work_item_checklist_items: workItemChecklistItems,
   work_blockers: workBlockers,
   client_requests: clientRequests,
   deliverable_versions: deliverableVersions,
@@ -2260,6 +2291,8 @@ export type ProjectRow = typeof projects.$inferSelect;
 export type NewProjectRow = typeof projects.$inferInsert;
 export type WorkItemRow = typeof workItems.$inferSelect;
 export type NewWorkItemRow = typeof workItems.$inferInsert;
+export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;
+export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
 export type ClientRequestRow = typeof clientRequests.$inferSelect;
 export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
 export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;

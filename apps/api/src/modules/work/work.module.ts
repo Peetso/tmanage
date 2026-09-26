@@ -4,6 +4,7 @@ import {
   AUDIT_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
+  WORK_CHECKLIST_SERVICE,
   WORK_ITEMS_REPOSITORY,
   WORK_ITEMS_SERVICE,
 } from '../../common/http/tokens.js';
@@ -14,6 +15,9 @@ import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkItemsRepository } from './work-items.repository.js';
 import { WorkItemsService } from './work-items.service.js';
 import { WorkItemsController } from './work-items.controller.js';
+import { WorkChecklistRepository } from './work-checklist.repository.js';
+import { WorkChecklistService } from './work-checklist.service.js';
+import { WorkChecklistController } from './work-checklist.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -41,11 +45,18 @@ export class WorkModule {
       ) => new WorkItemsService(database, workItems, audit, new ProjectsRepository(), outbox),
     };
 
+    const checklistService: Provider = {
+      provide: WORK_CHECKLIST_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkChecklistService(database, workItems, new WorkChecklistRepository()),
+    };
+
     return {
       module: WorkModule,
-      providers: [repository, service],
+      providers: [repository, service, checklistService],
       exports: [service],
-      controllers: [WorkItemsController],
+      controllers: [WorkItemsController, WorkChecklistController],
     };
   }
 }

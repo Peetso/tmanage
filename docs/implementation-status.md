@@ -13871,3 +13871,27 @@ per pass-20 rules (the chain owns the round-trip and the migrator proof).
 **Deferred (NEXT-SCOPES-13).** Risk edit/unpublish and mitigation-owner lifecycle.
 
 - 2026-09-26 — HOME-01 Focus/Pulse summary (slice x143): a `GET .../home/pulse` read (behind `work.read`) returning the acting user's four headline counts — open work, of it due today, waiting on you, meetings today — as one Focus summary, and a `HomeHeroSection` mounted at the top of `MyDayScreen` (additive region, disjoint from the existing hero/sections). Distinct new files (`home-pulse.repository.ts`, `home-pulse.service.ts`, `home-pulse.controller.ts`, `home-pulse.module.ts`) so no existing home file is rewritten; registered via `app.module.ts` (`HomePulseModule`). Read-only over `work_items` (own+open by owner, `ix_work_items_org_owner_state_due`, reusing `MY_DAY_STATES`) and `meetings` (tenant + `starts_at` day window, `ix_meetings_org_project`); the Waiting count reuses `HomeService.waitingOf` so the per-bucket gate stays single-sourced. **Known trap** covered: own-principal + tenant scope before read — the work read is narrowed to the caller's own rows then re-authorized `work.read`, and each in-window meeting is authorized `work.read` over its project (the same relation gate `MeetingsService.list` applies), so no other tenant's or other user's row lifts a count; a client principal (no `work.read`) counts nothing. "Today" is the half-open UTC day of `now` (a zone-aware window is the follow-up). No new table (registry N/A), no new capability, no `capabilities.ts`/role-grid edit. CONTRACT-001: `HomePulseView` paired Exact with the web `HomePulse`. **Deferred:** HOME-05 saved/pinned lives already (x110); the editorial Pulse Track and per-user meeting attendance filtering remain follow-ups.
+## x145 — Work item checklists / sub-items (Work module 7)
+
+**Route + storage this slice.** `work_item_checklist_items` (migration `0051`, registered in the
+four places — `schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `db/users.sql` grant,
+the migration file) is a labelled, ordered list of done/not-done sub-items hanging off one work
+item. Parent- and tenant-owned: the composite FK `fk_work_item_checklist_items_work_item` binds
+`(organization_id, work_item_id)` to `work_items`, so a cross-tenant parent is a non-existent pair,
+and the `0051` `BEFORE UPDATE` trigger pins `organization_id`/`work_item_id` immutable. Three routes
+under `…/work-items/:workItemId/checklist`: `GET` (`work.read`) lists position-ascending and
+bounded; `POST` (`work.update`) appends; `PATCH :itemId` (`work.update`) toggles `done` / renames
+`label`. `WorkChecklistService` resolves the parent tenant-scoped **before** it authorizes or
+writes (the briefed trap): a cross-tenant/unrelated parent is a 404 with no write, a caller who may
+read but not update the item gets a 403. `WorkChecklistItemView` is a live `Exact` pair in
+`e2e/contracts/api-web-shapes.ts`. Proved over module fakes with real `authorize`
+(`work-checklist.controller.test.ts`): add→list→toggle for a related member, a cross-tenant parent
+is 404 writing nothing, an unrelated member's list is 404 (read gate), and an archived item's write
+is 403.
+
+**Web surface this slice.** `WorkChecklistPanel` (`apps/web/src/components/screens/`) is mounted
+additively in `WorkItemDetailScreen` (TM-13's "checklist" section, previously named in
+`BackendPending`): it reads its own query, adds a sub-item, shows the list with a done count, and
+toggles each item; every write invalidates the query. Client shape + fetchers in
+`apps/web/src/lib/api/work-items.ts`. Deferred to NS-13: reorder persistence beyond `position` and
+a per-item assignee.

@@ -51,6 +51,7 @@ export const PROJECT_MEMBERSHIPS_REPOSITORY = Symbol.for('tmanage.ProjectMembers
 export const PROJECT_MEMBERSHIPS_SERVICE = Symbol.for('tmanage.ProjectMembershipsService');
 export const WORK_ITEMS_REPOSITORY = Symbol.for('tmanage.WorkItemsRepository');
 export const WORK_ITEMS_SERVICE = Symbol.for('tmanage.WorkItemsService');
+export const WORK_CHECKLIST_SERVICE = Symbol.for('tmanage.WorkChecklistService');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */
