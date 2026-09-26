@@ -495,6 +495,33 @@ export const decisionSupersessions = mysqlTable(
   ],
 );
 
+/**
+ * DOC-04/ADM-06 (x119). An org-scoped document template — a name, a purpose, and a reusable body a
+ * person applies to a project to seed a new `documents` row.
+ *
+ * Unlike `documents`, a template belongs to the organization, not a project: there is no
+ * `project_id`. Applying a template creates an ordinary document in a project (see the docs
+ * service); the template is never moved or mutated by an apply. No variable substitution or
+ * per-template permission yet (DOC-04 advanced, deferred). `0039_document_templates.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const documentTemplates = mysqlTable(
+  'document_templates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    purpose: varchar('purpose', { length: 300 }).notNull(),
+    body: text('body').notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_document_templates_org_id').on(table.organizationId, table.id),
+    index('ix_document_templates_org_name').on(table.organizationId, table.name, table.id),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1802,6 +1829,7 @@ export const TABLES = {
   document_versions: documentVersions,
   decisions,
   decision_supersessions: decisionSupersessions,
+  document_templates: documentTemplates,
   import_rows: importRows,
   meeting_notes: meetingNotes,
   saved_views: savedViews,
@@ -1842,6 +1870,8 @@ export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
+export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
+export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

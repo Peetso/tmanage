@@ -12071,6 +12071,33 @@ internal-only, so a client principal never holds it and is refused at the guard.
 conversation/note bodies (so `snippet` is null this slice, title-only match), per-document and
 per-meeting deep links, a global search-bar nav entry, and AI answer synthesis → NEXT-SCOPES-9/10.
 
+## DOC-04 / ADM-06 — document templates (x119)
+
+The templates piece the docs hub already advertises. Migration `0039_document_templates.sql` adds an
+org-scoped `document_templates` table (`id`, `organization_id`, `name`, `purpose`, `body`,
+`created_by_user_id`, `created_at`) — an `organizations` FK (org-owned, not project-owned), a
+`(organization_id, id)` unique key, a `(organization_id, name, id)` list index, and a trigger that
+pins `organization_id`/`created_by_user_id` immutable. A new `document-templates.repository.ts` and
+three endpoints on `documents.controller.ts` expose `POST …/documents/templates` and
+`POST …/documents/templates/:templateId/apply` behind `@RequireCapability('doc.write')`, and
+`GET …/documents/templates` behind `doc.read`. Create and list add the authoritative org-scoped
+authorize (`work.create`/`work.read`, `projectId: null`) behind the route guard; **apply** resolves
+the template **tenant-scoped before any write** (Known-trap: unknown/cross-tenant `templateId` → 404,
+no document created) and then reuses the DOC-01 document create path, which resolves the project
+tenant-scoped and authorizes `work.create` on it — so a non-member or unknown project is 404, and the
+template is never mutated. `document_templates` is registered in `TENANT_TABLES`, `schema.ts` + the
+`TABLES` registry, and the `users.sql` grant (INSERT only), with a named `migrator.db.test.ts` 0039
+case and `doc-004-templates.db.test.ts`. Web: `DocumentTemplatesScreen.tsx` (create + gallery +
+apply, links to the seeded document's editor) at `/[orgSlug]/docs/templates`, disjoint from the
+DOC-01 hub and DOC-02/03 editor; its `DocumentTemplateView` ↔ `DocumentTemplateSummary` pair is Exact
+in the contracts gate. E2E: `docs-templates-journeys.spec.ts` (create → apply → edit). Deferred to
+NEXT-SCOPES-11: variable/placeholder substitution, per-template permissions, project/work-item
+templates (ADM-06's other kinds).
+
+**Migration number:** the highest migration on this slice's base (x112) was 0036; 0037–0038 are
+reserved on other in-flight branches, so this is `0039` and the integrator renumbers if the merge
+order differs.
+
 ---
 
 ## Component status
