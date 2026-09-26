@@ -13463,3 +13463,41 @@ VEVENT and folding, and `MeetingsService.get` under the real `authorize()` (cros
 non-member → 404, member → wire projection without the tenant id). `apps/web/tests/
 meeting-ics-button.test.tsx` proves the control renders, links to the ICS endpoint, and is
 axe-clean. Feed/subscription URL and attendee VALARM are deferred to NEXT-SCOPES-13.
+
+---
+
+## CAL recurrence — recurring meeting series + series screen (x129)
+
+`38-MODULE-MAP` §Calendar carries recurrence as a Partial ("recurrence deferred"). x90 landed
+one-off `meetings` (0029) and x122 their list/create screen; nothing held a recurrence rule. This
+slice adds the recurring **series** — a rule, not an event — behind the existing
+`meeting.read`/`meeting.write` capabilities (no new cap, no `capabilities.ts` edit).
+
+**Migration 0043** `meeting_series`: id, organization_id, title, `freq` ENUM(daily|weekly|monthly),
+`recurrence_interval` (INT UNSIGNED, CHECK >= 1; the view field is `interval`, named around the MySQL
+reserved word), optional `until` DATE, created_by, created_at. It is **org-scoped, not
+project-owned** — a series names no project — so it is read/written at the tenant level with no
+project relation. Registered in the four places: `schema.ts` (`meetingSeries` + `TABLES` +
+`MeetingSeriesRow`), `tenant-guard.ts` `TENANT_TABLES`, `scripts/db/users.sql` (INSERT only — create
+and read, no edit/delete this slice, the withheld privilege is the control as `saved_context`), and
+`apps/api/test/migrator.db.test.ts` (0043 block; DB run carried by the chain).
+
+**Routes** (`meeting-series.controller.ts` on `CalendarModule`): `POST /meeting-series`
+(`meeting.write`) inserts in one transaction; `GET /meeting-series` (`meeting.read`) lists a tenant's
+series, keyset order, bounded page; `GET /meeting-series/:seriesId/occurrences?from&to`
+(`meeting.read`) resolves the series **tenant-scoped first** (a cross-tenant id is 404, no read),
+then expands read-side in a window **capped at 90 days** (a wider or malformed window is 400). The
+expansion (`meeting-series.expand.ts`) is a pure function over `YYYY-MM-DD` strings, anchored at the
+series' creation date; per-occurrence overrides and materialised rows are deferred to NEXT-SCOPES-13.
+Object authorization is the capability alone (org-scoped, `projectId: null`), so a role without the
+capability is **403**, not the 404 a project-scoped meeting returns.
+
+**Web** `MeetingSeriesScreen.tsx` (route `calendar/series`): create a rule, list a tenant's series,
+and preview a series' occurrences in a window; axe-clean. `MeetingSeriesView` is paired Exact
+(`_meetingSeries`) in `e2e/contracts/api-web-shapes.ts`.
+
+**Tests** (features budget 0.05, one per behaviour): `meeting-series.controller.test.ts` over a real
+service (real `authorize`) proves create→list→expand, the cross-tenant 404, the 90-day window 400 and
+the no-`meeting.write` 403; `apps/web/tests/meeting-series-screen.test.tsx` (jsdom + axe) proves the
+list/create surface and axe-cleanliness. No DB test / no new e2e journey in-slice (the chain owns
+both).

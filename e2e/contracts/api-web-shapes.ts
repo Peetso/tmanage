@@ -66,6 +66,7 @@ import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/m
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { MeetingAgendaView as ApiMeetingAgendaView } from '../../apps/api/src/modules/calendar/meeting-agenda.controller.js';
+import type { MeetingSeriesView as ApiMeetingSeriesView } from '../../apps/api/src/modules/calendar/meeting-series.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type {
   MemberOffboardingImpactView as ApiMemberOffboardingImpactView,
@@ -147,6 +148,7 @@ import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/l
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { MeetingAgendaView as WebMeetingAgendaView } from '../../apps/web/src/lib/api/meeting-agenda';
+import type { MeetingSeriesView as WebMeetingSeriesView } from '../../apps/web/src/lib/api/meeting-series';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type { ProjectMemberSummary as WebProjectMemberSummary } from '../../apps/web/src/lib/api/project-members';
 import type {
@@ -330,6 +332,16 @@ type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeV
  * with the web `MeetingAgendaView`; the nested day/entry shapes are inlined on both sides.
  */
 type _meetingAgenda = Assert<Exact<ApiMeetingAgendaView, WebMeetingAgendaView>>;
+
+/**
+ * CAL recurrence (x129). `GET`/`POST .../meeting-series` — a tenant's recurring meeting series,
+ * listed and created by `MeetingSeriesScreen`, and `GET .../:seriesId/occurrences` (a `{ seriesId,
+ * occurrences: string[] }` shape with no named `*View`, so nothing to pair there). The series view is
+ * paired Exact from the start — the screen and its `apps/web` shape ship in the same slice — so a
+ * renamed or retyped field on either side is a compile error here. `freq` is the same
+ * `daily|weekly|monthly` union on both sides.
+ */
+type _meetingSeries = Assert<Exact<ApiMeetingSeriesView, WebMeetingSeriesView>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;

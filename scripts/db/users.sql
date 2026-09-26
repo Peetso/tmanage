@@ -290,6 +290,13 @@ GRANT INSERT                 ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%
 -- besides. DELETE is added with the code that writes it, per this file's rule that a grant names a
 -- statement that exists (the same treatment `saved_views` has above).
 GRANT INSERT, UPDATE          ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@'%';
+-- CAL recurrence (x129) meeting series. A series is created (INSERT) and read (the database-wide
+-- SELECT); this slice has no edit or delete endpoint, so **no UPDATE and no DELETE** — least
+-- privilege, and there is no immutability trigger because the withheld privilege is the control
+-- (the same treatment `saved_context` has). When an edit/override surface lands (NS-13), the write
+-- grant is added with the code that writes it, per this file's rule that a grant names a statement
+-- that exists.
+GRANT INSERT                 ON `tmanage`.`meeting_series`   TO 'tmanage_app'@'%';
 -- WK-08 (x107). A saved view is created (INSERT), read (the database-wide SELECT) and edited in
 -- place (UPDATE) — this slice ships create/list/update — so INSERT and UPDATE and **no DELETE**:
 -- there is no delete endpoint, least privilege, and the 0034 trigger pins organization_id and

@@ -3,6 +3,8 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   MEETING_ATTENDEES_REPOSITORY,
   MEETING_ATTENDEES_SERVICE,
+  MEETING_SERIES_REPOSITORY,
+  MEETING_SERIES_SERVICE,
   MEETINGS_REPOSITORY,
   MEETINGS_SERVICE,
   TENANT_DATABASE,
@@ -16,6 +18,9 @@ import { MeetingAttendeesRepository } from './meeting-attendees.repository.js';
 import { MeetingAttendeesService } from './meeting-attendees.service.js';
 import { MeetingAttendeesController } from './meeting-attendees.controller.js';
 import { MeetingIcsController } from './meeting-ics.controller.js';
+import { MeetingSeriesRepository } from './meeting-series.repository.js';
+import { MeetingSeriesService } from './meeting-series.service.js';
+import { MeetingSeriesController } from './meeting-series.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 
@@ -70,11 +75,37 @@ export class CalendarModule {
         ),
     };
 
+    // CAL recurrence (x129). The meeting-series slice: a stateless repository under its token and a
+    // service that takes the tenant database and the repository. Org-scoped — it holds no projects
+    // repository because a series names no project and needs no relation resolution.
+    const seriesRepository: Provider = {
+      provide: MEETING_SERIES_REPOSITORY,
+      useFactory: () => new MeetingSeriesRepository(),
+    };
+    const seriesService: Provider = {
+      provide: MEETING_SERIES_SERVICE,
+      inject: [TENANT_DATABASE, MEETING_SERIES_REPOSITORY],
+      useFactory: (database: TenantDatabase, series: MeetingSeriesRepository) =>
+        new MeetingSeriesService(database, series),
+    };
+
     return {
       module: CalendarModule,
-      providers: [repository, service, attendeesRepository, attendeesService],
-      exports: [service, attendeesService],
-      controllers: [MeetingsController, MeetingAttendeesController, MeetingIcsController],
+      providers: [
+        repository,
+        service,
+        attendeesRepository,
+        attendeesService,
+        seriesRepository,
+        seriesService,
+      ],
+      exports: [service, attendeesService, seriesService],
+      controllers: [
+        MeetingsController,
+        MeetingAttendeesController,
+        MeetingIcsController,
+        MeetingSeriesController,
+      ],
     };
   }
 }
