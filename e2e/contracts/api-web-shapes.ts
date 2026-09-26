@@ -253,6 +253,8 @@ type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
  * reads exactly this response for its history/compare/restore, so the pair is Exact.
  */
 type _documentVersion = Assert<Exact<ApiDocumentVersionView, WebDocumentVersionSummary>>;
+
+/**
  * DEC-01 (x113). `DecisionView` (`GET`/`POST …/decisions`, request body + response). Paired with a
  * live web consumer — DEC-01 ships `DecisionRegisterScreen`, which reads exactly this response — so
  * this is a real `Exact` pair, not an EXEMPT entry. The `status` union (`proposed | accepted |
