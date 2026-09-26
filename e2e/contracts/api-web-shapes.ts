@@ -45,6 +45,7 @@ import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/a
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
+import type { DecisionLockView as ApiDecisionLockView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DocumentTemplateView as ApiDocumentTemplateView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentTemplateVariableView as ApiDocumentTemplateVariableView } from '../../apps/api/src/modules/docs/document-template-variables.controller.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
@@ -146,6 +147,7 @@ import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
+import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
@@ -383,6 +385,14 @@ type _decision = Assert<Exact<ApiDecisionView, WebDecisionSummary>>;
  * render a decision's detail and lifecycle controls, so this is a real `Exact` pair.
  */
 type _decisionDetail = Assert<Exact<ApiDecisionDetailView, WebDecisionDetail>>;
+
+/**
+ * SEC / Decisions (x150). `DecisionLockView` (`POST …/decisions/:id/lock` response) — the durable fact
+ * that a decision has been sealed against further lifecycle writes (`lockedBy` / `lockedAt`). Paired
+ * with a live web consumer: `DecisionRegisterScreen`'s lock control reads exactly this, so the pair is
+ * Exact. `organizationId` is absent on both sides — the wire projection never echoes the tenant id.
+ */
+type _decisionLock = Assert<Exact<ApiDecisionLockView, WebDecisionLock>>;
 
 /**
  * DOC-04/ADM-06 (x119). `DocumentTemplateView` (`GET`/`POST …/documents/templates`) — one org-scoped

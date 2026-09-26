@@ -212,6 +212,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // writes. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes the
   // link reads and writes.
   decision_work_links: 'organization_id',
+  // SEC / Decisions (x150, migration 0056). Tenant-owned: a decision lock names a decision of the
+  // acting tenant, and an unscoped `SELECT ... FROM decision_locks` would reveal which decisions every
+  // studio has sealed. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key
+  // every tenant table has, so the guard must scope its reads and its writes. The layer-3 guard fails
+  // OPEN on an unregistered table, so this entry is what scopes the lock reads and writes.
+  decision_locks: 'organization_id',
   // PROJ / module 8 (x124, migration 0040). Tenant-owned: an objective names a project, and an
   // unscoped `SELECT ... FROM project_objectives` would be every studio's objectives on the server.
   // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table

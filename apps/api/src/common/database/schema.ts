@@ -752,6 +752,29 @@ export const decisionWorkLinks = mysqlTable(
 );
 
 /**
+ * SEC / Decisions (x150, migration 0056). The decision-lock record — the durable, append-only fact
+ * that a decision has been sealed against further lifecycle writes: by whom (`locked_by`) and when
+ * (`locked_at`). One per decision (`uq_decision_locks_org_decision`), bound to a decision of the
+ * acting tenant by the composite foreign key on `(organization_id, decision_id)`, so a lock can never
+ * cross a tenant boundary. Immutable once written — there is no unlock this slice (NEXT-SCOPES-13).
+ * `0056_decision_locks.sql` is the source of truth; this is its typed mirror.
+ */
+export const decisionLocks = mysqlTable(
+  'decision_locks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    decisionId: char('decision_id', { length: 36 }).notNull(),
+    lockedBy: char('locked_by', { length: 36 }).notNull(),
+    lockedAt: datetime('locked_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_decision_locks_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_decision_locks_org_decision').on(table.organizationId, table.decisionId),
+  ],
+);
+
+/**
  * DOC-04/ADM-06 (x119). An org-scoped document template — a name, a purpose, and a reusable body a
  * person applies to a project to seed a new `documents` row.
  *
@@ -2407,6 +2430,7 @@ export const TABLES = {
   decisions,
   decision_supersessions: decisionSupersessions,
   decision_work_links: decisionWorkLinks,
+  decision_locks: decisionLocks,
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
   document_template_variables: documentTemplateVariables,
@@ -2473,6 +2497,7 @@ export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
+export type DecisionLockRow = typeof decisionLocks.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;

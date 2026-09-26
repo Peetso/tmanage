@@ -4,10 +4,15 @@ import { ApiError } from '../../common/http/errors.js';
 import { DecisionsService } from './decisions.service.js';
 import type { DecisionsRepository } from './decisions.repository.js';
 import type { DecisionSupersessionsRepository } from './decision-supersessions.repository.js';
+import type { DecisionLocksRepository } from './decision-lock.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { MeetingsRepository } from '../calendar/meetings.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { DecisionRow, DecisionSupersessionRow } from '../../common/database/schema.js';
+import type {
+  DecisionLockRow,
+  DecisionRow,
+  DecisionSupersessionRow,
+} from '../../common/database/schema.js';
 
 /**
  * DEC-01 (x113) service proofs, database-free over the module's fakes. The migration and the
@@ -64,9 +69,11 @@ function serviceWith(
   service: DecisionsService;
   store: DecisionRow[];
   edges: DecisionSupersessionRow[];
+  lockStore: DecisionLockRow[];
 } {
   const store: DecisionRow[] = [...seed];
   const edges: DecisionSupersessionRow[] = [];
+  const lockStore: DecisionLockRow[] = [];
   let seq = store.length;
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -166,10 +173,35 @@ function serviceWith(
           edge.organizationId === ctx.organizationId,
       ),
   } as unknown as DecisionSupersessionsRepository;
+  // SEC / Decisions (x150). No decision is locked in these cases, so the lock guard the lifecycle
+  // methods now consult always finds none; the lock surface itself is proved in
+  // `decision-lock.controller.test.ts`.
+  const locks = {
+    findByDecisionId: async (_runner: unknown, ctx: TenantContext, decisionId: string) =>
+      lockStore.find(
+        (lock) => lock.decisionId === decisionId && lock.organizationId === ctx.organizationId,
+      ) ?? null,
+    create: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      input: { readonly decisionId: string; readonly lockedBy: string },
+    ) => {
+      const row = {
+        id: `decision-lock-0000-0000-00000000000${++seq}`,
+        organizationId: ctx.organizationId,
+        decisionId: input.decisionId,
+        lockedBy: input.lockedBy,
+        lockedAt: new Date(),
+      } as DecisionLockRow;
+      lockStore.push(row);
+      return row;
+    },
+  } as unknown as DecisionLocksRepository;
   return {
-    service: new DecisionsService(database, repository, projects, meetings, supersessions),
+    service: new DecisionsService(database, repository, projects, meetings, supersessions, locks),
     store,
     edges,
+    lockStore,
   };
 }
 

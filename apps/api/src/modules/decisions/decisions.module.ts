@@ -8,8 +8,10 @@ import {
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { DecisionsRepository } from './decisions.repository.js';
 import { DecisionSupersessionsRepository } from './decision-supersessions.repository.js';
+import { DecisionLocksRepository } from './decision-lock.repository.js';
 import { DecisionsService } from './decisions.service.js';
 import { DecisionsController } from './decisions.controller.js';
+import { DecisionLockController } from './decision-lock.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MeetingsRepository } from '../calendar/meetings.repository.js';
 
@@ -40,6 +42,7 @@ export class DecisionsModule {
           new ProjectsRepository(),
           new MeetingsRepository(),
           new DecisionSupersessionsRepository(),
+          new DecisionLocksRepository(),
         ),
     };
 
@@ -47,7 +50,7 @@ export class DecisionsModule {
       module: DecisionsModule,
       providers: [repository, service],
       exports: [service],
-      controllers: [DecisionsController],
+      controllers: [DecisionsController, DecisionLockController],
     };
   }
 }

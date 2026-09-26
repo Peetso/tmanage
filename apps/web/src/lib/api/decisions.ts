@@ -107,6 +107,36 @@ export async function acceptDecision(
   return data;
 }
 
+/**
+ * SEC / Decisions (x150). A decision lock — the durable fact that a decision has been sealed against
+ * further lifecycle writes: by whom (`lockedBy`) and when (`lockedAt`). Mirrors the API's
+ * `DecisionLockView`, returned by `POST …/decisions/:id/lock`. `organizationId` is never on the wire.
+ */
+export interface DecisionLock {
+  readonly id: string;
+  readonly decisionId: string;
+  readonly lockedBy: string;
+  /** An ISO-8601 instant. */
+  readonly lockedAt: string;
+}
+
+/**
+ * SEC / Decisions (x150). Lock a decision. Gated on the server by `meeting.write`; a decision already
+ * locked is a 409, and a locked decision refuses every later accept/supersede. There is no unlock this
+ * slice.
+ */
+export async function lockDecision(
+  client: ApiClient,
+  organizationSlug: string,
+  decisionId: string,
+): Promise<DecisionLock> {
+  const { data } = await client.request<DecisionLock>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/decisions/${encodeURIComponent(decisionId)}/lock`,
+  });
+  return data;
+}
+
 /** DEC-01-b / DEC-02 (x117). Supersede a decision by another decision. */
 export async function supersedeDecision(
   client: ApiClient,

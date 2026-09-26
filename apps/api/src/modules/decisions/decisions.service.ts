@@ -5,9 +5,14 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { DecisionsRepository } from './decisions.repository.js';
 import type { CreateDecisionInput } from './decisions.repository.js';
 import { DecisionSupersessionsRepository } from './decision-supersessions.repository.js';
+import { DecisionLocksRepository, DuplicateDecisionLockError } from './decision-lock.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MeetingsRepository } from '../calendar/meetings.repository.js';
-import type { DecisionRow, DecisionSupersessionRow } from '../../common/database/schema.js';
+import type {
+  DecisionLockRow,
+  DecisionRow,
+  DecisionSupersessionRow,
+} from '../../common/database/schema.js';
 import type { DecisionStatus } from './decisions.repository.js';
 
 /**
@@ -63,6 +68,28 @@ interface SupersedeEdgeView {
 export interface DecisionDetailView extends DecisionView {
   readonly supersededBy: SupersedeEdgeView | null;
   readonly supersedes: readonly SupersedeEdgeView[];
+}
+
+/**
+ * SEC / Decisions (x150). What a caller is shown of a decision lock — the durable fact that a
+ * decision has been sealed against further lifecycle writes, by whom and when. `organizationId` is
+ * deliberately absent, for the reason {@link DecisionView} gives.
+ */
+export interface DecisionLockView {
+  readonly id: string;
+  readonly decisionId: string;
+  readonly lockedBy: string;
+  /** An ISO-8601 instant on the wire. */
+  readonly lockedAt: string;
+}
+
+function toLockView(row: DecisionLockRow): DecisionLockView {
+  return {
+    id: row.id,
+    decisionId: row.decisionId,
+    lockedBy: row.lockedBy,
+    lockedAt: row.lockedAt.toISOString(),
+  };
 }
 
 /**
@@ -127,7 +154,86 @@ export class DecisionsService {
      * others; the runner it uses is the one the service hands it inside a read or a transaction.
      */
     private readonly supersessions: DecisionSupersessionsRepository = new DecisionSupersessionsRepository(),
+    /**
+     * SEC / Decisions (x150). Reads and writes the decision-lock record. Stateless like the others;
+     * the runner it uses is the one the service hands it inside a read or a transaction.
+     */
+    private readonly locks: DecisionLocksRepository = new DecisionLocksRepository(),
   ) {}
+
+  /**
+   * SEC / Decisions (x150). Refuse a mutating write to a locked decision — the substance of the lock.
+   *
+   * Called by every mutating decision route ({@link accept}, {@link supersede}) after the decision is
+   * resolved writable and before the write: if a lock exists for the decision, the write is a 409 with
+   * no change. The lock read is tenant-scoped (the repository predicate carries `organization_id`), so
+   * a lock is only ever consulted within the acting tenant.
+   */
+  private async assertNotLocked(context: TenantContext, decisionId: string): Promise<void> {
+    const lock = await this.database.read(context, (runner) =>
+      this.locks.findByDecisionId(runner, context, decisionId),
+    );
+    if (lock) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'That decision is locked and can no longer be changed',
+        [{ field: 'status', message: 'the decision is locked' }],
+        'decision_locked',
+      );
+    }
+  }
+
+  /**
+   * SEC / Decisions (x150). Lock a decision: seal it against every further lifecycle write.
+   *
+   * The decision is resolved writable first (Known-trap): an unknown or cross-tenant `decisionId`, and
+   * a non-member's probe, both earn the same not-found the lifecycle routes give. A decision already
+   * locked is a 409 with **no second row** — the read-then-insert check refuses it, and
+   * `uq_decision_locks_org_decision` is the engine-level backstop mapped to the same 409. On the first
+   * lock, the row is written in one transaction; the immutable lock record (who locked it, and when) is
+   * the durable audit of the seal.
+   */
+  async lock(
+    context: TenantContext,
+    principal: Principal,
+    decisionId: string,
+  ): Promise<DecisionLockView> {
+    await this.requireWritableDecision(context, principal, decisionId);
+
+    const existing = await this.database.read(context, (runner) =>
+      this.locks.findByDecisionId(runner, context, decisionId),
+    );
+    if (existing) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'That decision is already locked',
+        [{ field: 'decisionId', message: 'the decision is already locked' }],
+        'already_locked',
+      );
+    }
+
+    try {
+      const row = await this.database.transaction(context, (tx) =>
+        this.locks.create(tx, context, { decisionId, lockedBy: context.userId }),
+      );
+      return toLockView(row);
+    } catch (error) {
+      // A lock inserted by a concurrent request between the read and the write is refused by the
+      // unique key and mapped to the same 409, with no second row written.
+      if (error instanceof DuplicateDecisionLockError) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'That decision is already locked',
+          [{ field: 'decisionId', message: 'the decision is already locked' }],
+          'already_locked',
+        );
+      }
+      throw error;
+    }
+  }
 
   /**
    * Resolve a decision the principal may write to, tenant- and relation-scoped, or throw the
@@ -179,6 +285,8 @@ export class DecisionsService {
     decisionId: string,
   ): Promise<DecisionView> {
     const decision = await this.requireWritableDecision(context, principal, decisionId);
+    // SEC / Decisions (x150): a locked decision refuses every lifecycle write — 409, no change.
+    await this.assertNotLocked(context, decisionId);
     if (decision.status !== 'proposed') {
       throw new ApiError(
         409,
@@ -222,6 +330,8 @@ export class DecisionsService {
     }
 
     const decision = await this.requireWritableDecision(context, principal, decisionId);
+    // SEC / Decisions (x150): a locked decision refuses every lifecycle write — 409, no change.
+    await this.assertNotLocked(context, decisionId);
 
     const superseder = await this.database.read(context, (runner) =>
       this.decisions.findById(runner, context, supersededById),
