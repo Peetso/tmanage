@@ -5,8 +5,8 @@ import type { FormEvent } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import { browserApiClient } from '../../lib/api/browser-client';
-import { listAuditEvents, MAX_AUDIT_PAGE } from '../../lib/api/admin-audit';
+import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
+import { auditExportUrl, listAuditEvents, MAX_AUDIT_PAGE } from '../../lib/api/admin-audit';
 import type { AdminAuditEvent } from '../../lib/api/admin-audit';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -95,10 +95,27 @@ export function AdminAuditScreen({
           onChange={(event) => setEntityInput(event.currentTarget.value)}
           placeholder="Filter by the object acted on"
         />
-        <div>
+        <div className="tm-row tm-row--wrap">
           <Button type="submit" tone="ink" size="compact">
             Apply filters
           </Button>
+          {/*
+            ADM-09 export (x118). A plain download link, not a fetch: the browser requests the CSV
+            with the session cookie and the API's `Content-Disposition: attachment` saves it, so no
+            bytes are proxied through the app. It is gated on `audit.export` — a stronger grant than
+            the `audit.read` this screen reads with — so a caller without it receives the API's
+            refusal. The href carries the applied filters, so an export matches what is on screen.
+          */}
+          <a
+            className="tm-button tm-button--outline tm-button--compact"
+            href={auditExportUrl(apiBaseUrl(), organizationSlug, {
+              ...(applied.actorId === '' ? {} : { actorId: applied.actorId }),
+              ...(applied.entityId === '' ? {} : { entityId: applied.entityId }),
+            })}
+            download="audit-events.csv"
+          >
+            Export CSV
+          </a>
         </div>
       </form>
 
