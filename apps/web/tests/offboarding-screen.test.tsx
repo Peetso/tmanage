@@ -65,7 +65,11 @@ function mount(scenario: Scenario) {
   });
   return render(
     <QueryClientProvider client={query}>
-      <OffboardingScreen organizationSlug="northstar" organizationName="Northstar Studio" client={client} />
+      <OffboardingScreen
+        organizationSlug="northstar"
+        organizationName="Northstar Studio"
+        client={client}
+      />
     </QueryClientProvider>,
   );
 }
@@ -101,16 +105,15 @@ describe('OffboardingScreen', () => {
     expect(await screen.findByText('2 project memberships')).toBeInTheDocument();
     expect(screen.getByText('5 work items')).toBeInTheDocument();
 
-    const offboardButton = screen.getByRole('button', { name: /Offboard Omar Haddad/ });
     // Inert until the irreversibility is acknowledged.
-    expect(offboardButton).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: /Offboard Omar Haddad/ })).toBeDisabled();
 
     await expectNoAxeViolations(container);
 
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: /cannot be undone/i }),
-    );
-    await userEvent.click(screen.getByRole('button', { name: /Offboard Omar Haddad/ }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /cannot be undone/i }));
+    const offboardButton = screen.getByRole('button', { name: /Offboard Omar Haddad/ });
+    expect(offboardButton).toBeEnabled();
+    await userEvent.click(offboardButton);
 
     expect(await screen.findByText('Member offboarded')).toBeInTheDocument();
   });
@@ -146,7 +149,13 @@ describe('OffboardingScreen', () => {
         ownedWorkItemCount: 0,
         offboardable: true,
       },
-      offboard: { error: { code: 'forbidden', message: 'You do not have permission to perform this action', correlationId: 'c' } },
+      offboard: {
+        error: {
+          code: 'forbidden',
+          message: 'You do not have permission to perform this action',
+          correlationId: 'c',
+        },
+      },
       offboardStatus: 403,
     });
 
@@ -155,8 +164,6 @@ describe('OffboardingScreen', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: /cannot be undone/i }));
     await userEvent.click(screen.getByRole('button', { name: /Offboard Omar Haddad/ }));
 
-    await waitFor(() =>
-      expect(screen.getByText('Offboarding failed')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText('Offboarding failed')).toBeInTheDocument());
   });
 });

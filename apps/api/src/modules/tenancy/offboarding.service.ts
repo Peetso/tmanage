@@ -3,7 +3,7 @@ import type { InternalRole, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MembershipRow } from '../../common/database/schema.js';
-import { MembershipsRepository } from './memberships.repository.js';
+import type { MembershipsRepository } from './memberships.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -76,10 +76,13 @@ const ORG_MANAGE_ROLES: readonly InternalRole[] = INTERNAL_ROLES.filter((role) =
   hasCapability(role, 'org.manage'),
 );
 
-function toImpactView(row: MembershipRow, counts: {
-  readonly projectMembershipCount: number;
-  readonly ownedWorkItemCount: number;
-}): MemberOffboardingImpactView {
+function toImpactView(
+  row: MembershipRow,
+  counts: {
+    readonly projectMembershipCount: number;
+    readonly ownedWorkItemCount: number;
+  },
+): MemberOffboardingImpactView {
   return {
     membershipId: row.id,
     userId: row.userId,

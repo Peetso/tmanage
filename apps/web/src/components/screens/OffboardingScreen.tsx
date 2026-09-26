@@ -120,7 +120,10 @@ export function OffboardingScreen({
             <h2 className="tm-heading">What {chosenName || 'this member'} holds</h2>
 
             {impact.isPending ? (
-              <LoadingRegion label="Loading the access this member holds." className="tm-stack tm-stack--tight">
+              <LoadingRegion
+                label="Loading the access this member holds."
+                className="tm-stack tm-stack--tight"
+              >
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>

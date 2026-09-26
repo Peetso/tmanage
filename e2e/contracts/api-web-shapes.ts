@@ -393,9 +393,7 @@ type _member = Assert<Exact<ApiMemberView, WebMemberSummary>>;
  * (x121). `OffboardingScreen` reads both responses exactly as the API projects them, so each pairs
  * Exact; `organizationId` is on neither side.
  */
-type _offboardingImpact = Assert<
-  Exact<ApiMemberOffboardingImpactView, WebOffboardingImpactView>
->;
+type _offboardingImpact = Assert<Exact<ApiMemberOffboardingImpactView, WebOffboardingImpactView>>;
 type _offboardedMember = Assert<Exact<ApiOffboardedMemberView, WebOffboardedMember>>;
 
 /** `GET …/workspaces` — one workspace row, ISO-string `createdAt` on the wire. */

@@ -65,13 +65,17 @@ test.describe('the member offboarding journeys', () => {
 
     // Offboarding is behind an explicit acknowledgement that it cannot be undone.
     await page.getByRole('checkbox', { name: /cannot be undone/i }).check();
-    await page.getByRole('button', { name: new RegExp(`Offboard ${designer.displayName}`) }).click();
+    await page
+      .getByRole('button', { name: new RegExp(`Offboard ${designer.displayName}`) })
+      .click();
 
     await expect(page.getByText('Member offboarded')).toBeVisible();
 
     // The member is gone from the active directory: the picker no longer offers them.
     await picker.fill(designer.displayName.slice(0, 4));
-    await expect(page.getByRole('option', { name: new RegExp(designer.displayName) })).toHaveCount(0);
+    await expect(page.getByRole('option', { name: new RegExp(designer.displayName) })).toHaveCount(
+      0,
+    );
   });
 
   test('the owner cannot offboard themselves — the last administrator is protected', async ({

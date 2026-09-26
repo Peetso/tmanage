@@ -97,8 +97,11 @@ export class TenancyModule {
     const offboardingService: Provider = {
       provide: OFFBOARDING_SERVICE,
       inject: [TENANT_DATABASE, MEMBERSHIPS_REPOSITORY, AUDIT_SERVICE],
-      useFactory: (database: TenantDatabase, memberships: MembershipsRepository, audit: AuditService) =>
-        new OffboardingService(database, memberships, audit),
+      useFactory: (
+        database: TenantDatabase,
+        memberships: MembershipsRepository,
+        audit: AuditService,
+      ) => new OffboardingService(database, memberships, audit),
     };
 
     const invitationsService: Provider = {

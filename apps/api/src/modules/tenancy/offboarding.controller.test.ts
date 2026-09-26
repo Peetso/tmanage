@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
-import { ApiError } from '../../common/http/errors.js';
 import { OffboardingService } from './offboarding.service.js';
 import type { MembershipsRepository } from './memberships.repository.js';
 import type { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
