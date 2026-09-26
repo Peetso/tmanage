@@ -372,11 +372,7 @@ export const meetingAttendees = mysqlTable(
       table.meetingId,
       table.membershipId,
     ),
-    index('ix_meeting_attendees_org_meeting').on(
-      table.organizationId,
-      table.meetingId,
-      table.id,
-    ),
+    index('ix_meeting_attendees_org_meeting').on(table.organizationId, table.meetingId, table.id),
   ],
 );
 

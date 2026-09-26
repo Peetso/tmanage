@@ -12,7 +12,11 @@ import type { MeetingAttendeesRepository } from './meeting-attendees.repository.
 import type { MeetingsRepository } from './meetings.repository.js';
 import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { MeetingAttendeeRow, MeetingRow, MembershipRow } from '../../common/database/schema.js';
+import type {
+  MeetingAttendeeRow,
+  MeetingRow,
+  MembershipRow,
+} from '../../common/database/schema.js';
 
 /**
  * CAL-01 / MTG-01 attendees + RSVP (x126) proofs, database-free over the module's fakes and with
@@ -251,9 +255,10 @@ describe('MeetingAttendeesController', () => {
     REQUIRED_CAPABILITY,
     MeetingAttendeesController.prototype.invite,
   ) as Capability | undefined;
-  const list = Reflect.getMetadata(REQUIRED_CAPABILITY, MeetingAttendeesController.prototype.list) as
-    | Capability
-    | undefined;
+  const list = Reflect.getMetadata(
+    REQUIRED_CAPABILITY,
+    MeetingAttendeesController.prototype.list,
+  ) as Capability | undefined;
 
   it('gates write on meeting.write and read on meeting.read', () => {
     expect(invite).toBe('meeting.write');

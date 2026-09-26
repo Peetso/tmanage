@@ -17,21 +17,22 @@ export type AttendeeRsvp = 'invited' | 'accepted' | 'declined';
 /**
  * One attendee, as the screen reads it. Paired `Exact` with the API's `MeetingAttendeeView` in the
  * contracts gate (`e2e/contracts/api-web-shapes.ts`): rename or retype a field on either side and
- * `pnpm contracts:check` fails. `organizationId` is deliberately absent — it is never echoed into a
+ * `pnpm contracts:check` fails. The member is named by `userId` (the roster's identity), never the
+ * internal `membershipId`; `organizationId` is deliberately absent — it is never echoed into a
  * response body (`25-AUTH-AND-TENANT-ISOLATION` §7).
  */
 export interface MeetingAttendeeView {
   readonly id: string;
   readonly meetingId: string;
-  readonly membershipId: string;
+  readonly userId: string;
   readonly rsvp: AttendeeRsvp;
   /** An ISO-8601 instant on the wire. */
   readonly createdAt: string;
 }
 
-/** What the invite form sends. A request body, not a paired projection. */
+/** What the invite form sends — the member's `userId`. A request body, not a paired projection. */
 export interface InviteAttendeeInput {
-  readonly membershipId: string;
+  readonly userId: string;
 }
 
 /** List a meeting's attendees (behind `meeting.read`). */

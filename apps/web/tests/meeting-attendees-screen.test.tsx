@@ -85,13 +85,19 @@ describe('MeetingAttendeesScreen', () => {
     const { client } = clientOver(routeBase);
     const { container } = render(
       withQuery(
-        <MeetingAttendeesScreen organizationSlug="acme" organizationName="Acme" meetingId={MEETING} client={client} />,
+        <MeetingAttendeesScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          meetingId={MEETING}
+          client={client}
+        />,
       ),
     );
 
     // The attendee is named through the directory, not shown as an opaque id.
     await screen.findByText('Ada Lovelace');
-    expect(screen.getByText('Invited')).toBeTruthy();
+    // The RSVP is surfaced as a distinct capsule, not just the editable dropdown's selected option.
+    expect(screen.getByText('Invited', { selector: '.tm-state-capsule' })).toBeTruthy();
 
     // The picker offers Bo (not invited) but not Ada (already an attendee).
     const picker = await screen.findByLabelText('Member');
@@ -115,14 +121,25 @@ describe('MeetingAttendeesScreen', () => {
       }
       if (call.method === 'PATCH' && call.url.includes('/attendees/')) {
         patched.push(call);
-        return json({ id: 'att-1', meetingId: MEETING, userId: 'user-ada', rsvp: 'accepted', createdAt: NOW });
+        return json({
+          id: 'att-1',
+          meetingId: MEETING,
+          userId: 'user-ada',
+          rsvp: 'accepted',
+          createdAt: NOW,
+        });
       }
       return routeBase(call);
     });
 
     render(
       withQuery(
-        <MeetingAttendeesScreen organizationSlug="acme" organizationName="Acme" meetingId={MEETING} client={client} />,
+        <MeetingAttendeesScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          meetingId={MEETING}
+          client={client}
+        />,
       ),
     );
 
@@ -131,12 +148,16 @@ describe('MeetingAttendeesScreen', () => {
     fireEvent.change(screen.getByLabelText('Member'), { target: { value: 'user-bo' } });
     fireEvent.click(screen.getByRole('button', { name: 'Invite member' }));
     await waitFor(() => expect(posted.length).toBe(1));
-    expect((JSON.parse(posted[0]!.body as string) as Record<string, unknown>)['userId']).toBe('user-bo');
+    expect((JSON.parse(posted[0]!.body as string) as Record<string, unknown>)['userId']).toBe(
+      'user-bo',
+    );
 
     fireEvent.change(screen.getByLabelText('RSVP for Ada Lovelace'), {
       target: { value: 'accepted' },
     });
     await waitFor(() => expect(patched.length).toBe(1));
-    expect((JSON.parse(patched[0]!.body as string) as Record<string, unknown>)['rsvp']).toBe('accepted');
+    expect((JSON.parse(patched[0]!.body as string) as Record<string, unknown>)['rsvp']).toBe(
+      'accepted',
+    );
   });
 });

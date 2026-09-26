@@ -95,7 +95,8 @@ export function MeetingAttendeesScreen({
   );
 
   const invite = useMutation({
-    mutationFn: () => inviteMeetingAttendee(api, organizationSlug, meetingId, { userId: inviteUserId }),
+    mutationFn: () =>
+      inviteMeetingAttendee(api, organizationSlug, meetingId, { userId: inviteUserId }),
     onSuccess: () => {
       setInviteUserId('');
       void queries.invalidateQueries({
@@ -226,10 +227,7 @@ export function MeetingAttendeesScreen({
         <section className="tm-stack" aria-label="Meeting attendees">
           <ul className="tm-stack tm-list">
             {rows.map((attendee) => (
-              <li
-                key={attendee.id}
-                className="tm-panel tm-panel--quiet tm-row"
-              >
+              <li key={attendee.id} className="tm-panel tm-panel--quiet tm-row">
                 <span className="tm-table__title">
                   {nameByUserId.get(attendee.userId) ?? 'A member'}
                 </span>
@@ -237,10 +235,7 @@ export function MeetingAttendeesScreen({
                   {RSVP_LABELS[attendee.rsvp]}
                 </StateCapsule>
                 <div className="tm-field tm-push-end">
-                  <label
-                    className="tm-visually-hidden"
-                    htmlFor={`tm-attendee-rsvp-${attendee.id}`}
-                  >
+                  <label className="tm-visually-hidden" htmlFor={`tm-attendee-rsvp-${attendee.id}`}>
                     RSVP for {nameByUserId.get(attendee.userId) ?? 'this member'}
                   </label>
                   <select
