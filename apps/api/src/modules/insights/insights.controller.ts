@@ -1,9 +1,15 @@
-import { Controller, Get, Inject, Param } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
+import { ApiError } from '../../common/http/errors.js';
 import { INSIGHTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { ApprovalCycleView, DeliveryFlowView, InsightsService } from './insights.service.js';
+import type {
+  ApprovalCycleView,
+  DeliveryFlowView,
+  InsightsPortfolioView,
+  InsightsService,
+} from './insights.service.js';
 
 /**
  * INS-01's HTTP surface — the insights module's first read.
@@ -20,6 +26,35 @@ import type { ApprovalCycleView, DeliveryFlowView, InsightsService } from './ins
 @Controller('v1/organizations/:orgSlug/insights')
 export class InsightsController {
   constructor(@Inject(INSIGHTS_SERVICE) private readonly insights: InsightsService) {}
+
+  /**
+   * The portfolio roll-up — INS-01's headline figures for each project the caller may read, the
+   * org-level index that replaces the per-project screens' deferred stub. Behind `work.read`, the
+   * same internal-read capability the delivery-flow read uses. Tenant-scoped by `orgSlug`; the
+   * route takes no project id, so an inaccessible or cross-tenant project is silently excluded by
+   * the service rather than 404'd — the Known-trap surfaced as inclusion. Bounded page
+   * (default 20 / max 50), keyset by project id via `after`.
+   */
+  @Get('portfolio')
+  @RequireCapability('work.read')
+  async portfolio(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Query('after') after?: string,
+    @Query('limit') limit?: string,
+  ): Promise<InsightsPortfolioView> {
+    const parsedLimit = limit === undefined ? undefined : Number(limit);
+    if (parsedLimit !== undefined && !Number.isSafeInteger(parsedLimit)) {
+      throw new ApiError(400, 'validation_failed', 'limit must be an integer', [
+        { field: 'limit', message: 'must be an integer' },
+      ]);
+    }
+
+    return this.insights.portfolio(context, principal, {
+      ...(after ? { after } : {}),
+      ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
+    });
+  }
 
   /**
    * A project's delivery flow — work-item counts by workflow status. Tenant-scoped by `orgSlug`

@@ -13149,3 +13149,37 @@ are live `Exact` pairs (CONTRACT-001). Screen + axe proven in `portal-deliverabl
 
 Portal deliverables cross-client exclusion: unit-proven, no schema change. Deferred to
 NEXT-SCOPES-9: the portal file download proxy; timeline/updates/people portal pages.
+
+## INS-01 — insights, portfolio overview: the org-level roll-up + screen (x120)
+
+The portfolio scope x109-review left deferred: the `/insights` org index was the stub, needing a
+project selector. This slice builds the org-level roll-up across the caller's accessible projects
+and replaces the stub with a portfolio index. `GET …/insights/portfolio` (behind `work.read`)
+returns `InsightsPortfolioView` — a bounded, id-ordered page (default 20 / max 50, keyset by
+`after`) of one row per readable project: project id/name plus the _same_ delivery-flow and
+approval-cycle reads the per-project screens show, composed server-side rather than recomputed, so
+the index and the dashboards can never disagree. No schema change: it reuses `work.read` and the
+tables x89/x96 already read.
+
+**Off-project / cross-tenant discipline (Known trap — route added).** The route takes no project
+id, so the trap surfaces as inclusion: `InsightsService.portfolio` walks the tenant-scoped projects
+list and re-checks each row with the _same_ `authorize('work.read', audience: internal)` filter
+`ProjectsService.list` applies before including it. A project the caller cannot read contributes no
+row; a cross-tenant project (leaked past a tenant-blind test fake) is dropped by the tenant check —
+never a 500, never a leak. The approval figures still respect `approval.read` per row, so composing
+them behind this route's `work.read` escalates no capability. Proved over the module's fakes with a
+real `authorize` (`insights.service.test.ts`): the roll-up returns figures only for the accessible
+project, an off-project and a cross-tenant project are excluded, ordering is deterministic and the
+page is bounded, and a row's figures equal the per-project reads for the same project.
+
+**Web surface this slice.** `InsightsPortfolioScreen`
+(`apps/web/src/components/screens/InsightsPortfolioScreen.tsx`), routed at `/insights`, reads the
+endpoint via a new `apps/web/src/lib/api/insights-portfolio.ts` and renders an accessible table —
+each project's work total, blocked count and changes-requested count (three figures, exception
+evidence) with a drill-in link to its per-project dashboard. `InsightsPortfolioView` is a live
+`Exact` pair in `e2e/contracts/api-web-shapes.ts` (its nested delivery-flow/approval-cycle shapes
+reuse the two pairs above). Proved in `apps/web/tests/insights-portfolio-flow.test.tsx` (jsdom +
+axe): rows render with their figures and drill-in links, an empty portfolio says so with no invented
+projects, a `work.read` refusal shows rather than a blank page, and the document is axe-clean.
+Deferred to NEXT-SCOPES-11: INS-05 workload/INS-06 adoption portfolios, portfolio exports, and the
+People/Automations portfolios (blocked — need new capabilities.ts entries).
