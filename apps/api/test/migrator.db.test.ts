@@ -1723,6 +1723,92 @@ describe('0043: meeting_series is a tenant-scoped, org-owned, forward-only table
   });
 });
 
+describe('0044: document_template_variables is tenant-scoped, template-owned and identity-immutable', () => {
+  beforeAll(freshDatabase);
+
+  const id = (n: string) => `00000000-0000-4000-8000-0000000006${n}`;
+
+  it('applies, round-trips a scoped variable, and refuses cross-tenant and identity change', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table has exactly the columns the Drizzle schema mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'document_template_variables'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'created_at',
+        'id',
+        'key',
+        'label',
+        'organization_id',
+        'required',
+        'template_id',
+        'type',
+      ].sort(),
+    );
+    expect(String(byName.get('type')?.['type'])).toBe('enum');
+    expect(String(byName.get('required')?.['nullable'])).toBe('NO');
+
+    // Minimal parents: an organization, a user, and a template that owns the variable.
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'dtv', 'DTV')`, [
+      id('01'),
+    ]);
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'dtv@e.test', 'DTV')`,
+      [id('02')],
+    );
+    await connection.query(
+      `INSERT INTO document_templates (id, organization_id, name, purpose, body, created_by_user_id)
+       VALUES (?, ?, 'Kickoff', 'Start', 'body', ?)`,
+      [id('03'), id('01'), id('02')],
+    );
+
+    // A tenant-scoped variable insert/select round-trips.
+    await connection.query(
+      `INSERT INTO document_template_variables (id, organization_id, template_id, \`key\`, label, type, required)
+       VALUES (?, ?, ?, 'client_name', 'Client name', 'text', 1)`,
+      [id('04'), id('01'), id('03')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT \`key\` AS k, required AS r FROM document_template_variables
+        WHERE organization_id = ? AND id = ?`,
+      [id('01'), id('04')],
+    );
+    expect(String(rows[0]?.['k'])).toBe('client_name');
+    expect(Number(rows[0]?.['r'])).toBe(1);
+
+    // A template cannot declare the same key twice: the unique index refuses it.
+    await expect(
+      connection.query(
+        `INSERT INTO document_template_variables (id, organization_id, template_id, \`key\`, label, type, required)
+         VALUES (?, ?, ?, 'client_name', 'Dup', 'text', 0)`,
+        [id('05'), id('01'), id('03')],
+      ),
+    ).rejects.toThrow(/duplicate/i);
+
+    // The composite foreign key refuses a template that does not exist in this tenant.
+    await expect(
+      connection.query(
+        `INSERT INTO document_template_variables (id, organization_id, template_id, \`key\`, label, type, required)
+         VALUES (?, ?, 'ffffffff-0000-4000-8000-000000000001', 'x', 'X', 'text', 0)`,
+        [id('06'), id('01')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // Identity is immutable: the trigger refuses moving a variable to another template.
+    await expect(
+      connection.query(
+        `UPDATE document_template_variables SET template_id = 'ffffffff-0000-4000-8000-000000000001' WHERE id = ?`,
+        [id('04')],
+      ),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

@@ -12121,6 +12121,37 @@ order differs.
 
 ---
 
+## DOC-04 — document template variables (x130)
+
+The variable half of DOC-04, deferred from NS-11. Migration `0044_document_template_variables.sql`
+adds a tenant-scoped, template-owned `document_template_variables` table (`id`, `organization_id`,
+`template_id`, `key`, `label`, `type` enum `text|date|number`, `required`, `created_at`) — a composite
+FK to `document_templates (organization_id, id)` (so a variable can never reference a template in
+another tenant), a `(organization_id, id)` unique key, a `(organization_id, template_id, key)` unique
+key (a template cannot declare a key twice; also the list order), and a trigger pinning
+`organization_id`/`template_id` immutable. A new `document-template-variables.repository.ts` and a new
+`document-template-variables.controller.ts` (with a co-located service + module, registered in
+`app.module.ts` so no other docs slice's file is touched) expose `POST`/`GET`/`DELETE
+…/document-templates/:templateId/variables[/:variableId]` behind `@RequireCapability('doc.write')`
+(add/remove) and `doc.read` (list). Each handler resolves the parent template **tenant-scoped before
+it authorizes or writes** (Known-trap: unknown/cross-tenant `templateId`/`variableId` → 404, no
+write), then authorizes org-scoped `work.create`/`work.read` (`projectId: null`, the sibling
+capabilities `doc.write`/`doc.read` mirror); a duplicate key is a 409. `document_template_variables`
+is registered in `TENANT_TABLES`, `schema.ts` + the `TABLES` registry, and the `users.sql` grant
+(INSERT, DELETE), with a named `migrator.db.test.ts` 0044 case (DB suite owned by the chain). Proved
+over the module's fakes with a real `authorize` (`document-template-variables.controller.test.ts`):
+add→list(key-asc)→remove round-trip, duplicate key → 409, cross-tenant `templateId` → 404 (no write),
+suspended membership → 403 (no write). Web: `DocumentTemplateVariablesScreen.tsx` (add form with
+key/label/type/required + a remove-per-row list) at
+`/[orgSlug]/docs/templates/[templateId]/variables`, disjoint from the DOC-04 gallery; its
+`DocumentTemplateVariableView` ↔ `DocumentTemplateVariableSummary` pair is Exact in the contracts
+gate. Deferred to NS-13: substitution at render, defaults, and the docs client projection.
+
+**Migration number:** highest after pass 19 is 0041; pass 20 reserves 0042–0059 in id order, and this
+slice (x130) is `0044`; the integrator renumbers if the merge order differs.
+
+---
+
 ## Component status
 
 | Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                                                                                                                           |

@@ -25,6 +25,7 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
 import { DocsModule } from './modules/docs/docs.module.js';
+import { DocumentTemplateVariablesModule } from './modules/docs/document-template-variables.controller.js';
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
@@ -173,6 +174,11 @@ export class AppModule {
         // a document names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
         DocsModule.register(),
+        // DOC-04 (x130). A document template's declared variables (add/list/remove). Its own module
+        // rather than folded into `DocsModule`, so this slice touches no file another docs slice in
+        // the same pass appends to; it depends only on the global tenant database and reuses the
+        // read-only `DocumentTemplatesRepository` to resolve the parent template tenant-scoped.
+        DocumentTemplateVariablesModule.register(),
         // DEC-01 (x113). The cross-meeting decision register. After `ProjectsModule` and
         // `CalendarModule` for the same reason: a decision names a project and, optionally, a
         // meeting, and the composite foreign keys mean a caller who names one that is not theirs
