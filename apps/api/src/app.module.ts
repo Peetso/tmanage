@@ -23,6 +23,7 @@ import { InboxModule } from './modules/inbox/inbox.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
+import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
 import { DocsModule } from './modules/docs/docs.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
@@ -161,6 +162,10 @@ export class AppModule {
         // meeting names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
         CalendarModule.register(),
+        // CAL agenda / day view (x127). A read-only, date-bucketed agenda over the same `meetings`
+        // table, in its own module beside `CalendarModule` so the sibling calendar slices stay
+        // file-disjoint (each registers here rather than all editing `calendar.module.ts`).
+        MeetingAgendaModule.register(),
         // DOC-01 (x91). After `ProjectsModule` for the same reason as conversations and meetings:
         // a document names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.

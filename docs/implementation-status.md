@@ -12991,3 +12991,32 @@ project with a normalised ISO instant and refetches the list, and is axe-clean.
 `e2e/tests/calendar-journeys.spec.ts` walks the full create→list→detail path against the real
 stack (module 9's credit-earning proof); it authors and typechecks here, with the live browser run
 carried by the integration chain.
+
+## CAL agenda / day view (x127)
+
+The audit carried Calendar as *Partial*: x122 shipped a project's meetings list, but no
+date-bucketed agenda — the cross-project "what is coming up" view was deferred. This slice adds it,
+read-only, over the same `meetings` table (0029). **No migration, no new table, no new capability.**
+
+`GET …/meetings/agenda?from&to` (behind `@RequireCapability('meeting.read')`) returns the acting
+tenant's meetings whose start falls in a required, clamped window (`YYYY-MM-DD`, both ends
+inclusive, at most 31 days — an over-wide window is a 400), grouped by the day they start on (UTC),
+days ascending and each day's meetings in start order. The read lives in a new
+`meeting-agenda.controller.ts` over a windowed tenant read (`meeting-agenda.repository.ts`) plus the
+same relation filter `MeetingsService.list` applies (`authorize('work.read')`, the ceiling-mirror of
+`meeting.read`), so a member sees only their projects' meetings and a dropped row is absent, never a
+403. There is no service and no transaction — the read composes directly, and the controller test
+exercises the grouping, the clamp and the relation filter with the real `authorize()`. It is wired
+as its own `MeetingAgendaModule` beside `CalendarModule` (registered in `app.module.ts`) so the
+sibling calendar slices stay file-disjoint.
+
+`MeetingAgendaScreen.tsx` renders the day-grouped agenda (day headings + per-day tables, empty
+state, a from/to range control defaulting to the current month), at the new
+`calendar/agenda/page.tsx` route with the rail intact (`activeNavigationId="calendar"`).
+
+**Contract.** `MeetingAgendaView` is paired `Assert<Exact<…>>` (`_meetingAgenda`) in
+`e2e/contracts/api-web-shapes.ts`; the nested day/entry shapes are inlined on both sides.
+`apps/web/tests/meeting-agenda-screen.test.tsx` (jsdom + axe) proves the screen reads the window,
+renders one heading per day, links each meeting to its detail page, shows the empty state, and is
+axe-clean. Week/month grid, recurrence expansion (x129) and ICS export (x128) stay deferred to
+NEXT-SCOPES-13.
