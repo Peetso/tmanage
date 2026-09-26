@@ -13251,6 +13251,7 @@ axe): rows render with their figures and drill-in links, an empty portfolio says
 projects, a `work.read` refusal shows rather than a blank page, and the document is axe-clean.
 Deferred to NEXT-SCOPES-11: INS-05 workload/INS-06 adoption portfolios, portfolio exports, and the
 People/Automations portfolios (blocked — need new capabilities.ts entries).
+
 ## ADM-12 / ADM-13 — member offboarding: access-impact preview + offboard execution (x121)
 
 The one Administration write boundary that had a name and no door. `member.offboard` has been in
@@ -13335,6 +13336,7 @@ project with a normalised ISO instant and refetches the list, and is axe-clean.
 `e2e/tests/calendar-journeys.spec.ts` walks the full create→list→detail path against the real
 stack (module 9's credit-earning proof); it authors and typechecks here, with the live browser run
 carried by the integration chain.
+
 ## INS-05 — insights, workload roll-up: the org-wide capacity portfolio (x123)
 
 The portfolio counterpart to INS-01's per-project delivery flow. A new
@@ -13360,6 +13362,7 @@ drill-in to each project. `InsightsWorkloadView` is paired live in `e2e/contract
 excluded with no 500; client without `work.read` contributes nothing; bound clamped) and the
 `insights-workload-journeys.spec.ts` journey (chain-run). Off-project + cross-tenant exclusion:
 unit-proven, no schema change.
+
 ## PROJ / module 8 — project objectives create/list/transition (x124)
 
 Module 8 (Projects & portfolio) was **Partial**: the map advertises "objectives, portfolio
@@ -13397,6 +13400,7 @@ relation gate) and against a real server in `apps/api/test/proj-001-objectives.d
 project's objectives in creation order, and mark each open one met or missed. `ProjectObjectiveView`
 is a live `Exact` pair with the web `ProjectObjectiveSummary` (CONTRACT-001). Screen + axe proven in
 `project-objectives.test.tsx`.
+
 ## CLIENT-003 — the client portal's project-updates timeline (x125)
 
 `ClientOverviewScreen` carried an explicit `BackendPending` for "updates, milestones and risks";
@@ -13780,6 +13784,7 @@ gate; route ceilings).
 objective row): link a work item by id, list the linked work, unlink one. `ObjectiveWorkLinkView` is a
 live `Exact` pair with the web `ObjectiveWorkLink` (CONTRACT-001). Panel + axe proven in
 `objective-work-links.test.tsx`.
+
 ## SEC / Portal milestones (x139)
 
 The companion to CLIENT-003: the _milestones_ half of the portal, built on the same mechanism. A
@@ -13823,6 +13828,7 @@ client reading outside scope → 404, plus the route-capability metadata that pr
 
 **Deferred (NEXT-SCOPES-13).** Milestone edit/unpublish lifecycle; portal risks (x140); the portal
 people page (x142).
+
 ## SEC / Portal risks — module 13 (x140, 2026-09-26)
 
 **What shipped.** The risks half of the client portal, reusing the `project_updates` (0041) and
