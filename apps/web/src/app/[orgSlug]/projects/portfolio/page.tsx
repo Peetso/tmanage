@@ -13,11 +13,7 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
  * `GET …/projects/portfolio`, gated on the server by `work.read`, so a member without the capability
  * sees the API's refusal rather than a blank page.
  */
-export default function ProjectPortfolioPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>;
-}) {
+export default function ProjectPortfolioPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
 
   return (

@@ -112,7 +112,11 @@ describe('ProjectPortfolioController roll-up', () => {
     const { controller } = build(
       [project(PROJECT_A, ORG), project(PROJECT_B, ORG)],
       [
-        { projectId: PROJECT_A, openWorkCount: 3, latestActivityAt: new Date(Date.UTC(2026, 2, 1)) },
+        {
+          projectId: PROJECT_A,
+          openWorkCount: 3,
+          latestActivityAt: new Date(Date.UTC(2026, 2, 1)),
+        },
         { projectId: PROJECT_B, openWorkCount: 0, latestActivityAt: null },
       ],
       [

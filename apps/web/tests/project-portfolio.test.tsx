@@ -66,7 +66,11 @@ function summary(projectId: string, name: string, over: Record<string, unknown> 
 function renderScreen(client: ApiClient) {
   return render(
     withQuery(
-      <ProjectPortfolioScreen organizationSlug="northstar" organizationName="Northstar" client={client} />,
+      <ProjectPortfolioScreen
+        organizationSlug="northstar"
+        organizationName="Northstar"
+        client={client}
+      />,
     ),
   );
 }

@@ -71,7 +71,8 @@ export function ProjectPortfolioScreen({
 
       {!portfolio.isPending && !portfolio.isError && rows.length === 0 ? (
         <InlineAlert tone="neutral" title="No projects yet">
-          There are no projects you can see. When one is created and shared with you, it appears here.
+          There are no projects you can see. When one is created and shared with you, it appears
+          here.
         </InlineAlert>
       ) : null}
 
@@ -126,14 +127,16 @@ function PortfolioCard({
         <div className="tm-detail-list__pair">
           <dt>Objectives</dt>
           <dd>
-            {totalObjectives === 0
-              ? 'None set'
-              : `${open} open, ${met} met, ${missed} missed`}
+            {totalObjectives === 0 ? 'None set' : `${open} open, ${met} met, ${missed} missed`}
           </dd>
         </div>
         <div className="tm-detail-list__pair">
           <dt>Last activity</dt>
-          <dd>{project.latestActivityAt === null ? 'No activity yet' : formatInstant(project.latestActivityAt)}</dd>
+          <dd>
+            {project.latestActivityAt === null
+              ? 'No activity yet'
+              : formatInstant(project.latestActivityAt)}
+          </dd>
         </div>
       </dl>
     </article>

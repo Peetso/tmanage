@@ -97,10 +97,7 @@ export class ProjectPortfolioService {
     });
 
     const workByProject = new Map(workSummaries.map((row) => [row.projectId, row]));
-    const objectivesByProject = new Map<
-      string,
-      { open: number; met: number; missed: number }
-    >();
+    const objectivesByProject = new Map<string, { open: number; met: number; missed: number }>();
     for (const row of objectiveCounts) {
       const tally = objectivesByProject.get(row.projectId) ?? { open: 0, met: 0, missed: 0 };
       tally[row.status] = row.count;
@@ -146,7 +143,9 @@ export class ProjectPortfolioService {
  * which cannot happen — kept as a total function so a future caller need not special-case it.
  */
 function latestActivity(project: ProjectRow, workActivity: Date | null): string | null {
-  const candidates = [project.updatedAt, workActivity].filter((value): value is Date => value !== null);
+  const candidates = [project.updatedAt, workActivity].filter(
+    (value): value is Date => value !== null,
+  );
   if (candidates.length === 0) return null;
   return candidates.reduce((a, b) => (a.getTime() >= b.getTime() ? a : b)).toISOString();
 }

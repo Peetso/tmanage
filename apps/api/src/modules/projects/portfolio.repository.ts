@@ -58,9 +58,10 @@ export class ProjectPortfolioRepository {
     const rows = await tenantDrizzle(runner)
       .select({
         projectId: workItems.projectId,
-        openWorkCount: sql<number>`sum(case when ${workItems.state} not in ('done', 'archived') then 1 else 0 end)`.mapWith(
-          Number,
-        ),
+        openWorkCount:
+          sql<number>`sum(case when ${workItems.state} not in ('done', 'archived') then 1 else 0 end)`.mapWith(
+            Number,
+          ),
         latestActivityAt: max(workItems.updatedAt),
       })
       .from(workItems)
