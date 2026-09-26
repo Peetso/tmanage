@@ -40,6 +40,7 @@ import { ImportModule } from './modules/import/import.module.js';
 import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
+import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -214,6 +215,10 @@ export class AppModule {
         // held) in a clamped window. A separate module from `InsightsModule` so the insights slices
         // stay file-disjoint; read-only, behind the same reused `work.read`.
         InsightsAdoptionModule.register(),
+        // x134. After `InsightsModule` by subject: the forward-looking workload forecast, a second
+        // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
+        // constructs its own repository handle (see its doc), so its position here is by subject.
+        WorkloadForecastModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
