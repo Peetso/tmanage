@@ -9,7 +9,7 @@ import type { ApiClient } from '../../lib/api/client';
 
 export interface HomeHeroSectionProps {
   organizationSlug: string;
-  client?: ApiClient;
+  client?: ApiClient | undefined;
 }
 
 /**

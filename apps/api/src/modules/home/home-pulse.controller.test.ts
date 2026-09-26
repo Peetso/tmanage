@@ -182,7 +182,9 @@ describe('HomePulseService.pulseOf (HOME-01 Focus)', () => {
 
   it('counts nothing for a client principal (no work.read)', async () => {
     const service = serviceWith({
-      workRows: [work({ id: 'w-today-000000000000000000001', dueAt: TODAY, ownerUserId: client().userId })],
+      workRows: [
+        work({ id: 'w-today-000000000000000000001', dueAt: TODAY, ownerUserId: client().userId }),
+      ],
       meetingRows: [meeting({ id: 'm-mine-0000000000000000000001' })],
       approvalRows: [approval({ id: 'a-requested-0000000000000000001' })],
     });

@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
@@ -17,7 +17,7 @@ import type { HomePulseView } from './home-pulse.service.js';
  */
 @Controller('v1/organizations/:orgSlug/home')
 export class HomePulseController {
-  constructor(private readonly pulse: HomePulseService) {}
+  constructor(@Inject(HomePulseService) private readonly pulse: HomePulseService) {}
 
   @Get('pulse')
   @RequireCapability('work.read')
