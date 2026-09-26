@@ -223,6 +223,33 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-27 — NOTIF feed: the flat notifications feed + mark-read (slice x151)
+
+Built by **Claude Opus 4.8** on branch `x151-notifications-feed` off `master` `bcfe397`. The
+audit carried Notifications as _Partial_: NOTIF-001 preferences ship and the bundled
+`InboxService` reads NOTIF-001's rows grouped by object, but there was no flat per-notification
+feed a person could read as a list and mark a **single** item read on. This slice adds it, over
+the existing `notifications` table (0010) — **no new table, no migration**, so the four-place
+registry is N/A; `notifications` is already in `TABLES`/`TENANT_TABLES`/`users.sql`.
+
+- **`GET .../notifications`** (`work.read`): one page of the caller's own notifications, newest
+  first (UUIDv7 id order = `created_at` desc), `unread=true` narrowing to unread, keyset `before`
+  cursor, clamped `limit`. The recipient is `principal.userId`, never a value the request names.
+- **`POST .../notifications/:notificationId/read`** (`work.read`): resolves the row scoped to the
+  acting recipient and tenant **before** the write, inside the transaction; another user's or
+  tenant's id — or one this API never issued — is a **404 with no write**. Idempotent (the row is
+  read forward-only by 0010's trigger).
+- **`NotificationsFeedScreen`** partitions the loaded pages into Unread and Read, marks one read
+  by id, and mounts axe-clean; reached at `/[orgSlug]/notifications`, reusing the inbox rail item
+  (`INTERNAL_NAVIGATION` untouched). `NotificationView` and `NotificationFeedView` paired Exact.
+
+Own module beside the inbox and preferences modules (`NotificationsFeedModule`), so the
+notifications slices stay file-disjoint. Deferred: per-kind opt-out (x152), real-time push
+(NS-13). Gates: typecheck api+web+e2e, eslint, prettier (LF), touched-file unit tests, contracts.
+No DB test / no new e2e journey per pass-20 rules (the chain owns both).
+
+---
+
 ## 2026-09-26 — Portal people: client-visible project team (slice x142)
 
 Module 13 (Client portal), **People** (`22-SCREEN-BY-SCREEN` §1) — until now a `PlannedPortalScreen`
