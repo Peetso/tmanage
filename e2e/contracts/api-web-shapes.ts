@@ -74,6 +74,7 @@ import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../ap
 import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
+import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
@@ -110,6 +111,7 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
+import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -226,6 +228,14 @@ type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
 type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRequest>>;
 
 /**
+ * PROJ / module 8 (x124). `ProjectObjectiveView` (`GET`/`POST …/projects/:id/objectives` and the
+ * `PATCH …/objectives/:objectiveId` response) — a project's objective and its lifecycle status.
+ * Paired with a live web consumer: `ProjectObjectivesScreen` reads exactly this response, so this is
+ * a real `Exact` pair. The `status` union (`open | met | missed`) is the same on both sides.
+ */
+type _projectObjective = Assert<Exact<ApiProjectObjectiveView, WebProjectObjectiveSummary>>;
+
+/**
  * CAL-01 / MTG-01 third slice (x108). `GET .../meetings/:meetingId/notes` — a meeting's captured
  * notes and decisions, read by `MeetingNotesScreen`. x105 landed the API read/write with no web
  * consumer (the view was carried EXEMPT in `scripts/contracts-check.mjs`); this slice ships the
@@ -239,6 +249,8 @@ type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
  * reads exactly this response for its history/compare/restore, so the pair is Exact.
  */
 type _documentVersion = Assert<Exact<ApiDocumentVersionView, WebDocumentVersionSummary>>;
+
+/**
  * DEC-01 (x113). `DecisionView` (`GET`/`POST …/decisions`, request body + response). Paired with a
  * live web consumer — DEC-01 ships `DecisionRegisterScreen`, which reads exactly this response — so
  * this is a real `Exact` pair, not an EXEMPT entry. The `status` union (`proposed | accepted |

@@ -228,7 +228,12 @@ export class ProjectObjectivesService {
         409,
         'conflict',
         'An objective can only be transitioned while it is open',
-        [{ field: 'status', message: `cannot transition an objective that is ${objective.status}` }],
+        [
+          {
+            field: 'status',
+            message: `cannot transition an objective that is ${objective.status}`,
+          },
+        ],
         'illegal_transition',
       );
     }

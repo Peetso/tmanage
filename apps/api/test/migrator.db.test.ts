@@ -1387,6 +1387,99 @@ describe('0038: decision_supersessions is the tenant-scoped supersede-chain edge
   });
 });
 
+describe('0040: project_objectives is a tenant-scoped, project-owned table with a status lifecycle', () => {
+  beforeAll(freshDatabase);
+
+  const id = (n: string) => `00000000-0000-4000-8000-0000000040${n}`;
+
+  it('applies, round-trips, moves status, and pins every other column at the engine', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'project_objectives'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'created_at',
+        'created_by',
+        'description',
+        'id',
+        'name',
+        'organization_id',
+        'project_id',
+        'status',
+        'target',
+      ].sort(),
+    );
+    expect(String(byName.get('status')?.['type'])).toBe('enum');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('project_id')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('name')?.['nullable'])).toBe('NO');
+    // Description and target are optional.
+    expect(String(byName.get('description')?.['nullable'])).toBe('YES');
+    expect(String(byName.get('target')?.['nullable'])).toBe('YES');
+
+    // Minimal parents the composite FK requires.
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'obj', 'O')`, [
+      id('01'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('02'), id('01')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('03'), id('01'), id('02')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'obj@e.test', 'O')`,
+      [id('04')],
+    );
+
+    // A tenant-scoped insert/select round-trips, defaulting status to open.
+    await connection.query(
+      `INSERT INTO project_objectives
+         (id, organization_id, project_id, name, description, target, created_by)
+       VALUES (?, ?, ?, 'Cut lead time', 'Halve brief-to-draft', '<= 3 days', ?)`,
+      [id('05'), id('01'), id('03'), id('04')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT name, status, target FROM project_objectives WHERE organization_id = ? AND id = ?`,
+      [id('01'), id('05')],
+    );
+    expect(rows[0]?.['name']).toBe('Cut lead time');
+    expect(rows[0]?.['status']).toBe('open');
+    expect(rows[0]?.['target']).toBe('<= 3 days');
+
+    // The composite foreign key refuses a project id from outside the objective's tenant.
+    await expect(
+      connection.query(
+        `INSERT INTO project_objectives
+           (id, organization_id, project_id, name, created_by)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, 'X', ?)`,
+        [id('06'), id('03'), id('04')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // The status may move — that is the lifecycle.
+    await connection.query(`UPDATE project_objectives SET status = 'met' WHERE id = ?`, [id('05')]);
+    const [moved] = await connection.query<RowDataPacket[]>(
+      `SELECT status FROM project_objectives WHERE organization_id = ? AND id = ?`,
+      [id('01'), id('05')],
+    );
+    expect(moved[0]?.['status']).toBe('met');
+
+    // But every other column is pinned at the engine: a name rewrite is refused.
+    await expect(
+      connection.query(`UPDATE project_objectives SET name = 'Rewritten' WHERE id = ?`, [id('05')]),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

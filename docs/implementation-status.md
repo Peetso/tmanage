@@ -13101,3 +13101,41 @@ are live `Exact` pairs (CONTRACT-001). Screen + axe proven in `portal-deliverabl
 
 Portal deliverables cross-client exclusion: unit-proven, no schema change. Deferred to
 NEXT-SCOPES-9: the portal file download proxy; timeline/updates/people portal pages.
+
+## PROJ / module 8 — project objectives create/list/transition (x124)
+
+Module 8 (Projects & portfolio) was **Partial**: the map advertises "objectives, portfolio
+roll-up" but there was no `project_objectives` table and no objectives route (grep clean). x124
+ships the project-scoped objectives write surface — not org OKRs, key results, or an objective→work
+linkage, which stay deferred (NEXT-SCOPES-12).
+
+Migration **0040** creates `project_objectives`: tenant-scoped and project-owned like `decisions`
+(0037), with `id`, `organization_id`, `project_id`, `name`, optional `description`/`target`, a
+`status` enum (`open|met|missed`, default `open`), `created_by` and `created_at`. The composite
+foreign key `fk_project_objectives_project_tenant` binds `(organization_id, project_id)` to
+`projects`, so an objective can never name another tenant's project. Unlike the append-only
+registers, an objective has a lifecycle, so `status` may move; a `BEFORE UPDATE` column-pinning
+trigger (`trg_project_objectives_pin_columns`) pins every other column at the engine from birth.
+Registered in all four places (Known trap): `schema.ts` def + `TABLES`, `tenant-guard.ts`
+`TENANT_TABLES`, `users.sql` grant (`INSERT, UPDATE`; `SELECT` is database-wide), and a named
+`migrator.db.test.ts` 0040 case.
+
+`POST …/projects/:projectId/objectives` (`project.manage`) and
+`GET …/projects/:projectId/objectives` (`work.read`) create and list; `PATCH …/objectives/:objectiveId`
+(`project.manage`) transitions `open → met | missed` — a guarded state machine (an illegal
+transition, e.g. transitioning an already-closed objective, is a 409 with no write; a body status
+that is not met/missed is a 422).
+
+**Known trap (FAST-PROTOCOL 19:55).** Every route names the project (and PATCH the objective) by id,
+so `ProjectObjectivesService` resolves it **tenant-scoped before** the relation check and the write:
+an unknown or cross-tenant `projectId`/`objectiveId` is a `404`, never a foreign-key 500, and a
+caller who names a project they do not manage gets the same not-found rather than a 403 that would
+confirm it exists. Unit-proven with real `authorize()` over fakes in
+`project-objectives.controller.test.ts` (create→list→transition; 409 illegal transition; 404s;
+relation gate) and against a real server in `apps/api/test/proj-001-objectives.db.test.ts`
+(tenant-scoped round-trip, lifecycle UPDATE, cross-tenant exclusion, guard seam).
+
+**Web.** `ProjectObjectivesScreen` on `…/projects/[projectId]/objectives`: set an objective, list a
+project's objectives in creation order, and mark each open one met or missed. `ProjectObjectiveView`
+is a live `Exact` pair with the web `ProjectObjectiveSummary` (CONTRACT-001). Screen + axe proven in
+`project-objectives.test.tsx`.
