@@ -14040,6 +14040,7 @@ work-item detail screen, disjoint from the x145 checklist panel: it lists the ac
 comment. Proved database-free with the real `authorize` (`work-comments.controller.test.ts`):
 add→list oldest-first for a related member, a cross-tenant/absent parent is a 404 with no write, an
 unrelated member's list is a 404, and an add on an item the caller can read but not update is a 403.
+
 ## SEC / Decisions — decision lock (immutable once locked) (x150, module 12)
 
 **What landed.** The Decisions audit was "Partial; decision lock deferred": a decision could be moved
@@ -14069,6 +14070,7 @@ lock→locked; a subsequent lifecycle write → 409 with no write; a re-lock →
 cross-tenant/unknown/non-member `decisionId` → 404 with no write; and the lock route is guarded by
 `meeting.write` (a role without it is a 403 at `CapabilityGuard`). Deferred to NEXT-SCOPES-13: an
 unlock workflow (needs approval).
+
 ## Per-kind notification opt-out (x152, module 17)
 
 **What landed.** `notification_preferences` (0022) held only the coarse per-person row — the two
@@ -14100,6 +14102,7 @@ scoped with defaults, an out-of-enum kind is a 400 with no write, a non-boolean 
 the write is always the acting membership's and never lists another member's rows, and both routes
 require `work.read`. Deferred to NEXT-SCOPES-13: honouring a disabled kind in the delivery seam, and
 the channel split (email vs in-app) per kind.
+
 ## SEC / Organization settings / policy — module 18 Administration (x153, 2026-09-27)
 
 **What shipped.** The Administration settings surface the audit named absent: organization settings /
@@ -14140,6 +14143,7 @@ authorize and before any write, and a caller without `org.manage` is a 403 on bo
 **Revert proof** (unit red→green on the `org.manage`/allowlist guard). No DB test / no new e2e per
 pass-20 rules (the chain owns both). Deferred to NEXT-SCOPES-13: the role/capability editor (ADM-03,
 blocked) and security-policy escalations.
+
 ## Requests / module 11 — request aging / SLA inbox view (x154)
 
 _The studio's overdue-to-triage / long-uncommitted read (audit: "Requests Partial; aging/SLA view
@@ -14174,6 +14178,7 @@ follow it, a cross-tenant row is dropped, a project-scoped manager is scoped to 
 client is a 403, and an over-wide/non-integer limit is a 400. A self-contained
 `RequestAgingModule` registered from `app.module.ts` keeps the slice file-disjoint from the
 list/triage controller.
+
 ## ON-10 guided-tour progress (x155, module 3)
 
 **What landed.** Onboarding had the ON-01–ON-04 setup wizard but no way to track a member's progress
