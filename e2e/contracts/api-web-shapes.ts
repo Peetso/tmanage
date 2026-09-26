@@ -74,6 +74,7 @@ import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps/api/src/modules/insights/insights.service.js';
+import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -149,6 +150,7 @@ import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/s
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
 import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps/web/src/lib/api/insights-workload';
+import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
@@ -252,6 +254,14 @@ type _deliveryFlow = Assert<Exact<ApiDeliveryFlowView, WebDeliveryFlow>>;
  * workload section to `InsightsScreen`, so this is a live `Exact` pair, not an exemption.
  */
 type _insightsWorkload = Assert<Exact<ApiInsightsWorkloadView, WebInsightsWorkloadView>>;
+
+/**
+ * x134 — `GET …/insights/workload-forecast?weeks`. The forward-looking workload forecast: `weeks`
+ * (per upcoming week the committed open work and constant capacity, with an over-capacity flag),
+ * `totals` (the aggregate across the horizon), and `computedAt`. The `InsightsForecastScreen` reads
+ * exactly this response, so this is a live `Exact` pair, not an exemption.
+ */
+type _workloadForecast = Assert<Exact<ApiWorkloadForecastView, WebWorkloadForecastView>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API

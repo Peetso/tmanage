@@ -12988,3 +12988,36 @@ drill-in to each project. `InsightsWorkloadView` is paired live in `e2e/contract
 excluded with no 500; client without `work.read` contributes nothing; bound clamped) and the
 `insights-workload-journeys.spec.ts` journey (chain-run). Off-project + cross-tenant exclusion:
 unit-proven, no schema change.
+
+## INS — insights, workload forecasting: the forward-looking read (x134)
+
+The forward-looking counterpart to INS-05's current workload roll-up. A new
+`GET …/insights/workload-forecast?weeks` (behind `work.read`, the internal-read capability INS-01/05
+reuse — no new capability, no schema change, no migration) projects the open, dated work across the
+projects the caller may read into the upcoming weeks (`?weeks` 1..12, default 4) and compares each
+week's committed load against a **constant per-member capacity**. Deterministic arithmetic, no ML: a
+work item is *committed* to a week when it is open and carries a `dueAt`; it lands in the upcoming
+week its `dueAt` falls in (overdue committed work folds into week 1; work beyond the horizon is not
+counted). Capacity is `memberCount × 5` where members are the distinct owners carrying open work in
+scope — the recommended placeholder until `work_items` gains an assignee column (HOME-04 gap; the
+real capacity model and scenarios are deferred to NS-13).
+
+`WorkloadForecastModule` registers a second controller on the insights base path (file-disjoint from
+INS-05's `workload` and the sibling x133/x135 slices) and its own `WorkloadForecastService` +
+`workload-forecast.repository.ts`, which composes x99's per-project open-work read and
+`ProjectsRepository.list` — no new repository logic.
+
+**Known-trap (aggregate over ids + range validation).** Every project is resolved tenant-scoped
+before it enters the forecast: enumeration is tenant-scoped in SQL, and belt-and-braces each project
+is authorized against its **own** `organizationId` with `work.read`, so a cross-tenant project is
+excluded rather than fanning out a read — never a 500. A non-org-wide principal passes only for the
+projects they are on; a client (whom `work.read` never grants) contributes nothing. `?weeks` present
+but out of `[1, 12]` (or non-integer) is a 400, not a silent clamp.
+
+**Web + contract.** `InsightsForecastScreen` (route `[orgSlug]/insights/forecast`,
+`apps/web/src/lib/api/workload-forecast.ts` client) renders an accessible per-week table with load
+bars and an over-capacity flag. `WorkloadForecastView` is paired live in
+`e2e/contracts/api-web-shapes.ts` (CONTRACT-001). Proven in `workload-forecast.controller.test.ts`
+over the module's fakes with the real `authorize` (bucketing + over-capacity flag; done/undated/
+beyond-horizon work excluded; cross-tenant excluded with no 500; client contributes nothing; default
+horizon; out-of-range `weeks` → 400). No schema change, no DB test, no new e2e journey (chain owns).
