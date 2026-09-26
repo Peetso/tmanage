@@ -45,6 +45,7 @@ import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/a
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DocumentTemplateView as ApiDocumentTemplateView } from '../../apps/api/src/modules/docs/documents.service.js';
+import type { DocumentTemplateVariableView as ApiDocumentTemplateVariableView } from '../../apps/api/src/modules/docs/document-template-variables.controller.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -114,6 +115,7 @@ import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
+import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -278,6 +280,16 @@ type _decisionDetail = Assert<Exact<ApiDecisionDetailView, WebDecisionDetail>>;
  * client to avoid a second competing projection.)
  */
 type _documentTemplate = Assert<Exact<ApiDocumentTemplateView, WebDocumentTemplateSummary>>;
+
+/**
+ * DOC-04 (x130). `DocumentTemplateVariableView` (`GET`/`POST …/document-templates/:templateId/
+ * variables`) — one declared variable of a template. `DocumentTemplateVariablesScreen` reads exactly
+ * this response, so the pair is Exact. `organizationId` is absent on both sides — the wire projection
+ * never echoes the tenant id.
+ */
+type _documentTemplateVariable = Assert<
+  Exact<ApiDocumentTemplateVariableView, WebDocumentTemplateVariableSummary>
+>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;

@@ -7,7 +7,7 @@ import {
 } from './document-template-variables.controller.js';
 import {
   DocumentTemplateVariableKeyConflictError,
-  DocumentTemplateVariablesRepository,
+  type DocumentTemplateVariablesRepository,
 } from './document-template-variables.repository.js';
 import type { DocumentTemplatesRepository } from './document-templates.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -61,7 +61,12 @@ function controllerWith(templateOrg = ORG): {
       store
         .filter((row) => row.organizationId === ctx.organizationId && row.templateId === templateId)
         .sort((a, b) => a.key.localeCompare(b.key)),
-    findById: async (_runner: unknown, ctx: TenantContext, templateId: string, variableId: string) =>
+    findById: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      templateId: string,
+      variableId: string,
+    ) =>
       store.find(
         (row) =>
           row.organizationId === ctx.organizationId &&
