@@ -6,10 +6,7 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import type {
-  WorkItemChecklistItemRow,
-  WorkItemRow,
-} from '../../common/database/schema.js';
+import type { WorkItemChecklistItemRow, WorkItemRow } from '../../common/database/schema.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { WorkChecklistRepository } from './work-checklist.repository.js';
 

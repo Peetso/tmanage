@@ -75,7 +75,10 @@ export class WorkChecklistController {
       if (typeof body.label !== 'string' || body.label.trim() === '') {
         details.push({ field: 'label', message: 'must be a non-empty string' });
       } else if (body.label.trim().length > MAX_LABEL_LENGTH) {
-        details.push({ field: 'label', message: `must be ${MAX_LABEL_LENGTH} characters or fewer` });
+        details.push({
+          field: 'label',
+          message: `must be ${MAX_LABEL_LENGTH} characters or fewer`,
+        });
       } else {
         label = body.label.trim();
       }

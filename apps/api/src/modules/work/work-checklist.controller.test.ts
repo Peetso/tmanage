@@ -5,10 +5,7 @@ import { WorkChecklistService } from './work-checklist.service.js';
 import type { WorkItemsRepository } from './work-items.repository.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type {
-  WorkItemChecklistItemRow,
-  WorkItemRow,
-} from '../../common/database/schema.js';
+import type { WorkItemChecklistItemRow, WorkItemRow } from '../../common/database/schema.js';
 
 /**
  * x145 — the fast, database-free proof of the checklist sub-resource. It runs the controller

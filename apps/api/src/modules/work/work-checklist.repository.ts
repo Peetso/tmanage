@@ -90,9 +90,10 @@ export class WorkChecklistRepository {
           eq(workItemChecklistItems.workItemId, input.workItemId),
         ),
       );
-    const nextPosition = aggregate?.maxPosition === null || aggregate?.maxPosition === undefined
-      ? 0
-      : Number(aggregate.maxPosition) + 1;
+    const nextPosition =
+      aggregate?.maxPosition === null || aggregate?.maxPosition === undefined
+        ? 0
+        : Number(aggregate.maxPosition) + 1;
 
     await tenantDrizzle(runner)
       .insert(workItemChecklistItems)
