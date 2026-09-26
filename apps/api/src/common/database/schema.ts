@@ -837,6 +837,53 @@ export interface UploadTargetJson {
   readonly url: string;
 }
 
+/**
+ * The entity kinds a Home pin may reference (HOME-05, migration 0035). Kept here beside the table
+ * rather than in `packages/domain` so this slice stays inside `apps/api`; the migration's ENUM is
+ * the source of truth and `schema.db.test.ts` holds this list to it.
+ */
+export const SAVED_CONTEXT_ENTITY_TYPES = ['message', 'doc', 'work', 'file'] as const;
+export type SavedContextEntityType = (typeof SAVED_CONTEXT_ENTITY_TYPES)[number];
+
+/**
+ * HOME-05 saved/pinned context (migration 0035, x110).
+ *
+ * One row per pin: a per-user, per-tenant *reference* to an entity the user keeps at hand on their
+ * Home, grouped by `project_id`. It stores the reference only (`entity_type` + `entity_id`), never a
+ * copy of the entity — resolving each pin to a live title/preview is the deferred read-fan-out
+ * follow-up. `entity_id` carries no FK (the target table depends on `entity_type`); tenant safety
+ * rests on the service resolving `entity_id`/`project_id` tenant-scoped before the write. Created and
+ * deleted, never updated — no `version`, no `updatedAt`, and the runtime credential holds INSERT and
+ * DELETE alone.
+ */
+export const savedContext = mysqlTable(
+  'saved_context',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    entityType: mysqlEnum('entity_type', SAVED_CONTEXT_ENTITY_TYPES).notNull(),
+    entityId: char('entity_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_saved_context_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_saved_context_pin').on(
+      table.organizationId,
+      table.userId,
+      table.entityType,
+      table.entityId,
+    ),
+    index('ix_saved_context_org_user_project').on(
+      table.organizationId,
+      table.userId,
+      table.projectId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -1650,6 +1697,7 @@ export const TABLES = {
   import_rows: importRows,
   meeting_notes: meetingNotes,
   saved_views: savedViews,
+  saved_context: savedContext,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -1685,6 +1733,7 @@ export type SavedViewRow = typeof savedViews.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
+export type SavedContextRow = typeof savedContext.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;

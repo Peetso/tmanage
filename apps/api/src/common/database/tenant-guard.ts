@@ -155,6 +155,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `SELECT ... FROM saved_views` would be every studio's saved Work views on the server. The
   // guard must scope its reads and its writes.
   saved_views: 'organization_id',
+  // HOME-05 (0035). Tenant-owned: a pin names a tenant entity and belongs to one user in one
+  // studio, and an unscoped read would be a map of what every person in every studio keeps at
+  // hand. The layer-3 guard fails OPEN on an unregistered table, so registering it here is what
+  // scopes the pin reads and writes; tenant-isolation.db.test.ts enforces the entry.
+  saved_context: 'organization_id',
 });
 
 /**

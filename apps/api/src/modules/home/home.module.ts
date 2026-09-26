@@ -4,18 +4,21 @@ import { HOME_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { MyDayRepository } from './my-day.repository.js';
 import { WaitingRepository } from './waiting.repository.js';
+import { SavedContextRepository } from './saved-context.repository.js';
 import { HomeService } from './home.service.js';
 import { HomeController } from './home.controller.js';
 
 /**
- * HOME-03's wiring.
+ * The Home module's wiring.
  *
- * A read-only module over existing, indexed tables: it owns a `MyDayRepository` (HOME-03, over
- * `work_items`) and a `WaitingRepository` (HOME-04, over `approvals`) and a `HomeService`, and
- * nothing else — no audit, no outbox, no writes. It does not import `WorkModule` or
- * `ApprovalsModule` (that would build a second copy of a `.register()` dynamic module, controller
- * and all); it reuses only the work module's stateless `WorkItemView` projection at the type level
- * and reads the `approvals` table directly.
+ * Mostly a read module over existing, indexed tables: it owns a `MyDayRepository` (HOME-03, over
+ * `work_items`), a `WaitingRepository` (HOME-04, over `approvals`/`client_requests`), a
+ * `SavedContextRepository` (HOME-05, over the new `saved_context` table plus the referenced tables
+ * it resolves against) and a `HomeService`. HOME-05 is the one write path — pin/unpin its own
+ * `saved_context` rows — and it needs no audit or outbox: a private per-user pin is not a governed
+ * event. It does not import `WorkModule` or `ApprovalsModule` (that would build a second copy of a
+ * `.register()` dynamic module, controller and all); it reuses only the work module's stateless
+ * `WorkItemView` projection at the type level and reads the other modules' tables directly.
  */
 @Module({})
 export class HomeModule {
@@ -24,7 +27,12 @@ export class HomeModule {
       provide: HOME_SERVICE,
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) =>
-        new HomeService(database, new MyDayRepository(), new WaitingRepository()),
+        new HomeService(
+          database,
+          new MyDayRepository(),
+          new WaitingRepository(),
+          new SavedContextRepository(),
+        ),
     };
 
     return {

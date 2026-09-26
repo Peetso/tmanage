@@ -1,10 +1,18 @@
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { ApprovalRow, ClientRequestRow, WorkItemRow } from '../../common/database/schema.js';
+import type {
+  ApprovalRow,
+  ClientRequestRow,
+  SavedContextEntityType,
+  SavedContextRow,
+  WorkItemRow,
+} from '../../common/database/schema.js';
 import { toWorkItemView } from '../work/work-items.service.js';
 import type { WorkItemView } from '../work/work-items.service.js';
 import { MyDayRepository } from './my-day.repository.js';
+import { SavedContextRepository } from './saved-context.repository.js';
 import { WaitingRepository } from './waiting.repository.js';
 
 /**
@@ -311,11 +319,83 @@ export interface HomeSummaryView {
   };
 }
 
+/**
+ * HOME-05 saved/pinned context.
+ *
+ * A pin is a per-user, per-tenant *reference* to an entity the acting user keeps at hand on their
+ * Home — a message, a deliverable version (`doc`), a work item, or a file — grouped by the project
+ * it belongs to. The reference is stored and listed; resolving it to a live title/preview needs a
+ * per-module read fan-out and is the deferred follow-up (NEXT-SCOPES-9), so a row carries only the
+ * reference (`id` + `entityType` + `entityId`), never a copy of the entity.
+ */
+
+/** The command to pin an entity. The acting user is the session's, never a field on this. */
+export interface PinContextCommand {
+  readonly entityType: SavedContextEntityType;
+  readonly entityId: string;
+  /** The project the pin is grouped under; the entity must belong to it (see `pinContext`). */
+  readonly projectId: string;
+}
+
+/**
+ * HOME-05's response: the caller's pins grouped by project, deterministically ordered. Each entry
+ * is inlined rather than a second exported shape, so the API↔web pairing is the one
+ * {@link SavedContextView} projection — as `MyDayView`/`WaitingView` inline their entries. Dates are
+ * ISO strings, the shape `JSON.stringify` emits on the wire.
+ */
+export interface SavedContextView {
+  readonly groups: readonly {
+    readonly projectId: string;
+    readonly items: readonly {
+      readonly id: string;
+      readonly entityType: SavedContextEntityType;
+      readonly entityId: string;
+      readonly createdAt: string;
+    }[];
+  }[];
+}
+
+/**
+ * Group already-ordered pin rows by project into the view's shape.
+ *
+ * Pure over its rows and order-preserving: the rows arrive ordered by `projectId` then oldest-first
+ * then id (the repository's read), so a single pass yields groups in `projectId` order, each with
+ * its items in that same stable order. Rows with a null `projectId` are excluded upstream (this
+ * slice always sets it), so `projectId` is a string here.
+ */
+export function groupSavedContext(rows: readonly SavedContextRow[]): SavedContextView['groups'] {
+  const groups: {
+    projectId: string;
+    items: {
+      id: string;
+      entityType: SavedContextEntityType;
+      entityId: string;
+      createdAt: string;
+    }[];
+  }[] = [];
+  for (const row of rows) {
+    if (row.projectId === null) continue;
+    let group = groups.at(-1);
+    if (!group || group.projectId !== row.projectId) {
+      group = { projectId: row.projectId, items: [] };
+      groups.push(group);
+    }
+    group.items.push({
+      id: row.id,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      createdAt: row.createdAt.toISOString(),
+    });
+  }
+  return groups;
+}
+
 export class HomeService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly myDay: MyDayRepository = new MyDayRepository(),
     private readonly waiting: WaitingRepository = new WaitingRepository(),
+    private readonly savedContext: SavedContextRepository = new SavedContextRepository(),
   ) {}
 
   /**
@@ -426,6 +506,128 @@ export class HomeService {
         staleFollowUps: waiting.items.filter((entry) => entry.reason === 'stale_follow_up').length,
       },
     };
+  }
+
+  /**
+   * HOME-05 — pin an entity to the acting user's saved context.
+   *
+   * The order is the whole of the tenant safety and follows the FAST-PROTOCOL "Known trap": the
+   * project and the entity named by the command are **resolved tenant-scoped BEFORE** the
+   * relation/authorize check, so a missing or cross-tenant `projectId`/`entityId` — including an
+   * org-wide caller naming an id from another studio — is a **404 with no write**, never a 500 and
+   * never a stored dangling reference. The entity must belong to the named project, so pinning it
+   * beneath a foreign project is the same 404.
+   *
+   * The relation gate reuses `work.read` — the capability every Home read uses (the controller's
+   * guard) — against the resolved project, so a pin can only reference an entity the caller can
+   * already reach; a client principal has no `work.read` and is refused at the route. `audience` is
+   * `internal` here: this is an internal Home feature, and the precise per-module audience is part
+   * of the deferred read fan-out. The write is authorized object-layer as the acting user pinning to
+   * their **own** set — `user_id` is `context.userId`, never a field — and is idempotent: a re-pin
+   * of the same entity returns the existing set unchanged.
+   */
+  async pinContext(
+    context: TenantContext,
+    principal: Principal,
+    command: PinContextCommand,
+  ): Promise<SavedContextView> {
+    await this.database.transaction(context, async (tx) => {
+      // 1. Resolve tenant-scoped, BEFORE authorize (Known trap): unknown/cross-tenant → 404.
+      if (!(await this.savedContext.projectExists(tx, context, command.projectId))) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+      if (
+        !(await this.savedContext.entityExistsInProject(
+          tx,
+          context,
+          command.entityType,
+          command.entityId,
+          command.projectId,
+        ))
+      ) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+
+      // 2. The relation gate — reused `work.read`, existence-hiding on denial (404, not 403).
+      if (!this.mayReadProject(principal, command.projectId)) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+
+      // 3. Own-user idempotent write.
+      const existing = await this.savedContext.findPin(
+        tx,
+        context,
+        context.userId,
+        command.entityType,
+        command.entityId,
+      );
+      if (!existing) {
+        await this.savedContext.insert(tx, context, {
+          userId: context.userId,
+          entityType: command.entityType,
+          entityId: command.entityId,
+          projectId: command.projectId,
+        });
+      }
+    });
+
+    return this.listSavedContext(context, principal);
+  }
+
+  /**
+   * HOME-05 — unpin. Own-user: the delete is scoped by `user_id = the acting user`, so an id that
+   * names another user's pin (or no pin) removes nothing and answers 404. A pin is private, so this
+   * hides the existence of one that is not the caller's rather than distinguishing it from absent.
+   */
+  async unpinContext(
+    context: TenantContext,
+    principal: Principal,
+    savedContextId: string,
+  ): Promise<SavedContextView> {
+    const removed = await this.database.transaction(context, (tx) =>
+      this.savedContext.deleteOwn(tx, context, context.userId, savedContextId),
+    );
+    if (!removed) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    return this.listSavedContext(context, principal);
+  }
+
+  /**
+   * HOME-05 — the acting user's pins, grouped by project, deterministically ordered.
+   *
+   * Only the caller's own rows (`user_id`), each re-checked through the same `work.read` gate every
+   * sibling read applies — belt-and-braces above the tenant-scoped SQL, so a pin to a project the
+   * caller has since lost access to never appears even though the row is theirs. The rows arrive
+   * ordered by project then oldest-first then id, so grouping in one pass keeps the order total.
+   */
+  async listSavedContext(context: TenantContext, principal: Principal): Promise<SavedContextView> {
+    const rows = await this.database.read(context, (runner) =>
+      this.savedContext.listForUser(runner, context, context.userId),
+    );
+    const visible = rows.filter(
+      (row) => row.projectId !== null && this.mayReadProject(principal, row.projectId),
+    );
+    return { groups: groupSavedContext(visible) };
+  }
+
+  /**
+   * The reused `work.read` relation gate against a project — the same `authorize()` `mayRead`
+   * applies to a work row, here against the project a pin references. `audience: 'internal'` (see
+   * `pinContext`); an org-wide role passes the relation by scope, a project member by membership,
+   * anyone else is denied.
+   */
+  private mayReadProject(principal: Principal, projectId: string): boolean {
+    return authorize({
+      principal,
+      capability: 'work.read',
+      resource: {
+        organizationId: principal.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
   }
 
   /**
