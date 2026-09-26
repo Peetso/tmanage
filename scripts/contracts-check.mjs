@@ -118,14 +118,6 @@ const EXEMPT = new Map([
     'No web consumer: FR-05 x97 authors publish + read of the client projection API-only; the client deep-link screen that renders it is x97-b (deferred), and pairs then (matching the ApprovalDecisionView posture).',
   ],
   [
-    'ImportCommitView',
-    'No web consumer yet: ON-09 import commit half (x100) is API-only; the ON-09 screen is a follow-up. Pair it with the web declaration when that screen lands.',
-  ],
-  [
-    'ImportCommitRowView',
-    'No web consumer yet: the per-row receipt nested in ImportCommitView (x100), API-only until the ON-09 screen lands.',
-  ],
-  [
     'MeetingNoteView',
     'No web consumer: CAL-01/MTG-01 second slice (x105) ships the API meeting notes/decisions capture+read with no screen this slice; pair when the calendar/meeting screen lands (x105-b follow-up).',
   ],

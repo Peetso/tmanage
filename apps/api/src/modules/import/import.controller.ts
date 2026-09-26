@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -93,5 +93,32 @@ export class ImportController {
     }
 
     return this.imports.commit(context, principal, request);
+  }
+
+  /**
+   * `GET …/imports/:jobId/receipt` — the receipt read half (ON-09 "progress" / ADM-10 "receipt",
+   * x104). Returns a committed job's terminal status, its committed / failed counts, and the
+   * per-row `import_rows` outcomes in source order. Pure read: it commits and re-runs nothing.
+   *
+   * ## Capability
+   *
+   * Reused, not new: `org.manage`, the same coarse gate the validate and commit halves use —
+   * `41 §ADM-10` places data import under Admin. A caller without it is refused by the guard
+   * exactly as the sibling import routes refuse, before this handler runs.
+   *
+   * ## Tenant-scoped resolve before anything else
+   *
+   * The job is named by id in the path. `ImportService.getReceipt` loads it tenant-scoped first,
+   * so a missing or cross-tenant id is a **404**, never a 500 and never a foreign receipt — the
+   * same discipline the commit half's job load follows. The `:orgSlug` segment is the claim the
+   * guard resolves against a membership; it is never read here.
+   */
+  @Get(':jobId/receipt')
+  @RequireCapability('org.manage')
+  async receipt(
+    @Ctx() context: TenantContext,
+    @Param('jobId') jobId: string,
+  ): Promise<ImportCommitView> {
+    return this.imports.getReceipt(context, jobId);
   }
 }
