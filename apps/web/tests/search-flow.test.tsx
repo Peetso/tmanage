@@ -8,14 +8,15 @@ import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
 
 /**
- * **SRCH-01 Global search (x111).**
+ * **SRCH-01 Global search (x111), ranked by SRCH ranking (x148).**
  *
- * The tenant scoping, relation filter, order and bound are proved over fakes in
+ * The tenant scoping, relation filter, ranking and bound are proved over fakes in
  * `apps/api/src/modules/search/search.service.test.ts`; nothing here re-proves them. What only
- * this file can prove is what the *screen* does with the answer: it renders the server's groups in
- * the server's order without re-sorting, links a work-item hit to its detail page, runs the search
- * the person typed, shows the empty state, and carries an accessible structure (a search landmark,
- * labelled groups) with no axe violation jsdom can detect.
+ * this file can prove is what the *screen* does with the answer: it renders the server's hits as one
+ * flat list in the server's ranked order without re-sorting or re-grouping, links a work-item hit to
+ * its detail page, leaves other kinds as text, runs the search the person typed, shows the empty
+ * state, and carries an accessible structure (a search landmark, a labelled results list) with no
+ * axe violation jsdom can detect.
  */
 
 interface Call {
@@ -69,20 +70,28 @@ function screenOver(results: unknown, initialQuery?: string) {
 }
 
 describe('SearchScreen', () => {
-  it('renders the server groups, links a work item, and is accessible', async () => {
+  it('renders one ranked list in the server order, links a work item, and is accessible', async () => {
     const { container } = render(screenOver(RESULTS, 'alpha'));
 
-    const workGroup = await screen.findByRole('list', { name: /work items/i });
-    expect(within(workGroup).getByRole('link', { name: 'Alpha task' })).toHaveAttribute(
+    const list = await screen.findByRole('list', { name: /search results/i });
+
+    // The work item links to its detail page…
+    expect(within(list).getByRole('link', { name: 'Alpha task' })).toHaveAttribute(
       'href',
       '/acme/work/w1',
     );
+    // …while other kinds are named but not linked (no per-item route yet): only the one link.
+    expect(within(list).getAllByRole('link')).toHaveLength(1);
+    expect(within(list).getByText('Alpha brief')).toBeInTheDocument();
+    expect(within(list).getByText('Alpha sync')).toBeInTheDocument();
 
-    // Documents and meetings are named but not linked (no per-item route yet).
-    const docGroup = screen.getByRole('list', { name: /documents/i });
-    expect(within(docGroup).getByText('Alpha brief')).toBeInTheDocument();
-    expect(within(docGroup).queryByRole('link')).toBeNull();
-    expect(screen.getByRole('list', { name: /meetings/i })).toBeInTheDocument();
+    // Order is the server's ranking, not re-grouped by kind: w1, d1, m1 as returned.
+    const items = within(list)
+      .getAllByRole('listitem')
+      .map((li) => li.textContent ?? '');
+    expect(items[0]).toContain('Alpha task');
+    expect(items[1]).toContain('Alpha brief');
+    expect(items[2]).toContain('Alpha sync');
 
     await expectNoAxeViolations(container);
   });
@@ -90,7 +99,7 @@ describe('SearchScreen', () => {
   it('shows the empty state when nothing matches', async () => {
     render(screenOver([], 'zzz'));
     expect(await screen.findByText(/no matches/i)).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /work items/i })).toBeNull();
+    expect(screen.queryByRole('list', { name: /search results/i })).toBeNull();
   });
 
   it('runs the search the person types and submits', async () => {
@@ -104,7 +113,7 @@ describe('SearchScreen', () => {
     await user.click(screen.getByRole('button', { name: /^search$/i }));
 
     await waitFor(() =>
-      expect(screen.getByRole('list', { name: /work items/i })).toBeInTheDocument(),
+      expect(screen.getByRole('list', { name: /search results/i })).toBeInTheDocument(),
     );
     expect(screen.getByRole('link', { name: 'Alpha task' })).toBeInTheDocument();
   });

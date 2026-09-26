@@ -12129,6 +12129,30 @@ internal-only, so a client principal never holds it and is refused at the guard.
 conversation/note bodies (so `snippet` is null this slice, title-only match), per-document and
 per-meeting deep links, a global search-bar nav entry, and AI answer synthesis → NEXT-SCOPES-9/10.
 
+## SRCH ranking — full-text index + ranked results (x148)
+
+The ranking follow-up SRCH-01 deferred. Migration `0054_search_index.sql` adds a tenant-scoped,
+denormalised `search_index` table (`id`, `organization_id`, `project_id`, `target_kind`,
+`target_id`, `title`, `body_text`, `audience`, `updated_at`) with a MySQL InnoDB `FULLTEXT` index on
+`(title, body_text)`, the `(organization_id, id)` unique key every tenant table carries, an upsert
+key `(organization_id, target_kind, target_id)`, a recency index, and a `BEFORE UPDATE` trigger that
+pins `organization_id`/`target_kind`/`target_id` immutable so a reindex can only refresh the
+searchable fields. The migration seeds the index from the current work items (title as body — no body
+column) and documents (their `body`). A new `search-index.repository.ts` runs a ranked
+`MATCH(title, body_text) AGAINST (?)` read ordered by relevance, then `updated_at`, then `target_id`,
+with `organization_id = ?` applied **before** ranking (Known-trap: a cross-tenant row can never
+score into the page); `search.service.ts` now reads it and drops the retired `LIKE` scan
+(`search.repository.ts` removed). The per-hit `authorize()` relation gate (`work.read` against each
+hit's own project/audience) is unchanged, so a search still never surfaces a denied read.
+`search-index.indexer.ts` holds the pure source→index projections the deferred reindex job (NS-13)
+will reuse. `SearchScreen.tsx` now renders one flat list in the server's ranked order (kind shown as
+a per-row label) instead of re-grouping by kind. `search_index` is registered in all four places
+(schema.ts def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` INSERT/UPDATE/DELETE grant,
+migrator auto-discovers 0054). `SearchResultView` shape is unchanged, so it stays **paired Exact**.
+
+**Follow-ups (out of this slice):** an incremental reindex job on every source write, meetings and
+conversation/note bodies as source kinds, and body/snippet excerpts → NEXT-SCOPES-13.
+
 ## DOC-04 / ADM-06 — document templates (x119)
 
 The templates piece the docs hub already advertises. Migration `0039_document_templates.sql` adds an
