@@ -41,7 +41,10 @@ const FENCE = '---';
  * introduced for a quote is not itself re-escaped.
  */
 function escapeYamlDoubleQuoted(title: string): string {
-  return title.replace(/\r?\n|\r/g, ' ').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return title
+    .replace(/\r?\n|\r/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
 }
 
 /**

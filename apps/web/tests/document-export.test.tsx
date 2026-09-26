@@ -104,10 +104,7 @@ describe('DocumentViewScreen export control', () => {
           organizationName="Acme"
           documentId="document-missing"
           client={clientOver(() =>
-            json(
-              { error: { code: 'not_found', message: 'Not found.', correlationId: 'c' } },
-              404,
-            ),
+            json({ error: { code: 'not_found', message: 'Not found.', correlationId: 'c' } }, 404),
           )}
         />,
       ),

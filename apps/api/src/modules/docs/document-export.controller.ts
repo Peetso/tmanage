@@ -68,7 +68,9 @@ export class DocumentExportController {
     reply.header('content-disposition', `attachment; filename="${downloadFilename(documentId)}"`);
     reply.header('x-content-type-options', 'nosniff');
     reply.header('cache-control', 'private, no-store');
-    return new StreamableFile(Buffer.from(markdown, 'utf-8'), { type: 'text/markdown; charset=utf-8' });
+    return new StreamableFile(Buffer.from(markdown, 'utf-8'), {
+      type: 'text/markdown; charset=utf-8',
+    });
   }
 }
 

@@ -1,10 +1,10 @@
-import { Readable } from 'node:stream';
+import { type Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { Reflector } from '@nestjs/core';
 import { isInternalOnlyCapability } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
-import { ApiError } from '../../common/http/errors.js';
+import { type ApiError } from '../../common/http/errors.js';
 import { DocumentsService } from './documents.service.js';
 import type { DocumentsRepository } from './documents.repository.js';
 import { DocumentExportController } from './document-export.controller.js';
@@ -82,7 +82,10 @@ function controllerWith(seed: readonly DocumentRow[]): DocumentExportController 
 }
 
 /** A reply that records the headers the handler sets. */
-function headerRecorder(): { headers: Record<string, string>; reply: { header(n: string, v: string): void } } {
+function headerRecorder(): {
+  headers: Record<string, string>;
+  reply: { header(n: string, v: string): void };
+} {
   const headers: Record<string, string> = {};
   return {
     headers,
