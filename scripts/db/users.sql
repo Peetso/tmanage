@@ -103,7 +103,7 @@
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
---   · `INSERT, DELETE` on: work_item_dependencies, saved_context
+--   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     decision_supersessions, document_templates
@@ -304,6 +304,12 @@ GRANT INSERT                 ON `tmanage`.`document_versions` TO 'tmanage_app'@'
 -- trigger pins organization_id/created_by_user_id immutable for every credential; an editor is a
 -- later slice that adds UPDATE with the code that writes it. No DELETE.
 GRANT INSERT                 ON `tmanage`.`document_templates` TO 'tmanage_app'@'%';
+-- DOC-04 (x130) document template variables. **INSERT and DELETE** — a variable is added (INSERT)
+-- and removed (DELETE), read (the database-wide SELECT), and **never edited**: this slice ships no
+-- editor, so no UPDATE, and the 0044 trigger pins organization_id/template_id immutable for every
+-- credential besides. UPDATE is added with the code that writes it, per this file's rule that a
+-- grant names a statement that exists.
+GRANT INSERT, DELETE         ON `tmanage`.`document_template_variables` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

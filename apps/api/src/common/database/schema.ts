@@ -522,6 +522,41 @@ export const documentTemplates = mysqlTable(
   ],
 );
 
+/** DOC-04 (x130). The value kinds a template variable can declare. */
+export const DOCUMENT_TEMPLATE_VARIABLE_TYPES = ['text', 'date', 'number'] as const;
+
+/**
+ * DOC-04 (x130). A document template's declared variables — the named placeholders a template
+ * exposes so a later slice can substitute them when the template is applied.
+ *
+ * A variable belongs to one `document_templates` row, which belongs to the organization (not a
+ * project). The tenant key is `(organization_id, template_id)`, bound by a composite foreign key to
+ * `document_templates (organization_id, id)`. `(organization_id, template_id, key)` is unique — a
+ * template cannot declare the same key twice — and is the order a template's variables are listed
+ * by. `0044_document_template_variables.sql` is the source of truth; this is its typed mirror.
+ */
+export const documentTemplateVariables = mysqlTable(
+  'document_template_variables',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    templateId: char('template_id', { length: 36 }).notNull(),
+    key: varchar('key', { length: 120 }).notNull(),
+    label: varchar('label', { length: 300 }).notNull(),
+    type: mysqlEnum('type', DOCUMENT_TEMPLATE_VARIABLE_TYPES).notNull().default('text'),
+    required: boolean('required').notNull().default(false),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_document_template_variables_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_document_template_variables_org_template_key').on(
+      table.organizationId,
+      table.templateId,
+      table.key,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1830,6 +1865,7 @@ export const TABLES = {
   decisions,
   decision_supersessions: decisionSupersessions,
   document_templates: documentTemplates,
+  document_template_variables: documentTemplateVariables,
   import_rows: importRows,
   meeting_notes: meetingNotes,
   saved_views: savedViews,
@@ -1872,6 +1908,8 @@ export type DecisionRow = typeof decisions.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
+export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
+export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
