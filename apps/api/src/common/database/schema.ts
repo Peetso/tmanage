@@ -1490,6 +1490,33 @@ export const workForms = mysqlTable(
   ],
 );
 
+/**
+ * Organization settings / policy (Administration module 18, x153, migration 0058). One row per
+ * allowlisted key per organization: a flat, validated key/value settings surface. The allowlist —
+ * which keys exist, their defaults and their per-key validators — lives in `org-settings.allowlist.ts`,
+ * not here: this is only the shape at rest. `setting_value` is stored as a string; the typed meaning
+ * of each key is the allowlist's. `uq_org_settings_org_key` makes a re-set an upsert target, not a
+ * second row. Identity (`organization_id`, `id`, `setting_key`) is immutable at the engine; only
+ * `setting_value`/`updated_by`/`updated_at` move on an upsert. The runtime credential holds INSERT and
+ * UPDATE (the upsert) and no DELETE — a setting is set and changed, never removed by a runtime path.
+ */
+export const orgSettings = mysqlTable(
+  'org_settings',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    settingKey: varchar('setting_key', { length: 64 }).notNull(),
+    settingValue: varchar('setting_value', { length: 255 }).notNull(),
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_settings_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_org_settings_org_key').on(table.organizationId, table.settingKey),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2321,6 +2348,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  org_settings: orgSettings,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2379,6 +2407,7 @@ export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
+export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;

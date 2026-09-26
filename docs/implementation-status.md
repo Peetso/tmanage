@@ -13925,3 +13925,44 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## SEC / Organization settings / policy — module 18 Administration (x153, 2026-09-27)
+
+**What shipped.** The Administration settings surface the audit named absent: organization settings /
+policy, read + update, behind `org.manage`. `GET /v1/organizations/:orgSlug/settings` returns every
+allowlisted key with its stored value or its default; `PUT /v1/organizations/:orgSlug/settings/:key`
+sets one key. The role/capability editor (ADM-03) stays OUT — blocked pending the permission-matrix
+work — and security-policy escalations are deferred (NEXT-SCOPES-13). No `capabilities.ts` edit: the
+existing `org.manage` capability is reused.
+
+**The allowlist is the substance.** `org-settings.allowlist.ts` is the single source of which keys
+exist (`default_timezone`, `require_reauth_minutes`, `client_visible_project_default`), their defaults
+and their per-key validators. A key outside the allowlist is a 400 with no write, and a value the
+key's validator rejects is a 400 with no write — no arbitrary key can ever be stored. Each validator
+returns the canonical string form (a trimmed IANA timezone, a base-10 integer of minutes clamped to a
+day, `true`/`false`), so what is read back is what a later reader parses.
+
+**Known-trap order (writes).** The write path resolves the organization tenant-scoped **first**, so a
+context whose organization is not in this tenant is a 404 with no write, before the `org.manage`
+authorize (403), before the allowlist 400s. `@RequireCapability('org.manage')` is the coarse HTTP gate
+`CapabilityGuard` reads; the handler also runs the real org-wide `authorize` (`projectId: null`,
+internal audience), so the 403 is a rule a controller test proves directly. The upsert is on
+`(organization_id, setting_key)`: a first write inserts, a re-set overwrites in place. `OrgSettingsView`
+never echoes `organization_id`.
+
+**Registration.** The new `org_settings` table is registered in all four places — `schema.ts` def +
+`TABLES` + row type, tenant-guard `TENANT_TABLES` (`organization_id`), `users.sql` grant (INSERT and
+UPDATE — the upsert; no DELETE), and the on-disk migration `0058_org_settings.sql` the readdir
+migrator applies (with a `BEFORE UPDATE` trigger pinning `organization_id`/`setting_key` immutable).
+
+**Surfaces.** `OrgSettingsView` (`org-settings.controller.ts`) is a live `Exact` pair with the web's
+`OrgSettingsView` (`apps/web/src/lib/api/org-settings.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`OrgSettingsScreen` (`apps/web/src/components/screens/OrgSettingsScreen.tsx`), routed at
+`/[orgSlug]/settings`, renders one labelled field per setting and saves one at a time. Proved
+database-free with the real `authorize` (`org-settings.controller.test.ts`): read defaults →
+set → read back, a JSON number/boolean canonicalised, an off-allowlist key is a 400 with no write, a
+value the validator rejects is a 400 with no write, a cross-tenant organization is a 404 before
+authorize and before any write, and a caller without `org.manage` is a 403 on both routes.
+**Revert proof** (unit red→green on the `org.manage`/allowlist guard). No DB test / no new e2e per
+pass-20 rules (the chain owns both). Deferred to NEXT-SCOPES-13: the role/capability editor (ADM-03,
+blocked) and security-policy escalations.

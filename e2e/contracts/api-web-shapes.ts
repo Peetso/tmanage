@@ -117,6 +117,7 @@ import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
+import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -130,6 +131,7 @@ import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/h
 import type { HomePulse as WebHomePulse } from '../../apps/web/src/lib/api/home';
 import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api/home';
 import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
+import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -570,6 +572,15 @@ type _savedContext = Assert<Exact<ApiSavedContextView, WebSavedContext>>;
  * match exactly. The `MyDayScreen` Pinned section reads exactly this response.
  */
 type _homePins = Assert<Exact<ApiHomePinView, WebHomePinView>>;
+
+/**
+ * Organization settings / policy (x153). `OrgSettingsView` (`GET/PUT …/settings`, response) — the
+ * organization's allowlisted key/value settings. Paired with a live web consumer: `OrgSettingsScreen`
+ * reads exactly this response to render one labelled field per setting. One projection; its per-entry
+ * `{ key, value }` is inlined on both sides (an inline object on the API's `OrgSettingsView`, the same
+ * on the web), so this pair covers it structurally. The wire projection never echoes the tenant id.
+ */
+type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
 
 /**
  * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The

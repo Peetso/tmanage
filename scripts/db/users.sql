@@ -103,7 +103,7 @@
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
---     saved_views, meeting_attendees
+--     saved_views, meeting_attendees, org_settings
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
@@ -373,6 +373,13 @@ GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'
 -- adds UPDATE with the code that writes it. No DELETE. Submitting a form writes no work_forms row —
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- Organization settings / policy (0058, x153). **INSERT and UPDATE** — a setting is set (INSERT) and
+-- changed in place (UPDATE), the two halves of the upsert (`INSERT ... ON DUPLICATE KEY UPDATE`), and
+-- read (the database-wide SELECT above). **No DELETE** — a setting is set and changed, never removed
+-- by a runtime credential; clearing one back to its default is a later slice that adds the privilege
+-- with the code that writes it. The 0058 trigger pins organization_id/setting_key immutable for every
+-- credential besides, so UPDATE can move only the value (and who set it, and when).
+GRANT INSERT, UPDATE         ON `tmanage`.`org_settings`      TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
