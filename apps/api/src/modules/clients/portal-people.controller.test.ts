@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { PortalPeopleController } from './portal-people.controller.js';
-import type { PortalPersonView } from './portal-people.projection.js';
-import type { PortalPeopleProjection } from './portal-people.projection.js';
+import type { PortalPersonView } from './portal-people.repository.js';
+import type { PortalPeopleRepository } from './portal-people.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ProjectRow } from '../../common/database/schema.js';
@@ -56,11 +56,13 @@ function fakeProjects(existing: readonly string[]): ProjectsRepository {
 }
 
 /** A people projection: returns the members it was seeded with for the named project only. */
-function fakePeople(byProject: Record<string, readonly PortalPersonView[]>): PortalPeopleProjection {
+function fakePeople(
+  byProject: Record<string, readonly PortalPersonView[]>,
+): PortalPeopleRepository {
   return {
     listForProject: (_r: never, _c: TenantContext, projectId: string) =>
       Promise.resolve(byProject[projectId] ?? []),
-  } as unknown as PortalPeopleProjection;
+  } as unknown as PortalPeopleRepository;
 }
 
 function controllerWith(

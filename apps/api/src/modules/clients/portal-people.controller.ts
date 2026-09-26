@@ -6,8 +6,8 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
-import { PortalPeopleProjection } from './portal-people.projection.js';
-import type { PortalPersonView } from './portal-people.projection.js';
+import { PortalPeopleRepository } from './portal-people.repository.js';
+import type { PortalPersonView } from './portal-people.repository.js';
 
 /**
  * The client portal's **people** read surface — module 13 portal, x142 (SEC).
@@ -16,7 +16,7 @@ import type { PortalPersonView } from './portal-people.projection.js';
  * preference (the reason `PortalController`'s own doc gives): an internal endpoint that served a
  * client projection when asked nicely is one refactor away from serving the internal record. This
  * route reaches a projection that never selects an internal column — see
- * {@link PortalPeopleProjection}.
+ * {@link PortalPeopleRepository}.
  *
  * A controller of its own, wired by {@link PortalPeopleModule}, rather than a method added to
  * `PortalService`/`PortalController`: it shares no state with the update/work reads and keeping it
@@ -33,7 +33,7 @@ export class PortalPeopleController {
     // Constructed defaults, so a unit test can drive the handler with fakes and the real
     // `authorize()`. `PortalPeopleModule` provides both by class token for the injected instance.
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
-    private readonly people: PortalPeopleProjection = new PortalPeopleProjection(),
+    private readonly people: PortalPeopleRepository = new PortalPeopleRepository(),
   ) {}
 
   /**

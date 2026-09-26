@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { PortalPeopleController } from './portal-people.controller.js';
-import { PortalPeopleProjection } from './portal-people.projection.js';
+import { PortalPeopleRepository } from './portal-people.repository.js';
 
 /**
  * The portal-people read's wiring — module 13, x142.
@@ -10,7 +10,7 @@ import { PortalPeopleProjection } from './portal-people.projection.js';
  * A module of its own rather than another entry in `ClientsModule`, so this slice's files stay
  * disjoint from the sibling portal slices that also extend `ClientsModule`. It owns nothing but
  * the read: `ProjectsRepository` (read-only, to resolve a project tenant-scoped before the read,
- * answering 404 rather than 500 for a cross-tenant id) and {@link PortalPeopleProjection}. Both
+ * answering 404 rather than 500 for a cross-tenant id) and {@link PortalPeopleRepository}. Both
  * are stateless collections of queries, constructed here rather than imported from `ProjectsModule`
  * for the reason `ClientsModule` gives: importing that dynamic module would build a second copy of
  * it, controllers and all.
@@ -27,8 +27,8 @@ export class PortalPeopleModule {
     };
 
     const people: Provider = {
-      provide: PortalPeopleProjection,
-      useFactory: () => new PortalPeopleProjection(),
+      provide: PortalPeopleRepository,
+      useFactory: () => new PortalPeopleRepository(),
     };
 
     return {

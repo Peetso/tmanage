@@ -197,7 +197,7 @@ stub with no endpoint. `GET v1/organizations/:orgSlug/portal/projects/:projectId
 (`@RequireCapability('client_projection.read')`) returns the client-visible team of one project as a
 name-and-role projection.
 
-- **The projection is the query.** `portal-people.projection.ts` selects only `users.display_name`
+- **The projection is the query.** `portal-people.repository.ts` selects only `users.display_name`
   and `project_memberships.role` — `email`, `user_id`, `membership id` and every other column are
   never fetched (`25-AUTH-AND-TENANT-ISOLATION` §7; `12-PERMISSION-MATRIX` §4 excludes staff, permits
   "approved contacts"). The `users` join is legitimate for the reason

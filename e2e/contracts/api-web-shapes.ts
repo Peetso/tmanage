@@ -66,7 +66,7 @@ import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../ap
 import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalUpdateView as ApiPortalUpdateView } from '../../apps/api/src/modules/clients/portal.service.js';
-import type { PortalPersonView as ApiPortalPersonView } from '../../apps/api/src/modules/clients/portal-people.projection.js';
+import type { PortalPersonView as ApiPortalPersonView } from '../../apps/api/src/modules/clients/portal-people.repository.js';
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
