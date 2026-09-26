@@ -442,11 +442,7 @@ export const documentComments = mysqlTable(
   },
   (table) => [
     uniqueIndex('uq_document_comments_org_id').on(table.organizationId, table.id),
-    index('ix_document_comments_org_document').on(
-      table.organizationId,
-      table.documentId,
-      table.id,
-    ),
+    index('ix_document_comments_org_document').on(table.organizationId, table.documentId, table.id),
   ],
 );
 

@@ -61,9 +61,7 @@ export function DocumentCommentsPanel({
   });
 
   const notAvailable =
-    comments.isError &&
-    comments.error instanceof ApiRequestError &&
-    comments.error.status === 404;
+    comments.isError && comments.error instanceof ApiRequestError && comments.error.status === 404;
 
   const rows = comments.data ?? [];
   const canAdd = draft.trim() !== '';

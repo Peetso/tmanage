@@ -129,7 +129,7 @@ export function DocumentViewScreen({
           <DocumentCommentsPanel
             organizationSlug={organizationSlug}
             documentId={documentId}
-            client={client}
+            client={api}
           />
         </>
       ) : null}

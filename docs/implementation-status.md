@@ -13213,5 +13213,6 @@ renders beside `DocumentViewScreen`: comments oldest-first (author shown by memb
 the editor applies to the same name gap), an empty state, and an add form. It reads the endpoints via
 a new `apps/web/src/lib/api/document-comments.ts`; `DocumentCommentView` is a live `Exact` pair in
 `e2e/contracts/api-web-shapes.ts`. Proved in `apps/web/tests/document-comments-panel.test.tsx` (jsdom
-+ axe): comments render oldest-first, the empty state shows with no invented rows, an add clears the
-draft, and the region is axe-clean.
+
+- axe): comments render oldest-first, the empty state shows with no invented rows, an add clears the
+  draft, and the region is axe-clean.

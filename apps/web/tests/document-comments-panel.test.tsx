@@ -93,7 +93,9 @@ describe('DocumentCommentsPanel', () => {
     render(panelOver([]));
 
     expect(await screen.findByText(/no comments yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /comments on this document/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: /comments on this document/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('adds a comment through the form', async () => {
