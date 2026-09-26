@@ -253,6 +253,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
   // table has, so the guard must scope its reads and its writes.
   work_forms: 'organization_id',
+  // SRCH ranking (x148, migration 0054). Tenant-owned: the search index mirrors a studio's work
+  // items and documents, and an unscoped `MATCH … AGAINST search_index` would rank another studio's
+  // titles and bodies into this caller's results. `organization_id` is NOT NULL and it carries the
+  // `(organization_id, id)` key every tenant table has, so the guard scopes the ranked read (and
+  // the reindex writes) — the Known-trap anchor that keeps a cross-tenant row from ever ranking.
+  search_index: 'organization_id',
 });
 
 /**

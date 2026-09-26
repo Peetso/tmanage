@@ -2252,6 +2252,38 @@ export const importRows = mysqlTable(
 );
 
 /**
+ * SRCH ranking (x148, migration 0054). The tenant-scoped, denormalised search index a ranked
+ * `MATCH … AGAINST` reads instead of scanning the source tables. `project_id` and `audience` are
+ * mirrored from the source row so `authorize()` still relation-gates each hit over one read; the
+ * FULLTEXT index on `(title, body_text)` is expressed in the migration (Drizzle cannot describe a
+ * FULLTEXT index), so it is absent here and `schema.db.test.ts` treats it the way it treats the
+ * triggers the migrations also own.
+ */
+export const searchIndex = mysqlTable(
+  'search_index',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    targetKind: varchar('target_kind', { length: 32 }).notNull(),
+    targetId: char('target_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    bodyText: text('body_text').notNull(),
+    audience: mysqlEnum('audience', WORK_ITEM_AUDIENCE).notNull().default('internal'),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_search_index_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_search_index_target').on(
+      table.organizationId,
+      table.targetKind,
+      table.targetId,
+    ),
+    index('ix_search_index_org_updated').on(table.organizationId, table.updatedAt, table.id),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -2321,6 +2353,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  search_index: searchIndex,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2393,3 +2426,5 @@ export type AuthenticationEventRow = typeof authenticationEvents.$inferSelect;
 export type CredentialChangeNoticeRow = typeof credentialChangeNotices.$inferSelect;
 export type ImportJobRow = typeof importJobs.$inferSelect;
 export type ImportRowRow = typeof importRows.$inferSelect;
+export type SearchIndexRow = typeof searchIndex.$inferSelect;
+export type NewSearchIndexRow = typeof searchIndex.$inferInsert;
