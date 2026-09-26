@@ -1544,6 +1544,7 @@ export const TABLES = {
   client_requests: clientRequests,
   deliverable_versions: deliverableVersions,
   approvals,
+  client_projections: clientProjections,
   conversations,
   conversation_memberships: conversationMemberships,
   messages,
