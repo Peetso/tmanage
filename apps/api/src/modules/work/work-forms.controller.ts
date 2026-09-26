@@ -10,9 +10,13 @@ import {
 } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkFormFieldDef, WorkFormRow } from '../../common/database/schema.js';
-import { WorkFormsRepository } from './work-forms.repository.js';
+import type { WorkFormsRepository } from './work-forms.repository.js';
 import type { WorkItemsService, WorkItemView } from './work-items.service.js';
-import { validateFieldDefs, validateFormName, validateSubmissionValues } from './work-forms.validate.js';
+import {
+  validateFieldDefs,
+  validateFormName,
+  validateSubmissionValues,
+} from './work-forms.validate.js';
 
 /**
  * WORK intake forms (module 7, x146). Three endpoints: define a reusable intake form, list the

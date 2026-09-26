@@ -138,9 +138,7 @@ export function validateSubmissionValues(
     const present = Object.hasOwn(values, field.label);
     const value = values[field.label];
     const empty =
-      value === undefined ||
-      value === null ||
-      (typeof value === 'string' && value.trim() === '');
+      value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 
     if (field.required && (!present || empty)) {
       details.push({ field: `values.${field.label}`, message: 'is required' });

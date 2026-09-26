@@ -84,6 +84,7 @@ import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/s
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
+import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -112,6 +113,7 @@ import type {
 import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
+import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type {
@@ -325,6 +327,15 @@ type _insightsPortfolio = Assert<Exact<ApiInsightsPortfolioView, WebInsightsPort
 
 /** `WorkItemView.state` ↔ `WORK_ITEM_STATES` (`@tmanage/domain`). */
 type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
+
+/**
+ * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped
+ * form definition. Paired with a live web consumer: `WorkFormsScreen` reads exactly this response to
+ * list forms and drive the fill-to-create form. The `fields` element (`{ label, type, required }`)
+ * and the `type` union (`text | number | date | checkbox`) are identical on both sides. The
+ * submission response is the created work item, covered by the `WorkItemView`↔`WorkItemSummary` pair.
+ */
+type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit
