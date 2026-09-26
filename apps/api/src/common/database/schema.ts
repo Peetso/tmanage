@@ -1966,6 +1966,44 @@ export const notificationPreferences = mysqlTable(
   ],
 );
 
+/**
+ * The person-facing notification families a member can opt out of (x152). Closed and small: a value
+ * outside this set is a validation error in the route and a write error at the engine, never stored.
+ * A new family is a deliberate schema + ENUM change, not a stray string.
+ */
+export const NOTIFICATION_KINDS = ['client_request', 'work_item', 'message', 'file'] as const;
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+/**
+ * Per-kind notification opt-out (migration 0057, x152) — the finer sibling of
+ * `notification_preferences` (0022). One row per (membership, kind) recording whether that one kind
+ * of notification is wanted; keyed by membership like `home_pinned_items`, private to the acting
+ * seat. Absence of a row means the kind is enabled (an account opted out of nothing is reachable
+ * about everything), so the read fills defaults for unset kinds. This slice stores the intent;
+ * honouring a disabled kind at delivery time is the deferred half (NS-13). The unique pref key makes
+ * the write an upsert — a second save of the same pair updates `enabled` in place, never a new row.
+ */
+export const notificationKindPrefs = mysqlTable(
+  'notification_kind_prefs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    kind: mysqlEnum('kind', NOTIFICATION_KINDS).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_notification_kind_prefs_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per membership per kind, and the order the one read is served by.
+    uniqueIndex('uq_notification_kind_prefs_pref').on(
+      table.organizationId,
+      table.membershipId,
+      table.kind,
+    ),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -2321,6 +2359,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  notification_kind_prefs: notificationKindPrefs,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2377,6 +2416,7 @@ export type ObjectiveWorkLinkRow = typeof objectiveWorkLinks.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
+export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;

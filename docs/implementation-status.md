@@ -13925,3 +13925,35 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Per-kind notification opt-out (x152, module 17)
+
+**What landed.** `notification_preferences` (0022) held only the coarse per-person row — the two
+channels, the digest window, quiet hours. This slice adds its finer sibling, the "per-kind notif
+opt-out" NS-11 carried as a gap: a new membership-scoped `notification_kind_prefs` table (migration
+`0057`) keyed by `(organization_id, membership_id, kind)`, where `kind` is a closed `ENUM` of the
+person-facing families (`client_request | work_item | message | file`) and `enabled` defaults TRUE.
+Two endpoints under `/v1/organizations/:orgSlug/notification-preferences/kinds` (both `work.read`,
+reused — no `capabilities.ts` edit): `GET` lists every kind with the acting member's choice, unset
+kinds defaulted to enabled; `PUT :kind` upserts one kind for the acting membership and returns the
+whole set. It stores the intent; honouring a disabled kind at delivery time is deferred (NS-13).
+
+**Own-principal and the Known trap.** The seat is `context.membershipId`, never a path or body value,
+so a caller only ever reads or changes their own opt-outs and one member never sees another's. A
+`:kind` outside the closed enum is a 400 with no write, and a non-boolean `enabled` is a 400. The
+write is `INSERT … ON DUPLICATE KEY UPDATE` against `uq_notification_kind_prefs_pref`, so a second
+save of the same `(membership, kind)` updates `enabled` in place rather than adding a row. The new
+table is registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`,
+`users.sql` grant (`INSERT, UPDATE`; no DELETE), and the on-disk migration the readdir migrator
+applies.
+
+**Surfaces.** `NotificationKindPrefView` (`notification-kind-prefs.controller.ts`) is a live `Exact`
+pair with the web's `NotificationKindPrefView` (`apps/web/src/lib/api/notification-kind-prefs.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `NotificationKindPrefs`
+(`apps/web/src/components/screens/NotificationKindPrefs.tsx`), routed at
+`/[orgSlug]/inbox/notification-preferences`, shows one labelled switch per kind and flips it in place.
+Proved database-free with the fakes (`notification-kind-prefs.controller.test.ts`): set→list own-
+scoped with defaults, an out-of-enum kind is a 400 with no write, a non-boolean `enabled` is a 400,
+the write is always the acting membership's and never lists another member's rows, and both routes
+require `work.read`. Deferred to NEXT-SCOPES-13: honouring a disabled kind in the delivery seam, and
+the channel split (email vs in-app) per kind.

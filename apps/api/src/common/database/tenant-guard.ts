@@ -253,6 +253,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
   // table has, so the guard must scope its reads and its writes.
   work_forms: 'organization_id',
+  // Per-kind notification opt-out (x152, migration 0057). Tenant-owned: a row belongs to one
+  // membership in one studio, and an unscoped read would be every member's opt-outs across every
+  // studio. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes the
+  // per-kind reads and the upsert; tenant-isolation.db.test.ts enforces the entry.
+  notification_kind_prefs: 'organization_id',
 });
 
 /**
