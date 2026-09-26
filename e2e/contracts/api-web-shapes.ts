@@ -41,6 +41,7 @@ import type { ConvertMessageResultView as ApiConvertMessageResultView } from '..
 import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
+import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -102,6 +103,7 @@ import type {
 } from '../../apps/web/src/lib/api/client-requests';
 import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
+import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -223,6 +225,12 @@ type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
  * reads exactly this response for its history/compare/restore, so the pair is Exact.
  */
 type _documentVersion = Assert<Exact<ApiDocumentVersionView, WebDocumentVersionSummary>>;
+ * DEC-01 (x113). `DecisionView` (`GET`/`POST …/decisions`, request body + response). Paired with a
+ * live web consumer — DEC-01 ships `DecisionRegisterScreen`, which reads exactly this response — so
+ * this is a real `Exact` pair, not an EXEMPT entry. The `status` union (`proposed | accepted |
+ * superseded`) is the same on both sides; a value one side does not contain cannot be typed here.
+ */
+type _decision = Assert<Exact<ApiDecisionView, WebDecisionSummary>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;

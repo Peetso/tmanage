@@ -165,6 +165,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // hand. The layer-3 guard fails OPEN on an unregistered table, so registering it here is what
   // scopes the pin reads and writes; tenant-isolation.db.test.ts enforces the entry.
   saved_context: 'organization_id',
+  // DEC-01 (x113, migration 0037). Tenant-owned: a decision names a project (and optionally a
+  // meeting), and an unscoped `SELECT ... FROM decisions` would be every studio's decision
+  // register on the server. `organization_id` is NOT NULL and it carries the `(organization_id,
+  // id)` key every tenant table has, so the guard must scope its reads and its writes.
+  decisions: 'organization_id',
 });
 
 /**

@@ -11998,6 +11998,43 @@ other in-flight branches, so this is `0036` and the integrator renumbers if the 
 
 ---
 
+## DEC-01 — the cross-meeting decision register (x113)
+
+`schema.ts` (the `meetings` comment, 0029) recorded that a meeting "closes with linked decisions and
+actions" as "the next slice"; x91's docs slice built no decision register. This slice adds the
+first-class, cross-meeting **register**: migration `0037_decisions.sql` creates `decisions` (org +
+project columns, an optional `meeting_id`, a `title`, a `statement`, a `status`
+(`proposed|accepted|superseded`), `decided_by` and `decided_at`), and a new
+`apps/api/src/modules/decisions/` module (`decisions.module.ts`, `decisions.controller.ts`,
+`decisions.service.ts`, `decisions.repository.ts`) exposes
+`POST /v1/organizations/:orgSlug/decisions` behind `@RequireCapability('meeting.write')` and
+`GET …/decisions?projectId=` (list, `decided_at DESC`) behind `@RequireCapability('meeting.read')`,
+following the `calendar`/`docs` pattern.
+
+Migration number: the base's highest is `0032`; `0033–0036` are reserved on sibling branches, so
+this is `0037` (the integrator renumbers if needed). The table is registered in `TENANT_TABLES`,
+`schema.ts`, the `users.sql` grant (INSERT only — append-only) and a named `migrator.db.test.ts`
+`0037` case; `tenant-isolation.db.test.ts` enforces the registry. It is **append-only** this slice
+(the `0037` trigger refuses every UPDATE at the engine, like `meeting_notes`/`client_projections`) —
+there is no edit surface yet. The optional `meeting_id` is a nullable composite foreign key, so a
+decision can never cite another tenant's meeting, and the service resolves both `projectId` and any
+`meetingId` tenant-scoped **before** the authorize/write (Known-trap): an unknown or cross-tenant id
+is a 404 with no write, never a 500.
+
+No new capability: the register reuses the calendar's `meeting.read` / `meeting.write` this slice (a
+dedicated `decision.*` capability is a Needs-Peter). The object-level relation check reuses the
+sibling relation-gated `work.read` / `work.create`, as `MeetingsService` does, keeping the security
+core untouched. `DecisionRegisterScreen` (`apps/web`) authors and lists the register, so `DecisionView`
+is a live `Exact` pair in `e2e/contracts/api-web-shapes.ts`, not an EXEMPT entry.
+
+**Follow-ups (out of this slice, → NEXT-SCOPES-9):** the decision approval/lock lifecycle and status
+transitions, supersede-chain edges, and linked actions (each relaxes the append-only trigger and adds
+its own columns/tables); a dedicated `decision.*` capability; and the audit event (needs a
+`decision.*` `AuditAction` entry, a domain change). The web form does not offer the meeting link yet
+(no meeting picker this slice).
+
+---
+
 ## Component status
 
 | Component                                         | Status        | Notes                                                                                                                                                                                                                                                                                                                                                                                                           |
