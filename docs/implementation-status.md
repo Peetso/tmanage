@@ -13895,3 +13895,31 @@ additively in `WorkItemDetailScreen` (TM-13's "checklist" section, previously na
 toggles each item; every write invalidates the query. Client shape + fetchers in
 `apps/web/src/lib/api/work-items.ts`. Deferred to NS-13: reorder persistence beyond `position` and
 a per-item assignee.
+## WORK forms — reusable intake definitions and create-from-form (x146, module 7)
+
+**What landed.** The Work module could create work items directly but had no reusable _intake
+form_. This slice adds an org-scoped `work_forms` table (migration `0052`) — a name and a JSON list
+of field definitions (`{ label, type, required }`, type one of `text | number | date | checkbox`) —
+and three endpoints under `/v1/organizations/:orgSlug/work-forms`: `POST` to define a form
+(`work.create`), `GET` to list the tenant's forms name-ascending and bounded (`work.read`), and
+`POST :formId/submissions` to submit a form (`work.create`). A submission validates its payload
+against the form's fields and then creates an ordinary work item through the existing
+`WorkItemsService.create` — no new work path, and the form itself is never mutated. Capabilities are
+reused (`work.read`/`work.create`); no `capabilities.ts` edit.
+
+**Known-trap order (submissions).** `formId` is resolved tenant-scoped _first_, so an unknown or
+cross-tenant id is a 404 with no write, before any validation or work-item create. The payload is
+validated next (invalid → 400, no work item), and only then is the work item created, where the work
+service resolves the project tenant-scoped and relation-gates `work.create` (a non-member is 404,
+never 403). `WorkFormView` never echoes `organization_id`. The new table is registered in all four
+places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT only;
+submitting writes no `work_forms` row), and the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `WorkFormView` (`work-forms.controller.ts`) is a live `Exact` pair with the web's
+`WorkFormSummary` (`apps/web/src/lib/api/work-forms.ts`) in `e2e/contracts/api-web-shapes.ts`; a
+submission's response reuses the `WorkItemView`↔`WorkItemSummary` pair. `WorkFormsScreen`
+(`apps/web/src/components/screens/WorkFormsScreen.tsx`), routed at `/[orgSlug]/work/forms`, defines a
+form and fills one to create a work item. Proved database-free with the real `authorize`
+(`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
+400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
+`work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.

@@ -1451,6 +1451,45 @@ export const homePinnedItems = mysqlTable(
   ],
 );
 
+/**
+ * The field types a work intake form (0052, x146) can declare. Kept small and closed: a value
+ * outside this set is a validation error (`work-forms.validate.ts`), never stored.
+ */
+export const WORK_FORM_FIELD_TYPES = ['text', 'number', 'date', 'checkbox'] as const;
+export type WorkFormFieldType = (typeof WORK_FORM_FIELD_TYPES)[number];
+
+/**
+ * One field definition inside a work form's `fields_json` — a label, a type, and whether a
+ * submission must supply it. The typed shape of the JSON column below; the application validates a
+ * request against it before storing.
+ */
+export interface WorkFormFieldDef {
+  readonly label: string;
+  readonly type: WorkFormFieldType;
+  readonly required: boolean;
+}
+
+/**
+ * WORK intake forms (0052, x146). Org-scoped like `document_templates`: a reusable definition of the
+ * fields an intake captures, from which a work item is created. `fields_json` holds the ordered list
+ * of {@link WorkFormFieldDef}. Identity (`organization_id`, `created_by`) is immutable at the engine.
+ */
+export const workForms = mysqlTable(
+  'work_forms',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    fieldsJson: json('fields_json').$type<readonly WorkFormFieldDef[]>().notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_forms_org_id').on(table.organizationId, table.id),
+    index('ix_work_forms_org_name').on(table.organizationId, table.name, table.id),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2281,6 +2320,7 @@ export const TABLES = {
   project_milestones: projectMilestones,
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
+  work_forms: workForms,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2325,6 +2365,7 @@ export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DocumentCommentRow = typeof documentComments.$inferSelect;
 export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
+export type WorkFormRow = typeof workForms.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
