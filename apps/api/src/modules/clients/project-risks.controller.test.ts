@@ -261,8 +261,8 @@ describe('ProjectRisksService (x140)', () => {
  * the chain's e2e; this pins the wiring the guard depends on.
  */
 describe('risks route capabilities', () => {
-  const capabilityOf = (target: object, key: string): unknown =>
-    Reflect.getMetadata(REQUIRED_CAPABILITY, target, key);
+  const capabilityOf = (target: Record<string, unknown>, key: string): unknown =>
+    Reflect.getMetadata(REQUIRED_CAPABILITY, target[key] as object);
 
   it('guards the internal create and list with project.manage', () => {
     expect(capabilityOf(ProjectRisksController.prototype, 'create')).toBe('project.manage');

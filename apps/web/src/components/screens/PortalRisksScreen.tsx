@@ -114,8 +114,8 @@ function RisksSection({
 
       {!hasProject ? (
         <p className="tm-prose">
-          There is no project shared with you yet. When {providerName} shares one, any risks they are
-          tracking will appear here.
+          There is no project shared with you yet. When {providerName} shares one, any risks they
+          are tracking will appear here.
         </p>
       ) : isError ? (
         <InlineAlert tone="danger" title="Could not load risks" live>

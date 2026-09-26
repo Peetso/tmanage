@@ -103,7 +103,7 @@ export function ProjectRisksScreen({
             </label>
             <input
               id="tm-risk-title"
-              className="tm-input"
+              className="tm-field__control"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               maxLength={300}
@@ -118,7 +118,7 @@ export function ProjectRisksScreen({
             </label>
             <textarea
               id="tm-risk-client-summary"
-              className="tm-input"
+              className="tm-field__control"
               value={clientSummary}
               onChange={(event) => setClientSummary(event.target.value)}
               maxLength={2000}
@@ -134,7 +134,7 @@ export function ProjectRisksScreen({
             </label>
             <textarea
               id="tm-risk-internal-note"
-              className="tm-input"
+              className="tm-field__control"
               value={internalNote}
               onChange={(event) => setInternalNote(event.target.value)}
               maxLength={5000}
@@ -149,7 +149,7 @@ export function ProjectRisksScreen({
             </label>
             <select
               id="tm-risk-severity"
-              className="tm-input"
+              className="tm-field__control"
               value={severity}
               onChange={(event) => setSeverity(event.target.value as RiskSeverity)}
             >
@@ -167,7 +167,7 @@ export function ProjectRisksScreen({
             </label>
             <select
               id="tm-risk-status"
-              className="tm-input"
+              className="tm-field__control"
               value={status}
               onChange={(event) => setStatus(event.target.value as RiskStatus)}
             >
@@ -179,16 +179,15 @@ export function ProjectRisksScreen({
             </select>
           </div>
 
-          <div className="tm-field">
-            <label className="tm-field__check">
-              <input
-                type="checkbox"
-                checked={published}
-                onChange={(event) => setPublished(event.target.checked)}
-              />
-              Publish to the client now
-            </label>
-          </div>
+          <label className="tm-choice tm-choice--inline">
+            <input
+              className="tm-choice__input"
+              type="checkbox"
+              checked={published}
+              onChange={(event) => setPublished(event.target.checked)}
+            />
+            <span className="tm-choice__name">Publish to the client now</span>
+          </label>
 
           {create.isError ? (
             <InlineAlert tone="danger" title="Could not record the risk" live>
@@ -197,8 +196,15 @@ export function ProjectRisksScreen({
           ) : null}
 
           <div className="tm-row">
-            <Button type="submit" disabled={!canSubmit}>
-              {create.isPending ? 'Recording…' : 'Record risk'}
+            <Button
+              type="submit"
+              tone="ink"
+              size="accessible"
+              disabled={!canSubmit}
+              loading={create.isPending}
+              loadingLabel="Recording"
+            >
+              Record risk
             </Button>
           </div>
         </form>
@@ -240,17 +246,12 @@ function RiskRow({ risk }: { risk: ProjectRisk }) {
           {severityLabel(risk.severity)}
         </StateCapsule>
         <StateCapsule state={statusCapsule(risk.status)}>{statusLabel(risk.status)}</StateCapsule>
-        <StateCapsule
-          state={risk.published ? 'client' : 'neutral'}
-          className="tm-push-end"
-        >
+        <StateCapsule state={risk.published ? 'client' : 'neutral'} className="tm-push-end">
           {risk.published ? 'Published' : 'Draft'}
         </StateCapsule>
       </div>
       <p className="tm-prose">{risk.clientSummary}</p>
-      {risk.internalNote ? (
-        <p className="tm-field__hint">Internal: {risk.internalNote}</p>
-      ) : null}
+      {risk.internalNote ? <p className="tm-field__hint">Internal: {risk.internalNote}</p> : null}
     </li>
   );
 }

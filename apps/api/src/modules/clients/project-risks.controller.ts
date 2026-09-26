@@ -17,7 +17,6 @@ import {
   toClientRiskView,
   toProjectRiskView,
 } from './project-risks.projection.js';
-import type { ClientRiskView, ProjectRiskView } from './project-risks.projection.js';
 
 /**
  * SEC / Portal risks (x140) — the internal write/read surface and the client projection.
@@ -44,6 +43,51 @@ const MAX_RISK_TITLE_LENGTH = 300;
 const MAX_RISK_CLIENT_SUMMARY_LENGTH = 2000;
 /** `project_risks.internal_note` is TEXT; cap the accepted length so a body cannot be unbounded. */
 const MAX_RISK_INTERNAL_NOTE_LENGTH = 5000;
+
+/**
+ * A risk as an **internal** principal is shown it — the full record behind `project.manage`.
+ *
+ * The wire shape lives here (the file the contracts checker scans and the one that serialises it);
+ * `project-risks.projection.ts` maps a row onto it. Carries the internal substance a client must
+ * never see: `title` (the staff-facing handle), `internalNote` (the detail behind the risk),
+ * `createdByUserId` (who recorded it) and `published` (whether it has reached the client). This view
+ * never leaves the internal `projects` path.
+ */
+export interface ProjectRiskView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly severity: ProjectRiskSeverity;
+  readonly status: ProjectRiskStatus;
+  /** The internal-only detail. Nullable. Never present on {@link ClientRiskView}. */
+  readonly internalNote: string | null;
+  /** The client-facing description — the same text the client projection carries. */
+  readonly clientSummary: string;
+  readonly published: boolean;
+  readonly createdByUserId: string;
+  /** An ISO-8601 instant on the wire. */
+  readonly createdAt: string;
+}
+
+/**
+ * A risk as a **client** is shown it — the client projection.
+ *
+ * What is absent is the point, and it is the whole slice. **`title` and `internalNote` are not here**
+ * — they are the internal substance (12-PERMISSION-MATRIX §4 gives the client "published risk", the
+ * client-facing summary, never the internal note). **`createdByUserId` is not here** — §4 excludes
+ * staff, so which member of the agency recorded the risk is never learned. **`published` is not here
+ * either**: a client only ever receives published risks (the read filters `published = 1`), so the
+ * flag would be a constant `true` that leaks the existence of the draft concept. The client is shown
+ * the client summary, the severity and the status — and nothing else.
+ */
+export interface ClientRiskView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly severity: ProjectRiskSeverity;
+  readonly status: ProjectRiskStatus;
+  readonly clientSummary: string;
+  readonly createdAt: string;
+}
 
 /** What an internal principal records. The tenant and the author come from the context, never the body. */
 export interface CreateRiskCommand {
@@ -206,7 +250,10 @@ function parseCreateBody(projectId: string, body: unknown): CreateRiskCommand {
   if (!title) {
     details.push({ field: 'title', message: 'must be a non-empty string' });
   } else if (title.length > MAX_RISK_TITLE_LENGTH) {
-    details.push({ field: 'title', message: `must be ${MAX_RISK_TITLE_LENGTH} characters or fewer` });
+    details.push({
+      field: 'title',
+      message: `must be ${MAX_RISK_TITLE_LENGTH} characters or fewer`,
+    });
   }
 
   const rawClientSummary = record['clientSummary'];
