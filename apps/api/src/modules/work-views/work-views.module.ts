@@ -5,6 +5,7 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkTimelineRepository } from './timeline.repository.js';
 import { WorkloadRepository } from './workload.repository.js';
+import { WorkCalendarRepository } from './calendar.repository.js';
 import { WorkViewsService } from './work-views.service.js';
 import { WorkViewsController } from './work-views.controller.js';
 
@@ -27,6 +28,7 @@ export class WorkViewsModule {
           database,
           new WorkTimelineRepository(),
           new WorkloadRepository(),
+          new WorkCalendarRepository(),
           new ProjectsRepository(),
         ),
     };
