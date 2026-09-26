@@ -72,6 +72,9 @@ export const DOCUMENT_COMMENTS_SERVICE = Symbol.for('tmanage.DocumentCommentsSer
 /** DEC-01 (x113). The decisions module's decision register author/list. */
 export const DECISIONS_REPOSITORY = Symbol.for('tmanage.DecisionsRepository');
 export const DECISIONS_SERVICE = Symbol.for('tmanage.DecisionsService');
+/** DEC / module 12 (x149). The decision→work-item linkage (link/list/unlink). */
+export const DECISION_WORK_LINKS_REPOSITORY = Symbol.for('tmanage.DecisionWorkLinksRepository');
+export const DECISION_WORK_LINKS_SERVICE = Symbol.for('tmanage.DecisionWorkLinksService');
 /** PROJ / module 8 (x124). A project's objectives — create/list/transition. */
 export const PROJECT_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.ProjectObjectivesRepository');
 export const PROJECT_OBJECTIVES_SERVICE = Symbol.for('tmanage.ProjectObjectivesService');

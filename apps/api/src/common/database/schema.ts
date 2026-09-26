@@ -712,6 +712,46 @@ export const decisionSupersessions = mysqlTable(
 );
 
 /**
+ * DEC / module 12 (x149). The edge from a decision to the work item it drives — the "linked actions"
+ * a decision spawns, recorded so the register can show what a decision set in motion.
+ *
+ * Both ends are of the acting tenant, bound by composite foreign keys on
+ * `(organization_id, decision_id)` → `decisions (organization_id, id)` and
+ * `(organization_id, work_item_id)` → `work_items (organization_id, id)`, so an edge can never cross a
+ * tenant boundary even when both ids exist individually. The `(decision, work item)` pair is unique
+ * (`uq_decision_work_links_pair`) so a decision links a work item at most once; the service resolves
+ * both ids tenant- and project-scoped before the write (the Known-trap order) and this key is the
+ * backstop for a race the pre-check cannot see. A link is a removable planning edge — created (link)
+ * and removed (unlink), never edited — so the runtime credential holds INSERT and DELETE and no
+ * UPDATE, the posture `objective_work_links` carries. `0055_decision_work_links.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const decisionWorkLinks = mysqlTable(
+  'decision_work_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    decisionId: char('decision_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_decision_work_links_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_decision_work_links_pair').on(
+      table.organizationId,
+      table.decisionId,
+      table.workItemId,
+    ),
+    index('ix_decision_work_links_org_decision').on(
+      table.organizationId,
+      table.decisionId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
  * DOC-04/ADM-06 (x119). An org-scoped document template — a name, a purpose, and a reusable body a
  * person applies to a project to seed a new `documents` row.
  *
@@ -2305,6 +2345,7 @@ export const TABLES = {
   document_comments: documentComments,
   decisions,
   decision_supersessions: decisionSupersessions,
+  decision_work_links: decisionWorkLinks,
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
   document_template_variables: documentTemplateVariables,
@@ -2367,6 +2408,7 @@ export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
+export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;

@@ -13786,6 +13786,44 @@ objective row): link a work item by id, list the linked work, unlink one. `Objec
 live `Exact` pair with the web `ObjectiveWorkLink` (CONTRACT-001). Panel + axe proven in
 `objective-work-links.test.tsx`.
 
+## DEC / module 12 — decision→work-item linkage (x149)
+
+Module 12 was **Partial** for linkage: x113 gave a project its decision register and x117 its
+lifecycle, but there was no edge from a decision to the work it drives (the "linked actions" the audit
+flagged, deferred from the x117 family). x149 ships the many-to-many linkage — which work items a
+decision set in motion — as a project-scoped write surface. Deferred: auto-creating follow-up work
+from a decision (NEXT-SCOPES-13).
+
+Migration **0055** creates `decision_work_links`: tenant-scoped like every sibling, with `id`,
+`organization_id`, `decision_id`, `work_item_id`, `created_by` and `created_at`. Two composite foreign
+keys bind `(organization_id, decision_id)` to `decisions` and `(organization_id, work_item_id)` to
+`work_items`, so an edge can only name a decision and a work item of its own tenant. A
+`(organization_id, decision_id, work_item_id)` unique key makes a duplicate link a conflict. A row is
+created and removed, never edited — no lifecycle, no trigger. Registered in all four places (Known
+trap): `schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `users.sql` grant
+(`INSERT, DELETE`; `SELECT` is database-wide), and the migration file the migrator applies from disk.
+(No `migrator.db.test.ts` case this slice — per the 2026-09-26 rules the chain owns the DB suite.)
+
+`POST …/decisions/:decisionId/work-links` (`meeting.write`) links a work item;
+`GET …/decisions/:decisionId/work-links` (`work.read`) lists the linked work in creation order, joined
+to each item's title and state, bounded to 50; `DELETE …/decisions/:decisionId/work-links/:linkId`
+(`meeting.write`) removes one. A duplicate pair is a 409. The register's own `meeting.read`/`meeting.write`
+ceilings are reused; the service's relation check uses the `work.read`/`work.create` capabilities those
+mirror (x90), exactly as `DecisionsService` gates the decisions themselves.
+
+**Known trap (FAST-PROTOCOL 19:55).** Every route names ids, so `DecisionWorkLinksService` resolves
+each **tenant- and project-scoped before** the relation check and the write: an unknown or cross-tenant
+`decisionId`/`workItemId`/`linkId` is a `404`, never a foreign-key 500, and a caller not related to the
+decision's project gets the same not-found. On link, the work item must belong to the _same project_ as
+the decision (and not be soft-deleted), else the same 404. Unit-proven with real `authorize()` over
+fakes in `decision-work-links.controller.test.ts` (link→list→unlink; 409 duplicate; 404s incl.
+cross-project/soft-deleted/foreign-decision; relation gate; route ceilings).
+
+**Web.** `DecisionWorkLinksPanel` opens beside `DecisionRegisterScreen` (a "Linked work" toggle per
+decision row): link a work item by id, list the linked work, unlink one. `DecisionWorkLinkView` is a
+live `Exact` pair with the web `DecisionWorkLink` (CONTRACT-001). Panel + axe proven in
+`decision-work-links.test.tsx`.
+
 ## SEC / Portal milestones (x139)
 
 The companion to CLIENT-003: the _milestones_ half of the portal, built on the same mechanism. A

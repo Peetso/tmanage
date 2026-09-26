@@ -104,7 +104,8 @@
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
 --     saved_views, meeting_attendees
---   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items
+--   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
+--     home_pinned_items, objective_work_links, decision_work_links
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     document_comments, decision_supersessions, document_templates, work_forms
@@ -446,6 +447,11 @@ GRANT INSERT, UPDATE ON `tmanage`.`decisions` TO 'tmanage_app'@'%';
 -- trigger refuses every UPDATE) and never removed, so UPDATE and DELETE are withheld the way the
 -- append-only edges and ledgers above are.
 GRANT INSERT ON `tmanage`.`decision_supersessions` TO 'tmanage_app'@'%';
+-- `decision_work_links` (DEC / module 12, x149) gets INSERT and DELETE. An edge is created (link)
+-- and removed (unlink), never edited — there is no column to change on a link, so **no UPDATE** — the
+-- posture `objective_work_links` and `work_item_dependencies` carry. Reading is the database-wide
+-- SELECT above.
+GRANT INSERT, DELETE ON `tmanage`.`decision_work_links` TO 'tmanage_app'@'%';
 -- `project_objectives` (PROJ / module 8, x124) gets INSERT and UPDATE. An objective is created
 -- (INSERT), read (the database-wide SELECT, line 60), and moved through its lifecycle (UPDATE):
 -- `open → met` or `open → missed`. UPDATE writes exactly `status`; the 0040 column-pinning trigger

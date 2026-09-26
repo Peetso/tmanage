@@ -28,6 +28,7 @@ import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js
 import { DocsModule } from './modules/docs/docs.module.js';
 import { DocumentTemplateVariablesModule } from './modules/docs/document-template-variables.controller.js';
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
+import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
@@ -200,6 +201,7 @@ export class AppModule {
         // meeting, and the composite foreign keys mean a caller who names one that is not theirs
         // gets a refusal rather than a foreign-key 500.
         DecisionsModule.register(),
+        DecisionWorkLinksModule.register(),
         // PROJ / module 8 (x124). A project's objectives (create/list/transition). After
         // `ProjectsModule` for the same reason as the decision register: an objective names a project
         // in its path, and the composite foreign key means a caller who names one that is not theirs

@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { DecisionWorkLinksPanel } from './DecisionWorkLinksPanel';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import {
@@ -64,6 +65,10 @@ export function DecisionRegisterScreen({
   const [title, setTitle] = useState('');
   const [statement, setStatement] = useState('');
   const [status, setStatus] = useState<DecisionStatus>('proposed');
+  // DEC / module 12 (x149). Which decision's linked work the panel below the register shows, if any.
+  const [selectedDecision, setSelectedDecision] = useState<{ id: string; title: string } | null>(
+    null,
+  );
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
@@ -290,6 +295,7 @@ export function DecisionRegisterScreen({
                   <th scope="col">Status</th>
                   <th scope="col">Decided</th>
                   <th scope="col">Lifecycle</th>
+                  <th scope="col">Linked work</th>
                 </tr>
               </thead>
               <tbody>
@@ -303,12 +309,29 @@ export function DecisionRegisterScreen({
                       supersede.mutate({ decisionId: id, supersededById: byId })
                     }
                     busy={accept.isPending || supersede.isPending}
+                    linksSelected={selectedDecision?.id === decision.id}
+                    onToggleLinks={() =>
+                      setSelectedDecision((current) =>
+                        current?.id === decision.id
+                          ? null
+                          : { id: decision.id, title: decision.title },
+                      )
+                    }
                   />
                 ))}
               </tbody>
             </table>
           </div>
         </section>
+      ) : null}
+
+      {selectedDecision ? (
+        <DecisionWorkLinksPanel
+          organizationSlug={organizationSlug}
+          decisionId={selectedDecision.id}
+          decisionTitle={selectedDecision.title}
+          {...(client ? { client } : {})}
+        />
       ) : null}
     </AppShell>
   );
@@ -320,12 +343,16 @@ function DecisionRow({
   onAccept,
   onSupersede,
   busy,
+  linksSelected,
+  onToggleLinks,
 }: {
   decision: DecisionSummary;
   candidates: readonly DecisionSummary[];
   onAccept: (decisionId: string) => void;
   onSupersede: (decisionId: string, supersededById: string) => void;
   busy: boolean;
+  linksSelected: boolean;
+  onToggleLinks: () => void;
 }) {
   const [supersededById, setSupersededById] = useState('');
   // A decision may be superseded by another of the same register, never by itself, and a decision
@@ -390,6 +417,17 @@ function DecisionRow({
             </Button>
           </div>
         )}
+      </td>
+      <td>
+        <Button
+          type="button"
+          tone="outline"
+          size="accessible"
+          onClick={onToggleLinks}
+          aria-pressed={linksSelected}
+        >
+          {linksSelected ? 'Hide linked work' : 'Linked work'}
+        </Button>
       </td>
     </tr>
   );
