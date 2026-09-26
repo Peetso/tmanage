@@ -13239,3 +13239,31 @@ unit-proven with the real `authorize()` in `apps/api/src/modules/tenancy/offboar
 member offboarding makes no schema change, and the `tenant-isolation` chain already covers membership
 rows. Member offboarding cross-tenant + self/last-owner/terminal exclusion: unit-proven, no schema
 change. The `offboarding-journeys.spec.ts` e2e journey is authored; chain-19 runs ADM-12/13.
+---
+
+## CAL-01 / MTG-01 — the calendar meetings screen + module 9 journey (x122)
+
+x90 landed the meetings API (`GET`/`POST …/meetings`) and x105/x108 the notes read screen, but
+the `/calendar` route was still `PlannedInternalScreen` — backend-only, no UI, no e2e (audit
+2026-09-26 Top-10 #8, the heaviest live Partial). This slice ships the missing list/create
+surface and the click-through journey that earns module 9 its credit. **No migration, no new
+route, no schema change** — the routes and tables already exist and are gated.
+
+`MeetingsScreen.tsx` chooses a project (meetings are per-project by definition: the API requires a
+`projectId` query parameter and never lists a whole tenant's meetings), lists that project's
+meetings from `GET …/meetings?projectId=`, offers a create form → `POST …/meetings` behind
+`meeting.write`, and links each row to the existing `calendar/meetings/[meetingId]` notes page
+(x108). A `datetime-local` wall-clock value is normalised to a UTC ISO-8601 instant on the wire.
+`calendar/page.tsx` replaces the stub with `MeetingsScreen`, rail intact
+(`activeNavigationId="calendar"`). The calendar grid/agenda, attendees/RSVP, recurrence and ICS
+export have no endpoint or table yet and are deferred to NEXT-SCOPES-12 rather than fabricated.
+
+**Contract.** `MeetingView` now has a real web consumer, so it moves from EXEMPT in
+`scripts/contracts-check.mjs` to a live `Assert<Exact<…>>` pair (`_meeting`) in
+`e2e/contracts/api-web-shapes.ts`; `pnpm contracts:check` is green (62 API views, 50 paired).
+`apps/web/tests/meetings-screen.test.tsx` (jsdom + axe) proves the screen lists a project's
+meetings scoped by `projectId`, links each row to its notes page, posts a new meeting to the chosen
+project with a normalised ISO instant and refetches the list, and is axe-clean.
+`e2e/tests/calendar-journeys.spec.ts` walks the full create→list→detail path against the real
+stack (module 9's credit-earning proof); it authors and typechecks here, with the live browser run
+carried by the integration chain.

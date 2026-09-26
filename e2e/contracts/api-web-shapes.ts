@@ -63,6 +63,7 @@ import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../ap
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
+import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type {
   MemberOffboardingImpactView as ApiMemberOffboardingImpactView,
@@ -137,6 +138,7 @@ import type {
   IssuedInvitation as WebIssuedInvitation,
 } from '../../apps/web/src/lib/api/invitations';
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
+import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type { ProjectMemberSummary as WebProjectMemberSummary } from '../../apps/web/src/lib/api/project-members';
 import type {
@@ -286,6 +288,13 @@ type _decisionDetail = Assert<Exact<ApiDecisionDetailView, WebDecisionDetail>>;
  * client to avoid a second competing projection.)
  */
 type _documentTemplate = Assert<Exact<ApiDocumentTemplateView, WebDocumentTemplateSummary>>;
+/**
+ * CAL-01 / MTG-01 (x90 API, x122 web). `GET`/`POST .../meetings` — a project's meetings, listed
+ * and created by `MeetingsScreen`. x90 landed the API with no web consumer (the view was carried
+ * EXEMPT in `scripts/contracts-check.mjs`); x122 ships the list/create screen and its `apps/web`
+ * shape, so the exemption was retired and the view is paired Exact.
+ */
+type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
@@ -549,18 +558,12 @@ type _realtimeTicket = Assert<Exact<ApiRealtimeTicketView, WebRealtimeTicket>>;
  *          'validated_with_errors', totalCount, validCount, invalidCount, errors: { row, errors:
  *          { field, message }[] }[] }`. Commits no target entity; `jobId` is the persisted
  *          `import_jobs` anchor.
- *
- * CAL-01 / MTG-01 (x90). `MeetingView` (`GET`/`POST …/meetings`, request body + response) has no
- * web counterpart this slice — no calendar screen exists yet — so it is not paired here but
- * listed in `scripts/contracts-check.mjs`'s EXEMPT with the "No web consumer" reason, the same
- * treatment `ProjectHealthView` (x86) has. Replace this note with an `Assert<Exact<…>>` pair when
- * the calendar screen and its `apps/web` shape land.
  */
 
 /**
- * DocumentView (DOC-01/DOC-03, x106) and MeetingNoteView (CAL-01/MTG-01, x108) are now paired
- * above (`_document`, `_meetingNote`); their earlier EXEMPT notes were retired when their screens
- * landed.
+ * DocumentView (DOC-01/DOC-03, x106), MeetingNoteView (CAL-01/MTG-01, x108) and MeetingView
+ * (CAL-01/MTG-01, x122) are now paired above (`_document`, `_meetingNote`, `_meeting`); their
+ * earlier EXEMPT notes were retired when their screens landed.
  */
 
 /**
