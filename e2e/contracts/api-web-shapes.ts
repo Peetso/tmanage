@@ -72,6 +72,7 @@ import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
+import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -145,6 +146,7 @@ import type {
 } from '../../apps/web/src/lib/api/session';
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
+import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
@@ -231,6 +233,15 @@ type _approvalCycle = Assert<Exact<ApiApprovalCycleView, WebApprovalCycle>>;
  */
 type _importReceipt = Assert<Exact<ApiImportCommitView, WebImportReceipt>>;
 type _importReceiptRow = Assert<Exact<ApiImportCommitRowView, WebImportReceiptRow>>;
+
+/**
+ * INS-01 — `GET …/insights/projects/:projectId/delivery-flow`. A project's work items tallied by
+ * workflow status (`backlog … archived`): `counts` per status and their `itemCount` sum. Paired
+ * with a real web consumer — INS's third slice ships `InsightsScreen`, so this is a live `Exact`
+ * pair, not an exemption. `counts` keys the domain `WorkItemState` union on both sides, so a
+ * renamed or dropped status is a compile error here.
+ */
+type _deliveryFlow = Assert<Exact<ApiDeliveryFlowView, WebDeliveryFlow>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API

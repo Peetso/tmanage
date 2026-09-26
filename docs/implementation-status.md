@@ -12933,3 +12933,32 @@ reads the endpoint via `apps/web/src/lib/api/approval-cycle.ts` at
 to the expected counts and durations, pending and cross-tenant rows are excluded, a multi-page
 project counts each row once, and an empty project rolls up to the empty value. No DB test — the
 underlying approvals reads are already DB-proven (x92).
+
+## INS-03 — insights, third vertical slice: the project insights dashboard screen (x109)
+
+The read half of x89 and x96 turned into a proven screen. `InsightsScreen`
+(`apps/web/src/components/screens/InsightsScreen.tsx`), routed at
+`/insights/projects/:projectId`, reads both existing endpoints — the delivery-flow read via a new
+`apps/web/src/lib/api/delivery-flow.ts` (behind `work.read`) and the approval-cycle read via the
+`approval-cycle.ts` x96 already shipped (behind `approval.read`) — and renders each as an
+accessible read-only table: work items by workflow status with a total, and approvals by terminal
+outcome with the decided ones' mean requested→decided time. No charts dependency; semantic tables
+with a caption and row/column scope. The two reads are queried independently, so a caller with one
+capability but not the other sees that panel's data and the other panel's API refusal, never a
+blank page.
+
+**No API change.** The controller, service and repositories are used as x89/x96 left them. Both
+reads are tenant-scoped in SQL and re-checked per row (`mayRead`/`mayReadApproval`), so an unknown
+or cross-tenant project id returns an empty roll-up — every count zero, no other tenant's figures,
+never a 500 — which the screen renders as the plainly-labelled empty state rather than inventing a
+not-found. This is the Known-trap posture for an aggregate read: there is no relation check to
+surface a lookup miss as a 500, and the tenant scope is the only leak boundary.
+
+**Contract.** `DeliveryFlowView` now has a real web consumer, so it moves from EXEMPT in
+`scripts/contracts-check.mjs` to a live `Assert<Exact<…>>` pair in
+`e2e/contracts/api-web-shapes.ts` (`counts` keys the domain `WorkItemState` union on both sides).
+`ApprovalCycleView` was already paired by x96. The screen is proved in
+`apps/web/tests/insights-flow.test.tsx` (jsdom + axe): both tables render for a project, an empty
+project shows every count at zero with no invented numbers, a `work.read` refusal shows in the
+delivery-flow panel while the approval panel still renders, and the mounted document is
+axe-clean.
