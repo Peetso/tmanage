@@ -12,6 +12,7 @@ import {
   MALWARE_SCANNER,
   OBJECT_STORE,
   OUTBOX_EVENTS_REPOSITORY,
+  PORTAL_FILE_LIST_SERVICE,
   QUARANTINE_CLEANUP_JOB,
   TENANT_DATABASE,
   UPLOAD_SESSIONS_REPOSITORY,
@@ -39,6 +40,8 @@ import { FileScanner } from './file-scanner.js';
 import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
 import { PortalFileDownloadsController } from './portal-file-downloads.controller.js';
+import { PortalFileListService } from './portal-file-list.service.js';
+import { PortalFileListController } from './portal-file-list.controller.js';
 import { UploadSessionSweeper } from './upload-session-sweeper.js';
 import { UsageReconciler } from './usage-reconciler.js';
 import { QuarantineCleanupJob } from './quarantine-cleanup.js';
@@ -266,6 +269,16 @@ export class FilesModule {
         ),
     };
 
+    // FILE-003 · WEB-006. The client's file list, over the same download surface: a read-only
+    // service on the tenant database and the file-assets repository. No store, no audit — it
+    // hands out no bytes; it names the files the download door would serve, which it audits.
+    const portalFileList: Provider = {
+      provide: PORTAL_FILE_LIST_SERVICE,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY],
+      useFactory: (database: TenantDatabase, assets: FileAssetsRepository) =>
+        new PortalFileListService(database, assets),
+    };
+
     return {
       module: FilesModule,
       providers: [
@@ -278,14 +291,26 @@ export class FilesModule {
         verifier,
         scanner,
         downloads,
+        portalFileList,
       ],
-      exports: [service, usage, sweeper, reconciler, cleanup, verifier, scanner, downloads],
+      exports: [
+        service,
+        usage,
+        sweeper,
+        reconciler,
+        cleanup,
+        verifier,
+        scanner,
+        downloads,
+        portalFileList,
+      ],
       controllers: [
         UploadSessionsController,
         PortalUploadSessionsController,
         UploadPartsController,
         FileDownloadsController,
         PortalFileDownloadsController,
+        PortalFileListController,
         UsageController,
       ],
     };

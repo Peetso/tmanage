@@ -96,6 +96,13 @@ several were in fact already resolved in later dated sections of this file (note
   role-operation-grid `audit.export` note ("declared but unwired") is now stale — it is wired at the
   route and enforced in the service, matching how `audit.read` is treated (kept off the DB route
   sweep); the note was left for a follow-up to avoid a package-wide rebuild in this slice.
+- **x141** (pass 20): FILE-003 · WEB-006 client portal file downloads UI — `GET
+/portal/projects/:projectId/files` (`client_projection.read`) lists the request-attachment files
+  the FILE-002 download door would serve to this client organization (project resolved
+  relation-scoped first → 404; client-org read from the request row; only `ready`/`clean`/`private`
+  versions), and `PortalFilesScreen` renders them with a download link to the existing
+  `/portal/files/:id/content` door. No new table, no migration. Deferred: published deliverables
+  (DEL-001/CL-05) and portal upload (NS-13).
 
 Earlier:
 

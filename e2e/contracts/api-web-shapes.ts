@@ -77,6 +77,7 @@ import type {
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
+import type { PortalFileView as ApiPortalFileView } from '../../apps/api/src/modules/files/portal-file-list.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
@@ -177,6 +178,7 @@ import type {
 } from '../../apps/web/src/lib/api/organizations';
 import type {
   ClientRequest as WebClientRequest,
+  PortalFile as WebPortalFile,
   PortalInboxBundle as WebPortalInboxBundle,
   PortalInboxPage as WebPortalInboxPage,
   PortalDeliverable as WebPortalDeliverable,
@@ -269,6 +271,7 @@ type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
 type _portalUpdate = Assert<Exact<ApiPortalUpdateView, WebPortalUpdate>>;
 type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
 type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
+type _portalFile = Assert<Exact<ApiPortalFileView, WebPortalFile>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
 // CONTRACT-001 (x114): the client portal's deliverables and their file lists. The screen reads
 // exactly these responses, so both pairs are Exact.
