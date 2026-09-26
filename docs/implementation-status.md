@@ -13925,3 +13925,38 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Requests / module 11 — request aging / SLA inbox view (x154)
+
+_The studio's overdue-to-triage / long-uncommitted read (audit: "Requests Partial; aging/SLA view
+not built")._ One route, `GET /v1/organizations/:orgSlug/client-requests/aging`, behind the reused
+`client_request.triage` (internal-only) — no new capability, no `capabilities.ts` edit, no new table,
+no migration (highest after pass 19 stays 0041). Read-only over `client_requests` (0006).
+
+**What it does.** It reads the open requests (the state machine's non-terminal set —
+`submitted`/`triage`/`needs_clarification`/`accepted`/`deferred`/`planned`, derived from
+`clientRequestStateMachine` so a `declined`/`delivered`/`withdrawn` request never appears), buckets
+each by whole days since submission against fixed thresholds (`fresh` under 3 days, `aging` under 7,
+`overdue` at or beyond 7), and returns the per-bucket counts plus the uncommitted tally and total,
+and a bounded (default 100, ceiling 500), oldest-first page of the aged rows. Configurable SLA
+thresholds (would use x153 org settings) and email escalation are deferred to NEXT-SCOPES-13.
+
+**Authorization is applied twice.** An org-level `client_request.triage` `authorize()` with
+`projectId: null` refuses a principal who cannot triage at all (a client — the capability is
+internal-only — or a cross-tenant principal) with a 403 rather than an empty roll-up. Then, because
+the capability is relation-gated, each row is re-checked with the real `authorize()` (the same
+`mayTriage` the inbox serves), so a project-scoped manager's aging queue never includes a request in
+a project they do not own. The tenant filter is in SQL and re-checked belt-and-braces before the
+count (scope before the count — the Known-trap for this slice); an over-wide or non-integer `?limit`
+is a 400, never a silent clamp.
+
+**Surfaces.** `RequestAgingView` (`request-aging.controller.ts`) is a live `Exact` pair with the
+web's `RequestAgingView` (`apps/web/src/lib/api/request-aging.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`RequestAgingScreen` (`apps/web/src/components/screens/RequestAgingScreen.tsx`), routed at
+`/[orgSlug]/work/requests/aging`, renders the buckets, counts and oldest-first list with each row
+linking to its triage detail; axe-clean. Proved database-free with the real `authorize`
+(`request-aging.controller.test.ts`): bucketing by the fixed thresholds is correct and the counts
+follow it, a cross-tenant row is dropped, a project-scoped manager is scoped to their own projects, a
+client is a 403, and an over-wide/non-integer limit is a 400. A self-contained
+`RequestAgingModule` registered from `app.module.ts` keeps the slice file-disjoint from the
+list/triage controller.

@@ -19,6 +19,7 @@ import { HomeModule } from './modules/home/home.module.js';
 import { HomePulseModule } from './modules/home/home-pulse.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
+import { RequestAgingModule } from './modules/requests/request-aging.controller.js';
 import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
@@ -152,6 +153,11 @@ export class AppModule {
         // After `WorkModule`: REQ-001 reads a work item to answer 422 rather than 500 when an
         // acceptance links to one that is not in this tenant.
         RequestsModule.register(),
+        // module 11 requests, x154. The overdue-to-triage / long-uncommitted aging read
+        // (`/client-requests/aging`). A module of its own rather than another controller on
+        // `RequestsModule`, so it stays file-disjoint from the list/triage controller; read-only over
+        // `client_requests`, behind the same reused `client_request.triage`.
+        RequestAgingModule.register(),
         // FR-05 (x92). After `ProjectsModule`: an approval binds a deliverable version to a
         // project, and a caller naming one that is not theirs should get 404 rather than a
         // foreign-key 500. Authorization is object-layer only (the reviewer relation), so this
