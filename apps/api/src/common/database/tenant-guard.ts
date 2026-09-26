@@ -179,6 +179,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // acting tenant, and an unscoped read would be every studio's supersede chain. `organization_id`
   // is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes its reads/writes.
   decision_supersessions: 'organization_id',
+  // WORK intake forms (x146, migration 0052). Org-owned: a form belongs to the acting tenant, and
+  // an unscoped `SELECT ... FROM work_forms` would be every studio's intake definitions on the
+  // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
+  // table has, so the guard must scope its reads and its writes.
+  work_forms: 'organization_id',
 });
 
 /**

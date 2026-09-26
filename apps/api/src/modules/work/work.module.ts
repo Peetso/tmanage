@@ -4,6 +4,7 @@ import {
   AUDIT_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
+  WORK_FORMS_REPOSITORY,
   WORK_ITEMS_REPOSITORY,
   WORK_ITEMS_SERVICE,
 } from '../../common/http/tokens.js';
@@ -14,6 +15,8 @@ import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkItemsRepository } from './work-items.repository.js';
 import { WorkItemsService } from './work-items.service.js';
 import { WorkItemsController } from './work-items.controller.js';
+import { WorkFormsRepository } from './work-forms.repository.js';
+import { WorkFormsController } from './work-forms.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -41,11 +44,19 @@ export class WorkModule {
       ) => new WorkItemsService(database, workItems, audit, new ProjectsRepository(), outbox),
     };
 
+    // WORK intake forms (x146). A stateless repository under its token; the controller injects it
+    // alongside the tenant database and the work-items service (create-from-form uses the existing
+    // work path — no new create logic here).
+    const formsRepository: Provider = {
+      provide: WORK_FORMS_REPOSITORY,
+      useFactory: () => new WorkFormsRepository(),
+    };
+
     return {
       module: WorkModule,
-      providers: [repository, service],
+      providers: [repository, service, formsRepository],
       exports: [service],
-      controllers: [WorkItemsController],
+      controllers: [WorkItemsController, WorkFormsController],
     };
   }
 }
