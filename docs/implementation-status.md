@@ -70,6 +70,13 @@ several were in fact already resolved in later dated sections of this file (note
 - **x85** (`d6ccc9a`): scheduled `sweep:invitations` worker job; `tmanage_worker` `SELECT, UPDATE` on
   `invitations`.
 - **x86** (`8365bad`): project-level health roll-up read, behind `work.read`.
+- **x116** (`ADM-02`): expose project member add / change-role / remove over HTTP behind
+  `project.member.manage` (`ProjectMembersController`), with tenant-scoped resolve→404 before every
+  write and privilege-escalation guards (no role above the caller's ceiling, no self role change,
+  no stripping the last owner — each 403, no audit); `MembersAndRolesScreen` + web client + route +
+  `ProjectMemberView`↔`ProjectMemberSummary` contract pair. No migration (`project_memberships`
+  already registered; role CHECK is `0026`). Cross-tenant + escalation exclusion unit-proven; no
+  schema change, so no slice DB proof (chain `tenant-isolation` + migrator `0026` cover the table).
 
 Earlier:
 
@@ -12751,6 +12758,7 @@ team could use for a week:
 
 - 2026-09-20 — HOME-03 (My Day, slice x93): the acting user's own open work across every project, read-only over `work_items` by org+owner (ix_work_items_org_owner_state_due), behind `work.read`, ranked overdue → due-soon (by due_at) → the rest (by id); replaces the HOME-001 stub with `MyDayScreen`. Paged My Day, HOME-01 hero/Pulse/Focus, HOME-04 Waiting and HOME-05 Saved are the follow-ups.
 - 2026-09-20 — HOME-04 (Waiting, slice x98): the approvals-pending bucket only — the acting user's pending approvals across every project, read-only over `approvals` by org + pending-state (`requested`/`viewed`, `PENDING_APPROVAL_STATES`), filtered to rows where the user is in `reviewer_ids` (the reviewer relation, AUTH-08 — a non-reviewer never sees the approval) and re-checked with `approve.read`/`authorize`; behind `approval.read` (coarse route ceiling, reviewer relation the real gate); ranked not-yet-opened → opened (by requested-at, then id); adds a Waiting section to `MyDayScreen`. **Deferred:** the **delegated** bucket — `41-...-MATRIX` HOME-04's "work I delegated elsewhere" — is not representable: `work_items` has a single `owner_user_id` and no created-by/assignee column, so it is a data-model item for scoping (a Needs-Peter), not built here. Client-wait, stale-follow-up, HOME-01 hero/Pulse/Focus and HOME-05 Saved remain follow-ups.
+
 ---
 
 ## INS-01 — insights, first vertical slice: the delivery-flow read (x89)

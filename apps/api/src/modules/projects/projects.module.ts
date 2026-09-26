@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   AUDIT_SERVICE,
+  MEMBERSHIPS_REPOSITORY,
   PROJECTS_REPOSITORY,
   PROJECTS_SERVICE,
   PROJECT_MEMBERSHIPS_REPOSITORY,
@@ -12,8 +13,10 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from './projects.repository.js';
 import { ProjectsService } from './projects.service.js';
 import { ProjectsController } from './projects.controller.js';
+import { ProjectMembersController } from './project-members.controller.js';
 import { ProjectMembershipsRepository } from './project-memberships.repository.js';
 import { ProjectMembershipsService } from './project-memberships.service.js';
+import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 
 @Module({})
@@ -34,9 +37,16 @@ export class ProjectsModule {
       provide: PROJECT_MEMBERSHIPS_REPOSITORY,
       useFactory: () => new ProjectMembershipsRepository(),
     };
-    // No controller yet — the routes that expose these commands are not scheduled. The
-    // service is wired anyway so that the audit path it establishes is exercised by the
-    // database suite rather than only by the code that will one day call it.
+    // ADM-02 (x116): `ProjectMembersController` reads the member directory to resolve a target
+    // user inside the tenant before adding them. A repository is a stateless collection of
+    // queries with no injected dependencies, constructed here for the reason `TenancyModule`
+    // gives — reaching for another module's provider would mean registering it twice.
+    const directoryRepository: Provider = {
+      provide: MEMBERSHIPS_REPOSITORY,
+      useFactory: () => new MembershipsRepository(),
+    };
+    // ADM-02 (x116) exposes these commands over HTTP through `ProjectMembersController`. The
+    // service is also wired for the audit path exercised by the database suite.
     const membershipsService: Provider = {
       provide: PROJECT_MEMBERSHIPS_SERVICE,
       inject: [TENANT_DATABASE, AUDIT_SERVICE, PROJECT_MEMBERSHIPS_REPOSITORY],
@@ -49,9 +59,15 @@ export class ProjectsModule {
 
     return {
       module: ProjectsModule,
-      providers: [repository, service, membershipsRepository, membershipsService],
+      providers: [
+        repository,
+        service,
+        membershipsRepository,
+        directoryRepository,
+        membershipsService,
+      ],
       exports: [service, membershipsService],
-      controllers: [ProjectsController],
+      controllers: [ProjectsController, ProjectMembersController],
     };
   }
 }
