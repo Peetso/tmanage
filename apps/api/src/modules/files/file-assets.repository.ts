@@ -2,7 +2,7 @@ import { and, asc, desc, eq, exists, isNull, lt, or, sql } from 'drizzle-orm';
 import { uploadStateMachine, uuidv7 } from '@tmanage/domain';
 import type { Audience, UploadState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { fileAssets, fileVersions } from '../../common/database/schema.js';
+import { clientRequests, fileAssets, fileVersions } from '../../common/database/schema.js';
 import type { FileAssetRow, FileVersionRow, UploadPurpose } from '../../common/database/schema.js';
 import type {
   BootstrapQueryRunner,
@@ -570,6 +570,80 @@ export class FileAssetsRepository {
       .limit(1);
     const row = rows[0];
     return row ? { asset: row.asset, version: row.version ?? null } : null;
+  }
+
+  /**
+   * FILE-003 · WEB-006. The request-attachment assets in one project, each with its **latest**
+   * version and the `client_requests` row it hangs off (0016: a `request_attachment`'s `objectId`
+   * names a client request). The join is `INNER`, so an asset whose `objectId` is NULL or names
+   * no live request is not returned — a client's file door is a request's attachment or nothing.
+   *
+   * This returns **candidates**, not an already-authorized list: the client-organization relation
+   * and the servable-version rule are applied by {@link PortalFileListService}, exactly as the
+   * per-file download gate applies them, so the two client file paths refuse by one rule expressed
+   * once. `client_organization_id` is read from the **request**, never the asset — an internal
+   * upload against a client's request carries no client organization on the asset itself, the
+   * distinction {@link FileDownloadService.gate} turns on. Newest first.
+   */
+  async listRequestAttachmentsForProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<
+    readonly {
+      readonly asset: FileAssetRow;
+      readonly version: FileVersionRow | null;
+      readonly request: {
+        readonly id: string;
+        readonly projectId: string;
+        readonly clientOrganizationId: string;
+      };
+    }[]
+  > {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        asset: fileAssets,
+        version: fileVersions,
+        requestId: clientRequests.id,
+        requestProjectId: clientRequests.projectId,
+        requestClientOrganizationId: clientRequests.clientOrganizationId,
+      })
+      .from(fileAssets)
+      .innerJoin(
+        clientRequests,
+        and(
+          eq(clientRequests.organizationId, fileAssets.organizationId),
+          eq(clientRequests.id, fileAssets.objectId),
+        ),
+      )
+      .leftJoin(
+        fileVersions,
+        and(
+          eq(fileVersions.organizationId, fileAssets.organizationId),
+          eq(fileVersions.fileAssetId, fileAssets.id),
+          eq(
+            fileVersions.versionNo,
+            sql`(select max(l.version_no) from file_versions l where l.organization_id = ${fileAssets.organizationId} and l.file_asset_id = ${fileAssets.id})`,
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          eq(fileAssets.projectId, projectId),
+          eq(fileAssets.purpose, 'request_attachment'),
+        ),
+      )
+      .orderBy(desc(fileAssets.createdAt), desc(fileAssets.id));
+    return rows.map((row) => ({
+      asset: row.asset,
+      version: row.version ?? null,
+      request: {
+        id: row.requestId,
+        projectId: row.requestProjectId,
+        clientOrganizationId: row.requestClientOrganizationId,
+      },
+    }));
   }
 
   /**
