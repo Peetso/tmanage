@@ -133,6 +133,7 @@ function serviceWith(input: {
     fakeDatabase(),
     new DeliveryFlowRepository(workItems),
     new ApprovalCycleRepository(approvalsReader),
+    undefined,
     projects,
   );
 }

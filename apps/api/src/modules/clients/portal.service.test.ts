@@ -631,6 +631,8 @@ function serviceFor(
     fakeDatabaseWithTx(),
     fakeProjects(existingProjects),
     {} as unknown as WorkItemsRepository,
+    {} as unknown as ClientProjectionsRepository,
+    {} as unknown as FileAssetsRepository,
     updates.repo,
   );
 }
