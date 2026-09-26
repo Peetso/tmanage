@@ -9,6 +9,7 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { DocumentsRepository } from './documents.repository.js';
 import { DocumentsService } from './documents.service.js';
 import { DocumentsController } from './documents.controller.js';
+import { DocumentExportController } from './document-export.controller.js';
 
 /**
  * DOC-01 (x91). The docs module's first vertical slice: document read/write.
@@ -36,7 +37,9 @@ export class DocsModule {
       module: DocsModule,
       providers: [repository, service],
       exports: [service],
-      controllers: [DocumentsController],
+      // DOC export (x131): a second controller on the same `documents` base path, serving the
+      // read-only Markdown download. It resolves the same `DOCUMENTS_SERVICE` this module provides.
+      controllers: [DocumentsController, DocumentExportController],
     };
   }
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { DocumentExportButton } from './DocumentExportButton';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDocument } from '../../lib/api/documents';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -68,9 +69,16 @@ export function DocumentViewScreen({
       title={data ? data.title : 'Document'}
       description={data ? 'A document in this project.' : undefined}
       actions={
-        <Link className="tm-button tm-button--outline" href={`/${organizationSlug}/docs`}>
-          Back to Docs
-        </Link>
+        <>
+          {/* DOC export (x131): a Markdown download of the current version, shown once the document
+              has loaded so the control never links to an id the caller cannot read. */}
+          {data ? (
+            <DocumentExportButton organizationSlug={organizationSlug} documentId={documentId} />
+          ) : null}
+          <Link className="tm-button tm-button--outline" href={`/${organizationSlug}/docs`}>
+            Back to Docs
+          </Link>
+        </>
       }
     >
       {document.isPending ? (
