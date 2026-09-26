@@ -174,6 +174,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // acting tenant, and an unscoped read would be every studio's supersede chain. `organization_id`
   // is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes its reads/writes.
   decision_supersessions: 'organization_id',
+  // PROJ / module 8 (x124, migration 0040). Tenant-owned: an objective names a project, and an
+  // unscoped `SELECT ... FROM project_objectives` would be every studio's objectives on the server.
+  // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table
+  // has, so the guard must scope its reads and its writes. The layer-3 guard fails OPEN on an
+  // unregistered table, so this entry is what scopes the objective reads and writes.
+  project_objectives: 'organization_id',
 });
 
 /**

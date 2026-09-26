@@ -58,6 +58,9 @@ export const DOCUMENTS_SERVICE = Symbol.for('tmanage.DocumentsService');
 /** DEC-01 (x113). The decisions module's decision register author/list. */
 export const DECISIONS_REPOSITORY = Symbol.for('tmanage.DecisionsRepository');
 export const DECISIONS_SERVICE = Symbol.for('tmanage.DecisionsService');
+/** PROJ / module 8 (x124). A project's objectives — create/list/transition. */
+export const PROJECT_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.ProjectObjectivesRepository');
+export const PROJECT_OBJECTIVES_SERVICE = Symbol.for('tmanage.ProjectObjectivesService');
 export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepository');
 export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService');
 /** FR-05 (x92). The approvals aggregate — deliverable versions and the decide path. */
