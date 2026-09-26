@@ -46,10 +46,10 @@ test('module 9: schedule a meeting, see it listed, open its notes', async ({ bro
   await page.goto('/northstar-studio/calendar');
 
   // Choose the project. Wait for the projects query to fill its options before selecting.
-  await expect(
-    page.getByRole('option', { name: world().northstar.projectName }),
-  ).toBeAttached();
-  await page.getByLabel('Show the meetings for').selectOption({ label: world().northstar.projectName });
+  await expect(page.getByRole('option', { name: world().northstar.projectName })).toBeAttached();
+  await page
+    .getByLabel('Show the meetings for')
+    .selectOption({ label: world().northstar.projectName });
 
   // Schedule a meeting in that project.
   await page.getByLabel('Title').fill(MEETING_TITLE);

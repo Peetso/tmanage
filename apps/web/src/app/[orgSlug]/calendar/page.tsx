@@ -19,10 +19,5 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 export default function CalendarPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
 
-  return (
-    <MeetingsScreen
-      organizationSlug={orgSlug}
-      organizationName={FIXTURE_ORGANIZATION_NAME}
-    />
-  );
+  return <MeetingsScreen organizationSlug={orgSlug} organizationName={FIXTURE_ORGANIZATION_NAME} />;
 }
