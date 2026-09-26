@@ -377,6 +377,13 @@ GRANT INSERT, UPDATE ON `tmanage`.`decisions` TO 'tmanage_app'@'%';
 -- trigger refuses every UPDATE) and never removed, so UPDATE and DELETE are withheld the way the
 -- append-only edges and ledgers above are.
 GRANT INSERT ON `tmanage`.`decision_supersessions` TO 'tmanage_app'@'%';
+-- `project_objectives` (PROJ / module 8, x124) gets INSERT and UPDATE. An objective is created
+-- (INSERT), read (the database-wide SELECT, line 60), and moved through its lifecycle (UPDATE):
+-- `open → met` or `open → missed`. UPDATE writes exactly `status`; the 0040 column-pinning trigger
+-- (`trg_project_objectives_pin_columns`) refuses every other column at the engine, so an objective's
+-- name, description, target and authorship are immutable for the runtime credential specifically.
+-- **No DELETE**: an objective is the durable record of what the project set out to do.
+GRANT INSERT, UPDATE ON `tmanage`.`project_objectives` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

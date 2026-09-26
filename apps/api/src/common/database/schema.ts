@@ -522,6 +522,44 @@ export const documentTemplates = mysqlTable(
   ],
 );
 
+/**
+ * The project-objective status set, mirroring the `0040` `ENUM`. An objective is `open` at creation
+ * and its lifecycle transitions to `met` or `missed`.
+ */
+export const PROJECT_OBJECTIVE_STATUSES = ['open', 'met', 'missed'] as const;
+
+/**
+ * PROJ / module 8 (x124). A project's objectives — the record of what a project is aiming at: a
+ * name, an optional description and target, its status, and who created it and when.
+ *
+ * Tenant-scoped and project-owned like `meetings` (0029), `documents` (0030) and `decisions` (0037).
+ * Unlike the append-only registers, an objective has a lifecycle (`open → met | missed`), so `status`
+ * may change; the `0040` column-pinning trigger pins every other column at the engine.
+ * `0040_project_objectives.sql` is the source of truth; this is its typed mirror.
+ */
+export const projectObjectives = mysqlTable(
+  'project_objectives',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    description: text('description'),
+    target: varchar('target', { length: 300 }),
+    status: mysqlEnum('status', PROJECT_OBJECTIVE_STATUSES).notNull().default('open'),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_objectives_org_id').on(table.organizationId, table.id),
+    index('ix_project_objectives_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.createdAt,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1830,6 +1868,7 @@ export const TABLES = {
   decisions,
   decision_supersessions: decisionSupersessions,
   document_templates: documentTemplates,
+  project_objectives: projectObjectives,
   import_rows: importRows,
   meeting_notes: meetingNotes,
   saved_views: savedViews,
@@ -1872,6 +1911,7 @@ export type DecisionRow = typeof decisions.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
+export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
