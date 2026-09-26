@@ -88,6 +88,7 @@ import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../apps/api/src/modules/insights/insights.service.js';
+import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -177,6 +178,7 @@ import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/l
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
 import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/src/lib/api/insights-portfolio';
+import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps/web/src/lib/api/insights-workload';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
@@ -333,6 +335,14 @@ type _deliveryFlow = Assert<Exact<ApiDeliveryFlowView, WebDeliveryFlow>>;
  * in either surfaces here too.
  */
 type _insightsPortfolio = Assert<Exact<ApiInsightsPortfolioView, WebInsightsPortfolio>>;
+
+/**
+ * INS-05 — `GET …/insights/workload`. The org-wide workload/capacity portfolio roll-up: `projects`
+ * (per-project open/scheduled item and distinct-assignee counts, heaviest first), `totals` (the
+ * aggregate across them), and `computedAt`. Paired with a real web consumer — INS-05 appends the
+ * workload section to `InsightsScreen`, so this is a live `Exact` pair, not an exemption.
+ */
+type _insightsWorkload = Assert<Exact<ApiInsightsWorkloadView, WebInsightsWorkloadView>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API

@@ -13,6 +13,8 @@ import type {
   ApprovalCycleOutcome,
   ApprovalOutcomeMetric,
 } from '../../lib/api/approval-cycle';
+import { fetchOrgWorkload } from '../../lib/api/insights-workload';
+import type { InsightsWorkloadView } from '../../lib/api/insights-workload';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -60,6 +62,13 @@ export function InsightsScreen({
   const approvalCycle = useQuery({
     queryKey: ['insights-approval-cycle', organizationSlug, projectId],
     queryFn: () => fetchProjectApprovalCycle(api, organizationSlug, projectId),
+  });
+
+  // INS-05 — the org-wide workload roll-up. It does not depend on the project in the route: it is
+  // the portfolio view across every project the caller may read, keyed on the org alone.
+  const workload = useQuery({
+    queryKey: ['insights-workload', organizationSlug],
+    queryFn: () => fetchOrgWorkload(api, organizationSlug),
   });
 
   return (
@@ -110,6 +119,27 @@ export function InsightsScreen({
         ) : null}
 
         {approvalCycle.isSuccess ? <ApprovalCycleTable cycle={approvalCycle.data} /> : null}
+      </section>
+
+      <section className="tm-panel tm-stack" aria-labelledby="tm-workload-heading">
+        <h2 id="tm-workload-heading" className="tm-eyebrow">
+          Workload across projects
+        </h2>
+
+        {workload.isPending ? (
+          <LoadingRegion label="Loading workload." className="tm-stack tm-stack--tight">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
+
+        {workload.isError ? (
+          <InlineAlert tone="danger" title="Could not load the workload roll-up" live>
+            {describe(workload.error)}
+          </InlineAlert>
+        ) : null}
+
+        {workload.isSuccess ? <WorkloadTable workload={workload.data} /> : null}
       </section>
     </AppShell>
   );
@@ -207,6 +237,66 @@ function ApprovalCycleTable({ cycle }: { cycle: ApprovalCycle }) {
       </table>
 
       <p className="tm-prose tm-mono">Computed {formatMoment(cycle.computedAt)}.</p>
+    </>
+  );
+}
+
+/**
+ * INS-05 — the org-wide workload roll-up. A per-project table (heaviest first, as the API orders
+ * it) with the aggregate in the footer, and a drill-in link to each project's own delivery-flow
+ * screen. No invented numbers: an empty portfolio (nothing the caller may read) is stated plainly.
+ */
+function WorkloadTable({ workload }: { workload: InsightsWorkloadView }) {
+  return (
+    <>
+      {workload.totals.projectCount === 0 ? (
+        <p className="tm-prose">No projects you can read have open work yet.</p>
+      ) : null}
+
+      <table className="tm-table">
+        <caption className="tm-visually-hidden">Open work by project</caption>
+        <thead>
+          <tr>
+            <th scope="col">Project</th>
+            <th scope="col" className="tm-table__number">
+              Open items
+            </th>
+            <th scope="col" className="tm-table__number">
+              Scheduled
+            </th>
+            <th scope="col" className="tm-table__number">
+              People
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {workload.projects.map((project) => (
+            <tr key={project.projectId}>
+              <th scope="row">
+                <a
+                  className="tm-link"
+                  href={`insights/projects/${encodeURIComponent(project.projectId)}`}
+                >
+                  {project.projectId}
+                </a>
+              </th>
+              <td className="tm-mono tm-table__number">{project.openItemCount}</td>
+              <td className="tm-mono tm-table__number">{project.scheduledItemCount}</td>
+              <td className="tm-mono tm-table__number">{project.assigneeCount}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">All projects ({workload.totals.projectCount})</th>
+            <td className="tm-mono tm-table__number">{workload.totals.openItemCount}</td>
+            <td className="tm-mono tm-table__number">{workload.totals.scheduledItemCount}</td>
+            <td className="tm-mono tm-table__number">{workload.totals.assigneeCount}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <p className="tm-prose tm-mono">Computed {formatMoment(workload.computedAt)}.</p>
     </>
   );
 }
