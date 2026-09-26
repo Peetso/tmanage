@@ -4,9 +4,14 @@ import { ApiError } from '../../common/http/errors.js';
 import { DocumentsService } from './documents.service.js';
 import type { DocumentsRepository } from './documents.repository.js';
 import type { DocumentVersionsRepository } from './document-versions.repository.js';
+import type { DocumentTemplatesRepository } from './document-templates.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { DocumentRow, DocumentVersionRow } from '../../common/database/schema.js';
+import type {
+  DocumentRow,
+  DocumentTemplateRow,
+  DocumentVersionRow,
+} from '../../common/database/schema.js';
 
 /**
  * DOC-01 (x91) service proofs, database-free over the module's fakes. The migration and the
@@ -45,10 +50,12 @@ const context = { organizationId: ORG, userId: USER } as unknown as TenantContex
 function serviceWith(
   seed: readonly DocumentRow[] = [],
   seedVersions: readonly DocumentVersionRow[] = [],
+  seedTemplates: readonly DocumentTemplateRow[] = [],
 ): {
   service: DocumentsService;
   store: DocumentRow[];
   versionStore: DocumentVersionRow[];
+  templateStore: DocumentTemplateRow[];
 } {
   const store: DocumentRow[] = [...seed];
   let seq = store.length;
@@ -162,10 +169,49 @@ function serviceWith(
     },
   } as unknown as DocumentVersionsRepository;
 
+  // A templates store scoped by the acting tenant, mirroring the real repository's contract:
+  // create assigns an id, list is tenant-scoped, and findById returns null for a cross-tenant id
+  // (exactly what the real scoped SELECT does), which is what applyTemplate turns into a 404.
+  const templateStore: DocumentTemplateRow[] = [...seedTemplates];
+  let templateSeq = templateStore.length;
+  const templates = {
+    list: async (_runner: unknown, ctx: TenantContext) =>
+      templateStore
+        .filter((row) => row.organizationId === ctx.organizationId)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    findById: async (_runner: unknown, ctx: TenantContext, templateId: string) =>
+      templateStore.find(
+        (row) => row.id === templateId && row.organizationId === ctx.organizationId,
+      ) ?? null,
+    create: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      input: {
+        readonly name: string;
+        readonly purpose: string;
+        readonly body: string;
+        readonly createdByUserId: string;
+      },
+    ) => {
+      const row = {
+        id: `doctpl-0000-0000-0000-00000000${++templateSeq}`,
+        organizationId: ctx.organizationId,
+        name: input.name,
+        purpose: input.purpose,
+        body: input.body,
+        createdByUserId: input.createdByUserId,
+        createdAt: new Date(),
+      } as DocumentTemplateRow;
+      templateStore.push(row);
+      return row;
+    },
+  } as unknown as DocumentTemplatesRepository;
+
   return {
-    service: new DocumentsService(database, repository, projects, versions),
+    service: new DocumentsService(database, repository, projects, versions, templates),
     store,
     versionStore,
+    templateStore,
   };
 }
 
@@ -400,5 +446,138 @@ describe('DocumentsService versions (DOC-02/DOC-03)', () => {
       .catch((caught: unknown) => caught);
     expect((restoreError as ApiError).status).toBe(404);
     expect(versionStore).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOC-04/ADM-06 (x119) — document templates: create, list, apply.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TEMPLATE = 'doctpl-0000-0000-0000-000000000042';
+
+/** A seeded template in the given tenant, so apply/list have something to resolve. */
+function seededTemplate(organizationId = ORG): DocumentTemplateRow {
+  return {
+    id: TEMPLATE,
+    organizationId,
+    name: 'Kickoff template',
+    purpose: 'Start a project kickoff brief',
+    body: 'template body prose',
+    createdByUserId: USER,
+    createdAt: new Date(),
+  } as DocumentTemplateRow;
+}
+
+describe('DocumentsService templates (DOC-04/ADM-06)', () => {
+  it('creates a template, lists it, and applies it to a project — a round-trip', async () => {
+    const { service, store, templateStore } = serviceWith();
+    const caller = member([PROJECT]);
+
+    const created = await service.createTemplate(context, caller, {
+      name: 'Kickoff template',
+      purpose: 'Start a project kickoff brief',
+      body: 'template body prose',
+    });
+    expect(created.name).toBe('Kickoff template');
+    expect(created.purpose).toBe('Start a project kickoff brief');
+    expect(created.body).toBe('template body prose');
+    expect(created.createdByUserId).toBe(USER);
+    // The wire projection never echoes the tenant id.
+    expect(JSON.stringify(created)).not.toContain(ORG);
+
+    const listed = await service.listTemplates(context, caller);
+    expect(listed.map((t) => t.id)).toEqual([created.id]);
+
+    // Apply seeds a NEW document from the template body; the template is not mutated.
+    const applied = await service.applyTemplate(context, caller, created.id, {
+      projectId: PROJECT,
+    });
+    expect(applied.projectId).toBe(PROJECT);
+    expect(applied.title).toBe('Kickoff template');
+    expect(applied.body).toBe('template body prose');
+    expect(store.map((d) => d.id)).toEqual([applied.id]);
+    // Template untouched: still one template, same body.
+    expect(templateStore).toHaveLength(1);
+    expect(templateStore[0]?.body).toBe('template body prose');
+  });
+
+  it('applies with an explicit title override, still seeded from the template body', async () => {
+    const { service } = serviceWith([], [], [seededTemplate()]);
+    const applied = await service.applyTemplate(context, member([PROJECT]), TEMPLATE, {
+      projectId: PROJECT,
+      title: 'Acme kickoff',
+    });
+    expect(applied.title).toBe('Acme kickoff');
+    expect(applied.body).toBe('template body prose');
+  });
+
+  it('refuses apply of an unknown/cross-tenant templateId as 404, no write (Known trap), even for an org-wide role', async () => {
+    // An org-wide role passes the relation check regardless, so without the tenant-scoped template
+    // resolution this would reach the document create path and, for a cross-tenant/unknown id,
+    // surface wrongly. The store is empty, so findById returns null and the service 404s first.
+    const { service, store } = serviceWith();
+    const error = await service
+      .applyTemplate(context, member([PROJECT], true), TEMPLATE, { projectId: PROJECT })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect(store).toHaveLength(0);
+  });
+
+  it('does not apply a template that belongs to another tenant (404)', async () => {
+    // The template exists, but in OTHER_ORG. The tenant-scoped resolution returns null for the
+    // acting ORG context, so a caller in ORG gets 404 and nothing is written.
+    const { service, store } = serviceWith([], [], [seededTemplate(OTHER_ORG)]);
+    const error = await service
+      .applyTemplate(context, member([PROJECT], true), TEMPLATE, { projectId: PROJECT })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect(store).toHaveLength(0);
+  });
+
+  it('refuses apply naming an unknown project as 404 (not 500), reusing the document create boundary', async () => {
+    const MISSING_PROJECT = 'project-0000-0000-0000-0000-0000000000ff';
+    const { service, store } = serviceWith([], [], [seededTemplate()]);
+    const error = await service
+      .applyTemplate(context, member([], true), TEMPLATE, { projectId: MISSING_PROJECT })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect(store).toHaveLength(0);
+  });
+
+  it('refuses apply into a project the caller is not a member of, as not-found', async () => {
+    const { service, store } = serviceWith([], [], [seededTemplate()]);
+    const error = await service
+      .applyTemplate(context, member([]), TEMPLATE, { projectId: PROJECT })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect(store).toHaveLength(0);
+  });
+
+  it('denies template create and list to a suspended membership (authorize boundary), and writes nothing', async () => {
+    // The permission boundary this slice adds: the org-scoped `work.create`/`work.read` authorize is
+    // the authoritative decision behind the route guard. A suspended membership is denied here even
+    // though the guard would have passed a live one — and nothing is written.
+    const { service, templateStore } = serviceWith();
+    const suspended = { ...member([], true), membershipStatus: 'suspended' as const };
+
+    const createError = await service
+      .createTemplate(context, suspended, { name: 'X', purpose: 'Y', body: 'Z' })
+      .catch((caught: unknown) => caught);
+    expect(createError).toBeInstanceOf(ApiError);
+    expect((createError as ApiError).status).toBe(403);
+    expect(templateStore).toHaveLength(0);
+
+    const listError = await service
+      .listTemplates(context, suspended)
+      .catch((caught: unknown) => caught);
+    expect((listError as ApiError).status).toBe(403);
   });
 });

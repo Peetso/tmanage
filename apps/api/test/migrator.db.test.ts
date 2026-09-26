@@ -896,6 +896,79 @@ describe('0036: document_versions is tenant-scoped, append-only and forward-only
   });
 });
 
+describe('0039: document_templates is tenant-scoped, org-owned and identity-immutable', () => {
+  beforeAll(freshDatabase);
+
+  const id = (n: string) => `00000000-0000-4000-8000-0000000005${n}`;
+
+  it('applies, round-trips a scoped template, and refuses cross-tenant and identity change', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table has exactly the columns the Drizzle schema mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'document_templates'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'body',
+        'created_at',
+        'created_by_user_id',
+        'id',
+        'name',
+        'organization_id',
+        'purpose',
+      ].sort(),
+    );
+    expect(String(byName.get('body')?.['type'])).toBe('text');
+    expect(String(byName.get('body')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('purpose')?.['nullable'])).toBe('NO');
+
+    // Minimal parents the foreign keys require: an organization and a user.
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'dt', 'DT')`, [
+      id('01'),
+    ]);
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'dt@e.test', 'DT')`,
+      [id('02')],
+    );
+
+    // A tenant-scoped template insert/select round-trips, and the body is preserved.
+    await connection.query(
+      `INSERT INTO document_templates (id, organization_id, name, purpose, body, created_by_user_id)
+       VALUES (?, ?, 'Kickoff', 'Start a brief', 'template body', ?)`,
+      [id('03'), id('01'), id('02')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT name AS n, body AS b FROM document_templates
+        WHERE organization_id = ? AND id = ?`,
+      [id('01'), id('03')],
+    );
+    expect(String(rows[0]?.['n'])).toBe('Kickoff');
+    expect(String(rows[0]?.['b'])).toBe('template body');
+
+    // The foreign key refuses an organization id that does not exist: a template can only ever
+    // belong to a real tenant, so it can never reference another (non-existent) organization.
+    await expect(
+      connection.query(
+        `INSERT INTO document_templates (id, organization_id, name, purpose, body, created_by_user_id)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', 'X', 'Y', 'Z', ?)`,
+        [id('04'), id('02')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // Identity is immutable: the trigger refuses moving a template to another tenant.
+    await expect(
+      connection.query(
+        `UPDATE document_templates SET organization_id = 'ffffffff-0000-4000-8000-000000000001' WHERE id = ?`,
+        [id('03')],
+      ),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });

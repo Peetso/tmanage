@@ -5,8 +5,14 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { DocumentsRepository } from './documents.repository.js';
 import type { CreateDocumentInput, ListDocumentsOptions } from './documents.repository.js';
 import { DocumentVersionsRepository } from './document-versions.repository.js';
+import { DocumentTemplatesRepository } from './document-templates.repository.js';
+import type { ListDocumentTemplatesOptions } from './document-templates.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
-import type { DocumentRow, DocumentVersionRow } from '../../common/database/schema.js';
+import type {
+  DocumentRow,
+  DocumentTemplateRow,
+  DocumentVersionRow,
+} from '../../common/database/schema.js';
 
 /**
  * The application service for DOC-01 (x91) — the object-level decision the route guard cannot
@@ -88,12 +94,39 @@ function toVersionView(row: DocumentVersionRow): DocumentVersionView {
   };
 }
 
+/**
+ * DOC-04/ADM-06 (x119). What a caller is allowed to see of one document template. `organizationId`
+ * is deliberately absent, for the reason {@link DocumentView} omits it — the wire projection never
+ * echoes the tenant id (`25-AUTH` §7).
+ */
+export interface DocumentTemplateView {
+  readonly id: string;
+  readonly name: string;
+  readonly purpose: string;
+  readonly body: string;
+  readonly createdByUserId: string;
+  readonly createdAt: string;
+}
+
+/** An explicit projection, not a serialised row: a column added later is invisible until named. */
+function toTemplateView(row: DocumentTemplateRow): DocumentTemplateView {
+  return {
+    id: row.id,
+    name: row.name,
+    purpose: row.purpose,
+    body: row.body,
+    createdByUserId: row.createdByUserId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export class DocumentsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly documents: DocumentsRepository = new DocumentsRepository(),
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     private readonly versions: DocumentVersionsRepository = new DocumentVersionsRepository(),
+    private readonly templates: DocumentTemplatesRepository = new DocumentTemplatesRepository(),
   ) {}
 
   /**
@@ -341,5 +374,116 @@ export class DocumentsService {
       }),
     );
     return toVersionView(row);
+  }
+
+  // ── DOC-04/ADM-06 (x119) — document templates ──────────────────────────────
+
+  /**
+   * DOC-04/ADM-06. Create an org-scoped template a person can later apply to a project.
+   *
+   * A template belongs to the organization, not a project, so the object-level decision is the
+   * org-scoped write authorize (`work.create` with `projectId: null` — the sibling capability
+   * `doc.write` mirrors it by construction; see the class comment). The route guard already asked
+   * the coarse `doc.write` question; this is the authoritative application decision (`25-AUTH` §3
+   * step 2, deny-by-default), so a suspended membership or a tenant mismatch is refused here even
+   * if the guard were wrong. A denial surfaces as 403 — there is no object to hide on a create, so
+   * the not-found masking `create` uses for a project does not apply.
+   */
+  async createTemplate(
+    context: TenantContext,
+    principal: Principal,
+    input: { readonly name: string; readonly purpose: string; readonly body: string },
+  ): Promise<DocumentTemplateView> {
+    const permitted = authorize({
+      principal,
+      capability: 'work.create',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+
+    if (!permitted) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'template_write_denied');
+    }
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.templates.create(tx, context, { ...input, createdByUserId: context.userId }),
+    );
+    return toTemplateView(row);
+  }
+
+  /**
+   * DOC-04/ADM-06. List the acting tenant's templates, name-ascending, for a caller who may read.
+   *
+   * `doc.read`, relation-gated as `work.read` (org-scoped: `projectId: null`, so every member of
+   * the organization may read its templates). The repository has already scoped the read to the
+   * tenant; the authorize adds the deny-by-default membership/role decision the guard cannot.
+   */
+  async listTemplates(
+    context: TenantContext,
+    principal: Principal,
+    options: ListDocumentTemplatesOptions = {},
+  ): Promise<readonly DocumentTemplateView[]> {
+    const permitted = authorize({
+      principal,
+      capability: 'work.read',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+
+    if (!permitted) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'template_read_denied');
+    }
+
+    const rows = await this.database.read(context, (runner) =>
+      this.templates.list(runner, context, options),
+    );
+    return rows.map(toTemplateView);
+  }
+
+  /**
+   * DOC-04/ADM-06. Apply a template to a project: create a new document seeded from the template's
+   * body. The template is never mutated; the applied document is an ordinary document from then on.
+   *
+   * This is the Known-trap order (FAST-PROTOCOL 19:55, `MeetingsService.create` after `75e2913`).
+   * Both named ids are resolved tenant-scoped **before** any write, so an unknown or cross-tenant
+   * id becomes a **404**, never a foreign-key 500 reached by an org-wide caller:
+   *
+   * 1. The **template** is read scoped to the tenant here. A missing id — or one that belongs to
+   *    another tenant — returns null and is a 404, before the document create path runs.
+   * 2. The **project** and the relation/authorize check are the existing {@link create} path's,
+   *    reused verbatim: it resolves the project tenant-scoped (404 if missing/cross-tenant) and
+   *    authorizes `work.create` on it (a non-member is 404, never 403), then inserts the document.
+   */
+  async applyTemplate(
+    context: TenantContext,
+    principal: Principal,
+    templateId: string,
+    options: { readonly projectId: string; readonly title?: string },
+  ): Promise<DocumentView> {
+    const template = await this.database.read(context, (runner) =>
+      this.templates.findById(runner, context, templateId),
+    );
+    if (!template) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'template_not_visible');
+    }
+
+    const title = options.title?.trim() ? options.title.trim() : template.name;
+
+    // Reuse the document create path: it performs the tenant-scoped project resolution, the
+    // `work.create` relation/authorize check, and the insert — so apply never duplicates that
+    // permission boundary. The template is read-only above and is not touched here.
+    return this.create(context, principal, {
+      projectId: options.projectId,
+      title,
+      body: template.body,
+    });
   }
 }

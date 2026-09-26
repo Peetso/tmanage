@@ -147,6 +147,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
   // tenant table has, so the guard scopes its reads and writes.
   document_versions: 'organization_id',
+  // DOC-04/ADM-06 (0039, x119). Tenant-owned: an org-scoped document template, and an unscoped
+  // `SELECT ... FROM document_templates` would be every studio's templates on the server.
+  // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table
+  // has, so the guard scopes its reads and writes.
+  document_templates: 'organization_id',
   // ON-09 commit half (migration 0032). Tenant-owned: the per-row commit receipt (ADM-10)
   // names one organization and its parent job, and an unscoped read would be every studio's
   // import outcomes. `organization_id` is NOT NULL and it carries the `(organization_id, id)`
