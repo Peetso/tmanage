@@ -75,6 +75,13 @@ several were in fact already resolved in later dated sections of this file (note
   (default 20 / max 50), narrow `AdminAuditEventView` (no metadata/correlationId) + `AdminAuditScreen`.
   No migration, no DB change (`audit_events` already registered; `tmanage_app` already holds
   database-wide `SELECT`). Cross-tenant exclusion unit-proven; contract paired Exact.
+- **x116** (`ADM-02`): expose project member add / change-role / remove over HTTP behind
+  `project.member.manage` (`ProjectMembersController`), with tenant-scoped resolve→404 before every
+  write and privilege-escalation guards (no role above the caller's ceiling, no self role change,
+  no stripping the last owner — each 403, no audit); `MembersAndRolesScreen` + web client + route +
+  `ProjectMemberView`↔`ProjectMemberSummary` contract pair. No migration (`project_memberships`
+  already registered; role CHECK is `0026`). Cross-tenant + escalation exclusion unit-proven; no
+  schema change, so no slice DB proof (chain `tenant-isolation` + migrator `0026` cover the table).
 
 Earlier:
 

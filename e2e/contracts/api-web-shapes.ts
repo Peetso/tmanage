@@ -74,6 +74,7 @@ import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api
 import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
+import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
@@ -132,6 +133,7 @@ import type {
 } from '../../apps/web/src/lib/api/invitations';
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
+import type { ProjectMemberSummary as WebProjectMemberSummary } from '../../apps/web/src/lib/api/project-members';
 import type {
   CreatedOrganization as WebCreatedOrganization,
   OrganizationSummary as WebOrganizationSummary,
@@ -225,6 +227,14 @@ type _portalDeliverable = Assert<Exact<ApiPortalDeliverableView, WebPortalDelive
 type _portalDeliverableFile = Assert<Exact<ApiPortalDeliverableFileView, WebPortalDeliverableFile>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
+
+/**
+ * ADM-02 (x116). `GET/POST/PATCH/DELETE …/projects/:projectId/members` — a project membership row.
+ * The `MembersAndRolesScreen` reads exactly this projection (`projectMembershipId`, `userId`,
+ * `role`, `createdAt`), resolving the display name from the member directory rather than from this
+ * endpoint, so the pair is Exact.
+ */
+type _projectMember = Assert<Exact<ApiProjectMemberView, WebProjectMemberSummary>>;
 type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRequest>>;
 
 /**
