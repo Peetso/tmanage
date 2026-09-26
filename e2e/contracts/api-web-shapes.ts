@@ -70,6 +70,10 @@ import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/m
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { MeetingAgendaView as ApiMeetingAgendaView } from '../../apps/api/src/modules/calendar/meeting-agenda.controller.js';
+import type {
+  NotificationView as ApiNotificationView,
+  NotificationFeedView as ApiNotificationFeedView,
+} from '../../apps/api/src/modules/notifications/notifications-feed.controller.js';
 import type { MeetingSeriesView as ApiMeetingSeriesView } from '../../apps/api/src/modules/calendar/meeting-series.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type {
@@ -173,6 +177,10 @@ import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/l
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { MeetingAgendaView as WebMeetingAgendaView } from '../../apps/web/src/lib/api/meeting-agenda';
+import type {
+  NotificationView as WebNotificationView,
+  NotificationFeedView as WebNotificationFeedView,
+} from '../../apps/web/src/lib/api/notifications-feed';
 import type { MeetingSeriesView as WebMeetingSeriesView } from '../../apps/web/src/lib/api/meeting-series';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type { ProjectMemberSummary as WebProjectMemberSummary } from '../../apps/web/src/lib/api/project-members';
@@ -404,6 +412,17 @@ type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeV
  * with the web `MeetingAgendaView`; the nested day/entry shapes are inlined on both sides.
  */
 type _meetingAgenda = Assert<Exact<ApiMeetingAgendaView, WebMeetingAgendaView>>;
+
+/**
+ * NOTIF feed (x151). `GET .../notifications` and `POST .../notifications/:id/read` — the flat
+ * per-notification feed over `notifications` (0010, no new table), read by
+ * `NotificationsFeedScreen`. Behind `work.read` (INBOX-001's choice), own-principal scoped: the
+ * mark-read resolves the caller's own row before it writes, and another user's id is a 404. Both
+ * the item `NotificationView` and the page `NotificationFeedView` are paired Exact, so a rename
+ * or retype on either side fails the gate.
+ */
+type _notification = Assert<Exact<ApiNotificationView, WebNotificationView>>;
+type _notificationFeed = Assert<Exact<ApiNotificationFeedView, WebNotificationFeedView>>;
 
 /**
  * CAL recurrence (x129). `GET`/`POST .../meeting-series` — a tenant's recurring meeting series,

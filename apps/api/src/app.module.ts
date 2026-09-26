@@ -22,6 +22,7 @@ import { RequestsModule } from './modules/requests/requests.module.js';
 import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
+import { NotificationsFeedModule } from './modules/notifications/notifications-feed.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
@@ -165,6 +166,11 @@ export class AppModule {
         // NOTIF-001. The caller's own notification settings (GET/PUT). No tenant object to
         // resolve, so unlike the inbox it depends on nothing but the database.
         NotificationPreferencesModule.register(),
+        // NOTIF feed (x151). The flat per-notification feed (GET list, POST :id/read) over the
+        // same `notifications` rows the inbox bundles. A module of its own beside the inbox and
+        // preferences modules so the notifications slices stay file-disjoint; it depends on
+        // nothing but the database — the feed echoes the reference envelope and resolves no object.
+        NotificationsFeedModule.register(),
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),
