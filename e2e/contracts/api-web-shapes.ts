@@ -42,6 +42,7 @@ import type { ConvertMessageResultView as ApiConvertMessageResultView } from '..
 import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
+import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DocumentTemplateView as ApiDocumentTemplateView } from '../../apps/api/src/modules/docs/documents.service.js';
@@ -121,6 +122,7 @@ import type {
   MessageSummary as WebMessageSummary,
 } from '../../apps/web/src/lib/api/conversations';
 import type { DocumentView as WebDocumentView } from '../../apps/web/src/lib/api/documents';
+import type { DocumentCommentView as WebDocumentCommentView } from '../../apps/web/src/lib/api/document-comments';
 import type {
   InboxBundle as WebInboxBundle,
   InboxPage as WebInboxPage,
@@ -253,6 +255,14 @@ type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
  * reads exactly this response for its history/compare/restore, so the pair is Exact.
  */
 type _documentVersion = Assert<Exact<ApiDocumentVersionView, WebDocumentVersionSummary>>;
+
+/**
+ * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST
+ * …/documents/:documentId/comments`) — one comment on a document. The `DocumentCommentsPanel` beside
+ * `DocumentViewScreen` reads exactly this response, so the pair is Exact. `organizationId` is on
+ * neither side — the API never echoes the tenant id into a response body.
+ */
+type _documentComment = Assert<Exact<ApiDocumentCommentView, WebDocumentCommentView>>;
 
 /**
  * DEC-01 (x113). `DecisionView` (`GET`/`POST …/decisions`, request body + response). Paired with a

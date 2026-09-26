@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { DocumentCommentsPanel } from './DocumentCommentsPanel';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDocument } from '../../lib/api/documents';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -123,6 +124,13 @@ export function DocumentViewScreen({
               </p>
             ))}
           </section>
+
+          {/* Docs "collaboration later" (x132) — the document's comments, read/add. */}
+          <DocumentCommentsPanel
+            organizationSlug={organizationSlug}
+            documentId={documentId}
+            client={client}
+          />
         </>
       ) : null}
     </AppShell>

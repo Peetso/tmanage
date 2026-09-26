@@ -13183,3 +13183,35 @@ axe): rows render with their figures and drill-in links, an empty portfolio says
 projects, a `work.read` refusal shows rather than a blank page, and the document is axe-clean.
 Deferred to NEXT-SCOPES-11: INS-05 workload/INS-06 adoption portfolios, portfolio exports, and the
 People/Automations portfolios (blocked — need new capabilities.ts entries).
+
+## DOC "collaboration later" — document comments (x132)
+
+**What this adds.** `38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Docs marks the module "MVP-lite;
+collaboration later", and `0030_documents.sql` deferred "a document's versions/comments" to a later
+slice. Versions landed in x112; this is the comments half. A new tenant-scoped, document-owned,
+append-only table `document_comments` (migration `0045`, id/organization_id/document_id/
+author_membership_id/body/created_at) holds one comment on a document; the author is the membership
+the comment was written under, bound by the composite key `(organization_id, author_membership_id)`
+to `memberships` so an author is always a member of the comment's own tenant. Edit/delete, resolve
+and anchored ranges are deferred to NEXT-SCOPES-13; the `0045` trigger refuses every UPDATE, and
+`users.sql` grants INSERT only.
+
+**Routes (Known trap — id in the path).** `GET .../documents/:documentId/comments` (`doc.read`)
+lists a document's comments oldest-first, bounded (default 50 / max 200, keyset by `after`); `POST
+.../documents/:documentId/comments` (`doc.write`) adds one. `DocumentCommentsService` resolves the
+document **tenant-scoped before** the relation check (the FAST-PROTOCOL 19:55 order): an unknown,
+cross-tenant or non-member document id is a 404 with nothing written, never a foreign-key 500 reached
+by an org-wide caller. The relation check reuses the sibling `work.read`/`work.create` capabilities
+that `authorize()` already relation-gates, exactly as `DocumentsService` does, so no `capabilities.ts`
+or security-core edit is needed. Proved over the module's fakes with a real `authorize`
+(`document-comments.controller.test.ts`): add-then-list for a member, the Known-trap 404 (no write)
+for an unknown/cross-tenant document even for an org-wide role, and the relation gate denying a
+non-member both add and list. No DB test / no e2e journey in-slice (the chain owns both).
+
+**Web surface.** `DocumentCommentsPanel` (`apps/web/src/components/screens/DocumentCommentsPanel.tsx`)
+renders beside `DocumentViewScreen`: comments oldest-first (author shown by membership id, the honesty
+the editor applies to the same name gap), an empty state, and an add form. It reads the endpoints via
+a new `apps/web/src/lib/api/document-comments.ts`; `DocumentCommentView` is a live `Exact` pair in
+`e2e/contracts/api-web-shapes.ts`. Proved in `apps/web/tests/document-comments-panel.test.tsx` (jsdom
++ axe): comments render oldest-first, the empty state shows with no invented rows, an add clears the
+draft, and the region is axe-clean.

@@ -422,6 +422,35 @@ export const documentVersions = mysqlTable(
 );
 
 /**
+ * Docs "collaboration later" (x132). A comment on a `documents` row — a body, an author membership
+ * and a time, against an existing document. Document-owned and tenant-scoped like `document_versions`
+ * (0036): the comment carries no `project_id`; the relation it is read and written by is the
+ * document's, resolved in the service, so the two can never disagree. Append-only/immutable —
+ * `0045`'s trigger refuses every UPDATE and there is no edit endpoint this slice (edit/delete,
+ * resolve and anchored ranges are NEXT-SCOPES-13). `0045_document_comments.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const documentComments = mysqlTable(
+  'document_comments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    documentId: char('document_id', { length: 36 }).notNull(),
+    authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_document_comments_org_id').on(table.organizationId, table.id),
+    index('ix_document_comments_org_document').on(
+      table.organizationId,
+      table.documentId,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * DEC-01 (x113). The statuses a decision on the register may hold. Set at creation this slice; the
  * transitions between them are the deferred lifecycle (NEXT-SCOPES-9). `0037_decisions.sql` is the
  * source of truth; this mirrors its `ENUM`.
@@ -1827,6 +1856,7 @@ export const TABLES = {
   meetings,
   documents,
   document_versions: documentVersions,
+  document_comments: documentComments,
   decisions,
   decision_supersessions: decisionSupersessions,
   document_templates: documentTemplates,
@@ -1868,6 +1898,8 @@ export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
+export type DocumentCommentRow = typeof documentComments.$inferSelect;
+export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;

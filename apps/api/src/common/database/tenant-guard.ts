@@ -147,6 +147,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
   // tenant table has, so the guard scopes its reads and writes.
   document_versions: 'organization_id',
+  // Docs "collaboration later" (0045, x132). Tenant-owned: a comment cites a document, and an
+  // unscoped `SELECT ... FROM document_comments` would be every studio's document discussion on the
+  // server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
+  // tenant table has, so the guard scopes its reads and writes.
+  document_comments: 'organization_id',
   // DOC-04/ADM-06 (0039, x119). Tenant-owned: an org-scoped document template, and an unscoped
   // `SELECT ... FROM document_templates` would be every studio's templates on the server.
   // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table

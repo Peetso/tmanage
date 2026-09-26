@@ -55,6 +55,8 @@ export const MEETINGS_SERVICE = Symbol.for('tmanage.MeetingsService');
 /** DOC-01 (x91). The docs module's document read/write. */
 export const DOCUMENTS_REPOSITORY = Symbol.for('tmanage.DocumentsRepository');
 export const DOCUMENTS_SERVICE = Symbol.for('tmanage.DocumentsService');
+/** Docs "collaboration later" (x132). The docs module's document-comments read/add. */
+export const DOCUMENT_COMMENTS_SERVICE = Symbol.for('tmanage.DocumentCommentsService');
 /** DEC-01 (x113). The decisions module's decision register author/list. */
 export const DECISIONS_REPOSITORY = Symbol.for('tmanage.DecisionsRepository');
 export const DECISIONS_SERVICE = Symbol.for('tmanage.DecisionsService');
