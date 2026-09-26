@@ -31,6 +31,7 @@
 import type { AcceptedClientRequestView as ApiAcceptedClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
+import type { AdminAuditEventView as ApiAdminAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { ChallengeResponseView as ApiChallengeResponseView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { ClientDecideView as ApiClientDecideView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientProjectionView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
@@ -155,6 +156,7 @@ import type {
   SessionSummary as WebSessionSummary,
 } from '../../apps/web/src/lib/api/session';
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
+import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
@@ -371,6 +373,17 @@ type _invitation = Assert<Exact<ApiInvitationView, WebInvitationSummary>>;
  * (`GET .../client-requests/:id/history`, client-requests.controller.ts:315, serves this screen).
  */
 type _clientRequestHistory = Assert<Narrows<ApiAuditEventView, WebClientRequestHistoryEntry>>;
+
+/**
+ * ADM audit viewer (x115). `GET .../audit/events` — the Administration audit-log read behind
+ * `audit.read`. A **new** narrow projection, distinct from `AuditEventView`: seven fields
+ * (id, occurredAt, actorId, action, entityType, entityId, summary) with no `metadata`,
+ * `correlationId` or `effectiveActorId`, so a broad admin list cannot surface a producer's
+ * payload (x49/x58 redaction). The `AdminAuditScreen` reads exactly this row, so the pair is
+ * Exact. Named `AdminAuditEventView` on the API side to avoid clashing with the pre-existing
+ * `AuditEventView`, which pairs (Narrows) the client-request history screen above.
+ */
+type _adminAudit = Assert<Exact<ApiAdminAuditEventView, WebAdminAuditEvent>>;
 
 /**
  * CONTRACT-001 lift (x71). The seven pairs x69 left out. Five named their response type in the

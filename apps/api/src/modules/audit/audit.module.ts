@@ -8,6 +8,7 @@ import {
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { AuditEventsRepository } from './audit-events.repository.js';
 import { AuditService } from './audit.service.js';
+import { AuditController } from './audit.controller.js';
 
 /**
  * AUD-001's wiring.
@@ -24,8 +25,10 @@ import { AuditService } from './audit.service.js';
  * Audit is cross-cutting in the same sense the tenant guard is, so one instance for the whole
  * application is the correct shape as well as the convenient one.
  *
- * No controller. The audit **viewer** is ADMIN-002, and an HTTP surface for it now would be a
- * route whose scope narrowing this table cannot yet support — see `AuditService.view`.
+ * One controller — the ADM audit **viewer** (x115): `GET .../audit/events`, a tenant-scoped,
+ * keyset-paginated read behind `audit.read`, projected to the narrow `AdminAuditEventView`. The
+ * scope narrowing this table can support (org-wide vs own-activity) lives in `AuditService.view`,
+ * which the viewer composes; `audit.export` (CSV) remains a later, separately-capped slice.
  */
 @Global()
 @Module({})
@@ -47,6 +50,7 @@ export class AuditModule {
       global: true,
       providers: [repository, service],
       exports: [service, repository],
+      controllers: [AuditController],
     };
   }
 }
