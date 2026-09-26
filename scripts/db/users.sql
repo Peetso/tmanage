@@ -103,6 +103,7 @@
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
+--     saved_views, meeting_attendees
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
@@ -282,6 +283,13 @@ GRANT INSERT, UPDATE         ON `tmanage`.`documents`        TO 'tmanage_app'@'%
 -- UPDATE is added with the code that writes it, per this file's rule that a grant names a
 -- statement that exists (the same treatment `meetings` and `documents` have above).
 GRANT INSERT                 ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%';
+-- CAL-01 / MTG-01 attendees + RSVP (x126). An attendee is invited (INSERT) and their RSVP is
+-- changed in place (UPDATE) — this slice ships invite/list/RSVP — so INSERT and UPDATE and **no
+-- DELETE**: there is no un-invite endpoint, least privilege, and 0042's trigger pins
+-- organization_id/meeting_id/membership_id immutable (only `rsvp` may change) for every credential
+-- besides. DELETE is added with the code that writes it, per this file's rule that a grant names a
+-- statement that exists (the same treatment `saved_views` has above).
+GRANT INSERT, UPDATE          ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@'%';
 -- WK-08 (x107). A saved view is created (INSERT), read (the database-wide SELECT) and edited in
 -- place (UPDATE) — this slice ships create/list/update — so INSERT and UPDATE and **no DELETE**:
 -- there is no delete endpoint, least privilege, and the 0034 trigger pins organization_id and
