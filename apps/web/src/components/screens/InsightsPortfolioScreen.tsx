@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -15,6 +16,8 @@ export interface InsightsPortfolioScreenProps {
   organizationName: string;
   /** Injected in tests. Defaults to the browser client. */
   client?: ApiClient;
+  /** Optional page-level actions rendered under the portfolio (e.g. the x135 CSV export). */
+  children?: ReactNode;
 }
 
 /**
@@ -38,6 +41,7 @@ export function InsightsPortfolioScreen({
   organizationSlug,
   organizationName,
   client,
+  children,
 }: InsightsPortfolioScreenProps) {
   const api = client ?? browserApiClient();
 
@@ -76,6 +80,8 @@ export function InsightsPortfolioScreen({
           <PortfolioTable portfolio={portfolio.data} organizationSlug={organizationSlug} />
         ) : null}
       </section>
+
+      {children}
     </AppShell>
   );
 }

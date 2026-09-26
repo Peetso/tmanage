@@ -9,6 +9,7 @@ import { DeliveryFlowRepository } from './delivery-flow.repository.js';
 import { ApprovalCycleRepository, InsightsApprovalsReader } from './approval-cycle.repository.js';
 import { InsightsService } from './insights.service.js';
 import { InsightsController } from './insights.controller.js';
+import { InsightsExportController } from './insights-export.controller.js';
 
 /**
  * INS-01's wiring — the insights module's first slice.
@@ -42,7 +43,9 @@ export class InsightsModule {
       module: InsightsModule,
       providers: [service],
       exports: [service],
-      controllers: [InsightsController],
+      // INS-05 export shares the JSON reads' service and capability; a separate controller only
+      // because its response mode (a CSV download) differs from the JSON reads'.
+      controllers: [InsightsController, InsightsExportController],
     };
   }
 }
