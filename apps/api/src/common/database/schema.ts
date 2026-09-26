@@ -725,6 +725,42 @@ export const documentTemplateVariables = mysqlTable(
   ],
 );
 
+/**
+ * The org-objective status set, mirroring the `0046` `ENUM`. An objective is `open` at creation and
+ * its lifecycle transitions to `met` or `missed` — the same lifecycle as {@link projectObjectives}.
+ */
+export const ORG_OBJECTIVE_STATUSES = ['open', 'met', 'missed'] as const;
+
+/**
+ * PROJ / module 8 (x136). An organization's objectives / OKRs — the record of what the whole
+ * organization is aiming at: a name, an optional description and target, its status, and who created
+ * it and when.
+ *
+ * The org-level counterpart of {@link projectObjectives} (x124): tenant-scoped like every sibling,
+ * but with no `project_id` — an org objective belongs to the tenant, not to a project, so
+ * authorization is org-scoped rather than relation-gated on a project. Like the project objective, it
+ * has a lifecycle (`open → met | missed`), so `status` may change; the `0046` column-pinning trigger
+ * pins every other column at the engine. `0046_org_objectives.sql` is the source of truth; this is
+ * its typed mirror.
+ */
+export const orgObjectives = mysqlTable(
+  'org_objectives',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    description: text('description'),
+    target: varchar('target', { length: 300 }),
+    status: mysqlEnum('status', ORG_OBJECTIVE_STATUSES).notNull().default('open'),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_objectives_org_id').on(table.organizationId, table.id),
+    index('ix_org_objectives_org_created').on(table.organizationId, table.createdAt),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2036,6 +2072,7 @@ export const TABLES = {
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
   document_template_variables: documentTemplateVariables,
+  org_objectives: orgObjectives,
   import_rows: importRows,
   meeting_notes: meetingNotes,
   meeting_attendees: meetingAttendees,
@@ -2089,6 +2126,7 @@ export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
+export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

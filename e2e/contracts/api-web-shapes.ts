@@ -88,6 +88,7 @@ import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/s
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
+import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
@@ -131,6 +132,7 @@ import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
+import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -277,6 +279,15 @@ type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRe
  * a real `Exact` pair. The `status` union (`open | met | missed`) is the same on both sides.
  */
 type _projectObjective = Assert<Exact<ApiProjectObjectiveView, WebProjectObjectiveSummary>>;
+
+/**
+ * PROJ / module 8 (x136). `OrgObjectiveView` (`GET`/`POST …/organizations/:orgSlug/objectives` and the
+ * `PATCH …/objectives/:objectiveId` response) — an organization's objective / OKR and its lifecycle
+ * status. The org-level counterpart of `ProjectObjectiveView` (x124), with no `projectId`. Paired with
+ * a live web consumer: `OrgObjectivesScreen` reads exactly this response, so this is a real `Exact`
+ * pair. The `status` union (`open | met | missed`) is the same on both sides.
+ */
+type _orgObjective = Assert<Exact<ApiOrgObjectiveView, WebOrgObjectiveSummary>>;
 
 /**
  * CAL-01 / MTG-01 third slice (x108). `GET .../meetings/:meetingId/notes` — a meeting's captured

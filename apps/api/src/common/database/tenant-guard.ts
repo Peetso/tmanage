@@ -210,6 +210,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // registering it here is what scopes the reads and writes; tenant-isolation.db.test.ts
   // enforces the entry.
   project_updates: 'organization_id',
+  // PROJ / module 8 (x136, migration 0046). Tenant-owned: an org objective belongs to one studio,
+  // and an unscoped `SELECT ... FROM org_objectives` would be every studio's OKRs on the server.
+  // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table
+  // has, so the guard must scope its reads and its writes. The layer-3 guard fails OPEN on an
+  // unregistered table, so this entry is what scopes the objective reads and writes.
+  org_objectives: 'organization_id',
 });
 
 /**
