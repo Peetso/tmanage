@@ -70,6 +70,7 @@ import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/s
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
+import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
@@ -144,6 +145,7 @@ import type {
   WorkspaceSummary as WebWorkspaceSummary,
 } from '../../apps/web/src/lib/api/projects';
 import type { RealtimeTicket as WebRealtimeTicket } from '../../apps/web/src/lib/api/realtime';
+import type { SearchResult as WebSearchResult } from '../../apps/web/src/lib/api/search';
 import type {
   EstablishedSession as WebEstablishedSession,
   SessionSummary as WebSessionSummary,
@@ -268,6 +270,14 @@ type _deliveryFlow = Assert<Exact<ApiDeliveryFlowView, WebDeliveryFlow>>;
 
 /** `WorkItemView.state` ↔ `WORK_ITEM_STATES` (`@tmanage/domain`). */
 type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
+
+/**
+ * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit
+ * (`GET …/search?q=`). Paired Exact, not exempt: SRCH-01 ships `SearchScreen`, a real web consumer,
+ * so the `kind`/`id`/`title`/`projectId`/`snippet` shape and the `SearchResultKind` union are held
+ * identical on both sides.
+ */
+type _searchResult = Assert<Exact<ApiSearchResultView, WebSearchResult>>;
 
 /**
  * HOME-03 My Day. The response is one projection — its per-row entry is inlined on both sides
