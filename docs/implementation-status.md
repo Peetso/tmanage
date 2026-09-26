@@ -12988,3 +12988,31 @@ drill-in to each project. `InsightsWorkloadView` is paired live in `e2e/contract
 excluded with no 500; client without `work.read` contributes nothing; bound clamped) and the
 `insights-workload-journeys.spec.ts` journey (chain-run). Off-project + cross-tenant exclusion:
 unit-proven, no schema change.
+
+## INS-06 — insights, adoption roll-up: the org-wide usage read (x133)
+
+The org-level counterpart to INS-05's per-project workload roll-up, closing the audit's "Insights
+Partial; INS-06 deferred" gap. A new `GET …/insights/adoption` (behind `work.read`, the same reused
+internal-read capability — no new capability, no schema change, no migration) answers "is the studio
+actually using the product": `activeMembers` (current active memberships), `membersWithWork`
+(distinct people who created work in the window) and `meetingsHeld` (meetings held in it), over a
+`windowDays` clamped to `[1, 90]`, default 30. It ships as its own module/controller/repository
+(`apps/api/src/modules/insights/adoption.{controller,repository}.ts`), disjoint by file from x89/x123's
+`InsightsModule`, registered from `app.module.ts`; the three reads are tenant-scoped `SELECT`s over
+existing `memberships` / `work_items` / `meetings` and own no table.
+
+**Known-trap (org-level gate + window).** Adoption is a single org-level aggregate, not decomposable
+per project, so it is authorized **once** at org level (`work.read` with `projectId: null`): an
+internal role holding `work.read` is allowed, a client is a 403 (the capability is internal-only),
+and a cross-tenant principal is refused by `authorize`'s tenant check — a refusal is a 403, never a
+silently empty roll-up. The window is validated, not clamped-into-a-scan: a value over 90 (or a
+non-integer) is a 400. Each read is re-filtered to the context's organization belt-and-braces before
+counting, so a cross-tenant row never contributes.
+
+**Web + contract.** `InsightsAdoptionScreen` (routed at `[orgSlug]/insights/adoption`, disjoint from
+x120/x123) reads `apps/web/src/lib/api/insights-adoption.ts` and renders an accessible table.
+`InsightsAdoptionView` is paired live in `e2e/contracts/api-web-shapes.ts` (CONTRACT-001). Proven in
+`adoption.controller.test.ts` over the module's fakes with the real `authorize` (distinct counts,
+cross-tenant rows dropped, over-wide window → 400, client without `work.read` → 403) and
+`insights-adoption-flow.test.tsx` (renders + axe clean, refusal surfaced). No DB test / no new e2e
+journey (chain owns both); no schema change.

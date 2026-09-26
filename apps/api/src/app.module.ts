@@ -34,6 +34,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module.js';
 import { FilesModule } from './modules/files/files.module.js';
 import { ImportModule } from './modules/import/import.module.js';
 import { InsightsModule } from './modules/insights/insights.module.js';
+import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -178,6 +179,10 @@ export class AppModule {
         // roll a project's work items up by workflow status. Read-only, behind `work.read`; it
         // constructs its own repository handle (see its doc) so its position here is by subject.
         InsightsModule.register(),
+        // INS-06. The org-wide adoption roll-up (active members, members who created work, meetings
+        // held) in a clamped window. A separate module from `InsightsModule` so the insights slices
+        // stay file-disjoint; read-only, behind the same reused `work.read`.
+        InsightsAdoptionModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

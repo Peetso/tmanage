@@ -74,6 +74,7 @@ import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps/api/src/modules/insights/insights.service.js';
+import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps/api/src/modules/insights/adoption.controller.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -149,6 +150,7 @@ import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/s
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
 import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps/web/src/lib/api/insights-workload';
+import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps/web/src/lib/api/insights-adoption';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
@@ -252,6 +254,14 @@ type _deliveryFlow = Assert<Exact<ApiDeliveryFlowView, WebDeliveryFlow>>;
  * workload section to `InsightsScreen`, so this is a live `Exact` pair, not an exemption.
  */
 type _insightsWorkload = Assert<Exact<ApiInsightsWorkloadView, WebInsightsWorkloadView>>;
+
+/**
+ * INS-06 — `GET …/insights/adoption`. The org-wide adoption roll-up: `activeMembers`,
+ * `membersWithWork` and `meetingsHeld` over a clamped `windowDays`, plus `computedAt`. Paired with a
+ * real web consumer — INS-06 ships `InsightsAdoptionScreen`, so this is a live `Exact` pair, not an
+ * exemption.
+ */
+type _insightsAdoption = Assert<Exact<ApiInsightsAdoptionView, WebInsightsAdoptionView>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API
