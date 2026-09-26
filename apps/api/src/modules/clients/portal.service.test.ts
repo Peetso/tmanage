@@ -292,8 +292,7 @@ function fakeUpdates(): {
     list: (_r: never, _c: TenantContext, options: ListProjectUpdatesOptions) =>
       Promise.resolve(
         rows.filter(
-          (row) =>
-            row.projectId === options.projectId && (!options.publishedOnly || row.published),
+          (row) => row.projectId === options.projectId && (!options.publishedOnly || row.published),
         ),
       ),
   } as unknown as ProjectUpdatesRepository;
@@ -355,7 +354,10 @@ describe('PortalService.postUpdate + updatesFor (CLIENT-003)', () => {
     });
 
     const client = clientPrincipal(PROJECT);
-    const clientCtx = { organizationId: UPDATES_ORG, userId: 'client-user' } as unknown as TenantContext;
+    const clientCtx = {
+      organizationId: UPDATES_ORG,
+      userId: 'client-user',
+    } as unknown as TenantContext;
     const seen = await service.updatesFor(clientCtx, client, PROJECT);
 
     expect(seen.map((u) => u.title)).toEqual(['Shipped the homepage']);
@@ -400,7 +402,10 @@ describe('PortalService.postUpdate + updatesFor (CLIENT-003)', () => {
     const service = serviceFor([PROJECT], updates);
 
     const client = clientPrincipal(PROJECT); // scoped to PROJECT only
-    const clientCtx = { organizationId: UPDATES_ORG, userId: 'client-user' } as unknown as TenantContext;
+    const clientCtx = {
+      organizationId: UPDATES_ORG,
+      userId: 'client-user',
+    } as unknown as TenantContext;
 
     await expect(
       service.updatesFor(clientCtx, client, 'project-someone-elses'),

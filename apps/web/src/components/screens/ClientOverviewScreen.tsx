@@ -4,10 +4,19 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { listClientRequests, listPortalProjects, listPortalWorkItems } from '../../lib/api/portal';
-import type { ClientRequest, PortalProject, PortalWorkItem } from '../../lib/api/portal';
+import {
+  listClientRequests,
+  listPortalProjects,
+  listPortalUpdates,
+  listPortalWorkItems,
+} from '../../lib/api/portal';
+import type {
+  ClientRequest,
+  PortalProject,
+  PortalUpdate,
+  PortalWorkItem,
+} from '../../lib/api/portal';
 import {
   isWaitingOnClient,
   requestStatusCapsule,
@@ -86,6 +95,21 @@ export function ClientOverviewScreen({
   const requests = useQuery({
     queryKey: ['portal-requests', organizationSlug],
     queryFn: () => listClientRequests(api, organizationSlug),
+  });
+
+  /**
+   * The published updates for the project this overview is about — `CL-03`.
+   *
+   * Keyed on the first shared project's id, and enabled only once it is known: the endpoint names
+   * the project in the path, and there is nothing to ask for until the projects list has answered.
+   * The API returns only `published` rows, so this screen never has to decide what a client may
+   * see — it renders what it is given.
+   */
+  const firstProjectId = projects.data?.[0]?.id;
+  const updates = useQuery({
+    queryKey: ['portal-updates', organizationSlug, firstProjectId],
+    queryFn: () => listPortalUpdates(api, organizationSlug, firstProjectId!),
+    enabled: firstProjectId != null,
   });
 
   const items = workItems.data ?? [];
@@ -183,12 +207,12 @@ export function ClientOverviewScreen({
         requests={requests.data ?? []}
       />
 
-      <BackendPending ticket="updates, milestones and risks — unscheduled">
-        The latest update from {providerName}, the milestone timeline, and shared risks are not
-        built yet, and none of the three is scheduled to be. None is drawn as an empty section,
-        because an empty “Updates” heading reads as a team that has said nothing rather than a
-        feature that does not exist.
-      </BackendPending>
+      <UpdatesSection
+        providerName={providerName}
+        updates={updates.data ?? []}
+        isError={updates.isError}
+        error={updates.error}
+      />
     </ClientPortalShell>
   );
 }
@@ -325,6 +349,55 @@ function ProgressSection({ items, providerName }: ProgressSectionProps) {
         {` ${providerName}'s`} internal task list, which is not what you are being shown — this is
         everything they have shared with you, in full.
       </p>
+    </section>
+  );
+}
+
+interface UpdatesSectionProps {
+  providerName: string;
+  updates: readonly PortalUpdate[];
+  isError: boolean;
+  error: unknown;
+}
+
+/**
+ * `CL-03` — the updates timeline the studio posts to this client.
+ *
+ * The API returns only published updates, newest first, so this section renders what it is given
+ * without deciding visibility. An empty timeline is drawn as a sentence rather than a bare heading:
+ * "no updates yet" reads as a team that has not posted, which is the truth, where an empty
+ * "Updates" heading reads as something broken. Milestones and shared risks are a later slice and
+ * are deliberately not promised here.
+ */
+function UpdatesSection({ providerName, updates, isError, error }: UpdatesSectionProps) {
+  return (
+    <section className="tm-panel tm-stack" aria-labelledby="tm-portal-updates">
+      <h2 id="tm-portal-updates" className="tm-eyebrow">
+        Updates from {providerName}
+      </h2>
+
+      {isError ? (
+        <InlineAlert tone="danger" title="Could not load updates" live>
+          {describe(error)}
+        </InlineAlert>
+      ) : updates.length === 0 ? (
+        <p className="tm-prose">
+          {providerName} has not posted an update yet. When they share news about your project, it
+          will appear here, newest first.
+        </p>
+      ) : (
+        <ol className="tm-list tm-stack">
+          {updates.map((update) => (
+            <li key={update.id} className="tm-stack tm-stack--tight">
+              <h3 className="tm-heading-3">{update.title}</h3>
+              <p className="tm-field__hint">
+                <time dateTime={update.createdAt}>{formatMoment(new Date(update.createdAt))}</time>
+              </p>
+              <p className="tm-prose">{update.body}</p>
+            </li>
+          ))}
+        </ol>
+      )}
     </section>
   );
 }

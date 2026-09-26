@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { Badge, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Badge, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
+import { postProjectUpdate } from '../../lib/api/portal';
 import { listProjectShares } from '../../lib/api/clients';
 import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
 import type { WorkItemSummary } from '../../lib/api/work-items';
@@ -300,6 +302,8 @@ export function ProjectOverviewScreen({
         </p>
       </section>
 
+      <UpdateComposer api={api} organizationSlug={organizationSlug} projectId={projectId} />
+
       <BackendPending ticket="milestones and internal pulse — unscheduled">
         Milestones and the latest internal pulse are not built, and neither is scheduled to be.
         Neither has anywhere to be stored yet, so neither is drawn: an empty “Milestones” heading
@@ -343,6 +347,137 @@ function WorkSection({ id, title, empty, items, organizationSlug, now }: WorkSec
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+interface UpdateComposerProps {
+  api: ApiClient;
+  organizationSlug: string;
+  projectId: string;
+}
+
+/** `project_updates.title` is VARCHAR(300). */
+const MAX_UPDATE_TITLE_LENGTH = 300;
+
+/**
+ * CL-03's internal compose surface (the client-portal updates timeline) — a manager posting an update to the client's portal
+ * timeline.
+ *
+ * The write is behind `project.manage` (the API refuses anyone else), and it posts to the
+ * internal `projects` path, never `/portal`. "Publish to the client now" is checked by default:
+ * an update posted here is meant to reach the client, and leaving it unchecked keeps it a draft
+ * the client cannot see (`published = false`). The publish/unpublish lifecycle is a later slice,
+ * so there is no way to change that after posting yet — said in the hint rather than left implicit.
+ *
+ * On success the client-facing portal-updates query is invalidated so a portal tab already open
+ * picks the new update up, and the form clears.
+ */
+function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProps) {
+  const queries = useQueryClient();
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [publishNow, setPublishNow] = useState(true);
+
+  const post = useMutation({
+    mutationFn: () =>
+      postProjectUpdate(api, organizationSlug, projectId, {
+        title: title.trim(),
+        body: body.trim(),
+        published: publishNow,
+      }),
+    onSuccess: () => {
+      void queries.invalidateQueries({ queryKey: ['portal-updates', organizationSlug, projectId] });
+      setTitle('');
+      setBody('');
+      setPublishNow(true);
+    },
+  });
+
+  const canPost = title.trim() !== '' && body.trim() !== '' && !post.isPending;
+
+  return (
+    <section className="tm-panel tm-stack" aria-labelledby="tm-project-update-composer">
+      <h2 id="tm-project-update-composer" className="tm-eyebrow">
+        Post an update
+      </h2>
+
+      <form
+        className="tm-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (canPost) post.mutate();
+        }}
+      >
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-project-update-title">
+            Title
+          </label>
+          <input
+            id="tm-project-update-title"
+            className="tm-field__control"
+            value={title}
+            maxLength={MAX_UPDATE_TITLE_LENGTH}
+            required
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </div>
+
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-project-update-body">
+            Update
+          </label>
+          <textarea
+            id="tm-project-update-body"
+            className="tm-field__control"
+            value={body}
+            rows={4}
+            required
+            onChange={(event) => setBody(event.target.value)}
+          />
+        </div>
+
+        <label className="tm-choice tm-choice--inline">
+          <input
+            className="tm-choice__input"
+            type="checkbox"
+            checked={publishNow}
+            onChange={(event) => setPublishNow(event.target.checked)}
+          />
+          <span className="tm-choice__name">Publish to the client now</span>
+        </label>
+        <span className="tm-field__hint">
+          A published update is visible in the client portal straight away. Leave this unchecked to
+          keep it a draft only your studio can see. Editing or unpublishing an update is not built
+          yet, so post it the way you mean it.
+        </span>
+
+        {post.isError ? (
+          <InlineAlert tone="danger" title="Could not post the update" live>
+            {describe(post.error)}
+          </InlineAlert>
+        ) : null}
+        {post.isSuccess ? (
+          <InlineAlert tone="success" title="Update posted" live>
+            {publishNow
+              ? 'Your update is live in the client portal.'
+              : 'Your draft is saved. It is not visible to the client.'}
+          </InlineAlert>
+        ) : null}
+
+        <div className="tm-row">
+          <Button
+            type="submit"
+            tone="ink"
+            size="accessible"
+            disabled={!canPost}
+            loading={post.isPending}
+            loadingLabel="Posting"
+          >
+            Post update
+          </Button>
+        </div>
+      </form>
     </section>
   );
 }

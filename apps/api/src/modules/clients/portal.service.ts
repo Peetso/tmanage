@@ -14,11 +14,7 @@ import {
   ProjectUpdatesRepository,
   effectivePageSize as projectUpdatePageSize,
 } from './project-updates.repository.js';
-import type {
-  ProjectRow,
-  ProjectUpdateRow,
-  WorkItemRow,
-} from '../../common/database/schema.js';
+import type { ProjectRow, ProjectUpdateRow, WorkItemRow } from '../../common/database/schema.js';
 
 /**
  * How many repository pages one portal list may walk while filling a page of readable rows.

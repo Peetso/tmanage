@@ -41,6 +41,67 @@ export interface PortalWorkItem {
   readonly updatedAt: string;
 }
 
+/**
+ * A project update as the portal is told it — `CL-03`.
+ *
+ * What is absent is the point, the same way it is for `PortalProject` and `PortalWorkItem`: there
+ * is no author. `12-PERMISSION-MATRIX` §4 excludes staff from the client projection, so which
+ * member of the agency typed the update is not a field the client is given. `published` is here
+ * because the internal compose surface renders it — a client read only ever returns `true`.
+ */
+export interface PortalUpdate {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly body: string;
+  readonly published: boolean;
+  readonly createdAt: string;
+}
+
+/**
+ * The published updates timeline for one of the client's projects.
+ *
+ * The project is named in the path. The API answers 404 — not an empty list — for a project the
+ * client cannot read, so the caller must treat a not-found as "not yours", never as "no updates".
+ */
+export async function listPortalUpdates(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly PortalUpdate[]> {
+  const { data } = await client.request<{ updates: readonly PortalUpdate[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/updates`,
+  });
+  return data.updates;
+}
+
+export interface PostProjectUpdateInput {
+  readonly title: string;
+  readonly body: string;
+  /** Optional; the API defaults to `true` — an update posted to the portal is meant to be seen. */
+  readonly published?: boolean;
+}
+
+/**
+ * The internal write — a project manager posting an update to a client's timeline.
+ *
+ * On the internal `projects` path, not `/portal`: posting is behind `project.manage`, which no
+ * client role holds. The tenant and the author come from the session, never this body.
+ */
+export async function postProjectUpdate(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  input: PostProjectUpdateInput,
+): Promise<PortalUpdate> {
+  const { data } = await client.request<PortalUpdate>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/updates`,
+    body: input,
+  });
+  return data;
+}
+
 export async function listPortalProjects(
   client: ApiClient,
   organizationSlug: string,
