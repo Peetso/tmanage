@@ -1,28 +1,30 @@
 'use client';
 
 import { use } from 'react';
-import { PlannedInternalScreen } from '../../../components/screens/PlannedInternalScreen';
+import { useSearchParams } from 'next/navigation';
+import { DocsHubScreen } from '../../../components/screens/DocsHubScreen';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 
 /**
- * **Docs** — the sixth destination on the internal rail (`22-SCREEN-BY-SCREEN` §1).
+ * **DOC-01 Docs hub.**
  *
- * No ticket schedules a docs screen, so this route names none. It resolves to the shell so the
- * rail stays reachable and the destination stays named, and states that the screen is unbuilt.
+ * The project can arrive in the query string, which is how a project screen hands off to its
+ * documents: the link carries `?project=`, and the hub opens on it. A project in the URL is a
+ * link a colleague can be sent, which is why it lives there rather than in component state alone.
+ *
+ * The organization name is still a fixture, as the sibling pages note: no endpoint returns the
+ * current organization's profile by slug.
  */
 export default function DocsPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
+  const search = useSearchParams();
+  const project = search.get('project');
 
   return (
-    <PlannedInternalScreen
+    <DocsHubScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
-      activeNavigationId="docs"
-      title="Docs"
-      description="Shared documents for your team."
-    >
-      Docs is named in the navigation but has no screen and no scheduled backlog ticket yet. This
-      page keeps the destination reachable rather than answering it with a 404.
-    </PlannedInternalScreen>
+      {...(project === null ? {} : { initialProjectId: project })}
+    />
   );
 }

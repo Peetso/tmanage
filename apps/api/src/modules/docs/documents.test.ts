@@ -62,6 +62,10 @@ function serviceWith(seed: readonly DocumentRow[] = []): {
           row.projectId === options.projectId &&
           (options.after === undefined || row.id > options.after),
       ),
+    // Deliberately unscoped, like `list`: a cross-tenant row reaches the service so its
+    // `authorize()` guard must drop it, and an unknown id simply is not in the store.
+    findById: async (_runner: unknown, _ctx: unknown, documentId: string) =>
+      store.find((row) => row.id === documentId) ?? null,
     create: async (
       _runner: unknown,
       ctx: TenantContext,
@@ -159,6 +163,63 @@ describe('DocumentsService', () => {
     expect(await service.list(context, member([]), { projectId: PROJECT })).toEqual([]);
     const asOwner = await service.list(context, member([], true), { projectId: PROJECT });
     expect(asOwner.map((d) => d.id)).toEqual([mine.id]);
+  });
+
+  it('reads a document back by id for a project member', async () => {
+    const mine = {
+      id: 'document-0000-0000-0000-000000000020',
+      organizationId: ORG,
+      projectId: PROJECT,
+      title: 'Readable',
+      body: 'the prose',
+      createdByUserId: USER,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as DocumentRow;
+    const { service } = serviceWith([mine]);
+
+    const found = await service.get(context, member([PROJECT]), mine.id);
+    expect(found.id).toBe(mine.id);
+    expect(found.body).toBe('the prose');
+    expect(JSON.stringify(found)).not.toContain(ORG);
+  });
+
+  it('reads an unknown documentId as not-found (not 500), even for an org-wide role', async () => {
+    // The Known trap (FAST-PROTOCOL): the read route names the document by id, and an org-wide
+    // caller passes the relation check regardless — so the tenant-scoped resolve must be what
+    // 404s an unknown id. The repository returns null (no such row), and the service must surface
+    // 404 with no data, never a 500.
+    const { service } = serviceWith();
+    const error = await service
+      .get(context, member([], true), 'document-0000-0000-0000-0000000000ff')
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+  });
+
+  it('reads a cross-tenant documentId as not-found, never forbidden (belt-and-braces)', async () => {
+    // The real repository scopes the read to the tenant so a foreign row never arrives; the fake
+    // hands it over anyway, and the service's `authorize()` guard must still 404 it — a 403 would
+    // confirm the document exists in another tenant.
+    const foreign = {
+      id: 'document-foreign-00000000000000009',
+      organizationId: OTHER_ORG,
+      projectId: PROJECT,
+      title: 'Elsewhere',
+      body: 'not yours',
+      createdByUserId: 'user-other-00000000000000000009',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as DocumentRow;
+    const { service } = serviceWith([foreign]);
+
+    const error = await service
+      .get(context, member([], true), foreign.id)
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
   });
 
   it('refuses a create into a project the caller is not a member of, as not-found', async () => {

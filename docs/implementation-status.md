@@ -11954,9 +11954,22 @@ untouched this slice — a follow-up may relation-gate `doc.*` directly.
 
 **Follow-ups (out of this slice):** no wiki/templates/decision-register/glossary and no Context
 Lens (each a later slice with its own tables); no rich-text `body` or versioning/history; no audit
-event yet (needs a `doc.*` entry in the `AuditAction` catalog, a domain change); and no web screen,
-so `DocumentView` is listed in `scripts/contracts-check.mjs`'s EXEMPT with a "No web consumer"
-reason, the same treatment `MeetingView` (x90) has.
+event yet (needs a `doc.*` entry in the `AuditAction` catalog, a domain change).
+
+### DOC-01 hub + DOC-03 read screen (x106)
+
+x106 ships the read side of the web consumer x91 deferred: `DocsHubScreen.tsx` (choose a project,
+list its documents newest-first, each linking to the read screen) and `DocumentViewScreen.tsx`
+(a document's title, body and metadata, read-only), routed at `/[orgSlug]/docs` and
+`/[orgSlug]/docs/[documentId]`, with the web client shape in `apps/web/src/lib/api/documents.ts`.
+Both reads sit behind `doc.read` (the sibling read refuses a caller without it). The read screen
+surfaces the API's 404 — unknown, cross-tenant or non-member id, all the same answer since x91
+resolves the id tenant-scoped before the relation check — as a not-found state that leaks nothing.
+`DocumentView` is therefore no longer EXEMPT in `scripts/contracts-check.mjs`: it is now paired
+`Assert<Exact<ApiDocumentView, WebDocumentView>>` in `e2e/contracts/api-web-shapes.ts`.
+**Still deferred:** DOC-02 editor (needs `doc.write` on the web), DOC-03 write side
+(history/compare/restore) and the client projection, DOC-04 templates, and the DEC-01 decision
+register (a new table).
 
 ---
 
