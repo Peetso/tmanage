@@ -197,3 +197,69 @@ export async function unpinContext(
   });
   return data;
 }
+
+/**
+ * The Home / Pins endpoints — HOME-05's follow-up (x144), a membership-scoped pin surface distinct
+ * from the older per-user saved-context above.
+ *
+ * Behind `work.read` on the API and taking no membership id: a pin is always the acting member's
+ * own. A pin is a *reference* — its kind and id — never a copy of the target; resolving each pin to a
+ * live title/preview is the deferred follow-up, so the screen renders the reference by type. The pin
+ * write resolves the target id tenant-scoped before authorizing, so an unknown or cross-tenant id is
+ * a 404, and a duplicate is a 409.
+ */
+export type HomePinTargetKind = 'work' | 'project' | 'document';
+
+/**
+ * The caller's Home pins, newest first. Each item is inlined rather than a second exported shape, so
+ * the API↔web pairing is the one `HomePinView` projection.
+ */
+export interface HomePinView {
+  readonly pins: readonly {
+    readonly id: string;
+    readonly targetKind: HomePinTargetKind;
+    readonly targetId: string;
+    readonly createdAt: string;
+  }[];
+}
+
+/** The body of a create-pin request. `Input` suffix marks it request-side, not a response shape. */
+export interface CreateHomePinInput {
+  readonly targetKind: HomePinTargetKind;
+  readonly targetId: string;
+}
+
+export async function getHomePins(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<HomePinView> {
+  const { data } = await client.request<HomePinView>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/pins`,
+  });
+  return data;
+}
+
+export async function createHomePin(
+  client: ApiClient,
+  organizationSlug: string,
+  input: CreateHomePinInput,
+): Promise<HomePinView> {
+  const { data } = await client.request<HomePinView>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/pins`,
+    body: input,
+  });
+  return data;
+}
+
+export async function deleteHomePin(
+  client: ApiClient,
+  organizationSlug: string,
+  pinId: string,
+): Promise<HomePinView> {
+  const { data } = await client.request<HomePinView>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/pins/${encodeURIComponent(pinId)}`,
+  });
+  return data;
+}

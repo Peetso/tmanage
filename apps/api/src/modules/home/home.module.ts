@@ -7,6 +7,7 @@ import { WaitingRepository } from './waiting.repository.js';
 import { SavedContextRepository } from './saved-context.repository.js';
 import { HomeService } from './home.service.js';
 import { HomeController } from './home.controller.js';
+import { HomePinsController } from './home-pins.controller.js';
 
 /**
  * The Home module's wiring.
@@ -39,7 +40,7 @@ export class HomeModule {
       module: HomeModule,
       providers: [service],
       exports: [service],
-      controllers: [HomeController],
+      controllers: [HomeController, HomePinsController],
     };
   }
 }

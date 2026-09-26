@@ -62,6 +62,7 @@ import type { WaitingView as ApiWaitingView } from '../../apps/api/src/modules/h
 import type { HomeSummaryView as ApiHomeSummaryView } from '../../apps/api/src/modules/home/home.service.js';
 import type { HomePulseView as ApiHomePulseView } from '../../apps/api/src/modules/home/home-pulse.service.js';
 import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src/modules/home/home.service.js';
+import type { HomePinView as ApiHomePinView } from '../../apps/api/src/modules/home/home-pins.controller.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -126,6 +127,7 @@ import type { Waiting as WebWaiting } from '../../apps/web/src/lib/api/home';
 import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/home';
 import type { HomePulse as WebHomePulse } from '../../apps/web/src/lib/api/home';
 import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api/home';
+import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -538,6 +540,15 @@ type _homePulse = Assert<Exact<ApiHomePulseView, WebHomePulse>>;
  * must match exactly. The `MyDayScreen` Saved section reads exactly this response.
  */
 type _savedContext = Assert<Exact<ApiSavedContextView, WebSavedContext>>;
+
+/**
+ * HOME-05 follow-up (x144). `GET/POST/DELETE .../home/pins` — the acting membership's Home pins,
+ * newest first, distinct from the older per-user saved-context above. One projection; its per-pin
+ * item is inlined on both sides (an inline object on the API's `HomePinView`, the same on the web),
+ * so this pair covers it structurally, and the `targetKind` union (`work|project|document`) must
+ * match exactly. The `MyDayScreen` Pinned section reads exactly this response.
+ */
+type _homePins = Assert<Exact<ApiHomePinView, WebHomePinView>>;
 
 /**
  * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The
