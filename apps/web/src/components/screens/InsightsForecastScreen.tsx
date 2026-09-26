@@ -83,8 +83,8 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
 
       <p className="tm-prose">
         Capacity is a constant {perMemberCapacity(totals)} items per member per week across{' '}
-        {totals.memberCount} {totals.memberCount === 1 ? 'member' : 'members'} carrying open work — a
-        placeholder until per-person assignment lands.
+        {totals.memberCount} {totals.memberCount === 1 ? 'member' : 'members'} carrying open work —
+        a placeholder until per-person assignment lands.
       </p>
 
       {totals.committedItemCount === 0 ? (
@@ -92,7 +92,9 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
       ) : null}
 
       <table className="tm-table" aria-labelledby="tm-forecast-heading">
-        <caption className="tm-visually-hidden">Committed work by upcoming week against capacity</caption>
+        <caption className="tm-visually-hidden">
+          Committed work by upcoming week against capacity
+        </caption>
         <thead>
           <tr>
             <th scope="col">Week</th>

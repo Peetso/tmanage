@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -26,7 +26,9 @@ import type { WorkloadForecastView } from './workload-forecast.service.js';
  */
 @Controller('v1/organizations/:orgSlug/insights')
 export class WorkloadForecastController {
-  constructor(private readonly forecast: WorkloadForecastService) {}
+  constructor(
+    @Inject(WorkloadForecastService) private readonly forecast: WorkloadForecastService,
+  ) {}
 
   /**
    * The org-wide workload forecast — committed open work projected into the upcoming `?weeks` weeks
@@ -54,14 +56,18 @@ export class WorkloadForecastController {
 function parseWeeks(raw: string | undefined): number {
   if (raw === undefined) return DEFAULT_WEEKS_SENTINEL;
   const value = Number(raw);
-  if (
-    !Number.isInteger(value) ||
-    value < MIN_FORECAST_WEEKS ||
-    value > MAX_FORECAST_WEEKS
-  ) {
-    throw new ApiError(400, 'validation_failed', `weeks must be an integer in [${MIN_FORECAST_WEEKS}, ${MAX_FORECAST_WEEKS}]`, [
-      { field: 'weeks', message: `must be an integer in [${MIN_FORECAST_WEEKS}, ${MAX_FORECAST_WEEKS}]` },
-    ]);
+  if (!Number.isInteger(value) || value < MIN_FORECAST_WEEKS || value > MAX_FORECAST_WEEKS) {
+    throw new ApiError(
+      400,
+      'validation_failed',
+      `weeks must be an integer in [${MIN_FORECAST_WEEKS}, ${MAX_FORECAST_WEEKS}]`,
+      [
+        {
+          field: 'weeks',
+          message: `must be an integer in [${MIN_FORECAST_WEEKS}, ${MAX_FORECAST_WEEKS}]`,
+        },
+      ],
+    );
   }
   return value;
 }

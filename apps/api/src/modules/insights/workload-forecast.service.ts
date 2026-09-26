@@ -181,7 +181,7 @@ export class WorkloadForecastService {
           if (row.dueAt === null) continue; // undated open work is not committed to a week
 
           const bucket = weekBucket(row.dueAt.getTime(), horizonStart, horizonEnd, weeks);
-          if (bucket !== null) committedByWeek[bucket] += 1;
+          if (bucket !== null) committedByWeek[bucket] = (committedByWeek[bucket] ?? 0) + 1;
         }
       }
     });

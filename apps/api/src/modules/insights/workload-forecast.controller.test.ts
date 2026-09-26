@@ -31,7 +31,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Only the fields the forecast reads on a project: id and tenancy (for `mayReadProject`). */
 function project(overrides: Partial<ProjectRow>): ProjectRow {
-  return { id: PROJECT_A, organizationId: ORG, archivedAt: null, ...overrides } as unknown as ProjectRow;
+  return {
+    id: PROJECT_A,
+    organizationId: ORG,
+    archivedAt: null,
+    ...overrides,
+  } as unknown as ProjectRow;
 }
 
 /** Only the fields the forecast reads on a work item: id, tenancy/audience, due date, owner, state. */
@@ -161,7 +166,11 @@ describe('WorkloadForecastController.workloadForecast', () => {
       project({ id: FOREIGN_PROJECT, organizationId: OTHER_ORG }),
     ];
     const itemRows = [
-      item({ id: 'work-a1-00000000-0000-000000000001', ownerUserId: 'u1', dueAt: new Date(Date.now() + DAY_MS) }),
+      item({
+        id: 'work-a1-00000000-0000-000000000001',
+        ownerUserId: 'u1',
+        dueAt: new Date(Date.now() + DAY_MS),
+      }),
       item({
         id: 'work-f1-00000000-0000-000000000001',
         projectId: FOREIGN_PROJECT,
@@ -171,7 +180,11 @@ describe('WorkloadForecastController.workloadForecast', () => {
       }),
     ];
 
-    const view = await controllerWith(projectRows, itemRows).workloadForecast(context, orgWide(), '2');
+    const view = await controllerWith(projectRows, itemRows).workloadForecast(
+      context,
+      orgWide(),
+      '2',
+    );
 
     expect(view.totals.committedItemCount).toBe(1);
     expect(view.totals.memberCount).toBe(1);

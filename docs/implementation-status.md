@@ -12996,7 +12996,7 @@ The forward-looking counterpart to INS-05's current workload roll-up. A new
 reuse — no new capability, no schema change, no migration) projects the open, dated work across the
 projects the caller may read into the upcoming weeks (`?weeks` 1..12, default 4) and compares each
 week's committed load against a **constant per-member capacity**. Deterministic arithmetic, no ML: a
-work item is *committed* to a week when it is open and carries a `dueAt`; it lands in the upcoming
+work item is _committed_ to a week when it is open and carries a `dueAt`; it lands in the upcoming
 week its `dueAt` falls in (overdue committed work folds into week 1; work beyond the horizon is not
 counted). Capacity is `memberCount × 5` where members are the distinct owners carrying open work in
 scope — the recommended placeholder until `work_items` gains an assignee column (HOME-04 gap; the

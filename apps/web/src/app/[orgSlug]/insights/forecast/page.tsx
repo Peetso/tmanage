@@ -13,11 +13,7 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
  * refusal rather than a blank page. Unlike the project-scoped insights routes, the forecast is
  * org-wide and takes no project id.
  */
-export default function InsightsForecastPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>;
-}) {
+export default function InsightsForecastPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
 
   return (
