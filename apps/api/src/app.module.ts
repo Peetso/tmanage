@@ -37,6 +37,7 @@ import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-links.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
+import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
@@ -137,6 +138,11 @@ export class AppModule {
         options.storage ?? StorageModule.none(),
         options.scanner ?? ScannerModule.none(),
         TenancyModule.register(),
+        // ADM settings (module 18, x153). Organization settings / policy (read + update) behind
+        // `org.manage`. A module of its own rather than another controller on `TenancyModule`, so it
+        // stays file-disjoint from the organization-profile routes; depends only on the global
+        // `TENANT_DATABASE`.
+        OrgSettingsModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

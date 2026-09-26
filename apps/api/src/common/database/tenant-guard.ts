@@ -280,6 +280,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // studio. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes the
   // per-kind reads and the upsert; tenant-isolation.db.test.ts enforces the entry.
   notification_kind_prefs: 'organization_id',
+  // Organization settings / policy (x153, migration 0058). Org-owned: a settings row belongs to the
+  // acting tenant, and an unscoped `SELECT ... FROM org_settings` would be every studio's policy on
+  // the server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every
+  // tenant table has, so the guard must scope its reads and its upserts; the layer-3 guard fails OPEN
+  // on an unregistered table, so registering it here is what scopes them, and
+  // tenant-isolation.db.test.ts enforces the entry.
+  org_settings: 'organization_id',
 });
 
 /**
