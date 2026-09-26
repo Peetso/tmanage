@@ -75,6 +75,7 @@ import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../.
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
+import type { PortalUpdateView as ApiPortalUpdateView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
@@ -159,6 +160,7 @@ import type {
   PortalDeliverable as WebPortalDeliverable,
   PortalDeliverableFile as WebPortalDeliverableFile,
   PortalProject as WebPortalProject,
+  PortalUpdate as WebPortalUpdate,
   PortalWorkItem as WebPortalWorkItem,
 } from '../../apps/web/src/lib/api/portal';
 import type {
@@ -236,6 +238,7 @@ type _inboxPage = Assert<Exact<ApiInboxPageView, WebInboxPage>>;
 type _portalInboxBundle = Assert<Exact<ApiPortalInboxBundleView, WebPortalInboxBundle>>;
 type _portalInboxPage = Assert<Exact<ApiPortalInboxPageView, WebPortalInboxPage>>;
 type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
+type _portalUpdate = Assert<Exact<ApiPortalUpdateView, WebPortalUpdate>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
 // CONTRACT-001 (x114): the client portal's deliverables and their file lists. The screen reads
 // exactly these responses, so both pairs are Exact.

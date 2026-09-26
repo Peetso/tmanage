@@ -27,6 +27,8 @@ import { ClientsService } from './clients.service.js';
 import { ClientsController } from './clients.controller.js';
 import { PortalService } from './portal.service.js';
 import { PortalController } from './portal.controller.js';
+import { ProjectUpdatesController } from './project-updates.controller.js';
+import { ProjectUpdatesRepository } from './project-updates.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
@@ -114,6 +116,7 @@ export class ClientsModule {
           new WorkItemsRepository(),
           new ClientProjectionsRepository(),
           new FileAssetsRepository(),
+          new ProjectUpdatesRepository(),
         ),
     };
 
@@ -192,7 +195,7 @@ export class ClientsModule {
       module: ClientsModule,
       providers: [organizations, memberships, shares, service, portal, invitations, clientRequests],
       exports: [service, portal],
-      controllers: [ClientsController, PortalController],
+      controllers: [ClientsController, PortalController, ProjectUpdatesController],
     };
   }
 }

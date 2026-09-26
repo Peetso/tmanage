@@ -1,0 +1,152 @@
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { uuidv7 } from '@tmanage/domain';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { projectUpdates } from '../../common/database/schema.js';
+import type { ProjectUpdateRow } from '../../common/database/schema.js';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+
+/**
+ * The project-updates repository — CLIENT-003 (x125), following the `meetings` (0029) and
+ * `documents` (0030) pattern.
+ *
+ * `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md` §6 is honoured structurally, exactly as the
+ * sibling repositories honour it:
+ *
+ * 1. **No unscoped read/write.** Every method's first two parameters are the
+ *    `TenantQueryRunner` for the current unit of work and the `TenantContext`. There is no
+ *    overload without a context, so a caller that never established a tenant is a type error.
+ * 2. **The tenant comes from the context, never the DTO.** {@link CreateProjectUpdateInput} has
+ *    no `organizationId` field, so a request body cannot choose the tenant it writes into.
+ * 3. **The tenant predicate is on every statement**, built with Drizzle and executed through
+ *    the guard (`drizzle.ts`), so a forgotten predicate throws rather than leaking rows.
+ *
+ * The runner is a parameter, not a field: the repository holds no connection and no state.
+ */
+
+/**
+ * Note what is absent: `organizationId`. It is taken from the context, so there is no field for
+ * a request body to populate and no code path that could prefer one over the other.
+ */
+export interface CreateProjectUpdateInput {
+  readonly projectId: string;
+  readonly title: string;
+  readonly body: string;
+  /** Whether the update is client-visible at insert time. This slice sets it here and never edits it. */
+  readonly published: boolean;
+  /** The person posting the update — the service passes `context.userId`. */
+  readonly createdByUserId: string;
+}
+
+export interface ListProjectUpdatesOptions {
+  /** Required: this reads one project's updates, never a whole tenant's. */
+  readonly projectId: string;
+  /**
+   * When true, only `published = 1` rows are selected — the client-visibility gate, applied in
+   * the **query** so an unpublished row is never in the result set to be careless with. The
+   * client read passes `true`; an internal read (if one ever ships) passes `false`.
+   */
+  readonly publishedOnly: boolean;
+  readonly limit?: number;
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+
+export function effectivePageSize(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+}
+
+export class ProjectUpdatesRepository {
+  /**
+   * List one project's updates, within the acting tenant, newest first.
+   *
+   * Both `organization_id` and `project_id` predicates are present, and — for a client read —
+   * so is `published = 1`. The order is `created_at DESC, id DESC`: the timeline the portal
+   * shows, deterministic even when two updates share a millisecond (UUIDv7 ids break the tie in
+   * creation order). The `(organization_id, project_id, created_at)` index (0041) serves it.
+   */
+  async list(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: ListProjectUpdatesOptions,
+  ): Promise<readonly ProjectUpdateRow[]> {
+    const limit = effectivePageSize(options.limit);
+    const db = tenantDrizzle(runner);
+
+    const predicates = [
+      eq(projectUpdates.organizationId, context.organizationId),
+      eq(projectUpdates.projectId, options.projectId),
+    ];
+    if (options.publishedOnly) predicates.push(eq(projectUpdates.published, true));
+
+    return db
+      .select()
+      .from(projectUpdates)
+      .where(and(...predicates))
+      .orderBy(desc(projectUpdates.createdAt), desc(projectUpdates.id))
+      .limit(limit);
+  }
+
+  /**
+   * Fetch one update by id, within the acting tenant.
+   *
+   * No `findById(id)` without a context: on MySQL that would return another customer's row,
+   * which is why ADR-0001 exists and this signature has no unscoped form.
+   */
+  async findById(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    updateId: string,
+  ): Promise<ProjectUpdateRow | null> {
+    const db = tenantDrizzle(runner);
+    const rows = await db
+      .select()
+      .from(projectUpdates)
+      .where(
+        and(
+          eq(projectUpdates.organizationId, context.organizationId),
+          eq(projectUpdates.id, updateId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Create a project update.
+   *
+   * The id is generated here (UUIDv7, `07-DATA-MODEL`) so a command knows it before the insert
+   * commits. `organization_id` comes from the context, never from `input`. The project is *not*
+   * checked to belong to the tenant here: `fk_project_updates_project_tenant` is a composite
+   * foreign key including `organization_id`, so the database refuses a project from another
+   * tenant — a service-layer check would duplicate a guarantee that cannot be bypassed. (The
+   * service still resolves the project tenant-scoped first, so a missing/cross-tenant id is a
+   * 404 rather than the 500 that foreign key would otherwise surface.)
+   */
+  async create(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: CreateProjectUpdateInput,
+  ): Promise<ProjectUpdateRow> {
+    const db = tenantDrizzle(runner);
+    const id = uuidv7();
+
+    await db.insert(projectUpdates).values({
+      id,
+      // From the context. Not from `input` — there is no such field.
+      organizationId: context.organizationId,
+      projectId: input.projectId,
+      title: input.title,
+      body: input.body,
+      published: input.published,
+      createdByUserId: input.createdByUserId,
+      createdAt: sql`current_timestamp(3)`,
+      updatedAt: sql`current_timestamp(3)`,
+    });
+
+    // Read back rather than reconstruct: the row now carries server-generated timestamps.
+    const row = await this.findById(runner, context, id);
+    if (!row) throw new Error(`project update ${id} vanished immediately after insert`);
+    return row;
+  }
+}

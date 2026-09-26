@@ -6,6 +6,11 @@ import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import type { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import type { FileAssetsRepository } from '../files/file-assets.repository.js';
+import type {
+  CreateProjectUpdateInput,
+  ListProjectUpdatesOptions,
+  ProjectUpdatesRepository,
+} from './project-updates.repository.js';
 import type { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type {
@@ -14,6 +19,7 @@ import type {
   FileAssetRow,
   FileVersionRow,
   ProjectRow,
+  ProjectUpdateRow,
   WorkItemRow,
 } from '../../common/database/schema.js';
 
@@ -525,5 +531,208 @@ describe('PortalService.filesForDeliverable (x114)', () => {
       { status: 404 } satisfies Partial<ApiError>,
     );
     expect(resolved).toBe(false);
+  });
+});
+
+/**
+ * CLIENT-003 — project updates, internal write and client read, over fakes with **real**
+ * `authorize()`.
+ *
+ * The fakes stand in only for the database and the two repositories. `authorize()` is the real
+ * policy, so these cases prove the actual security decisions: an internal manager may post, a
+ * client may read only their own project's *published* updates, a cross-tenant or cross-client
+ * `projectId` is a 404 with no write, and the view leaks no staff identity. The round-trip
+ * against a live server is `apps/api/test/portal-003-updates.db.test.ts`.
+ */
+
+const UPDATES_ORG = 'org-under-test';
+const INTERNAL_USER = 'user-internal-1';
+
+/** An internal manager with org-wide scope — holds `project.manage` and passes the relation. */
+function internalManager(): Principal {
+  return {
+    userId: INTERNAL_USER,
+    organizationId: UPDATES_ORG,
+    kind: 'internal',
+    role: 'owner',
+    membershipId: 'membership-internal-1',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: true,
+  };
+}
+
+const updatesContext = {
+  organizationId: UPDATES_ORG,
+  userId: INTERNAL_USER,
+} as unknown as TenantContext;
+
+/** A fake database whose `read` and `transaction` both run the unit of work with an ignored runner. */
+function fakeDatabaseWithTx(): TenantDatabase {
+  const runner = {} as never;
+  return {
+    read: <T>(_c: TenantContext, work: (db: never) => Promise<T>): Promise<T> => work(runner),
+    transaction: <T>(_c: TenantContext, work: (db: never) => Promise<T>): Promise<T> =>
+      work(runner),
+  } as unknown as TenantDatabase;
+}
+
+/** A projects repo that resolves exactly the ids it was told exist (tenant-scoped `findById`). */
+function fakeProjects(existing: readonly string[]): ProjectsRepository {
+  return {
+    findById: (_r: never, _c: TenantContext, id: string) =>
+      Promise.resolve(existing.includes(id) ? ({ id } as unknown as ProjectRow) : null),
+  } as unknown as ProjectsRepository;
+}
+
+/** A stateful project-updates store: `create` appends, `list` filters by project + published gate. */
+function fakeUpdates(): {
+  repo: ProjectUpdatesRepository;
+  created: CreateProjectUpdateInput[];
+  rows: ProjectUpdateRow[];
+} {
+  const created: CreateProjectUpdateInput[] = [];
+  const rows: ProjectUpdateRow[] = [];
+  let seq = 0;
+  const repo = {
+    create: (_r: never, _c: TenantContext, input: CreateProjectUpdateInput) => {
+      created.push(input);
+      seq += 1;
+      const row = {
+        id: `u-${seq}`,
+        organizationId: UPDATES_ORG,
+        projectId: input.projectId,
+        title: input.title,
+        body: input.body,
+        published: input.published,
+        createdByUserId: input.createdByUserId,
+        createdAt: new Date(`2026-09-2${seq}T00:00:00.000Z`),
+        updatedAt: new Date(`2026-09-2${seq}T00:00:00.000Z`),
+      } as unknown as ProjectUpdateRow;
+      rows.push(row);
+      return Promise.resolve(row);
+    },
+    list: (_r: never, _c: TenantContext, options: ListProjectUpdatesOptions) =>
+      Promise.resolve(
+        rows.filter(
+          (row) => row.projectId === options.projectId && (!options.publishedOnly || row.published),
+        ),
+      ),
+  } as unknown as ProjectUpdatesRepository;
+  return { repo, created, rows };
+}
+
+function serviceFor(
+  existingProjects: readonly string[],
+  updates: ReturnType<typeof fakeUpdates>,
+): PortalService {
+  return new PortalService(
+    fakeDatabaseWithTx(),
+    fakeProjects(existingProjects),
+    {} as unknown as WorkItemsRepository,
+    updates.repo,
+  );
+}
+
+const PROJECT = 'project-visible';
+
+describe('PortalService.postUpdate + updatesFor (CLIENT-003)', () => {
+  it('posts an update as the context user and never echoes the author to a client', async () => {
+    const updates = fakeUpdates();
+    const service = serviceFor([PROJECT], updates);
+
+    const view = await service.postUpdate(updatesContext, internalManager(), {
+      projectId: PROJECT,
+      title: 'Kickoff',
+      body: 'We have started.',
+      published: true,
+    });
+
+    // The author is the context user, not a body field.
+    expect(updates.created[0]?.createdByUserId).toBe(INTERNAL_USER);
+    // The client-facing view carries no staff identity (§4 excludes staff).
+    expect(Object.keys(view).sort()).toEqual(
+      ['body', 'createdAt', 'id', 'projectId', 'published', 'title'].sort(),
+    );
+    expect(view).not.toHaveProperty('createdByUserId');
+    expect(view).not.toHaveProperty('organizationId');
+  });
+
+  it('round-trips a published update to the client and hides an unpublished one', async () => {
+    const updates = fakeUpdates();
+    const service = serviceFor([PROJECT], updates);
+    const manager = internalManager();
+
+    await service.postUpdate(updatesContext, manager, {
+      projectId: PROJECT,
+      title: 'Shipped the homepage',
+      body: 'It is live.',
+      published: true,
+    });
+    await service.postUpdate(updatesContext, manager, {
+      projectId: PROJECT,
+      title: 'Internal draft',
+      body: 'Not ready for the client.',
+      published: false,
+    });
+
+    const client = clientPrincipal(PROJECT);
+    const clientCtx = {
+      organizationId: UPDATES_ORG,
+      userId: 'client-user',
+    } as unknown as TenantContext;
+    const seen = await service.updatesFor(clientCtx, client, PROJECT);
+
+    expect(seen.map((u) => u.title)).toEqual(['Shipped the homepage']);
+    expect(seen.every((u) => u.published)).toBe(true);
+  });
+
+  it('answers 404 and writes nothing for an unknown or cross-tenant projectId', async () => {
+    const updates = fakeUpdates();
+    const service = serviceFor([PROJECT], updates); // the named project does NOT exist
+
+    await expect(
+      service.postUpdate(updatesContext, internalManager(), {
+        projectId: 'project-elsewhere',
+        title: 'X',
+        body: 'y',
+        published: true,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+
+    // The Known-trap guarantee: no write on a project that does not resolve in this tenant.
+    expect(updates.created).toHaveLength(0);
+  });
+
+  it('answers 404 and writes nothing when the caller cannot manage the project', async () => {
+    const updates = fakeUpdates();
+    const service = serviceFor([PROJECT], updates);
+
+    // A client principal never holds `project.manage`; the project resolves, authorize denies.
+    await expect(
+      service.postUpdate(updatesContext, clientPrincipal(PROJECT), {
+        projectId: PROJECT,
+        title: 'X',
+        body: 'y',
+        published: true,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(updates.created).toHaveLength(0);
+  });
+
+  it('answers 404 when a client reads a project outside their own scope', async () => {
+    const updates = fakeUpdates();
+    const service = serviceFor([PROJECT], updates);
+
+    const client = clientPrincipal(PROJECT); // scoped to PROJECT only
+    const clientCtx = {
+      organizationId: UPDATES_ORG,
+      userId: 'client-user',
+    } as unknown as TenantContext;
+
+    await expect(
+      service.updatesFor(clientCtx, client, 'project-someone-elses'),
+    ).rejects.toMatchObject({ status: 404 });
   });
 });

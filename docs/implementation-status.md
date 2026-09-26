@@ -13329,3 +13329,42 @@ relation gate) and against a real server in `apps/api/test/proj-001-objectives.d
 project's objectives in creation order, and mark each open one met or missed. `ProjectObjectiveView`
 is a live `Exact` pair with the web `ProjectObjectiveSummary` (CONTRACT-001). Screen + axe proven in
 `project-objectives.test.tsx`.
+## CLIENT-003 — the client portal's project-updates timeline (x125)
+
+`ClientOverviewScreen` carried an explicit `BackendPending` for "updates, milestones and risks";
+this slice builds the _updates_ half. A **project update** — a title, a body and a `published`
+flag — is a durable, tenant-scoped, project-owned record (`0041_project_updates.sql`, mirroring
+`documents` 0030: composite `(organization_id, project_id)` foreign key, and a `BEFORE UPDATE`
+trigger pinning `organization_id`/`project_id`/`created_by_user_id` immutable so an update can
+never be re-pointed into another client's portal). Registered in all four places the NEW-TABLE
+trap requires — `schema.ts` def **and** the `TABLES` registry, `tenant-guard.ts` `TENANT_TABLES`,
+the `scripts/db/users.sql` grant (INSERT only; `published` is set at insert and there is no
+edit/unpublish endpoint yet, so no UPDATE per this file's least-privilege rule), and a named
+`migrator.db.test.ts` 0041 case.
+
+**Two routes, on two paths, for the reason `PortalController` exists at all.** The internal write
+`POST /projects/:projectId/updates` (`project.manage`, `ProjectUpdatesController`) resolves the
+project tenant-scoped _before_ the authorize check — the Known-trap order, so an unknown or
+cross-tenant id is 404, never the 500 a bare foreign key would surface — then inserts with the
+author taken from the session. The client read `GET /portal/projects/:projectId/updates`
+(`client_projection.read`, appended to `PortalController`) resolves the project relation-scoped
+first (404, not 403, for a project the client cannot read) and selects `published = 1` only, in
+the query. `PortalUpdateView` carries no `createdByUserId`: §4 excludes staff, so the projection
+leaks no agency identity. Both service methods live on `PortalService`.
+
+**Web.** `ClientOverviewScreen` replaces the `BackendPending` with a real updates timeline
+(published-only, newest first, axe-clean empty/error states). `ProjectOverviewScreen` gains an
+internal `UpdateComposer` behind `project.manage` — title, body, and a "Publish to the client now"
+checkbox (default on; unchecked keeps it a draft). `PortalUpdateView` is paired with the web
+`PortalUpdate` in `e2e/contracts/api-web-shapes.ts`.
+
+**Proof.** Unit: `portal.service.test.ts` over fakes with real `authorize()` — internal
+create→client-read round-trip, unpublished excluded, unknown/cross-tenant id → 404 no write,
+non-manager → 404 no write, client reading outside scope → 404. DB: `portal-003-updates.db.test.ts`
+over a live server — round-trip, the published gate, sibling-client 404, a client refused the
+internal write with 403, unknown id → 404 no write — plus the `migrator.db.test.ts` 0041 case. E2E:
+`portal-updates-journeys.spec.ts` — a manager posts a published update and a draft, the client sees
+the first and never the second.
+
+**Deferred (NEXT-SCOPES-12).** Milestones and risks surfaces; the portal people page; update
+edit/unpublish/comment lifecycle.

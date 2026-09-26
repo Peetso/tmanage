@@ -185,6 +185,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // has, so the guard must scope its reads and its writes. The layer-3 guard fails OPEN on an
   // unregistered table, so this entry is what scopes the objective reads and writes.
   project_objectives: 'organization_id',
+  // CLIENT-003 (x125, 0041). Tenant-owned: a project update names a project, and an unscoped
+  // `SELECT ... FROM project_updates` would be every studio's client timeline on the server —
+  // and, because the client read filters `published = 1`, an unscoped read would also cross the
+  // client-visibility boundary. The layer-3 guard fails OPEN on an unregistered table, so
+  // registering it here is what scopes the reads and writes; tenant-isolation.db.test.ts
+  // enforces the entry.
+  project_updates: 'organization_id',
 });
 
 /**

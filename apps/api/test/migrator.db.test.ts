@@ -1553,6 +1553,109 @@ describe('0040: project_objectives is a tenant-scoped, project-owned table with 
   });
 });
 
+describe('0041: project_updates is a tenant-scoped, project-owned, forward-only table', () => {
+  beforeAll(freshDatabase);
+
+  it('applies, holds a scoped round-trip, gates client visibility, and refuses a cross-tenant or identity change', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'project_updates'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'body',
+        'created_at',
+        'created_by_user_id',
+        'id',
+        'organization_id',
+        'project_id',
+        'published',
+        'title',
+        'updated_at',
+      ].sort(),
+    );
+    // The body is prose a person types — TEXT, and NOT NULL like documents.body.
+    expect(String(byName.get('body')?.['type'])).toBe('text');
+    expect(String(byName.get('body')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('project_id')?.['nullable'])).toBe('NO');
+    // published is the client-visibility gate — a NOT NULL boolean (tinyint) defaulting to 0.
+    expect(String(byName.get('published')?.['nullable'])).toBe('NO');
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'pu', 'PU')`, [
+      id('c1'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('c2'), id('c1')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('c3'), id('c1'), id('c2')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'pu@e.test', 'PU')`,
+      [id('c4')],
+    );
+
+    // A tenant-scoped insert/select round-trips; the client read predicate is published = 1.
+    await connection.query(
+      `INSERT INTO project_updates (id, organization_id, project_id, title, body, published, created_by_user_id)
+       VALUES (?, ?, ?, 'Kickoff', 'we started', 1, ?)`,
+      [id('c5'), id('c1'), id('c3'), id('c4')],
+    );
+    await connection.query(
+      `INSERT INTO project_updates (id, organization_id, project_id, title, body, published, created_by_user_id)
+       VALUES (?, ?, ?, 'Draft', 'not yet', 0, ?)`,
+      [id('c6'), id('c1'), id('c3'), id('c4')],
+    );
+    const [published] = await connection.query<RowDataPacket[]>(
+      `SELECT title FROM project_updates
+        WHERE organization_id = ? AND project_id = ? AND published = 1
+        ORDER BY created_at DESC`,
+      [id('c1'), id('c3')],
+    );
+    expect(published.map((row) => String(row['title']))).toEqual(['Kickoff']);
+
+    // The composite foreign key refuses a project id from outside the update's tenant: the pair
+    // (a non-existent org, this project) does not exist even though the project id does.
+    await expect(
+      connection.query(
+        `INSERT INTO project_updates (id, organization_id, project_id, title, body, published, created_by_user_id)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, 'X', 'y', 1, ?)`,
+        [id('c7'), id('c3'), id('c4')],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // organization_id, project_id and created_by_user_id are immutable at the engine, not just
+    // in the application — re-pointing an update would move it into another client's portal.
+    await expect(
+      connection.query(
+        `UPDATE project_updates SET organization_id = 'ffffffff-0000-4000-8000-000000000001' WHERE id = ?`,
+        [id('c5')],
+      ),
+    ).rejects.toThrow(/immutable/);
+    await expect(
+      connection.query(`UPDATE project_updates SET project_id = ? WHERE id = ?`, [
+        id('c3'),
+        id('c6'),
+      ]),
+    ).resolves.toBeDefined(); // same project_id is a no-op change, not a move — allowed.
+    await expect(
+      connection.query(
+        `UPDATE project_updates SET created_by_user_id = 'ffffffff-0000-4000-8000-000000000009' WHERE id = ?`,
+        [id('c5')],
+      ),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });
