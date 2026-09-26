@@ -1,9 +1,20 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { PENDING_APPROVAL_STATES } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { approvals } from '../../common/database/schema.js';
-import type { ApprovalRow } from '../../common/database/schema.js';
+import { approvals, clientRequests } from '../../common/database/schema.js';
+import type { ApprovalRow, ClientRequestRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+
+/**
+ * The client-request states the Waiting section reads (HOME-04 client-wait + stale buckets).
+ *
+ * `submitted` and `triage` are "awaiting the studio's action" (the client-wait bucket).
+ * `needs_clarification` is "awaiting the *client's* answer" — read here too, but only its aged
+ * rows become the stale-follow-up bucket; {@link HomeService} applies the age test. Accepted,
+ * planned, delivered and the terminal states are not waiting on anyone the studio can act on, so
+ * they are never selected. `23-ERD-AND-STATE-MACHINES` §6.
+ */
+const HOME_OPEN_CLIENT_REQUEST_STATES = ['submitted', 'triage', 'needs_clarification'] as const;
 
 /**
  * HOME-04's read half — the pending approvals in this tenant, read-only, for the Waiting list.
@@ -51,5 +62,37 @@ export class WaitingRepository {
         ),
       )
       .orderBy(asc(approvals.createdAt), asc(approvals.id));
+  }
+
+  /**
+   * Every open client request in this tenant — those `submitted`, in `triage`, or in
+   * `needs_clarification` — oldest change first then by id for a stable read.
+   *
+   * Read-only, and reads the `client_requests` table directly for the same reason
+   * {@link WaitingRepository.listPending} reads `approvals` directly rather than reaching into the
+   * requests module: the module's own list is a paginated triage queue, and this slice adds no
+   * method to it. Tenant scope is the `organization_id` predicate, identical to
+   * `ClientRequestsRepository.list`, so a cross-tenant row is never selected.
+   *
+   * The **triage relation** — is the caller a triager on this row's project — is applied by
+   * {@link HomeService} (`client_request.triage`, the same gate `ClientRequestsService.mayTriage`
+   * applies), and the **stale-age test** over `needs_clarification` too, so both are provable over
+   * fakes. `ix_client_requests_org_project_state` covers the predicate; a tenant's open set is
+   * bounded, so no page cursor for this read, matching {@link listPending}.
+   */
+  async listOpenClientRequests(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly ClientRequestRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(clientRequests)
+      .where(
+        and(
+          eq(clientRequests.organizationId, context.organizationId),
+          inArray(clientRequests.state, [...HOME_OPEN_CLIENT_REQUEST_STATES]),
+        ),
+      )
+      .orderBy(asc(clientRequests.updatedAt), asc(clientRequests.id));
   }
 }
