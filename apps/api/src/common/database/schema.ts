@@ -533,6 +533,41 @@ export const projectObjectives = mysqlTable(
   ],
 );
 
+/**
+ * PROJ / module 8 (x138). The edge from a project objective to a work item — which work items advance
+ * which objective.
+ *
+ * Tenant-scoped and project-owned like every sibling; both ends are bound to the acting tenant by the
+ * composite foreign keys in `0047`, and a `(organization_id, objective_id, work_item_id)` unique key
+ * makes a duplicate link a conflict rather than a second row. A row is created and removed, never
+ * edited (no lifecycle, no trigger). `0047_objective_work_links.sql` is the source of truth; this is
+ * its typed mirror.
+ */
+export const objectiveWorkLinks = mysqlTable(
+  'objective_work_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    objectiveId: char('objective_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_objective_work_links_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_objective_work_links_pair').on(
+      table.organizationId,
+      table.objectiveId,
+      table.workItemId,
+    ),
+    index('ix_objective_work_links_org_objective').on(
+      table.organizationId,
+      table.objectiveId,
+      table.createdAt,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1841,6 +1876,7 @@ export const TABLES = {
   decisions,
   decision_supersessions: decisionSupersessions,
   project_objectives: projectObjectives,
+  objective_work_links: objectiveWorkLinks,
   import_rows: importRows,
   meeting_notes: meetingNotes,
   saved_views: savedViews,
@@ -1882,6 +1918,7 @@ export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
+export type ObjectiveWorkLinkRow = typeof objectiveWorkLinks.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

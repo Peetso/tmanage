@@ -75,6 +75,7 @@ import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
+import type { ObjectiveWorkLinkView as ApiObjectiveWorkLinkView } from '../../apps/api/src/modules/projects/objective-work-links.service.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
@@ -112,6 +113,7 @@ import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
+import type { ObjectiveWorkLink as WebObjectiveWorkLink } from '../../apps/web/src/lib/api/objective-work-links';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -234,6 +236,13 @@ type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRe
  * a real `Exact` pair. The `status` union (`open | met | missed`) is the same on both sides.
  */
 type _projectObjective = Assert<Exact<ApiProjectObjectiveView, WebProjectObjectiveSummary>>;
+
+/**
+ * PROJ / module 8 (x138). `ObjectiveWorkLinkView` (`GET`/`POST …/objectives/:id/work-links` response) —
+ * the edge from an objective to a work item, with the linked item's title and state. Paired with a live
+ * web consumer: `ObjectiveWorkLinksPanel` reads exactly this response, so this is a real `Exact` pair.
+ */
+type _objectiveWorkLink = Assert<Exact<ApiObjectiveWorkLinkView, WebObjectiveWorkLink>>;
 
 /**
  * CAL-01 / MTG-01 third slice (x108). `GET .../meetings/:meetingId/notes` — a meeting's captured

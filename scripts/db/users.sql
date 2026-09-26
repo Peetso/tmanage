@@ -379,6 +379,11 @@ GRANT INSERT ON `tmanage`.`decision_supersessions` TO 'tmanage_app'@'%';
 -- name, description, target and authorship are immutable for the runtime credential specifically.
 -- **No DELETE**: an objective is the durable record of what the project set out to do.
 GRANT INSERT, UPDATE ON `tmanage`.`project_objectives` TO 'tmanage_app'@'%';
+-- `objective_work_links` (PROJ / module 8, x138) gets INSERT and DELETE. An edge is created (link)
+-- and removed (unlink), never edited — there is no column to change on a link, so **no UPDATE** — the
+-- posture `work_item_dependencies` and `saved_context` carry. Reading is the database-wide SELECT
+-- above.
+GRANT INSERT, DELETE ON `tmanage`.`objective_work_links` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

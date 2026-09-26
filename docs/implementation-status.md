@@ -13139,3 +13139,40 @@ relation gate) and against a real server in `apps/api/test/proj-001-objectives.d
 project's objectives in creation order, and mark each open one met or missed. `ProjectObjectiveView`
 is a live `Exact` pair with the web `ProjectObjectiveSummary` (CONTRACT-001). Screen + axe proven in
 `project-objectives.test.tsx`.
+
+## PROJ / module 8 — objective→work-item linkage (x138)
+
+Module 8 was **Partial** for linkage: x124 gave a project its objectives and work items already
+existed, but there was no edge between the two. x138 ships the many-to-many linkage — which work
+items advance which objective — as a project-scoped write surface. Deferred: the progress roll-up
+from linked work (NEXT-SCOPES-13).
+
+Migration **0047** creates `objective_work_links`: tenant-scoped like every sibling, with `id`,
+`organization_id`, `objective_id`, `work_item_id`, `created_by` and `created_at`. Two composite
+foreign keys bind `(organization_id, objective_id)` to `project_objectives` and
+`(organization_id, work_item_id)` to `work_items`, so an edge can only name an objective and a work
+item of its own tenant. A `(organization_id, objective_id, work_item_id)` unique key makes a
+duplicate link a conflict. A row is created and removed, never edited — no lifecycle, no trigger.
+Registered in all four places (Known trap): `schema.ts` def + `TABLES`, `tenant-guard.ts`
+`TENANT_TABLES`, `users.sql` grant (`INSERT, DELETE`; `SELECT` is database-wide), and the migration
+file the migrator applies from disk. (No `migrator.db.test.ts` case this slice — per the 2026-09-26
+rules the chain owns the DB suite.)
+
+`POST …/objectives/:objectiveId/work-links` (`project.manage`) links a work item;
+`GET …/objectives/:objectiveId/work-links` (`work.read`) lists the linked work in creation order,
+joined to each item's title and state, bounded to 50; `DELETE …/objectives/:objectiveId/work-links/:linkId`
+(`project.manage`) removes one. A duplicate pair is a 409.
+
+**Known trap (FAST-PROTOCOL 19:55).** Every route names ids, so `ObjectiveWorkLinksService` resolves
+each **tenant- and project-scoped before** the relation check and the write: an unknown or
+cross-tenant `objectiveId`/`workItemId`/`linkId` is a `404`, never a foreign-key 500, and a caller
+who does not manage the objective's project gets the same not-found. On link, the work item must
+belong to the *same project* as the objective (and not be soft-deleted), else the same 404.
+Unit-proven with real `authorize()` over fakes in `objective-work-links.controller.test.ts`
+(link→list→unlink; 409 duplicate; 404s incl. cross-project/soft-deleted/foreign-objective; relation
+gate; route ceilings).
+
+**Web.** `ObjectiveWorkLinksPanel` opens beside `ProjectObjectivesScreen` (a "Linked work" toggle per
+objective row): link a work item by id, list the linked work, unlink one. `ObjectiveWorkLinkView` is a
+live `Exact` pair with the web `ObjectiveWorkLink` (CONTRACT-001). Panel + axe proven in
+`objective-work-links.test.tsx`.
