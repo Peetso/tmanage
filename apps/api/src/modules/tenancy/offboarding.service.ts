@@ -18,13 +18,19 @@ import type { AuditService } from '../audit/audit.service.js';
  *
  * ## Three properties carry the weight
  *
- * 1. **Resolve tenant-scoped before any write (the Known trap).** Both entry points name a
- *    membership by id. The membership is resolved with the tenant-scoped `findById` first, so an
- *    unknown or cross-tenant id is a 404 with no write — never a 500 from a composite foreign key
- *    a write would otherwise drive it into (the order `MeetingsService.create` re-learned after
+ * 1. **Resolve tenant-scoped before any write (the Known trap).** Both entry points name a member
+ *    by their user id. The membership is resolved with the tenant-scoped `findByUserId` first, so
+ *    an unknown or cross-tenant id is a 404 with no write — never a 500 from a composite foreign
+ *    key a write would otherwise drive it into (the order `MeetingsService.create` re-learned after
  *    `75e2913`). The capability check that precedes it is org-level and categorical — it needs no
  *    object — so running it first is the cheap check §3 puts before object lookup, not a relation
  *    decision that would need the row.
+ *
+ *    The routes are keyed by **user id**, not membership id, because the member directory (D16,
+ *    `MembersController`) deliberately projects `userId` and never `membershipId` — the membership
+ *    id is only its keyset cursor. A `membershipId`-keyed offboard route would be one the member
+ *    picker that drives this feature could never call. `(organization_id, user_id)` is a unique
+ *    key, so the resolution is exactly as tenant-scoped and single-valued as a by-id lookup.
  *
  * 2. **The guards are refusals with no write.** Offboarding is irreversible
  *    (`OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS`; `offboarded` is terminal in the repository's
@@ -128,10 +134,10 @@ export class OffboardingService {
     }
   }
 
-  /** Resolve the named membership inside the acting tenant, or throw the not-found a stranger throws. */
-  private async resolve(context: TenantContext, membershipId: string): Promise<MembershipRow> {
+  /** Resolve the named member's membership inside the acting tenant, or throw a stranger's not-found. */
+  private async resolve(context: TenantContext, userId: string): Promise<MembershipRow> {
     const membership = await this.database.read(context, (db) =>
-      this.memberships.findById(db, context, membershipId),
+      this.memberships.findByUserId(db, context, userId),
     );
     if (!membership) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'membership_not_visible');
@@ -148,10 +154,10 @@ export class OffboardingService {
   async impact(
     context: TenantContext,
     principal: Principal,
-    membershipId: string,
+    userId: string,
   ): Promise<MemberOffboardingImpactView> {
     this.assertMayOffboard(context, principal);
-    const membership = await this.resolve(context, membershipId);
+    const membership = await this.resolve(context, userId);
 
     const counts = await this.database.read(context, async (db) => ({
       projectMembershipCount: await this.projectMemberships.countByUser(
@@ -174,10 +180,10 @@ export class OffboardingService {
   async offboard(
     context: TenantContext,
     principal: Principal,
-    membershipId: string,
+    userId: string,
   ): Promise<OffboardedMemberView> {
     this.assertMayOffboard(context, principal);
-    const membership = await this.resolve(context, membershipId);
+    const membership = await this.resolve(context, userId);
 
     // Guard 1 — a caller may not offboard themselves. Compared by membership id, which is the row
     // that authorised this very context: revoking one's own access mid-request is never a decision

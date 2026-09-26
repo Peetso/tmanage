@@ -20,8 +20,11 @@ import type {
  * each one visible at the top of the file that owns it.
  *
  * Like every tenant-scoped controller, it never reads `organizationId` from the body, a header, or
- * its own `:orgSlug` segment: it passes on the `TenantContext` the guard built. The membership id
- * is the only input, in the path, and the service resolves it tenant-scoped before any write.
+ * its own `:orgSlug` segment: it passes on the `TenantContext` the guard built. The member's user
+ * id is the only input, in the path, and the service resolves it tenant-scoped before any write.
+ * User id rather than membership id because the member directory (D16) is what drives the picker
+ * and it projects `userId`, never `membershipId`; `(organization_id, user_id)` is a unique key, so
+ * the resolution is as single-valued and tenant-scoped as a by-id lookup.
  */
 @Controller('v1/organizations/:orgSlug/members')
 export class OffboardingController {
@@ -29,22 +32,22 @@ export class OffboardingController {
 
   /**
    * ADM-12 — the access-impact preview. Read-only: the access and work a member holds, so the
-   * decision to offboard is taken with its consequences in view. An unknown or cross-tenant
-   * membership id is a 404, never an empty preview that would confirm the membership exists.
+   * decision to offboard is taken with its consequences in view. An unknown or cross-tenant user id
+   * is a 404, never an empty preview that would confirm the member exists.
    */
-  @Get(':membershipId/offboarding-impact')
+  @Get(':userId/offboarding-impact')
   @RequireCapability('member.offboard')
   async impact(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
-    @Param('membershipId') membershipId: string,
+    @Param('userId') userId: string,
   ): Promise<MemberOffboardingImpactView> {
-    if (typeof membershipId !== 'string' || membershipId === '') {
-      throw new ApiError(400, 'validation_failed', 'membershipId is required', [
-        { field: 'membershipId', message: 'must be a non-empty string' },
+    if (typeof userId !== 'string' || userId === '') {
+      throw new ApiError(400, 'validation_failed', 'userId is required', [
+        { field: 'userId', message: 'must be a non-empty string' },
       ]);
     }
-    return this.offboarding.impact(context, principal, membershipId);
+    return this.offboarding.impact(context, principal, userId);
   }
 
   /**
@@ -52,19 +55,19 @@ export class OffboardingController {
    * refuses the three ways an offboard can be a mistake (self, last administrator, already
    * terminal) with no write, and commits the status transition and the audit row together.
    */
-  @Post(':membershipId/offboard')
+  @Post(':userId/offboard')
   @RequireCapability('member.offboard')
   @HttpCode(200)
   async offboard(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
-    @Param('membershipId') membershipId: string,
+    @Param('userId') userId: string,
   ): Promise<OffboardedMemberView> {
-    if (typeof membershipId !== 'string' || membershipId === '') {
-      throw new ApiError(400, 'validation_failed', 'membershipId is required', [
-        { field: 'membershipId', message: 'must be a non-empty string' },
+    if (typeof userId !== 'string' || userId === '') {
+      throw new ApiError(400, 'validation_failed', 'userId is required', [
+        { field: 'userId', message: 'must be a non-empty string' },
       ]);
     }
-    return this.offboarding.offboard(context, principal, membershipId);
+    return this.offboarding.offboard(context, principal, userId);
   }
 }

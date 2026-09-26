@@ -12962,3 +12962,60 @@ surface a lookup miss as a 500, and the tenant scope is the only leak boundary.
 project shows every count at zero with no invented numbers, a `work.read` refusal shows in the
 delivery-flow panel while the approval panel still renders, and the mounted document is
 axe-clean.
+
+## ADM-12 / ADM-13 — member offboarding: access-impact preview + offboard execution (x121)
+
+The one Administration write boundary that had a name and no door. `member.offboard` has been in
+`CAPABILITIES` since the role/capability grid landed and no controller used it (`41 §Administration`
+**ADM-12** offboarding impact, **ADM-13** offboarding execution; NEXT-SCOPES-10 deferred both
+pending the capability, which now exists). This slice is the door, written as the access-revocation
+boundary it is.
+
+`OffboardingController` (`apps/api/src/modules/tenancy/offboarding.controller.ts`) adds two routes
+under the members prefix, both behind `member.offboard`:
+
+- **`GET …/members/:userId/offboarding-impact`** — read-only. The access and work the member holds:
+  their project-membership count and the count of live work items they own, over existing tables. No
+  new table; impact is a read.
+- **`POST …/members/:userId/offboard`** — transitions the membership status to `offboarded` via the
+  repository's checked transition and writes the `membership.offboarded` audit row in one
+  transaction.
+
+**Keyed by user id, not membership id.** The member directory (D16, `MembersController`) deliberately
+projects `userId` and never `membershipId` — the membership id is only its keyset cursor — so a
+`membershipId`-keyed route is one the member picker that drives the screen could never call.
+`(organization_id, user_id)` is a unique key, so resolution via `findByUserId` is exactly as
+tenant-scoped and single-valued as a by-id lookup. This is the one deliberate departure from the
+x121 brief, which named `membershipId`; the Known-trap property is unchanged.
+
+**The security substance.** The membership is resolved tenant-scoped **before any write** (the Known
+trap `MeetingsService.create` re-learned after `75e2913`): an unknown or cross-tenant user id is a
+404 with no write, never a 500 from a composite foreign key. Three guards refuse with no write and no
+audit — a caller offboarding themselves (403), offboarding the last active `org.manage` holder (403,
+the roles computed from the capability rather than hard-coded to `owner`), and re-offboarding a member
+already terminal (409). `offboarded` is terminal in `ALLOWED_TRANSITIONS` and
+`OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS` holds, so the count of `membership.offboarded` audit rows is
+the count of actual revocations.
+
+**Domain.** One new audit action, `membership.offboarded` (`packages/domain/src/policies/audit.ts`) —
+the internal-member mirror of `client_membership.status_changed`'s offboarding case. `capabilities.ts`
+is untouched; ADM-03 (the role/capability grid) stays blocked.
+
+**Web.** `OffboardingScreen` (`apps/web/src/components/screens/OffboardingScreen.tsx`), routed at
+`/:orgSlug/people/offboarding`, is a member picker (the D16 `MemberSelect`), the impact preview for
+whoever is chosen, and a confirmed offboard behind an explicit "cannot be undone" acknowledgement.
+The API owns the refusals; the screen renders them. Proved in
+`apps/web/tests/offboarding-screen.test.tsx` (jsdom + axe).
+
+**Contract.** `MemberOffboardingImpactView` and `OffboardedMemberView` are paired `Exact` with the web
+shapes in `e2e/contracts/api-web-shapes.ts`.
+
+**Deferred / Needs-Peter.** Work reassignment on offboarding needs an assignee column (the carried
+HOME-04 gap) — the preview counts owned work, it does not move it. Scheduled/effective-dated
+offboarding is NEXT-SCOPES-12.
+
+**Proof posture.** Cross-tenant resolution and the self / last-owner / terminal exclusions are
+unit-proven with the real `authorize()` in `apps/api/src/modules/tenancy/offboarding.controller.test.ts`;
+member offboarding makes no schema change, and the `tenant-isolation` chain already covers membership
+rows. Member offboarding cross-tenant + self/last-owner/terminal exclusion: unit-proven, no schema
+change. The `offboarding-journeys.spec.ts` e2e journey is authored; chain-19 runs ADM-12/13.
