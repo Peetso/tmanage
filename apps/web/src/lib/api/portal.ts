@@ -124,6 +124,52 @@ export async function listPortalWorkItems(
   return data.workItems;
 }
 
+/**
+ * A file shared with the client on one of their projects — FILE-003 · WEB-006.
+ *
+ * The client projection of a `file_assets` row, built field by field like the others. There is no
+ * `objectKey` (the storage literal), no owner, no internal status: a screen renders what it was
+ * given, and it was given only what a client may see. `id` is the argument to the download door
+ * ({@link portalFileDownloadPath}).
+ */
+export interface PortalFile {
+  readonly id: string;
+  readonly projectId: string;
+  readonly name: string;
+  readonly sizeBytes: number;
+  readonly contentType: string;
+  readonly uploadedAt: string;
+}
+
+/**
+ * The downloadable files on one of the client's projects.
+ *
+ * The project is named in the path. The API answers 404 — not an empty list — for a project the
+ * client cannot read, so a not-found is "not yours", never "no files". Only files the download
+ * door would actually serve are listed: a file still scanning or rejected never appears.
+ */
+export async function listPortalFiles(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly PortalFile[]> {
+  const { data } = await client.request<{ files: readonly PortalFile[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/files`,
+  });
+  return data.files;
+}
+
+/**
+ * The path of the existing authenticated download door for one file (FILE-002 slice C).
+ *
+ * A `GET` the browser reaches with the session cookie; a safe method, so no CSRF token. The screen
+ * builds an anchor to `${apiBaseUrl()}${this}` — the same route `listPortalFiles` promises the file
+ * is servable on, so the list and the download can never name different things.
+ */
+export function portalFileDownloadPath(organizationSlug: string, fileAssetId: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/files/${encodeURIComponent(fileAssetId)}/content`;
+}
+
 export interface InviteClientMemberInput {
   readonly email: string;
   readonly role: string;

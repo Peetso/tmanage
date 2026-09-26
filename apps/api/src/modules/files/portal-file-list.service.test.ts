@@ -129,10 +129,18 @@ describe('PortalFileListService.listForClient', () => {
       }),
     ]);
 
-    const files = await service.listForClient(context, clientPrincipal(READABLE_PROJECT), READABLE_PROJECT);
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
 
     expect(files.map((f) => f.id)).toEqual(['own-clean']);
-    expect(files[0]).toMatchObject({ name: 'File own-clean', contentType: 'application/pdf', sizeBytes: 1234 });
+    expect(files[0]).toMatchObject({
+      name: 'File own-clean',
+      contentType: 'application/pdf',
+      sizeBytes: 1234,
+    });
   });
 
   it('answers 404 for a project the client cannot read, before any file is read', async () => {

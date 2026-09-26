@@ -70,6 +70,13 @@ several were in fact already resolved in later dated sections of this file (note
 - **x85** (`d6ccc9a`): scheduled `sweep:invitations` worker job; `tmanage_worker` `SELECT, UPDATE` on
   `invitations`.
 - **x86** (`8365bad`): project-level health roll-up read, behind `work.read`.
+- **x141** (pass 20): FILE-003 · WEB-006 client portal file downloads UI — `GET
+/portal/projects/:projectId/files` (`client_projection.read`) lists the request-attachment files
+  the FILE-002 download door would serve to this client organization (project resolved
+  relation-scoped first → 404; client-org read from the request row; only `ready`/`clean`/`private`
+  versions), and `PortalFilesScreen` renders them with a download link to the existing
+  `/portal/files/:id/content` door. No new table, no migration. Deferred: published deliverables
+  (DEL-001/CL-05) and portal upload (NS-13).
 
 Earlier:
 

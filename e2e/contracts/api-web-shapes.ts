@@ -62,6 +62,7 @@ import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/ten
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
+import type { PortalFileView as ApiPortalFileView } from '../../apps/api/src/modules/files/portal-file-list.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
@@ -127,6 +128,7 @@ import type {
 } from '../../apps/web/src/lib/api/organizations';
 import type {
   ClientRequest as WebClientRequest,
+  PortalFile as WebPortalFile,
   PortalInboxBundle as WebPortalInboxBundle,
   PortalInboxPage as WebPortalInboxPage,
   PortalProject as WebPortalProject,
@@ -205,6 +207,7 @@ type _portalInboxBundle = Assert<Exact<ApiPortalInboxBundleView, WebPortalInboxB
 type _portalInboxPage = Assert<Exact<ApiPortalInboxPageView, WebPortalInboxPage>>;
 type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
 type _portalUpdate = Assert<Exact<ApiPortalUpdateView, WebPortalUpdate>>;
+type _portalFile = Assert<Exact<ApiPortalFileView, WebPortalFile>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;

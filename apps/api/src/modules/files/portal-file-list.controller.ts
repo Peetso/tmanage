@@ -20,9 +20,7 @@ import type { PortalFileListService, PortalFileView } from './portal-file-list.s
  */
 @Controller('v1/organizations/:orgSlug/portal/projects/:projectId/files')
 export class PortalFileListController {
-  constructor(
-    @Inject(PORTAL_FILE_LIST_SERVICE) private readonly files: PortalFileListService,
-  ) {}
+  constructor(@Inject(PORTAL_FILE_LIST_SERVICE) private readonly files: PortalFileListService) {}
 
   @Get()
   @RequireCapability('client_projection.read')
