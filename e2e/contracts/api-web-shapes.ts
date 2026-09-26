@@ -84,6 +84,8 @@ import type { PortalUpdateView as ApiPortalUpdateView } from '../../apps/api/src
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
+import type { ProjectMilestoneView as ApiProjectMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
+import type { ClientMilestoneView as ApiClientMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
@@ -180,6 +182,8 @@ import type {
   PortalProject as WebPortalProject,
   PortalUpdate as WebPortalUpdate,
   PortalWorkItem as WebPortalWorkItem,
+  ProjectMilestone as WebProjectMilestone,
+  ClientMilestone as WebClientMilestone,
 } from '../../apps/web/src/lib/api/portal';
 import type {
   ImportReceipt as WebImportReceipt,
@@ -264,6 +268,8 @@ type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
 // exactly these responses, so both pairs are Exact.
 type _portalDeliverable = Assert<Exact<ApiPortalDeliverableView, WebPortalDeliverable>>;
 type _portalDeliverableFile = Assert<Exact<ApiPortalDeliverableFileView, WebPortalDeliverableFile>>;
+type _projectMilestone = Assert<Exact<ApiProjectMilestoneView, WebProjectMilestone>>;
+type _clientMilestone = Assert<Exact<ApiClientMilestoneView, WebClientMilestone>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
 

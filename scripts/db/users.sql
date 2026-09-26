@@ -338,6 +338,14 @@ GRANT INSERT                 ON `tmanage`.`project_updates`  TO 'tmanage_app'@'%
 -- credential besides. UPDATE is added with the code that writes it, per this file's rule that a
 -- grant names a statement that exists.
 GRANT INSERT, DELETE         ON `tmanage`.`document_template_variables` TO 'tmanage_app'@'%';
+-- Portal milestones (x139, 0048). A milestone is created (INSERT) and read (the database-wide
+-- SELECT above); `status` and `published` are set at INSERT time, and this slice ships no
+-- edit/unpublish endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0048 trigger
+-- pins organization_id/project_id/created_by_user_id immutable for every credential besides. When
+-- the edit/unpublish lifecycle lands (NEXT-SCOPES-13), UPDATE is added with the code that writes
+-- it, per this file's rule that a grant names a statement that exists (the same treatment
+-- `project_updates`, `meetings` and `documents` have above).
+GRANT INSERT                 ON `tmanage`.`project_milestones` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

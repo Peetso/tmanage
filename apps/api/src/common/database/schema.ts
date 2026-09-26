@@ -347,6 +347,47 @@ export const projectUpdates = mysqlTable(
   ],
 );
 
+export const PROJECT_MILESTONE_STATUSES = ['planned', 'met', 'missed'] as const;
+
+/**
+ * SEC / Portal milestones (x139). A project milestone — a `title`, a `due_on` target day, a
+ * client-safe `status` (`planned | met | missed`), and whether it is `published` — against an
+ * existing project (0048). Tenant-scoped and project-owned like `project_updates` (0041) and
+ * reusing its mechanism: a client can never be shown, and an internal author can never write, a
+ * milestone against another studio's project, because the composite foreign key binds
+ * `(organization_id, project_id)` to `projects`.
+ *
+ * `published` is the client-visibility gate: a milestone exists as soon as it is created, but the
+ * portal read selects `published = 1` only — the way `client_projections` (0031) serves
+ * published-only content. `status` is 12-PERMISSION-MATRIX §4's "milestone state", a client-safe
+ * fact rather than the internal work lifecycle. Risks (x140), the portal people page (x142) and
+ * any milestone edit/unpublish lifecycle are later slices (NEXT-SCOPES-13).
+ * `0048_project_milestones.sql` is the source of truth; this is its typed mirror.
+ */
+export const projectMilestones = mysqlTable(
+  'project_milestones',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    dueOn: date('due_on', { mode: 'string' }),
+    status: mysqlEnum('status', PROJECT_MILESTONE_STATUSES).notNull().default('planned'),
+    published: boolean('published').notNull().default(false),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_milestones_org_id').on(table.organizationId, table.id),
+    index('ix_project_milestones_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.dueOn,
+    ),
+  ],
+);
+
 export const MEETING_NOTE_KINDS = ['note', 'decision'] as const;
 
 /**
@@ -2116,6 +2157,7 @@ export const TABLES = {
   saved_views: savedViews,
   saved_context: savedContext,
   project_updates: projectUpdates,
+  project_milestones: projectMilestones,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2147,6 +2189,7 @@ export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type ProjectUpdateRow = typeof projectUpdates.$inferSelect;
+export type ProjectMilestoneRow = typeof projectMilestones.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;

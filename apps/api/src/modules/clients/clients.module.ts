@@ -12,6 +12,7 @@ import {
   OUTBOX_EVENTS_REPOSITORY,
   PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
+  PROJECT_MILESTONES_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
@@ -29,6 +30,12 @@ import { PortalService } from './portal.service.js';
 import { PortalController } from './portal.controller.js';
 import { ProjectUpdatesController } from './project-updates.controller.js';
 import { ProjectUpdatesRepository } from './project-updates.repository.js';
+import {
+  PortalMilestonesController,
+  ProjectMilestonesController,
+  ProjectMilestonesService,
+} from './project-milestones.controller.js';
+import { ProjectMilestonesRepository } from './project-milestones.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
@@ -191,11 +198,42 @@ export class ClientsModule {
         ),
     };
 
+    /**
+     * SEC / Portal milestones (x139). The repositories are constructed here, like the `portal`
+     * provider above: they are stateless collections of queries, and reaching for another
+     * module's provider would register that dynamic module twice.
+     */
+    const milestones: Provider = {
+      provide: PROJECT_MILESTONES_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new ProjectMilestonesService(
+          database,
+          new ProjectsRepository(),
+          new ProjectMilestonesRepository(),
+        ),
+    };
+
     return {
       module: ClientsModule,
-      providers: [organizations, memberships, shares, service, portal, invitations, clientRequests],
+      providers: [
+        organizations,
+        memberships,
+        shares,
+        service,
+        portal,
+        invitations,
+        clientRequests,
+        milestones,
+      ],
       exports: [service, portal],
-      controllers: [ClientsController, PortalController, ProjectUpdatesController],
+      controllers: [
+        ClientsController,
+        PortalController,
+        ProjectUpdatesController,
+        ProjectMilestonesController,
+        PortalMilestonesController,
+      ],
     };
   }
 }

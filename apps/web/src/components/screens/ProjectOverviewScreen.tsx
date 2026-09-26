@@ -8,7 +8,12 @@ import { AppShell } from '../shell/AppShell';
 import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
-import { postProjectUpdate } from '../../lib/api/portal';
+import {
+  createProjectMilestone,
+  listProjectMilestones,
+  postProjectUpdate,
+} from '../../lib/api/portal';
+import type { MilestoneStatus, ProjectMilestone } from '../../lib/api/portal';
 import { listProjectShares } from '../../lib/api/clients';
 import { listWorkItems, MAX_WORK_ITEM_PAGE } from '../../lib/api/work-items';
 import type { WorkItemSummary } from '../../lib/api/work-items';
@@ -302,12 +307,14 @@ export function ProjectOverviewScreen({
         </p>
       </section>
 
+      <MilestoneComposer api={api} organizationSlug={organizationSlug} projectId={projectId} />
+
       <UpdateComposer api={api} organizationSlug={organizationSlug} projectId={projectId} />
 
-      <BackendPending ticket="milestones and internal pulse — unscheduled">
-        Milestones and the latest internal pulse are not built, and neither is scheduled to be.
-        Neither has anywhere to be stored yet, so neither is drawn: an empty “Milestones” heading
-        would read as a project nobody has planned rather than a feature that does not exist.
+      <BackendPending ticket="internal pulse — unscheduled">
+        The latest internal pulse is not built and is not scheduled to be. It has nowhere to be
+        stored yet, so it is not drawn: an empty “Pulse” heading would read as a team that has said
+        nothing rather than a feature that does not exist.
       </BackendPending>
     </AppShell>
   );
@@ -347,6 +354,210 @@ function WorkSection({ id, title, empty, items, organizationSlug, now }: WorkSec
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+interface ComposerProps {
+  api: ApiClient;
+  organizationSlug: string;
+  projectId: string;
+}
+
+/** `project_milestones.title` is VARCHAR(300). */
+const MAX_MILESTONE_TITLE_LENGTH = 300;
+
+const MILESTONE_STATUS_OPTIONS: readonly { value: MilestoneStatus; label: string }[] = [
+  { value: 'planned', label: 'Planned' },
+  { value: 'met', label: 'Met' },
+  { value: 'missed', label: 'Missed' },
+];
+
+function milestoneCapsuleState(status: MilestoneStatus): 'done' | 'blocked' | 'future' {
+  if (status === 'met') return 'done';
+  if (status === 'missed') return 'blocked';
+  return 'future';
+}
+
+/**
+ * SEC / Portal milestones (x139) — the internal compose surface and list.
+ *
+ * The write is behind `project.manage` (the API refuses anyone else) and posts to the internal
+ * `projects` path, never `/portal`. "Publish to the client now" is checked by default: a milestone
+ * created here is meant to reach the client, and leaving it unchecked keeps it a draft the client
+ * cannot see (`published = false`). Editing or unpublishing is a later slice, so there is no way to
+ * change that after creating yet — said in the hint rather than left implicit.
+ *
+ * The list shows the full internal record (including drafts, which the client never sees); on a
+ * successful create the client-facing portal query is invalidated so an open portal tab picks the
+ * new milestone up, and the internal list refetches.
+ */
+function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) {
+  const queries = useQueryClient();
+  const [title, setTitle] = useState('');
+  const [dueOn, setDueOn] = useState('');
+  const [status, setStatus] = useState<MilestoneStatus>('planned');
+  const [publishNow, setPublishNow] = useState(true);
+
+  const milestones = useQuery({
+    queryKey: ['project-milestones', organizationSlug, projectId],
+    queryFn: () => listProjectMilestones(api, organizationSlug, projectId),
+  });
+
+  const create = useMutation({
+    mutationFn: () =>
+      createProjectMilestone(api, organizationSlug, projectId, {
+        title: title.trim(),
+        dueOn: dueOn === '' ? null : dueOn,
+        status,
+        published: publishNow,
+      }),
+    onSuccess: () => {
+      void queries.invalidateQueries({
+        queryKey: ['project-milestones', organizationSlug, projectId],
+      });
+      void queries.invalidateQueries({
+        queryKey: ['portal-milestones', organizationSlug, projectId],
+      });
+      setTitle('');
+      setDueOn('');
+      setStatus('planned');
+      setPublishNow(true);
+    },
+  });
+
+  const canCreate = title.trim() !== '' && !create.isPending;
+  const rows: readonly ProjectMilestone[] = milestones.data ?? [];
+
+  return (
+    <section className="tm-panel tm-stack" aria-labelledby="tm-project-milestones">
+      <h2 id="tm-project-milestones" className="tm-eyebrow">
+        Milestones
+      </h2>
+
+      {milestones.isError ? (
+        <InlineAlert tone="danger" title="Could not load milestones" live>
+          {describe(milestones.error)}
+        </InlineAlert>
+      ) : rows.length === 0 ? (
+        <p className="tm-prose">No milestones yet. Add the first below.</p>
+      ) : (
+        <ol className="tm-list tm-stack">
+          {rows.map((milestone) => (
+            <li key={milestone.id} className="tm-stack tm-stack--tight">
+              <div className="tm-row tm-row--wrap">
+                <h3 className="tm-heading-3">{milestone.title}</h3>
+                <StateCapsule
+                  state={milestoneCapsuleState(milestone.status)}
+                  className="tm-push-end"
+                >
+                  {milestone.status}
+                </StateCapsule>
+                {!milestone.published ? <StateCapsule state="neutral">Draft</StateCapsule> : null}
+              </div>
+              <p className="tm-field__hint">
+                {milestone.dueOn === null
+                  ? 'No date committed'
+                  : `Due ${formatDay(milestone.dueOn)}`}
+              </p>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <form
+        className="tm-stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (canCreate) create.mutate();
+        }}
+      >
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-project-milestone-title">
+            Title
+          </label>
+          <input
+            id="tm-project-milestone-title"
+            className="tm-field__control"
+            value={title}
+            maxLength={MAX_MILESTONE_TITLE_LENGTH}
+            required
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </div>
+
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-project-milestone-due">
+            Target date
+          </label>
+          <input
+            id="tm-project-milestone-due"
+            className="tm-field__control"
+            type="date"
+            value={dueOn}
+            onChange={(event) => setDueOn(event.target.value)}
+          />
+        </div>
+
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-project-milestone-status">
+            Status
+          </label>
+          <select
+            id="tm-project-milestone-status"
+            className="tm-field__control"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as MilestoneStatus)}
+          >
+            {MILESTONE_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <label className="tm-choice tm-choice--inline">
+          <input
+            className="tm-choice__input"
+            type="checkbox"
+            checked={publishNow}
+            onChange={(event) => setPublishNow(event.target.checked)}
+          />
+          <span className="tm-choice__name">Publish to the client now</span>
+        </label>
+        <span className="tm-field__hint">
+          A published milestone is visible in the client portal straight away. Leave this unchecked
+          to keep it a draft only your studio can see. Editing or unpublishing a milestone is not
+          built yet, so add it the way you mean it.
+        </span>
+
+        {create.isError ? (
+          <InlineAlert tone="danger" title="Could not add the milestone" live>
+            {describe(create.error)}
+          </InlineAlert>
+        ) : null}
+        {create.isSuccess ? (
+          <InlineAlert tone="success" title="Milestone added" live>
+            {publishNow
+              ? 'Your milestone is live in the client portal.'
+              : 'Your draft is saved. It is not visible to the client.'}
+          </InlineAlert>
+        ) : null}
+
+        <div className="tm-row">
+          <Button
+            type="submit"
+            tone="ink"
+            size="accessible"
+            disabled={!canCreate}
+            loading={create.isPending}
+            loadingLabel="Adding"
+          >
+            Add milestone
+          </Button>
+        </div>
+      </form>
     </section>
   );
 }

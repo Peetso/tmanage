@@ -102,6 +102,101 @@ export async function postProjectUpdate(
   return data;
 }
 
+/** The milestone states a client is shown — 12-PERMISSION-MATRIX §4's "milestone state". */
+export type MilestoneStatus = 'planned' | 'met' | 'missed';
+
+/**
+ * A milestone as the portal is told it — SEC / Portal milestones (x139).
+ *
+ * What is absent is the point, the same way it is for `PortalUpdate`: there is no author and no
+ * publish flag. §4 excludes staff from the client projection, and a client only ever receives
+ * published milestones, so neither is a field the client is given.
+ */
+export interface ClientMilestone {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  /** A 'YYYY-MM-DD' target day, or null when the date is not yet committed. */
+  readonly dueOn: string | null;
+  readonly status: MilestoneStatus;
+  readonly createdAt: string;
+}
+
+/**
+ * A milestone as an internal manager is shown it — the full record behind `project.manage`.
+ *
+ * `createdByUserId` and `published` are here because the internal compose/list surface renders
+ * them; the client read never returns them.
+ */
+export interface ProjectMilestone {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly dueOn: string | null;
+  readonly status: MilestoneStatus;
+  readonly published: boolean;
+  readonly createdByUserId: string;
+  readonly createdAt: string;
+}
+
+/**
+ * The published milestones for one of the client's projects — SEC / Portal milestones (x139).
+ *
+ * The project is named in the path. The API answers 404 — not an empty list — for a project the
+ * client cannot read, so the caller must treat a not-found as "not yours", never as "no milestones".
+ */
+export async function listPortalMilestones(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly ClientMilestone[]> {
+  const { data } = await client.request<{ milestones: readonly ClientMilestone[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/milestones`,
+  });
+  return data.milestones;
+}
+
+/** The full internal milestones list for a project — behind `project.manage`, on the `projects` path. */
+export async function listProjectMilestones(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+): Promise<readonly ProjectMilestone[]> {
+  const { data } = await client.request<{ milestones: readonly ProjectMilestone[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/milestones`,
+  });
+  return data.milestones;
+}
+
+export interface CreateProjectMilestoneInput {
+  readonly title: string;
+  /** A 'YYYY-MM-DD' target day, or null. */
+  readonly dueOn: string | null;
+  readonly status: MilestoneStatus;
+  /** Optional; the API defaults to `true` — a milestone created here is meant to be seen. */
+  readonly published?: boolean;
+}
+
+/**
+ * The internal write — a manager creating a milestone on a client's timeline.
+ *
+ * On the internal `projects` path, not `/portal`: creating is behind `project.manage`, which no
+ * client role holds. The tenant and the author come from the session, never this body.
+ */
+export async function createProjectMilestone(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  input: CreateProjectMilestoneInput,
+): Promise<ProjectMilestone> {
+  const { data } = await client.request<ProjectMilestone>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/milestones`,
+    body: input,
+  });
+  return data;
+}
+
 export async function listPortalProjects(
   client: ApiClient,
   organizationSlug: string,
