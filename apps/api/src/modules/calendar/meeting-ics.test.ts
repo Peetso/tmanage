@@ -148,7 +148,11 @@ describe('MeetingsService.get (ICS read authorization)', () => {
 
   it('returns the wire projection for a project member, never echoing the tenant id', async () => {
     const service = serviceWith([meetingRow()]);
-    const view = await service.get(context, member([PROJECT]), 'meeting-0000-0000-0000-000000000010');
+    const view = await service.get(
+      context,
+      member([PROJECT]),
+      'meeting-0000-0000-0000-000000000010',
+    );
 
     expect(view.id).toBe('meeting-0000-0000-0000-000000000010');
     expect(view.title).toBe('Kickoff');

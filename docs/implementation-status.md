@@ -12991,3 +12991,33 @@ project with a normalised ISO instant and refetches the list, and is axe-clean.
 `e2e/tests/calendar-journeys.spec.ts` walks the full create→list→detail path against the real
 stack (module 9's credit-earning proof); it authors and typechecks here, with the live browser run
 carried by the integration chain.
+
+---
+
+## CAL — meeting ICS export (x128)
+
+x122 shipped the calendar meetings screen but the audit still listed Calendar as Partial with ICS
+deferred. This slice adds the read-only calendar download. **No migration, no new table, no schema
+change** — it renders an existing `meetings` row (0029) as RFC-5545.
+
+`GET …/meetings/:meetingId/ics` (`meeting.read`) resolves the meeting **tenant-scoped and
+relation-checked first** (the Known-trap order — a cross-tenant or unknown `meetingId` is a 404,
+never a 500, and a non-member gets the same 404, not a 403), then returns a `text/calendar`
+`VEVENT` (uid=id, dtstart/dtend/summary) with an `attachment` disposition, `nosniff` and a private
+no-store cache. The render lives in a pure serializer, `meeting-ics.ts`: RFC-5545 TEXT escaping
+(§3.3.11), UTC date-times (§3.3.5), CRLF line endings and 75-octet line folding (§3.1). The
+meetings table carries only a start, so the event end is the start plus a fixed default duration,
+recorded at the controller. The handler never mutates.
+
+`MeetingIcsButton.tsx` is a plain download anchor (the endpoint is a cookie-authenticated `GET`
+answering with `Content-Disposition: attachment`); it is wired on the meeting notes route and is
+axe-clean by construction. `MeetingsService.get` returns the existing `MeetingView` wire shape
+(never echoing the tenant id), so no new response projection appears — `contracts-check` stays
+green with no allowlist edit; the ICS bytes are `text/calendar`, not a JSON view, so there is no
+paired view.
+
+**Tests.** `apps/api/src/modules/calendar/meeting-ics.test.ts` proves the serializer's escaped
+VEVENT and folding, and `MeetingsService.get` under the real `authorize()` (cross-tenant → 404,
+non-member → 404, member → wire projection without the tenant id). `apps/web/tests/
+meeting-ics-button.test.tsx` proves the control renders, links to the ICS endpoint, and is
+axe-clean. Feed/subscription URL and attendee VALARM are deferred to NEXT-SCOPES-13.

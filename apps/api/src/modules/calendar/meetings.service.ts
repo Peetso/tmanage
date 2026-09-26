@@ -255,11 +255,7 @@ export class MeetingsService {
    * non-member gets the same 404 rather than a 403 that would confirm the meeting exists. The
    * projection is the same wire shape the list returns; `organizationId` is never echoed.
    */
-  async get(
-    context: TenantContext,
-    principal: Principal,
-    meetingId: string,
-  ): Promise<MeetingView> {
+  async get(context: TenantContext, principal: Principal, meetingId: string): Promise<MeetingView> {
     const meeting = await this.resolveMeetingFor(context, principal, meetingId, 'work.read');
     return toView(meeting);
   }
