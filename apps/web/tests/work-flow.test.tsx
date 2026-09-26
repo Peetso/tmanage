@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { ProjectOverviewScreen } from '../src/components/screens/ProjectOverviewScreen';
 import { WorkItemDetailScreen } from '../src/components/screens/WorkItemDetailScreen';
 import { WorkListScreen } from '../src/components/screens/WorkListScreen';
+import { WorkSavedViewsScreen } from '../src/components/screens/WorkSavedViewsScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { LOADING_MEMBER_LABEL } from '../src/lib/members-presentation';
 import { expectNoAxeViolations } from './axe';
@@ -1249,5 +1250,134 @@ describe('D16 follow-up — the owner reads as a name on all three surfaces (x42
     // It resolves to the name once the directory answers.
     release(json(MEMBERS));
     expect(await screen.findByText('Ada Okonkwo')).toBeInTheDocument();
+  });
+});
+
+/**
+ * WK-08 the saved view editor (x107).
+ *
+ * What the API proves elsewhere — the tenant- and owner-scoped table, the 404 on an unknown or
+ * cross-tenant project, the off-owner refusal — is proved in `work-008-saved-views.db.test.ts`
+ * and `work-views.service.test.ts`. This block proves only what the *screen* does: it reads the
+ * caller's own plus the studio's shared views, composes the config the person typed into the
+ * request the API expects, and loads a saved view back into the form so it can be re-applied.
+ */
+const SAVED_PROJECTS = {
+  projects: [{ id: 'proj-1', name: 'Atlas Website Relaunch' }],
+};
+
+function savedView(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'sv-1',
+    ownerUserId: 'user-1',
+    projectId: 'proj-1',
+    name: 'My board',
+    config: { filters: [], grouping: 'state', columns: ['title', 'state'] },
+    shared: false,
+    createdAt: '2026-09-01T00:00:00.000Z',
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('WK-08 the saved view editor', () => {
+  function renderScreen(handler: (call: Call) => Response | Promise<Response>) {
+    const { client, calls } = clientOver(handler);
+    render(
+      withQuery(
+        <WorkSavedViewsScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+        />,
+      ),
+    );
+    return calls;
+  }
+
+  it('lists the views the caller may see, and offers a form to name a new one', async () => {
+    renderScreen((call) =>
+      call.url.includes('/work-views/saved')
+        ? json({
+            savedViews: [
+              savedView({ id: 'sv-mine', name: 'Mine' }),
+              savedView({
+                id: 'sv-shared',
+                name: 'Team board',
+                ownerUserId: 'user-2',
+                shared: true,
+              }),
+            ],
+          })
+        : json(SAVED_PROJECTS),
+    );
+
+    expect(await screen.findByText('Mine')).toBeInTheDocument();
+    expect(screen.getByText('Team board')).toBeInTheDocument();
+    // The shared view names its audience in words, not as a flag.
+    expect(screen.getByText(/Shared/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toBeInTheDocument();
+  });
+
+  it('sends the config the form composed rather than filtering in the browser', async () => {
+    const calls = renderScreen((call) => {
+      if (call.method === 'POST') return json(savedView({ id: 'sv-new', name: 'Blocked work' }));
+      return call.url.includes('/work-views/saved')
+        ? json({ savedViews: [] })
+        : json(SAVED_PROJECTS);
+    });
+
+    await screen.findByLabelText('Name');
+    await userEvent.type(screen.getByLabelText('Name'), 'Blocked work');
+    await userEvent.type(screen.getByLabelText('Columns'), 'title, state');
+    await userEvent.type(screen.getByLabelText('Group by'), 'state');
+    await userEvent.click(screen.getByRole('button', { name: 'Save view' }));
+
+    await waitFor(() => {
+      const posted = calls.find((call) => call.method === 'POST');
+      expect(posted?.url).toContain('/work-views/saved');
+      expect(posted?.body).toEqual({
+        projectId: null,
+        name: 'Blocked work',
+        shared: false,
+        config: { filters: [], grouping: 'state', columns: ['title', 'state'] },
+      });
+    });
+  });
+
+  it('loads a saved view back into the form so it can be re-applied or copied', async () => {
+    renderScreen((call) =>
+      call.url.includes('/work-views/saved')
+        ? json({ savedViews: [savedView({ id: 'sv-1', name: 'My board' })] })
+        : json(SAVED_PROJECTS),
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Load' }));
+
+    expect(screen.getByLabelText('Name')).toHaveValue('My board');
+    expect(screen.getByLabelText('Columns')).toHaveValue('title, state');
+    expect(screen.getByLabelText('Group by')).toHaveValue('state');
+  });
+
+  it('has no axe violations', async () => {
+    const { container } = (() => {
+      const { client } = clientOver((call) =>
+        call.url.includes('/work-views/saved')
+          ? json({ savedViews: [savedView()] })
+          : json(SAVED_PROJECTS),
+      );
+      return render(
+        withQuery(
+          <WorkSavedViewsScreen
+            organizationSlug="northstar"
+            organizationName="Northstar Studio"
+            client={client}
+          />,
+        ),
+      );
+    })();
+
+    await screen.findByText('My board');
+    await expectNoAxeViolations(container);
   });
 });

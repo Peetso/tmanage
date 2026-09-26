@@ -279,6 +279,12 @@ GRANT INSERT                 ON `tmanage`.`documents`        TO 'tmanage_app'@'%
 -- UPDATE is added with the code that writes it, per this file's rule that a grant names a
 -- statement that exists (the same treatment `meetings` and `documents` have above).
 GRANT INSERT                 ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%';
+-- WK-08 (x107). A saved view is created (INSERT), read (the database-wide SELECT) and edited in
+-- place (UPDATE) — this slice ships create/list/update — so INSERT and UPDATE and **no DELETE**:
+-- there is no delete endpoint, least privilege, and the 0034 trigger pins organization_id and
+-- owner_user_id immutable for every credential besides. DELETE is added with the code that writes
+-- it, per this file's rule that a grant names a statement that exists.
+GRANT INSERT, UPDATE          ON `tmanage`.`saved_views`      TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

@@ -23,7 +23,7 @@ import { INTERNAL_ROLES } from '@tmanage/domain';
  * The partial-failure case is the reason this file exists. MySQL commits each DDL
  * statement as it runs, so a migration that dies half way through leaves a schema that is
  * neither the old one nor the new one. The migrator's contract is that it *records* that
- * state precisely and then refuses to run again until a human resolves it — asserted here
+ * state precisely and then refuses to run again until a human resolves it â€” asserted here
  * rather than only described in a comment.
  */
 
@@ -32,7 +32,7 @@ let connection: Connection;
 
 beforeAll(async () => {
   // `scratch` because this suite drops every table between cases. Against the embedded
-  // server that is harmless — each suite owns its own server. Against the shared CI
+  // server that is harmless â€” each suite owns its own server. Against the shared CI
   // server it would destroy the schema the isolation corpus and the least-privilege suite
   // run on, so this suite gets a database of its own there.
   db = await startTestDatabase({ applyMigrations: false, scratch: true });
@@ -60,7 +60,7 @@ async function migrationDir(files: Record<string, string>): Promise<string> {
  * The real migration set, read from disk rather than listed here.
  *
  * Hard-coding the filenames made every one of these cases fail the moment a migration was
- * added — a red suite that says nothing about the migrator, and a standing invitation to
+ * added â€” a red suite that says nothing about the migrator, and a standing invitation to
  * "fix" it by editing an expectation without reading it. What these cases are actually about
  * is that *every* file applies once, in order, with a checksum, and that a second run is a
  * no-op; none of that has a number in it.
@@ -111,7 +111,7 @@ describe('applying the real migrations', () => {
     // the assertion is derived the same way the migrator derives it. Migration numbering may
     // legitimately have gaps (a version reserved by a parallel branch, e.g. 0025), and the
     // migrator treats versions as a set; an `index + 1` expectation would encode a
-    // contiguity the format never promises — exactly the hard-coded-number trap this file
+    // contiguity the format never promises â€” exactly the hard-coded-number trap this file
     // avoids elsewhere.
     expect(report.alreadyApplied).toEqual(realMigrations.map((name) => Number.parseInt(name, 10)));
   });
@@ -294,7 +294,7 @@ describe('0012: calendar dates survive the DATETIME -> DATE conversion', () => {
     );
 
     // The same bytes were applied from the copy, so the checksums agree and this run applies
-    // only what is left — 0012 against a table that already holds data.
+    // only what is left â€” 0012 against a table that already holds data.
     await migrate(connection, { directory: migrationsDirectory });
 
     const [columns] = await connection.query<RowDataPacket[]>(
@@ -309,7 +309,7 @@ describe('0012: calendar dates survive the DATETIME -> DATE conversion', () => {
       expect(String(row['type'])).toBe('date');
     }
 
-    // The stored midnight-UTC instants read back as the calendar dates they always meant —
+    // The stored midnight-UTC instants read back as the calendar dates they always meant â€”
     // proven with DATE_FORMAT so no driver or session timezone can touch the comparison.
     const [projectRows] = await connection.query<RowDataPacket[]>(
       `SELECT DATE_FORMAT(committed_at, '%Y-%m-%d') AS c, DATE_FORMAT(forecast_at, '%Y-%m-%d') AS f
@@ -450,7 +450,7 @@ describe('0028: import_jobs applies and round-trips within a tenant', () => {
     expect(Number(ownRows[0]?.['v'])).toBe(2);
     expect(Number(ownRows[0]?.['i'])).toBe(1);
 
-    // The same id read under another tenant returns nothing — a cross-tenant job never appears.
+    // The same id read under another tenant returns nothing â€” a cross-tenant job never appears.
     const [foreign] = await connection.query<RowDataPacket[]>(
       `SELECT id FROM import_jobs WHERE organization_id = ? AND id = ?`,
       [orgB, jobA],
@@ -580,7 +580,7 @@ describe('0030: documents is a tenant-scoped, project-owned, forward-only table'
         'updated_at',
       ].sort(),
     );
-    // A document body is prose a person types — TEXT, and NOT NULL like conversations.body.
+    // A document body is prose a person types â€” TEXT, and NOT NULL like conversations.body.
     expect(String(byName.get('body')?.['type'])).toBe('text');
     expect(String(byName.get('body')?.['nullable'])).toBe('NO');
     expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
@@ -778,7 +778,7 @@ describe('0032: import_rows applies and a job commits with a per-row receipt', (
     );
     expect(receiptRows.map((r) => String(r['o']))).toEqual(['created', 'failed']);
 
-    // The same job id read under another tenant returns no receipts — never a cross-tenant path.
+    // The same job id read under another tenant returns no receipts â€” never a cross-tenant path.
     const [foreign] = await connection.query<RowDataPacket[]>(
       `SELECT id FROM import_rows WHERE organization_id = ? AND job_id = ?`,
       [orgB, jobA],
@@ -891,6 +891,121 @@ describe('0033: meeting_notes is a tenant-scoped, meeting-owned, append-only tab
     // A captured note is append-only: the trigger refuses every UPDATE at the engine.
     await expect(
       connection.query(`UPDATE meeting_notes SET body = 'edited' WHERE id = ?`, [id('c6')]),
+    ).rejects.toThrow(/immutable/);
+  });
+});
+
+describe('0034: saved_views is a tenant- and owner-scoped, forward-only table', () => {
+  beforeAll(freshDatabase);
+
+  it('applies, holds a scoped round-trip (project-scoped and org-wide), and refuses a cross-tenant or identity change', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'saved_views'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'config',
+        'created_at',
+        'id',
+        'name',
+        'organization_id',
+        'owner_user_id',
+        'project_id',
+        'shared',
+        'updated_at',
+      ].sort(),
+    );
+    // config is JSON; project_id is NULL-able (an org-wide view names no project); owner and org are not.
+    expect(String(byName.get('config')?.['type'])).toBe('json');
+    expect(String(byName.get('project_id')?.['nullable'])).toBe('YES');
+    expect(String(byName.get('owner_user_id')?.['nullable'])).toBe('NO');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'sv', 'S')`, [
+      id('c1'),
+    ]);
+    await connection.query(
+      `INSERT INTO workspaces (id, organization_id, name) VALUES (?, ?, 'W')`,
+      [id('c2'), id('c1')],
+    );
+    await connection.query(
+      `INSERT INTO projects (id, organization_id, workspace_id, name) VALUES (?, ?, ?, 'P')`,
+      [id('c3'), id('c1'), id('c2')],
+    );
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'sv@e.test', 'S')`,
+      [id('c4')],
+    );
+
+    // A project-scoped view round-trips and its JSON config is preserved.
+    await connection.query(
+      `INSERT INTO saved_views (id, organization_id, owner_user_id, project_id, name, config, shared)
+       VALUES (?, ?, ?, ?, 'Scoped', ?, 1)`,
+      [
+        id('c5'),
+        id('c1'),
+        id('c4'),
+        id('c3'),
+        JSON.stringify({ filters: [], grouping: null, columns: ['title'] }),
+      ],
+    );
+    // An org-wide view (NULL project_id) is allowed â€” the composite FK skips a NULL under MATCH SIMPLE.
+    await connection.query(
+      `INSERT INTO saved_views (id, organization_id, owner_user_id, project_id, name, config, shared)
+       VALUES (?, ?, ?, NULL, 'Org-wide', ?, 0)`,
+      [id('c6'), id('c1'), id('c4'), JSON.stringify({ filters: [], grouping: null, columns: [] })],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT name, project_id AS pid, JSON_UNQUOTE(JSON_EXTRACT(config, '$.columns[0]')) AS col
+         FROM saved_views WHERE organization_id = ? AND id = ?`,
+      [id('c1'), id('c5')],
+    );
+    expect(rows[0]?.['name']).toBe('Scoped');
+    expect(rows[0]?.['pid']).toBe(id('c3'));
+    // JSON_UNQUOTE yields the string value the config remembers; mysql2 parses a bare
+    // JSON_EXTRACT result to the same string, so unquoting keeps the assertion driver-independent.
+    expect(String(rows[0]?.['col'])).toBe('title');
+
+    // The composite foreign key refuses a project id from outside the view's tenant: the pair
+    // (a non-existent org, this project) does not exist even though the project id does.
+    await expect(
+      connection.query(
+        `INSERT INTO saved_views (id, organization_id, owner_user_id, project_id, name, config, shared)
+         VALUES (?, 'ffffffff-0000-4000-8000-000000000001', ?, ?, 'X', ?, 0)`,
+        [
+          id('c7'),
+          id('c4'),
+          id('c3'),
+          JSON.stringify({ filters: [], grouping: null, columns: [] }),
+        ],
+      ),
+    ).rejects.toThrow(/foreign key/i);
+
+    // owner_user_id is immutable at the engine, not just in the application.
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'sv2@e.test', 'S2')`,
+      [id('c8')],
+    );
+    await expect(
+      connection.query(`UPDATE saved_views SET owner_user_id = ? WHERE id = ?`, [
+        id('c8'),
+        id('c5'),
+      ]),
+    ).rejects.toThrow(/immutable/);
+
+    // organization_id is immutable too.
+    await expect(
+      connection.query(
+        `UPDATE saved_views SET organization_id = 'ffffffff-0000-4000-8000-000000000001' WHERE id = ?`,
+        [id('c5')],
+      ),
     ).rejects.toThrow(/immutable/);
   });
 });

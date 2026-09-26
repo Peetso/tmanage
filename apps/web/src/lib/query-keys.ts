@@ -43,3 +43,12 @@ export const workItemKeys = {
   project: (organizationSlug: string, projectId: string) =>
     ['work-items', organizationSlug, 'project', projectId] as const,
 };
+
+/**
+ * The cache keys for WK-08 saved Work views, in one place for the reason above: a create or a
+ * save invalidates `all`, and the list reads `list`.
+ */
+export const savedViewKeys = {
+  all: (organizationSlug: string) => ['saved-views', organizationSlug] as const,
+  list: (organizationSlug: string) => ['saved-views', organizationSlug, 'list'] as const,
+};

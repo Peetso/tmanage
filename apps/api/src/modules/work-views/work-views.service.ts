@@ -1,13 +1,15 @@
 import { authorize, isWorkItemState } from '@tmanage/domain';
 import type { Audience, Principal, WorkItemState } from '@tmanage/domain';
 import { logUnrecognisedRowState } from '../../common/observability/logger.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { WorkItemRow } from '../../common/database/schema.js';
+import type { SavedViewConfig, SavedViewRow, WorkItemRow } from '../../common/database/schema.js';
 import type { PredecessorHealthRow } from '../work/work-graph.repository.js';
 import { ProjectNotFoundError, ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkTimelineRepository } from './timeline.repository.js';
 import { WorkloadRepository } from './workload.repository.js';
 import { WorkCalendarRepository } from './calendar.repository.js';
+import { SavedViewsRepository } from './saved-views.repository.js';
 
 /**
  * WK-04 Work timeline — a read-only *view* over WORK-001 and WORK-003, composed here.
@@ -174,14 +176,190 @@ export interface WorkCalendarView {
   readonly days: readonly WorkCalendarDay[];
 }
 
+/**
+ * WK-08's response projection (x107) — a saved Work view as a caller may see it. An explicit
+ * projection, not a serialised row (`25-AUTH-AND-TENANT-ISOLATION` §7): `organization_id` is never
+ * echoed, and a column added to `saved_views` in a future migration is invisible until someone
+ * decides otherwise. Paired Exact with the web `SavedViewView` in `e2e/contracts/api-web-shapes.ts`
+ * (CONTRACT-001).
+ */
+export interface SavedViewView {
+  readonly id: string;
+  /** Who owns (and may edit) the view. */
+  readonly ownerUserId: string;
+  /** `null` for an org-wide view; a project id for a project-scoped one. */
+  readonly projectId: string | null;
+  readonly name: string;
+  readonly config: SavedViewConfig;
+  readonly shared: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** The editable fields a create or a save carries. `ownerUserId` is the service's, never the body's. */
+export interface SavedViewInput {
+  readonly projectId: string | null;
+  readonly name: string;
+  readonly config: SavedViewConfig;
+  readonly shared: boolean;
+}
+
+function toSavedViewView(row: SavedViewRow): SavedViewView {
+  return {
+    id: row.id,
+    ownerUserId: row.ownerUserId,
+    projectId: row.projectId,
+    name: row.name,
+    config: row.config,
+    shared: row.shared,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 export class WorkViewsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly timeline: WorkTimelineRepository = new WorkTimelineRepository(),
     private readonly workload: WorkloadRepository = new WorkloadRepository(),
     private readonly calendar: WorkCalendarRepository = new WorkCalendarRepository(),
+    private readonly savedViews: SavedViewsRepository = new SavedViewsRepository(),
+    /**
+     * Read-only, and used for one thing: proving a project a saved view names exists **inside this
+     * tenant** before the write is attempted, exactly as `MeetingsService.create` does. The
+     * composite foreign key already refuses another tenant's project, but it surfaces as a 500; an
+     * organization-wide caller skips the relation gate, so without this pre-resolution a missing or
+     * cross-tenant `projectId` would fall through to that foreign key (the Known-trap of
+     * FAST-PROTOCOL 19:55).
+     */
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
   ) {}
+
+  /**
+   * Create a saved Work view owned by the acting user.
+   *
+   * The view is owned by the principal — `owner_user_id` is `context.userId`, never a body field —
+   * which is the object-level authorization this slice needs: a person may always create their own
+   * view. The route's `work.read` capability is the ceiling. When the view is project-scoped, the
+   * named project is resolved tenant-scoped **first** (the Known-trap): an unknown or cross-tenant
+   * project id is a 404 with no write, never the 500 the composite foreign key would otherwise
+   * surface, and the caller must additionally be able to read that project.
+   */
+  async createSavedView(
+    context: TenantContext,
+    principal: Principal,
+    input: SavedViewInput,
+  ): Promise<SavedViewView> {
+    await this.assertProjectVisible(context, principal, input.projectId);
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.savedViews.create(tx, context, {
+        ownerUserId: principal.userId,
+        projectId: input.projectId,
+        name: input.name,
+        config: input.config,
+        shared: input.shared,
+      }),
+    );
+
+    return toSavedViewView(row);
+  }
+
+  /**
+   * Replace the editable fields of a saved view the acting user owns.
+   *
+   * Order matters and follows the Known-trap: when the save names a project, that project is
+   * resolved tenant-scoped **before** the ownership check, so an unknown or cross-tenant project
+   * id is a 404 with no write rather than a 500. The view itself is then resolved tenant-scoped —
+   * a missing one is a 404 — and the ownership rule is applied: only the owner may edit. A caller
+   * who can *see* a shared view but does not own it is told `forbidden` (403); a private view they
+   * do not own is a `not_found` (404), because its existence is not theirs to learn.
+   */
+  async updateSavedView(
+    context: TenantContext,
+    principal: Principal,
+    savedViewId: string,
+    input: SavedViewInput,
+  ): Promise<SavedViewView> {
+    await this.assertProjectVisible(context, principal, input.projectId);
+
+    const existing = await this.database.read(context, (runner) =>
+      this.savedViews.findById(runner, context, savedViewId),
+    );
+    if (!existing) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'saved_view_not_found');
+    }
+
+    if (existing.ownerUserId !== principal.userId) {
+      if (existing.shared) {
+        // Visible to the studio, so refusing the edit is an honest forbidden.
+        throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'saved_view_not_owner');
+      }
+      // A private view the caller does not own must not even be revealed to exist.
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'saved_view_not_found');
+    }
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.savedViews.update(tx, context, savedViewId, {
+        projectId: input.projectId,
+        name: input.name,
+        config: input.config,
+        shared: input.shared,
+      }),
+    );
+
+    return toSavedViewView(row);
+  }
+
+  /**
+   * The saved views this principal may see: their own, plus every view shared inside their studio,
+   * in the repository's deterministic (name, then id) order. A pure read; the visibility rule is
+   * the repository's `owner_user_id = ? OR shared` predicate and needs no per-row `authorize`,
+   * because a shared view was shared org-wide by its owner and a private one is only ever the
+   * caller's own.
+   */
+  async listSavedViews(context: TenantContext, principal: Principal): Promise<SavedViewView[]> {
+    const rows = await this.database.read(context, (runner) =>
+      this.savedViews.listForViewer(runner, context, principal.userId),
+    );
+    return rows.map(toSavedViewView);
+  }
+
+  /**
+   * Resolve a project a saved view names, tenant-scoped, before any write. A `null` project id is
+   * an org-wide view and needs no resolution. An unknown or cross-tenant project id is a 404 (the
+   * Known-trap: never the composite-FK 500); a project the caller cannot read is the same 404, so
+   * a non-member can neither tell which projects exist nor which they are barred from.
+   */
+  private async assertProjectVisible(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string | null,
+  ): Promise<void> {
+    if (projectId === null) return;
+
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, projectId),
+    );
+    if (!project) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+
+    const permitted = authorize({
+      principal,
+      capability: 'work.read',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+
+    if (!permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+  }
 
   /**
    * The project's work items with their dates and predecessor edges, ordered for a timeline and
