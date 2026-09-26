@@ -101,10 +101,11 @@
 --     idempotency_records
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
---     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes
+--     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
+--     documents
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
---     authentication_events, usage_ledger_entries, meetings, documents, meeting_notes
+--     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -266,12 +267,13 @@ GRANT INSERT, UPDATE         ON `tmanage`.`upload_sessions`  TO 'tmanage_app'@'%
 -- for every credential besides. When an edit surface lands, UPDATE is added with the code that
 -- writes it, per this file's rule that a grant names a statement that exists.
 GRANT INSERT                 ON `tmanage`.`meetings`         TO 'tmanage_app'@'%';
--- DOC-01 (x91). A document is created (INSERT) and read (the database-wide SELECT); this slice
--- has no edit or delete endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0030
--- trigger pins organization_id/project_id immutable for every credential besides. When an edit
--- surface lands, UPDATE is added with the code that writes it, per this file's rule that a grant
--- names a statement that exists (the same treatment `meetings` has above).
-GRANT INSERT                 ON `tmanage`.`documents`        TO 'tmanage_app'@'%';
+-- DOC-01 (x91), extended by DOC-02 (x112). A document is created (INSERT) and read (the
+-- database-wide SELECT). DOC-02 adds the editor: saving a new version bumps the document's current
+-- body in the same transaction, so **UPDATE lands here now with the code that writes it** — the
+-- 0030 trigger still pins organization_id/project_id/created_by_user_id immutable for every
+-- credential, so UPDATE can move `title`/`body` and nothing that says what the document *is*. Still
+-- **no DELETE**: a document is the studio's knowledge, not something a runtime credential removes.
+GRANT INSERT, UPDATE         ON `tmanage`.`documents`        TO 'tmanage_app'@'%';
 -- CAL-01 / MTG-01 second slice (x105). A note or decision is captured (INSERT) and read (the
 -- database-wide SELECT); this slice has no edit or delete endpoint, so **no UPDATE and no
 -- DELETE** — least privilege, and 0033's trigger refuses UPDATE for every credential besides. A
@@ -290,6 +292,12 @@ GRANT INSERT, UPDATE          ON `tmanage`.`saved_views`      TO 'tmanage_app'@'
 -- so (there is no immutability trigger and none is needed). Reading is the database-wide SELECT
 -- above. The worker gets nothing here — this table is the API's alone.
 GRANT INSERT, DELETE         ON `tmanage`.`saved_context`    TO 'tmanage_app'@'%';
+-- DOC-02/DOC-03 (x112) document versions. **INSERT only** — a version is an immutable snapshot of
+-- the body at a save: DOC-03's restore is a new row (forward-append), never an edit, and the 0036
+-- trigger refuses UPDATE for every credential. No DELETE: a document's history is the record of how
+-- it changed, so a runtime credential must not be able to erase it (the `deliverable_versions`
+-- posture above).
+GRANT INSERT                 ON `tmanage`.`document_versions` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

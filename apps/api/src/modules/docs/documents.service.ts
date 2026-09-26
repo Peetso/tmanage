@@ -4,8 +4,9 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { DocumentsRepository } from './documents.repository.js';
 import type { CreateDocumentInput, ListDocumentsOptions } from './documents.repository.js';
+import { DocumentVersionsRepository } from './document-versions.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
-import type { DocumentRow } from '../../common/database/schema.js';
+import type { DocumentRow, DocumentVersionRow } from '../../common/database/schema.js';
 
 /**
  * The application service for DOC-01 (x91) — the object-level decision the route guard cannot
@@ -61,11 +62,38 @@ function toView(row: DocumentRow): DocumentView {
   };
 }
 
+/**
+ * DOC-02/DOC-03 (x112). What a caller is allowed to see of one document version. `organizationId`
+ * is deliberately absent, for the reason {@link DocumentView} omits it — the wire projection never
+ * echoes the tenant id (`25-AUTH` §7).
+ */
+export interface DocumentVersionView {
+  readonly id: string;
+  readonly documentId: string;
+  readonly versionNo: number;
+  readonly body: string;
+  readonly editedByUserId: string;
+  readonly createdAt: string;
+}
+
+/** An explicit projection, not a serialised row: a column added later is invisible until named. */
+function toVersionView(row: DocumentVersionRow): DocumentVersionView {
+  return {
+    id: row.id,
+    documentId: row.documentId,
+    versionNo: row.versionNo,
+    body: row.body,
+    editedByUserId: row.editedByUserId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export class DocumentsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly documents: DocumentsRepository = new DocumentsRepository(),
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    private readonly versions: DocumentVersionsRepository = new DocumentVersionsRepository(),
   ) {}
 
   /**
@@ -188,5 +216,130 @@ export class DocumentsService {
     );
 
     return toView(row);
+  }
+
+  /**
+   * Resolve a document the principal may act on, tenant-scoped **before** the relation check.
+   *
+   * This is the Known-trap order (FAST-PROTOCOL 19:55, `MeetingsService.create` after `75e2913`):
+   * the document is read scoped to the tenant first, so a missing id — or one that belongs to
+   * another tenant — returns null here and becomes a **404**, never a foreign-key 500 reached by an
+   * org-wide caller who would pass the relation check regardless. A document the caller may not act
+   * on is also 404, never 403, for the reason {@link get} gives: 403 would confirm the document
+   * exists, which is exactly what a non-member must not be able to probe.
+   *
+   * `capability` is `work.read` for a read and `work.create` for a write — the sibling capabilities
+   * `doc.read`/`doc.write` mirror by construction and that `authorize()` already relation-gates
+   * (see the class comment).
+   */
+  private async requireActionable(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+    capability: 'work.read' | 'work.create',
+  ): Promise<DocumentRow> {
+    const row = await this.database.read(context, (runner) =>
+      this.documents.findById(runner, context, documentId),
+    );
+
+    const permitted =
+      row !== null &&
+      authorize({
+        principal,
+        capability,
+        resource: {
+          organizationId: row.organizationId,
+          projectId: row.projectId,
+          audience: 'internal',
+          lifecycle: 'active',
+        },
+      }).allowed;
+
+    if (!row || !permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'document_not_visible');
+    }
+    return row;
+  }
+
+  /**
+   * DOC-03. List a document's versions, newest first, for a caller who may read the document.
+   */
+  async listVersions(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+  ): Promise<readonly DocumentVersionView[]> {
+    await this.requireActionable(context, principal, documentId, 'work.read');
+    const rows = await this.database.read(context, (runner) =>
+      this.versions.list(runner, context, documentId),
+    );
+    return rows.map(toVersionView);
+  }
+
+  /**
+   * DOC-03 compare. Read one snapshot of a document by its version number. A version number that
+   * does not exist for this document is 404, the same not-found the document itself uses.
+   */
+  async getVersion(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+    versionNo: number,
+  ): Promise<DocumentVersionView> {
+    await this.requireActionable(context, principal, documentId, 'work.read');
+    const row = await this.database.read(context, (runner) =>
+      this.versions.findByVersionNo(runner, context, documentId, versionNo),
+    );
+    if (!row) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'version_not_visible');
+    }
+    return toVersionView(row);
+  }
+
+  /**
+   * DOC-02. Save a new version: append an immutable snapshot of the body and bump the document's
+   * current body, in one transaction. `doc.write`, relation-gated as `work.create`.
+   */
+  async saveVersion(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+    body: string,
+  ): Promise<DocumentVersionView> {
+    await this.requireActionable(context, principal, documentId, 'work.create');
+    const row = await this.database.transaction(context, (tx) =>
+      this.versions.append(tx, context, { documentId, body, editedByUserId: context.userId }),
+    );
+    return toVersionView(row);
+  }
+
+  /**
+   * DOC-03 restore. Write a NEW version whose body equals a prior snapshot — forward-append, never
+   * a mutation of history — and bump the document's current body to it. `doc.write`, relation-gated
+   * as `work.create`. A version number that does not exist is 404, and nothing is written.
+   */
+  async restore(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+    versionNo: number,
+  ): Promise<DocumentVersionView> {
+    await this.requireActionable(context, principal, documentId, 'work.create');
+
+    const source = await this.database.read(context, (runner) =>
+      this.versions.findByVersionNo(runner, context, documentId, versionNo),
+    );
+    if (!source) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'version_not_visible');
+    }
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.versions.append(tx, context, {
+        documentId,
+        body: source.body,
+        editedByUserId: context.userId,
+      }),
+    );
+    return toVersionView(row);
   }
 }

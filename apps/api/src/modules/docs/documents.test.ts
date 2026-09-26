@@ -3,9 +3,10 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { DocumentsService } from './documents.service.js';
 import type { DocumentsRepository } from './documents.repository.js';
+import type { DocumentVersionsRepository } from './document-versions.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { DocumentRow } from '../../common/database/schema.js';
+import type { DocumentRow, DocumentVersionRow } from '../../common/database/schema.js';
 
 /**
  * DOC-01 (x91) service proofs, database-free over the module's fakes. The migration and the
@@ -41,9 +42,13 @@ function member(projectIds: readonly string[], hasOrgWideScope = false): Princip
 const context = { organizationId: ORG, userId: USER } as unknown as TenantContext;
 
 /** A service over an in-memory store whose `list` omits the tenant scope on purpose. */
-function serviceWith(seed: readonly DocumentRow[] = []): {
+function serviceWith(
+  seed: readonly DocumentRow[] = [],
+  seedVersions: readonly DocumentVersionRow[] = [],
+): {
   service: DocumentsService;
   store: DocumentRow[];
+  versionStore: DocumentVersionRow[];
 } {
   const store: DocumentRow[] = [...seed];
   let seq = store.length;
@@ -98,7 +103,69 @@ function serviceWith(seed: readonly DocumentRow[] = []): {
     findById: async (_runner: unknown, _ctx: unknown, projectId: string) =>
       projectId === PROJECT ? { id: PROJECT, organizationId: ORG } : null,
   } as unknown as ProjectsRepository;
-  return { service: new DocumentsService(database, repository, projects), store };
+
+  // A versions store scoped by the acting tenant, mirroring the real repository's contract: append
+  // assigns the next `version_no` for the document, list is newest-first, and a snapshot is found by
+  // its number. The tenant scope is applied so a cross-tenant append/list cannot contribute.
+  const versionStore: DocumentVersionRow[] = [...seedVersions];
+  let versionSeq = versionStore.length;
+  const versions = {
+    list: async (_runner: unknown, ctx: TenantContext, documentId: string) =>
+      versionStore
+        .filter((row) => row.organizationId === ctx.organizationId && row.documentId === documentId)
+        .sort((a, b) => b.versionNo - a.versionNo),
+    findByVersionNo: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      documentId: string,
+      versionNo: number,
+    ) =>
+      versionStore.find(
+        (row) =>
+          row.organizationId === ctx.organizationId &&
+          row.documentId === documentId &&
+          row.versionNo === versionNo,
+      ) ?? null,
+    append: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      input: {
+        readonly documentId: string;
+        readonly body: string;
+        readonly editedByUserId: string;
+      },
+    ) => {
+      const versionNo =
+        versionStore
+          .filter(
+            (row) =>
+              row.organizationId === ctx.organizationId && row.documentId === input.documentId,
+          )
+          .reduce((max, row) => Math.max(max, row.versionNo), 0) + 1;
+      const row = {
+        id: `docver-0000-0000-0000-00000000${++versionSeq}`,
+        organizationId: ctx.organizationId,
+        documentId: input.documentId,
+        versionNo,
+        body: input.body,
+        editedByUserId: input.editedByUserId,
+        createdAt: new Date(),
+      } as DocumentVersionRow;
+      versionStore.push(row);
+      // Bump the parent document's current body, as the real repository does in the same txn.
+      const doc = store.find(
+        (d) => d.id === input.documentId && d.organizationId === ctx.organizationId,
+      );
+      if (doc) (doc as { body: string }).body = input.body;
+      return row;
+    },
+  } as unknown as DocumentVersionsRepository;
+
+  return {
+    service: new DocumentsService(database, repository, projects, versions),
+    store,
+    versionStore,
+  };
 }
 
 describe('DocumentsService', () => {
@@ -249,5 +316,145 @@ describe('DocumentsService', () => {
     expect((error as ApiError).status).toBe(404);
     // Nothing was written — the resolution ran before the transaction.
     expect(store).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOC-02/DOC-03 (x112) — versions: save, list, compare, restore.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DOCUMENT = 'document-0000-0000-0000-000000000042';
+
+/** A seeded document in the acting tenant, so version methods have a parent to resolve. */
+function seededDocument(organizationId = ORG): DocumentRow {
+  return {
+    id: DOCUMENT,
+    organizationId,
+    projectId: PROJECT,
+    title: 'Kickoff brief',
+    body: 'v0 body',
+    createdByUserId: USER,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as DocumentRow;
+}
+
+describe('DocumentsService versions (DOC-02/DOC-03)', () => {
+  it('saves, lists, compares and restores — a round-trip for a project member', async () => {
+    const { service, store, versionStore } = serviceWith([seededDocument()]);
+    const caller = member([PROJECT]);
+
+    const first = await service.saveVersion(context, caller, DOCUMENT, 'first save');
+    expect(first.versionNo).toBe(1);
+    expect(first.documentId).toBe(DOCUMENT);
+    // The wire projection never echoes the tenant id.
+    expect(JSON.stringify(first)).not.toContain(ORG);
+    // The parent document's current body was bumped in the same append.
+    expect(store.find((d) => d.id === DOCUMENT)?.body).toBe('first save');
+
+    const second = await service.saveVersion(context, caller, DOCUMENT, 'second save');
+    expect(second.versionNo).toBe(2);
+
+    // Listed newest-first.
+    const listed = await service.listVersions(context, caller, DOCUMENT);
+    expect(listed.map((v) => v.versionNo)).toEqual([2, 1]);
+
+    // Compare reads one snapshot by number.
+    const v1 = await service.getVersion(context, caller, DOCUMENT, 1);
+    expect(v1.body).toBe('first save');
+
+    // Restore is forward-append: a new version equal to v1, never a mutation of history.
+    const restored = await service.restore(context, caller, DOCUMENT, 1);
+    expect(restored.versionNo).toBe(3);
+    expect(restored.body).toBe('first save');
+    expect(store.find((d) => d.id === DOCUMENT)?.body).toBe('first save');
+    // History is intact: three rows, versions 1..3, and v1/v2 are unchanged.
+    expect(versionStore).toHaveLength(3);
+    expect(versionStore.find((r: DocumentVersionRow) => r.versionNo === 1)?.body).toBe(
+      'first save',
+    );
+    expect(versionStore.find((r: DocumentVersionRow) => r.versionNo === 2)?.body).toBe(
+      'second save',
+    );
+  });
+
+  it('refuses a save on an unknown/cross-tenant documentId as 404, no write (Known trap), even for an org-wide role', async () => {
+    // An org-wide role passes the relation check regardless of the document, so without the
+    // tenant-scoped resolution first this would reach the composite foreign key and surface as a
+    // 500. The store is empty, so `findById` returns null and the service must 404 before any write.
+    const { service, versionStore } = serviceWith();
+    const error = await service
+      .saveVersion(context, member([], true), DOCUMENT, 'body')
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect(versionStore).toHaveLength(0);
+  });
+
+  it('does not resolve a document that belongs to another tenant (404)', async () => {
+    // The document exists, but in OTHER_ORG. The tenant-scoped resolution returns null for the
+    // acting ORG context, so a caller in ORG gets 404 and nothing is written.
+    const { service, versionStore } = serviceWith([seededDocument(OTHER_ORG)]);
+    const error = await service
+      .saveVersion(context, member([PROJECT], true), DOCUMENT, 'body')
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect(versionStore).toHaveLength(0);
+  });
+
+  it('denies a caller without the write relation on the project, and appends nothing', async () => {
+    // The permission boundary this slice adds: a caller who may not write the document's project
+    // (here a member of no project) is denied at the `work.create` relation check and no version is
+    // appended — surfaced as 404, never 403, for the reason `get` gives.
+    const { service, versionStore } = serviceWith(
+      [seededDocument()],
+      [
+        {
+          id: 'docver-seed-000000000000000000001',
+          organizationId: ORG,
+          documentId: DOCUMENT,
+          versionNo: 1,
+          body: 'existing',
+          editedByUserId: USER,
+          createdAt: new Date(),
+        } as DocumentVersionRow,
+      ],
+    );
+    // Seed one existing version so a successful restore would have grown the store.
+    const nonMember = member([]);
+
+    const saveError = await service
+      .saveVersion(context, nonMember, DOCUMENT, 'sneaky')
+      .catch((caught: unknown) => caught);
+    expect(saveError).toBeInstanceOf(ApiError);
+    expect((saveError as ApiError).status).toBe(404);
+
+    const restoreError = await service
+      .restore(context, nonMember, DOCUMENT, 1)
+      .catch((caught: unknown) => caught);
+    expect(restoreError).toBeInstanceOf(ApiError);
+    expect((restoreError as ApiError).status).toBe(404);
+
+    // Nothing appended by either denied call — still just the seeded version.
+    expect(versionStore).toHaveLength(1);
+  });
+
+  it('returns 404 for a version number that does not exist (compare and restore)', async () => {
+    const { service, versionStore } = serviceWith([seededDocument()]);
+    const caller = member([PROJECT]);
+
+    const getError = await service
+      .getVersion(context, caller, DOCUMENT, 99)
+      .catch((caught: unknown) => caught);
+    expect((getError as ApiError).status).toBe(404);
+
+    const restoreError = await service
+      .restore(context, caller, DOCUMENT, 99)
+      .catch((caught: unknown) => caught);
+    expect((restoreError as ApiError).status).toBe(404);
+    expect(versionStore).toHaveLength(0);
   });
 });

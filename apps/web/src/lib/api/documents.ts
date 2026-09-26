@@ -13,6 +13,11 @@ import type { ApiClient } from './client';
  * whole tenant's documents — so the hub chooses a project before it fetches, exactly as the work
  * timeline does. "Recent across all projects" and "favorites" (the other two facets `41-…MATRIX`
  * §Docs DOC-01 names) have no endpoint and no table yet, so this slice does not pretend to them.
+ *
+ * DOC-02/DOC-03 (x112) appends the version half below: list a document's versions newest-first,
+ * read one snapshot for compare, save a new version, and restore a prior one. The editor seeds its
+ * draft from the exported `getDocument`/`DocumentView` this module already owns, so no second,
+ * competing document projection is declared here.
  */
 
 /**
@@ -32,6 +37,19 @@ export interface DocumentView {
   readonly updatedAt: string;
 }
 
+/**
+ * One version of a document — paired Exact with the API's `DocumentVersionView` in the contracts
+ * gate. `organizationId` is absent on both sides: the wire projection never echoes the tenant id.
+ */
+export interface DocumentVersionSummary {
+  readonly id: string;
+  readonly documentId: string;
+  readonly versionNo: number;
+  readonly body: string;
+  readonly editedByUserId: string;
+  readonly createdAt: string;
+}
+
 /** List one project's documents the caller may read. The API scopes the read to the tenant. */
 export async function listDocuments(
   client: ApiClient,
@@ -42,6 +60,10 @@ export async function listDocuments(
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/documents?projectId=${encodeURIComponent(projectId)}`,
   });
   return data.documents;
+}
+
+function base(organizationSlug: string, documentId: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/documents/${encodeURIComponent(documentId)}`;
 }
 
 /**
@@ -58,7 +80,62 @@ export async function getDocument(
   documentId: string,
 ): Promise<DocumentView> {
   const { data } = await client.request<DocumentView>({
-    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/documents/${encodeURIComponent(documentId)}`,
+    path: base(organizationSlug, documentId),
+  });
+  return data;
+}
+
+/** List a document's versions, newest first. */
+export async function listDocumentVersions(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+): Promise<readonly DocumentVersionSummary[]> {
+  const { data } = await client.request<{ versions: readonly DocumentVersionSummary[] }>({
+    path: `${base(organizationSlug, documentId)}/versions`,
+  });
+  return data.versions;
+}
+
+/** Read one snapshot of a document by its version number, for compare. */
+export async function getDocumentVersion(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+  versionNo: number,
+): Promise<DocumentVersionSummary> {
+  const { data } = await client.request<DocumentVersionSummary>({
+    path: `${base(organizationSlug, documentId)}/versions/${encodeURIComponent(String(versionNo))}`,
+  });
+  return data;
+}
+
+/** Save a new version: append an immutable snapshot and bump the current body. */
+export async function saveDocumentVersion(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+  body: string,
+): Promise<DocumentVersionSummary> {
+  const { data } = await client.request<DocumentVersionSummary>({
+    method: 'POST',
+    path: `${base(organizationSlug, documentId)}/versions`,
+    body: { body },
+  });
+  return data;
+}
+
+/** Restore a prior version: write a NEW version equal to it (forward-append, history is intact). */
+export async function restoreDocumentVersion(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+  versionNo: number,
+): Promise<DocumentVersionSummary> {
+  const { data } = await client.request<DocumentVersionSummary>({
+    method: 'POST',
+    path: `${base(organizationSlug, documentId)}/restore`,
+    body: { versionNo },
   });
   return data;
 }

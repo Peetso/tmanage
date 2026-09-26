@@ -40,6 +40,7 @@ import type { ConversationView as ApiConversationView } from '../../apps/api/src
 import type { ConvertMessageResultView as ApiConvertMessageResultView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules/docs/documents.service.js';
+import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -100,6 +101,7 @@ import type {
   ClientRequestRecord as WebClientRequestRecord,
 } from '../../apps/web/src/lib/api/client-requests';
 import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
+import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -214,6 +216,13 @@ type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRe
  * read screen and its `apps/web` shape, so the exemption was retired and the view is paired Exact.
  */
 type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
+
+/**
+ * DOC-02/DOC-03 (x112). `DocumentVersionView` (`GET`/`POST …/documents/:id/versions[/:n]`,
+ * `POST …/documents/:id/restore`) — one immutable version of a document. The `DocumentEditorScreen`
+ * reads exactly this response for its history/compare/restore, so the pair is Exact.
+ */
+type _documentVersion = Assert<Exact<ApiDocumentVersionView, WebDocumentVersionSummary>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;

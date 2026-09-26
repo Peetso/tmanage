@@ -4,7 +4,7 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { DOCUMENTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { DocumentView, DocumentsService } from './documents.service.js';
+import type { DocumentVersionView, DocumentView, DocumentsService } from './documents.service.js';
 
 /**
  * DOC-01 (x91). The first docs endpoints: create a project document, list a project's documents,
@@ -21,6 +21,16 @@ interface CreateDocumentBody {
   readonly projectId?: unknown;
   readonly title?: unknown;
   readonly body?: unknown;
+}
+
+/** DOC-02 save-a-version request body. */
+interface SaveVersionBody {
+  readonly body?: unknown;
+}
+
+/** DOC-03 restore request body — the prior version number to forward-append. */
+interface RestoreBody {
+  readonly versionNo?: unknown;
 }
 
 /** `documents.title` is `VARCHAR(300)`. */
@@ -119,4 +129,115 @@ export class DocumentsController {
       body: documentBody,
     });
   }
+
+  /**
+   * DOC-03. List a document's versions, newest first. `doc.read`, then the service resolves the
+   * document tenant-scoped and applies the relation check (a document the caller cannot read is
+   * 404, not 403).
+   */
+  @Get(':documentId/versions')
+  @RequireCapability('doc.read')
+  async listVersions(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+  ): Promise<{ readonly versions: readonly DocumentVersionView[] }> {
+    requireDocumentId(documentId);
+    return { versions: await this.documents.listVersions(context, principal, documentId) };
+  }
+
+  /**
+   * DOC-03 compare. Read one snapshot of a document by its version number.
+   */
+  @Get(':documentId/versions/:versionNo')
+  @RequireCapability('doc.read')
+  async getVersion(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+    @Param('versionNo') versionNo: string,
+  ): Promise<DocumentVersionView> {
+    requireDocumentId(documentId);
+    return this.documents.getVersion(context, principal, documentId, parseVersionNo(versionNo));
+  }
+
+  /**
+   * DOC-02. Save a new version of a document: append an immutable snapshot and bump the current
+   * body in one transaction. `doc.write`.
+   */
+  @Post(':documentId/versions')
+  @RequireCapability('doc.write')
+  @HttpCode(201)
+  async saveVersion(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+    @Body() body: SaveVersionBody,
+  ): Promise<DocumentVersionView> {
+    requireDocumentId(documentId);
+    const documentBody = typeof body?.body === 'string' ? body.body : undefined;
+    if (documentBody === undefined || documentBody === '') {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'body', message: 'must be a non-empty string' },
+      ]);
+    }
+    if (documentBody.length > MAX_BODY_LENGTH) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'body', message: `must be ${MAX_BODY_LENGTH} characters or fewer` },
+      ]);
+    }
+    return this.documents.saveVersion(context, principal, documentId, documentBody);
+  }
+
+  /**
+   * DOC-03 restore. Write a NEW version equal to a prior snapshot (forward-append, history is never
+   * mutated) and bump the current body to it. `doc.write`.
+   */
+  @Post(':documentId/restore')
+  @RequireCapability('doc.write')
+  @HttpCode(201)
+  async restore(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+    @Body() body: RestoreBody,
+  ): Promise<DocumentVersionView> {
+    requireDocumentId(documentId);
+    return this.documents.restore(
+      context,
+      principal,
+      documentId,
+      requireVersionNo(body?.versionNo),
+    );
+  }
+}
+
+/** A path `documentId` is always required and always a non-empty string. */
+function requireDocumentId(documentId: unknown): asserts documentId is string {
+  if (typeof documentId !== 'string' || documentId === '') {
+    throw new ApiError(400, 'validation_failed', 'documentId is required', [
+      { field: 'documentId', message: 'must be a non-empty string' },
+    ]);
+  }
+}
+
+/** Parse a `:versionNo` path segment to a positive integer, or 400. */
+function parseVersionNo(raw: string): number {
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    throw new ApiError(400, 'validation_failed', 'versionNo must be a positive integer', [
+      { field: 'versionNo', message: 'must be a positive integer' },
+    ]);
+  }
+  return parsed;
+}
+
+/** Validate the `versionNo` in a restore body — a positive integer, or 400. */
+function requireVersionNo(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isSafeInteger(raw) || raw < 1) {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      { field: 'versionNo', message: 'must be a positive integer' },
+    ]);
+  }
+  return raw;
 }
