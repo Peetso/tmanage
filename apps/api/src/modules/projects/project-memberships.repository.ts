@@ -158,6 +158,33 @@ export class ProjectMembershipsRepository {
     return rows.map((row) => row.membership);
   }
 
+  /**
+   * How many projects a person is a member of, within the acting tenant.
+   *
+   * The access half of the offboarding impact preview (ADM-12, x121): a member's project
+   * memberships are the projects they can reach, so the count is what "how much access does
+   * offboarding revoke" reports before the decision. Read-only, and counted in SQL rather than
+   * by paging {@link listByUser} — a preview must be exact even for someone on more projects
+   * than one page holds, and it never needs the rows themselves. `ix_project_memberships_user`
+   * is `(organization_id, user_id)`, the shape this predicate is, so the count is indexed.
+   */
+  async countByUser(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ memberships: sql<number>`count(*)` })
+      .from(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.organizationId, context.organizationId),
+          eq(projectMemberships.userId, userId),
+        ),
+      );
+    return Number(rows[0]?.memberships ?? 0);
+  }
+
   async findById(
     runner: TenantQueryRunner,
     context: TenantContext,

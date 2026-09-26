@@ -40,6 +40,8 @@ export const CLIENTS_SERVICE = Symbol.for('tmanage.ClientsService');
 export const PORTAL_SERVICE = Symbol.for('tmanage.PortalService');
 export const INVITATIONS_REPOSITORY = Symbol.for('tmanage.InvitationsRepository');
 export const INVITATIONS_SERVICE = Symbol.for('tmanage.InvitationsService');
+/** ADM-12/13 (x121). Member offboarding — the access-impact preview and the offboard execution. */
+export const OFFBOARDING_SERVICE = Symbol.for('tmanage.OffboardingService');
 export const PROJECTS_SERVICE = Symbol.for('tmanage.ProjectsService');
 export const AUDIT_EVENTS_REPOSITORY = Symbol.for('tmanage.AuditEventsRepository');
 export const AUDIT_SERVICE = Symbol.for('tmanage.AuditService');

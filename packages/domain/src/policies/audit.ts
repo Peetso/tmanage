@@ -204,6 +204,24 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'client_membership',
     clause: '§12 role changes — activation, suspension and offboarding are all access decisions',
   },
+  /**
+   * ADM-12/13 (x121). Offboarding an *internal* member — the mirror of
+   * `client_membership.status_changed`'s offboarding case for the staff side.
+   *
+   * It is its own action rather than a shared `membership.status_changed` because offboarding
+   * is the only internal membership transition that revokes access irreversibly:
+   * `OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS`, and `offboarded` is terminal in the storage
+   * layer's `ALLOWED_TRANSITIONS`. "Who revoked this person, and when" is the question a
+   * disputed access removal is settled by, and the row is written only when a real transition
+   * occurs — re-offboarding a member already terminal writes nothing, so the count of these
+   * rows is the count of actual revocations.
+   */
+  'membership.offboarded': {
+    objectType: 'membership',
+    clause:
+      '§12 role changes — offboarding revokes an internal member’s access irreversibly, the ' +
+      'largest access decision the staff side has',
+  },
   'project.client_linked': {
     objectType: 'project_client',
     clause:

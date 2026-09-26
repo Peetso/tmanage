@@ -201,6 +201,38 @@ export class WorkItemsRepository {
   }
 
   /**
+   * How many live work items a person owns, within the acting tenant.
+   *
+   * The work half of the offboarding impact preview (ADM-12, x121): a member's owned work is
+   * what would be left without an owner if they were offboarded, so the count is what the
+   * preview reports before the decision. Soft-deleted items are excluded — a deleted item is
+   * not work anyone still holds — matching {@link list}'s default. Counted in SQL rather than
+   * by paging {@link list}, so the preview is exact for an owner of more than one page of work;
+   * `ix_work_items_org_owner_state_due` begins `(organization_id, owner_user_id, …)`, so the
+   * count is indexed.
+   *
+   * Reassignment of that work on offboarding is deferred (the HOME-04 assignee gap): this
+   * counts what a decision-maker needs to *see*, it does not move it.
+   */
+  async countOwnedByUser(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    ownerUserId: string,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ owned: sql<number>`count(*)` })
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          eq(workItems.ownerUserId, ownerUserId),
+          isNull(workItems.deletedAt),
+        ),
+      );
+    return Number(rows[0]?.owned ?? 0);
+  }
+
+  /**
    * Fetch one work item by id, within the acting tenant.
    *
    * There is deliberately no `findById(id)` without a context. On MySQL such a method returns
