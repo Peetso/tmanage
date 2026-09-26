@@ -16,6 +16,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
 import { HomeModule } from './modules/home/home.module.js';
+import { HomePulseModule } from './modules/home/home-pulse.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { ApprovalsModule } from './modules/approvals/approvals.module.js';
@@ -141,6 +142,9 @@ export class AppModule {
         // HOME-03: the My Day personal-work read. Read-only over `work_items` by owner; reuses
         // `work.read` and the work module's `WorkItemView`, adds nothing to the work module.
         HomeModule.register(),
+        // HOME-01: the Pulse/Focus summary read. Read-only over `work_items` + `meetings`, reuses
+        // `work.read` and the Home Waiting reads; a separate module so it adds nothing to HomeModule.
+        HomePulseModule.register(),
         // WK-04. The Work views read layer — a read-only composition of the work + work-graph
         // reads (timeline). After `WorkModule` by subject, though it depends only on the
         // database and never on the work service, so it does not couple to that module's wiring.

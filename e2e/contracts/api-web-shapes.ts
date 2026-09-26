@@ -60,6 +60,7 @@ import type { InboxUsageNoticeView as ApiInboxUsageNoticeView } from '../../apps
 import type { MyDayView as ApiMyDayView } from '../../apps/api/src/modules/home/home.service.js';
 import type { WaitingView as ApiWaitingView } from '../../apps/api/src/modules/home/home.service.js';
 import type { HomeSummaryView as ApiHomeSummaryView } from '../../apps/api/src/modules/home/home.service.js';
+import type { HomePulseView as ApiHomePulseView } from '../../apps/api/src/modules/home/home-pulse.service.js';
 import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src/modules/home/home.service.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -123,6 +124,7 @@ import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib
 import type { MyDay as WebMyDay } from '../../apps/web/src/lib/api/home';
 import type { Waiting as WebWaiting } from '../../apps/web/src/lib/api/home';
 import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/home';
+import type { HomePulse as WebHomePulse } from '../../apps/web/src/lib/api/home';
 import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api/home';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
@@ -520,6 +522,13 @@ type _waiting = Assert<Exact<ApiWaitingView, WebWaiting>>;
  * exactly this response, so the pair is Exact.
  */
 type _homeSummary = Assert<Exact<ApiHomeSummaryView, WebHomeSummary>>;
+
+/**
+ * HOME-01 Focus/Pulse summary (x143). `GET .../home/pulse` — the acting user's four headline counts
+ * (open work, due today, waiting on you, meetings today), each gated per row by the API. The
+ * `HomeHeroSection` reads exactly this response, so the pair is Exact.
+ */
+type _homePulse = Assert<Exact<ApiHomePulseView, WebHomePulse>>;
 
 /**
  * HOME-05 saved/pinned context (x110). `GET/POST/DELETE .../home/saved-context` — the caller's pins
