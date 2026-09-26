@@ -3,6 +3,8 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import { INSIGHTS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { WorkloadRepository } from '../work-views/workload.repository.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 import { DeliveryFlowRepository } from './delivery-flow.repository.js';
 import { ApprovalCycleRepository, InsightsApprovalsReader } from './approval-cycle.repository.js';
 import { InsightsService } from './insights.service.js';
@@ -29,6 +31,10 @@ export class InsightsModule {
           database,
           new DeliveryFlowRepository(new WorkItemsRepository()),
           new ApprovalCycleRepository(new InsightsApprovalsReader()),
+          // INS-05 reuses x99's per-project workload read and enumerates projects tenant-scoped;
+          // both are stateless query collections, constructed here like the readers above.
+          new WorkloadRepository(new WorkItemsRepository()),
+          new ProjectsRepository(),
         ),
     };
 

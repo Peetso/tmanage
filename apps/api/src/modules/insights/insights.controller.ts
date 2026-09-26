@@ -1,9 +1,25 @@
-import { Controller, Get, Inject, Param } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { INSIGHTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { ApprovalCycleView, DeliveryFlowView, InsightsService } from './insights.service.js';
+import type {
+  ApprovalCycleView,
+  DeliveryFlowView,
+  InsightsService,
+  InsightsWorkloadView,
+} from './insights.service.js';
+
+/**
+ * Parse the optional `?limit=` query into a number for the service to clamp. A missing or
+ * unparseable value is `undefined` (the service's default), never a thrown 400 — the bound is a
+ * convenience, not a required argument, and the service is the one place the `[1, 50]` clamp lives.
+ */
+function parseLimit(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
 
 /**
  * INS-01's HTTP surface — the insights module's first read.
@@ -49,5 +65,26 @@ export class InsightsController {
     @Param('projectId') projectId: string,
   ): Promise<ApprovalCycleView> {
     return this.insights.projectApprovalCycle(context, principal, projectId);
+  }
+
+  /**
+   * INS-05 — the org-wide workload/capacity portfolio roll-up: per-project and aggregate open-work
+   * counts across the projects the caller may read. Behind `work.read`, the same internal-read
+   * capability the delivery-flow read uses (reused, not a new capability). Tenant-scoped by
+   * `orgSlug`; every project is resolved tenant-scoped and authorized per project by the service, so
+   * a non-org-wide caller sees only their projects and a cross-tenant project never contributes. The
+   * optional `?limit=` bounds how many projects are rolled up (clamped to `[1, 50]`, default 20).
+   */
+  @Get('workload')
+  @RequireCapability('work.read')
+  async workload(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Query('limit') limit?: string,
+  ): Promise<InsightsWorkloadView> {
+    const parsed = parseLimit(limit);
+    return this.insights.orgWorkload(context, principal, {
+      ...(parsed === undefined ? {} : { limit: parsed }),
+    });
   }
 }

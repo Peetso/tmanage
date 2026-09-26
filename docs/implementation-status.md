@@ -12962,3 +12962,29 @@ surface a lookup miss as a 500, and the tenant scope is the only leak boundary.
 project shows every count at zero with no invented numbers, a `work.read` refusal shows in the
 delivery-flow panel while the approval panel still renders, and the mounted document is
 axe-clean.
+
+## INS-05 — insights, workload roll-up: the org-wide capacity portfolio (x123)
+
+The portfolio counterpart to INS-01's per-project delivery flow. A new
+`GET …/insights/workload` (behind `work.read`, the internal-read capability the delivery-flow read
+reuses — no new capability, no schema change) rolls the open work up across the projects the caller
+may read: per project the open-item, scheduled (calendar-dated) and distinct-assignee counts, and
+the aggregate across them, heaviest first. `InsightsService.orgWorkload` reuses x99's
+`workload.repository.ts` (WK-06) for the per-project open-work read and enumerates the tenant's
+projects through `ProjectsRepository.list`; it adds no repository logic and no migration.
+
+**Known-trap (aggregate over ids).** Every project is resolved tenant-scoped before it enters the
+roll-up: the enumeration is tenant-scoped in SQL, and belt-and-braces each project is authorized
+against its **own** `organizationId` with `work.read`, so a cross-tenant project is excluded rather
+than fanning out a read — never a 500. A non-org-wide principal passes the relation check only for
+the projects they are on (no cross-project leak); a principal off every project gets an empty
+roll-up, not a 403. The fan-out is bounded (default 20, max 50 projects — x93/x115/x120 precedent).
+
+**Web + contract.** `InsightsScreen` gains a workload section (`apps/web/src/lib/api/insights-workload.ts`
+client, appended disjoint from x120's portfolio section) rendered as an accessible table with a
+drill-in to each project. `InsightsWorkloadView` is paired live in `e2e/contracts/api-web-shapes.ts`
+(CONTRACT-001). Proven in `insights-workload.test.ts` over the module's fakes with the real
+`authorize` (org-wide sees all in-tenant projects; non-org-wide sees only theirs; cross-tenant
+excluded with no 500; client without `work.read` contributes nothing; bound clamped) and the
+`insights-workload-journeys.spec.ts` journey (chain-run). Off-project + cross-tenant exclusion:
+unit-proven, no schema change.
