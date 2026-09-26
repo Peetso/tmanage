@@ -17,9 +17,6 @@ export default function OrgObjectivesPage({ params }: { params: Promise<{ orgSlu
   const { orgSlug } = use(params);
 
   return (
-    <OrgObjectivesScreen
-      organizationSlug={orgSlug}
-      organizationName={FIXTURE_ORGANIZATION_NAME}
-    />
+    <OrgObjectivesScreen organizationSlug={orgSlug} organizationName={FIXTURE_ORGANIZATION_NAME} />
   );
 }

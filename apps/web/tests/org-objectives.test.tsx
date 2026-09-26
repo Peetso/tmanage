@@ -79,7 +79,11 @@ function objective(
 function renderScreen(client: ApiClient) {
   return render(
     withQuery(
-      <OrgObjectivesScreen organizationSlug="northstar" organizationName="Northstar" client={client} />,
+      <OrgObjectivesScreen
+        organizationSlug="northstar"
+        organizationName="Northstar"
+        client={client}
+      />,
     ),
   );
 }

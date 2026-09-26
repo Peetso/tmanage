@@ -81,7 +81,9 @@ export class OrgObjectivesController {
         ? body.description.trim()
         : undefined;
     const target =
-      typeof body?.target === 'string' && body.target.trim() !== '' ? body.target.trim() : undefined;
+      typeof body?.target === 'string' && body.target.trim() !== ''
+        ? body.target.trim()
+        : undefined;
 
     const details = [
       ...(name ? [] : [{ field: 'name', message: 'must be a non-empty string' }]),

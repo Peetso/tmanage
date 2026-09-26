@@ -13142,7 +13142,7 @@ is a live `Exact` pair with the web `ProjectObjectiveSummary` (CONTRACT-001). Sc
 
 ## PROJ / module 8 — organization objectives / OKRs create/list/transition (x136)
 
-Module 8 was still **Partial** for the org OKRs NEXT-SCOPES-11 deferred: x124 shipped *project*
+Module 8 was still **Partial** for the org OKRs NEXT-SCOPES-11 deferred: x124 shipped _project_
 objectives, but the map's org-level objectives had no table and no route (grep clean). x136 ships the
 org-scoped counterpart — not key results, metrics, or an objective→project cascade, which stay
 deferred (NEXT-SCOPES-13).

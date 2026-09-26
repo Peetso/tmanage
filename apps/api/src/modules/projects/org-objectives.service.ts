@@ -3,10 +3,7 @@ import type { Capability, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { OrgObjectivesRepository } from './org-objectives.repository.js';
-import type {
-  CreateOrgObjectiveInput,
-  OrgObjectiveStatus,
-} from './org-objectives.repository.js';
+import type { CreateOrgObjectiveInput, OrgObjectiveStatus } from './org-objectives.repository.js';
 import type { OrgObjectiveRow } from '../../common/database/schema.js';
 
 /**
