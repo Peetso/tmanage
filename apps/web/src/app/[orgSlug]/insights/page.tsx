@@ -1,30 +1,23 @@
 'use client';
 
 import { use } from 'react';
-import { PlannedInternalScreen } from '../../../components/screens/PlannedInternalScreen';
+import { InsightsPortfolioScreen } from '../../../components/screens/InsightsPortfolioScreen';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 
 /**
- * **Insights** — the eighth destination on the internal rail (`22-SCREEN-BY-SCREEN` §1).
- *
- * No ticket schedules an insights screen, so this route names none. It resolves to the shell so
- * the rail stays reachable and the destination stays named, and says the screen is not built —
- * a metrics screen with invented numbers would be the worst of the options.
+ * **Insights** — the eighth destination on the internal rail (`22-SCREEN-BY-SCREEN` §1), now the
+ * portfolio overview (INS-01). It was the deferred stub: x109 built the per-project dashboards under
+ * `insights/projects/[projectId]` and left the org index needing a project selector. This route now
+ * lands on the portfolio roll-up — each accessible project's headline figures and a drill-in link to
+ * its dashboard — reading `GET …/insights/portfolio` (gated on the server by `work.read`).
  */
 export default function InsightsPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
 
   return (
-    <PlannedInternalScreen
+    <InsightsPortfolioScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
-      activeNavigationId="insights"
-      title="Insights"
-      description="How your work is trending."
-    >
-      Insights is named in the navigation but has no screen and no scheduled backlog ticket yet.
-      This page keeps the destination reachable rather than answering it with a 404, and shows no
-      numbers rather than invented ones.
-    </PlannedInternalScreen>
+    />
   );
 }

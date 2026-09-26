@@ -61,6 +61,7 @@ import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
+import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 
@@ -117,6 +118,7 @@ import type {
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
+import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/src/lib/api/insights-portfolio';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 
 // ── The assertions themselves ───────────────────────────────────────────────
@@ -192,6 +194,16 @@ type _approvalCycle = Assert<Exact<ApiApprovalCycleView, WebApprovalCycle>>;
  * renamed or dropped status is a compile error here.
  */
 type _deliveryFlow = Assert<Exact<ApiDeliveryFlowView, WebDeliveryFlow>>;
+
+/**
+ * INS-01 — `GET …/insights/portfolio` (x120). The org-level roll-up across the caller's accessible
+ * projects: one row per project (id, name, and the delivery-flow + approval-cycle reads the
+ * per-project screens show), with the readable-page count. Paired with a real web consumer —
+ * `InsightsPortfolioScreen` replaces the `/insights` stub — so this is a live `Exact` pair. The
+ * nested `deliveryFlow`/`approvalCycle` are the same shapes the two pairs above assert, so a drift
+ * in either surfaces here too.
+ */
+type _insightsPortfolio = Assert<Exact<ApiInsightsPortfolioView, WebInsightsPortfolio>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API
