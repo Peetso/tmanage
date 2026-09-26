@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  MEETING_SERIES_REPOSITORY,
+  MEETING_SERIES_SERVICE,
   MEETINGS_REPOSITORY,
   MEETINGS_SERVICE,
   TENANT_DATABASE,
@@ -10,6 +12,9 @@ import { MeetingsRepository } from './meetings.repository.js';
 import { MeetingNotesRepository } from './meeting-notes.repository.js';
 import { MeetingsService } from './meetings.service.js';
 import { MeetingsController } from './meetings.controller.js';
+import { MeetingSeriesRepository } from './meeting-series.repository.js';
+import { MeetingSeriesService } from './meeting-series.service.js';
+import { MeetingSeriesController } from './meeting-series.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 
 /**
@@ -42,11 +47,25 @@ export class CalendarModule {
         ),
     };
 
+    // CAL recurrence (x129). The meeting-series slice: a stateless repository under its token and a
+    // service that takes the tenant database and the repository. Org-scoped — it holds no projects
+    // repository because a series names no project and needs no relation resolution.
+    const seriesRepository: Provider = {
+      provide: MEETING_SERIES_REPOSITORY,
+      useFactory: () => new MeetingSeriesRepository(),
+    };
+    const seriesService: Provider = {
+      provide: MEETING_SERIES_SERVICE,
+      inject: [TENANT_DATABASE, MEETING_SERIES_REPOSITORY],
+      useFactory: (database: TenantDatabase, series: MeetingSeriesRepository) =>
+        new MeetingSeriesService(database, series),
+    };
+
     return {
       module: CalendarModule,
-      providers: [repository, service],
-      exports: [service],
-      controllers: [MeetingsController],
+      providers: [repository, service, seriesRepository, seriesService],
+      exports: [service, seriesService],
+      controllers: [MeetingsController, MeetingSeriesController],
     };
   }
 }

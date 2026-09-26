@@ -59,6 +59,7 @@ import type { InvitationView as ApiInvitationView } from '../../apps/api/src/mod
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
+import type { MeetingSeriesView as ApiMeetingSeriesView } from '../../apps/api/src/modules/calendar/meeting-series.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
@@ -121,6 +122,7 @@ import type {
 } from '../../apps/web/src/lib/api/invitations';
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
+import type { MeetingSeriesView as WebMeetingSeriesView } from '../../apps/web/src/lib/api/meeting-series';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type {
   CreatedOrganization as WebCreatedOrganization,
@@ -224,6 +226,16 @@ type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
  * shape, so the exemption was retired and the view is paired Exact.
  */
 type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
+
+/**
+ * CAL recurrence (x129). `GET`/`POST .../meeting-series` — a tenant's recurring meeting series,
+ * listed and created by `MeetingSeriesScreen`, and `GET .../:seriesId/occurrences` (a `{ seriesId,
+ * occurrences: string[] }` shape with no named `*View`, so nothing to pair there). The series view is
+ * paired Exact from the start — the screen and its `apps/web` shape ship in the same slice — so a
+ * renamed or retyped field on either side is a compile error here. `freq` is the same
+ * `daily|weekly|monthly` union on both sides.
+ */
+type _meetingSeries = Assert<Exact<ApiMeetingSeriesView, WebMeetingSeriesView>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;

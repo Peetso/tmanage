@@ -341,6 +341,40 @@ export const meetingNotes = mysqlTable(
   ],
 );
 
+export const MEETING_SERIES_FREQ = ['daily', 'weekly', 'monthly'] as const;
+
+/**
+ * CAL recurrence (x129). A recurring meeting *series* — a rule, not an event: a title, a recurrence
+ * `freq`, an every-N `interval` and an optional end date `until`.
+ *
+ * Org-scoped, NOT project-owned (unlike `meetings` 0029): a series names no project, so it is
+ * read/written behind `meeting.read`/`meeting.write` at the tenant level with no project relation.
+ * The occurrences it implies are expanded on read in a bounded window and never materialised — there
+ * is no per-occurrence row, so nothing to override or cancel yet (deferred to NS-13). Created and
+ * read, never edited or removed this slice: no `updatedAt`, the runtime credential holds INSERT
+ * alone, so the withheld privilege is the control (as `saved_context` 0035). `0043_meeting_series.sql`
+ * is the source of truth; this is its typed mirror. The `recurrence_interval` column is named around
+ * the MySQL reserved word `interval`; the property here is `interval`.
+ */
+export const meetingSeries = mysqlTable(
+  'meeting_series',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    freq: mysqlEnum('freq', MEETING_SERIES_FREQ).notNull(),
+    interval: int('recurrence_interval', { unsigned: true }).notNull(),
+    /** A calendar date carried as `'YYYY-MM-DD'` (0012), or `null` for an open-ended series. */
+    until: date('until', { mode: 'string' }),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_series_org_id').on(table.organizationId, table.id),
+    index('ix_meeting_series_org_id_created').on(table.organizationId, table.id),
+  ],
+);
+
 /** One remembered filter: a field name and the value the saved view pins it to. */
 export interface SavedViewFilter {
   readonly field: string;
@@ -1696,6 +1730,7 @@ export const TABLES = {
   documents,
   import_rows: importRows,
   meeting_notes: meetingNotes,
+  meeting_series: meetingSeries,
   saved_views: savedViews,
   saved_context: savedContext,
 } as const;
@@ -1729,6 +1764,7 @@ export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
+export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;

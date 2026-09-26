@@ -151,6 +151,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `SELECT ... FROM meeting_notes` would be every studio's meeting record on the server. The
   // guard must scope its reads and its writes.
   meeting_notes: 'organization_id',
+  // CAL recurrence (x129). Tenant-owned and org-scoped (no project): a series is one studio's
+  // recurrence rule, and an unscoped `SELECT ... FROM meeting_series` would be every studio's
+  // calendar rules on the server. The guard must scope its reads and its writes.
+  meeting_series: 'organization_id',
   // WK-08 (x107). Tenant-owned: a saved view belongs to a studio and a person, and an unscoped
   // `SELECT ... FROM saved_views` would be every studio's saved Work views on the server. The
   // guard must scope its reads and its writes.

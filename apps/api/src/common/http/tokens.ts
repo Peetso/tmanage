@@ -52,6 +52,8 @@ export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */
 export const MEETINGS_REPOSITORY = Symbol.for('tmanage.MeetingsRepository');
 export const MEETINGS_SERVICE = Symbol.for('tmanage.MeetingsService');
+export const MEETING_SERIES_REPOSITORY = Symbol.for('tmanage.MeetingSeriesRepository');
+export const MEETING_SERIES_SERVICE = Symbol.for('tmanage.MeetingSeriesService');
 /** DOC-01 (x91). The docs module's document read/write. */
 export const DOCUMENTS_REPOSITORY = Symbol.for('tmanage.DocumentsRepository');
 export const DOCUMENTS_SERVICE = Symbol.for('tmanage.DocumentsService');

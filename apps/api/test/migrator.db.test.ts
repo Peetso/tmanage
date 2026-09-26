@@ -1071,6 +1071,73 @@ describe('0035: saved_context is tenant- and user-scoped (HOME-05)', () => {
   });
 });
 
+describe('0043: meeting_series is a tenant-scoped, org-owned, forward-only table', () => {
+  beforeAll(freshDatabase);
+
+  it('applies, round-trips a scoped series, and refuses a non-positive interval', async () => {
+    await migrate(connection, { directory: migrationsDirectory, appliedBy: 'migrator.db.test' });
+
+    // The table exists with exactly the columns the Drizzle schema (schema.db.test.ts) mirrors.
+    const [columns] = await connection.query<RowDataPacket[]>(
+      `SELECT column_name AS col, is_nullable AS nullable, data_type AS type
+         FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'meeting_series'`,
+    );
+    const byName = new Map(columns.map((row) => [String(row['col']), row]));
+    expect([...byName.keys()].sort()).toEqual(
+      [
+        'created_at',
+        'created_by_user_id',
+        'freq',
+        'id',
+        'organization_id',
+        'recurrence_interval',
+        'title',
+        'until',
+      ].sort(),
+    );
+    // freq is an ENUM; until is a nullable DATE (an open-ended series); org is not nullable.
+    expect(String(byName.get('freq')?.['type'])).toBe('enum');
+    expect(String(byName.get('until')?.['type'])).toBe('date');
+    expect(String(byName.get('until')?.['nullable'])).toBe('YES');
+    expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
+
+    const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+    await connection.query(`INSERT INTO organizations (id, slug, name) VALUES (?, 'ser', 'S')`, [
+      id('d1'),
+    ]);
+    await connection.query(
+      `INSERT INTO users (id, email, display_name) VALUES (?, 'ser@e.test', 'S')`,
+      [id('d2')],
+    );
+
+    // A tenant-scoped insert/select round-trips, and the open-ended series stores a NULL `until`.
+    await connection.query(
+      `INSERT INTO meeting_series (id, organization_id, title, freq, recurrence_interval, until, created_by_user_id)
+       VALUES (?, ?, 'Weekly sync', 'weekly', 2, NULL, ?)`,
+      [id('d3'), id('d1'), id('d2')],
+    );
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT title, freq, recurrence_interval AS iv, until
+         FROM meeting_series WHERE organization_id = ? AND id = ?`,
+      [id('d1'), id('d3')],
+    );
+    expect(rows[0]?.['title']).toBe('Weekly sync');
+    expect(String(rows[0]?.['freq'])).toBe('weekly');
+    expect(Number(rows[0]?.['iv'])).toBe(2);
+    expect(rows[0]?.['until']).toBeNull();
+
+    // The CHECK refuses a non-positive interval at the engine — "every 0 periods" is not a recurrence.
+    await expect(
+      connection.query(
+        `INSERT INTO meeting_series (id, organization_id, title, freq, recurrence_interval, created_by_user_id)
+         VALUES (?, ?, 'Bad', 'daily', 0, ?)`,
+        [id('d4'), id('d1'), id('d2')],
+      ),
+    ).rejects.toThrow(/[Cc]heck constraint/);
+  });
+});
+
 describe('file validation', () => {
   it('rejects a filename that does not match NNNN_snake_case.sql', async () => {
     const dir = await migrationDir({ 'add-things.sql': 'SELECT 1;' });
