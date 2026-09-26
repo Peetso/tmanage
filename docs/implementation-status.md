@@ -13925,3 +13925,32 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## ON-10 guided-tour progress (x155, module 3)
+
+**What landed.** Onboarding had the ON-01–ON-04 setup wizard but no way to track a member's progress
+through a guided tour (ON-10, "sample / guided tour"). This slice adds a membership-scoped
+`onboarding_progress` table (migration `0059`) — one row per (membership, step) a member has
+completed, `step` a closed ENUM (`welcome | create_project | invite_team | explore_work |
+share_portal`) — and two endpoints under `/v1/organizations/:orgSlug/onboarding/tour`: `GET` returns
+the fixed tour with the acting member's completed flags (defaults false), and `POST :step/complete`
+marks a step done. Both reuse `work.read`; no `capabilities.ts` edit. Progress is own-principal: the
+acting membership is the tenant context's, never from input, so a member only ever reads or advances
+their own tour. Sample-data seeding and dismissable coach-marks are deferred to NEXT-SCOPES-13.
+
+**Known-trap order (complete).** `:step` is validated against the fixed step set _first_, so an
+unknown step is a 400 with no write, before the membership is resolved or anything is written.
+Completion is idempotent — re-completing a finished step is a 200 with the same progress and no
+duplicate row (the unique `(organization_id, membership_id, step)` key made concrete, the repository
+swallowing the conflict). The new table is registered in all four places — `schema.ts` def +
+`TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT only; forward-only, no un-complete
+path), and the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `OnboardingTourView` (`onboarding-tour.controller.ts`) is a live `Exact` pair with the
+web's `OnboardingTourView` (`apps/web/src/lib/api/onboarding-tour.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `OnboardingTourScreen`
+(`apps/web/src/components/screens/OnboardingTourScreen.tsx`), routed at `/[orgSlug]/onboarding/tour`,
+renders the step checklist with a done count and marks a step complete. Proved database-free with the
+real `authorize` (`onboarding-tour.controller.test.ts`): complete→list is own-scoped, an unknown step
+is a 400 with no write, a re-complete writes no duplicate, another member's progress never shows, and
+the routes sit behind `work.read`. Deferred to NEXT-SCOPES-13: sample-data seeding and coach-marks.

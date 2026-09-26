@@ -253,6 +253,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
   // table has, so the guard must scope its reads and its writes.
   work_forms: 'organization_id',
+  // ON-10 guided-tour progress (x155, migration 0059). Tenant-owned: a progress row belongs to one
+  // membership in one studio, and an unscoped read would be a map of how far every member in every
+  // studio has got through the tour. The layer-3 guard fails OPEN on an unregistered table, so
+  // registering it here is what scopes the progress reads and the completion upsert; the
+  // tenant-isolation suite enforces the entry.
+  onboarding_progress: 'organization_id',
 });
 
 /**

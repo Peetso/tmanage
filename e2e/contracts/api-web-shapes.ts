@@ -63,6 +63,7 @@ import type { HomeSummaryView as ApiHomeSummaryView } from '../../apps/api/src/m
 import type { HomePulseView as ApiHomePulseView } from '../../apps/api/src/modules/home/home-pulse.service.js';
 import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src/modules/home/home.service.js';
 import type { HomePinView as ApiHomePinView } from '../../apps/api/src/modules/home/home-pins.controller.js';
+import type { OnboardingTourView as ApiOnboardingTourView } from '../../apps/api/src/modules/home/onboarding-tour.controller.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -130,6 +131,7 @@ import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/h
 import type { HomePulse as WebHomePulse } from '../../apps/web/src/lib/api/home';
 import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api/home';
 import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
+import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -570,6 +572,15 @@ type _savedContext = Assert<Exact<ApiSavedContextView, WebSavedContext>>;
  * match exactly. The `MyDayScreen` Pinned section reads exactly this response.
  */
 type _homePins = Assert<Exact<ApiHomePinView, WebHomePinView>>;
+
+/**
+ * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and
+ * `POST .../onboarding/tour/:step/complete` — the acting member's fixed guided tour, each step with
+ * its completed flag. One projection; its per-step item is inlined on both sides, so this pair covers
+ * it structurally, and the `step` union (`welcome|create_project|invite_team|explore_work|
+ * share_portal`) must match exactly. The `OnboardingTourScreen` reads exactly this response.
+ */
+type _onboardingTour = Assert<Exact<ApiOnboardingTourView, WebOnboardingTourView>>;
 
 /**
  * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The
