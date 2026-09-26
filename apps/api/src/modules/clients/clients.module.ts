@@ -13,6 +13,7 @@ import {
   PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
   PROJECT_MILESTONES_SERVICE,
+  PROJECT_RISKS_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
@@ -36,6 +37,12 @@ import {
   ProjectMilestonesService,
 } from './project-milestones.controller.js';
 import { ProjectMilestonesRepository } from './project-milestones.repository.js';
+import {
+  PortalRisksController,
+  ProjectRisksController,
+  ProjectRisksService,
+} from './project-risks.controller.js';
+import { ProjectRisksRepository } from './project-risks.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
@@ -214,6 +221,18 @@ export class ClientsModule {
         ),
     };
 
+    /**
+     * SEC / Portal risks (x140). The repositories are constructed here, like the `portal` provider
+     * above: they are stateless collections of queries, and reaching for another module's provider
+     * would register that dynamic module twice.
+     */
+    const risks: Provider = {
+      provide: PROJECT_RISKS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new ProjectRisksService(database, new ProjectsRepository(), new ProjectRisksRepository()),
+    };
+
     return {
       module: ClientsModule,
       providers: [
@@ -225,6 +244,7 @@ export class ClientsModule {
         invitations,
         clientRequests,
         milestones,
+        risks,
       ],
       exports: [service, portal],
       controllers: [
@@ -233,6 +253,8 @@ export class ClientsModule {
         ProjectUpdatesController,
         ProjectMilestonesController,
         PortalMilestonesController,
+        ProjectRisksController,
+        PortalRisksController,
       ],
     };
   }

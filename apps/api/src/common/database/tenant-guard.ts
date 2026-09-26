@@ -230,6 +230,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // so registering it here is what scopes the reads and writes; tenant-isolation.db.test.ts
   // enforces the entry.
   project_milestones: 'organization_id',
+  // SEC / Portal risks (x140, 0049). Tenant-owned: a project risk names a project, and an unscoped
+  // `SELECT ... FROM project_risks` would be every studio's risk register on the server — and,
+  // because the client read filters `published = 1` and the internal note is the substance, an
+  // unscoped read would also cross the client-visibility boundary. The layer-3 guard fails OPEN on
+  // an unregistered table, so registering it here is what scopes the reads and writes;
+  // tenant-isolation.db.test.ts enforces the entry.
+  project_risks: 'organization_id',
 });
 
 /**

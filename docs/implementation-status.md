@@ -13786,3 +13786,42 @@ client reading outside scope → 404, plus the route-capability metadata that pr
 
 **Deferred (NEXT-SCOPES-13).** Milestone edit/unpublish lifecycle; portal risks (x140); the portal
 people page (x142).
+## SEC / Portal risks — module 13 (x140, 2026-09-26)
+
+**What shipped.** The risks half of the client portal, reusing the `project_updates` (0041) and
+`project_milestones` (0048) mechanism. New table `project_risks` (0049): an internal `title`, a
+`severity` (`low|medium|high`), a `status` (`open|mitigated|closed`), an internal-only
+`internal_note`, a client-facing `client_summary`, and `published`. Registered in the four places an
+implementer owns — `schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, the
+`scripts/db/users.sql` grant (INSERT only; nothing is edited or unpublished yet, so no UPDATE per
+this file's least-privilege rule), and the auto-discovered migration `0049_project_risks.sql` with a
+`BEFORE UPDATE` trigger pinning tenant/project/author immutable.
+
+**Three routes, on two paths, for the reason `PortalController` exists at all.** The internal
+`POST`/`GET /projects/:projectId/risks` (`project.manage`, `ProjectRisksController`) resolve the
+project tenant-scoped _before_ the authorize check — the Known-trap order, so an unknown or
+cross-tenant id is 404, never the 500 a bare foreign key would surface — and the full internal list
+carries the `internal_note`. The client read `GET /portal/projects/:projectId/risks`
+(`client_projection.read`, `PortalRisksController`) resolves the project relation-scoped first (404,
+not 403, for a project the client cannot read) and selects `published = 1` only, in the query. The
+audience boundary is the substance: `ClientRiskView` carries only `clientSummary`, `severity` and
+`status` — never the `title`, the `internalNote`, the `createdByUserId` or the `published` flag. Both
+projections are built field by field (`project-risks.projection.ts`), never by deleting fields from
+the internal row (`25-AUTH-AND-TENANT-ISOLATION` §7).
+
+**Web.** `PortalRisksScreen` (route `/portal/risks`, a new "Risks" nav item) renders the published
+risks — client summary, severity and status only, axe-clean empty/error states.
+`ProjectRisksScreen` (route `/projects/:projectId/risks`, `project.manage`) is the internal compose:
+a form that separates `clientSummary` (shown to the client) from `internalNote` (labelled
+internal-only), plus the full register with the note. `ProjectRiskView`/`ClientRiskView` are paired
+with the web `ProjectRisk`/`ClientRisk` in `e2e/contracts/api-web-shapes.ts`. Disjoint from x125/x139
+(no shared screen edited).
+
+**Proof.** Unit: `project-risks.controller.test.ts` over fakes with real `authorize()` — internal
+record→client-read round-trip carrying the note internally, the client projection omitting
+title/internalNote/createdByUserId/published, unpublished excluded, unknown/cross-tenant id → 404 no
+write, non-manager → 404 no write, client reading outside scope → 404, and the route-capability
+ceiling. The audience guard (`toClientRiskView`) is the revert-proof target. No DB test / no new e2e
+per pass-20 rules (the chain owns the round-trip and the migrator proof).
+
+**Deferred (NEXT-SCOPES-13).** Risk edit/unpublish and mitigation-owner lifecycle.

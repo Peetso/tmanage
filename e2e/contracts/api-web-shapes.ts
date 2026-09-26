@@ -86,6 +86,8 @@ import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../ap
 import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectMilestoneView as ApiProjectMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { ClientMilestoneView as ApiClientMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
+import type { ProjectRiskView as ApiProjectRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
+import type { ClientRiskView as ApiClientRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
@@ -184,6 +186,8 @@ import type {
   PortalWorkItem as WebPortalWorkItem,
   ProjectMilestone as WebProjectMilestone,
   ClientMilestone as WebClientMilestone,
+  ProjectRisk as WebProjectRisk,
+  ClientRisk as WebClientRisk,
 } from '../../apps/web/src/lib/api/portal';
 import type {
   ImportReceipt as WebImportReceipt,
@@ -263,6 +267,8 @@ type _portalInboxBundle = Assert<Exact<ApiPortalInboxBundleView, WebPortalInboxB
 type _portalInboxPage = Assert<Exact<ApiPortalInboxPageView, WebPortalInboxPage>>;
 type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
 type _portalUpdate = Assert<Exact<ApiPortalUpdateView, WebPortalUpdate>>;
+type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
+type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
 // CONTRACT-001 (x114): the client portal's deliverables and their file lists. The screen reads
 // exactly these responses, so both pairs are Exact.

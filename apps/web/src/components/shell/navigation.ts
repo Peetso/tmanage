@@ -46,6 +46,7 @@ export const CLIENT_NAVIGATION: readonly NavigationItem[] = [
   { id: 'deliverables', label: 'Deliverables', href: '/portal/deliverables', glyph: '▦' },
   { id: 'timeline', label: 'Timeline', href: '/portal/timeline', glyph: '▥' },
   { id: 'updates', label: 'Updates', href: '/portal/updates', glyph: '▤' },
+  { id: 'risks', label: 'Risks', href: '/portal/risks', glyph: '◭' },
   { id: 'files', label: 'Files', href: '/portal/files', glyph: '▧' },
   { id: 'people', label: 'People', href: '/portal/people', glyph: '◎' },
 ];

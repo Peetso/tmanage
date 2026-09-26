@@ -388,6 +388,51 @@ export const projectMilestones = mysqlTable(
   ],
 );
 
+export const PROJECT_RISK_SEVERITIES = ['low', 'medium', 'high'] as const;
+export const PROJECT_RISK_STATUSES = ['open', 'mitigated', 'closed'] as const;
+
+/**
+ * SEC / Portal risks (x140). A project risk — an internal `title`, a client-safe `severity`
+ * (`low | medium | high`), a `status` (`open | mitigated | closed`), an internal-only `internal_note`
+ * (the substance), a client-facing `client_summary`, and whether it is `published` — against an
+ * existing project (0049). Tenant-scoped and project-owned like `project_updates` (0041) and
+ * `project_milestones` (0048), reusing their mechanism: a client can never be shown, and an internal
+ * author can never write, a risk against another studio's project, because the composite foreign key
+ * binds `(organization_id, project_id)` to `projects`.
+ *
+ * `published` is the client-visibility gate: a risk exists as soon as it is created, but the portal
+ * read selects `published = 1` only — the way `client_projections` (0031) serves published-only
+ * content. The audience boundary is the substance of the slice: `internal_note`, `title`,
+ * `created_by_user_id` and `published` are internal; the client projection carries only
+ * `client_summary`, `severity` and `status`. Any risk edit/unpublish lifecycle is a later slice
+ * (NEXT-SCOPES-13). `0049_project_risks.sql` is the source of truth; this is its typed mirror.
+ */
+export const projectRisks = mysqlTable(
+  'project_risks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    severity: mysqlEnum('severity', PROJECT_RISK_SEVERITIES).notNull().default('medium'),
+    status: mysqlEnum('status', PROJECT_RISK_STATUSES).notNull().default('open'),
+    internalNote: text('internal_note'),
+    clientSummary: varchar('client_summary', { length: 2000 }).notNull(),
+    published: boolean('published').notNull().default(false),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_risks_org_id').on(table.organizationId, table.id),
+    index('ix_project_risks_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const MEETING_NOTE_KINDS = ['note', 'decision'] as const;
 
 /**
@@ -2158,6 +2203,7 @@ export const TABLES = {
   saved_context: savedContext,
   project_updates: projectUpdates,
   project_milestones: projectMilestones,
+  project_risks: projectRisks,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2190,6 +2236,7 @@ export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type ProjectUpdateRow = typeof projectUpdates.$inferSelect;
 export type ProjectMilestoneRow = typeof projectMilestones.$inferSelect;
+export type ProjectRiskRow = typeof projectRisks.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
