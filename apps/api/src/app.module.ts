@@ -39,6 +39,7 @@ import { FilesModule } from './modules/files/files.module.js';
 import { ImportModule } from './modules/import/import.module.js';
 import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
+import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -209,6 +210,10 @@ export class AppModule {
         // every hit is relation-gated with `work.read` so a search never surfaces an item the
         // item's own direct read would deny.
         SearchModule.register(),
+        // INS-06. The org-wide adoption roll-up (active members, members who created work, meetings
+        // held) in a clamped window. A separate module from `InsightsModule` so the insights slices
+        // stay file-disjoint; read-only, behind the same reused `work.read`.
+        InsightsAdoptionModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
