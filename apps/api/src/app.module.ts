@@ -25,6 +25,7 @@ import { ConversationsModule } from './modules/conversations/conversations.modul
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { DocsModule } from './modules/docs/docs.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
+import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
@@ -153,6 +154,12 @@ export class AppModule {
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),
+        // module 13 portal, x142. The client-visible people read (`/portal/projects/:id/people`).
+        // A module of its own rather than another controller on `ClientsModule`, so it stays
+        // file-disjoint from the sibling portal slices; after `ProjectsModule` and `ClientsModule`
+        // for the same reason as the clients module — it resolves a project tenant-scoped to answer
+        // 404 rather than 500 for a cross-tenant id.
+        PortalPeopleModule.register(),
         // CHAT-001. After `ProjectsModule` for the same reason: a channel names a project, and
         // a caller who names one that is not theirs should get 404 rather than a foreign-key
         // violation surfacing as 500.

@@ -1,30 +1,25 @@
 'use client';
 
 import { use } from 'react';
-import { PlannedPortalScreen } from '../../../../components/screens/PlannedPortalScreen';
+import { PortalPeopleScreen } from '../../../../components/screens/PortalPeopleScreen';
 import { FIXTURE_CLIENT_NAME, FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
 
 /**
- * **People** — the seventh destination on the client portal nav (`22-SCREEN-BY-SCREEN` §1).
+ * **People** — the client portal's team screen (`22-SCREEN-BY-SCREEN` §1, x142).
  *
- * No ticket schedules a portal people screen and no endpoint returns the client-visible members
- * of a project, so this route names none. It resolves to the portal shell so the tab stays
- * reachable and named, and says the screen is not built.
+ * Until x142 this route resolved to `PlannedPortalScreen`: no endpoint returned the client-visible
+ * members of a project, so the tab was named but unbuilt. `GET /portal/projects/:projectId/people`
+ * now returns the name-and-role projection, and this page renders it — the client sees who they are
+ * working with at the agency, and nothing internal.
  */
 export default function PortalPeoplePage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
 
   return (
-    <PlannedPortalScreen
+    <PortalPeopleScreen
       organizationSlug={orgSlug}
       clientName={FIXTURE_CLIENT_NAME}
       providerName={FIXTURE_ORGANIZATION_NAME}
-      activeNavigationId="people"
-      title="People"
-      description={`Who you are working with at ${FIXTURE_ORGANIZATION_NAME}.`}
-    >
-      People is named in the portal navigation but has no screen and no scheduled backlog ticket
-      yet. This page keeps the tab reachable rather than answering it with a 404.
-    </PlannedPortalScreen>
+    />
   );
 }

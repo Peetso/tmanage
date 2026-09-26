@@ -190,6 +190,36 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-26 — Portal people: client-visible project team (slice x142)
+
+Module 13 (Client portal), **People** (`22-SCREEN-BY-SCREEN` §1) — until now a `PlannedPortalScreen`
+stub with no endpoint. `GET v1/organizations/:orgSlug/portal/projects/:projectId/people`
+(`@RequireCapability('client_projection.read')`) returns the client-visible team of one project as a
+name-and-role projection.
+
+- **The projection is the query.** `portal-people.projection.ts` selects only `users.display_name`
+  and `project_memberships.role` — `email`, `user_id`, `membership id` and every other column are
+  never fetched (`25-AUTH-AND-TENANT-ISOLATION` §7; `12-PERMISSION-MATRIX` §4 excludes staff, permits
+  "approved contacts"). The `users` join is legitimate for the reason
+  `MembershipsRepository.listWithNames` gives: `users` is global identity with no tenant key, and only
+  the `project_memberships` side is filtered — by `organization_id` **and** `project_id`.
+- **The Known trap.** `portal-people.controller.ts` resolves the project tenant-scoped
+  (`ProjectsRepository.findById`) **before** the read — a cross-tenant/unknown id is **404** — then
+  `authorize()` at `client_visible` (rules 7–10); a project in the tenant but not shared with this
+  client is **404, not 403**. Only then are the members read; a member not on the named project is
+  never selected.
+- **No new table** → registry N/A (no `schema.ts`/`tenant-guard`/`users.sql`/migrator change).
+- **Wiring.** A module of its own, `PortalPeopleModule`, registered in `app.module.ts` (file-disjoint
+  from the sibling portal slices), reusing the global `TENANT_DATABASE` and `client_projection.read`
+  (no `capabilities.ts` edit).
+- **Web.** `PortalPeopleScreen.tsx` (client shape `PortalPerson` + `listPortalPeople` in
+  `lib/api/portal.ts`) wired into `portal/people/page.tsx`, modelled on `ClientOverviewScreen`
+  (keyed on the first shared project). Contract `PortalPersonView`↔`PortalPerson` paired Exact in
+  `e2e/contracts/api-web-shapes.ts`.
+- **Tests.** `portal-people.controller.test.ts` (real `authorize()`, fakes for DB/projects/people):
+  name+role only, no member outside the named project, cross-tenant `projectId` → 404, out-of-scope
+  read → 404. Per pass-20 rules: no DB test / no new e2e (the chain owns both).
+
 ## 2026-09-20 — FR-05 Approvals 2nd slice: publish → immutable client projection + authorized read (slice x97)
 
 Built on branch `x97-approvals-client-projection` (off x92's `9b6f1e5`), **not merged**. The second
