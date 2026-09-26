@@ -15,6 +15,7 @@ import { MeetingsController } from './meetings.controller.js';
 import { MeetingAttendeesRepository } from './meeting-attendees.repository.js';
 import { MeetingAttendeesService } from './meeting-attendees.service.js';
 import { MeetingAttendeesController } from './meeting-attendees.controller.js';
+import { MeetingIcsController } from './meeting-ics.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 
@@ -73,7 +74,7 @@ export class CalendarModule {
       module: CalendarModule,
       providers: [repository, service, attendeesRepository, attendeesService],
       exports: [service, attendeesService],
-      controllers: [MeetingsController, MeetingAttendeesController],
+      controllers: [MeetingsController, MeetingAttendeesController, MeetingIcsController],
     };
   }
 }

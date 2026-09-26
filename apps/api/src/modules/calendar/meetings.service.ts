@@ -248,6 +248,19 @@ export class MeetingsService {
   }
 
   /**
+   * Fetch one meeting a caller may read (x128 — the ICS export's read).
+   *
+   * The meeting is resolved tenant-scoped and relation-checked first (see {@link resolveMeetingFor})
+   * — the Known-trap order — so an unknown or cross-tenant `meetingId` is a 404, never a 500, and a
+   * non-member gets the same 404 rather than a 403 that would confirm the meeting exists. The
+   * projection is the same wire shape the list returns; `organizationId` is never echoed.
+   */
+  async get(context: TenantContext, principal: Principal, meetingId: string): Promise<MeetingView> {
+    const meeting = await this.resolveMeetingFor(context, principal, meetingId, 'work.read');
+    return toView(meeting);
+  }
+
+  /**
    * List a meeting's notes and decisions, deterministically ordered, for a caller who may read
    * the meeting.
    *

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { MeetingIcsButton } from '../MeetingIcsButton';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listMeetingNotes } from '../../lib/api/meetings';
 import type { MeetingNoteView } from '../../lib/api/meetings';
@@ -80,6 +81,12 @@ export function MeetingNotesScreen({
         <InlineAlert tone="neutral" title="Meeting not found" live>
           This meeting does not exist or you do not have access to it.
         </InlineAlert>
+      ) : null}
+
+      {meetingId !== '' && !notFound ? (
+        <div className="tm-row" aria-label="Meeting actions">
+          <MeetingIcsButton organizationSlug={organizationSlug} meetingId={meetingId} />
+        </div>
       ) : null}
 
       {notes.isError && !notFound ? (
