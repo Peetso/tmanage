@@ -25,10 +25,12 @@ import { AuditController } from './audit.controller.js';
  * Audit is cross-cutting in the same sense the tenant guard is, so one instance for the whole
  * application is the correct shape as well as the convenient one.
  *
- * One controller — the ADM audit **viewer** (x115): `GET .../audit/events`, a tenant-scoped,
- * keyset-paginated read behind `audit.read`, projected to the narrow `AdminAuditEventView`. The
- * scope narrowing this table can support (org-wide vs own-activity) lives in `AuditService.view`,
- * which the viewer composes; `audit.export` (CSV) remains a later, separately-capped slice.
+ * One controller, two reads. The ADM audit **viewer** (x115): `GET .../audit/events`, a
+ * tenant-scoped, keyset-paginated read behind `audit.read`, projected to the narrow
+ * `AdminAuditEventView`. And the ADM-09 **export** (x118): `GET .../audit/events/export`, the
+ * bulk-egress half behind the distinct, stronger `audit.export`, a row-capped CSV of the same
+ * projection. The scope narrowing this table can support (org-wide vs own-activity) lives in
+ * `AuditService.view` and is applied by both.
  */
 @Global()
 @Module({})

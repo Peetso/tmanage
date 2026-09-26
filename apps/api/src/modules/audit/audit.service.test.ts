@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal, Role } from '@tmanage/domain';
-import { AuditService } from './audit.service.js';
+import { AuditService, EXPORT_MAX_ROWS } from './audit.service.js';
 import type { AuditEventsRepository, ListAuditEventsOptions } from './audit-events.repository.js';
+import { auditEventsToCsv, escapeCsvCell } from './audit-export-csv.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditEventRow } from '../../common/database/schema.js';
@@ -211,5 +212,96 @@ describe('AuditService.listForViewer', () => {
     await service
       .listForViewer(context, principal('guest'))
       .catch((error: unknown) => expect((error as ApiError).status).toBe(403));
+  });
+});
+
+describe('AuditService.exportForViewer', () => {
+  it('exports own-org rows newest-first behind audit.export, dropping a cross-tenant row', async () => {
+    const service = serviceWith([
+      row({ id: idAt(1), action: 'project.created' }),
+      row({ id: idAt(3), action: 'membership.revoked', result: 'denied', objectId: null }),
+      row({ id: idAt(9), organizationId: OTHER_ORG, action: 'secret.thing' }),
+    ]);
+
+    const events = await service.exportForViewer(
+      context,
+      principal('owner', { hasOrgWideScope: true }),
+    );
+
+    expect(events.map((e) => e.id)).toEqual([idAt(3), idAt(1)]);
+    expect(JSON.stringify(events)).not.toContain(OTHER_ORG);
+    // The projection is the same seven narrow fields — no metadata surfaces in an export.
+    expect(JSON.stringify(events)).not.toContain('must-never-surface');
+  });
+
+  it('refuses a caller with audit.read but without audit.export — the two caps are distinct (403)', async () => {
+    const service = serviceWith([row({ id: idAt(1) })]);
+
+    // `member` holds audit.read (the viewer works) but not audit.export.
+    const events = await service.listForViewer(context, principal('member'));
+    expect(events).toHaveLength(1);
+
+    await expect(service.exportForViewer(context, principal('member'))).rejects.toBeInstanceOf(
+      ApiError,
+    );
+    await service
+      .exportForViewer(context, principal('member'))
+      .catch((error: unknown) => expect((error as ApiError).status).toBe(403));
+  });
+
+  it('narrows a non-org-wide exporter to own activity, and empties an unknown/cross-tenant filter (Known trap)', async () => {
+    const service = serviceWith([
+      row({ id: idAt(1), actorUserId: ACTOR }),
+      row({ id: idAt(2), actorUserId: OTHER_ACTOR, action: 'someone.else' }),
+      row({ id: idAt(9), organizationId: OTHER_ORG, actorUserId: OTHER_ACTOR }),
+    ]);
+
+    // An owner without org-wide scope may export, but only their own activity — a wider actorId
+    // must not widen the export.
+    const narrowed = await service.exportForViewer(context, principal('owner'), {
+      actorId: OTHER_ACTOR,
+    });
+    expect(narrowed.map((e) => e.id)).toEqual([idAt(1)]);
+
+    // A cross-tenant/unknown filter id is a filter, not a lookup: it resolves to nothing here.
+    await expect(
+      service.exportForViewer(context, principal('owner', { hasOrgWideScope: true }), {
+        entityId: 'project-does-not-exist',
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it('refuses an export past the row cap with a 413 rather than scanning the whole trail', async () => {
+    const many = Array.from({ length: EXPORT_MAX_ROWS + 1 }, (_v, i) => row({ id: idAt(i + 1) }));
+    const service = serviceWith(many);
+
+    await service
+      .exportForViewer(context, principal('owner', { hasOrgWideScope: true }))
+      .then(() => expect.fail('expected a 413'))
+      .catch((error: unknown) => expect((error as ApiError).status).toBe(413));
+  });
+});
+
+describe('audit CSV serialization', () => {
+  it('neutralizes a formula-triggering cell so a summary can never become a spreadsheet formula', () => {
+    // Each spreadsheet trigger is prefixed with a single quote; a comma still forces quoting.
+    expect(escapeCsvCell('=SUM(A1)')).toBe("'=SUM(A1)");
+    expect(escapeCsvCell('@cmd,run')).toBe('"\'@cmd,run"');
+    expect(escapeCsvCell('project.created')).toBe('project.created');
+
+    const csv = auditEventsToCsv([
+      {
+        id: 'audit-1',
+        occurredAt: '2026-02-01T09:00:00.000Z',
+        actorId: null,
+        action: '=IMPORTXML(evil)',
+        entityType: 'project',
+        entityId: null,
+        summary: 'ok',
+      },
+    ]);
+    const cells = csv.split('\r\n')[1]!.split(',');
+    expect(cells[3]).toBe("'=IMPORTXML(evil)");
+    expect(csv.startsWith('id,occurredAt,actorId,action,entityType,entityId,summary')).toBe(true);
   });
 });

@@ -150,6 +150,20 @@ function toAdminAuditView(view: AuditEventView): AdminAuditEventView {
 const VIEWER_DEFAULT_PAGE_SIZE = 20;
 const VIEWER_MAX_PAGE_SIZE = 50;
 
+/**
+ * The export's bounds — ADM-09 (x118). An export is a bulk egress, not a page, so it has a
+ * different ceiling from the viewer and a hard stop rather than a cursor by default.
+ *
+ * - **`EXPORT_MAX_ROWS`** is the most rows one export may carry. Past it the request is refused
+ *   with 413 rather than served: an unbounded audit trail must never become an unbounded table
+ *   scan streamed to a client, and a caller who genuinely wants more narrows by filter or time.
+ * - **`EXPORT_PAGE_SIZE`** is how the export reads — the repository's own ceiling — so the whole
+ *   read is composed of the DB-proven {@link AuditEventsRepository.list}, keyset-paginated, and
+ *   no new, separately-unproven query is introduced to reach the larger total.
+ */
+export const EXPORT_MAX_ROWS = 10_000;
+const EXPORT_PAGE_SIZE = 200;
+
 /** What the exception filter knows about a refusal. Not a domain event; a security one. */
 export interface DenialRecord {
   /** The capability the route declared, when it declared one. */
@@ -287,6 +301,80 @@ export class AuditService {
 
     const rows = await this.view(context, principal, listOptions);
     return rows.map(toAdminAuditView);
+  }
+
+  /**
+   * The Administration audit export — ADM-09 (x118). The bulk-egress half of the audit surface,
+   * and deliberately behind a **distinct, stronger** capability than the viewer.
+   *
+   * `audit.export` is not `audit.read`. Paging the trail interactively and exporting the whole of
+   * it are different grants: the second is the one a departing admin would use to walk out with
+   * the security log, so it is held by fewer roles (owner/admin) and gated separately. A caller
+   * with `audit.read` but not `audit.export` gets **403**, which is the security point of this
+   * slice — an empty export would falsely say "there is nothing to export".
+   *
+   * Everything else mirrors {@link listForViewer}, and for the same reasons:
+   *
+   *   - **Tenant scope and own-activity narrowing** are applied exactly as {@link view} applies
+   *     them — org-wide for an org-wide principal, own-activity for everyone else — with the
+   *     `actorUserId` overwrite last so a caller cannot widen past their own activity by naming
+   *     another actor.
+   *   - **`actorId`/`entityId` are filters, not lookups** (FAST-PROTOCOL Known trap): each becomes
+   *     an equality predicate `AND`ed onto the non-optional tenant predicate, so an unknown or
+   *     cross-tenant filter id yields an empty export — never a cross-tenant row, never a 500.
+   *   - **The read is bounded.** It pages the DB-proven {@link AuditEventsRepository.list} by its
+   *     keyset until the trail is exhausted or {@link EXPORT_MAX_ROWS} is exceeded; past the cap it
+   *     refuses with 413 rather than scanning the whole table into one response.
+   */
+  async exportForViewer(
+    context: TenantContext,
+    principal: Principal,
+    options: AuditViewerListOptions = {},
+  ): Promise<readonly AdminAuditEventView[]> {
+    if (!hasCapability(principal.role, 'audit.export')) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'audit_export_denied');
+    }
+
+    // The same composition as `listForViewer` → `view`: the caller's filters first, then the
+    // tenant narrowing overwriting `actorUserId` last for a non-org-wide caller.
+    const filtered: ListAuditEventsOptions = {
+      ...(options.actorId ? { actorUserId: options.actorId } : {}),
+      ...(options.entityId ? { objectId: options.entityId } : {}),
+    };
+    const scoped: ListAuditEventsOptions = principal.hasOrgWideScope
+      ? filtered
+      : { ...filtered, actorUserId: principal.userId };
+
+    const rows = await this.database.read(context, async (runner) => {
+      const collected: AuditEventRow[] = [];
+      let cursor = options.before;
+      for (;;) {
+        const page = await this.events.list(runner, context, {
+          ...scoped,
+          ...(cursor ? { before: cursor } : {}),
+          limit: EXPORT_PAGE_SIZE,
+        });
+        collected.push(...page);
+        // One row past the cap is enough to know the export is too large; stop reading.
+        if (collected.length > EXPORT_MAX_ROWS) break;
+        // A short page is the end of the trail.
+        if (page.length < EXPORT_PAGE_SIZE) break;
+        cursor = page[page.length - 1]!.id;
+      }
+      return collected;
+    });
+
+    if (rows.length > EXPORT_MAX_ROWS) {
+      throw new ApiError(
+        413,
+        'validation_failed',
+        'The audit export is too large. Narrow it by actor, entity or time window and try again',
+        [{ field: 'export', message: `exceeds the ${EXPORT_MAX_ROWS}-row export limit` }],
+        'audit_export_too_large',
+      );
+    }
+
+    return rows.map(toView).map(toAdminAuditView);
   }
 
   /** Everything recorded about one object, subject to the same narrowing as {@link view}. */

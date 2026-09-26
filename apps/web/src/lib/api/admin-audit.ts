@@ -64,3 +64,27 @@ export async function listAuditEvents(
   });
   return data.events;
 }
+
+/**
+ * The absolute URL of the CSV export — ADM-09 (x118), behind `audit.export`.
+ *
+ * The export is a **browser download**, not a JSON read: the screen renders it as a plain
+ * download link whose `href` is this URL, so the browser fetches the CSV with the session cookie
+ * (a `GET`, so no CSRF token is needed) and the API's `Content-Disposition: attachment` saves it.
+ * No bytes are proxied through the SPA or any new storage. The filter arguments mirror the
+ * viewer's applied filters so an export matches what the operator is looking at; there is no
+ * `limit`, because the export is bounded by the API's row cap (413 past it), not a page size.
+ */
+export function auditExportUrl(
+  baseUrl: string,
+  organizationSlug: string,
+  options: Pick<ListAuditEventsOptions, 'actorId' | 'entityId' | 'before'> = {},
+): string {
+  const parameters = new URLSearchParams();
+  if (options.actorId) parameters.set('actorId', options.actorId);
+  if (options.entityId) parameters.set('entityId', options.entityId);
+  if (options.before) parameters.set('before', options.before);
+
+  const suffix = parameters.size === 0 ? '' : `?${parameters.toString()}`;
+  return `${baseUrl}/v1/organizations/${encodeURIComponent(organizationSlug)}/audit/events/export${suffix}`;
+}

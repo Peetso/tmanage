@@ -75,6 +75,20 @@ several were in fact already resolved in later dated sections of this file (note
   (default 20 / max 50), narrow `AdminAuditEventView` (no metadata/correlationId) + `AdminAuditScreen`.
   No migration, no DB change (`audit_events` already registered; `tmanage_app` already holds
   database-wide `SELECT`). Cross-tenant exclusion unit-proven; contract paired Exact.
+- **x118** (branch `x118-audit-export`, off `master` `10aab0c` after x115, PENDING — not merged):
+  ADM-09 audit-log **CSV export** — `GET .../audit/events/export` behind the distinct, stronger
+  `audit.export` (owner/admin only; a caller with only `audit.read` gets 403). Tenant-scoped and
+  own-activity-narrowed exactly as the viewer, same seven-field projection serialized to CSV, filter
+  surface `before?`/`actorId?`/`entityId?`. Bounded read: pages the DB-proven `list` by keyset to a
+  10 000-row cap, 413 past it (never an unbounded scan). CSV cells are injection-guarded (a leading
+  `=`/`+`/`-`/`@`/tab/CR is prefixed with `'`) so an `action`/`summary` can never become a
+  spreadsheet formula. `AdminAuditScreen` gains a download-link export control (no bytes proxied
+  through the app). No migration, no DB change. Cross-tenant exclusion, cap-vs-`audit.read`
+  distinction and the injection guard are unit-proven; e2e journey `audit-journeys.spec.ts` written
+  (chain 18 runs it). Export body is bytes → no new `View` shape, contracts unchanged. The
+  role-operation-grid `audit.export` note ("declared but unwired") is now stale — it is wired at the
+  route and enforced in the service, matching how `audit.read` is treated (kept off the DB route
+  sweep); the note was left for a follow-up to avoid a package-wide rebuild in this slice.
 
 Earlier:
 

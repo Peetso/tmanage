@@ -1,10 +1,16 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { AUDIT_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { AdminAuditEventView, AuditService } from './audit.service.js';
+import { auditEventsToCsv } from './audit-export-csv.js';
+
+/** The one method the export needs of the framework reply: set a header before the first byte. */
+interface HeaderWriter {
+  header(name: string, value: string): unknown;
+}
 
 /**
  * ADM audit viewer (x115). The audit module's first HTTP surface: a read of the trail behind
@@ -60,5 +66,45 @@ export class AuditController {
         ...(entityId ? { entityId } : {}),
       }),
     };
+  }
+
+  /**
+   * ADM-09 export (x118) — the bulk-egress half, behind `audit.export`.
+   *
+   * A distinct capability from the viewer's `audit.read`: exporting the whole trail is a stronger
+   * grant than paging it, so `CapabilityGuard` refuses a caller without `audit.export` with the
+   * ordinary 403 before the handler runs, and {@link AuditService.exportForViewer} checks again.
+   * The filter surface is the viewer's (`before?`, `actorId?`, `entityId?`); there is no `limit`,
+   * because an export is bounded by the service's row cap rather than a page size, and past that
+   * cap the service answers 413.
+   *
+   * The body is a `StreamableFile` of the CSV, which keeps Nest in its own response mode — the
+   * interceptors and the exception filter still shape everything that is not the bytes — and the
+   * headers force a safe download: `attachment` so a browser saves rather than renders it,
+   * `nosniff` so it is not re-typed, `private, no-store` so no shared cache keeps a copy of the
+   * trail.
+   */
+  @Get('events/export')
+  @RequireCapability('audit.export')
+  async export(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Res({ passthrough: true }) reply: HeaderWriter,
+    @Query('before') before?: string,
+    @Query('actorId') actorId?: string,
+    @Query('entityId') entityId?: string,
+  ): Promise<StreamableFile> {
+    const events = await this.audit.exportForViewer(context, principal, {
+      ...(before ? { before } : {}),
+      ...(actorId ? { actorId } : {}),
+      ...(entityId ? { entityId } : {}),
+    });
+
+    const csv = auditEventsToCsv(events);
+    reply.header('content-type', 'text/csv; charset=utf-8');
+    reply.header('content-disposition', 'attachment; filename="audit-events.csv"');
+    reply.header('x-content-type-options', 'nosniff');
+    reply.header('cache-control', 'private, no-store');
+    return new StreamableFile(Buffer.from(csv, 'utf-8'), { type: 'text/csv; charset=utf-8' });
   }
 }

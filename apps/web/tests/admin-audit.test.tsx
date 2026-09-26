@@ -73,6 +73,17 @@ describe('AdminAuditScreen', () => {
     await expectNoAxeViolations(container);
   });
 
+  it('renders the CSV export control as a download link to the export route (ADM-09)', async () => {
+    mount(EVENTS);
+
+    const exportLink = await screen.findByRole('link', { name: 'Export CSV' });
+    // A download link, not a button: the browser fetches the CSV and the API forces the save.
+    expect(exportLink.getAttribute('download')).toBe('audit-events.csv');
+    expect(exportLink.getAttribute('href')).toContain(
+      '/v1/organizations/northstar/audit/events/export',
+    );
+  });
+
   it('shows the empty state when the trail has no matching events', async () => {
     mount({ events: [] });
     expect(await screen.findByText('No audit events match this view.')).toBeTruthy();
