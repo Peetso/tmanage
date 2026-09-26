@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MeetingAgendaScreen } from '../src/components/screens/MeetingAgendaScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
@@ -89,6 +89,18 @@ const AGENDA = {
 };
 
 describe('MeetingAgendaScreen', () => {
+  // The screen's default window is the current UTC calendar month; pin the clock (Date only, so
+  // async waits keep real timers) so that default is deterministic and the URL assertion below is
+  // exact rather than date-fragile.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders the agenda grouped by day and links each meeting to its detail page', async () => {
     const { client, calls } = clientOver((call) => {
       if (call.url.includes('/meetings/agenda?')) return json(AGENDA);
@@ -111,9 +123,9 @@ describe('MeetingAgendaScreen', () => {
     );
 
     // The read carried the window to the API — the grouping is the server's.
-    expect(calls.some((c) => c.url.includes('/meetings/agenda?from=2026-10-01&to=2026-10-31'))).toBe(
-      true,
-    );
+    expect(
+      calls.some((c) => c.url.includes('/meetings/agenda?from=2026-10-01&to=2026-10-31')),
+    ).toBe(true);
 
     await expectNoAxeViolations(container);
   });

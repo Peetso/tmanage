@@ -49,7 +49,8 @@ export function MeetingAgendaScreen({
   const [from, setFrom] = useState<string>(defaults.from);
   const [to, setTo] = useState<string>(defaults.to);
 
-  const rangeValid = from !== '' && to !== '' && from <= to && windowDays(from, to) <= MAX_WINDOW_DAYS;
+  const rangeValid =
+    from !== '' && to !== '' && from <= to && windowDays(from, to) <= MAX_WINDOW_DAYS;
 
   const agenda = useQuery({
     queryKey: ['meeting-agenda', organizationSlug, from, to],

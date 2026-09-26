@@ -12994,7 +12994,7 @@ carried by the integration chain.
 
 ## CAL agenda / day view (x127)
 
-The audit carried Calendar as *Partial*: x122 shipped a project's meetings list, but no
+The audit carried Calendar as _Partial_: x122 shipped a project's meetings list, but no
 date-bucketed agenda — the cross-project "what is coming up" view was deferred. This slice adds it,
 read-only, over the same `meetings` table (0029). **No migration, no new table, no new capability.**
 
@@ -13004,8 +13004,7 @@ inclusive, at most 31 days — an over-wide window is a 400), grouped by the day
 days ascending and each day's meetings in start order. The read lives in a new
 `meeting-agenda.controller.ts` over a windowed tenant read (`meeting-agenda.repository.ts`) plus the
 same relation filter `MeetingsService.list` applies (`authorize('work.read')`, the ceiling-mirror of
-`meeting.read`), so a member sees only their projects' meetings and a dropped row is absent, never a
-403. There is no service and no transaction — the read composes directly, and the controller test
+`meeting.read`), so a member sees only their projects' meetings and a dropped row is absent, never a 403. There is no service and no transaction — the read composes directly, and the controller test
 exercises the grouping, the clamp and the relation filter with the real `authorize()`. It is wired
 as its own `MeetingAgendaModule` beside `CalendarModule` (registered in `app.module.ts`) so the
 sibling calendar slices stay file-disjoint.

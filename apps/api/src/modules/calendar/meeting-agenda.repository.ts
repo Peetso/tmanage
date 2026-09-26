@@ -19,6 +19,15 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * a DTO, and the `organization_id` predicate is on the statement.
  */
 
+/**
+ * Injection token for {@link MeetingAgendaRepository}. Following the same convention as the other
+ * tenant controllers (e.g. `MEMBERSHIPS_REPOSITORY`), the controller injects the repository through
+ * a token and holds it only as a type, so its import is a pure `import type`. The token is
+ * slice-local (declared beside the class it provides) to keep this slice file-disjoint from the
+ * shared `common/http/tokens.ts` append point.
+ */
+export const MEETING_AGENDA_REPOSITORY = Symbol('MEETING_AGENDA_REPOSITORY');
+
 export interface MeetingAgendaWindow {
   /** Inclusive lower bound on `starts_at` — the start of the first requested day, in UTC. */
   readonly fromInclusive: Date;

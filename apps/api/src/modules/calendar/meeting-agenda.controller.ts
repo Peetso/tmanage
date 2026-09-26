@@ -6,7 +6,8 @@ import { ApiError } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MeetingRow } from '../../common/database/schema.js';
-import { MeetingAgendaRepository } from './meeting-agenda.repository.js';
+import { MEETING_AGENDA_REPOSITORY } from './meeting-agenda.repository.js';
+import type { MeetingAgendaRepository } from './meeting-agenda.repository.js';
 
 /**
  * CAL agenda / day view (x127) — the read-only agenda over `meetings` (0029), behind
@@ -84,7 +85,7 @@ export interface MeetingAgendaView {
 export class MeetingAgendaController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly agenda: MeetingAgendaRepository,
+    @Inject(MEETING_AGENDA_REPOSITORY) private readonly agenda: MeetingAgendaRepository,
   ) {}
 
   /**
@@ -109,8 +110,16 @@ export class MeetingAgendaController {
     if (parsedFrom && parsedTo && parsedFrom > parsedTo) {
       details.push({ field: 'to', message: 'must be on or after from' });
     }
-    if (parsedFrom && parsedTo && parsedFrom <= parsedTo && windowDays(parsedFrom, parsedTo) > MAX_WINDOW_DAYS) {
-      details.push({ field: 'to', message: `the window must span ${MAX_WINDOW_DAYS} days or fewer` });
+    if (
+      parsedFrom &&
+      parsedTo &&
+      parsedFrom <= parsedTo &&
+      windowDays(parsedFrom, parsedTo) > MAX_WINDOW_DAYS
+    ) {
+      details.push({
+        field: 'to',
+        message: `the window must span ${MAX_WINDOW_DAYS} days or fewer`,
+      });
     }
     if (details.length > 0 || !parsedFrom || !parsedTo) {
       throw new ApiError(400, 'validation_failed', 'The date range is invalid', details);

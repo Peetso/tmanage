@@ -84,7 +84,12 @@ describe('MeetingAgendaController', () => {
       meeting('meeting-0000-0000-0000-000000000003', '2026-10-03T10:00:00.000Z'),
     ]);
 
-    const view = await controller.agendaView(context, member([PROJECT]), '2026-10-01', '2026-10-31');
+    const view = await controller.agendaView(
+      context,
+      member([PROJECT]),
+      '2026-10-01',
+      '2026-10-31',
+    );
 
     expect(view.range).toEqual({ from: '2026-10-01', to: '2026-10-31' });
     expect(view.days.map((day) => day.date)).toEqual(['2026-10-01', '2026-10-03']);
@@ -116,7 +121,12 @@ describe('MeetingAgendaController', () => {
     );
     expect(asNonMember.days).toEqual([]);
 
-    const asOwner = await controller.agendaView(context, member([], true), '2026-10-01', '2026-10-31');
+    const asOwner = await controller.agendaView(
+      context,
+      member([], true),
+      '2026-10-01',
+      '2026-10-31',
+    );
     expect(asOwner.days.flatMap((day) => day.meetings.map((m) => m.id))).toEqual([
       'meeting-0000-0000-0000-000000000010',
     ]);

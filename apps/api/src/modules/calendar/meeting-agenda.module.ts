@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { MeetingAgendaRepository } from './meeting-agenda.repository.js';
+import { MEETING_AGENDA_REPOSITORY, MeetingAgendaRepository } from './meeting-agenda.repository.js';
 import { MeetingAgendaController } from './meeting-agenda.controller.js';
 
 /**
@@ -17,7 +17,7 @@ export class MeetingAgendaModule {
   static register(): DynamicModule {
     return {
       module: MeetingAgendaModule,
-      providers: [MeetingAgendaRepository],
+      providers: [{ provide: MEETING_AGENDA_REPOSITORY, useClass: MeetingAgendaRepository }],
       controllers: [MeetingAgendaController],
     };
   }
