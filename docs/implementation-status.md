@@ -13925,3 +13925,29 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## WORK item comments / activity (x147, module 7)
+
+**What landed.** The work-item detail screen named an "activity / discussion" section that was not
+built. This slice adds an append-only `work_item_comments` table (migration `0053`; tenant- and
+parent-scoped, the composite FK `(organization_id, work_item_id) → work_items (organization_id, id)`)
+and two endpoints under `/v1/organizations/:orgSlug/work-items/:workItemId/comments`: `POST` to add a
+comment (`work.update`) and `GET` to list them created-at ascending and bounded (`work.read`). A
+comment is authored by the acting membership, internal-only, and distinct from the channel-scoped
+conversation `messages`. Edit, delete, mentions and reactions are deferred to NS-13. Capabilities are
+reused (`work.read`/`work.update`); no `capabilities.ts` edit.
+
+**Known-trap order.** The parent `workItemId` is resolved tenant-scoped _before_ `authorize` or any
+write, so an unknown or cross-tenant id is a 404 with no comment written. A caller who may read the
+item but not update it gets a 403 on add; an unrelated caller gets a 404 on both routes. The new
+table is registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`,
+`users.sql` grant (INSERT only; append-only, with a `BEFORE UPDATE` trigger as defence in depth), and
+the on-disk migration `0053` the readdir migrator applies.
+
+**Surfaces.** `WorkCommentView` (`work-comments.service.ts`) is a live `Exact` pair with the web's
+`WorkComment` (`apps/web/src/lib/api/work-items.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`WorkCommentsPanel` (`apps/web/src/components/screens/WorkCommentsPanel.tsx`) mounts additively on the
+work-item detail screen, disjoint from the x145 checklist panel: it lists the activity and adds a
+comment. Proved database-free with the real `authorize` (`work-comments.controller.test.ts`):
+add→list oldest-first for a related member, a cross-tenant/absent parent is a 404 with no write, an
+unrelated member's list is a 404, and an add on an item the caller can read but not update is a 403.

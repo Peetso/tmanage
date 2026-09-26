@@ -250,6 +250,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_blockers`          TO 'tmanage_a
 -- item *is*. DELETE is added with the code that writes it, per this file's rule that a grant names
 -- a statement that exists.
 GRANT INSERT, UPDATE         ON `tmanage`.`work_item_checklist_items` TO 'tmanage_app'@'%';
+-- x147 work item comments. **INSERT only** — a comment is an append-only record of what was said,
+-- when: this slice ships add/list, and neither edit nor delete. Reading is the database-wide
+-- SELECT above; the 0053 trigger refuses UPDATE for every credential besides, and no DELETE is
+-- granted. Edit/delete arrive with the code that writes them, per this file's rule that a grant
+-- names a statement that exists.
+GRANT INSERT                 ON `tmanage`.`work_item_comments`     TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

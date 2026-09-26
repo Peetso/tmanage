@@ -211,3 +211,43 @@ export async function updateChecklistItem(
   });
   return data;
 }
+
+// ── x147: work item comments / activity ──────────────────────────────────────
+
+/**
+ * One comment hanging off a work item — x147 (Work module 7). The API projection is
+ * `WorkCommentView`; this is its web mirror, paired `Exact` in `e2e/contracts`. Append-only:
+ * the client reads and adds, and there is no edit or delete.
+ */
+export interface WorkComment {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly authorMembershipId: string;
+  readonly body: string;
+  readonly createdAt: string;
+}
+
+export async function listWorkComments(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<readonly WorkComment[]> {
+  const { data } = await client.request<{ comments: readonly WorkComment[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/comments`,
+  });
+  return data.comments;
+}
+
+export async function addWorkComment(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: { readonly body: string },
+): Promise<WorkComment> {
+  const { data } = await client.request<WorkComment>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/comments`,
+    body: input,
+  });
+  return data;
+}
