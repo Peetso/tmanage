@@ -373,6 +373,13 @@ GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'
 -- adds UPDATE with the code that writes it. No DELETE. Submitting a form writes no work_forms row —
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- x179 (0076) invoices. **NO write grant at all**, and the absence is the mechanism. Invoice
+-- history is read-only for the runtime this slice: the list and the detail read are the only
+-- endpoints, and reading is the database-wide SELECT above. The rows are produced by the
+-- subscription lifecycle or the seed, not by a request under this credential, so INSERT/UPDATE/
+-- DELETE are withheld — there is no invoice mutation route to grant a statement for, per this
+-- file's rule that a grant names a statement that exists. A provider-driven billing run that writes
+-- invoices (Needs-Peter) adds the grant it needs with the code that writes it.
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

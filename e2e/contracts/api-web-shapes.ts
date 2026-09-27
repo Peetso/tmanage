@@ -45,6 +45,8 @@ import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/a
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
+import type { InvoiceView as ApiInvoiceView } from '../../apps/api/src/modules/billing/invoices.controller.js';
+import type { InvoiceDetailView as ApiInvoiceDetailView } from '../../apps/api/src/modules/billing/invoices.controller.js';
 import type { DocumentTemplateView as ApiDocumentTemplateView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentTemplateVariableView as ApiDocumentTemplateVariableView } from '../../apps/api/src/modules/docs/document-template-variables.controller.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
@@ -144,6 +146,8 @@ import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
+import type { InvoiceSummary as WebInvoiceSummary } from '../../apps/web/src/lib/api/invoices';
+import type { InvoiceDetail as WebInvoiceDetail } from '../../apps/web/src/lib/api/invoices';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
@@ -372,6 +376,16 @@ type _decision = Assert<Exact<ApiDecisionView, WebDecisionSummary>>;
  * render a decision's detail and lifecycle controls, so this is a real `Exact` pair.
  */
 type _decisionDetail = Assert<Exact<ApiDecisionDetailView, WebDecisionDetail>>;
+
+/**
+ * FEAT: Billing invoice history (x179). `InvoiceView` (`GET …/billing/invoices`, the list row) and
+ * `InvoiceDetailView` (`GET …/billing/invoices/:invoiceId`, the summary plus the bounded line-item
+ * breakdown). Paired with a live web consumer — `BillingInvoicesScreen` reads exactly these to render
+ * the history table and the detail drawer — so both are real `Exact` pairs. `amountCents` is integer
+ * cents on both sides; the `status` union (`paid | open | void`) is the same on both.
+ */
+type _invoice = Assert<Exact<ApiInvoiceView, WebInvoiceSummary>>;
+type _invoiceDetail = Assert<Exact<ApiInvoiceDetailView, WebInvoiceDetail>>;
 
 /**
  * DOC-04/ADM-06 (x119). `DocumentTemplateView` (`GET`/`POST …/documents/templates`) — one org-scoped

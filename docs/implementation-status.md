@@ -13925,3 +13925,30 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## x179 — Billing invoice history (Billing module 19)
+
+**What shipped.** The invoice-history read surface: `GET /v1/organizations/:orgSlug/billing/invoices`
+(tenant-scoped list, newest issued first, bounded page) and `GET …/billing/invoices/:invoiceId`
+(detail with a bounded line-item breakdown), both behind `org.manage` — the capability the sibling
+usage read reuses (DIVERGENCE AUTH-16; no `capabilities.ts` edit). Read-only: invoices are produced
+by the subscription lifecycle or the seed, so there is no mutation route and the runtime credential
+is granted no write on the table. Generating real invoices from a payment provider is Needs-Peter.
+
+**Known-trap order (detail).** `invoiceId` is resolved tenant-scoped _first_, so an unknown or
+cross-tenant id is a 404 before the capability check — a probe learns nothing about another tenant's
+invoices. Only then is `org.manage` authorized (403 for a member without it). Money is integer cents
+throughout (`amountCents`, `BIGINT UNSIGNED`), never a float.
+
+**Registration.** The new tenant table `invoices` is registered in all four places — `schema.ts`
+def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` (no write grant; read is the database-wide
+SELECT), and the on-disk migration `0076_invoices.sql` the readdir migrator applies.
+
+**Surfaces.** `InvoiceView` and `InvoiceDetailView` (`invoices.controller.ts`) are live `Exact` pairs
+with the web's `InvoiceSummary`/`InvoiceDetail` (`apps/web/src/lib/api/invoices.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `BillingInvoicesScreen`
+(`apps/web/src/components/screens/BillingInvoicesScreen.tsx`), routed at `/[orgSlug]/billing/invoices`,
+renders the history table and a detail drawer. Proved database-free with the real `authorize`
+(`invoices.controller.test.ts`): list newest-first with integer-cent amounts, detail by id with line
+items, a cross-tenant/unknown id is a 404 before any capability check, and a caller without
+`org.manage` is a 403.
