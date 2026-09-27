@@ -663,6 +663,13 @@ GRANT INSERT ON `tmanage`.`decision_locks` TO 'tmanage_app'@'%';
 -- name, description, target and authorship are immutable for the runtime credential specifically.
 -- **No DELETE**: an objective is the durable record of what the project set out to do.
 GRANT INSERT, UPDATE ON `tmanage`.`project_objectives` TO 'tmanage_app'@'%';
+-- `project_internal_risks` (PROJ / module 8, x209) gets INSERT and UPDATE. A risk is logged (INSERT),
+-- read (the database-wide SELECT, line 60), and worked through its lifecycle (UPDATE): its title,
+-- likelihood, impact, mitigation and status are editable. UPDATE cannot touch the identity columns —
+-- the 0088 trigger (`trg_project_internal_risks_pin_identity`) refuses `id`, `organization_id`,
+-- `project_id`, `created_by` and `created_at` at the engine, so a risk cannot be re-pointed at another
+-- project or tenant by the runtime credential. **No DELETE**: the register is the durable record.
+GRANT INSERT, UPDATE ON `tmanage`.`project_internal_risks` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes

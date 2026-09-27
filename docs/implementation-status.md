@@ -13887,6 +13887,40 @@ open-work count, objective tallies, status, and last activity — counts, not a 
 `ProjectOverviewScreen`. `ProjectPortfolioView` is a live `Exact` pair with the web
 `ProjectPortfolioSummary` (CONTRACT-001). Screen + axe proven in `project-portfolio.test.tsx`.
 
+## PROJ / module 8 — internal risk register (x209)
+
+The audit recorded portal client risks (x140, pass 20) but no **internal** project-level risk
+register — a formal likelihood×impact matrix a studio keeps for itself. x209 adds one.
+
+**Naming (integration note).** The brief reserved the table name `project_risks` and the route
+`…/projects/:id/risks`, but both were already taken by x140 (migration 0049, clients module — the
+client-facing risk with `severity` + `client_summary` + `published`). To avoid the hard collision this
+slice uses a distinct table `project_internal_risks` (migration **0088**) and route
+`…/projects/:id/risk-register`. The two are different things: x140 publishes a single client-safe risk
+to a portal; x209 is an internal-only register on a likelihood×impact matrix. This register is never
+projected to a client — no `client_summary`/`published`, and the portal service does not read it.
+
+Migration **0088** creates `project_internal_risks`: tenant-scoped and project-owned like
+`project_objectives` (0040), with `id`, `organization_id`, `project_id`, `title`, `likelihood`,
+`impact`, `mitigation`, `status`, `created_by`, `created_at`. The composite foreign key binds
+`(organization_id, project_id)` to `projects`. A `BEFORE UPDATE` trigger pins the identity columns
+(id/org/project/created_by/created_at) so a risk cannot be re-pointed at another project or tenant;
+its substance is editable. `severity` is **not** a column — it is computed from `likelihood` × `impact`
+in the service (`computeSeverity`), so the matrix is the single source of truth. Registered in the four
+places (schema def + `TABLES` + Row type; `tenant-guard` `TENANT_TABLES`; `users.sql` INSERT/UPDATE
+grant; migration file).
+
+**API.** `POST`/`GET …/projects/:id/risk-register` and `PATCH …/risk-register/:riskId`.
+`ProjectRiskRegisterService` resolves the project (create/list) or the risk (patch) tenant-scoped
+before the relation gate and the write (Known-trap: unknown/cross-tenant ⇒ 404, never a foreign-key
+500). Writes require `project.manage`, the list `work.read`. An unknown likelihood/impact enum is a 400. Unit-proven with real `authorize()` over fakes in `risk-register.controller.test.ts` (log → list
+→ update; the severity matrix; unknown enum ⇒ 400; cross-tenant ⇒ 404; relation gate; ceilings).
+
+**Web.** `ProjectRiskRegisterScreen` on `…/projects/:id/risk-register`: log a risk (title, likelihood,
+impact, mitigation), a severity-band tally, and a table with each risk's computed severity and a
+status control. `ProjectInternalRiskView` is a live `Exact` pair with the web
+`ProjectInternalRiskSummary` (CONTRACT-001).
+
 ## PROJ / module 8 — objective→work-item linkage (x138)
 
 Module 8 was **Partial** for linkage: x124 gave a project its objectives and work items already

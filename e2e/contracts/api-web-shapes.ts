@@ -120,6 +120,7 @@ import type {
   PublicResourceView as ApiPublicResourceView,
 } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
+import type { ProjectInternalRiskView as ApiProjectInternalRiskView } from '../../apps/api/src/modules/projects/risk-register.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
 import type { ProjectHealthView as ApiProjectHealthView } from '../../apps/api/src/modules/projects/health.service.js';
@@ -237,6 +238,7 @@ import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
+import type { ProjectInternalRiskSummary as WebProjectInternalRiskSummary } from '../../apps/web/src/lib/api/project-risk-register';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
 import type { AutomationScheduleSummary as WebAutomationScheduleSummary } from '../../apps/web/src/lib/api/automation-schedules';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
@@ -469,6 +471,18 @@ type _clientRequestClient = Assert<Exact<ApiClientRequestClientView, WebClientRe
  * a real `Exact` pair. The `status` union (`open | met | missed`) is the same on both sides.
  */
 type _projectObjective = Assert<Exact<ApiProjectObjectiveView, WebProjectObjectiveSummary>>;
+
+/**
+ * PROJ / module 8 (x209). `ProjectInternalRiskView` (`GET`/`POST …/projects/:id/risk-register` and the
+ * `PATCH …/risk-register/:riskId` response) — a project's internal risk on a likelihood×impact matrix,
+ * with a computed `severity`, a `mitigation` plan and a lifecycle `status`. Paired with a live web
+ * consumer: `ProjectRiskRegisterScreen` reads exactly this response, so this is a real `Exact` pair.
+ * Distinct from the client-facing `ProjectRiskView` (x140): this register is internal-only, never
+ * projected to a client.
+ */
+type _projectInternalRisk = Assert<
+  Exact<ApiProjectInternalRiskView, WebProjectInternalRiskSummary>
+>;
 
 /**
  * PROJ / module 8 (x136). `OrgObjectiveView` (`GET`/`POST …/organizations/:orgSlug/objectives` and the

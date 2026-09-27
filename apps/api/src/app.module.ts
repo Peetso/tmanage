@@ -38,6 +38,7 @@ import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
 import { PeopleModule } from './modules/people/people.module.js';
+import { ProjectRiskRegisterModule } from './modules/projects/risk-register.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ProjectHealthModule } from './modules/projects/health.module.js';
@@ -75,7 +76,6 @@ import { MaintenanceModule } from './modules/platform/maintenance.controller.js'
 import { FaqContentModule } from './modules/public-site/faq.module.js';
 import { PeopleSkillsModule } from './modules/people/people-skills.module.js';
 import { SkillSearchModule } from './modules/people/skill-search.module.js';
-import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
@@ -283,6 +283,14 @@ export class AppModule {
         // allocation names a project (and a membership) in its path/body, and the composite foreign
         // keys mean a caller who names one that is not theirs gets a 404 rather than a foreign-key 500.
         PeopleModule.register(),
+        // PROJ / module 8 (x209). A project's internal risk register (log/list/update) — a formal
+        // likelihood×impact matrix with a computed severity and a mitigation plan. After
+        // `ProjectsModule` for the same reason as the objectives register: a risk names a project in
+        // its path, and the composite foreign key means a caller who names one that is not theirs gets
+        // a 404 rather than a foreign-key 500. Internal-only and distinct from x140's portal risks:
+        // a different path (`…/projects/:id/risk-register`) and a different table
+        // (`project_internal_risks`); never projected to a client.
+        ProjectRiskRegisterModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.
@@ -408,15 +416,12 @@ export class AppModule {
         // reused `work.read`; it constructs its own repository handle. A distinct literal path from
         // x172's `…/people/:membershipId/skills`, so no route collision. Position by subject.
         SkillSearchModule.register(),
-        // Billing / module 19 (x177). The organization's subscription (view / request a plan change),
-        // behind `org.manage` — the same owners-only population the storage/usage read sits behind. A
-        // module of its own, depending only on the tenant database; it records a plan-change intent
-        // (`pending_change`) and executes no charge (real payment is Needs-Peter).
-        BillingModule.register(),
-        // Billing / module 19 (x180). The org-scoped billing profile (read/update the billing
-        // contact, tax id and address) behind `org.manage`. Depends only on the tenant database, so
-        // its position here is by subject; it stores non-secret metadata only — no payment
-        // instruments, which are the provider's.
+        // Billing / module 19 (x177/x180/x198). The organization's subscription (view / request a plan
+        // change) and plan-change preview, plus the org-scoped billing profile (read/update the billing
+        // contact, tax id and address) — all behind `org.manage`, the same owners-only population the
+        // storage/usage read sits behind. One module depending only on the tenant database; it records a
+        // plan-change intent (`pending_change`) and stores non-secret metadata only — no charge and no
+        // payment instruments (real payment is Needs-Peter; instruments are the provider's).
         BillingModule.register(),
         // Billing / module 19 (x199). The org's nominated billing/notification contacts (add/list/
         // remove) behind `org.manage`. File-disjoint from the billing profile; depends only on the
