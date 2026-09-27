@@ -14702,6 +14702,7 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+
 ## x187 — Public & trust site (module 1): resources/guides index + article
 
 **Audit gap.** The public site had a marketing home, pricing, trust, status, changelog and contact,
@@ -14730,6 +14731,7 @@ routed `/resources/[slug]`) are tenant-free public screens (skip link, one `<mai
 (`resources.controller.test.ts`): the index is stable and body-less, a known slug returns its body,
 and an unknown or traversal-shaped slug is a 404 — all with no session and no capability;
 `marketing-resources.test.tsx` proves both screens render and are axe-clean plus the not-found path.
+
 ## 2026-09-27 — x188 · Public legal pages (terms + privacy), module 1
 
 **FEAT (public, no cap, no tenant, no table).** `38-MODULE-MAP` §Public & trust site listed
@@ -14752,6 +14754,7 @@ date to an anonymous, capability-less caller; a second call is identical; `home`
 long-form sections with its own landmarks (skip link, one `<main>`, one `<h1>`, labelled `<nav>`);
 proved axe-clean in `apps/web/tests/legal.test.tsx`. Deferred: no new table (static content, registry
 N/A).
+
 ## Automations & integrations — workflow template editor (x189, module 17)
 
 The lifecycle step x162 left open: a template could be defined and listed but never edited. This slice
@@ -14782,6 +14785,7 @@ edit persists without echoing the tenant id, an unknown id and a cross-tenant id
 write, a role without `org.manage` is a 403 on an existing template, an off-list trigger is a 400 with
 no write, and an empty edit is a 400. **Deferred:** archive/unpublish — `workflow_templates` has no
 archive column and this is a no-migration slice, so an archive control needs a later migration slice.
+
 ## Automations & integrations — workflow conditions / branching (x190, module 17)
 
 **What shipped.** A per-step **condition** model for workflow templates. x162 defined a template and
@@ -14815,6 +14819,7 @@ returned without the tenant id, an off-list op is a 400 with no write, a cross-t
 404 with no write, a role without `org.manage` (org_admin) is a 403, and the evaluator decides
 true/false across the operators against a sample event. Deferred to later slices: a condition editor /
 removal path (UPDATE/DELETE grants), and wiring the evaluator into the x163 run path.
+
 ## PEOPLE allocations — assign a member a share of a project (x171, module 14)
 
 **What landed.** The People module advertised a capacity/allocation view but had no table to hold
@@ -14905,6 +14910,7 @@ bands) and a focusable scroll region (WCAG 2.2 2.1.1). Proved database-free with
 (`capacity-heatmap.controller.test.ts`): the utilisation fold and over-allocation flag are correct for
 a seeded member set, a member with allocations but no capacity reads null utilisation, an out-of-range
 `weeks` or malformed `from` is a 400, only the acting tenant's rows are folded, and a client read is a 403. Deferred: a Monday-snapped default window on the server and a per-project drill-down.
+
 ## People member skills — add / list / remove a member's skills (x172, module 14)
 
 **What landed.** The People module had a member directory and a profile but no record of what a
@@ -14960,6 +14966,7 @@ with the real `authorize` (`skill-search.controller.test.ts`): a search returns 
 grouped per member, a minimum level narrows, a blank query returns empty with no read, the member page
 is capped, a bad level/limit is a 400, and a suspended membership is a 403 with no read. The
 tenant-scoped join round-trip is the chain's DB suite, not this slice.
+
 ## Custom roles (Administration module 18, x173)
 
 **Status.** Built. Administration was Partial (audit rank #9 — roles/policies absent); this adds custom
@@ -15016,6 +15023,7 @@ offers an edit form and a clone form. Proved database-free with the real `author
 caller cannot exercise is a 403 (on both edit and clone), an off-allowlist string is a 400, an unknown or
 cross-tenant id is a 404 before authorize, a name collision is a 409, and both routes sit behind
 `org.manage`. Deferred: role deletion and assigning a custom role to a membership.
+
 ## SEC / Organization access policies — module 18 Administration (x174, 2026-09-27)
 
 **What shipped.** The Administration access-policy surface the audit named absent (rank #9, Admin
