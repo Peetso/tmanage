@@ -365,6 +365,14 @@ GRANT INSERT                 ON `tmanage`.`automation_schedules` TO 'tmanage_app
 -- it, per this file's rule that a grant names a statement that exists (the same treatment
 -- `meetings` and `documents` have above).
 GRANT INSERT                 ON `tmanage`.`project_updates`  TO 'tmanage_app'@'%';
+-- SEC / Portal update comments (x203, 0084). A comment is posted (INSERT) and read (the
+-- database-wide SELECT above); every row is internal-authored and there is no edit/unpublish or
+-- client-reply endpoint this slice, so **no UPDATE and no DELETE** — least privilege, and the 0084
+-- trigger makes the row append-only for every credential besides. When an edit/delete or the
+-- client-reply lifecycle lands (Needs-Peter, a client-write cap), the privilege is added with the
+-- code that writes it, per this file's rule that a grant names a statement that exists (the same
+-- treatment `project_updates`, `work_item_comments` and `meetings` have above).
+GRANT INSERT                 ON `tmanage`.`project_update_comments` TO 'tmanage_app'@'%';
 -- DOC-04 (x130) document template variables. **INSERT and DELETE** — a variable is added (INSERT)
 -- and removed (DELETE), read (the database-wide SELECT), and **never edited**: this slice ships no
 -- editor, so no UPDATE, and the 0044 trigger pins organization_id/template_id immutable for every

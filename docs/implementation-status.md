@@ -280,6 +280,38 @@ name-and-role projection.
   name+role only, no member outside the named project, cross-tenant `projectId` → 404, out-of-scope
   read → 404. Per pass-20 rules: no DB test / no new e2e (the chain owns both).
 
+## 2026-09-27 — Portal update comment thread (slice x203)
+
+Module 13 (Client portal) — the _comment_ half `0041_project_updates.sql` named and deferred. An
+internal member posts a comment on a published update; the client reading that update's timeline is
+shown it. A client **reply** needs a client-write capability the matrix does not grant (Needs-Peter),
+so this slice is internal-post → client-read only.
+
+- **Routes.** Internal `POST`/`GET
+v1/organizations/:orgSlug/projects/:projectId/updates/:updateId/comments`
+  (`@RequireCapability('project.manage')`); client `GET
+…/portal/projects/:projectId/updates/:updateId/comments`
+  (`@RequireCapability('client_projection.read')`). One `UpdateCommentsService`
+  (`update-comments.service.ts` + `.controller.ts`, file-disjoint from x125/x139).
+- **The Known trap.** The update is resolved tenant-scoped and required to belong to the named
+  project **before** authorize or write — a cross-tenant/other-project `updateId` is **404** with no
+  write. Then `project.manage` (404, not 403, for an unmanageable project). The client read requires
+  the update be in a project the client may read (`authorize()` rules 7–10) **and** `published`; an
+  unpublished update's comments are invisible. `ClientUpdateCommentView` drops `createdByUserId`
+  (`12-PERMISSION-MATRIX` §4 excludes staff).
+- **New table `project_update_comments` (0084)**, registered in all four places: `schema.ts`
+  def+`TABLES`+`ProjectUpdateCommentRow`, `tenant-guard.ts` `TENANT_TABLES` (`organization_id`),
+  `scripts/db/users.sql` (`GRANT INSERT` only — append-only, 0084 trigger blanket-refuses UPDATE),
+  and the auto-discovered migration file. No `capabilities.ts` edit.
+- **Web.** `UpdateCommentsPanel.tsx` (distinct file from x125) with `listProjectUpdateComments` /
+  `postProjectUpdateComment` / `listPortalUpdateComments` and shapes `UpdateComment` /
+  `ClientUpdateComment` in `lib/api/portal.ts`. `UpdateCommentView`↔`UpdateComment` and
+  `ClientUpdateCommentView`↔`ClientUpdateComment` paired Exact in `e2e/contracts/api-web-shapes.ts`.
+- **Tests.** `update-comments.controller.test.ts` (real `authorize()`, fakes for DB/updates/comments):
+  posts as the context user + shows in both reads with no staff identity, other-project id → 404 no
+  write, client cannot post → 404, unpublished update → 404, out-of-scope project → 404, route
+  capability metadata. Per pass-22 rules: no DB test / no new e2e (the chain owns both).
+
 ## 2026-09-20 — FR-05 Approvals 2nd slice: publish → immutable client projection + authorized read (slice x97)
 
 Built on branch `x97-approvals-client-projection` (off x92's `9b6f1e5`), **not merged**. The second

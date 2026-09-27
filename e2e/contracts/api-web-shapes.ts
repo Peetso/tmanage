@@ -97,6 +97,8 @@ import type { PortalPersonView as ApiPortalPersonView } from '../../apps/api/src
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
+import type { UpdateCommentView as ApiUpdateCommentView } from '../../apps/api/src/modules/clients/update-comments.service.js';
+import type { ClientUpdateCommentView as ApiClientUpdateCommentView } from '../../apps/api/src/modules/clients/update-comments.service.js';
 import type { ProjectMilestoneView as ApiProjectMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { ClientMilestoneView as ApiClientMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { ProjectRiskView as ApiProjectRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
@@ -236,6 +238,8 @@ import type {
   PortalPerson as WebPortalPerson,
   PortalProject as WebPortalProject,
   PortalUpdate as WebPortalUpdate,
+  UpdateComment as WebUpdateComment,
+  ClientUpdateComment as WebClientUpdateComment,
   PortalWorkItem as WebPortalWorkItem,
   ProjectMilestone as WebProjectMilestone,
   ClientMilestone as WebClientMilestone,
@@ -331,6 +335,10 @@ type _portalInboxBundle = Assert<Exact<ApiPortalInboxBundleView, WebPortalInboxB
 type _portalInboxPage = Assert<Exact<ApiPortalInboxPageView, WebPortalInboxPage>>;
 type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
 type _portalUpdate = Assert<Exact<ApiPortalUpdateView, WebPortalUpdate>>;
+// SEC / Portal update comments (x203): the internal thread and the client projection. The panel
+// reads exactly these responses, so both pairs are Exact; the client view drops the staff author.
+type _updateComment = Assert<Exact<ApiUpdateCommentView, WebUpdateComment>>;
+type _clientUpdateComment = Assert<Exact<ApiClientUpdateCommentView, WebClientUpdateComment>>;
 type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
 type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
 type _portalFile = Assert<Exact<ApiPortalFileView, WebPortalFile>>;

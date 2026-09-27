@@ -102,6 +102,90 @@ export async function postProjectUpdate(
   return data;
 }
 
+/**
+ * A comment on a project update as the **internal** compose surface is told it — SEC / Portal update
+ * comments (x203). Carries `createdByUserId`: an internal manager may see who posted it. Never
+ * fetched by a client screen.
+ */
+export interface UpdateComment {
+  readonly id: string;
+  readonly projectId: string;
+  readonly updateId: string;
+  readonly body: string;
+  readonly createdByUserId: string;
+  readonly createdAt: string;
+}
+
+/**
+ * A comment as the **portal** is told it — SEC / Portal update comments (x203).
+ *
+ * What is absent is the point, the same way it is for `PortalUpdate`: there is no author.
+ * 12-PERMISSION-MATRIX §4 excludes staff from the client projection, so which member of the agency
+ * posted the comment is not a field the client is given.
+ */
+export interface ClientUpdateComment {
+  readonly id: string;
+  readonly projectId: string;
+  readonly updateId: string;
+  readonly body: string;
+  readonly createdAt: string;
+}
+
+/** The full internal comment list for one update — behind `project.manage`, on the `projects` path. */
+export async function listProjectUpdateComments(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  updateId: string,
+): Promise<readonly UpdateComment[]> {
+  const { data } = await client.request<{ comments: readonly UpdateComment[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/updates/${encodeURIComponent(updateId)}/comments`,
+  });
+  return data.comments;
+}
+
+export interface PostUpdateCommentInput {
+  readonly body: string;
+}
+
+/**
+ * The internal write — a project manager posting a comment on an update. On the internal `projects`
+ * path behind `project.manage`; the tenant and the author come from the session, never this body.
+ */
+export async function postProjectUpdateComment(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  updateId: string,
+  input: PostUpdateCommentInput,
+): Promise<UpdateComment> {
+  const { data } = await client.request<UpdateComment>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/updates/${encodeURIComponent(updateId)}/comments`,
+    body: input,
+  });
+  return data;
+}
+
+/**
+ * The comments on one of the client's published updates.
+ *
+ * The project and update are named in the path. The API answers 404 — not an empty list — for a
+ * project the client cannot read or an update that is not theirs / not published, so the caller must
+ * treat a not-found as "not yours", never as "no comments".
+ */
+export async function listPortalUpdateComments(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  updateId: string,
+): Promise<readonly ClientUpdateComment[]> {
+  const { data } = await client.request<{ comments: readonly ClientUpdateComment[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/projects/${encodeURIComponent(projectId)}/updates/${encodeURIComponent(updateId)}/comments`,
+  });
+  return data.comments;
+}
+
 /** The milestone states a client is shown — 12-PERMISSION-MATRIX §4's "milestone state". */
 export type MilestoneStatus = 'planned' | 'met' | 'missed';
 
