@@ -4625,6 +4625,44 @@ export const workItemWatchers = mysqlTable(
 export type WorkItemWatcherRow = typeof workItemWatchers.$inferSelect;
 export type NewWorkItemWatcherRow = typeof workItemWatchers.$inferInsert;
 
+/**
+ * x256 (0126). A personal reminder on a work item (Work module 7). One row per (work item, member)
+ * that a member sets and clears for themselves: `remind_at` is "nudge me about this item then",
+ * supplied as a bound instant so it is independent of any pool's clock. `fk_work_item_reminders_work_item`
+ * binds `(organization_id, work_item_id)` to `work_items (organization_id, id)`, so a cross-tenant
+ * `work_item_id` is a non-existent pair; `uq_work_item_reminders_member` makes "set my reminder" an
+ * idempotent upsert — migration `0126_work_item_reminders.sql`. No notification is dispatched here.
+ */
+export const workItemReminders = mysqlTable(
+  'work_item_reminders',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    remindAt: datetime('remind_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_reminders_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_reminders_member').on(
+      table.organizationId,
+      table.workItemId,
+      table.membershipId,
+    ),
+    index('ix_work_item_reminders_due').on(
+      table.organizationId,
+      table.membershipId,
+      table.remindAt,
+      table.id,
+    ),
+  ],
+);
+
+export type WorkItemReminderRow = typeof workItemReminders.$inferSelect;
+export type NewWorkItemReminderRow = typeof workItemReminders.$inferInsert;
+
 /** The fixed palette a work label's `color` is drawn from â€” x233. A value outside this set is a 400. */
 export const WORK_LABEL_COLORS = [
   'gray',
@@ -4925,6 +4963,7 @@ export const TABLES = {
   billing_usage_alerts: billingUsageAlerts,
   billing_credits: billingCredits,
   work_item_files: workItemFiles,
+  work_item_reminders: workItemReminders,
   insight_saved_views: insightSavedViews,
   insight_snapshots: insightSnapshots,
   insight_report_schedules: insightReportSchedules,

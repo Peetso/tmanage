@@ -351,6 +351,13 @@ GRANT INSERT, DELETE         ON `tmanage`.`work_item_time_logs`    TO 'tmanage_a
 -- SELECT above. There is no immutable trigger, unlike the append-only comments above, because a
 -- watch is meant to be removed.
 GRANT INSERT, DELETE         ON `tmanage`.`work_item_watchers`     TO 'tmanage_app'@'%';
+-- x256 (0126) work item reminders. **INSERT, UPDATE and DELETE** — a member sets a personal
+-- reminder (INSERT ... ON DUPLICATE KEY UPDATE against the unique `(organization_id, work_item_id,
+-- membership_id)` key, so the upsert's replace path needs UPDATE), clears it (DELETE), and reads
+-- their due list (the database-wide SELECT above). Unlike the immutable joins above, `remind_at` is
+-- meant to be moved in place, so this row is genuinely mutable and UPDATE is granted. No dispatch
+-- happens here — email/notification is a separate, out-of-scope path.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_reminders`    TO 'tmanage_app'@'%';
 -- x233 work item labels. INSERT (define a label; assign a label to an item) and DELETE (untag an
 -- item). No UPDATE: a label is defined once and a tag is added or removed, never amended in place;
 -- the 0105 trigger pins organization_id immutable, and reading is the database-wide SELECT above.
