@@ -53,6 +53,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
+import { InsightSnapshotsModule } from './modules/insights/snapshots.controller.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
@@ -287,6 +288,11 @@ export class AppModule {
         // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
         // constructs its own repository handle (see its doc), so its position here is by subject.
         WorkloadForecastModule.register(),
+        // x211. Insight snapshots — capture a point-in-time org-level metric roll-up and list the
+        // stored history to compare over time (audit: insights are live-only). A separate module from
+        // `InsightsModule` so the insights slices stay file-disjoint; behind the reused `work.read`,
+        // it reuses `InsightsService` to compute what it stores in the tenant-scoped `insight_snapshots`.
+        InsightSnapshotsModule.register(),
         // Public & trust site (module 1, x156). The unauthenticated marketing home — a single
         // `@Public()` read serving deterministic, code-defined content. Depends on nothing (no
         // database, no tenant, no mailer), so its position here is free; registered last, beside
