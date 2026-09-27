@@ -295,6 +295,13 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_profiles`      TO 'tmanage_ap
 -- it again), least privilege, and the 0082 trigger pins `organization_id` immutable for every
 -- credential besides so identity cannot move even were UPDATE granted.
 GRANT INSERT, DELETE         ON `tmanage`.`billing_contacts`      TO 'tmanage_app'@'%';
+-- x283 (0152) billing tax / legal-entity details. Module 19: exactly one row per organization, created
+-- and edited in place through `INSERT ... ON DUPLICATE KEY UPDATE` — so INSERT and UPDATE and **no
+-- DELETE**: there is no delete endpoint (the entity is edited, never removed by a runtime credential),
+-- least privilege, and the 0152 trigger pins `organization_id` immutable for every credential besides
+-- so UPDATE can move the legal/tax fields and nothing that says which tenant the row is. SELECT comes
+-- from the database-wide grant above.
+GRANT INSERT, UPDATE         ON `tmanage`.`billing_tax_details`   TO 'tmanage_app'@'%';
 -- x204 (0085) work item links. A typed link is added (INSERT), read (the database-wide SELECT) and
 -- removed (DELETE) — this slice ships add/list/remove — so INSERT and DELETE and **no UPDATE**: a
 -- typed edge is immutable, correcting one is delete-and-add, and the 0085 trigger refuses UPDATE for

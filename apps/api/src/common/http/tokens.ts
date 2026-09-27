@@ -92,6 +92,10 @@ export const PERSON_SKILLS_REPOSITORY = Symbol.for('tmanage.PersonSkillsReposito
 export const PERSON_SKILL_SEARCH_REPOSITORY = Symbol.for('tmanage.PersonSkillSearchRepository');
 /** Billing profile (module 19, x180). The org-scoped read/upsert billing-profile repository. */
 export const BILLING_PROFILE_REPOSITORY = Symbol.for('tmanage.BillingProfileRepository');
+/** Billing tax / legal-entity details (module 19, x283). The org-scoped read/upsert repository. */
+export const BILLING_TAX_DETAILS_REPOSITORY = Symbol.for('tmanage.BillingTaxDetailsRepository');
+/** Billing tax / legal-entity details (module 19, x283). The authorize + validate + upsert service. */
+export const BILLING_TAX_DETAILS_SERVICE = Symbol.for('tmanage.BillingTaxDetailsService');
 /** PREF-QUIET (x215, module 20). The member's-own notification quiet-hours store. */
 export const QUIET_HOURS_REPOSITORY = Symbol.for('tmanage.QuietHoursRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');

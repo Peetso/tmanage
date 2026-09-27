@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   BILLING_PROFILE_REPOSITORY,
+  BILLING_TAX_DETAILS_REPOSITORY,
+  BILLING_TAX_DETAILS_SERVICE,
   PLAN_PREVIEW_SERVICE,
   SUBSCRIPTION_REPOSITORY,
   SUBSCRIPTION_SERVICE,
@@ -15,6 +17,9 @@ import { PlanPreviewService } from './plan-preview.service.js';
 import { PlanPreviewController } from './plan-preview.controller.js';
 import { BillingProfileRepository } from './profile.repository.js';
 import { BillingProfileController } from './profile.controller.js';
+import { BillingTaxDetailsRepository } from './tax-details.repository.js';
+import { BillingTaxDetailsService } from './tax-details.service.js';
+import { BillingTaxDetailsController } from './tax-details.controller.js';
 
 /**
  * Billing / module 19 (x177). The subscription module — an organization's current plan (view, and
@@ -55,12 +60,36 @@ export class BillingModule {
       provide: BILLING_PROFILE_REPOSITORY,
       useFactory: () => new BillingProfileRepository(),
     };
+    // Billing / module 19 (x283). Tax / legal-entity details — a stateless repository under its token
+    // and a service that takes the tenant database and the repository, the same shape as above.
+    const taxDetailsRepository: Provider = {
+      provide: BILLING_TAX_DETAILS_REPOSITORY,
+      useFactory: () => new BillingTaxDetailsRepository(),
+    };
+    const taxDetailsService: Provider = {
+      provide: BILLING_TAX_DETAILS_SERVICE,
+      inject: [TENANT_DATABASE, BILLING_TAX_DETAILS_REPOSITORY],
+      useFactory: (database: TenantDatabase, repository: BillingTaxDetailsRepository) =>
+        new BillingTaxDetailsService(database, repository),
+    };
 
     return {
       module: BillingModule,
-      providers: [repository, service, planPreview, profileRepository],
+      providers: [
+        repository,
+        service,
+        planPreview,
+        profileRepository,
+        taxDetailsRepository,
+        taxDetailsService,
+      ],
       exports: [service, planPreview],
-      controllers: [SubscriptionController, PlanPreviewController, BillingProfileController],
+      controllers: [
+        SubscriptionController,
+        PlanPreviewController,
+        BillingProfileController,
+        BillingTaxDetailsController,
+      ],
     };
   }
 }
