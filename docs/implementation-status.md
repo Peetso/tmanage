@@ -13925,3 +13925,43 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Platform states — the standard state matrix as shared components (x184, module 21)
+
+**What landed.** `38-MODULE-MAP` §Platform states asks for one consistent set of state views —
+forbidden (403), not found (404), server error (500), empty and loading — that the audit found only
+partial (each screen improvised its own). This slice adds a shared, presentational set:
+`apps/web/src/components/state/state-copy.ts` (a pure `STATE_COPY` map, state → title/description and,
+for the acting states, an action label — no React, unit-testable) and
+`apps/web/src/components/state/StateScreens.tsx` (`ForbiddenState`, `NotFoundState`,
+`ServerErrorState`, `EmptyState`, `LoadingState`, plus a `StateScreen` page frame). Web-only: no API
+route, no table, no `capabilities.ts` edit, no cap (these are framework-level pages). The existing
+`BackendPending` / `PlannedInternalScreen` / `PlannedPortalScreen` screens are untouched — the new set
+sits alongside them.
+
+**Accessibility.** Each state is a labelled `region` (a `<section>` named by its `<h1>`), so it is axe
+clean whether it stands alone as a route page or sits inside a screen's `<main>` as an empty region.
+The acting states (403/404/500) move focus to their single primary action on mount, through a callback
+ref rather than the `autoFocus` attribute `jsx-a11y/no-autofocus` forbids; empty and loading never
+steal focus, and loading marks its region `aria-busy`. The copy offers no support address, phone
+number or timeline the product does not have — the forbidden/not-found next step is the workspace
+administrator, in the same words `RecoveryScreen` already uses. The primary control is a native `<a>`
+or `<button>` wearing the design system's `tm-button` classes (the reuse the app's other
+`.tm-button` anchors already rely on), because `@tmanage/ui`'s `Button` does not forward the ref a
+focused action needs.
+
+**Error routes.** `apps/web/src/app/not-found.tsx` (Next's 404), `apps/web/src/app/error.tsx` (the
+client error boundary; its `reset` is the "Try again" action, the caught error is logged and never
+rendered) and `apps/web/src/app/forbidden/page.tsx` (an explicit 403 route to `redirect()` an
+unauthorised person to) each compose the shared state inside `StateScreen`, which supplies the skip
+link and single `<main>` the root `layout.tsx` leaves to each screen. The one CSS block
+(`.tm-state*`) lives in `apps/web/src/app/globals.css`, tokens only.
+
+**Proof.** `apps/web/tests/state-screens.test.tsx` (jsdom): `STATE_COPY` is complete for all five
+states and invents no support channel; each state renders its shared copy; the acting states land
+focus on their one action and the 500 retry runs its handler; the empty state invents no action; and
+every state view is axe clean. Deferred (recorded, not implied by a green run): NVDA/VoiceOver and
+200% zoom human validation; the axe `color-contrast` limitation under jsdom stands (palette checked
+arithmetically in `tests/contrast.test.ts`). The colocated test path the brief named
+(`components/state/StateScreens.test.tsx`) is under `apps/web/tests/` instead, because `vitest.config`
+includes only `tests/**`.

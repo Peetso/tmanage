@@ -916,6 +916,65 @@ body {
   padding: var(--s2) var(--s3);
 }
 
+/* ── Platform states (403 / 404 / 500 / empty / loading) ─────────────────────
+ *
+ * One card for the standard state matrix. As a route page it sits centred on the inverted
+ * ground the shared `StateScreen` frame paints (it reuses `.tm-identity`); embedded as an
+ * empty region inside a screen's canvas it is simply a centred card. Every colour is a token,
+ * so the card inverts with the theme, and the ratios it depends on — `--ink-950` and
+ * `--ink-650` on `--paper-0` — are the ones `tests/contrast.test.ts` already asserts.
+ */
+.tm-state {
+  inline-size: min(560px, 100%);
+  margin-inline: auto;
+}
+
+.tm-state__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-feature);
+  background: var(--paper-0);
+  text-align: center;
+}
+
+.tm-state__glyph {
+  display: grid;
+  place-items: center;
+  inline-size: var(--orb-comfortable);
+  block-size: var(--orb-comfortable);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-heading-section);
+}
+
+.tm-state__title {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-state__description {
+  margin: 0;
+  max-inline-size: var(--reading);
+  color: var(--ink-650);
+}
+
+.tm-state__actions {
+  display: flex;
+  gap: var(--s3);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 @media (max-width: 60rem) {
   .tm-detail-list {
     grid-template-columns: minmax(0, 1fr);
