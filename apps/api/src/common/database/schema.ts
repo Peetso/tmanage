@@ -3883,7 +3883,42 @@ export const workItemLabels = mysqlTable(
 export type WorkItemLabelRow = typeof workItemLabels.$inferSelect;
 export type NewWorkItemLabelRow = typeof workItemLabels.$inferInsert;
 
+/**
+ * DOC bookmarks / favorites (x242). A membership's private favorite of a `documents` row â€” the fact
+ * "this membership bookmarked this document". Per-membership and tenant-scoped like `home_pinned_items`
+ * (0050): created (INSERT) and removed (DELETE), never edited, so there is no immutability trigger â€”
+ * the withheld UPDATE grant is the control. The `(organization_id, doc_id, membership_id)` unique key
+ * makes a repeated bookmark a collision the service treats as success (idempotent PUT). Two composite
+ * FKs bind the row within one tenant. `0114_doc_bookmarks.sql` is the source of truth; this is its
+ * typed mirror.
+ */
+export const docBookmarks = mysqlTable(
+  'doc_bookmarks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    docId: char('doc_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_doc_bookmarks_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_doc_bookmarks_pin').on(table.organizationId, table.docId, table.membershipId),
+    index('ix_doc_bookmarks_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+
+export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
+export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
+
 export const TABLES = {
+  doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   users,

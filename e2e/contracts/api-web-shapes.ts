@@ -48,6 +48,7 @@ import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../.
 import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocRevisionView as ApiDocRevisionView } from '../../apps/api/src/modules/docs/revisions.service.js';
+import type { DocBookmarkView as ApiDocBookmarkView } from '../../apps/api/src/modules/docs/bookmarks.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -249,6 +250,7 @@ import type {
 import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
+import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -629,6 +631,13 @@ type _documentVersion = Assert<Exact<ApiDocumentVersionView, WebDocumentVersionS
  * `DocRevisionsScreen` reads exactly this response for its history/restore, so the pair is Exact.
  */
 type _docRevision = Assert<Exact<ApiDocRevisionView, WebDocRevisionSummary>>;
+
+/**
+ * DOC bookmarks / favorites (x242). `DocBookmarkView` (`PUT …/documents/:id/bookmark`,
+ * `GET …/document-bookmarks`) — one of the caller's bookmarked documents. The `MyBookmarksScreen` and
+ * the bookmark toggle read exactly this response, so the pair is Exact.
+ */
+type _docBookmark = Assert<Exact<ApiDocBookmarkView, WebDocBookmarkSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

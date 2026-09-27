@@ -425,6 +425,12 @@ GRANT INSERT                 ON `tmanage`.`document_versions` TO 'tmanage_app'@'
 -- 0113 trigger refuses UPDATE for every credential. No DELETE: a document's history is the record of
 -- how it changed, so a runtime credential must not be able to erase it.
 GRANT INSERT                 ON `tmanage`.`doc_revisions` TO 'tmanage_app'@'%';
+-- DOC bookmarks / favorites (0114, x242) per-membership document favorites. INSERT to bookmark and
+-- DELETE to unbookmark, and **no UPDATE**: a bookmark is created and removed, never edited, so the
+-- missing privilege is the control (no immutability trigger, none needed). Reading is the
+-- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
+-- `home_pinned_items` posture above.
+GRANT INSERT, DELETE         ON `tmanage`.`doc_bookmarks`     TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
