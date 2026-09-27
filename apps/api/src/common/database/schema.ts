@@ -3926,6 +3926,44 @@ export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
 
 /**
+ * PROJ project favorites (x268). A membership's private favorite of a `projects` row — the fact
+ * "this membership favorited this project", the star behind the compact project switcher. Per-
+ * membership and tenant-scoped like `doc_bookmarks` (0114) / `home_pinned_items` (0050): created
+ * (INSERT) and removed (DELETE), never edited, so there is no immutability trigger — the withheld
+ * UPDATE grant is the control. The `(organization_id, project_id, membership_id)` unique key makes a
+ * repeated star a collision the service treats as success (idempotent PUT). Two composite FKs bind
+ * the row within one tenant. `0138_project_favorites.sql` is the source of truth; this is its typed
+ * mirror.
+ */
+export const projectFavorites = mysqlTable(
+  'project_favorites',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_favorites_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_project_favorites_fav').on(
+      table.organizationId,
+      table.projectId,
+      table.membershipId,
+    ),
+    index('ix_project_favorites_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export type ProjectFavoriteRow = typeof projectFavorites.$inferSelect;
+export type NewProjectFavoriteRow = typeof projectFavorites.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -3987,6 +4025,7 @@ export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 export const TABLES = {
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
+  project_favorites: projectFavorites,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   users,

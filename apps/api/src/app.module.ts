@@ -45,6 +45,7 @@ import { AutomationSchedulesModule } from './modules/automations/schedules.contr
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
+import { ProjectFavoritesModule } from './modules/projects/project-favorites.controller.js';
 import { PeopleModule } from './modules/people/people.module.js';
 import { ProjectRiskRegisterModule } from './modules/projects/risk-register.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
@@ -339,6 +340,12 @@ export class AppModule {
         // in its path, and the composite foreign key means a caller who names one that is not theirs
         // gets a refusal rather than a foreign-key 500.
         ProjectObjectivesModule.register(),
+        // PROJ project favorites (x268). A member stars a project for their compact switcher
+        // (star/unstar/status/list). Its own module rather than folded into `ProjectsModule`, so this
+        // slice touches no file another projects slice in the same pass appends to; it depends only
+        // on the global tenant database and reuses the read-only `ProjectsRepository` to resolve the
+        // parent project tenant-scoped before the write.
+        ProjectFavoritesModule.register(),
         // PEOPLE / module 14 (x171). A project's people allocations (assign a member a share of their
         // time, list them). After `ProjectsModule` for the same reason as the objectives register: an
         // allocation names a project (and a membership) in its path/body, and the composite foreign
