@@ -14673,3 +14673,29 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+
+## WORK item watchers / subscribers (x232, module 7)
+
+The audit found Work built but with no watcher/subscriber model. This slice adds a tenant-scoped
+`work_item_watchers` table (migration `0104`; unique `(organization_id, work_item_id, member_id)`,
+composite FK to `work_items (organization_id, id)`) and the self-service watch surface behind it.
+
+**Behaviour.** `GET`/`PUT`/`DELETE /v1/organizations/:orgSlug/work-items/:workItemId/watchers`, all
+behind `work.read`. The parent work item is resolved tenant-scoped BEFORE authorize, so a
+cross-tenant or unrelated `:workItemId` is a 404 with no write. A caller subscribes only itself
+(`PUT`, idempotent on the unique key — a repeat is the same row, one INSERT) and unsubscribes only
+itself (`DELETE`, idempotent no-op if absent, 204). The watcher list projects a membership id and
+created-at only — no email. No notification is dispatched here; that path is the notifications
+module and a later slice.
+
+**Registration.** New table registered in all four places: `schema.ts` def + `TABLES`,
+`tenant-guard.ts` `TENANT_TABLES`, `scripts/db/users.sql` (INSERT + DELETE, no UPDATE, no immutable
+trigger — a watch is removable, unlike the append-only comments), and migration `0104`.
+
+**Surfaces.** `ItemWatcherView` (`watchers.service.ts`) is a live `Exact` pair with the web
+`ItemWatcher` (`apps/web/src/lib/api/work-items.ts`) via `e2e/contracts/api-web-shapes.ts`.
+`WorkWatchersPanel` (`apps/web/src/components/screens/WorkWatchersPanel.tsx`), mounted additively on
+the work-item detail screen, drives the idempotent watch toggle and shows the roster. Proved
+database-free (`watchers.controller.test.ts`): subscribe/list (no email in the projection),
+idempotent repeat (one write), unsubscribe (idempotent), and cross-tenant/unrelated parent 404 with
+no write. Deferred to a later slice: notification dispatch to watchers.

@@ -1246,6 +1246,33 @@ export const workItemComments = mysqlTable(
   ],
 );
 
+/**
+ * x232. A work item's watchers / subscribers (Work module 7). A self-service watch list: one row
+ * per (work item, member) that a member creates and removes for themselves, so a later
+ * notification path can reach the people who care. `fk_work_item_watchers_work_item` binds
+ * `(organization_id, work_item_id)` to `work_items (organization_id, id)`, so a cross-tenant
+ * `work_item_id` is a non-existent pair; `uq_work_item_watchers_member` makes a repeated subscribe
+ * idempotent — migration `0104_work_item_watchers.sql`.
+ */
+export const workItemWatchers = mysqlTable(
+  'work_item_watchers',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    memberId: char('member_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_watchers_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_watchers_member').on(
+      table.organizationId,
+      table.workItemId,
+      table.memberId,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2830,6 +2857,7 @@ export const TABLES = {
   work_item_dependencies: workItemDependencies,
   work_item_checklist_items: workItemChecklistItems,
   work_item_comments: workItemComments,
+  work_item_watchers: workItemWatchers,
   work_blockers: workBlockers,
   client_requests: clientRequests,
   deliverable_versions: deliverableVersions,
@@ -2908,6 +2936,8 @@ export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelec
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
 export type WorkItemCommentRow = typeof workItemComments.$inferSelect;
 export type NewWorkItemCommentRow = typeof workItemComments.$inferInsert;
+export type WorkItemWatcherRow = typeof workItemWatchers.$inferSelect;
+export type NewWorkItemWatcherRow = typeof workItemWatchers.$inferInsert;
 export type ClientRequestRow = typeof clientRequests.$inferSelect;
 export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
 export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;

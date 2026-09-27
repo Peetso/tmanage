@@ -127,6 +127,7 @@ import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/a
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
+import type { ItemWatcherView as ApiItemWatcherView } from '../../apps/api/src/modules/work/watchers.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -281,6 +282,7 @@ import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/w
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
+import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -644,6 +646,14 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * Append-only: there is no edit or delete route, so no update shape to pair.
  */
 type _workComment = Assert<Exact<ApiWorkCommentView, WebWorkComment>>;
+
+/**
+ * x232. `ItemWatcherView` ↔ `ItemWatcher` — one work-item watcher / subscriber
+ * (`GET`/`PUT`/`DELETE …/work-items/:id/watchers`). `WorkWatchersPanel` reads exactly this shape,
+ * so the `id`/`workItemId`/`memberId`/`createdAt` pair is held identical on both sides. The roster
+ * carries a membership id, never an email: the pair keeps it that way on both sides.
+ */
+type _itemWatcher = Assert<Exact<ApiItemWatcherView, WebItemWatcher>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

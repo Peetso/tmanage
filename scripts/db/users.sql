@@ -263,6 +263,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_item_checklist_items` TO 'tmanag
 -- granted. Edit/delete arrive with the code that writes them, per this file's rule that a grant
 -- names a statement that exists.
 GRANT INSERT                 ON `tmanage`.`work_item_comments`     TO 'tmanage_app'@'%';
+-- x232 work item watchers. **INSERT and DELETE** — a member subscribes (INSERT, idempotent on the
+-- unique `(organization_id, work_item_id, member_id)` key) and unsubscribes their own row (DELETE).
+-- No UPDATE: a watch has nothing mutable — it exists or it does not. Reading is the database-wide
+-- SELECT above. There is no immutable trigger, unlike the append-only comments above, because a
+-- watch is meant to be removed.
+GRANT INSERT, DELETE         ON `tmanage`.`work_item_watchers`     TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

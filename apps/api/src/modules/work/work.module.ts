@@ -9,6 +9,7 @@ import {
   WORK_FORMS_REPOSITORY,
   WORK_ITEMS_REPOSITORY,
   WORK_ITEMS_SERVICE,
+  WORK_WATCHERS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -25,6 +26,9 @@ import { WorkFormsController } from './work-forms.controller.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
 import { WorkCommentsService } from './work-comments.service.js';
 import { WorkCommentsController } from './work-comments.controller.js';
+import { WorkWatchersRepository } from './watchers.repository.js';
+import { WorkWatchersService } from './watchers.service.js';
+import { WorkWatchersController } from './watchers.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -74,15 +78,30 @@ export class WorkModule {
         new WorkCommentsService(database, workItems, new WorkCommentsRepository()),
     };
 
+    const watchersService: Provider = {
+      provide: WORK_WATCHERS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkWatchersService(database, workItems, new WorkWatchersRepository()),
+    };
+
     return {
       module: WorkModule,
-      providers: [repository, service, checklistService, formsRepository, commentsService],
+      providers: [
+        repository,
+        service,
+        checklistService,
+        formsRepository,
+        commentsService,
+        watchersService,
+      ],
       exports: [service],
       controllers: [
         WorkItemsController,
         WorkChecklistController,
         WorkFormsController,
         WorkCommentsController,
+        WorkWatchersController,
       ],
     };
   }

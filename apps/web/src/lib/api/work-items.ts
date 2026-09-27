@@ -251,3 +251,52 @@ export async function addWorkComment(
   });
   return data;
 }
+
+// ── x232: work item watchers / subscribers ───────────────────────────────────
+
+/**
+ * One watcher on a work item — x232 (Work module 7). The API projection is `ItemWatcherView`;
+ * this is its web mirror, paired `Exact` in `e2e/contracts`. A roster of who is watching:
+ * `memberId` is a membership id, never an email. Self-service — the client subscribes and
+ * unsubscribes itself, and there is no route to watch anyone else.
+ */
+export interface ItemWatcher {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly memberId: string;
+  readonly createdAt: string;
+}
+
+export async function listWatchers(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<readonly ItemWatcher[]> {
+  const { data } = await client.request<{ watchers: readonly ItemWatcher[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/watchers`,
+  });
+  return data.watchers;
+}
+
+export async function subscribeToWorkItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<ItemWatcher> {
+  const { data } = await client.request<ItemWatcher>({
+    method: 'PUT',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/watchers`,
+  });
+  return data;
+}
+
+export async function unsubscribeFromWorkItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/watchers`,
+  });
+}
