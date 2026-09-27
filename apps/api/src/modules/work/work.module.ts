@@ -13,6 +13,7 @@ import {
   WORK_ITEM_LINKS_SERVICE,
   WORK_ITEM_FILES_SERVICE,
   WORK_ITEM_REMINDERS_SERVICE,
+  WORK_RELATIONS_GRAPH_SERVICE,
   WORK_TIME_LOGS_SERVICE,
   WORK_ITEM_ESTIMATE_SERVICE,
   WORK_WATCHERS_SERVICE,
@@ -38,6 +39,9 @@ import { WorkCommentsController } from './work-comments.controller.js';
 import { WorkItemLinksRepository } from './item-links.repository.js';
 import { WorkItemLinksService } from './item-links.service.js';
 import { WorkItemLinksController } from './item-links.controller.js';
+import { WorkRelationsGraphRepository } from './relations-graph.repository.js';
+import { WorkRelationsGraphService } from './relations-graph.service.js';
+import { WorkRelationsGraphController } from './relations-graph.controller.js';
 import { WorkItemFilesRepository } from './item-files.repository.js';
 import { WorkItemFilesService } from './item-files.service.js';
 import { WorkItemFilesController } from './item-files.controller.js';
@@ -117,6 +121,15 @@ export class WorkModule {
       inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
       useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
         new WorkItemLinksService(database, workItems, new WorkItemLinksRepository()),
+    };
+
+    // x274. Read-only relations graph over x204's work_item_links — no new table. Injects the
+    // work-items repository (root resolution + neighbour readability) and a stateless read repo.
+    const relationsGraphService: Provider = {
+      provide: WORK_RELATIONS_GRAPH_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkRelationsGraphService(database, workItems, new WorkRelationsGraphRepository()),
     };
 
     // x205 work-item file attachments. Injects the work-items repository (the parent) and a
@@ -207,6 +220,7 @@ export class WorkModule {
         formsRepository,
         commentsService,
         itemLinksService,
+        relationsGraphService,
         itemFilesService,
         itemRemindersService,
         bulkTransitionService,
@@ -223,6 +237,7 @@ export class WorkModule {
         WorkFormsController,
         WorkCommentsController,
         WorkItemLinksController,
+        WorkRelationsGraphController,
         WorkItemFilesController,
         WorkItemRemindersController,
         BulkTransitionController,

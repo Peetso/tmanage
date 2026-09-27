@@ -209,6 +209,7 @@ import type { BulkTransitionView as ApiBulkTransitionView } from '../../apps/api
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
 import type { WorkItemLinkView as ApiWorkItemLinkView } from '../../apps/api/src/modules/work/item-links.service.js';
+import type { WorkRelationsGraphView as ApiWorkRelationsGraphView } from '../../apps/api/src/modules/work/relations-graph.service.js';
 import type { ItemFileView as ApiItemFileView } from '../../apps/api/src/modules/work/item-files.service.js';
 import type {
   TimeLogView as ApiTimeLogView,
@@ -526,6 +527,7 @@ import type { BulkTransitionView as WebBulkTransitionView } from '../../apps/web
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
 import type { WorkItemLink as WebWorkItemLink } from '../../apps/web/src/lib/api/work-items';
+import type { WorkRelationsGraph as WebWorkRelationsGraph } from '../../apps/web/src/lib/api/work-relations-graph';
 import type { ItemFile as WebItemFile } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLog as WebTimeLog } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/work-items';
@@ -1257,6 +1259,16 @@ type _workComment = Assert<Exact<ApiWorkCommentView, WebWorkComment>>;
  * shape to pair.
  */
 type _workItemLink = Assert<Exact<ApiWorkItemLinkView, WebWorkItemLink>>;
+
+/**
+ * x274. `WorkRelationsGraphView` ↔ `WorkRelationsGraph` — the read-only relations graph of a work
+ * item (`GET …/work-items/:id/relations/graph?depth=`). `WorkRelationsGraphView` (the web panel)
+ * reads exactly this shape, so the `rootId`/`depth`/`nodes`/`edges` pair is held identical on both
+ * sides: each node's `workItemId`/`title`/`state`/`depth`/`isRoot` and each edge's
+ * `fromWorkItemId`/`toWorkItemId`/`linkType` match, `linkType` the same `blocks | blocked_by |
+ * relates` union. It is read-only — no write shape to pair.
+ */
+type _workRelationsGraph = Assert<Exact<ApiWorkRelationsGraphView, WebWorkRelationsGraph>>;
 
 /**
  * x205. `ItemFileView` ↔ `ItemFile` — one work-item file attachment
