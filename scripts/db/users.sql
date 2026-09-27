@@ -826,6 +826,13 @@ GRANT INSERT, UPDATE ON `tmanage`.`project_internal_risks` TO 'tmanage_app'@'%';
 -- DELETE**: a later edit slice adds UPDATE (with an identity-pinning trigger) alongside the code that
 -- writes it, the same posture `incidents` / `changelog_entries` take.
 GRANT INSERT ON `tmanage`.`project_templates` TO 'tmanage_app'@'%';
+-- `project_status_updates` (PROJ / module 8, x235) gets INSERT and nothing else. A status update is
+-- posted once (INSERT) and read (the database-wide SELECT, line 60); it is a durable, point-in-time
+-- record with no edit or delete path this slice. The 0107 trigger
+-- (`trg_project_status_updates_immutable`) refuses every UPDATE at the engine, so the log is
+-- append-only for the runtime credential specifically. **No UPDATE and no DELETE**: an update is the
+-- durable record of what was said and when. Internal-only, never projected to a client.
+GRANT INSERT ON `tmanage`.`project_status_updates` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes

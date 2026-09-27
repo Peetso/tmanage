@@ -1161,6 +1161,44 @@ export const projectInternalRisks = mysqlTable(
   ],
 );
 
+/** PROJ / module 8 (x235). The status bands an internal project status update may record. */
+export const PROJECT_STATUS_BANDS = ['on_track', 'at_risk', 'off_track'] as const;
+
+/**
+ * PROJ / module 8 (x235). A project's **internal** status-update log — distinct from `project_updates`
+ * (0041, x125), which is the clients-module surface that publishes an update to a client's portal.
+ * This table is the studio's own running changelog of where a project stands: a `status_band`
+ * (`on_track` / `at_risk` / `off_track`), a free-text `body`, and who posted it and when. It is never
+ * projected to a client (no `published`, no `client_summary`; the portal service does not read it).
+ *
+ * Tenant-scoped and project-owned like `project_objectives` (0040), `project_milestones` (0048) and
+ * `project_internal_risks` (0088): the composite foreign key binds `(organization_id, project_id)` to
+ * `projects`. A status update is a point-in-time post — the whole row is immutable; the `0107`
+ * `BEFORE UPDATE` trigger refuses every UPDATE and the runtime credential is granted INSERT only.
+ * `0107_project_status_updates.sql` is the source of truth; this is its typed mirror.
+ */
+export const projectStatusUpdates = mysqlTable(
+  'project_status_updates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    statusBand: mysqlEnum('status_band', PROJECT_STATUS_BANDS).notNull().default('on_track'),
+    body: text('body').notNull(),
+    postedBy: char('posted_by', { length: 36 }).notNull(),
+    postedAt: datetime('posted_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_status_updates_org_id').on(table.organizationId, table.id),
+    index('ix_project_status_updates_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.postedAt,
+      table.id,
+    ),
+  ],
+);
+
 /**
  * PROJ / module 8 (x234). A reusable project template — a saved shape a studio can stamp out a new
  * project from: a `name`, an optional `description`, and the objective titles a project made from the
@@ -4392,6 +4430,7 @@ export const TABLES = {
   project_objectives: projectObjectives,
   project_internal_risks: projectInternalRisks,
   project_templates: projectTemplates,
+  project_status_updates: projectStatusUpdates,
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
@@ -4534,6 +4573,7 @@ export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
 export type ProjectTemplateRow = typeof projectTemplates.$inferSelect;
+export type ProjectStatusUpdateRow = typeof projectStatusUpdates.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;

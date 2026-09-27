@@ -136,6 +136,11 @@ export const PROJECT_RISK_REGISTER_SERVICE = Symbol.for('tmanage.ProjectRiskRegi
 /** PROJ / module 8 (x234). Reusable project templates — define/list/instantiate. */
 export const PROJECT_TEMPLATES_REPOSITORY = Symbol.for('tmanage.ProjectTemplatesRepository');
 export const PROJECT_TEMPLATES_SERVICE = Symbol.for('tmanage.ProjectTemplatesService');
+/** PROJ / module 8 (x235). A project's internal status-update log — post/list (keyset-paged). */
+export const PROJECT_STATUS_UPDATES_REPOSITORY = Symbol.for(
+  'tmanage.ProjectStatusUpdatesRepository',
+);
+export const PROJECT_STATUS_UPDATES_SERVICE = Symbol.for('tmanage.ProjectStatusUpdatesService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');
