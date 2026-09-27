@@ -1,0 +1,58 @@
+import type { ApiClient } from './client';
+
+/**
+ * People & capacity — module 14, the read behind the `/people` screen (audit #4).
+ *
+ * Tenant-scoped like `members.ts`: the slug is in the path, the API resolves it against a
+ * membership row before the handler runs, and a slug the caller has no membership in is refused.
+ * The route needs `work.read`, which no client role holds, so the portal cannot reach this list.
+ *
+ * This is the capacity directory, distinct from the D16 picker (`members.ts`): the same people,
+ * plus how many projects each is on. Name, role, status and a count — nothing more sensitive
+ * than the picker already exposes.
+ */
+
+export interface PersonSummary {
+  /** What the API stores on a work item. Shown for reference, never typed by a person. */
+  readonly userId: string;
+  readonly displayName: string;
+  readonly role: string;
+  readonly status: string;
+  /** How many of this organization's projects the person is a member of. */
+  readonly projectCount: number;
+}
+
+export interface ListPeopleQuery {
+  /**
+   * A fragment of the name to search for, sent to the server. One request is one page (default
+   * 50, ceiling 200), so without a search the fifty-first person is unreachable; `q` is how the
+   * roster beyond the first page is reached, answered on the server on purpose. Blank is absent.
+   */
+  readonly q?: string;
+  readonly limit?: number;
+}
+
+/**
+ * This organization's active people, by name, each with a project count.
+ *
+ * `nextAfter` is returned rather than dropped, so a full page is a visible fact to a caller
+ * rather than a silent truncation.
+ */
+export async function listPeople(
+  client: ApiClient,
+  organizationSlug: string,
+  options: ListPeopleQuery = {},
+): Promise<{ readonly people: readonly PersonSummary[]; readonly nextAfter: string | null }> {
+  const parameters = new URLSearchParams();
+  if (options.q !== undefined && options.q.trim() !== '') parameters.set('q', options.q.trim());
+  if (options.limit !== undefined) parameters.set('limit', String(options.limit));
+
+  const suffix = parameters.size === 0 ? '' : `?${parameters.toString()}`;
+  const { data } = await client.request<{
+    people: readonly PersonSummary[];
+    nextAfter: string | null;
+  }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/people${suffix}`,
+  });
+  return data;
+}

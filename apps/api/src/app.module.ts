@@ -46,6 +46,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
+import { PeopleModule } from './modules/people/people.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -247,6 +248,12 @@ export class AppModule {
         // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
         // constructs its own repository handle (see its doc), so its position here is by subject.
         WorkloadForecastModule.register(),
+        // module 14 / audit #4 (x168). People & capacity: the org member directory with a
+        // per-person project count, behind the reused `work.read`. Read-only over `memberships`
+        // + `users` + `project_memberships`; it builds its own repository handle and depends only
+        // on the global tenant database, so its position here is by subject, not by need. This is
+        // the read behind the `/people` screen that replaces the last `PlannedInternalScreen` stub.
+        PeopleModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

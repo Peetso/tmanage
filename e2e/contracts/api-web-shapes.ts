@@ -72,6 +72,7 @@ import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/a
 import type { MeetingAgendaView as ApiMeetingAgendaView } from '../../apps/api/src/modules/calendar/meeting-agenda.controller.js';
 import type { MeetingSeriesView as ApiMeetingSeriesView } from '../../apps/api/src/modules/calendar/meeting-series.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
+import type { PersonDirectoryView as ApiPersonDirectoryView } from '../../apps/api/src/modules/people/directory.controller.js';
 import type {
   MemberOffboardingImpactView as ApiMemberOffboardingImpactView,
   OffboardedMemberView as ApiOffboardedMemberView,
@@ -175,6 +176,7 @@ import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/w
 import type { MeetingAgendaView as WebMeetingAgendaView } from '../../apps/web/src/lib/api/meeting-agenda';
 import type { MeetingSeriesView as WebMeetingSeriesView } from '../../apps/web/src/lib/api/meeting-series';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
+import type { PersonSummary as WebPersonSummary } from '../../apps/web/src/lib/api/people';
 import type { ProjectMemberSummary as WebProjectMemberSummary } from '../../apps/web/src/lib/api/project-members';
 import type {
   OffboardingImpactView as WebOffboardingImpactView,
@@ -675,6 +677,13 @@ type _sessionSummary = Assert<Exact<ApiSessionSummaryView, WebSessionSummary>>;
 
 /** `GET …/members` — one active-member directory row. */
 type _member = Assert<Exact<ApiMemberView, WebMemberSummary>>;
+
+/**
+ * `GET …/people` — module 14 / audit #4 (x168). One People & capacity directory row:
+ * `PeopleDirectoryScreen` reads exactly this projection (name, role, status, project count),
+ * so it pairs Exact; `membershipId` (the keyset cursor) is on neither side.
+ */
+type _person = Assert<Exact<ApiPersonDirectoryView, WebPersonSummary>>;
 
 /**
  * `GET …/members/:userId/offboarding-impact` and `POST …/members/:userId/offboard` — ADM-12/13

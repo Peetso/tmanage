@@ -13925,3 +13925,34 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## x168 — People & capacity directory (module 14, audit #4)
+
+Module 14 (People & capacity), **People** (`22-SCREEN-BY-SCREEN` §1) — until now the last true
+`PlannedInternalScreen` stub at `/people`, a named rail destination with nothing behind it. This
+slice ships the read behind it: `GET v1/organizations/:orgSlug/people` (`work.read`) — the
+organization's active members by name, each with their role, status and a **project count**,
+projected from `memberships` + `users` + `project_memberships`. Deterministic order (membership
+id), bounded page (default 50, ceiling 200), server-side name search (bounded to 190 chars). No
+new table (reads existing rows), so no schema/guard/grant/migrator change; no `capabilities.ts`
+edit (reuses `work.read`, held by every internal role and no client role, which keeps the roster
+off the portal).
+
+**Known-trap order.** The read is org-scoped exactly as the D16 picker is: `memberships` is
+anchored by a bound `organization_id = ?`, and the `LEFT JOIN project_memberships` is tied to it by
+an `organization_id` join-equality the tenant guard follows, so a person's project count is counted
+only from this tenant's rows. `users` is global identity and carries no tenant key. The projection
+is deliberately narrow — name, role, status, count — no email or secret beyond what the picker
+already exposes. `membershipId` is the keyset cursor, returned as `nextAfter` on a full page and
+never projected as a person's identifier.
+
+**Surfaces.** `PersonDirectoryView` (`people/directory.controller.ts`) is a live `Exact` pair with
+the web's `PersonSummary` (`apps/web/src/lib/api/people.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`PeopleDirectoryScreen` (`apps/web/src/components/screens/PeopleDirectoryScreen.tsx`), routed at
+`/[orgSlug]/people`, replaces the stub with a searchable, axe-clean member list. Proved
+database-free with the real capability metadata and the production tenant guard
+(`people/directory.controller.test.ts`): the statement is accepted for the acting org and refused
+under another, the name search is bound and stays tenant-scoped, `work.read` is open to every
+internal role and closed to every client role, the projection hides the cursor, and a non-positive
+limit is a 400. Web behaviour proved in `apps/web/tests/people-directory-flow.test.tsx` (renders
+the roster with counts, axe-clean; a `work.read` refusal is surfaced, not blank).
