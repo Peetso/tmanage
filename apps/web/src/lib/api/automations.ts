@@ -46,6 +46,34 @@ export interface CreateWorkflowTemplateInput {
   readonly enabled?: boolean;
 }
 
+/**
+ * The edited template — paired Exact with the API's `WorkflowTemplateEditView` (x189). Structurally
+ * identical to {@link WorkflowTemplateSummary}: the PATCH returns the full updated template, and the
+ * wire projection never echoes the tenant id.
+ */
+export interface WorkflowTemplateEditView {
+  readonly id: string;
+  readonly name: string;
+  readonly triggerKind: string;
+  readonly actionKind: string;
+  readonly config: Record<string, unknown>;
+  readonly enabled: boolean;
+  readonly createdBy: string;
+  readonly createdAt: string;
+}
+
+/**
+ * The fields an edit sends — a partial patch (x189). Request-side (suffix `Input`), so the contracts
+ * gate ignores it. Only the fields present are written; identity is not editable and is absent.
+ */
+export interface UpdateWorkflowTemplateInput {
+  readonly name?: string;
+  readonly triggerKind?: WorkflowTriggerKind;
+  readonly actionKind?: WorkflowActionKind;
+  readonly config?: Record<string, unknown>;
+  readonly enabled?: boolean;
+}
+
 function base(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/automations/templates`;
 }
@@ -70,6 +98,21 @@ export async function createWorkflowTemplate(
   const { data } = await client.request<WorkflowTemplateSummary>({
     method: 'POST',
     path: base(organizationSlug),
+    body: input,
+  });
+  return data;
+}
+
+/** Edit an existing workflow template (x189). Only the fields present in `input` are changed. */
+export async function updateWorkflowTemplate(
+  client: ApiClient,
+  organizationSlug: string,
+  templateId: string,
+  input: UpdateWorkflowTemplateInput,
+): Promise<WorkflowTemplateEditView> {
+  const { data } = await client.request<WorkflowTemplateEditView>({
+    method: 'PATCH',
+    path: `${base(organizationSlug)}/${encodeURIComponent(templateId)}`,
     body: input,
   });
   return data;

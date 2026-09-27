@@ -374,12 +374,14 @@ GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'
 -- adds UPDATE with the code that writes it. No DELETE. Submitting a form writes no work_forms row —
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
--- Automation workflow templates (x162, 0063). **INSERT only** — a template is created (INSERT) and
--- read (the database-wide SELECT). This slice ships no editor and no enable/disable toggle; the 0063
--- trigger pins organization_id/created_by immutable for every credential, and an editor is a later
--- slice that adds UPDATE with the code that writes it. No DELETE. Nothing executes a template here
--- (runs are x163), so the app needs no other privilege on this table.
-GRANT INSERT                 ON `tmanage`.`workflow_templates` TO 'tmanage_app'@'%';
+-- Automation workflow templates (x162, 0063; edit x189). **INSERT + UPDATE** — a template is created
+-- (INSERT), read (the database-wide SELECT) and now edited in place (UPDATE): x189 adds the editor
+-- the x162 grant anticipated ("an editor is a later slice that adds UPDATE with the code that writes
+-- it"). The 0063 trigger still pins organization_id/created_by immutable for every credential, so
+-- UPDATE can only touch name/trigger_kind/action_kind/config_json/enabled — never identity. No
+-- DELETE (there is no delete path; archive needs a column and is deferred to a migration slice).
+-- Nothing executes a template here (runs are x163).
+GRANT INSERT, UPDATE         ON `tmanage`.`workflow_templates` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

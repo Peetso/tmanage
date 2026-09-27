@@ -13955,3 +13955,34 @@ with the real `authorize` (`templates.controller.test.ts`): create→list, an of
 and an over-size config are each a 400 with no write, a role without `org.manage` (org_admin) is a 403
 on both routes, and the list is scoped to the acting tenant name-ascending. Deferred to a later slice:
 execution/runs (x163), an editor, and an enable/disable toggle.
+
+## Automations & integrations — workflow template editor (x189, module 17)
+
+The lifecycle step x162 left open: a template could be defined and listed but never edited. This slice
+adds `PATCH /v1/organizations/:orgSlug/automations/templates/:id` — a partial edit of a tenant-owned
+template's `name`, `trigger_kind`, `action_kind`, `config_json` and `enabled` — in a distinct
+controller and file (`template-edit.controller.ts`) on the same route base. No new table (reuse
+`workflow_templates`, no columns added); the `users.sql` grant moves from INSERT-only to `INSERT,
+UPDATE`, the UPDATE the x162 grant comment anticipated. It reuses `org.manage`, so there is no
+`capabilities.ts` edit.
+
+**Security order (the id-named-route trap).** The template is resolved by the composite tenant key
+`(organization_id, id)` **before** authorize or any write: an unknown or cross-tenant id is a 404 with
+nothing authorized and nothing written, so existence never leaks across tenants and the id is never
+trusted alone. Only then is the org-scoped `org.manage` decision made with the real `authorize` (403 on
+an existing but denied template), and only then is the body validated against the same trigger/action
+allowlist and config-size bound as the create path (400, no write); an empty edit is a 400. The
+repository's `UPDATE` carries the tenant predicate too, and the `0063` `BEFORE UPDATE` trigger pins
+`organization_id`/`created_by` immutable, so identity cannot be re-tenanted or re-authored.
+
+**Surfaces.** `WorkflowTemplateEditView` (`template-edit.controller.ts`) is a live `Exact` pair with the
+web's `WorkflowTemplateEditView` (`apps/web/src/lib/api/automations.ts`) in
+`e2e/contracts/api-web-shapes.ts`; it never echoes `organization_id`. `AutomationTemplateEditScreen`
+(`apps/web/src/components/screens/AutomationTemplateEditScreen.tsx`), routed at
+`/[orgSlug]/automations/templates/[templateId]`, prefills the edit form from the org-scoped list (there
+is no `GET :id`), saves via `PATCH`, and renders a not-found state for an id the list does not contain;
+axe-clean. Proved database-free with the real `authorize` (`template-edit.controller.test.ts`): a valid
+edit persists without echoing the tenant id, an unknown id and a cross-tenant id are each a 404 with no
+write, a role without `org.manage` is a 403 on an existing template, an off-list trigger is a 400 with
+no write, and an empty edit is a 400. **Deferred:** archive/unpublish — `workflow_templates` has no
+archive column and this is a no-migration slice, so an archive control needs a later migration slice.
