@@ -418,6 +418,46 @@ export const projectMilestones = mysqlTable(
   ],
 );
 
+/**
+ * PROJ / module 8 (x236). The "depends-on" edge between two project milestones — milestone A
+ * depends on milestone B (B is a prerequisite of A). Deeper flow on {@link projectMilestones}
+ * (x139, 0048): x139 gave a project its milestones; this table is the many-to-many dependency
+ * graph between them.
+ *
+ * Tenant-scoped and milestone-owned like {@link objectiveWorkLinks} (0047): two composite foreign
+ * keys bind `(organization_id, milestone_id)` and `(organization_id, depends_on_milestone_id)` to
+ * `project_milestones`, so an edge can only ever name milestones of its own tenant. It is never
+ * edited — a row is created (link) and removed (unlink) — so the runtime credential holds INSERT
+ * and DELETE only. The `(organization_id, milestone_id, depends_on_milestone_id)` unique key makes
+ * a duplicate link idempotent rather than a second row; self-links and cycles are rejected in the
+ * service (400), an invariant the composite keys cannot express.
+ * `0108_milestone_links.sql` is the source of truth; this is its typed mirror.
+ */
+export const milestoneLinks = mysqlTable(
+  'milestone_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    milestoneId: char('milestone_id', { length: 36 }).notNull(),
+    dependsOnMilestoneId: char('depends_on_milestone_id', { length: 36 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_milestone_links_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_milestone_links_pair').on(
+      table.organizationId,
+      table.milestoneId,
+      table.dependsOnMilestoneId,
+    ),
+    index('ix_milestone_links_org_milestone').on(
+      table.organizationId,
+      table.milestoneId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const PROJECT_RISK_SEVERITIES = ['low', 'medium', 'high'] as const;
 export const PROJECT_RISK_STATUSES = ['open', 'mitigated', 'closed'] as const;
 
@@ -4447,6 +4487,7 @@ export const TABLES = {
   project_updates: projectUpdates,
   project_update_comments: projectUpdateComments,
   project_milestones: projectMilestones,
+  milestone_links: milestoneLinks,
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
@@ -4578,6 +4619,7 @@ export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$infe
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
 export type ObjectiveWorkLinkRow = typeof objectiveWorkLinks.$inferSelect;
+export type MilestoneLinkRow = typeof milestoneLinks.$inferSelect;
 export type ObjectiveKeyResultRow = typeof objectiveKeyResults.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;

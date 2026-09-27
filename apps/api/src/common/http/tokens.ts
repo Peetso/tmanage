@@ -152,6 +152,9 @@ export const PROJECT_HEALTH_REPOSITORY = Symbol.for('tmanage.ProjectHealthReposi
 export const PROJECT_HEALTH_SERVICE = Symbol.for('tmanage.ProjectHealthService');
 export const OBJECTIVE_WORK_LINKS_REPOSITORY = Symbol.for('tmanage.ObjectiveWorkLinksRepository');
 export const OBJECTIVE_WORK_LINKS_SERVICE = Symbol.for('tmanage.ObjectiveWorkLinksService');
+/** PROJ / module 8 (x236). Milestone dependency edges — link/list/unlink a milestone's prerequisites. */
+export const MILESTONE_LINKS_REPOSITORY = Symbol.for('tmanage.MilestoneLinksRepository');
+export const MILESTONE_LINKS_SERVICE = Symbol.for('tmanage.MilestoneLinksService');
 /** PROJ / module 8 (x207). An objective's key results — create/list/update, progress computed on read. */
 export const KEY_RESULTS_REPOSITORY = Symbol.for('tmanage.KeyResultsRepository');
 export const KEY_RESULTS_SERVICE = Symbol.for('tmanage.KeyResultsService');
