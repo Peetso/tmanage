@@ -49,6 +49,12 @@ import { WorkWatchersController } from './watchers.controller.js';
 import { WorkLabelsRepository } from './work-labels.repository.js';
 import { WorkLabelsService } from './work-labels.service.js';
 import { WorkLabelsController } from './work-labels.controller.js';
+import { WorkChecklistTemplatesRepository } from './checklist-templates.repository.js';
+import { WorkChecklistTemplatesService } from './checklist-templates.service.js';
+import {
+  WorkChecklistTemplatesController,
+  WORK_CHECKLIST_TEMPLATES_SERVICE,
+} from './checklist-templates.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -155,6 +161,20 @@ export class WorkModule {
         new WorkLabelsService(database, workItems, new WorkLabelsRepository()),
     };
 
+    // x292. Reusable checklist templates. Definitions are org-scoped; applying one seeds rows into
+    // the existing checklist table through this slice's own repository, so it stays file-disjoint
+    // from the checklist slice while reusing the work-items repository to resolve the parent item.
+    const checklistTemplatesService: Provider = {
+      provide: WORK_CHECKLIST_TEMPLATES_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkChecklistTemplatesService(
+          database,
+          workItems,
+          new WorkChecklistTemplatesRepository(),
+        ),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -169,6 +189,7 @@ export class WorkModule {
         timeLogsService,
         watchersService,
         labelsService,
+        checklistTemplatesService,
       ],
       exports: [service],
       controllers: [
@@ -182,6 +203,7 @@ export class WorkModule {
         WorkTimeLogsController,
         WorkWatchersController,
         WorkLabelsController,
+        WorkChecklistTemplatesController,
       ],
     };
   }
