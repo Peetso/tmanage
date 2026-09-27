@@ -1868,6 +1868,65 @@ export const workflowConditions = mysqlTable(
   ],
 );
 
+/**
+ * PEOPLE / module 14 (x171). A person's allocation to a project — which membership, which project,
+ * what share of their time (`percent`, 1..100), an optional `start_date`/`end_date` window, and when
+ * the row was created. Tenant-scoped and project-owned like `project_objectives` (0040), plus a second
+ * composite foreign key to `memberships` so both ids are proven to belong to the acting tenant. An
+ * "active" allocation is one whose `end_date` is null; the one-active-per-(project, membership) rule is
+ * an application invariant (409), since MySQL treats NULLs as distinct in a UNIQUE index.
+ * `0069_person_allocations.sql` is the source of truth; this is its typed mirror.
+ */
+export const personAllocations = mysqlTable(
+  'person_allocations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    percent: tinyint('percent', { unsigned: true }).notNull(),
+    startDate: date('start_date', { mode: 'string' }),
+    endDate: date('end_date', { mode: 'string' }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_person_allocations_org_id').on(table.organizationId, table.id),
+    index('ix_person_allocations_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.createdAt,
+    ),
+    index('ix_person_allocations_org_project_member').on(
+      table.organizationId,
+      table.projectId,
+      table.membershipId,
+    ),
+  ],
+);
+
+/**
+ * Per-member weekly capacity (0068, x170). People module 14. Tenant-scoped: one active row per
+ * member, keyed by `(organization_id, membership_id)`, holding the available hours a week and the
+ * date the figure takes effect. `weekly_hours` is bounded [0,168] at the engine; identity
+ * (`organization_id`, `membership_id`) is immutable at the engine. The PUT is an upsert against the
+ * natural key, so this table is the current capacity at rest, not a history.
+ */
+export const personCapacity = mysqlTable(
+  'person_capacity',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    weeklyHours: smallint('weekly_hours', { unsigned: true }).notNull(),
+    effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_person_capacity_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_person_capacity_org_membership').on(table.organizationId, table.membershipId),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2936,6 +2995,8 @@ export const TABLES = {
   automation_schedules: automationSchedules,
   maintenance_windows: maintenanceWindows,
   workflow_conditions: workflowConditions,
+  person_allocations: personAllocations,
+  person_capacity: personCapacity,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2988,6 +3049,7 @@ export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
 export type IntegrationConnectionRow = typeof integrationConnections.$inferSelect;
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
+export type PersonCapacityRow = typeof personCapacity.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;
@@ -3008,6 +3070,7 @@ export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
+export type PersonAllocationRow = typeof personAllocations.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;

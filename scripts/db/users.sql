@@ -115,6 +115,8 @@
 --     workflow_templates, workflow_runs, workflow_conditions
 --     document_comments, decision_supersessions, document_templates, work_forms,
 --     integration_connections
+--     document_comments, decision_supersessions, document_templates, work_forms,
+--     project_risks, person_allocations
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -467,6 +469,18 @@ GRANT INSERT, UPDATE         ON `tmanage`.`a11y_preferences`  TO 'tmanage_app'@'
 -- slice that adds UPDATE with the code that writes it. No DELETE. A condition gates a step of a template
 -- the run evaluator reads; it writes no other tenant table, so the app needs no further privilege here.
 GRANT INSERT                 ON `tmanage`.`workflow_conditions` TO 'tmanage_app'@'%';
+-- PEOPLE allocations (x171). **INSERT only** — an allocation is created (INSERT) and read (the
+-- database-wide SELECT). This slice ships no edit and no removal path; there is no allocation-column
+-- lifecycle yet, so no UPDATE, and no DELETE. Reassignment or an end-date edit is a later slice that
+-- adds the statement with the code that writes it, per this file's rule that a grant names a statement
+-- that exists (the same treatment `work_forms` and `project_risks` have above).
+GRANT INSERT                 ON `tmanage`.`person_allocations` TO 'tmanage_app'@'%';
+-- Per-member weekly capacity (x170, 0068). **INSERT and UPDATE** — the PUT is an upsert against the
+-- `(organization_id, membership_id)` natural key: a first set INSERTs, a later revision UPDATEs in
+-- place. No DELETE — a capacity figure is set and revised, never removed by a runtime credential; the
+-- 0068 trigger pins organization_id/membership_id immutable for every credential besides. Reads use
+-- the database-wide SELECT above.
+GRANT INSERT, UPDATE         ON `tmanage`.`person_capacity`   TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

@@ -331,6 +331,20 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // entry is what scopes the condition reads and writes; `organization_id` is NOT NULL and carries the
   // `(organization_id, id)` key every tenant table has.
   workflow_conditions: 'organization_id',
+  // PEOPLE allocations (x171, migration 0069). Tenant-owned and project-owned: an allocation belongs
+  // to the acting tenant, and an unscoped `SELECT ... FROM person_allocations` would be every studio's
+  // capacity plan on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
+  // key every tenant table has, so the guard must scope its reads and its writes; the layer-3 guard
+  // fails OPEN on an unregistered table, so registering it here is what scopes it. tenant-isolation.db.test.ts
+  // enforces the entry.
+  person_allocations: 'organization_id',
+  // Per-member weekly capacity (x170, migration 0068). Tenant-owned: a capacity row belongs to a
+  // membership in one studio, and an unscoped `SELECT ... FROM person_capacity` would be every
+  // studio's staffing figures on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
+  // (upsert) writes. The layer-3 guard fails OPEN on an unregistered table, so registering it here is
+  // what scopes them; tenant-isolation.db.test.ts enforces the entry.
+  person_capacity: 'organization_id',
 });
 
 /**

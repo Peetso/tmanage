@@ -117,6 +117,7 @@ import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps
 import type { PublicPlanView as ApiPublicPlanView } from '../../apps/api/src/modules/public-site/plan-catalog.service.js';
 import type { ObjectiveWorkLinkView as ApiObjectiveWorkLinkView } from '../../apps/api/src/modules/projects/objective-work-links.service.js';
 import type { DecisionWorkLinkView as ApiDecisionWorkLinkView } from '../../apps/api/src/modules/decisions/decision-work-links.service.js';
+import type { PersonAllocationView as ApiPersonAllocationView } from '../../apps/api/src/modules/people/allocations.controller.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
@@ -142,6 +143,8 @@ import type { WorkflowRunHistoryView as ApiWorkflowRunHistoryView } from '../../
 import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '../../apps/api/src/modules/automations/template-edit.controller.js';
 import type { WorkflowConditionView as ApiWorkflowConditionView } from '../../apps/api/src/modules/automations/conditions.controller.js';
+import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
+import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/api/src/modules/people/capacity-heatmap.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -197,6 +200,8 @@ import type { WorkflowRunHistoryItem as WebWorkflowRunHistoryItem } from '../../
 import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowConditionSummary as WebWorkflowConditionSummary } from '../../apps/web/src/lib/api/automations';
+import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
+import type { CapacityHeatmapView as WebCapacityHeatmapView } from '../../apps/web/src/lib/api/team-capacity-heatmap';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -208,6 +213,7 @@ import type { ProjectPortfolioSummary as WebProjectPortfolioSummary } from '../.
 import type { PublicPlanView as WebPublicPlanView } from '../../apps/web/src/lib/api/public-plans';
 import type { ObjectiveWorkLink as WebObjectiveWorkLink } from '../../apps/web/src/lib/api/objective-work-links';
 import type { DecisionWorkLink as WebDecisionWorkLink } from '../../apps/web/src/lib/api/decision-work-links';
+import type { PersonAllocationSummary as WebPersonAllocationSummary } from '../../apps/web/src/lib/api/person-allocations';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -448,6 +454,14 @@ type _objectiveWorkLink = Assert<Exact<ApiObjectiveWorkLinkView, WebObjectiveWor
  * web consumer: `DecisionWorkLinksPanel` reads exactly this response, so this is a real `Exact` pair.
  */
 type _decisionWorkLink = Assert<Exact<ApiDecisionWorkLinkView, WebDecisionWorkLink>>;
+
+/**
+ * PEOPLE / module 14 (x171). `PersonAllocationView` (`GET`/`POST …/projects/:id/allocations` response)
+ * — a member's allocation to a project: the membership, the percent, the optional start/end dates.
+ * Paired with a live web consumer: `ProjectAllocationsScreen` reads exactly this response, so this is a
+ * real `Exact` pair.
+ */
+type _personAllocation = Assert<Exact<ApiPersonAllocationView, WebPersonAllocationSummary>>;
 
 /**
  * CAL-01 / MTG-01 third slice (x108). `GET .../meetings/:meetingId/notes` — a meeting's captured
@@ -755,6 +769,24 @@ type _workflowTemplateEdit = Assert<
  * enforced server-side), `targetStep` is `number` on both, and `organizationId` is absent on both.
  */
 type _workflowCondition = Assert<Exact<ApiWorkflowConditionView, WebWorkflowConditionSummary>>;
+
+/**
+ * People capacity (module 14, x170). `PersonCapacityView` (`GET`/`PUT …/people/:membershipId/capacity`,
+ * response) — one member's weekly capacity. Paired Exact with its live web consumer:
+ * `PersonCapacitySection` reads exactly this response to show and edit the figure. `organizationId` is
+ * absent on both sides; `membershipId`/`weeklyHours`/`effectiveFrom`/`updatedAt` are held identical, so
+ * a rename or retype on either side fails the gate.
+ */
+type _personCapacity = Assert<Exact<ApiPersonCapacityView, WebPersonCapacity>>;
+
+/**
+ * Team capacity heatmap (module 14, x193). `CapacityHeatmapView` (`GET …/people/capacity/heatmap`,
+ * response) — the org-level member × week utilisation grid folded from the x170 capacity and x171
+ * allocation facts. Paired Exact with its live web consumer: `TeamCapacityHeatmapScreen` reads exactly
+ * this response to render the grid and legend. `organizationId` is absent throughout; the nested
+ * member/cell shapes are held identical, so a rename or retype on either side fails the gate.
+ */
+type _capacityHeatmap = Assert<Exact<ApiCapacityHeatmapView, WebCapacityHeatmapView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

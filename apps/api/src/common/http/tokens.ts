@@ -65,6 +65,12 @@ export const WORKFLOW_RUN_HISTORY_REPOSITORY = Symbol.for('tmanage.WorkflowRunHi
 export const A11Y_PREFERENCES_REPOSITORY = Symbol.for('tmanage.A11yPreferencesRepository');
 /** Automation workflow conditions (x190). The org-scoped per-step condition repository. */
 export const WORKFLOW_CONDITIONS_REPOSITORY = Symbol.for('tmanage.WorkflowConditionsRepository');
+/** PEOPLE allocations (x171). The project-scoped person-allocation repository. */
+export const PERSON_ALLOCATIONS_REPOSITORY = Symbol.for('tmanage.PersonAllocationsRepository');
+/** People capacity (x170). The tenant-scoped per-member weekly-capacity repository. */
+export const PERSON_CAPACITY_REPOSITORY = Symbol.for('tmanage.PersonCapacityRepository');
+/** Team capacity heatmap (x193). The org-level read service that folds capacity × allocations. */
+export const CAPACITY_HEATMAP_SERVICE = Symbol.for('tmanage.CapacityHeatmapService');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */

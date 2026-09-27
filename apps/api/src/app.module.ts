@@ -15,6 +15,8 @@ import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
+import { PersonCapacityModule } from './modules/people/capacity.module.js';
+import { CapacityHeatmapModule } from './modules/people/capacity-heatmap.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { HomePulseModule } from './modules/home/home-pulse.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
@@ -35,6 +37,7 @@ import { AutomationSchedulesModule } from './modules/automations/schedules.contr
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
+import { PeopleModule } from './modules/people/people.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-links.module.js';
@@ -247,6 +250,11 @@ export class AppModule {
         // in its path, and the composite foreign key means a caller who names one that is not theirs
         // gets a refusal rather than a foreign-key 500.
         ProjectObjectivesModule.register(),
+        // PEOPLE / module 14 (x171). A project's people allocations (assign a member a share of their
+        // time, list them). After `ProjectsModule` for the same reason as the objectives register: an
+        // allocation names a project (and a membership) in its path/body, and the composite foreign
+        // keys mean a caller who names one that is not theirs gets a 404 rather than a foreign-key 500.
+        PeopleModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.
@@ -261,6 +269,14 @@ export class AppModule {
         // the composite foreign keys mean a caller who names one that is not theirs gets a refusal
         // rather than a foreign-key 500.
         ObjectiveWorkLinksModule.register(),
+        // People / module 14 (x170). Per-member weekly capacity (set/read). After `TenancyModule`:
+        // the controller resolves `:membershipId` tenant-scoped via a `MembershipsRepository` (provided
+        // in the module's own scope) before any write, so a cross-tenant member is a 404, not a 500.
+        PersonCapacityModule.register(),
+        // People / module 14 (x193). Team capacity heatmap: a read-only org-level roll-up that folds
+        // the x170 capacity and x171 allocation facts into a member × week utilisation grid. Behind
+        // `work.read`, tenant-scoped, with the window bounded before any read; adds no table.
+        CapacityHeatmapModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
         // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the

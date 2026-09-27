@@ -14796,3 +14796,93 @@ returned without the tenant id, an off-list op is a 400 with no write, a cross-t
 404 with no write, a role without `org.manage` (org_admin) is a 403, and the evaluator decides
 true/false across the operators against a sample event. Deferred to later slices: a condition editor /
 removal path (UPDATE/DELETE grants), and wiring the evaluator into the x163 run path.
+## PEOPLE allocations — assign a member a share of a project (x171, module 14)
+
+**What landed.** The People module advertised a capacity/allocation view but had no table to hold
+who is allocated to what. This slice adds a tenant- and project-owned `person_allocations` table
+(migration `0069`) — a membership, a project, a `percent` (1..100, `TINYINT UNSIGNED` with a
+`CHECK`), and an optional `start_date`/`end_date` window — and two endpoints under
+`/v1/organizations/:orgSlug/projects/:projectId/allocations`: `POST` to assign a member
+(`project.manage`) and `GET` to list the project's allocations in creation order (`work.read`). An
+existing capability is reused; no `capabilities.ts` edit.
+
+**Known-trap order.** Both ids the request names are resolved tenant-scoped _before_ authorize and
+before any write: an unknown or cross-tenant `projectId` OR `membershipId` is a 404 with no write,
+never a foreign-key 500, and a caller who names a project they do not manage gets the same not-found
+rather than a 403. A percent out of `[1,100]` is a 400; a duplicate active (`end_date IS NULL`)
+(project, membership) pair is a 409 with no second row (an application invariant, since MySQL treats
+NULLs as distinct in a UNIQUE index — the `CHECK` bound and composite FKs hold at the engine).
+`PersonAllocationView` never echoes `organization_id`. The new table is registered in all four
+places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT only),
+and the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `PersonAllocationView` (`allocations.controller.ts`) is a live `Exact` pair with the
+web's `PersonAllocationSummary` (`apps/web/src/lib/api/person-allocations.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `ProjectAllocationsScreen`
+(`apps/web/src/components/screens/ProjectAllocationsScreen.tsx`), routed at
+`/[orgSlug]/projects/[projectId]/allocations`, assigns a member and lists the allocations. Proved
+database-free with the real `authorize` (`allocations.controller.test.ts`): assign→list, percent out
+of range → 400, duplicate active → 409, cross-tenant project/membership → 404 with no write, and a
+manager not related to the project → 404 (never a 403). Deferred: reassignment/end-date edit and a
+time-phased capacity model.
+
+## People / module 14 — per-member weekly capacity (x170)
+
+_Audit #4 (People Missing — capacity not built)._ This slice adds a tenant-scoped `person_capacity`
+table (migration `0068`) — one active row per member, keyed by `(organization_id, membership_id)`,
+holding `weekly_hours` and the `effective_from` date — and two endpoints under
+`/v1/organizations/:orgSlug/people/:membershipId/capacity`: `PUT` to set the figure (`project.manage`,
+a staffing write) and `GET` to read it (`work.read`, an internal read). The `PUT` is an upsert against
+the natural key, so a first set inserts and a later revision updates in place. Capabilities are reused
+(`project.manage`/`work.read`); no `capabilities.ts` edit.
+
+**Known-trap order.** `:membershipId` is resolved tenant-scoped _first_ (via a `MembershipsRepository`
+provided in the module's own scope), so an unknown or cross-tenant member is a 404 with no write,
+before the application authorize or validation — a cross-tenant probe cannot tell 403 from 404. The
+weekly hours are validated in `[0,168]` next (out of range → 400, no write), and only then is the row
+upserted. `weekly_hours` is also bounded by a `CHECK` at the engine, and the `0068` trigger pins
+`organization_id`/`membership_id` immutable. `PersonCapacityView` never echoes `organization_id`. The
+new table is registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`,
+`users.sql` grant (INSERT + UPDATE — the upsert; no DELETE), and the on-disk migration the readdir
+migrator applies.
+
+**Surfaces.** `PersonCapacityView` (`capacity.controller.ts`) is a live `Exact` pair with the web's
+`PersonCapacity` (`apps/web/src/lib/api/person-capacity.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`PersonCapacitySection` (`apps/web/src/components/screens/PersonCapacitySection.tsx`), disjoint from
+the x169 profile file, reads and edits the figure and is axe-clean (labelled `Field`s, an
+`aria-labelledby` landmark, a submit-path `InlineAlert`). Proved database-free with the real
+`authorize` (`capacity.controller.test.ts`): set→read returns the figure, hours out of `[0,168]` is a
+400 with no write, a cross-tenant member id is a 404 with no write, a set without `project.manage` is a
+403, and a read without `work.read` is a 403. Deferred to a later slice: a capacity-history table.
+
+## Team capacity heatmap — org-level utilisation roll-up (x193, module 14)
+
+_Audit (People capacity built per-person; no team-level heatmap view)._ This slice adds a read-only
+org-level roll-up over the two facts x170/x171 already own — `person_capacity` (weekly hours) and
+`person_allocations` (a member's share of a project, with an optional window) — behind one endpoint
+`GET /v1/organizations/:orgSlug/people/capacity/heatmap?from=YYYY-MM-DD&weeks=N` (`work.read`). It adds
+no table. For each week bucket in the window a member's **allocated percent** is the sum of the
+`percent` of every allocation whose `[start_date, end_date]` window overlaps that week; **capacity
+hours** is the member's `weekly_hours` once `effective_from` is reached (0 before); **utilisation** is
+`allocatedPercent / 100` (null with no capacity); a week over 100% is flagged over-allocated. The fold
+is pure arithmetic — same input, same output. Capabilities are reused (`work.read`); no
+`capabilities.ts` edit, no migration.
+
+**Known-trap.** The read is tenant-scoped in the repository (`organization_id = context` on every
+statement), and the window is validated and bounded _before_ any read — `from` must be an ISO date and
+`weeks` an integer in `[1,26]`, else a 400 with no read — so an absurd or open-ended range can never
+fan out into an unbounded tenant-wide scan. The allocation read is further predicated on the requested
+window (`start_date <= to AND (end_date IS NULL OR end_date >= from)`). The service adds the org-scoped
+`authorize()` the route guard cannot: a client principal, who never holds the internal-only
+`work.read`, is a 403. `CapacityHeatmapView` never echoes `organization_id`.
+
+**Surfaces.** `CapacityHeatmapView` (`capacity-heatmap.service.ts`) is a live `Exact` pair with the
+web's `CapacityHeatmapView` (`apps/web/src/lib/api/team-capacity-heatmap.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `TeamCapacityHeatmapScreen`
+(`apps/web/src/components/screens/TeamCapacityHeatmapScreen.tsx`), disjoint from the x170 per-person
+section and the x171 allocations screen, renders a member × week grid with a colour scale that is never
+colour alone (each cell carries the percent text and a visually-hidden band label; a legend maps the
+bands) and a focusable scroll region (WCAG 2.2 2.1.1). Proved database-free with the real `authorize`
+(`capacity-heatmap.controller.test.ts`): the utilisation fold and over-allocation flag are correct for
+a seeded member set, a member with allocations but no capacity reads null utilisation, an out-of-range
+`weeks` or malformed `from` is a 400, only the acting tenant's rows are folded, and a client read is a 403. Deferred: a Monday-snapped default window on the server and a per-project drill-down.
