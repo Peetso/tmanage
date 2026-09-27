@@ -55,6 +55,8 @@ import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api
 import type { DecisionLockView as ApiDecisionLockView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { InvoiceView as ApiInvoiceView } from '../../apps/api/src/modules/billing/invoices.controller.js';
 import type { InvoiceDetailView as ApiInvoiceDetailView } from '../../apps/api/src/modules/billing/invoices.controller.js';
+import type { InvoiceLineItemView as ApiInvoiceLineItemView } from '../../apps/api/src/modules/billing/invoice-line-items.controller.js';
+import type { InvoiceLinesView as ApiInvoiceLinesView } from '../../apps/api/src/modules/billing/invoice-line-items.controller.js';
 import type { DocumentTemplateView as ApiDocumentTemplateView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentTemplateVariableView as ApiDocumentTemplateVariableView } from '../../apps/api/src/modules/docs/document-template-variables.controller.js';
 import type { AutomationScheduleView as ApiAutomationScheduleView } from '../../apps/api/src/modules/automations/schedules.controller.js';
@@ -294,6 +296,8 @@ import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { InvoiceSummary as WebInvoiceSummary } from '../../apps/web/src/lib/api/invoices';
 import type { InvoiceDetail as WebInvoiceDetail } from '../../apps/web/src/lib/api/invoices';
+import type { InvoiceLineItem as WebInvoiceLineItem } from '../../apps/web/src/lib/api/invoice-line-items';
+import type { InvoiceLines as WebInvoiceLines } from '../../apps/web/src/lib/api/invoice-line-items';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { ProjectInternalRiskSummary as WebProjectInternalRiskSummary } from '../../apps/web/src/lib/api/project-risk-register';
@@ -702,6 +706,17 @@ type _decisionLock = Assert<Exact<ApiDecisionLockView, WebDecisionLock>>;
  */
 type _invoice = Assert<Exact<ApiInvoiceView, WebInvoiceSummary>>;
 type _invoiceDetail = Assert<Exact<ApiInvoiceDetailView, WebInvoiceDetail>>;
+
+/**
+ * FEAT: Billing invoice line items (x225). `InvoiceLineItemView` (one billed line) and
+ * `InvoiceLinesView` (`GET …/billing/invoices/:invoiceId/lines`, the bounded line array plus the
+ * reconciliation between the summed lines and the stored header total). Paired with a live web
+ * consumer — `InvoiceLineItemsScreen` reads exactly these to render the line table and its reconciled
+ * total — so both are real `Exact` pairs. `amountCents`/`unitAmountCents` are integer minor units on
+ * both sides.
+ */
+type _invoiceLineItem = Assert<Exact<ApiInvoiceLineItemView, WebInvoiceLineItem>>;
+type _invoiceLines = Assert<Exact<ApiInvoiceLinesView, WebInvoiceLines>>;
 
 /**
  * DOC-04/ADM-06 (x119). `DocumentTemplateView` (`GET`/`POST …/documents/templates`) — one org-scoped

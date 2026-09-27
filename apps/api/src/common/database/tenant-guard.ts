@@ -522,6 +522,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `(organization_id, id)` key every tenant table has, so the guard scopes its reads and its writes;
   // the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
   admin_export_requests: 'organization_id',
+  // x225 (0099) invoice_line_items. Per-invoice line detail is per-tenant: an unscoped
+  // `SELECT ... FROM invoice_line_items` would be every studio's billing detail on the server.
+  // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table
+  // has, so the guard must scope its reads.
+  invoice_line_items: 'organization_id',
 });
 
 /**

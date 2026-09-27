@@ -668,6 +668,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`home_widget_prefs` TO 'tmanage_app'@'
 -- withheld privilege is the control. The route only ever touches this table, never the GLOBAL
 -- `users.display_name`.
 GRANT INSERT, UPDATE         ON `tmanage`.`member_profiles`   TO 'tmanage_app'@'%';
+-- x225 (0099) invoice_line_items. Same rule as its parent `invoices`: **NO write grant at all**, and
+-- the absence is the mechanism. The per-invoice line read is the only endpoint; reading is the
+-- database-wide SELECT above. Rows are produced by the subscription lifecycle or the seed, not by a
+-- request under this credential, so INSERT/UPDATE/DELETE are withheld — the provider-driven billing
+-- run that writes lines (Needs-Peter) adds the grant with the code that writes it.
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
