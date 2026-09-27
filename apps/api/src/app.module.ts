@@ -96,6 +96,7 @@ import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.control
 import { PersonProfileModule } from './modules/people/profile.controller.js';
 import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 import { InvoicesModule } from './modules/billing/invoices.module.js';
+import { BillingUsageExportModule } from './modules/billing/usage-export.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -528,6 +529,11 @@ export class AppModule {
         // slices; the detail resolves the id tenant-scoped before authorizing, so a cross-tenant id
         // is a 404.
         InvoicesModule.register(),
+        // Billing & entitlements module 19 (x227). A date-windowed CSV export of the org's usage
+        // counters behind `org.manage`: window-validated (400 on bad/oversized range), tenant-scoped,
+        // row-capped (413), and formula-injection-guarded through the shared `toCsv`. File-disjoint
+        // from the usage-alerts slice; reads `usage_counters` and adds no table.
+        BillingUsageExportModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
