@@ -314,6 +314,13 @@ GRANT INSERT, DELETE         ON `tmanage`.`work_item_files`        TO 'tmanage_a
 -- arrives with the code that writes it, per this file's rule that a grant names a statement that
 -- exists.
 GRANT INSERT, DELETE         ON `tmanage`.`work_item_time_logs`    TO 'tmanage_app'@'%';
+-- x258 (0128) work item estimates. A single planned effort per work item, set or revised in place
+-- through `INSERT ... ON DUPLICATE KEY UPDATE` on the org+item unique key — so INSERT and UPDATE and
+-- **no DELETE**: there is no remove endpoint (an estimate is edited, never dropped by a runtime
+-- credential), least privilege, and the 0128 trigger pins organization_id and work_item_id immutable
+-- for every credential besides so UPDATE can move `estimate_minutes` and nothing that says which item
+-- or tenant the estimate is. Reading is the database-wide SELECT above.
+GRANT INSERT, UPDATE         ON `tmanage`.`work_item_estimates`    TO 'tmanage_app'@'%';
 -- x232 work item watchers. **INSERT and DELETE** — a member subscribes (INSERT, idempotent on the
 -- unique `(organization_id, work_item_id, member_id)` key) and unsubscribes their own row (DELETE).
 -- No UPDATE: a watch has nothing mutable — it exists or it does not. Reading is the database-wide

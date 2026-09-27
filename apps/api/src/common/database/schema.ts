@@ -1665,6 +1665,32 @@ export const workItemTimeLogs = mysqlTable(
   ],
 );
 
+/**
+ * x258 (0128). An effort estimate per work item (Work module). A single planned figure
+ * (`estimate_minutes`) read back beside x231's logged actual — estimate vs actual and the variance
+ * between them. Parent- and tenant-owned — the composite foreign key
+ * `fk_work_item_estimates_work_item` binds `(organization_id, work_item_id)` to `work_items`, so a
+ * cross-tenant parent is a non-existent pair rather than a leak. One estimate per item:
+ * `uq_work_item_estimates_org_item` is the upsert key, so setting or revising the estimate is an
+ * `INSERT ... ON DUPLICATE KEY UPDATE`, never a second row. `organization_id` and `work_item_id` are
+ * pinned immutable by the migration's `BEFORE UPDATE` trigger; only `estimate_minutes` is edited.
+ */
+export const workItemEstimates = mysqlTable(
+  'work_item_estimates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    estimateMinutes: int('estimate_minutes', { unsigned: true }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_estimates_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_estimates_org_item').on(table.organizationId, table.workItemId),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4006,6 +4032,7 @@ export const TABLES = {
   work_item_checklist_items: workItemChecklistItems,
   work_item_comments: workItemComments,
   work_item_time_logs: workItemTimeLogs,
+  work_item_estimates: workItemEstimates,
   work_item_links: workItemLinks,
   work_blockers: workBlockers,
   client_requests: clientRequests,
@@ -4110,6 +4137,8 @@ export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelec
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
 export type WorkItemTimeLogRow = typeof workItemTimeLogs.$inferSelect;
 export type NewWorkItemTimeLogRow = typeof workItemTimeLogs.$inferInsert;
+export type WorkItemEstimateRow = typeof workItemEstimates.$inferSelect;
+export type NewWorkItemEstimateRow = typeof workItemEstimates.$inferInsert;
 export type WorkItemCommentRow = typeof workItemComments.$inferSelect;
 export type NewWorkItemCommentRow = typeof workItemComments.$inferInsert;
 export type WorkItemLinkRow = typeof workItemLinks.$inferSelect;

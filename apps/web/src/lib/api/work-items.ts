@@ -420,6 +420,47 @@ export async function deleteTimeLog(
   });
 }
 
+// ── x258: work item effort estimate (plan vs actual) ─────────────────────────
+
+/**
+ * A work item's effort estimate read beside its logged actual — x258 (Work module). The API
+ * projection is `WorkItemEstimateView`; this is its web mirror, paired `Exact` in `e2e/contracts`.
+ * `estimateMinutes` is `null` until one is set; `actualMinutes` sums x231's time logs (0 when none);
+ * `varianceMinutes` is `estimate - actual`, `null` with no estimate.
+ */
+export interface WorkItemEstimate {
+  readonly workItemId: string;
+  readonly estimateMinutes: number | null;
+  readonly actualMinutes: number;
+  readonly varianceMinutes: number | null;
+  readonly updatedAt: string | null;
+}
+
+export async function getWorkItemEstimate(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<WorkItemEstimate> {
+  const { data } = await client.request<WorkItemEstimate>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/estimate`,
+  });
+  return data;
+}
+
+export async function setWorkItemEstimate(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: { readonly minutes: number },
+): Promise<WorkItemEstimate> {
+  const { data } = await client.request<WorkItemEstimate>({
+    method: 'PUT',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/estimate`,
+    body: input,
+  });
+  return data;
+}
+
 // ── x232: work item watchers / subscribers ───────────────────────────────────
 
 /**

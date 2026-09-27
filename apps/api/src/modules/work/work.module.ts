@@ -13,6 +13,7 @@ import {
   WORK_ITEM_LINKS_SERVICE,
   WORK_ITEM_FILES_SERVICE,
   WORK_TIME_LOGS_SERVICE,
+  WORK_ITEM_ESTIMATE_SERVICE,
   WORK_WATCHERS_SERVICE,
   WORK_LABELS_SERVICE,
 } from '../../common/http/tokens.js';
@@ -43,6 +44,9 @@ import { BulkTransitionController } from './bulk-transition.controller.js';
 import { WorkTimeLogsRepository } from './time-logs.repository.js';
 import { WorkTimeLogsService } from './time-logs.service.js';
 import { WorkTimeLogsController } from './time-logs.controller.js';
+import { WorkItemEstimateRepository } from './item-estimate.repository.js';
+import { WorkItemEstimateService } from './item-estimate.service.js';
+import { WorkItemEstimateController } from './item-estimate.controller.js';
 import { WorkWatchersRepository } from './watchers.repository.js';
 import { WorkWatchersService } from './watchers.service.js';
 import { WorkWatchersController } from './watchers.controller.js';
@@ -140,6 +144,17 @@ export class WorkModule {
         new WorkTimeLogsService(database, workItems, new WorkTimeLogsRepository()),
     };
 
+    // x258. An effort estimate per work item — a tenant-scoped sub-resource behind
+    // work.read/work.update, wired like the time logs: the work-items repository resolves the parent,
+    // the service holds the policy (resolve-before-authorize, minutes bound), and the estimate
+    // repository reads x231's time logs read-only for the actual figure.
+    const estimateService: Provider = {
+      provide: WORK_ITEM_ESTIMATE_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkItemEstimateService(database, workItems, new WorkItemEstimateRepository()),
+    };
+
     const watchersService: Provider = {
       provide: WORK_WATCHERS_SERVICE,
       inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
@@ -167,6 +182,7 @@ export class WorkModule {
         itemFilesService,
         bulkTransitionService,
         timeLogsService,
+        estimateService,
         watchersService,
         labelsService,
       ],
@@ -180,6 +196,7 @@ export class WorkModule {
         WorkItemFilesController,
         BulkTransitionController,
         WorkTimeLogsController,
+        WorkItemEstimateController,
         WorkWatchersController,
         WorkLabelsController,
       ],

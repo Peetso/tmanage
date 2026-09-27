@@ -170,6 +170,7 @@ import type {
   TimeLogView as ApiTimeLogView,
   TimeLogListView as ApiTimeLogListView,
 } from '../../apps/api/src/modules/work/time-logs.service.js';
+import type { WorkItemEstimateView as ApiWorkItemEstimateView } from '../../apps/api/src/modules/work/item-estimate.service.js';
 import type { ItemWatcherView as ApiItemWatcherView } from '../../apps/api/src/modules/work/watchers.service.js';
 import type {
   ItemLabelView as ApiItemLabelView,
@@ -400,6 +401,7 @@ import type { WorkItemLink as WebWorkItemLink } from '../../apps/web/src/lib/api
 import type { ItemFile as WebItemFile } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLog as WebTimeLog } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/work-items';
+import type { WorkItemEstimate as WebWorkItemEstimate } from '../../apps/web/src/lib/api/work-items';
 import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
 import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
@@ -950,6 +952,14 @@ type _itemFile = Assert<Exact<ApiItemFileView, WebItemFile>>;
  */
 type _timeLog = Assert<Exact<ApiTimeLogView, WebTimeLog>>;
 type _timeLogList = Assert<Exact<ApiTimeLogListView, WebTimeLogList>>;
+
+/**
+ * x258. `WorkItemEstimateView` ↔ `WorkItemEstimate` — a work item's effort estimate read beside its
+ * logged actual and the variance between them (`GET`/`PUT …/work-items/:id/estimate`).
+ * `WorkItemEstimateScreen` reads exactly this shape, so `estimateMinutes`/`actualMinutes`/
+ * `varianceMinutes`/`updatedAt` (and their nullability) are held identical on both sides.
+ */
+type _workItemEstimate = Assert<Exact<ApiWorkItemEstimateView, WebWorkItemEstimate>>;
 
 /**
  * x232. `ItemWatcherView` ↔ `ItemWatcher` — one work-item watcher / subscriber
