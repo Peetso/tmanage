@@ -36,6 +36,97 @@ export interface PublicHomeView {
 }
 
 /**
+ * One resource/guide entry as the public index renders it: the card fields (`slug`, `title`,
+ * `summary`, `category`) plus the article `body` the detail page shows. The list projection omits
+ * `body`; the detail projection is this whole shape. The `slug` is the stable, in-URL identifier and
+ * is only ever chosen from this fixed map — a caller never introduces one.
+ */
+interface PublicResourceEntry {
+  readonly slug: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly category: string;
+  readonly body: string;
+}
+
+/**
+ * The resources/guides **index** payload (module 1). Each card carries the four list fields; the
+ * article body is fetched separately by slug so the index stays small. Nested shape inlined so the
+ * API↔web pairing is the single `PublicResourceListView` projection.
+ */
+export interface PublicResourceListView {
+  readonly resources: readonly {
+    readonly slug: string;
+    readonly title: string;
+    readonly summary: string;
+    readonly category: string;
+  }[];
+}
+
+/**
+ * One resource/guide **article** payload (module 1) — the four card fields plus the rendered `body`.
+ * Paired Exact with the web's `PublicResourceView`.
+ */
+export interface PublicResourceView {
+  readonly slug: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly category: string;
+  readonly body: string;
+}
+
+/**
+ * The fixed resource/guide catalog — deterministic, code-defined content, the same for every
+ * visitor. Frozen so the shared instance cannot be mutated. It is the only set of slugs the `:slug`
+ * read will ever serve: an unknown slug is a 404, never an arbitrary lookup path.
+ */
+const RESOURCES: readonly PublicResourceEntry[] = Object.freeze([
+  Object.freeze({
+    slug: 'getting-started',
+    title: 'Getting started with TManage',
+    summary:
+      'Set up your first project, invite your team, and share a client portal in an afternoon.',
+    category: 'Guides',
+    body: 'TManage brings projects, approvals, and the client portal into one place. Create an organization, add a project, and invite the people doing the work. Each work item carries the one reason it needs attention today, so the next step is always visible. When you are ready to share progress, publish a portal update — your client sees exactly what you allow, and nothing else.',
+  }),
+  Object.freeze({
+    slug: 'client-portal-tour',
+    title: 'A tour of the client portal',
+    summary: 'What clients see, how approvals flow, and how requests come back to your team.',
+    category: 'Guides',
+    body: 'The client portal is scoped to a single client: they see the deliverables, updates, and approvals you publish, and can raise requests that land back in your inbox. Nothing internal — other clients, internal notes, unpublished work — is ever reachable from the portal. Approvals record who decided and when, so the audit trail is the record rather than an email thread.',
+  }),
+  Object.freeze({
+    slug: 'roles-and-permissions',
+    title: 'Understanding roles and permissions',
+    summary: 'How capabilities, roles, and tenant scope keep the right people on the right work.',
+    category: 'Reference',
+    body: 'Access in TManage is capability-based: a role is a named bundle of capabilities, and every action checks the capability it needs before it runs. Scope is per-organization, so a person only ever sees the organizations they belong to. Custom roles let you clone a starting point and adjust it without touching anyone else.',
+  }),
+  Object.freeze({
+    slug: 'delivery-insights',
+    title: 'Reading delivery insights',
+    summary: 'Workload, delivery health, and adoption read straight from the work itself.',
+    category: 'Guides',
+    body: 'Insights in TManage are computed from the work, not entered by hand: workload shows who is carrying what, delivery health surfaces where a project is slipping, and adoption shows how the team is actually using the tool. Because the numbers are read from the record, they are always current — there is no snapshot to refresh.',
+  }),
+]) as readonly PublicResourceEntry[];
+
+/** The index projection, computed once from the catalog and frozen — the same payload every call. */
+const RESOURCE_LIST: PublicResourceListView = Object.freeze({
+  resources: Object.freeze(
+    RESOURCES.map((entry) =>
+      Object.freeze({
+        slug: entry.slug,
+        title: entry.title,
+        summary: entry.summary,
+        category: entry.category,
+      }),
+    ),
+  ),
+}) as PublicResourceListView;
+
+/**
  * The single, frozen payload. `as const` plus `Object.freeze` on the arrays means neither the
  * service nor any consumer can mutate what every request shares.
  */
@@ -71,5 +162,19 @@ export class PublicContentService {
   /** The marketing home content. Deterministic: the same frozen payload every call. */
   home(): PublicHomeView {
     return HOME;
+  }
+
+  /** The resources/guides index — every entry's card fields, no bodies. Deterministic. */
+  resources(): PublicResourceListView {
+    return RESOURCE_LIST;
+  }
+
+  /**
+   * One resource/guide article by slug. Returns `undefined` for any slug not in the fixed catalog,
+   * which the controller turns into a 404 — the lookup is a membership test against the frozen map,
+   * never an arbitrary path, so an unknown or crafted slug can only miss.
+   */
+  resource(slug: string): PublicResourceView | undefined {
+    return RESOURCES.find((entry) => entry.slug === slug);
   }
 }

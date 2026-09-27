@@ -52,6 +52,7 @@ import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
+import { PublicResourcesModule } from './modules/public-site/resources.controller.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
 import { ContactModule } from './modules/public-site/contact.module.js';
@@ -287,6 +288,11 @@ export class AppModule {
         // GLOBAL `incidents` table (0060) — resolves no tenant and asks for no capability; folded into
         // the same PublicSiteModule.
         PublicSiteModule.register(),
+        // x187. Module 1, the public resources/guides surface — `GET /v1/public/site/resources` and
+        // `…/resources/:slug`, both `@Public()`: no session, no tenant, no capability. Deterministic,
+        // code-defined content reused from the public-content service; no table, no shared capability,
+        // so its position here is free.
+        PublicResourcesModule.register(),
         // x158. Module 1, the public security-and-trust page. Public and tenant-less: it reads no
         // organization and requires no capability, and serves deterministic code-defined copy.
         TrustContentModule.register(),
