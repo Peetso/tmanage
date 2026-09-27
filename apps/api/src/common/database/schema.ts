@@ -2467,6 +2467,36 @@ export const personCapacity = mysqlTable(
 );
 
 /**
+ * Member reporting lines (People module 14, org chart, x217, migration 0095). At most one row per
+ * member, keyed by `(organization_id, member_id)`, recording the member they report to
+ * (`manager_member_id`). The set of rows is the edge set of the tenant's reporting tree — the org-chart
+ * screen draws it. `0095_member_reporting_lines.sql` is the source of truth; this is its typed mirror.
+ *
+ * Both member and manager are tenant-bound composite FKs to `memberships`, so neither can name another
+ * tenant's member. A member is never their own manager (a `CHECK`); a longer cycle is refused by the
+ * controller before any write. Identity (`organization_id`, `member_id`) is immutable at the engine;
+ * `manager_member_id` is the one editable field, rewritten by the upsert. The PUT is an upsert against
+ * `uq_member_reporting_lines_org_member`, so this table is the current reporting line at rest, not a
+ * history; clearing a line deletes the row.
+ */
+export const memberReportingLines = mysqlTable(
+  'member_reporting_lines',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    memberId: char('member_id', { length: 36 }).notNull(),
+    managerMemberId: char('manager_member_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_member_reporting_lines_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_member_reporting_lines_org_member').on(table.organizationId, table.memberId),
+    index('ix_member_reporting_lines_org_manager').on(table.organizationId, table.managerMemberId),
+  ],
+);
+
+/**
  * Custom roles (Administration module 18, x173, migration 0071). One row per named role per
  * organization: a role's display name and the capability subset it grants. The capability list is a
  * subset of the fixed `CAPABILITIES` allowlist (`12-PERMISSION-MATRIX` §2) — no new capability is ever
@@ -4112,6 +4142,7 @@ export const TABLES = {
   workflow_conditions: workflowConditions,
   person_allocations: personAllocations,
   person_capacity: personCapacity,
+  member_reporting_lines: memberReportingLines,
   person_skills: personSkills,
   custom_roles: customRoles,
   subscriptions,
@@ -4190,6 +4221,7 @@ export type IntegrationConnectionRow = typeof integrationConnections.$inferSelec
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
 export type PersonCapacityRow = typeof personCapacity.$inferSelect;
+export type MemberReportingLineRow = typeof memberReportingLines.$inferSelect;
 export type PersonSkillRow = typeof personSkills.$inferSelect;
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
 export type BillingProfileRow = typeof billingProfiles.$inferSelect;

@@ -187,6 +187,7 @@ import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../ap
 import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '../../apps/api/src/modules/automations/template-edit.controller.js';
 import type { WorkflowConditionView as ApiWorkflowConditionView } from '../../apps/api/src/modules/automations/conditions.controller.js';
 import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
+import type { ReportingLineView as ApiReportingLineView } from '../../apps/api/src/modules/people/reporting-lines.controller.js';
 import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/api/src/modules/people/capacity-heatmap.service.js';
 import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
 import type { BillingContactView as ApiBillingContactView } from '../../apps/api/src/modules/billing/contacts.service.js';
@@ -266,6 +267,7 @@ import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/s
 import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowConditionSummary as WebWorkflowConditionSummary } from '../../apps/web/src/lib/api/automations';
 import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
+import type { ReportingLine as WebReportingLine } from '../../apps/web/src/lib/api/reporting-lines';
 import type { CapacityHeatmapView as WebCapacityHeatmapView } from '../../apps/web/src/lib/api/team-capacity-heatmap';
 import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/modules/people/skills.controller.js';
 import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
@@ -1086,6 +1088,16 @@ type _workflowCondition = Assert<Exact<ApiWorkflowConditionView, WebWorkflowCond
  * a rename or retype on either side fails the gate.
  */
 type _personCapacity = Assert<Exact<ApiPersonCapacityView, WebPersonCapacity>>;
+
+/**
+ * People reporting lines / org chart (module 14, x217). `ReportingLineView` (`PUT`/`GET
+ * …/people/:membershipId/manager` and each edge of `GET …/people/org-chart`, response) — one member
+ * and who they report to. Paired Exact with its live web consumer: `OrgChartScreen` reads exactly this
+ * response to set a manager and draw the tree. `managerMembershipId` is `string | null` on both sides
+ * (null = a root), `membershipId` is held identical, and `organizationId` is absent on both — so a
+ * rename or retype on either side fails the gate.
+ */
+type _reportingLine = Assert<Exact<ApiReportingLineView, WebReportingLine>>;
 
 /**
  * Team capacity heatmap (module 14, x193). `CapacityHeatmapView` (`GET …/people/capacity/heatmap`,
