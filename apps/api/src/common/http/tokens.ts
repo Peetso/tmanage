@@ -62,6 +62,7 @@ export const WORK_FORMS_REPOSITORY = Symbol.for('tmanage.WorkFormsRepository');
 export const WORK_COMMENTS_SERVICE = Symbol.for('tmanage.WorkCommentsService');
 /** x204. Typed links between work items, behind `work.read`/`work.update`. */
 export const WORK_ITEM_LINKS_SERVICE = Symbol.for('tmanage.WorkItemLinksService');
+export const WORK_ITEM_FILES_SERVICE = Symbol.for('tmanage.WorkItemFilesService');
 export const WORKFLOW_TEMPLATES_REPOSITORY = Symbol.for('tmanage.WorkflowTemplatesRepository');
 export const WORKFLOW_RUNS_REPOSITORY = Symbol.for('tmanage.WorkflowRunsRepository');
 export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');

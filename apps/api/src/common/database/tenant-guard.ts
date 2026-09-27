@@ -93,6 +93,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // studio's dependency graph at once. Tenant-owned, `organization_id` NOT NULL, `(organization_id,
   // id)` keyed like every sibling — the guard scopes its reads, its inserts and its deletes.
   work_item_links: 'organization_id',
+  // x205. The work-item ↔ file join. Tenant-owned: a link names two tenant rows (a work item and
+  // a file asset), and an unscoped read of it would be every studio's attachments at once.
+  work_item_files: 'organization_id',
   // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
   // NOT NULL, so every row belongs both to a studio and to one of its clients.
   client_requests: 'organization_id',

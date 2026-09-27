@@ -308,3 +308,54 @@ export async function removeItemLink(
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/links/${encodeURIComponent(linkId)}`,
   });
 }
+
+/**
+ * One file attached to a work item — x205 (Work module 7). The API projection is `ItemFileView`;
+ * this is its web mirror, paired `Exact` in `e2e/contracts`. A link is attached and detached,
+ * never edited: the client reads, adds and removes, and there is no update shape.
+ */
+export interface ItemFile {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly fileAssetId: string;
+  readonly fileName: string;
+  readonly attachedByMembershipId: string;
+  readonly createdAt: string;
+}
+
+export async function listWorkItemFiles(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<readonly ItemFile[]> {
+  const { data } = await client.request<{ files: readonly ItemFile[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/files`,
+  });
+  return data.files;
+}
+
+export async function attachWorkItemFile(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: { readonly fileAssetId: string },
+): Promise<ItemFile> {
+  const { data } = await client.request<ItemFile>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/files`,
+    body: input,
+  });
+  return data;
+}
+
+export async function detachWorkItemFile(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  linkId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/files/${encodeURIComponent(linkId)}`,
+  });
+}
