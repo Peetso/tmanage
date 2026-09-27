@@ -829,6 +829,41 @@ export const automationSchedules = mysqlTable(
 );
 
 /**
+ * Billing usage alerts (module 19, x200). The metered dimensions a usage-alert rule may watch,
+ * mirroring the application allowlist in `usage-alerts.controller.ts`. Stored as a short `VARCHAR`
+ * (not a DB `ENUM`) so the set can grow without an `ALTER TABLE`; the column only ever holds a token
+ * from here, validated before any write.
+ */
+export const BILLING_USAGE_ALERT_METRICS = ['seats', 'storage', 'api'] as const;
+
+/**
+ * Billing & entitlements (module 19, x200). An org-scoped usage-alert rule — a `metric`
+ * (seats/storage/api), a `threshold_percent` (1–100), and whether it is `active`. Tenant-owned and
+ * org-scoped like `workflow_templates` (0063): no `project_id`, the tenant key is `organization_id`
+ * bound to `organizations`, and `(organization_id, metric)` is unique so an organization holds at most
+ * one rule per metric. `metric`, `organization_id` and `created_by` are immutable at the engine (0083
+ * trigger); `threshold_percent` and `active` are the two columns the update path may change.
+ * `0083_billing_usage_alerts.sql` is the source of truth; this is its typed mirror.
+ */
+export const billingUsageAlerts = mysqlTable(
+  'billing_usage_alerts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    metric: varchar('metric', { length: 32 }).notNull(),
+    thresholdPercent: smallint('threshold_percent', { unsigned: true }).notNull(),
+    active: boolean('active').notNull().default(true),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_billing_usage_alerts_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_billing_usage_alerts_org_metric').on(table.organizationId, table.metric),
+  ],
+);
+
+/**
  * The project-objective status set, mirroring the `0040` `ENUM`. An objective is `open` at creation
  * and its lifecycle transitions to `met` or `missed`.
  */
@@ -2809,6 +2844,7 @@ export const TABLES = {
   integration_connections: integrationConnections,
   webhook_endpoints: webhookEndpoints,
   automation_schedules: automationSchedules,
+  billing_usage_alerts: billingUsageAlerts,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2865,6 +2901,7 @@ export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type AutomationScheduleRow = typeof automationSchedules.$inferSelect;
+export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;

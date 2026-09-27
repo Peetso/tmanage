@@ -319,6 +319,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // NULL and carries the `(organization_id, id)` key every tenant table has, so the guard must scope
   // its reads and its writes.
   automation_schedules: 'organization_id',
+  // Billing usage alerts (x200, migration 0083). Org-owned: a usage-alert rule belongs to the acting
+  // tenant, and an unscoped `SELECT ... FROM billing_usage_alerts` would be every studio's alert
+  // thresholds on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
+  // key every tenant table has, so the guard must scope its reads and its writes.
+  billing_usage_alerts: 'organization_id',
 });
 
 /**

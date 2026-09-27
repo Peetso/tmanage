@@ -14538,3 +14538,37 @@ real `authorize` (`schedules.controller.test.ts`): a valid spec writes a row wit
 404, and a caller without `org.manage` is a 403; `next-run.ts`'s pure computation is proved directly.
 Deferred to worker infrastructure (Needs-Peter): the dispatcher that fires runs, and a per-schedule
 enable/disable toggle endpoint.
+
+## SEC / Billing & entitlements — usage-alert thresholds (x200, module 19)
+
+**What shipped.** Configurable usage-alert threshold rules over the existing usage/quota reads. This
+slice adds a tenant-scoped `billing_usage_alerts` table (migration `0083`) — a `metric`
+(seats/storage/api), a `threshold_percent` (1–100), and an `active` flag — and four endpoints behind
+`org.manage`: `POST …/billing/usage-alerts` creates a rule, `GET …/billing/usage-alerts` lists a
+tenant's rules metric-ascending, `PATCH …/billing/usage-alerts/:id` tunes a rule's threshold/active,
+and `GET …/billing/usage-alerts/status` returns which active rules are currently breached. The status
+read _computes_ over the bands the existing `usage_counters` write path already stamps (`0024`); it
+counts nothing new and dispatches nothing. Email/notification delivery when a threshold is crossed is
+worker infrastructure (Needs-Peter).
+
+**Security.** Every route makes the authoritative org-scoped `org.manage` decision in the controller
+(`projectId: null`, a 403 for a caller without it) beyond the route guard. On the update path the rule
+is resolved tenant-scoped **before** authorize/write (the Known-trap order): a cross-tenant or missing
+id is a 404 with no write, never a foreign-key surprise. An off-list `metric` or an out-of-range
+`thresholdPercent` (outside 1–100) is a 400 with no write, decided before the service is touched. The
+metric is validated against a fixed application allowlist, and `(organization_id, metric)` is unique so
+a tenant holds one rule per metric. `UsageAlertView` never echoes `organization_id`. The new table is
+registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql`
+grant (INSERT and UPDATE; no removal path, so no DELETE, and the `0083` trigger pins
+organization_id/created_by/metric immutable), and the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `UsageAlertView` and `UsageAlertStatusView` (`usage-alerts.controller.ts`) are live
+`Exact` pairs with the web's `UsageAlertSummary`/`UsageAlertStatus` (`apps/web/src/lib/api/billing.ts`)
+in `e2e/contracts/api-web-shapes.ts`. `UsageAlertsScreen`
+(`apps/web/src/components/screens/UsageAlertsScreen.tsx`), routed at `/[orgSlug]/billing/usage-alerts`,
+lists rules with a live breach badge from the status read and creates a rule. Proved database-free with
+the real `authorize` (`usage-alerts.controller.test.ts`): create→list without echoing the tenant id, an
+unknown metric and an out-of-range threshold are 400s with no write, a cross-tenant update is a 404, a
+caller without `org.manage` is a 403, and `status` flags a breached active rule from a seeded band.
+Deferred to worker infrastructure (Needs-Peter): the dispatcher that delivers an alert when a threshold
+is crossed, and a per-rule removal path.
