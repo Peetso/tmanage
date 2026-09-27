@@ -325,6 +325,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // carries the `(organization_id, id)` key every tenant table has, so the guard scopes its
   // reads and its writes; tenant-isolation.db.test.ts enforces the entry.
   a11y_preferences: 'organization_id',
+  // PREF-QUIET (x215, migration 0093). Tenant-owned: a row is one membership's notification
+  // quiet-hours window in one studio, and an unscoped `SELECT ... FROM pref_quiet_hours` would be
+  // every member's window across every studio on the server. `organization_id` is NOT NULL and
+  // carries the `(organization_id, id)` key every tenant table has, so the guard scopes its reads
+  // and its writes; tenant-isolation.db.test.ts enforces the entry.
+  pref_quiet_hours: 'organization_id',
 });
 
 /**

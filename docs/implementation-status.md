@@ -250,6 +250,34 @@ No DB test / no new e2e journey per pass-20 rules (the chain owns both).
 
 ---
 
+## 2026-09-27 — PREF-QUIET: notification quiet hours (module 20, slice x215)
+
+Status: **implemented** (unit-tested; DB round-trip and e2e deferred to the chain per pass-22 rules).
+Branch `x215-prefs-quiet-hours` off `master` `cca6d07`, by **Claude Opus 4.8**. The pass-22 audit found
+appearance and accessibility preferences built (x182/x183) but no quiet-hours / do-not-disturb window.
+This slice adds one: a member reads and replaces their own window over
+`GET`/`PUT /v1/organizations/:orgSlug/preferences/quiet-hours`, and a `GET .../active` returns whether
+they are currently inside it — all behind reused `work.read` (own-principal — the subject is
+`principal.membershipId`, never a request value, so no caller can touch another member's row;
+`capabilities.ts` untouched). Distinct from the per-kind notification opt-out (x152): this is a _time
+window_, not a per-kind switch.
+
+**What is built.** `0093_pref_quiet_hours.sql` creates a tenant-scoped, per-`(organization_id,
+membership_id)` table whose `quiet_json` column holds the window whole (`enabled`, `startTime`/`endTime`
+`HH:MM`, IANA `timezone`, `days` 0–6); the write is one `INSERT ... ON DUPLICATE KEY UPDATE`, identity
+is engine-immutable, and the app is granted INSERT and UPDATE only. Registered in the four places a
+tenant table needs (schema.ts def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant,
+migration). The PUT is a full replacement over a fixed-key allowlist: an unknown key, a malformed time,
+an unknown timezone, or a weekday outside 0–6 is a 400 with no write. The active-window compute is a
+pure function of the settings and a **bound** `new Date()`, evaluated in the stored timezone via
+`Intl.DateTimeFormat` — never the database clock (admin-pool-clock discipline), and it handles windows
+that wrap midnight. `QuietHoursController` holds the views; `QuietHoursView` and `QuietHoursActiveView`
+are paired Exact with the web shapes in `e2e/contracts/api-web-shapes.ts`. `QuietHoursScreen` (route
+`/{orgSlug}/settings/quiet-hours`) reads, edits and saves the window.
+
+**Deferred:** DB round-trip (`migrator.db.test.ts` / tenant-isolation) and an e2e journey are the
+chain's per pass-22; acting on the window when dispatching notifications is out of scope.
+
 ## 2026-09-27 — A11Y-183: accessibility preferences (module 20, slice x183)
 
 Status: **implemented** (unit-tested; DB round-trip and e2e deferred to the chain per pass-21 rules).

@@ -105,7 +105,7 @@
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
 --     saved_views, meeting_attendees, org_settings
---     saved_views, meeting_attendees, a11y_preferences
+--     saved_views, meeting_attendees, a11y_preferences, pref_quiet_hours
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
@@ -459,6 +459,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`webhook_endpoints` TO 'tmanage_app'@'
 -- `uq_a11y_preferences_org_membership`. No DELETE: a member clears settings by saving the defaults,
 -- not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`a11y_preferences`  TO 'tmanage_app'@'%';
+-- PREF-QUIET quiet hours (x215, module 20). **INSERT, UPDATE** — a member's notification quiet-hours
+-- window is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert
+-- against `uq_pref_quiet_hours_org_membership`. No DELETE: a member clears the window by saving
+-- disabled, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`pref_quiet_hours` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

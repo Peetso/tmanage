@@ -63,6 +63,8 @@ export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');
 export const WORKFLOW_RUN_HISTORY_REPOSITORY = Symbol.for('tmanage.WorkflowRunHistoryRepository');
 /** A11Y-183 (x183, module 20). The member's-own accessibility-preferences repository. */
 export const A11Y_PREFERENCES_REPOSITORY = Symbol.for('tmanage.A11yPreferencesRepository');
+/** PREF-QUIET (x215, module 20). The member's-own notification quiet-hours store. */
+export const QUIET_HOURS_REPOSITORY = Symbol.for('tmanage.QuietHoursRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */
