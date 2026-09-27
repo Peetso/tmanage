@@ -107,7 +107,8 @@
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
---     document_comments, decision_supersessions, document_templates, work_forms
+--     document_comments, decision_supersessions, document_templates, work_forms,
+--     project_risks, person_allocations
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -373,6 +374,12 @@ GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'
 -- adds UPDATE with the code that writes it. No DELETE. Submitting a form writes no work_forms row —
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- PEOPLE allocations (x171). **INSERT only** — an allocation is created (INSERT) and read (the
+-- database-wide SELECT). This slice ships no edit and no removal path; there is no allocation-column
+-- lifecycle yet, so no UPDATE, and no DELETE. Reassignment or an end-date edit is a later slice that
+-- adds the statement with the code that writes it, per this file's rule that a grant names a statement
+-- that exists (the same treatment `work_forms` and `project_risks` have above).
+GRANT INSERT                 ON `tmanage`.`person_allocations` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

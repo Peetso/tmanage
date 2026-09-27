@@ -13925,3 +13925,33 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## PEOPLE allocations — assign a member a share of a project (x171, module 14)
+
+**What landed.** The People module advertised a capacity/allocation view but had no table to hold
+who is allocated to what. This slice adds a tenant- and project-owned `person_allocations` table
+(migration `0069`) — a membership, a project, a `percent` (1..100, `TINYINT UNSIGNED` with a
+`CHECK`), and an optional `start_date`/`end_date` window — and two endpoints under
+`/v1/organizations/:orgSlug/projects/:projectId/allocations`: `POST` to assign a member
+(`project.manage`) and `GET` to list the project's allocations in creation order (`work.read`). An
+existing capability is reused; no `capabilities.ts` edit.
+
+**Known-trap order.** Both ids the request names are resolved tenant-scoped _before_ authorize and
+before any write: an unknown or cross-tenant `projectId` OR `membershipId` is a 404 with no write,
+never a foreign-key 500, and a caller who names a project they do not manage gets the same not-found
+rather than a 403. A percent out of `[1,100]` is a 400; a duplicate active (`end_date IS NULL`)
+(project, membership) pair is a 409 with no second row (an application invariant, since MySQL treats
+NULLs as distinct in a UNIQUE index — the `CHECK` bound and composite FKs hold at the engine).
+`PersonAllocationView` never echoes `organization_id`. The new table is registered in all four
+places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT only),
+and the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `PersonAllocationView` (`allocations.controller.ts`) is a live `Exact` pair with the
+web's `PersonAllocationSummary` (`apps/web/src/lib/api/person-allocations.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `ProjectAllocationsScreen`
+(`apps/web/src/components/screens/ProjectAllocationsScreen.tsx`), routed at
+`/[orgSlug]/projects/[projectId]/allocations`, assigns a member and lists the allocations. Proved
+database-free with the real `authorize` (`allocations.controller.test.ts`): assign→list, percent out
+of range → 400, duplicate active → 409, cross-tenant project/membership → 404 with no write, and a
+manager not related to the project → 404 (never a 403). Deferred: reassignment/end-date edit and a
+time-phased capacity model.

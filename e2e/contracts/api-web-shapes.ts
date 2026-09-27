@@ -99,6 +99,7 @@ import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
 import type { ObjectiveWorkLinkView as ApiObjectiveWorkLinkView } from '../../apps/api/src/modules/projects/objective-work-links.service.js';
+import type { PersonAllocationView as ApiPersonAllocationView } from '../../apps/api/src/modules/people/allocations.controller.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
@@ -150,6 +151,7 @@ import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSumm
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
 import type { ProjectPortfolioSummary as WebProjectPortfolioSummary } from '../../apps/web/src/lib/api/project-portfolio';
 import type { ObjectiveWorkLink as WebObjectiveWorkLink } from '../../apps/web/src/lib/api/objective-work-links';
+import type { PersonAllocationSummary as WebPersonAllocationSummary } from '../../apps/web/src/lib/api/person-allocations';
 import type {
   ConversationSummary as WebConversationSummary,
   ConvertMessageResult as WebConvertMessageResult,
@@ -333,6 +335,14 @@ type _projectPortfolio = Assert<Exact<ApiProjectPortfolioView, WebProjectPortfol
  * web consumer: `ObjectiveWorkLinksPanel` reads exactly this response, so this is a real `Exact` pair.
  */
 type _objectiveWorkLink = Assert<Exact<ApiObjectiveWorkLinkView, WebObjectiveWorkLink>>;
+
+/**
+ * PEOPLE / module 14 (x171). `PersonAllocationView` (`GET`/`POST …/projects/:id/allocations` response)
+ * — a member's allocation to a project: the membership, the percent, the optional start/end dates.
+ * Paired with a live web consumer: `ProjectAllocationsScreen` reads exactly this response, so this is a
+ * real `Exact` pair.
+ */
+type _personAllocation = Assert<Exact<ApiPersonAllocationView, WebPersonAllocationSummary>>;
 
 /**
  * CAL-01 / MTG-01 third slice (x108). `GET .../meetings/:meetingId/notes` — a meeting's captured

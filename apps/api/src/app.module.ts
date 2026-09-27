@@ -29,6 +29,7 @@ import { DocsModule } from './modules/docs/docs.module.js';
 import { DocumentTemplateVariablesModule } from './modules/docs/document-template-variables.controller.js';
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
+import { PeopleModule } from './modules/people/people.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-links.module.js';
@@ -205,6 +206,11 @@ export class AppModule {
         // in its path, and the composite foreign key means a caller who names one that is not theirs
         // gets a refusal rather than a foreign-key 500.
         ProjectObjectivesModule.register(),
+        // PEOPLE / module 14 (x171). A project's people allocations (assign a member a share of their
+        // time, list them). After `ProjectsModule` for the same reason as the objectives register: an
+        // allocation names a project (and a membership) in its path/body, and the composite foreign
+        // keys mean a caller who names one that is not theirs gets a 404 rather than a foreign-key 500.
+        PeopleModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.
