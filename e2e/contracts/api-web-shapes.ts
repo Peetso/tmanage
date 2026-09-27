@@ -140,6 +140,7 @@ import type { IntegrationConnectionView as ApiIntegrationConnectionView } from '
 import type { WebhookEndpointView as ApiWebhookEndpointView } from '../../apps/api/src/modules/automations/webhooks.controller.js';
 import type { WorkflowRunHistoryView as ApiWorkflowRunHistoryView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../apps/api/src/modules/automations/history.controller.js';
+import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '../../apps/api/src/modules/automations/template-edit.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -193,6 +194,7 @@ import type { IntegrationConnectionView as WebIntegrationConnectionView } from '
 import type { WebhookEndpointSummary as WebWebhookEndpointSummary } from '../../apps/web/src/lib/api/webhooks';
 import type { WorkflowRunHistoryItem as WebWorkflowRunHistoryItem } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/src/lib/api/automations';
+import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '../../apps/web/src/lib/api/automations';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -731,6 +733,17 @@ type _workflowRunHistory = Assert<Exact<ApiWorkflowRunHistoryView, WebWorkflowRu
  * `string` on both, and `organizationId` is absent on both.
  */
 type _workflowRunDetail = Assert<Exact<ApiWorkflowRunDetailView, WebWorkflowRunDetail>>;
+
+/**
+ * Automations & integrations edit (x189). `WorkflowTemplateEditView` (`PATCH …/automations/templates/:id`,
+ * response) — the full updated template the editor returns. Paired Exact with the web
+ * `WorkflowTemplateEditView` that `updateWorkflowTemplate` returns and `AutomationTemplateEditScreen`
+ * consumes. Structurally the same eight fields as the define/list pair; `organizationId` is absent on
+ * both, and `triggerKind`/`actionKind` are `string` on both (the closed set is enforced server-side).
+ */
+type _workflowTemplateEdit = Assert<
+  Exact<ApiWorkflowTemplateEditView, WebWorkflowTemplateEditView>
+>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

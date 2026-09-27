@@ -42,6 +42,22 @@ export interface ListWorkflowTemplatesOptions {
   readonly limit?: number;
 }
 
+/**
+ * A partial edit of an existing template (Automations & integrations, module 17, x189). Every field
+ * is optional: only the ones present are written, so a rename touches `name` alone and leaves the
+ * trigger, action, config and enabled flag as they were. Identity is *not* here — `organizationId`
+ * and `createdBy` are what a template is (the schema's `BEFORE UPDATE` trigger holds them at the
+ * engine), so an edit cannot re-tenant or re-author a template. `triggerKind`/`actionKind` are
+ * already allowlist-validated by the controller before this is called.
+ */
+export interface UpdateWorkflowTemplateInput {
+  readonly name?: string;
+  readonly triggerKind?: string;
+  readonly actionKind?: string;
+  readonly config?: WorkflowTemplateConfig;
+  readonly enabled?: boolean;
+}
+
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
 
@@ -132,5 +148,45 @@ export class WorkflowTemplatesRepository {
     const created = await this.findById(runner, context, id);
     if (!created) throw new Error(`workflow template ${id} vanished after insert`);
     return created;
+  }
+
+  /**
+   * Apply a partial edit to one template, within the acting tenant (x189).
+   *
+   * The `UPDATE` predicate carries the composite tenant key `(organization_id, id)`, not the id
+   * alone: a cross-tenant id updates zero rows and the read-back returns null, so an edit can never
+   * touch another customer's template even if a bad id reached the repository. Only the fields
+   * present in `input` are written; identity (`organization_id`, `created_by`) is never in the set,
+   * and the schema trigger rejects a change to it regardless. The row is read back so the returned
+   * view reflects exactly what the engine holds. Returns null if no such tenant-owned row exists.
+   */
+  async update(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    templateId: string,
+    input: UpdateWorkflowTemplateInput,
+  ): Promise<WorkflowTemplateRow | null> {
+    const db = tenantDrizzle(runner);
+
+    const set: Record<string, unknown> = {};
+    if (input.name !== undefined) set['name'] = input.name;
+    if (input.triggerKind !== undefined) set['triggerKind'] = input.triggerKind;
+    if (input.actionKind !== undefined) set['actionKind'] = input.actionKind;
+    if (input.config !== undefined) set['configJson'] = input.config;
+    if (input.enabled !== undefined) set['enabled'] = input.enabled;
+
+    if (Object.keys(set).length > 0) {
+      await db
+        .update(workflowTemplates)
+        .set(set)
+        .where(
+          and(
+            eq(workflowTemplates.organizationId, context.organizationId),
+            eq(workflowTemplates.id, templateId),
+          ),
+        );
+    }
+
+    return this.findById(runner, context, templateId);
   }
 }

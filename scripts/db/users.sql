@@ -428,12 +428,14 @@ GRANT INSERT                 ON `tmanage`.`onboarding_progress` TO 'tmanage_app'
 -- write grant with the code that writes it (this file's rule that a grant names a statement that
 -- exists). The decision is recorded in users-sql.test.ts's `withheldOnPurpose`, since the schema
 -- gate requires every table to be either granted or deliberately withheld.
--- Automation workflow templates (x162, 0063). **INSERT only** — a template is created (INSERT) and
--- read (the database-wide SELECT). This slice ships no editor and no enable/disable toggle; the 0063
--- trigger pins organization_id/created_by immutable for every credential, and an editor is a later
--- slice that adds UPDATE with the code that writes it. No DELETE. Nothing executes a template here
--- (runs are x163), so the app needs no other privilege on this table.
-GRANT INSERT                 ON `tmanage`.`workflow_templates` TO 'tmanage_app'@'%';
+-- Automation workflow templates (x162, 0063; edit x189). **INSERT + UPDATE** — a template is created
+-- (INSERT), read (the database-wide SELECT) and now edited in place (UPDATE): x189 adds the editor
+-- the x162 grant anticipated ("an editor is a later slice that adds UPDATE with the code that writes
+-- it"). The 0063 trigger still pins organization_id/created_by immutable for every credential, so
+-- UPDATE can only touch name/trigger_kind/action_kind/config_json/enabled — never identity. No
+-- DELETE (there is no delete path; archive needs a column and is deferred to a migration slice).
+-- Nothing executes a template here (runs are x163).
+GRANT INSERT, UPDATE         ON `tmanage`.`workflow_templates` TO 'tmanage_app'@'%';
 -- Automation workflow runs (x163, 0064). **INSERT only** — a run is created (INSERT) and read (the
 -- database-wide SELECT). A run is append-only history: this slice ships no editor and no removal path,
 -- the 0064 trigger pins organization_id/template_id immutable for every credential, and nothing
