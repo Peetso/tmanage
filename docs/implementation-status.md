@@ -14207,3 +14207,49 @@ renders the step checklist with a done count and marks a step complete. Proved d
 real `authorize` (`onboarding-tour.controller.test.ts`): complete→list is own-scoped, an unknown step
 is a 400 with no write, a re-complete writes no duplicate, another member's progress never shows, and
 the routes sit behind `work.read`. Deferred to NEXT-SCOPES-13: sample-data seeding and coach-marks.
+
+## SEC / Organization security settings — module 18 Administration (x176, 2026-09-27)
+
+**What shipped.** The Administration security-config surface the audit named absent (Admin Partial):
+the org-wide security posture, read + update, behind `org.manage`. `GET
+/v1/organizations/:orgSlug/admin/security` returns the posture (2FA enforcement + IP allowlist),
+defaulting to `{ enforce2fa: false, ipAllowlist: [] }` when never set; `PUT
+/v1/organizations/:orgSlug/admin/security` sets it. No `capabilities.ts` edit: the existing
+`org.manage` capability is reused. **Config surface only** — this slice stores the posture; enforcing
+it in the auth path (refusing a login by IP, requiring a second factor) is a later identity slice
+(NEXT-SCOPES-13), deliberately separate so the config-only phase cannot lock an administrator out of
+their own organization while they are still choosing the values.
+
+**Validation is the substance.** `cidr.ts` is a pure validator: `enforce2fa` must be a boolean, and
+the IP allowlist must be a list of valid IPv4/IPv6 addresses or CIDR ranges (leading-zero octets,
+out-of-range octets/prefixes, and a single-`::` rule all enforced), de-duplicated and bounded at 50
+entries. A malformed or over-count entry is a 400 with no write — nothing partially valid is ever
+stored, because an allowlist with one unparseable row is a lockout waiting to happen once enforcement
+lands. Blank entries are dropped, not errors.
+
+**Known-trap order (writes).** The write path resolves the organization tenant-scoped **first**, so a
+context whose organization is not in this tenant is a 404 with no write, before the `org.manage`
+authorize (403), before the validation 400s. `@RequireCapability('org.manage')` is the coarse HTTP gate
+`CapabilityGuard` reads; the handler also runs the real org-wide `authorize` (`projectId: null`,
+internal audience), so the 403 is a rule a controller test proves directly. The upsert is on
+`organization_id` (one row per organization): a first write inserts, a re-save overwrites in place.
+`SecuritySettingsView` never echoes `organization_id`.
+
+**Registration.** The new tenant-scoped `security_settings` table is registered in all four places —
+`schema.ts` def + `TABLES` + row type, tenant-guard `TENANT_TABLES` (`organization_id`), `users.sql`
+grant (INSERT and UPDATE — the upsert; no DELETE), and the on-disk migration
+`0073_security_settings.sql` the readdir migrator applies (with a `BEFORE UPDATE` trigger pinning
+`organization_id` immutable).
+
+**Surfaces.** `SecuritySettingsView` (`admin/security.controller.ts`) is a live `Exact` pair with the
+web's `SecuritySettingsView` (`apps/web/src/lib/api/admin-security.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `AdminSecurityScreen`
+(`apps/web/src/components/screens/AdminSecurityScreen.tsx`), routed at `/[orgSlug]/admin/security`,
+renders the 2FA toggle and the IP allowlist editor with client-side validation feedback (the server is
+the authoritative boundary), axe-clean. Proved database-free with the real `authorize`
+(`security.controller.test.ts`): read defaults → set valid posture → read back, a malformed/over-count
+allowlist is a 400 with no write, a non-boolean `enforce2fa` is a 400 with no write, a cross-tenant
+organization is a 404 before authorize and before any write, and a caller without `org.manage` is a
+403 on both routes; `cidr.ts` is unit-proved directly. No DB test / no new e2e per pass-21 rules (the
+chain owns both). Deferred to NEXT-SCOPES-13: wiring the stored posture into the sign-in path (IP
+refusal + 2FA requirement).

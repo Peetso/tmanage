@@ -39,6 +39,7 @@ import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-link
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
+import { AdminSecurityModule } from './modules/admin/security.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
@@ -144,6 +145,11 @@ export class AppModule {
         // stays file-disjoint from the organization-profile routes; depends only on the global
         // `TENANT_DATABASE`.
         OrgSettingsModule.register(),
+        // ADM security (module 18, x176). Organization security settings (2FA enforcement + IP
+        // allowlist config) read + update behind `org.manage`. A module of its own, file-disjoint from
+        // the org-settings and audit slices in the same module; depends only on the global
+        // `TENANT_DATABASE`. Config surface only — enforcement in the auth path is a later slice.
+        AdminSecurityModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

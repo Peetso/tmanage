@@ -128,6 +128,7 @@ import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src
 import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
+import type { SecuritySettingsView as ApiSecuritySettingsView } from '../../apps/api/src/modules/admin/security.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -143,6 +144,7 @@ import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api
 import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
+import type { SecuritySettingsView as WebSecuritySettingsView } from '../../apps/web/src/lib/api/admin-security';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
@@ -654,6 +656,15 @@ type _notificationKindPrefs = Assert<
  * on the web), so this pair covers it structurally. The wire projection never echoes the tenant id.
  */
 type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
+
+/**
+ * Organization security settings (x176). `SecuritySettingsView` (`GET/PUT …/admin/security`, response)
+ * — the org-wide security posture (2FA enforcement + IP allowlist). Paired with a live web consumer:
+ * `AdminSecurityScreen` reads exactly this response to render the 2FA toggle and the allowlist editor.
+ * One projection; `ipAllowlist` is a `readonly string[]` on both sides. The wire projection never
+ * echoes the tenant id.
+ */
+type _securitySettings = Assert<Exact<ApiSecuritySettingsView, WebSecuritySettingsView>>;
 
 /**
  * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and
