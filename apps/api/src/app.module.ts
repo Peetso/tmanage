@@ -281,6 +281,9 @@ export class AppModule {
         // FEAT · module 1 Public site (x157). The public pricing endpoint — `@Public()`, so it sits
         // outside the whole guard pipeline. It depends on nothing (a static catalog), so its position
         // here is by subject alone; it adds no table and no shared capability.
+        // Public & trust site (x159). Also serves `GET /v1/public/site/status`, `@Public()`, over the
+        // GLOBAL `incidents` table (0060) — resolves no tenant and asks for no capability; folded into
+        // the same PublicSiteModule.
         PublicSiteModule.register(),
         // x158. Module 1, the public security-and-trust page. Public and tenant-less: it reads no
         // organization and requires no capability, and serves deterministic code-defined copy.

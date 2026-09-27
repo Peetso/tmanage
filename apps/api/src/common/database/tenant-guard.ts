@@ -327,6 +327,13 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // deliberately NOT `outbox_events` — that table's `organization_id` is NOT NULL and this
   // path has no organization to put in it. `0020_credential_change_notices.sql` explains.
   'credential_change_notices',
+  // Public & trust site (x159, migration 0060). The status-page incidents are GLOBAL: a status
+  // page is read by anyone before any organization is named and describes the service as a whole,
+  // so `incidents` carries no `organization_id` (0060 explains). Registered here — NOT in
+  // TENANT_TABLES — so the layer-3 guard treats the public, org-less read as legitimate rather
+  // than a leak, and the identity read path (`makeIdentityRunner`) may reach it. The public read
+  // still filters `published = 1` in SQL; the guard's job here is only to allow the unscoped read.
+  'incidents',
 ]);
 
 export function isTenantTable(name: string): boolean {

@@ -470,6 +470,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`import_jobs` TO 'tmanage_app'@'%';
 -- so UPDATE and DELETE are withheld the way the append-only ledgers above are. `SELECT` is the
 -- database-wide grant (line 60), which the receipt read-back uses.
 GRANT INSERT ON `tmanage`.`import_rows` TO 'tmanage_app'@'%';
+-- `incidents` (Public & trust site, x159, 0060) gets NO write grant. It is a GLOBAL, org-less table
+-- and this slice ships the public status READ only — the read runs through the database-wide SELECT
+-- (line 60), which is all the public page needs. There is no runtime write path yet: a future admin
+-- slice that drafts/publishes incidents adds INSERT (and, for editing, UPDATE) here with the code
+-- that writes it, per this file's rule that a grant names a statement that exists. No line is emitted
+-- now precisely because none exists to name.
 -- `decisions` (DEC-01, x113) gets INSERT, and now UPDATE (DEC-01-b, x117). A decision is authored
 -- (INSERT), read (the database-wide SELECT, line 60), and moved through its lifecycle (UPDATE):
 -- `proposed → accepted` on accept and `→ superseded` on supersede. UPDATE writes exactly `status`;

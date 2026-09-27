@@ -4,14 +4,18 @@ import { PublicContentController } from './public-content.controller.js';
 import { PUBLIC_CONTENT_SERVICE, PublicContentService } from './public-content.service.js';
 import { PlanCatalogController, PLAN_CATALOG_SERVICE } from './plan-catalog.controller.js';
 import { PlanCatalogService } from './plan-catalog.service.js';
+import { PUBLIC_SITE_STATUS_REPOSITORY } from '../../common/http/tokens.js';
+import { StatusRepository } from './status.repository.js';
+import { PublicSiteStatusController } from './status.controller.js';
 
 /**
  * Public & trust site (module 1) wiring.
  *
- * A single service holding the marketing copy and the one `@Public()` read that serves it. The
- * module depends on nothing — no database, no mailer, no tenant context — so its position in
- * `app.module.ts` is free; it is registered beside the other feature modules for discoverability
- * rather than for any ordering constraint. The service carries an explicit token (ADR-0003).
+ * The marketing home and pricing reads hold deterministic, code-defined copy (no database, no
+ * tenant, no capability). The status read (x159) is the one that touches the global database — the
+ * GLOBAL `incidents` table (0060) — through a stateless repository, still `@Public()` and tenant-less.
+ * Every service and the repository carry explicit tokens (ADR-0003); the module's position in
+ * `app.module.ts` is free.
  */
 @Module({})
 export class PublicSiteModule {
@@ -26,11 +30,16 @@ export class PublicSiteModule {
       useFactory: () => new PlanCatalogService(),
     };
 
+    const repository: Provider = {
+      provide: PUBLIC_SITE_STATUS_REPOSITORY,
+      useFactory: () => new StatusRepository(),
+    };
+
     return {
       module: PublicSiteModule,
-      providers: [service, planCatalog],
+      providers: [service, planCatalog, repository],
       exports: [service],
-      controllers: [PublicContentController, PlanCatalogController],
+      controllers: [PublicContentController, PlanCatalogController, PublicSiteStatusController],
     };
   }
 }

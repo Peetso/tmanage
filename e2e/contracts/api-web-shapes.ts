@@ -131,6 +131,10 @@ import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modul
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
+import type {
+  PublicIncidentView as ApiPublicIncidentView,
+  PublicStatusView as ApiPublicStatusView,
+} from '../../apps/api/src/modules/public-site/status.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -256,6 +260,10 @@ import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
 import type { SavedViewView as WebSavedViewView } from '../../apps/web/src/lib/api/work-views';
 import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
+import type {
+  PublicIncidentView as WebPublicIncidentView,
+  PublicStatusView as WebPublicStatusView,
+} from '../../apps/web/src/lib/api/public-site';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -801,6 +809,15 @@ type _offboardedMember = Assert<Exact<ApiOffboardedMemberView, WebOffboardedMemb
 
 /** `GET …/workspaces` — one workspace row, ISO-string `createdAt` on the wire. */
 type _workspace = Assert<Exact<ApiWorkspaceView, WebWorkspaceSummary>>;
+
+/**
+ * Public & trust site (x159). `GET /v1/public/site/status` — the public status page: an overall
+ * banner state and the recent published incidents, ISO-string dates on the wire. `StatusScreen`
+ * reads exactly these responses, so both pairs are Exact; the `status`/`overall` unions are the same
+ * on both sides.
+ */
+type _publicIncident = Assert<Exact<ApiPublicIncidentView, WebPublicIncidentView>>;
+type _publicStatus = Assert<Exact<ApiPublicStatusView, WebPublicStatusView>>;
 
 /** `POST /v1/auth/password|mfa|recovery-code` — the established-session arm. */
 type _authenticated = Assert<Exact<ApiEstablishedView, WebAuthenticatedResponse>>;

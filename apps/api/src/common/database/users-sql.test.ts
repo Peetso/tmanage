@@ -177,6 +177,10 @@ describe('the grants and the schema agree', () => {
         'engine-authored: the 0008 trigger writes it with definer privileges — ' +
         'a runtime credential that could INSERT could forge history',
       schema_migrations: 'the migrator alone writes the ledger',
+      incidents:
+        'read-only for now (x159): the public status page reads published incidents through ' +
+        'the database-wide SELECT; the admin write path (INSERT/UPDATE) ships in a later slice ' +
+        'with the code that writes it',
     };
     for (const table of schemaTables) {
       const writable = privilegesOn('tmanage_app', table);
