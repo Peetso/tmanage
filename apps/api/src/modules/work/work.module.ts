@@ -17,6 +17,7 @@ import {
   WORK_ITEM_ESTIMATE_SERVICE,
   WORK_WATCHERS_SERVICE,
   WORK_LABELS_SERVICE,
+  WORK_CUSTOM_FIELDS_SERVICE,
   WORK_ITEM_RECURRENCE_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -61,6 +62,9 @@ import { WorkLabelsController } from './work-labels.controller.js';
 import { WorkItemRecurrenceRepository } from './item-recurrence.repository.js';
 import { WorkItemRecurrenceService } from './item-recurrence.service.js';
 import { WorkItemRecurrenceController } from './item-recurrence.controller.js';
+import { WorkCustomFieldsRepository } from './custom-fields.repository.js';
+import { WorkCustomFieldsService } from './custom-fields.service.js';
+import { WorkCustomFieldsController } from './custom-fields.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -198,6 +202,17 @@ export class WorkModule {
         new WorkItemRecurrenceService(database, workItems, new WorkItemRecurrenceRepository()),
     };
 
+    // x306. Org-defined custom fields on work items — definitions are org metadata (org.manage),
+    // values hang off a work item (work.read/work.update). The work-items repository resolves the
+    // parent tenant-scoped; the service holds the policy (org.manage on definitions,
+    // resolve-before-authorize on values, type/options validation, idempotent value upsert).
+    const customFieldsService: Provider = {
+      provide: WORK_CUSTOM_FIELDS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkCustomFieldsService(database, workItems, new WorkCustomFieldsRepository()),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -215,6 +230,7 @@ export class WorkModule {
         watchersService,
         labelsService,
         recurrenceService,
+        customFieldsService,
       ],
       exports: [service],
       controllers: [
@@ -231,6 +247,7 @@ export class WorkModule {
         WorkWatchersController,
         WorkLabelsController,
         WorkItemRecurrenceController,
+        WorkCustomFieldsController,
       ],
     };
   }
