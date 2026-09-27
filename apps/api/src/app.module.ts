@@ -277,6 +277,9 @@ export class AppModule {
         // `@Public()` read serving deterministic, code-defined content. Depends on nothing (no
         // database, no tenant, no mailer), so its position here is free; registered last, beside
         // the other feature modules, for discoverability only.
+        // FEAT · module 1 Public site (x157). The public pricing endpoint — `@Public()`, so it sits
+        // outside the whole guard pipeline. It depends on nothing (a static catalog), so its position
+        // here is by subject alone; it adds no table and no shared capability.
         PublicSiteModule.register(),
       ],
       providers: [
