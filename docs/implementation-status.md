@@ -15550,3 +15550,39 @@ web's shape in `apps/web/src/lib/api/insight-saved-views.ts` via `e2e/contracts/
 remove. Unit-proven in `saved-views.controller.test.ts` (create/list/delete own; unknown kind → 400;
 non-owned/absent delete → 404; `work.read` on all three routes). Deferred: editing a view in place
 (UPDATE grant + endpoint) and applying a view's filters directly from the insights reads.
+## Insight snapshots — Insights & reporting, module 15 (x211)
+
+**What landed.** Insights were live-only: a studio could read today's numbers but had no way to
+compare them against a stored moment over time (AUDIT-2026-09-27, "Insights are live-only; no
+historical snapshots to compare over time"). This slice adds a new tenant-scoped `insight_snapshots`
+table (migration `0090`) — a `kind` (`portfolio` | `workload`), the bound `captured_at` instant, and
+the computed metrics stored whole as `payload_json` — and three routes under
+`/v1/organizations/:orgSlug/insights/snapshots` (`InsightSnapshotsController`, all `work.read`):
+`POST` captures the current metrics for a kind into a snapshot, `GET ?kind=` lists the tenant's
+snapshots of a kind (clamped page, newest first), and `GET /:snapshotId` fetches one (404 across a
+tenant boundary). The metrics are computed by reusing `InsightsService` (`portfolio` / `orgWorkload`),
+so a snapshot is exactly what the live screen would have shown. In-app capture only — a
+scheduled/emailed digest worker is out of scope (Needs-Peter).
+
+**Four-place registration.** `insight_snapshots` is registered in `schema.ts` (def + `TABLES` +
+`InsightSnapshotRow`/`InsightSnapshotKind`), `tenant-guard.ts` (`TENANT_TABLES: 'organization_id'`),
+`scripts/db/users.sql` (INSERT only for `tmanage_app` — a snapshot is captured and read, never edited
+or removed; the 0090 trigger pins every column immutable besides), and the migration file itself
+(the migrator auto-discovers `apps/api/migrations/NNNN_*.sql` in order, so there is no hand-maintained
+case list to append to).
+
+**Known-trap.** `captured_at` is a `Date` the service binds at capture time, NOT the connection clock
+(the admin-pool clock trap). Every op is tenant-scoped in SQL on `organization_id` and gated
+org-level with `work.read` before any read or write (a client — the capability is internal-only — is a
+403). The list page size is clamped to `[1, 50]` so one request is never an unbounded scan. Proved
+database-free (`snapshots.controller.test.ts`): the real `authorize` gate allows an org-wide internal
+principal and refuses a client (403 before any read/write), an unknown kind is a 400, and a permitted
+principal captures and lists through to the service. No DB test / no new e2e (chain owns both).
+
+**Surfaces.** `SnapshotView` (`snapshots.service.ts`) is a live `Exact` pair with the web's
+`SnapshotView` in `apps/web/src/lib/api/insights-snapshots.ts` via `e2e/contracts/api-web-shapes.ts`.
+`InsightSnapshotsScreen` (`apps/web/src/components/screens/InsightSnapshotsScreen.tsx`) picks a report
+kind, captures a snapshot, and lists the history with the latest flagged as "current" so an earlier
+one can be compared against it (accessible table + read-only JSON payloads). Deferred to a later
+slice: a route/page wiring the screen into navigation, a scheduled/emailed digest, and a retention or
+purge surface (UPDATE/DELETE grants).

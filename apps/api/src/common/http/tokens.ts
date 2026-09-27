@@ -182,6 +182,8 @@ export const IMPORT_JOBS_REPOSITORY = Symbol.for('tmanage.ImportJobsRepository')
 export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');
 /** INS saved views (x210). The per-user saved insights views create/list/delete service. */
 export const INSIGHT_SAVED_VIEWS_SERVICE = Symbol.for('tmanage.InsightSavedViewsService');
+/** x211. The insight-snapshots service — captures and lists point-in-time metric snapshots. */
+export const INSIGHTS_SNAPSHOTS_SERVICE = Symbol.for('tmanage.InsightSnapshotsService');
 /** SRCH-01 (x111). Global tenant-scoped search over work items, documents and meetings. */
 export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
 export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');

@@ -418,6 +418,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // every tenant table has, so the guard must scope its reads and its writes; the layer-3 guard fails
   // OPEN on an unregistered table, so this entry is what scopes the view reads and deletes.
   insight_saved_views: 'organization_id',
+  // Insight snapshots (x211, migration 0090). Tenant-owned: a snapshot freezes one studio's
+  // computed insights read, and an unscoped `SELECT ... FROM insight_snapshots` would be every
+  // studio's stored metrics on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
+  // writes; tenant-isolation.db.test.ts enforces the entry.
+  insight_snapshots: 'organization_id',
 });
 
 /**

@@ -141,6 +141,7 @@ import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src
 import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps/api/src/modules/insights/adoption.controller.js';
+import type { SnapshotView as ApiSnapshotView } from '../../apps/api/src/modules/insights/snapshots.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
@@ -342,6 +343,7 @@ import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api
 import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/src/lib/api/insights-portfolio';
 import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps/web/src/lib/api/insights-workload';
 import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps/web/src/lib/api/insights-adoption';
+import type { SnapshotView as WebSnapshotView } from '../../apps/web/src/lib/api/insights-snapshots';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
@@ -748,6 +750,15 @@ type _insightsWorkload = Assert<Exact<ApiInsightsWorkloadView, WebInsightsWorklo
  * exemption.
  */
 type _insightsAdoption = Assert<Exact<ApiInsightsAdoptionView, WebInsightsAdoptionView>>;
+
+/**
+ * x211 — `POST/GET …/insights/snapshots`. One stored snapshot: `id`, `kind` (`portfolio` |
+ * `workload`), the ISO `capturedAt`, and the opaque `payload` (the computed metrics stored whole).
+ * Paired with a real web consumer — x211 ships `InsightSnapshotsScreen`, so this is a live `Exact`
+ * pair, not an exemption. The list route returns `SnapshotView[]` and the by-id route one
+ * `SnapshotView`, so the element shape is the one contract both sides hold.
+ */
+type _insightSnapshot = Assert<Exact<ApiSnapshotView, WebSnapshotView>>;
 
 /**
  * x134 — `GET …/insights/workload-forecast?weeks`. The forward-looking workload forecast: `weeks`

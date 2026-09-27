@@ -3369,6 +3369,47 @@ export const insightSavedViews = mysqlTable(
 );
 
 /**
+ * The insight-snapshot report kinds, mirroring the `0090` `ENUM`. A snapshot freezes one org-level
+ * insights read: `portfolio` (the portfolio roll-up) or `workload` (the org-wide workload roll-up).
+ * An unknown kind is a 400 in the controller, never a stored row.
+ */
+export const INSIGHT_SNAPSHOT_KINDS = ['portfolio', 'workload'] as const;
+
+/**
+ * Insight snapshots (x211). A point-in-time capture of a computed insights metric, so a studio can
+ * compare today's numbers against a stored snapshot over time (audit: Insights are live-only — no
+ * historical snapshots). Tenant-owned and keyed by the composite `(organization_id, id)` every
+ * tenant-scoped table carries, so a snapshot can never be fetched across a tenant boundary.
+ *
+ * `payloadJson` is the computed metrics stored whole (the JSON the read returned), read and written
+ * as one value; its shape is the application's (`SnapshotView.payload`). `capturedAt` is the instant
+ * the metrics were computed, bound by the application — NOT a server-clock default — the admin-pool
+ * clock trap. A snapshot is captured and read, never edited: the 0090 trigger pins every column
+ * immutable and `users.sql` grants INSERT only. `0090_insight_snapshots.sql` is the source of truth;
+ * this is its typed mirror.
+ */
+export const insightSnapshots = mysqlTable(
+  'insight_snapshots',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    kind: mysqlEnum('kind', INSIGHT_SNAPSHOT_KINDS).notNull(),
+    capturedAt: datetime('captured_at', { mode: 'date', fsp: 3 }).notNull(),
+    payloadJson: json('payload_json').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_snapshots_org_id').on(table.organizationId, table.id),
+    index('ix_insight_snapshots_org_kind_captured').on(
+      table.organizationId,
+      table.kind,
+      table.capturedAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -3471,6 +3512,7 @@ export const TABLES = {
   billing_usage_alerts: billingUsageAlerts,
   work_item_files: workItemFiles,
   insight_saved_views: insightSavedViews,
+  insight_snapshots: insightSnapshots,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3581,3 +3623,5 @@ export type MarketingLeadRow = typeof marketingLeads.$inferSelect;
 export type NewMarketingLeadRow = typeof marketingLeads.$inferInsert;
 export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;
 export type InsightSavedViewRow = typeof insightSavedViews.$inferSelect;
+export type InsightSnapshotRow = typeof insightSnapshots.$inferSelect;
+export type InsightSnapshotKind = (typeof INSIGHT_SNAPSHOT_KINDS)[number];
