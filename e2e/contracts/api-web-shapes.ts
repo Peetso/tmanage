@@ -99,6 +99,7 @@ import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/m
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { MeetingRsvpView as ApiMeetingRsvpView } from '../../apps/api/src/modules/calendar/rsvp.service.js';
+import type { MeetingTimePollView as ApiMeetingTimePollView } from '../../apps/api/src/modules/calendar/time-poll.service.js';
 import type { MeetingAgendaView as ApiMeetingAgendaView } from '../../apps/api/src/modules/calendar/meeting-agenda.controller.js';
 import type { CalendarGridView as ApiCalendarGridView } from '../../apps/api/src/modules/calendar/grid.service.js';
 import type {
@@ -391,6 +392,7 @@ import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/l
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { MeetingRsvpView as WebMeetingRsvpView } from '../../apps/web/src/lib/api/meeting-rsvp';
+import type { MeetingTimePollView as WebMeetingTimePollView } from '../../apps/web/src/lib/api/meeting-time-poll';
 import type { MeetingAgendaView as WebMeetingAgendaView } from '../../apps/web/src/lib/api/meeting-agenda';
 import type { CalendarGridView as WebCalendarGridView } from '../../apps/web/src/lib/api/calendar-grid';
 import type {
@@ -889,6 +891,16 @@ type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeV
  * the API never echoes the tenant id into a response body.
  */
 type _meetingRsvp = Assert<Exact<ApiMeetingRsvpView, WebMeetingRsvpView>>;
+
+/**
+ * CAL meeting time-option poll (x298). `POST`/`GET .../meetings/:meetingId/time-poll` and
+ * `PUT .../time-poll/options/:optionId/vote` — an organiser's candidate time slots, each invitee's
+ * yes/maybe/no vote and the per-option tally, read and driven by `MeetingTimePollView`. The caller's
+ * own vote per option is `ownVote` (`null` until they vote); paired Exact, so a rename or retype on
+ * either side fails the gate. `organizationId` is on neither side — the API never echoes the tenant
+ * id into a response body.
+ */
+type _meetingTimePoll = Assert<Exact<ApiMeetingTimePollView, WebMeetingTimePollView>>;
 
 /**
  * CAL agenda / day view (x127). `GET .../meetings/agenda?from&to` — the tenant's meetings grouped by

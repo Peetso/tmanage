@@ -429,6 +429,21 @@ GRANT INSERT, UPDATE          ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@
 -- file's rule that a grant names a statement that exists (the same treatment `meeting_attendees`
 -- has above).
 GRANT INSERT, UPDATE          ON `tmanage`.`meeting_rsvps`     TO 'tmanage_app'@'%';
+-- CAL meeting time-option poll (x298). An organiser proposes candidate slots (INSERT) and everyone
+-- reads the tally (the database-wide SELECT); this slice has no edit-an-option or remove-an-option
+-- endpoint, so INSERT and **no UPDATE and no DELETE** — least privilege, and there is no immutability
+-- trigger because the withheld privilege is the control (the same treatment `meeting_series` has).
+-- When an edit surface lands, the write grant is added with the code that writes it, per this file's
+-- rule that a grant names a statement that exists.
+GRANT INSERT                 ON `tmanage`.`meeting_time_polls` TO 'tmanage_app'@'%';
+-- CAL meeting time-option poll vote (x298). An invitee records their own vote (INSERT) and re-votes
+-- in place (UPDATE) — this slice ships an idempotent upsert PUT and a read (the database-wide
+-- SELECT) — so INSERT and UPDATE and **no DELETE**: there is no un-vote endpoint, least privilege,
+-- and 0166's trigger pins organization_id/option_id/membership_id immutable (only `choice`/
+-- `updated_at` may change) for every credential besides. DELETE is added with the code that writes
+-- it, per this file's rule that a grant names a statement that exists (the same treatment
+-- `meeting_rsvps` has above).
+GRANT INSERT, UPDATE          ON `tmanage`.`meeting_time_poll_votes` TO 'tmanage_app'@'%';
 -- CAL recurrence (x129) meeting series. A series is created (INSERT) and read (the database-wide
 -- SELECT); this slice has no edit or delete endpoint, so **no UPDATE and no DELETE** — least
 -- privilege, and there is no immutability trigger because the withheld privilege is the control

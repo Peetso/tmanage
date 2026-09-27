@@ -648,6 +648,64 @@ export const meetingRsvps = mysqlTable(
   ],
 );
 
+/**
+ * CAL meeting time-option poll (x298). A candidate time slot an organiser proposes for a meeting
+ * (0029) — one `(optionStart, optionEnd)` pair per row — so invitees can vote (`meetingTimePollVotes`)
+ * on when to hold it. Parent-owned by its meeting via the composite FK; it carries no `projectId`,
+ * so the relation it is read and written by is the meeting's, resolved in the service, and the two
+ * can never disagree. Created and read only — no edit surface — so identity has no immutability
+ * trigger (the withheld UPDATE/DELETE grant is the control). `0165_meeting_time_polls.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const meetingTimePolls = mysqlTable(
+  'meeting_time_polls',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    optionStart: datetime('option_start', { mode: 'date', fsp: 3 }).notNull(),
+    optionEnd: datetime('option_end', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_time_polls_org_id').on(table.organizationId, table.id),
+    index('ix_meeting_time_polls_org_meeting').on(table.organizationId, table.meetingId, table.id),
+  ],
+);
+
+export const MEETING_TIME_POLL_VOTE_CHOICES = ['yes', 'maybe', 'no'] as const;
+
+/**
+ * CAL meeting time-option poll vote (x298). An invitee's own answer — `yes`, `maybe` or `no` —
+ * against one candidate slot (`meetingTimePolls`). Keyed on the caller's own `membershipId`, so a
+ * caller can only ever set their own; a re-vote UPDATEs the one row (the `(organizationId, optionId,
+ * membershipId)` unique key), so the PUT is idempotent. Identity is immutable at the engine; `choice`
+ * (and `updatedAt`) is what an UPDATE may change (0166's trigger pins the rest). No `projectId`: the
+ * relation is the option's meeting's, resolved in the service. `0166_meeting_time_poll_votes.sql` is
+ * the source of truth; this is its typed mirror.
+ */
+export const meetingTimePollVotes = mysqlTable(
+  'meeting_time_poll_votes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    optionId: char('option_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    choice: mysqlEnum('choice', MEETING_TIME_POLL_VOTE_CHOICES).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_mtp_votes_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_mtp_votes_option_member').on(
+      table.organizationId,
+      table.optionId,
+      table.membershipId,
+    ),
+    index('ix_mtp_votes_org_option').on(table.organizationId, table.optionId, table.id),
+  ],
+);
+
 export const MEETING_SERIES_FREQ = ['daily', 'weekly', 'monthly'] as const;
 
 /** The per-occurrence override kinds (x213): a moved occurrence or a cancelled one. */
@@ -5016,6 +5074,8 @@ export const TABLES = {
   meeting_notes: meetingNotes,
   meeting_attendees: meetingAttendees,
   meeting_rsvps: meetingRsvps,
+  meeting_time_polls: meetingTimePolls,
+  meeting_time_poll_votes: meetingTimePollVotes,
   meeting_series: meetingSeries,
   meeting_occurrence_overrides: meetingOccurrenceOverrides,
   saved_views: savedViews,
@@ -5128,6 +5188,8 @@ export type PortalAccessLogRow = typeof portalAccessLog.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type MeetingRsvpRow = typeof meetingRsvps.$inferSelect;
+export type MeetingTimePollRow = typeof meetingTimePolls.$inferSelect;
+export type MeetingTimePollVoteRow = typeof meetingTimePollVotes.$inferSelect;
 export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;

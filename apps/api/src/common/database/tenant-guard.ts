@@ -250,6 +250,14 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // unscoped `SELECT ... FROM meeting_rsvps` would be who is coming to every studio's meetings on the
   // server (x240).
   meeting_rsvps: 'organization_id',
+  // CAL meeting time-option poll (x298). A candidate time slot an organiser proposes, tenant- and
+  // meeting-scoped by its composite keys; an unscoped `SELECT ... FROM meeting_time_polls` would be
+  // every studio's proposed slots on the server. The guard must scope its reads and its writes.
+  meeting_time_polls: 'organization_id',
+  // CAL meeting time-option poll vote (x298). An invitee's own yes/maybe/no on a candidate slot,
+  // tenant- and option-scoped by its composite keys; an unscoped `SELECT ... FROM
+  // meeting_time_poll_votes` would be every studio's votes on the server (x298).
+  meeting_time_poll_votes: 'organization_id',
   // CAL recurrence (x129). Tenant-owned and org-scoped (no project): a series is one studio's
   // recurrence rule, and an unscoped `SELECT ... FROM meeting_series` would be every studio's
   // calendar rules on the server. The guard must scope its reads and its writes.
