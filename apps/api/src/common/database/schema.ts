@@ -2152,6 +2152,35 @@ export const webhookEndpoints = mysqlTable(
 );
 
 /**
+ * Webhook delivery attempts (0097, x221). Org-scoped, append-only record of what was delivered to a
+ * {@link webhookEndpoints} row: the outcome `status` (application allowlist), the HTTP `responseCode`
+ * when one was received (else null), and the attempt instant. It stores neither the endpoint's
+ * signing secret nor the request/response body — a delivery record carries the outcome, never the
+ * content — so it cannot leak the secret or payload. Immutable: the runtime credential is granted
+ * INSERT and SELECT only (`users.sql`), exactly like `audit_events`, so no column-pinning trigger is
+ * needed. The `(organization_id, endpoint_id)` FK keys each row to a same-tenant endpoint.
+ */
+export const webhookDeliveries = mysqlTable(
+  'webhook_deliveries',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    endpointId: char('endpoint_id', { length: 36 }).notNull(),
+    status: varchar('status', { length: 32 }).notNull(),
+    responseCode: smallint('response_code', { unsigned: true }),
+    attemptedAt: datetime('attempted_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_webhook_deliveries_org_id').on(table.organizationId, table.id),
+    index('ix_webhook_deliveries_org_endpoint').on(
+      table.organizationId,
+      table.endpointId,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * The comparison operators a workflow condition (0081, x190) may use. A closed application allowlist
  * mirrored by `workflow_conditions.op`: an off-list operator is a 400 with no write and the column only
  * ever holds a known token. Kept in the application (not a MySQL `ENUM`) so the set can grow without an
@@ -3652,6 +3681,7 @@ export const TABLES = {
   workflow_runs: workflowRuns,
   integration_connections: integrationConnections,
   webhook_endpoints: webhookEndpoints,
+  webhook_deliveries: webhookDeliveries,
   automation_schedules: automationSchedules,
   maintenance_windows: maintenanceWindows,
   workflow_conditions: workflowConditions,
@@ -3781,3 +3811,4 @@ export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;
 export type InsightSavedViewRow = typeof insightSavedViews.$inferSelect;
 export type InsightSnapshotRow = typeof insightSnapshots.$inferSelect;
 export type InsightSnapshotKind = (typeof INSIGHT_SNAPSHOT_KINDS)[number];
+export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;

@@ -14754,6 +14754,39 @@ with the real `authorize` (`webhooks.controller.test.ts`): an https public URL r
 not echoed), an SSRF/non-https URL and an off-list event are 400s with no write, a cross-tenant `:id`
 is a 404 with no write, and a caller without `org.manage` is a 403.
 
+## SEC / Automations — webhook delivery log (x221, module 17)
+
+**What landed.** The webhook endpoints of x166 had no record of what was delivered to them. This
+slice adds an org-scoped, append-only `webhook_deliveries` table (migration `0097`) — the target
+`endpoint_id`, the outcome `status` (application allowlist `success`/`failure`), the HTTP
+`response_code` when a response was received (else null), and the attempt instant — keyed to a
+same-tenant endpoint by a composite `(organization_id, endpoint_id)` foreign key. The new table is
+registered in all four places: `schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`,
+`scripts/db/users.sql` grant (INSERT only — append-only, like `audit_events`, so immutability needs
+no trigger), and the migrator picks up `0097` by discovery. One read route behind `org.manage`:
+`GET …/automations/webhooks/:endpointId/deliveries` lists an endpoint's attempts newest-first,
+keyset-paged (`limit` bounded to `[1, 200]`, `before` cursor). Writes are produced only by the in-app
+dispatch path through a guarded record helper (`webhook-deliveries.service.ts`); the outbound POST
+itself is a later slice (Needs-Peter) — there is no external egress here.
+
+**Security.** The `:endpointId` is resolved tenant-scoped **before** authorize (the Known-trap
+order): an unknown or cross-tenant id is a 404 with no read of another tenant's endpoint confirmed.
+`org.manage` is re-checked with the real `authorize()` at org level (403 on denial). A delivery
+record carries only the outcome — never the endpoint's signing secret or any request/response body,
+which is structural: `RecordDeliveryOutcome` and `WebhookDeliveryView` have no such field. The record
+helper resolves the endpoint within the tenant before any write and rejects an off-list status (400).
+
+**Surfaces.** `WebhookDeliveryView` (`webhook-deliveries.controller.ts`) is a live `Exact` pair with
+the web's `WebhookDeliveryView` (`apps/web/src/lib/api/webhook-deliveries.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `WebhookDeliveryScreen`
+(`apps/web/src/components/screens/WebhookDeliveryScreen.tsx`), routed at
+`/[orgSlug]/admin/automations/webhooks/[endpointId]/deliveries`, renders the attempt table with
+status badges and a keyset "load older" control. Proved database-free with the real `authorize`
+(`webhook-deliveries.controller.test.ts`): an owner lists attempts (no tenant id projected), a
+cross-tenant `:endpointId` is a 404 resolved before authorize, an out-of-range `limit` is a 400, a
+caller without `org.manage` is a 403, and the record helper refuses an off-list status (400) and a
+cross-tenant endpoint (404) while carrying no secret.
+
 ## SEC / Automations — scheduled triggers (x167, module 17)
 
 **What shipped.** A cron-like schedule for a workflow template — _when_ a template should run on its

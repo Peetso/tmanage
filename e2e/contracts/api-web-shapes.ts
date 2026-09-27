@@ -161,6 +161,7 @@ import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/m
 import type { IntegrationAppView as ApiIntegrationAppView } from '../../apps/api/src/modules/automations/directory.controller.js';
 import type { IntegrationConnectionView as ApiIntegrationConnectionView } from '../../apps/api/src/modules/automations/directory.controller.js';
 import type { WebhookEndpointView as ApiWebhookEndpointView } from '../../apps/api/src/modules/automations/webhooks.controller.js';
+import type { WebhookDeliveryView as ApiWebhookDeliveryView } from '../../apps/api/src/modules/automations/webhook-deliveries.controller.js';
 import type { WorkflowRunHistoryView as ApiWorkflowRunHistoryView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '../../apps/api/src/modules/automations/template-edit.controller.js';
@@ -233,6 +234,7 @@ import type { WorkflowRunSummary as WebWorkflowRunSummary } from '../../apps/web
 import type { IntegrationAppView as WebIntegrationAppView } from '../../apps/web/src/lib/api/integration-directory';
 import type { IntegrationConnectionView as WebIntegrationConnectionView } from '../../apps/web/src/lib/api/integration-directory';
 import type { WebhookEndpointSummary as WebWebhookEndpointSummary } from '../../apps/web/src/lib/api/webhooks';
+import type { WebhookDeliveryView as WebWebhookDeliveryView } from '../../apps/web/src/lib/api/webhook-deliveries';
 import type { WorkflowRunHistoryItem as WebWorkflowRunHistoryItem } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '../../apps/web/src/lib/api/automations';
@@ -918,6 +920,16 @@ type _integrationApp = Assert<Exact<ApiIntegrationAppView, WebIntegrationAppView
  * never projected — so this is a real `Exact` pair.
  */
 type _webhookEndpoint = Assert<Exact<ApiWebhookEndpointView, WebWebhookEndpointSummary>>;
+
+/**
+ * Automations webhook delivery log (x221). `WebhookDeliveryView` (`GET
+ * …/automations/webhooks/:endpointId/deliveries`, list element) — one recorded delivery attempt in
+ * the org-scoped, newest-first delivery log. Paired with a live web consumer: `WebhookDeliveryScreen`
+ * (via `lib/api/webhook-deliveries`) reads exactly this response to render the attempt table.
+ * `organizationId` is absent on both sides, and there is no secret or body field — a delivery record
+ * carries the outcome only — so this is a real `Exact` pair.
+ */
+type _webhookDelivery = Assert<Exact<ApiWebhookDeliveryView, WebWebhookDeliveryView>>;
 
 /**
  * Automations & integrations (x164). `WorkflowRunHistoryView` (`GET …/automations/runs`, list element)

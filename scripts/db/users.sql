@@ -524,6 +524,11 @@ GRANT INSERT                 ON `tmanage`.`integration_connections` TO 'tmanage_
 -- slice that adds the privilege with the code that writes it, per this file's rule that a grant names
 -- a statement that exists.
 GRANT INSERT, UPDATE         ON `tmanage`.`webhook_endpoints` TO 'tmanage_app'@'%';
+-- Automations webhook delivery attempts (x221). **INSERT only** — a delivery attempt is recorded
+-- (INSERT) by the in-app dispatch path and read back (the database-wide SELECT); it is append-only,
+-- exactly like `audit_events`. Withholding UPDATE and DELETE makes each recorded attempt immutable
+-- for the runtime credential, so no column-pinning trigger is needed. **No UPDATE, no DELETE.**
+GRANT INSERT                 ON `tmanage`.`webhook_deliveries` TO 'tmanage_app'@'%';
 -- A11Y-183 preferences (x183, module 20). **INSERT, UPDATE** — a member's accessibility settings
 -- are created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert against
 -- `uq_a11y_preferences_org_membership`. No DELETE: a member clears settings by saving the defaults,
