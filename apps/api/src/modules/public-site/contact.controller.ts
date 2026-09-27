@@ -74,7 +74,8 @@ export class ContactController {
     const message = boundedText(body?.message, MAX_MESSAGE);
 
     const details: { field: string; message: string }[] = [];
-    if (name === undefined) details.push({ field: 'name', message: `required, 1–${MAX_NAME} chars` });
+    if (name === undefined)
+      details.push({ field: 'name', message: `required, 1–${MAX_NAME} chars` });
     if (email === undefined) {
       details.push({ field: 'email', message: `required, 1–${MAX_EMAIL} chars` });
     } else if (!EMAIL_SHAPE.test(email)) {

@@ -13929,7 +13929,7 @@ form and fills one to create a work item. Proved database-free with the real `au
 ## x161 — Public site (module 1): contact / lead intake (SEC — untrusted public write)
 
 **Slice.** `x161-public-contact`, off `master` `bcfe397`; migration `0062`. Audit rank #1 (Public
-site Missing — no contact door). The module's only *unauthenticated write*.
+site Missing — no contact door). The module's only _unauthenticated write_.
 
 **API.** `POST /public/site/contact` — `@Public()` (no session, no CSRF, no tenant, no capability,
 no `capabilities.ts` edit), the same posture as sign-in. It validates and bounds `name` (1–200),
