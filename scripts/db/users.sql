@@ -410,12 +410,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`org_settings`      TO 'tmanage_app'@'
 -- un-complete path, so no DELETE. The withheld UPDATE and DELETE are the immutability control (no
 -- trigger needed). The worker gets nothing here — this table is the API's alone.
 GRANT INSERT                 ON `tmanage`.`onboarding_progress` TO 'tmanage_app'@'%';
--- Custom roles (x173, 0071). **INSERT only** — a custom role is defined (INSERT) and read (the
--- database-wide SELECT). No UPDATE and no DELETE: editing a role's name or capabilities and removing a
--- role are later slices that add those privileges with the code that writes them. The withheld
--- UPDATE/DELETE is the immutability control (no trigger needed). The worker gets nothing here — this
--- table is the API's alone.
-GRANT INSERT                 ON `tmanage`.`custom_roles`       TO 'tmanage_app'@'%';
+-- Custom roles (x173, 0071; edit + clone x195). **INSERT, UPDATE** — a custom role is defined and
+-- cloned (INSERT), edited in place (UPDATE, added by x195 for the name/capabilities edit path), and read
+-- (the database-wide SELECT). No DELETE: removing a role is a later slice that adds that privilege with
+-- the code that writes it, so the withheld DELETE stays the immutability control against deletion (no
+-- trigger needed). The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, UPDATE         ON `tmanage`.`custom_roles`       TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

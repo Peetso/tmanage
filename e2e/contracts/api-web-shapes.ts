@@ -129,6 +129,7 @@ import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modul
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { CustomRoleView as ApiCustomRoleView } from '../../apps/api/src/modules/admin/roles.controller.js';
+import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules/admin/role-edit.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -145,6 +146,7 @@ import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/h
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
+import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api/admin-role-edit';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
@@ -665,6 +667,15 @@ type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
  * structurally. The wire projection never echoes the tenant id.
  */
 type _customRoles = Assert<Exact<ApiCustomRoleView, WebCustomRoleView>>;
+
+/**
+ * Custom role clone + edit (x195). `RoleEditView` (`POST …/admin/roles/:id/clone` and
+ * `PATCH …/admin/roles/:id`, response) — the single role a clone or an edit affects, with its capability
+ * subset. Paired with a live web consumer: `RoleEditScreen` reads exactly this response after a clone or a
+ * save. One projection; its `role` item (`{ id, name, capabilities, createdAt }`) is inlined on both
+ * sides, so this pair covers it structurally. The wire projection never echoes the tenant id.
+ */
+type _roleEdit = Assert<Exact<ApiRoleEditView, WebRoleEditView>>;
 
 /**
  * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and
