@@ -54,6 +54,7 @@ import { CustomRolesModule } from './modules/admin/roles.controller.js';
 import { RoleEditModule } from './modules/admin/role-edit.controller.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
+import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -194,6 +195,10 @@ export class AppModule {
         // "can member X do Y?" over stored roles + policies; a module of its own, file-disjoint from
         // x174's AdminPoliciesModule, depends only on the global `TENANT_DATABASE`.
         AdminPolicySimulateModule.register(),
+        // x175: the admin overview roll-up. Read-only org-health aggregation over memberships,
+        // usage counters and audit events behind `org.manage`; a module of its own so it stays
+        // file-disjoint from the other administration slices. Depends only on `TENANT_DATABASE`.
+        AdminOverviewModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

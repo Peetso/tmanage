@@ -36,6 +36,7 @@ import type { QuietHoursActiveView as ApiQuietHoursActiveView } from '../../apps
 import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { AdminAuditEventView as ApiAdminAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
+import type { AdminOverviewView as ApiAdminOverviewView } from '../../apps/api/src/modules/admin/overview.controller.js';
 import type { ChallengeResponseView as ApiChallengeResponseView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { ClientDecideView as ApiClientDecideView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientProjectionView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
@@ -351,6 +352,7 @@ import type {
   UsageAlertStatus as WebUsageAlertStatus,
 } from '../../apps/web/src/lib/api/billing';
 import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
+import type { AdminOverviewView as WebAdminOverviewView } from '../../apps/web/src/lib/api/admin-overview';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
 import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/src/lib/api/insights-portfolio';
@@ -1215,6 +1217,14 @@ type _clientRequestHistory = Assert<Narrows<ApiAuditEventView, WebClientRequestH
  * `AuditEventView`, which pairs (Narrows) the client-request history screen above.
  */
 type _adminAudit = Assert<Exact<ApiAdminAuditEventView, WebAdminAuditEvent>>;
+
+/**
+ * Administration overview (x175). `GET .../admin/overview` — the org-health roll-up behind
+ * `org.manage`: active members, seats used, storage bytes used, audit events over a fixed 30-day
+ * window and offboardings in progress, plus the window and a `computedAt`. Computed, never stored.
+ * `AdminOverviewScreen` reads exactly this shape, so the pair is Exact.
+ */
+type _adminOverview = Assert<Exact<ApiAdminOverviewView, WebAdminOverviewView>>;
 
 /**
  * CONTRACT-001 lift (x71). The seven pairs x69 left out. Five named their response type in the
