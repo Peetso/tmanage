@@ -69,6 +69,7 @@ import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src
 import type { HomePinView as ApiHomePinView } from '../../apps/api/src/modules/home/home-pins.controller.js';
 import type { NotificationKindPrefView as ApiNotificationKindPrefView } from '../../apps/api/src/modules/notifications/notification-kind-prefs.controller.js';
 import type { OnboardingTourView as ApiOnboardingTourView } from '../../apps/api/src/modules/home/onboarding-tour.controller.js';
+import type { HomeWidgetPrefsView as ApiHomeWidgetPrefsView } from '../../apps/api/src/modules/home/widget-prefs.controller.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -164,6 +165,7 @@ import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/h
 import type { HomePulse as WebHomePulse } from '../../apps/web/src/lib/api/home';
 import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api/home';
 import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
+import type { HomeWidgetPrefsView as WebHomeWidgetPrefsView } from '../../apps/web/src/lib/api/home-widget-prefs';
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
@@ -337,6 +339,8 @@ type Assert<T extends true> = T;
 // Exact pairs — the API projection and the web declaration are the same type.
 // A11Y-183 (x183): the member's own accessibility preferences read/replaced over `/me/accessibility`.
 type _a11yPreferences = Assert<Exact<ApiA11yPreferencesView, WebA11yPreferencesView>>;
+// Home widget preferences (x243): the member's own Home widget order/hidden set over `/home/widget-prefs`.
+type _homeWidgetPrefs = Assert<Exact<ApiHomeWidgetPrefsView, WebHomeWidgetPrefsView>>;
 type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
 type _messageRevision = Assert<Exact<ApiMessageRevisionView, WebMessageRevisionSummary>>;
