@@ -14673,3 +14673,39 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+
+## CAL / module 9 — calendar week/month grid (x212)
+
+**FEAT.** `38-MODULE-MAP` §Calendar carried a week/month grid as deferred after the x127 agenda:
+x122 shipped a project meetings list and x127 a day-grouped agenda, but no two-dimensional grid whose
+every day is a cell. This slice adds `GET .../meetings/grid?range=week|month&anchor=` behind
+`meeting.read` (no `capabilities.ts` edit), read-only, with **no new table** — it composes the
+existing `meetings` (0029) rows and the `meeting_series` (0028/x129) recurrence rules.
+
+**What it returns.** The service derives the window from `range` and `anchor`: a Monday-based week
+containing the anchor, or the calendar month. Every day of that window is emitted as a cell (empty
+days included, so a grid can draw them), carrying the concrete meetings whose start lands on it and
+the recurrence occurrences the tenant's series fall on it.
+
+**Known-trap — bounded expansion.** Occurrence math is **not** re-implemented: it reuses the pure
+x129 helper `expandOccurrences`, which is total over a validated window. Three caps stop an unbounded
+expansion (a daily series over a month): the window is at most one calendar month, the series read is
+a bounded page (`MAX_GRID_SERIES` = 200), and the total occurrences emitted are capped
+(`MAX_GRID_OCCURRENCES` = 500) — the walk stops adding once the ceiling is reached.
+
+**Authorization.** The route's `CapabilityGuard` asks the coarse `meeting.read` question (403 before
+the handler runs); the service adds the same relation filter the agenda applies — expressed with the
+`work.read` ceiling-mirror — so a caller sees only the meetings of projects they belong to, and a
+cross-tenant row (never fetched by the tenant-scoped SQL) is dropped belt-and-braces. Recurrence
+occurrences are org-scoped (a series names no project) and gated by the `meeting.read` ceiling alone.
+`organization_id` is never echoed (`25-AUTH…` §7).
+
+**Surfaces.** `CalendarGridView` (`grid.service.ts`) is a live `Exact` pair with the web
+`CalendarGridView` (`apps/web/src/lib/api/calendar-grid.ts`) via `e2e/contracts/api-web-shapes.ts`.
+`CalendarGridScreen` (`apps/web/src/components/screens/CalendarGridScreen.tsx`, mounted at
+`/[orgSlug]/calendar/grid`) renders the week/month grid as an accessible Monday–Sunday table,
+padding the month's leading/trailing days, axe-clean with a focusable scroll region. Proved
+database-free (`grid.controller.test.ts`): the `meeting.read` metadata, day bucketing of meetings and
+expanded occurrences across the full window, the Monday-based week derivation, the relation-filter
+drop of a cross-tenant row, and a 400 on a missing or malformed `range`/`anchor`. Deferred:
+per-occurrence series overrides (x213) and any write from the grid.

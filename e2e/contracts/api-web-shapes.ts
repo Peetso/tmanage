@@ -76,6 +76,7 @@ import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/m
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { MeetingAgendaView as ApiMeetingAgendaView } from '../../apps/api/src/modules/calendar/meeting-agenda.controller.js';
+import type { CalendarGridView as ApiCalendarGridView } from '../../apps/api/src/modules/calendar/grid.service.js';
 import type {
   NotificationView as ApiNotificationView,
   NotificationFeedView as ApiNotificationFeedView,
@@ -221,6 +222,7 @@ import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/l
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { MeetingAgendaView as WebMeetingAgendaView } from '../../apps/web/src/lib/api/meeting-agenda';
+import type { CalendarGridView as WebCalendarGridView } from '../../apps/web/src/lib/api/calendar-grid';
 import type {
   NotificationView as WebNotificationView,
   NotificationFeedView as WebNotificationFeedView,
@@ -503,6 +505,15 @@ type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeV
  * with the web `MeetingAgendaView`; the nested day/entry shapes are inlined on both sides.
  */
 type _meetingAgenda = Assert<Exact<ApiMeetingAgendaView, WebMeetingAgendaView>>;
+
+/**
+ * CAL week/month grid (x212). `GET .../meetings/grid?range=week|month&anchor=` — the tenant's
+ * meetings and recurrence occurrences laid out on a week or month window, every day a cell, read by
+ * `CalendarGridScreen`. A read-only composition over `meetings` and `meeting_series` with no new
+ * table; the view lives on the service. Paired Exact with the web `CalendarGridView`; the nested
+ * day/meeting/occurrence shapes are inlined on both sides.
+ */
+type _calendarGrid = Assert<Exact<ApiCalendarGridView, WebCalendarGridView>>;
 
 /**
  * NOTIF feed (x151). `GET .../notifications` and `POST .../notifications/:id/read` — the flat
