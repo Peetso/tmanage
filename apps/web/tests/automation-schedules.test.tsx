@@ -67,7 +67,7 @@ const WEEKLY = {
   createdAt: '2026-09-27T09:00:00.000Z',
 };
 
-function screenOver(schedules: readonly (typeof DAILY)[]) {
+function screenOver(schedules: readonly (typeof DAILY | typeof WEEKLY)[]) {
   const client = clientOver((call) => {
     if (call.url.includes('/automations')) {
       if (call.method === 'POST') return json(DAILY, 201);

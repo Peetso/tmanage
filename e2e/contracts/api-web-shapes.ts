@@ -655,6 +655,8 @@ type _workflowTemplate = Assert<Exact<ApiWorkflowTemplateView, WebWorkflowTempla
  * `organizationId` is absent on both.
  */
 type _workflowRun = Assert<Exact<ApiWorkflowRunView, WebWorkflowRunSummary>>;
+
+/**
  * Automations app directory (x165). `IntegrationConnectionView` (`GET`/`POST
  * …/automations/apps[/:appId/connections]`) — one recorded connection, and `IntegrationAppView` — a
  * catalog app with its connections merged. Paired Exact with the web consumer
@@ -666,6 +668,8 @@ type _integrationConnection = Assert<
   Exact<ApiIntegrationConnectionView, WebIntegrationConnectionView>
 >;
 type _integrationApp = Assert<Exact<ApiIntegrationAppView, WebIntegrationAppView>>;
+
+/**
  * Automations webhooks (x166). `WebhookEndpointView` (`GET`/`POST …/automations/webhooks` and the
  * `PATCH …/webhooks/:id` response) — one org-scoped outbound webhook endpoint. Paired with a live web
  * consumer: `WebhookEndpointsScreen` reads exactly this response to list endpoints and toggle one.

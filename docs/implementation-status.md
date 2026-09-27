@@ -14382,6 +14382,7 @@ by the org-less `IdentityShell` (skip link, one `<main>`, one `<h1>`). Proved da
 non-string, over-length and malformed-email inputs are each a 400 with no write; the controller
 exposes only the write handler. Deferred: email delivery, and any admin lead viewer (own slice, own
 SELECT grant).
+
 ## Automations & integrations — workflow templates (define/list) (x162, module 17)
 
 `38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Automations & integrations names _workflow templates_,
@@ -14444,6 +14445,7 @@ a failed run rather than any egress, a disabled template is a 409 with no run, a
 is a 404 with no write, and a role without `org.manage` (org_admin) is a 403. Deferred to later slices:
 run history listing, real downstream side-effects (create work item / notification writes), and external
 delivery (x166).
+
 ## Automations — app / integration directory (x165, module 17)
 
 **What landed.** The Automations module had a static, code-defined catalog of apps a studio could
@@ -14474,6 +14476,7 @@ Proved database-free with the real `authorize` (`directory.controller.test.ts`):
 with connections, an off-catalog `appId` is a 404 with no write, a secret-shaped config key is a 400
 with no write, and a role without `org.manage` is a 403. Deferred: live OAuth, an editor and a
 disconnect path (each a later slice with its own grant).
+
 ## Automations webhooks — register/list/disable outbound endpoints (x166, module 17)
 
 **What landed.** The Automations module had no outbound webhook configuration (audit rank #2). This
@@ -14503,6 +14506,7 @@ migration the readdir migrator applies.
 with the real `authorize` (`webhooks.controller.test.ts`): an https public URL registers (201, secret
 not echoed), an SSRF/non-https URL and an off-list event are 400s with no write, a cross-tenant `:id`
 is a 404 with no write, and a caller without `org.manage` is a 403.
+
 ## SEC / Automations — scheduled triggers (x167, module 17)
 
 **What shipped.** A cron-like schedule for a workflow template — _when_ a template should run on its

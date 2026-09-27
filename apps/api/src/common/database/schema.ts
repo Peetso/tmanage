@@ -1704,6 +1704,8 @@ export const marketingLeads = mysqlTable(
   },
   (table) => [index('ix_marketing_leads_created_at').on(table.createdAt, table.id)],
 );
+
+/**
  * The action configuration a workflow template (0063, x162) carries — a small, bounded object read
  * and written whole with the template. The application validates its size and shape before storing;
  * the column holds it whole. Typed loosely here (an arbitrary object) because the meaningful shape is
