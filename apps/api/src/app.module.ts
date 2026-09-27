@@ -52,6 +52,7 @@ import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
 import { CustomRolesModule } from './modules/admin/roles.controller.js';
 import { RoleEditModule } from './modules/admin/role-edit.controller.js';
+import { AdminSessionsModule } from './modules/identity/admin-sessions.controller.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
@@ -185,6 +186,7 @@ export class AppModule {
         OrgSettingsModule.register(),
         CustomRolesModule.register(),
         RoleEditModule.register(),
+        AdminSessionsModule.register(),
         // Organization access policies (Administration module 18, x174) behind `org.manage`. A module of
         // its own, file-disjoint from x153's org-settings routes; depends only on the global
         // `TENANT_DATABASE`.

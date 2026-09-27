@@ -15713,3 +15713,23 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## x223 — Admin active sessions + revocation (Administration module 18)
+
+`GET /v1/organizations/:orgSlug/admin/sessions` and `POST …/admin/sessions/:sessionId/revoke`,
+both behind `org.manage`, are the admin surface the audit found absent over ID-001's session
+storage. No new table and no `capabilities.ts` edit: a revocation is a soft-close of an existing
+`sessions` row (a `revoked_at` timestamp), never a hard delete, so the audit trail that refers to
+a session id stays readable. The feature spans ADR-0001's identity boundary — the membership
+roster is a tenant fact read on the tenant runner, a `sessions` row is identity state read on the
+identity runner — and joins the two in memory: a session is only ever listed or revoked for a
+`user_id` that a tenant-scoped membership read has proved is a member of the caller's organization.
+That in-memory gate is the feature's tenant scope, and it is why the revoke resolves the session's
+owner BEFORE the real `org.manage` authorize — a session belonging to no member (cross-tenant, or
+unknown) is a 404 with no write, indistinguishable from a missing id and never leaked through a 403.
+The list projection is metadata only (member, device label, start/last-seen times) and carries no
+token or refresh material. `ActiveSessionView` is a live `Exact` pair with
+`apps/web/src/lib/api/admin-sessions.ts` via `e2e/contracts/api-web-shapes.ts`; `AdminSessionsScreen`
+(`apps/web/src/app/[orgSlug]/admin/sessions/page.tsx`) lists the sessions and ends any one of them,
+a re-revoke being a harmless no-op. No DB test / no new e2e in slice (the chain owns both); the
+session SQL is proven by the chain's isolation and migrator DB suites.

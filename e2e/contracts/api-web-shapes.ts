@@ -189,6 +189,7 @@ import type {
 } from '../../apps/api/src/modules/platform/maintenance.controller.js';
 import type { CustomRoleView as ApiCustomRoleView } from '../../apps/api/src/modules/admin/roles.controller.js';
 import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules/admin/role-edit.controller.js';
+import type { ActiveSessionView as ApiActiveSessionView } from '../../apps/api/src/modules/identity/admin-sessions.controller.js';
 import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
 import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
 
@@ -212,6 +213,7 @@ import type { NotificationKindPrefView as WebNotificationKindPrefView } from '..
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
 import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api/admin-role-edit';
+import type { ActiveSessionView as WebActiveSessionView } from '../../apps/web/src/lib/api/admin-sessions';
 import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/api/policies';
 import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
@@ -1114,6 +1116,14 @@ type _customRoles = Assert<Exact<ApiCustomRoleView, WebCustomRoleView>>;
  * sides, so this pair covers it structurally. The wire projection never echoes the tenant id.
  */
 type _roleEdit = Assert<Exact<ApiRoleEditView, WebRoleEditView>>;
+
+/**
+ * Admin active sessions + revocation (x223). `ActiveSessionView` (`GET …/admin/sessions`, response row)
+ * — one live session of an organization member, metadata only: the member, the device label, and the
+ * start/last-seen times, never any token or refresh material. Paired with a live web consumer:
+ * `AdminSessionsScreen` renders exactly this row and posts a revoke by its `sessionId`.
+ */
+type _activeSession = Assert<Exact<ApiActiveSessionView, WebActiveSessionView>>;
 
 /**
  * Organization access policies (x174). `OrgPolicyView` (`GET/PUT …/policies`, response) — the
