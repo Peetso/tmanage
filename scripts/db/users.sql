@@ -491,6 +491,12 @@ GRANT INSERT                 ON `tmanage`.`doc_revisions` TO 'tmanage_app'@'%';
 -- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
 -- `home_pinned_items` posture above.
 GRANT INSERT, DELETE         ON `tmanage`.`doc_bookmarks`     TO 'tmanage_app'@'%';
+-- DOC subscriptions (0180, x312) a member's explicit follow list over documents. INSERT to subscribe
+-- and DELETE to unsubscribe, and **no UPDATE**: a subscription is created and removed, never edited, so
+-- the missing privilege is the control (no immutability trigger, none needed). Reading is the
+-- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
+-- `doc_bookmarks` posture above.
+GRANT INSERT, DELETE         ON `tmanage`.`doc_subscriptions` TO 'tmanage_app'@'%';
 -- Calendar focus blocks (0125, x255) a member's own protected time. INSERT to create a block and
 -- DELETE to remove one, and **no UPDATE**: a focus block is created and removed, never edited, so the
 -- missing privilege is the control (no immutability trigger, none needed). Reading is the

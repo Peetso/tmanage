@@ -4837,6 +4837,44 @@ export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
 
 /**
+ * DOC subscriptions (x312). A membership's explicit *follow* of a `documents` row — the fact "this
+ * membership subscribed to (follows) this document". A read-side flag only; no notification dispatch
+ * this slice. Distinct from `doc_bookmarks` (0114, a personal saved list): this is an opt-in follow
+ * intent. Per-membership and tenant-scoped like `doc_bookmarks`: created (INSERT) and removed (DELETE),
+ * never edited, so there is no immutability trigger — the withheld UPDATE grant is the control. The
+ * `(organization_id, document_id, membership_id)` unique key makes a repeated subscribe a collision the
+ * service treats as success (idempotent PUT). Two composite FKs bind the row within one tenant.
+ * `0180_doc_subscriptions.sql` is the source of truth; this is its typed mirror.
+ */
+export const docSubscriptions = mysqlTable(
+  'doc_subscriptions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    documentId: char('document_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_doc_subscriptions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_doc_subscriptions_sub').on(
+      table.organizationId,
+      table.documentId,
+      table.membershipId,
+    ),
+    index('ix_doc_subscriptions_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export type DocSubscriptionRow = typeof docSubscriptions.$inferSelect;
+export type NewDocSubscriptionRow = typeof docSubscriptions.$inferInsert;
+
+/**
  * Calendar focus blocks (x255, migration 0125, module Calendar / CAL-04 "Focus block"). A member's
  * own protected time on the calendar: one row is the fact "this membership has protected
  * `[starts_at, ends_at)` for `title`". Per-membership and tenant-scoped like `doc_bookmarks` (0114):
@@ -4936,6 +4974,7 @@ export const TABLES = {
   focus_blocks: focusBlocks,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
+  doc_subscriptions: docSubscriptions,
   work_item_recurrence: workItemRecurrence,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
