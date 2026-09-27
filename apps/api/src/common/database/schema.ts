@@ -2341,6 +2341,54 @@ export const notificationKindPrefs = mysqlTable(
   ],
 );
 
+/**
+ * A11Y-183 font-scale steps (module 20 Preferences & accessibility, x183). A small, closed
+ * vocabulary — `md` is the shipped default. A value outside this set is a validation error
+ * (`a11y.controller.ts`), never stored; the JSON column carries the chosen step whole.
+ */
+export const A11Y_FONT_SCALES = ['sm', 'md', 'lg', 'xl'] as const;
+export type A11yFontScale = (typeof A11Y_FONT_SCALES)[number];
+
+/**
+ * The accessibility settings one member keeps in one studio, stored whole in
+ * `a11y_preferences.a11y_json`. The typed shape of that JSON column below; the application
+ * validates a request against it before storing (the same division `work_forms.fields_json`
+ * and `saved_views.config` take).
+ */
+export interface A11yPreferences {
+  readonly fontScale: A11yFontScale;
+  readonly reduceMotion: boolean;
+  readonly highContrast: boolean;
+}
+
+/**
+ * A11Y-183 — a member's own accessibility preferences (migration 0079, x183, module 20).
+ *
+ * One row per `(organization_id, membership_id)`: the font-scale/reduced-motion/high-contrast
+ * settings the acting member applies to the app shell. Keyed by membership (like
+ * `home_pinned_items`) rather than the global user, because it is scoped to who the caller is
+ * *in this studio* and never leaves the tenant. `a11y_json` holds the whole {@link A11yPreferences}
+ * object; the settings are read and written as one, never queried across rows. The write is a
+ * single upsert against `uq_a11y_preferences_org_membership`, so a second save updates in place;
+ * `updated_at` follows the column's `ON UPDATE`. Absence is a default, not an error — the read
+ * returns the shipped defaults when no row exists.
+ */
+export const a11yPreferences = mysqlTable(
+  'a11y_preferences',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    a11yJson: json('a11y_json').$type<A11yPreferences>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_a11y_preferences_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member per studio.
+    uniqueIndex('uq_a11y_preferences_org_membership').on(table.organizationId, table.membershipId),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -2762,6 +2810,7 @@ export const TABLES = {
   audit_events: auditEvents,
   notifications,
   notification_preferences: notificationPreferences,
+  a11y_preferences: a11yPreferences,
   usage_counters: usageCounters,
   usage_ledger_entries: usageLedgerEntries,
   file_assets: fileAssets,
@@ -2875,6 +2924,7 @@ export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
 export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
+export type A11yPreferenceRow = typeof a11yPreferences.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;

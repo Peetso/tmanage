@@ -61,6 +61,8 @@ export const WORKFLOW_RUNS_REPOSITORY = Symbol.for('tmanage.WorkflowRunsReposito
 export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');
 /** Automations run history (x164). The org-scoped, read-only run-history repository. */
 export const WORKFLOW_RUN_HISTORY_REPOSITORY = Symbol.for('tmanage.WorkflowRunHistoryRepository');
+/** A11Y-183 (x183, module 20). The member's-own accessibility-preferences repository. */
+export const A11Y_PREFERENCES_REPOSITORY = Symbol.for('tmanage.A11yPreferencesRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */

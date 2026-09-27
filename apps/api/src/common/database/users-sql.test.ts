@@ -34,7 +34,10 @@ const schemaTables: readonly string[] = readdirSync(MIGRATIONS_DIR)
   .sort()
   .flatMap((file) => [
     ...readFileSync(resolve(MIGRATIONS_DIR, file), 'utf8').matchAll(
-      /^CREATE TABLE (?:IF NOT EXISTS )?`?([a-z_]+)`?/gim,
+      // Not `[a-z_]` — a table name legitimately carries digits (`a11y_preferences`, x183), the same
+      // reason `grants.ts` widened its account-name pattern; `[a-z_]` would capture only `a` and leave
+      // the rest of the identifier ungranted-looking.
+      /^CREATE TABLE (?:IF NOT EXISTS )?`?([a-z0-9_]+)`?/gim,
     ),
   ])
   .map((match) => match[1] as string);
@@ -49,7 +52,11 @@ interface Grant {
 
 const grants: readonly Grant[] = statements
   .map((statement) =>
-    /^GRANT\s+(.+?)\s+ON\s+`?([a-z_]+)`?\.(?:`([a-z_]+)`|\*)\s+TO\s+'([a-z_]+)'@/i.exec(statement),
+    // Identifiers legitimately carry digits (`a11y_preferences`, x183); `[a-z_]` would fail to match
+    // the whole grant and drop it silently — see the CREATE TABLE pattern above.
+    /^GRANT\s+(.+?)\s+ON\s+`?([a-z0-9_]+)`?\.(?:`([a-z0-9_]+)`|\*)\s+TO\s+'([a-z0-9_]+)'@/i.exec(
+      statement,
+    ),
   )
   .filter((match): match is RegExpExecArray => match !== null)
   .map((match) => ({
