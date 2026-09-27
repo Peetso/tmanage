@@ -119,6 +119,8 @@
 --     integration_connections
 --     document_comments, decision_supersessions, document_templates, work_forms,
 --     project_risks, person_allocations
+--     document_comments, decision_supersessions, document_templates, work_forms, onboarding_progress,
+--     custom_roles
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -489,6 +491,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`person_capacity`   TO 'tmanage_app'@'
 -- credential, so a level-edit slice adds UPDATE with the code that writes it. A removed skill leaves
 -- no history to protect (unlike a message or a notification), so DELETE is the right grant here.
 GRANT INSERT, DELETE         ON `tmanage`.`person_skills`     TO 'tmanage_app'@'%';
+-- Custom roles (x173, 0071; edit + clone x195). **INSERT, UPDATE** — a custom role is defined and
+-- cloned (INSERT), edited in place (UPDATE, added by x195 for the name/capabilities edit path), and read
+-- (the database-wide SELECT). No DELETE: removing a role is a later slice that adds that privilege with
+-- the code that writes it, so the withheld DELETE stays the immutability control against deletion (no
+-- trigger needed). The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, UPDATE         ON `tmanage`.`custom_roles`       TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

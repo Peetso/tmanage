@@ -14941,3 +14941,59 @@ with the real `authorize` (`skill-search.controller.test.ts`): a search returns 
 grouped per member, a minimum level narrows, a blank query returns empty with no read, the member page
 is capped, a bad level/limit is a 400, and a suspended membership is a 403 with no read. The
 tenant-scoped join round-trip is the chain's DB suite, not this slice.
+## Custom roles (Administration module 18, x173)
+
+**Status.** Built. Administration was Partial (audit rank #9 — roles/policies absent); this adds custom
+roles: a named role that stores a subset of the fixed capability allowlist, over a new `custom_roles`
+table behind `org.manage`. `GET .../admin/roles` lists the organization's roles; `POST .../admin/roles`
+defines one. No new capability is introduced and `capabilities.ts` is untouched — a role only ever holds
+a subset of the existing `CAPABILITIES`.
+
+**Safety.** The organization is resolved tenant-scoped before authorize/write (a cross-tenant context is
+a 404 with no write, the Known trap). Two guards make the privilege boundary concrete: every requested
+capability must be a string on the fixed `CAPABILITIES` allowlist (anything else is a 400 with no write),
+and every requested capability must be one the caller can actually exercise org-wide right now, decided
+by the real `authorize` (a capability the caller cannot exercise — e.g. reviewer-gated `approval.decide`,
+held only per object — is a 403 with no write), so a role can never widen access past its author. A
+duplicate name is a 409; the runtime credential holds INSERT only (no UPDATE/DELETE — editing and
+deleting a role are later slices). The new table is registered in all four places — `schema.ts` def +
+`TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant, and the on-disk migration `0071_custom_roles.sql`
+the readdir migrator applies.
+
+**Surfaces.** `CustomRoleView` (`roles.controller.ts`) is a live `Exact` pair with the web's
+`CustomRoleView` (`apps/web/src/lib/api/admin-roles.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`AdminRolesScreen` (`apps/web/src/components/screens/AdminRolesScreen.tsx`), routed at
+`/[orgSlug]/admin/roles`, lists the roles and offers a name field plus a capability picker over the fixed
+allowlist. Proved database-free with the real `authorize` (`roles.controller.test.ts`): create→list is
+tenant-scoped, an off-allowlist capability is a 400 with no write, a capability the caller cannot exercise
+is a 403 with no write, a blank name or empty list is a 400, a duplicate name is a 409, a cross-tenant
+context is a 404 before authorize, and both routes sit behind `org.manage`. Deferred: role editing,
+deletion, and assigning a custom role to a membership.
+
+## Custom role clone + edit (Administration module 18, x195)
+
+**Status.** Built. Extends x173 (create + list only) with the role lifecycle the audit named absent: two
+id-addressed routes on the same `custom_roles` table behind `org.manage` — `POST .../admin/roles/:id/clone`
+duplicates a role under a new name (its capability subset copied), and `PATCH .../admin/roles/:id` edits a
+role's name and capability subset in place. No new table and no `capabilities.ts` edit — a role only ever
+holds a subset of the existing `CAPABILITIES`.
+
+**Safety.** The addressed role is resolved tenant-scoped **before** authorize/write (an unknown or
+cross-tenant `:id` is a 404 with no write, the Known trap — a cross-tenant id is indistinguishable from an
+unknown one, never a 403 leak). The same two guards as x173 re-run on both write paths: every capability
+written (the new subset on edit, the copied subset on clone) must be on the fixed `CAPABILITIES` allowlist
+(400 no write) and must be one the caller can exercise org-wide right now, decided by the real `authorize`
+(403 no write) — so **an edit can never widen a role past its author, and a clone can never carry caps
+beyond the caller** even when the source role held them. A name that collides with a different role is a
+409 (renaming a role to its own name is allowed). Clone reuses INSERT; edit adds UPDATE to the
+`custom_roles` grant in `users.sql` (DELETE still withheld — the immutability control against deletion).
+
+**Surfaces.** `RoleEditView` (`role-edit.controller.ts`) is a live `Exact` pair with the web's
+`RoleEditView` (`apps/web/src/lib/api/admin-role-edit.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`RoleEditScreen` (`apps/web/src/components/screens/RoleEditScreen.tsx`), routed at
+`/[orgSlug]/admin/roles/edit` (distinct from x173's create/list route), picks a role from the list and
+offers an edit form and a clone form. Proved database-free with the real `authorize`
+(`role-edit.controller.test.ts`): clone copies the subset, edit persists a valid subset, a capability the
+caller cannot exercise is a 403 (on both edit and clone), an off-allowlist string is a 400, an unknown or
+cross-tenant id is a 404 before authorize, a name collision is a 409, and both routes sit behind
+`org.manage`. Deferred: role deletion and assigning a custom role to a membership.

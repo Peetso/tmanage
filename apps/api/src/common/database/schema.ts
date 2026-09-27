@@ -1964,6 +1964,35 @@ export const personCapacity = mysqlTable(
   ],
 );
 
+/**
+ * Custom roles (Administration module 18, x173, migration 0071). One row per named role per
+ * organization: a role's display name and the capability subset it grants. The capability list is a
+ * subset of the fixed `CAPABILITIES` allowlist (`12-PERMISSION-MATRIX` §2) — no new capability is ever
+ * defined here and nothing is granted beyond the role's author; `roles.controller.ts` refuses any
+ * off-allowlist string (400) and any capability the caller cannot itself exercise (403) before a
+ * write. `capabilities_json` stores the subset as a JSON array of allowlisted strings. A role is
+ * created once — `uq_custom_roles_org_name` makes a duplicate name a 409, not a second row — and cloned
+ * (INSERT). x195 adds edit in place (UPDATE): `role-edit.controller.ts` re-checks the new/cloned subset
+ * against the allowlist (400) and the caller (403) before the write, so an edit or clone can never widen
+ * a role past its author. The runtime credential holds INSERT and UPDATE but no DELETE: removing a role
+ * is a later slice, and the withheld DELETE stays the immutability control against deletion.
+ */
+export const customRoles = mysqlTable(
+  'custom_roles',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 128 }).notNull(),
+    capabilitiesJson: text('capabilities_json').notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_custom_roles_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_custom_roles_org_name').on(table.organizationId, table.name),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -3035,6 +3064,7 @@ export const TABLES = {
   person_allocations: personAllocations,
   person_capacity: personCapacity,
   person_skills: personSkills,
+  custom_roles: customRoles,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3110,6 +3140,7 @@ export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
 export type PersonAllocationRow = typeof personAllocations.$inferSelect;
+export type CustomRoleRow = typeof customRoles.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;

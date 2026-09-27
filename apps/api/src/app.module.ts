@@ -44,6 +44,8 @@ import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-link
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
+import { CustomRolesModule } from './modules/admin/roles.controller.js';
+import { RoleEditModule } from './modules/admin/role-edit.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
@@ -161,6 +163,8 @@ export class AppModule {
         // stays file-disjoint from the organization-profile routes; depends only on the global
         // `TENANT_DATABASE`.
         OrgSettingsModule.register(),
+        CustomRolesModule.register(),
+        RoleEditModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

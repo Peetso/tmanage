@@ -161,6 +161,8 @@ import type {
   MaintenanceWindowView as ApiMaintenanceWindowView,
   PublicMaintenanceView as ApiPublicMaintenanceView,
 } from '../../apps/api/src/modules/platform/maintenance.controller.js';
+import type { CustomRoleView as ApiCustomRoleView } from '../../apps/api/src/modules/admin/roles.controller.js';
+import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules/admin/role-edit.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -177,6 +179,8 @@ import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api
 import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
+import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
+import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api/admin-role-edit';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
@@ -886,6 +890,24 @@ type _notificationKindPrefs = Assert<
  * on the web), so this pair covers it structurally. The wire projection never echoes the tenant id.
  */
 type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
+
+/**
+ * Custom roles (x173). `CustomRoleView` (`GET/POST …/admin/roles`, response) — the organization's custom
+ * roles, each with its capability subset. Paired with a live web consumer: `AdminRolesScreen` reads
+ * exactly this response to render the role list and the capability picker. One projection; its per-role
+ * item (`{ id, name, capabilities, createdAt }`) is inlined on both sides, so this pair covers it
+ * structurally. The wire projection never echoes the tenant id.
+ */
+type _customRoles = Assert<Exact<ApiCustomRoleView, WebCustomRoleView>>;
+
+/**
+ * Custom role clone + edit (x195). `RoleEditView` (`POST …/admin/roles/:id/clone` and
+ * `PATCH …/admin/roles/:id`, response) — the single role a clone or an edit affects, with its capability
+ * subset. Paired with a live web consumer: `RoleEditScreen` reads exactly this response after a clone or a
+ * save. One projection; its `role` item (`{ id, name, capabilities, createdAt }`) is inlined on both
+ * sides, so this pair covers it structurally. The wire projection never echoes the tenant id.
+ */
+type _roleEdit = Assert<Exact<ApiRoleEditView, WebRoleEditView>>;
 
 /**
  * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and
