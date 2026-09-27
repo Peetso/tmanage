@@ -130,6 +130,7 @@ import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src
 import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
+import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -254,6 +255,7 @@ import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
 import type { SavedViewView as WebSavedViewView } from '../../apps/web/src/lib/api/work-views';
+import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -891,3 +893,12 @@ type _clientProjection = Assert<Exact<ApiClientProjectionView, WebClientApproval
  * `decidedAt` (ISO string), and the change-request note — never the internal `ApprovalDecisionView`.
  */
 type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;
+
+/**
+ * `GET /v1/public/site/trust` — the public security & trust page (x158, module 1).
+ *
+ * Public and tenant-less: deterministic code-defined copy (controls, data handling, subprocessors,
+ * compliance posture, and the path to the status page). The `PublicTrustView` pair keeps the copy
+ * the API serves and the copy the screen renders from drifting into two security postures.
+ */
+type _publicTrust = Assert<Exact<ApiPublicTrustView, WebPublicTrustView>>;

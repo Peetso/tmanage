@@ -52,6 +52,7 @@ import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
+import { TrustContentModule } from './modules/public-site/trust-content.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -281,6 +282,9 @@ export class AppModule {
         // outside the whole guard pipeline. It depends on nothing (a static catalog), so its position
         // here is by subject alone; it adds no table and no shared capability.
         PublicSiteModule.register(),
+        // x158. Module 1, the public security-and-trust page. Public and tenant-less: it reads no
+        // organization and requires no capability, and serves deterministic code-defined copy.
+        TrustContentModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
