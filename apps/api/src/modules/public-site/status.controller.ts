@@ -2,8 +2,7 @@ import { Controller, Get, Inject } from '@nestjs/common';
 import { uuidv7 } from '@tmanage/domain';
 import { Public } from '../../common/http/decorators.js';
 import { TENANT_DATABASE, PUBLIC_SITE_STATUS_REPOSITORY } from '../../common/http/tokens.js';
-import { INCIDENT_STATUSES } from '../../common/database/schema.js';
-import type { IncidentRow } from '../../common/database/schema.js';
+import type { INCIDENT_STATUSES, IncidentRow } from '../../common/database/schema.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { StatusRepository } from './status.repository.js';
 

@@ -30,7 +30,8 @@ function incident(overrides: Partial<IncidentRow>): IncidentRow {
 /** A controller wired to a fake identityRead that hands the repository through, over fake rows. */
 function controllerWith(rows: readonly IncidentRow[]): PublicSiteStatusController {
   const database = {
-    identityRead: async (_options: unknown, work: (runner: unknown) => Promise<unknown>) => work({}),
+    identityRead: async (_options: unknown, work: (runner: unknown) => Promise<unknown>) =>
+      work({}),
   } as unknown as TenantDatabase;
   const repository = {
     listPublishedIncidents: async () => rows,
@@ -43,7 +44,11 @@ describe('PublicSiteStatusController.status', () => {
     const rows = [
       incident({ id: 'incident-a', startedAt: new Date('2026-09-01T00:00:00.000Z') }),
       incident({ id: 'incident-c', startedAt: new Date('2026-09-03T00:00:00.000Z') }),
-      incident({ id: 'incident-draft', published: false, startedAt: new Date('2026-09-09T00:00:00.000Z') }),
+      incident({
+        id: 'incident-draft',
+        published: false,
+        startedAt: new Date('2026-09-09T00:00:00.000Z'),
+      }),
       incident({ id: 'incident-b', startedAt: new Date('2026-09-02T00:00:00.000Z') }),
     ];
 
@@ -59,7 +64,11 @@ describe('PublicSiteStatusController.status', () => {
 
   it('reports operational when every published incident is resolved', async () => {
     const view = await controllerWith([
-      incident({ id: 'incident-r', status: 'resolved', resolvedAt: new Date('2026-09-02T00:00:00.000Z') }),
+      incident({
+        id: 'incident-r',
+        status: 'resolved',
+        resolvedAt: new Date('2026-09-02T00:00:00.000Z'),
+      }),
     ]).status();
     expect(view.overall).toBe('operational');
     expect(view.incidents).toHaveLength(1);

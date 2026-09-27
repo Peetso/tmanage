@@ -13934,8 +13934,7 @@ Missing"). This slice adds the first public surface: a **status page**. A new GL
 (`investigating | identified | monitoring | resolved`), `title`, a public `body`, `started_at`,
 nullable `resolved_at`, a `published` visibility gate and `created_at` — and one genuinely public
 endpoint, `GET /v1/public/site/status` (`PublicSiteStatusController`, `@Public()`). It returns the
-overall banner state and the recent **published** incidents, newest-first by `started_at`, bounded to
-50. There is **no `authorize()` and no capability**: a status page is meant to be read by anyone,
+overall banner state and the recent **published** incidents, newest-first by `started_at`, bounded to 50. There is **no `authorize()` and no capability**: a status page is meant to be read by anyone,
 before any sign-in.
 
 **Global table, not tenant-owned.** Like `authentication_events`/`credential_change_notices`,

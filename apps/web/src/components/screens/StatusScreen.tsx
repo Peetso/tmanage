@@ -6,7 +6,11 @@ import type { StatusTone } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicStatus } from '../../lib/api/public-site';
-import type { IncidentStatus, PublicIncidentView, PublicStatusView } from '../../lib/api/public-site';
+import type {
+  IncidentStatus,
+  PublicIncidentView,
+  PublicStatusView,
+} from '../../lib/api/public-site';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
