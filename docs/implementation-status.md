@@ -15713,3 +15713,29 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## People — reporting lines / org chart (x217, module 14)
+
+**Status.** Built. The People directory (x168) listed members but recorded no reporting line — who a
+member reports to. Migration `0095_member_reporting_lines.sql` adds one tenant-scoped table keyed on
+`(organization_id, member_id)` (at most one manager per member), with both member and manager bound by
+composite FKs to `memberships` (a cross-tenant id cannot be named), a `CHECK` refusing a self-manager
+at the engine, and a `BEFORE UPDATE` trigger pinning `organization_id`/`member_id` immutable.
+Registered in the four places (`schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`,
+`scripts/db/users.sql` grant of INSERT+UPDATE+DELETE, and the numbered migration the directory-driven
+migrator applies).
+
+**Surfaces.** `PUT/GET …/people/:membershipId/manager` and `GET …/people/org-chart`, in
+`reporting-lines.controller.ts` + `.repository.ts` (`ReportingLinesModule`). The write reuses
+`org.manage`, the reads `work.read` (no `capabilities.ts` edit). Both the member and the manager are
+resolved tenant-scoped before any write, so a cross-tenant id is a 404, not a 403; a self-manager is a
+400 and a longer cycle is a 400 (the controller walks the proposed manager's chain upward, bounded,
+and refuses if it reaches the member) — both with no write. Setting is an upsert against
+`uq_member_reporting_lines_org_member`; clearing (`managerMembershipId: null`) deletes the row.
+`GET …/people/org-chart` returns the tenant's whole edge set as `ReportingLineView[]`. `ReportingLineView`
+is a live `Exact` pair with `apps/web/src/lib/api/reporting-lines.ts` via `e2e/contracts/api-web-shapes.ts`.
+`OrgChartScreen` (`apps/web/src/app/[orgSlug]/people/org-chart/page.tsx`) folds the edges into a tree
+(bounded depth, cycle-safe) and sets/clears a manager. Controller proofs are database-free
+(`reporting-lines.controller.test.ts`): set/clear/org-chart shapes, self-manager 400, cycle 400,
+cross-tenant member/manager 404, and the `org.manage`/`work.read` refusals — all asserting no write. No
+DB test / no new e2e in slice (the chain owns both).

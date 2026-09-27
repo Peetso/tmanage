@@ -547,6 +547,11 @@ GRANT INSERT                 ON `tmanage`.`person_allocations` TO 'tmanage_app'@
 -- 0068 trigger pins organization_id/membership_id immutable for every credential besides. Reads use
 -- the database-wide SELECT above.
 GRANT INSERT, UPDATE         ON `tmanage`.`person_capacity`   TO 'tmanage_app'@'%';
+-- Member reporting lines (x217, migration 0095). **INSERT, UPDATE, DELETE** — the PUT is an upsert
+-- against the `(organization_id, member_id)` natural key (a first set INSERTs, a revision UPDATEs the
+-- manager in place), and clearing a member's manager DELETEs the row. The 0095 trigger pins
+-- organization_id/member_id immutable for every credential besides; reads use the database-wide SELECT.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`member_reporting_lines` TO 'tmanage_app'@'%';
 -- People member skills (x172, migration 0070). **INSERT, DELETE** — a skill is added (INSERT) and
 -- removed (DELETE), and read through the database-wide SELECT. No UPDATE: a re-label is a delete and
 -- re-add, and the 0070 trigger pins organization_id/membership_id/label immutable for every

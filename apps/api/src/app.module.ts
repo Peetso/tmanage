@@ -16,6 +16,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
 import { PersonCapacityModule } from './modules/people/capacity.module.js';
+import { ReportingLinesModule } from './modules/people/reporting-lines.module.js';
 import { CapacityHeatmapModule } from './modules/people/capacity-heatmap.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { HomePulseModule } from './modules/home/home-pulse.module.js';
@@ -336,6 +337,10 @@ export class AppModule {
         // the controller resolves `:membershipId` tenant-scoped via a `MembershipsRepository` (provided
         // in the module's own scope) before any write, so a cross-tenant member is a 404, not a 500.
         PersonCapacityModule.register(),
+        // PEOPLE reporting lines / org chart (module 14, x217). Wires the reporting-lines repository and
+        // the memberships repository the controller uses to resolve the member and manager tenant-scoped
+        // before any write, so a cross-tenant id is a 404, not a 500.
+        ReportingLinesModule.register(),
         // People / module 14 (x193). Team capacity heatmap: a read-only org-level roll-up that folds
         // the x170 capacity and x171 allocation facts into a member × week utilisation grid. Behind
         // `work.read`, tenant-scoped, with the window bounded before any read; adds no table.
