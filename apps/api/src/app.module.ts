@@ -90,6 +90,7 @@ import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.contr
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AdminSecurityModule } from './modules/admin/security.controller.js';
 import { AdminExportRequestsModule } from './modules/admin/export-requests.controller.js';
+import { OrgBrandingModule } from './modules/admin/org-branding.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -261,6 +262,11 @@ export class AppModule {
         // `TENANT_DATABASE`. Config surface only — enforcement in the auth path is a later slice.
         AdminSecurityModule.register(),
         AdminExportRequestsModule.register(),
+        // ADM / org identity (module 18, x327). Org-wide branding for the internal app chrome —
+        // product name, accent colour, logo text — set behind `org.manage`, read by any member behind
+        // `work.read`. A module of its own, file-disjoint from the other admin slices; depends only on
+        // the global `TENANT_DATABASE`. Text/colour only — no file upload this slice.
+        OrgBrandingModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

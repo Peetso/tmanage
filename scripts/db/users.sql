@@ -1023,6 +1023,16 @@ GRANT INSERT, UPDATE ON `tmanage`.`objective_key_results` TO 'tmanage_app'@'%';
 -- a project's portal is reset by saving the defaults, not by removing the row. Reading is the
 -- database-wide SELECT (line 60).
 GRANT INSERT, UPDATE ON `tmanage`.`portal_settings` TO 'tmanage_app'@'%';
+-- `org_branding` (ADM / org identity, module 18, x327, migration 0195) gets INSERT and UPDATE. A
+-- studio's org-wide internal-chrome branding is created and then replaced in place: the read/upsert
+-- repository writes `INSERT ... ON DUPLICATE KEY UPDATE` against `(organization_id)`, so a save is one
+-- statement needing both privileges. UPDATE moves the branding columns and the `updated_by` stamp; the
+-- 0195 trigger (`trg_org_branding_pin_identity`) refuses `id`, `organization_id` and `created_at` at
+-- the engine, so a branding row cannot be re-pointed at another tenant by the runtime credential.
+-- **No DELETE**: branding defaults when absent, so a studio resets its chrome by saving the defaults,
+-- not by removing the row. Reading is the database-wide SELECT (line 60), which every authenticated
+-- member exercises via `work.read`.
+GRANT INSERT, UPDATE ON `tmanage`.`org_branding` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it
