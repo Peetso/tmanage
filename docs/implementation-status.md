@@ -223,6 +223,32 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-27 — A11Y-183: accessibility preferences (module 20, slice x183)
+
+Status: **implemented** (unit-tested; DB round-trip and e2e deferred to the chain per pass-21 rules).
+Branch `x183-a11y-preferences` off `master` `bcfe397`, by **Claude Opus 4.8**. The audit found the
+a11y baselines present but the user-facing controls absent (Preferences & accessibility Partial). This
+slice adds them: a member reads and replaces their own font-size (`sm|md|lg|xl`), reduced-motion and
+high-contrast settings over `GET`/`PUT /v1/organizations/:orgSlug/me/accessibility`, behind reused
+`work.read` (own-principal — the subject is `principal.membershipId`, never a request value, so no
+caller can touch another member's row; `capabilities.ts` untouched).
+
+**What is built.** `0079_a11y_preferences.sql` creates a tenant-scoped, per-`(organization_id,
+membership_id)` table whose `a11y_json` column holds the settings whole; the write is one
+`INSERT ... ON DUPLICATE KEY UPDATE`, identity is engine-immutable, and the app is granted INSERT and
+UPDATE only. Registered in the four places a tenant table needs (schema.ts def + `TABLES`, tenant-guard
+`TENANT_TABLES`, `users.sql` grant, migration). The PUT is a full replacement over a fixed-key
+allowlist: an unknown key, a font scale off the closed set, or a non-boolean toggle is a 400 with no
+write. `A11yPreferencesController` holds the view; `A11yPreferencesView` is paired Exact with the web
+shape in `e2e/contracts/api-web-shapes.ts`. `AccessibilityScreen` (route `/{orgSlug}/settings/
+accessibility`) reads, edits and saves the settings and applies them to the app shell via guarded
+`data-tm-*` attributes on the document root (reduced motion is OR-ed with the OS
+`prefers-reduced-motion`); the CSS is additive and absent by default, so existing a11y baselines are
+untouched. Screen is axe-clean.
+
+**Deferred:** DB round-trip (`migrator.db.test.ts` / tenant-isolation) and an e2e journey are the
+chain's per pass-21; honouring these preferences server-side beyond storage is out of scope.
+
 ## 2026-09-26 — Portal people: client-visible project team (slice x142)
 
 Module 13 (Client portal), **People** (`22-SCREEN-BY-SCREEN` §1) — until now a `PlannedPortalScreen`

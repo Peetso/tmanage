@@ -253,6 +253,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
   // table has, so the guard must scope its reads and its writes.
   work_forms: 'organization_id',
+  // A11Y-183 (x183, migration 0079). Tenant-owned: a row is one membership's accessibility
+  // settings in one studio, and an unscoped `SELECT ... FROM a11y_preferences` would be every
+  // member's preferences across every studio on the server. `organization_id` is NOT NULL and
+  // carries the `(organization_id, id)` key every tenant table has, so the guard scopes its
+  // reads and its writes; tenant-isolation.db.test.ts enforces the entry.
+  a11y_preferences: 'organization_id',
 });
 
 /**

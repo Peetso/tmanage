@@ -1029,3 +1029,34 @@ body {
     padding: var(--s5);
   }
 }
+
+/*
+ * A11Y-183 (x183): accessibility preferences applied to the app shell through data attributes the
+ * AccessibilityScreen writes onto the document root. Every rule is guarded by an attribute that is
+ * ABSENT by default, so the default document is byte-for-byte unchanged and every existing a11y
+ * baseline is untouched; a rule takes effect only once a member opts in.
+ */
+:root[data-tm-font-scale='sm'] {
+  font-size: 93.75%;
+}
+
+:root[data-tm-font-scale='lg'] {
+  font-size: 112.5%;
+}
+
+:root[data-tm-font-scale='xl'] {
+  font-size: 125%;
+}
+
+:root[data-tm-reduce-motion='on'] *,
+:root[data-tm-reduce-motion='on'] *::before,
+:root[data-tm-reduce-motion='on'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-tm-high-contrast='on'] {
+  filter: contrast(1.15);
+}
