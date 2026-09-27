@@ -14538,3 +14538,36 @@ real `authorize` (`schedules.controller.test.ts`): a valid spec writes a row wit
 404, and a caller without `org.manage` is a 403; `next-run.ts`'s pure computation is proved directly.
 Deferred to worker infrastructure (Needs-Peter): the dispatcher that fires runs, and a per-schedule
 enable/disable toggle endpoint.
+
+## PROJ / module 8 — computed project health roll-up (read) (x208)
+
+x137 gave projects a portfolio of **counts** and deliberately deferred a health score to "NS-13";
+this is that slice. `38-MODULE-MAP` §Projects asks for a computed status/health roll-up, and the
+audit recorded the portfolio built with no health-computation route (grep clean). x208 adds a **read**
+only — no new table (registry N/A). Cap `work.read`, the same ceiling the portfolio uses (no
+`capabilities.ts` edit).
+
+**API.** Two routes. `GET …/projects/health` (`work.read`) — a static segment matched before
+`…/projects/:projectId`, exactly as `…/projects/portfolio` is — returns the band per visible project.
+`GET …/projects/:projectId/health` (two segments, no collision with the one-segment project read)
+returns one project's health, or **404** (never 403) for a project the caller may not see or that
+belongs to another tenant, the same not-found-not-forbidden stance as `ProjectsService.get`.
+`ProjectHealthService` lists/fetches the tenant's projects, applies the same `authorize()` relation
+filter as the portfolio (tenant + project-visibility **first**), then hands **only the surviving ids**
+to `ProjectHealthRepository`, which aggregates overdue milestones (x139: `status='planned'` and
+`due_on < today`), open risks (x140: `status='open'`, with the high-severity subset) and objective
+tallies (x124) — each tenant-scoped and `IN (visible ids)`, so a cross-tenant project contributes
+nothing. Known-trap honoured: the band thresholds and signal weights are **fixed module constants**
+(`HEALTH_WEIGHTS`, `HEALTH_BANDS`), never per-request input, so two callers see a project in the same
+colour; `today` comes from an injected clock, not the admin pool's `SYSTEM` clock. The score is a
+subtractive 0..100 (no division), and a project with **no signals at all** is `neutral`, never a false
+green — the empty-project guard. Unit-proven with real `authorize()` and real scoring over fakes in
+`health.controller.test.ts` (green/amber/red bands from fixed weights; neutral for an empty project;
+relation filter + cross-tenant exclusion; single read 404 for invisible/cross-tenant; `work.read`
+ceiling on both routes).
+
+**Web.** `ProjectHealthScreen` reads `GET …/projects/health`: one card per visible project banded
+On track / Needs attention / At risk / Not yet assessed, each showing the signals the band came from
+so the colour is never a black box (distinct file from x137's `ProjectPortfolioScreen`).
+`ProjectHealthView` is a live `Exact` pair with the web `ProjectHealthSummary` (CONTRACT-001),
+including the nested `signals` object.

@@ -36,6 +36,7 @@ import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
+import { ProjectHealthModule } from './modules/projects/health.module.js';
 import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-links.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
@@ -248,6 +249,12 @@ export class AppModule {
         // projects for the relation filter, and aggregates `work_items` + `project_objectives`
         // (x124). Mounted at `…/projects/portfolio`, a static segment matched before `:projectId`.
         ProjectPortfolioModule.register(),
+        // PROJ / module 8 (x208). The read-only computed health roll-up over the caller's visible
+        // projects. After `ProjectsModule` for the same reason as the portfolio: it reuses
+        // `ProjectsRepository` for the relation filter, and aggregates milestones (x139), risks (x140)
+        // and objectives (x124) into a fixed-weight score/band. The list is mounted at the static
+        // `…/projects/health`, matched before `:projectId`; the per-project read at `:projectId/health`.
+        ProjectHealthModule.register(),
         // PROJ / module 8 (x138). The objective→work-item linkage (link/list/unlink). After
         // `ProjectObjectivesModule` and `WorkModule`: an edge names an objective and a work item, and
         // the composite foreign keys mean a caller who names one that is not theirs gets a refusal

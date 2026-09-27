@@ -89,6 +89,9 @@ export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService')
 /** PROJ / module 8 (x137). The read-only portfolio roll-up across the caller's visible projects. */
 export const PROJECT_PORTFOLIO_REPOSITORY = Symbol.for('tmanage.ProjectPortfolioRepository');
 export const PROJECT_PORTFOLIO_SERVICE = Symbol.for('tmanage.ProjectPortfolioService');
+/** PROJ / module 8 (x208). The read-only computed health roll-up over the caller's visible projects. */
+export const PROJECT_HEALTH_REPOSITORY = Symbol.for('tmanage.ProjectHealthRepository');
+export const PROJECT_HEALTH_SERVICE = Symbol.for('tmanage.ProjectHealthService');
 export const OBJECTIVE_WORK_LINKS_REPOSITORY = Symbol.for('tmanage.ObjectiveWorkLinksRepository');
 export const OBJECTIVE_WORK_LINKS_SERVICE = Symbol.for('tmanage.ObjectiveWorkLinksService');
 export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepository');
