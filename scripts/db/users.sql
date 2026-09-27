@@ -112,6 +112,7 @@
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
 --     documents, decisions, work_item_checklist_items, billing_profiles
+--     documents, decisions, billing_seats
 --     saved_views, meeting_attendees
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items, person_skills
 --   · `INSERT, DELETE` on: work_item_dependencies, work_item_files, saved_context,
@@ -583,6 +584,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`insight_saved_views` TO 'tmanage_app'
 -- against `uq_pref_quiet_hours_org_membership`. No DELETE: a member clears the window by saving
 -- disabled, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`pref_quiet_hours` TO 'tmanage_app'@'%';
+-- Billing seats (x178, migration 0075). INSERT (assign a seat) and UPDATE (release a seat by
+-- setting released_at, a soft close). **No DELETE** — a seat's history is the point of the table,
+-- so the withheld privilege is the control, and the 0075 trigger pins organization_id/membership_id/
+-- assigned_at immutable so an UPDATE can move only released_at. Reading is the database-wide SELECT.
+GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

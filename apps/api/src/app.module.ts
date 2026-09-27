@@ -88,6 +88,7 @@ import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
 import { PersonProfileModule } from './modules/people/profile.controller.js';
+import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -483,6 +484,12 @@ export class AppModule {
         // the per-member detail behind x168's directory. A separate module so the people slices stay
         // file-disjoint; read-only over existing rows, behind the same reused `work.read`.
         PersonProfileModule.register(),
+        // Billing module 19 (x178). Seat management (assign/list/reclaim) behind `org.manage`. A
+        // self-contained module — no billing API module existed at this base — that depends only on
+        // the tenant database: it resolves the target membership/seat tenant-scoped to answer 404
+        // rather than a foreign-key 500, so it couples to no other module and its position is by
+        // subject.
+        BillingSeatsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

@@ -3587,6 +3587,33 @@ export const insightSnapshots = mysqlTable(
 );
 
 /**
+ * Billing seats (Billing module 19, 0075, x178). A seat is a licence a membership holds against the
+ * organization's plan: `membership_id` is bound composite to a membership of the same tenant, and a
+ * seat is granted (`assigned_at`) and later reclaimed by a soft close (`released_at`), never deleted.
+ * Tenant-owned — an unscoped read would be every studio's seat roster — so it carries the
+ * `(organization_id, id)` key and is registered in `TENANT_TABLES`.
+ */
+export const billingSeats = mysqlTable(
+  'billing_seats',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    assignedAt: datetime('assigned_at', { mode: 'date', fsp: 3 }).notNull(),
+    releasedAt: datetime('released_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_billing_seats_org_id').on(table.organizationId, table.id),
+    index('ix_billing_seats_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.releasedAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -3694,6 +3721,7 @@ export const TABLES = {
   work_item_files: workItemFiles,
   insight_saved_views: insightSavedViews,
   insight_snapshots: insightSnapshots,
+  billing_seats: billingSeats,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3810,3 +3838,4 @@ export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;
 export type InsightSavedViewRow = typeof insightSavedViews.$inferSelect;
 export type InsightSnapshotRow = typeof insightSnapshots.$inferSelect;
 export type InsightSnapshotKind = (typeof INSIGHT_SNAPSHOT_KINDS)[number];
+export type BillingSeatRow = typeof billingSeats.$inferSelect;
