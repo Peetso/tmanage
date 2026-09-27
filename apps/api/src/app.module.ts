@@ -85,6 +85,7 @@ import { SkillSearchModule } from './modules/people/skill-search.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
+import { PersonProfileModule } from './modules/people/profile.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -467,6 +468,10 @@ export class AppModule {
         // over the new `billing_usage_alerts` table (0083). Self-contained and file-disjoint; alert
         // delivery (email/notification) is a later slice (external egress, Needs-Peter).
         BillingUsageAlertsModule.register(),
+        // x169. People & capacity module 14: one member's profile (role, projects, open-work count),
+        // the per-member detail behind x168's directory. A separate module so the people slices stay
+        // file-disjoint; read-only over existing rows, behind the same reused `work.read`.
+        PersonProfileModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

@@ -150,6 +150,7 @@ import type { SnapshotView as ApiSnapshotView } from '../../apps/api/src/modules
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
+import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { BulkTransitionView as ApiBulkTransitionView } from '../../apps/api/src/modules/work/bulk-transition.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
@@ -359,6 +360,7 @@ import type { SnapshotView as WebSnapshotView } from '../../apps/web/src/lib/api
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
+import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { BulkTransitionView as WebBulkTransitionView } from '../../apps/web/src/lib/api/work-bulk-transition';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
@@ -795,6 +797,12 @@ type _insightsAdoption = Assert<Exact<ApiInsightsAdoptionView, WebInsightsAdopti
  * `SnapshotView`, so the element shape is the one contract both sides hold.
  */
 type _insightSnapshot = Assert<Exact<ApiSnapshotView, WebSnapshotView>>;
+ * x169 — `GET …/people/:membershipId`. One member's profile: the non-sensitive header (`displayName`,
+ * `role`, `status`), the `projects` they belong to (element paired through this parent), and their
+ * `openWorkCount`, plus `computedAt`. Paired with a real web consumer — `PersonProfileScreen` reads
+ * it — so this is a live `Exact` pair, not an exemption.
+ */
+type _personProfile = Assert<Exact<ApiPersonProfileView, WebPersonProfileView>>;
 
 /**
  * x134 — `GET …/insights/workload-forecast?weeks`. The forward-looking workload forecast: `weeks`
