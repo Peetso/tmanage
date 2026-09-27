@@ -377,6 +377,38 @@ export const projectUpdateComments = mysqlTable(
   ],
 );
 
+/**
+ * Requests / internal comments (x299, module 11). An internally-posted comment on a client request
+ * (0006) — the studio's working-notes thread alongside a request, never projected to any client or
+ * portal read path. Distinct from `project_update_comments` (0084), which hangs off a published
+ * project update. `parent_id` is a nullable self-reference giving one level of reply;
+ * `fk_request_comments_request` binds `(organization_id, request_id)` to `client_requests
+ * (organization_id, id)` and `fk_request_comments_parent` binds `(organization_id, parent_id)` to
+ * this table, so a cross-tenant request or parent is a non-existent pair. Append-only: INSERT +
+ * DELETE + SELECT, never UPDATE — migration `0167_request_comments.sql` is the source of truth.
+ */
+export const requestComments = mysqlTable(
+  'request_comments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    requestId: char('request_id', { length: 36 }).notNull(),
+    parentId: char('parent_id', { length: 36 }),
+    body: text('body').notNull(),
+    authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_request_comments_org_id').on(table.organizationId, table.id),
+    index('ix_request_comments_request').on(
+      table.organizationId,
+      table.requestId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 export const PROJECT_MILESTONE_STATUSES = ['planned', 'met', 'missed'] as const;
 
 /**
@@ -4934,6 +4966,7 @@ export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
 export const TABLES = {
   focus_blocks: focusBlocks,
+  request_comments: requestComments,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_recurrence: workItemRecurrence,
@@ -5089,6 +5122,8 @@ export type WorkItemEstimateRow = typeof workItemEstimates.$inferSelect;
 export type NewWorkItemEstimateRow = typeof workItemEstimates.$inferInsert;
 export type WorkItemCommentRow = typeof workItemComments.$inferSelect;
 export type NewWorkItemCommentRow = typeof workItemComments.$inferInsert;
+export type RequestCommentRow = typeof requestComments.$inferSelect;
+export type NewRequestCommentRow = typeof requestComments.$inferInsert;
 export type WorkItemLinkRow = typeof workItemLinks.$inferSelect;
 export type NewWorkItemLinkRow = typeof workItemLinks.$inferInsert;
 export type WorkItemFileRow = typeof workItemFiles.$inferSelect;

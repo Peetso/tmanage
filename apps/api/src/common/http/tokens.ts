@@ -68,6 +68,8 @@ export const WORK_CHECKLIST_SERVICE = Symbol.for('tmanage.WorkChecklistService')
 export const WORK_FORMS_REPOSITORY = Symbol.for('tmanage.WorkFormsRepository');
 /** x147. A work item's comments / activity, behind `work.read`/`work.update`. */
 export const WORK_COMMENTS_SERVICE = Symbol.for('tmanage.WorkCommentsService');
+/** x299. A client request's internal comment thread, behind `client_request.triage`. */
+export const REQUEST_COMMENTS_SERVICE = Symbol.for('tmanage.RequestCommentsService');
 /** x204. Typed links between work items, behind `work.read`/`work.update`. */
 export const WORK_ITEM_LINKS_SERVICE = Symbol.for('tmanage.WorkItemLinksService');
 export const WORK_ITEM_FILES_SERVICE = Symbol.for('tmanage.WorkItemFilesService');

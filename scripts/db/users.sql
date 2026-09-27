@@ -314,6 +314,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_item_checklist_items` TO 'tmanag
 -- granted. Edit/delete arrive with the code that writes them, per this file's rule that a grant
 -- names a statement that exists.
 GRANT INSERT                 ON `tmanage`.`work_item_comments`     TO 'tmanage_app'@'%';
+-- `request_comments` (Requests / module 11, x299) gets INSERT and DELETE. An internal comment on a
+-- client request is authored (INSERT), read (the database-wide SELECT, line 60) and — because a
+-- studio may retract an internal note — removed (DELETE), but never edited: the 0167 `BEFORE UPDATE`
+-- trigger refuses every amendment, so **no UPDATE**, the append-with-retract posture of the typed
+-- edges above (deleting a parent deletes its replies first, so the RESTRICT self-reference holds).
+GRANT INSERT, DELETE         ON `tmanage`.`request_comments`        TO 'tmanage_app'@'%';
 -- x180 (0077) billing profile. Module 19: exactly one billing profile per organization, created and
 -- edited in place through `INSERT ... ON DUPLICATE KEY UPDATE` — so INSERT and UPDATE and **no
 -- DELETE**: there is no delete endpoint (a profile is edited, never removed by a runtime credential),

@@ -89,6 +89,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // x147. A work item's comments: internal prose about a studio's work, tenant-scoped like every
   // sibling — an unscoped read of it would be every studio's activity trail at once.
   work_item_comments: 'organization_id',
+  // x299. A client request's internal comment thread: the studio's working notes about a request,
+  // tenant-scoped and never client-facing — an unscoped read would be every studio's request notes.
+  request_comments: 'organization_id',
   // x204 (0085). A typed link joins two work items of one studio; an unscoped read would be every
   // studio's dependency graph at once. Tenant-owned, `organization_id` NOT NULL, `(organization_id,
   // id)` keyed like every sibling — the guard scopes its reads, its inserts and its deletes.
