@@ -112,6 +112,7 @@ import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
+import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -143,6 +144,7 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
+import type { BillingProfileView as WebBillingProfileView } from '../../apps/web/src/lib/api/billing';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -512,6 +514,15 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * submission response is the created work item, covered by the `WorkItemView`↔`WorkItemSummary` pair.
  */
 type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
+
+/**
+ * Billing profile (module 19, x180). `BillingProfileView` (`GET`/`PUT …/billing/profile`, response) —
+ * the org-scoped billing metadata. Paired with a live web consumer: `BillingProfileScreen` reads
+ * exactly this response to seed and save the billing-settings form. The nested `address` object
+ * (`{ line1, line2, city, region, postalCode, country }`, each `string | null`) is identical on both
+ * sides; there is deliberately no card or bank field on either side.
+ */
+type _billingProfile = Assert<Exact<ApiBillingProfileView, WebBillingProfileView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

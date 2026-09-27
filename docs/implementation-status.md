@@ -13925,3 +13925,35 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Billing profile — billing settings (x180, module 19)
+
+**What landed.** Module 19 (Billing) had a subscription but no billing settings (audit #10:
+Partial). This slice adds an org-scoped `billing_profiles` table (migration `0077`) — exactly one row
+per organization: a billing contact email, a company name, a tax id and a JSON postal address
+(`{ line1, line2, city, region, postalCode, country }`) — and two endpoints under
+`/v1/organizations/:orgSlug/billing/profile`: `GET` to read the profile (defaults when none saved)
+and `PUT` to create or replace it, both behind `org.manage`. `org.manage` is reused (owners); no
+`capabilities.ts` edit. The write is one `INSERT ... ON DUPLICATE KEY UPDATE` against
+`uq_billing_profiles_org`, so one organization can never accumulate two profiles.
+
+**No payment instruments.** Card and bank numbers are held by the payment provider, never in this
+database (`04-SECURITY-PRIVACY` §4). There is no PAN/bank column, and every field is screened: a
+value that looks like a card number (a 13–19 digit run that passes Luhn, spaces/dashes stripped) is a
+400 with no write, alongside a malformed email and any over-length field. The tenant is
+`context.organizationId` (resolved from an active membership before the handler), never a caller
+value, so a cross-tenant read or write is not expressible; `organization_id` is immutable at the
+engine (0077 trigger). `BillingProfileView` never echoes `organization_id`. The new table is
+registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql`
+grant (INSERT, UPDATE — created and edited, never removed), and the on-disk migration the readdir
+migrator applies.
+
+**Surfaces.** `BillingProfileView` (`profile.controller.ts`) is a live `Exact` pair with the web's
+`BillingProfileView` (`apps/web/src/lib/api/billing.ts`) in `e2e/contracts/api-web-shapes.ts`, nested
+`address` object identical on both sides. `BillingProfileScreen`
+(`apps/web/src/components/screens/BillingProfileScreen.tsx`), routed at `/[orgSlug]/billing/settings`
+(a sibling of the storage-usage `billing/` route), reads and saves the billing form with no card
+fields. Proved database-free with the real `authorize` (`profile.controller.test.ts`): a default
+read, a valid update persisting, a malformed email / over-length / card-shaped value each a 400 with
+no write, and a read/update without `org.manage` a 403. Deferred: payment instruments (Needs-Peter,
+held by the provider) and plan-change flows.

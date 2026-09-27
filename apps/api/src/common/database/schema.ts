@@ -1490,6 +1490,48 @@ export const workForms = mysqlTable(
   ],
 );
 
+/**
+ * A billing profile's postal address — the typed shape of `billing_profiles.address_json`. All
+ * fields are nullable: a profile may carry only some of them. The application validates and bounds
+ * each field before storing; the column holds the object whole.
+ */
+export interface BillingAddress {
+  readonly line1: string | null;
+  readonly line2: string | null;
+  readonly city: string | null;
+  readonly region: string | null;
+  readonly postalCode: string | null;
+  readonly country: string | null;
+}
+
+/**
+ * Billing profile (module 19, x180, migration 0077). Org-scoped, exactly one row per organization:
+ * the non-secret billing metadata a studio keeps — a contact email, a company name, a tax id and a
+ * postal address. There are deliberately no payment-instrument columns: card and bank numbers are
+ * held by the payment provider (04-SECURITY-PRIVACY §4), never here, and the application rejects any
+ * card/PAN-shaped value into these fields. `organization_id` is immutable at the engine (0077's
+ * trigger); everything else is editable via the upsert. `uq_billing_profiles_org` (organization_id
+ * alone) is the upsert key.
+ */
+export const billingProfiles = mysqlTable(
+  'billing_profiles',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    billingEmail: varchar('billing_email', { length: 320 }),
+    companyName: varchar('company_name', { length: 190 }),
+    taxId: varchar('tax_id', { length: 64 }),
+    addressJson: json('address_json').$type<BillingAddress>().notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_billing_profiles_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per organization.
+    uniqueIndex('uq_billing_profiles_org').on(table.organizationId),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2321,6 +2363,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  billing_profiles: billingProfiles,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2366,6 +2409,7 @@ export type DocumentCommentRow = typeof documentComments.$inferSelect;
 export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
+export type BillingProfileRow = typeof billingProfiles.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;

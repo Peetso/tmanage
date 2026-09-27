@@ -102,7 +102,7 @@
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
---     documents, decisions
+--     documents, decisions, work_item_checklist_items, billing_profiles
 --     saved_views, meeting_attendees
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
@@ -250,6 +250,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_blockers`          TO 'tmanage_a
 -- item *is*. DELETE is added with the code that writes it, per this file's rule that a grant names
 -- a statement that exists.
 GRANT INSERT, UPDATE         ON `tmanage`.`work_item_checklist_items` TO 'tmanage_app'@'%';
+-- x180 (0077) billing profile. Module 19: exactly one billing profile per organization, created and
+-- edited in place through `INSERT ... ON DUPLICATE KEY UPDATE` — so INSERT and UPDATE and **no
+-- DELETE**: there is no delete endpoint (a profile is edited, never removed by a runtime credential),
+-- least privilege, and the 0077 trigger pins `organization_id` immutable for every credential besides
+-- so UPDATE can move the contact/tax id/address and nothing that says which tenant the profile is.
+GRANT INSERT, UPDATE         ON `tmanage`.`billing_profiles`      TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through
