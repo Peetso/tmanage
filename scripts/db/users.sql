@@ -110,6 +110,7 @@
 --     saved_views, meeting_attendees, org_settings, org_policies
 --     saved_views, meeting_attendees, a11y_preferences, pref_quiet_hours
 --     saved_views, meeting_attendees, org_settings, security_settings
+--     saved_views, meeting_attendees, a11y_preferences, home_widget_prefs
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
 --     documents, decisions, work_item_checklist_items, billing_profiles
@@ -638,6 +639,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'
 -- DELETE are withheld — there is no invoice mutation route to grant a statement for, per this
 -- file's rule that a grant names a statement that exists. A provider-driven billing run that writes
 -- invoices (Needs-Peter) adds the grant it needs with the code that writes it.
+-- Home widget preferences (x243, module 4 Home / My Day). **INSERT, UPDATE** — a member's Home
+-- widget layout is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE`
+-- upsert against `uq_home_widget_prefs_org_membership`. No DELETE: a member clears their layout by
+-- saving the default, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`home_widget_prefs` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

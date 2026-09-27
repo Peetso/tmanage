@@ -3917,7 +3917,68 @@ export const docBookmarks = mysqlTable(
 export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
 
+/**
+ * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
+ * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
+ * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
+ * it is a validation error (400), never stored. Adding a widget to the Home screen means adding its
+ * id here.
+ */
+export const HOME_WIDGET_IDS = [
+  'myDay',
+  'waiting',
+  'pulse',
+  'summary',
+  'pins',
+  'savedContext',
+] as const;
+export type HomeWidgetId = (typeof HOME_WIDGET_IDS)[number];
+
+/**
+ * The Home widget layout one member keeps in one studio, stored across `home_widget_prefs`'
+ * `widget_order_json` and `hidden_widgets_json`. The typed shape of those JSON columns below; the
+ * application validates a request against {@link HOME_WIDGET_IDS} before storing (the same division
+ * `work_forms.fields_json` and `a11y_preferences.a11y_json` take).
+ */
+export interface HomeWidgetPrefs {
+  readonly order: readonly HomeWidgetId[];
+  readonly hidden: readonly HomeWidgetId[];
+}
+
+/**
+ * Home widget preferences (x243, migration 0115, module 4 Home / My Day).
+ *
+ * One row per `(organization_id, membership_id)`: the order the acting member wants the fixed Home
+ * widgets in and the ids they have hidden. Keyed by membership (like `home_pinned_items` and
+ * `a11y_preferences`) rather than the global user, because the layout is scoped to who the caller is
+ * *in this studio* and never leaves the tenant. `widget_order_json` and `hidden_widgets_json` hold
+ * the two lists whole; they are read and written as one, never queried across rows. The write is a
+ * single upsert against `uq_home_widget_prefs_org_membership`, so a second save updates in place;
+ * `updated_at` follows the column's `ON UPDATE`. Absence is the default layout, not an error â€” the
+ * read returns an empty layout when no row exists.
+ */
+export const homeWidgetPrefs = mysqlTable(
+  'home_widget_prefs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    widgetOrderJson: json('widget_order_json').$type<HomeWidgetId[]>().notNull(),
+    hiddenWidgetsJson: json('hidden_widgets_json').$type<HomeWidgetId[]>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_home_widget_prefs_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member per studio.
+    uniqueIndex('uq_home_widget_prefs_org_membership').on(table.organizationId, table.membershipId),
+  ],
+);
+
+
+export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
+
 export const TABLES = {
+  home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,

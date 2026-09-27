@@ -19,6 +19,7 @@ import { PersonCapacityModule } from './modules/people/capacity.module.js';
 import { CapacityHeatmapModule } from './modules/people/capacity-heatmap.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { HomePulseModule } from './modules/home/home-pulse.module.js';
+import { HomeWidgetPrefsModule } from './modules/home/widget-prefs.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { RequestAgingModule } from './modules/requests/request-aging.controller.js';
@@ -223,6 +224,9 @@ export class AppModule {
         // HOME-01: the Pulse/Focus summary read. Read-only over `work_items` + `meetings`, reuses
         // `work.read` and the Home Waiting reads; a separate module so it adds nothing to HomeModule.
         HomePulseModule.register(),
+        // Home widget preferences (x243). The caller's-own Home widget layout GET/PUT behind
+        // `work.read`; a separate module so it adds nothing to HomeModule and stays file-disjoint.
+        HomeWidgetPrefsModule.register(),
         // WK-04. The Work views read layer — a read-only composition of the work + work-graph
         // reads (timeline). After `WorkModule` by subject, though it depends only on the
         // database and never on the work service, so it does not couple to that module's wiring.

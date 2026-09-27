@@ -484,6 +484,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // registering it here is what scopes the read and the upsert; tenant-isolation.db.test.ts enforces
   // the entry.
   user_preferences: 'organization_id',
+  // Home widget preferences (x243, migration 0115). Tenant-owned: a row is one membership's Home
+  // widget layout in one studio, and an unscoped `SELECT ... FROM home_widget_prefs` would be every
+  // member's layout across every studio on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard scopes its reads and its
+  // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them,
+  // and tenant-isolation.db.test.ts enforces the entry.
+  home_widget_prefs: 'organization_id',
 });
 
 /**

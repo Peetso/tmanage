@@ -95,6 +95,8 @@ export const BILLING_PROFILE_REPOSITORY = Symbol.for('tmanage.BillingProfileRepo
 /** PREF-QUIET (x215, module 20). The member's-own notification quiet-hours store. */
 export const QUIET_HOURS_REPOSITORY = Symbol.for('tmanage.QuietHoursRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
+/** Home widget preferences (x243, module 4). The member's-own Home widget layout read/write repository. */
+export const HOME_WIDGET_PREFS_REPOSITORY = Symbol.for('tmanage.HomeWidgetPrefsRepository');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */
 export const MEETINGS_REPOSITORY = Symbol.for('tmanage.MeetingsRepository');
