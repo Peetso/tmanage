@@ -13925,3 +13925,35 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## FEAT / Public site — pricing page + plan catalog (x157, module 1)
+
+**What landed.** The public site had no pricing page (AUDIT-2026-09-27 rank #1: Public site
+Missing). This slice adds the display half of pricing. A new `@Public()` endpoint
+`GET /v1/public/site/plans` (`apps/api/src/modules/public-site/plan-catalog.controller.ts`, with
+`PublicSiteModule` defined beside its one controller) returns a static, deterministic plan catalog
+from `plan-catalog.service.ts`: tiers (free, team, business, enterprise) each with an id, name,
+tagline, monthly price in minor units, currency, seat rule, a `featured` flag and feature bullets.
+Static in code, not a table — the reader has no tenant and the catalog is the same for everyone — so
+there is **no migration** and no schema/tenant-guard/grant/migrator registration. No `capabilities.ts`
+edit: a public read asks for no capability.
+
+**Public, and payment-free by construction.** The controller is `@Public()`, so it sits outside the
+whole guard pipeline (session, CSRF, tenant, capability) — the one deliberate departure, safe because
+a public read establishes and exercises no authority. The response carries display copy and prices
+only; there is no principal to scope to and nothing tenant-specific or personal to leak. Real payment,
+card storage and checkout stay Needs-Peter (NEXT-SCOPES-13, recommended Stripe test-mode first) and
+land nowhere here — the page's call to action forwards only the chosen tier id to the sign-in flow as
+`/sign-in?plan=<id>` (a public catalog key, not personal data, so safe in a URL).
+
+**Surfaces.** `PublicPlanView` (`plan-catalog.service.ts`) is a live `Exact` pair with the web's
+`PublicPlanView` (`apps/web/src/lib/api/public-plans.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`PricingScreen` (`apps/web/src/components/screens/PricingScreen.tsx`), routed at the public `/pricing`,
+reads the catalog and lays the tiers out as cards with a feature list each, carries the chosen tier id
+in React state, and supplies its own `A11Y-01` landmarks (skip link, one `<main>`, one `<h1>`) since it
+has neither `AppShell` (needs a tenant) nor `IdentityShell` (a narrow auth card). Proved
+database-free: `plan-catalog.controller.test.ts` (GET returns every tier priced with a seat rule in a
+stable order, exactly one featured, route is `@Public()` with no capability) and `pricing.test.tsx`
+(one card per tier, price + seat rule rendered, the continue link carries only the tier id, axe-clean,
+plain error on load failure). Deferred to NEXT-SCOPES-13: a feature-comparison matrix and real
+billing/checkout.

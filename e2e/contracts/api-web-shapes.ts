@@ -98,6 +98,7 @@ import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/p
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
+import type { PublicPlanView as ApiPublicPlanView } from '../../apps/api/src/modules/public-site/plan-catalog.service.js';
 import type { ObjectiveWorkLinkView as ApiObjectiveWorkLinkView } from '../../apps/api/src/modules/projects/objective-work-links.service.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
@@ -149,6 +150,7 @@ import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../.
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
 import type { ProjectPortfolioSummary as WebProjectPortfolioSummary } from '../../apps/web/src/lib/api/project-portfolio';
+import type { PublicPlanView as WebPublicPlanView } from '../../apps/web/src/lib/api/public-plans';
 import type { ObjectiveWorkLink as WebObjectiveWorkLink } from '../../apps/web/src/lib/api/objective-work-links';
 import type {
   ConversationSummary as WebConversationSummary,
@@ -326,6 +328,15 @@ type _orgObjective = Assert<Exact<ApiOrgObjectiveView, WebOrgObjectiveSummary>>;
  * `Exact` pair, including the nested `objectiveCounts` object, which is the same shape on both sides.
  */
 type _projectPortfolio = Assert<Exact<ApiProjectPortfolioView, WebProjectPortfolioSummary>>;
+
+/**
+ * FEAT · module 1 Public site (x157). `PublicPlanView` (`GET /v1/public/site/plans`) — one plan tier
+ * as the public pricing page reads it: id, name, tagline, monthly price in minor units, currency, seat
+ * rule, `featured` flag and feature bullets. A `@Public()` read with no tenant and nothing personal.
+ * Paired with a live web consumer: `PricingScreen` reads exactly this response, so this is a real
+ * `Exact` pair.
+ */
+type _publicPlan = Assert<Exact<ApiPublicPlanView, WebPublicPlanView>>;
 
 /**
  * PROJ / module 8 (x138). `ObjectiveWorkLinkView` (`GET`/`POST …/objectives/:id/work-links` response) —

@@ -46,6 +46,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
+import { PublicSiteModule } from './modules/public-site/plan-catalog.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -247,6 +248,10 @@ export class AppModule {
         // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
         // constructs its own repository handle (see its doc), so its position here is by subject.
         WorkloadForecastModule.register(),
+        // FEAT · module 1 Public site (x157). The public pricing endpoint — `@Public()`, so it sits
+        // outside the whole guard pipeline. It depends on nothing (a static catalog), so its position
+        // here is by subject alone; it adds no table and no shared capability.
+        PublicSiteModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
