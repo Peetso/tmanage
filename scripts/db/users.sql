@@ -105,8 +105,8 @@
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
 --     saved_views, meeting_attendees, org_settings
---   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
---     home_pinned_items, objective_work_links, decision_work_links
+--   · `INSERT, DELETE` on: work_item_dependencies, work_item_files, saved_context,
+--     document_template_variables, home_pinned_items, objective_work_links, decision_work_links
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     document_comments, decision_supersessions, document_templates, work_forms, onboarding_progress, marketing_leads
@@ -262,6 +262,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_item_checklist_items` TO 'tmanag
 -- granted. Edit/delete arrive with the code that writes them, per this file's rule that a grant
 -- names a statement that exists.
 GRANT INSERT                 ON `tmanage`.`work_item_comments`     TO 'tmanage_app'@'%';
+-- x205 work item file attachments. A link is attached (INSERT) and detached (DELETE) — this
+-- slice ships attach/list/detach — so INSERT and DELETE and **no UPDATE**: a link is never
+-- re-parented or re-attributed in place (that is delete-and-add), and the 0086 trigger refuses
+-- UPDATE for every credential besides. Reading is the database-wide SELECT above. The removal
+-- destroys no history the audit trail does not keep: the detach is audited.
+GRANT INSERT, DELETE         ON `tmanage`.`work_item_files`        TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

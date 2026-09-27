@@ -14538,3 +14538,32 @@ real `authorize` (`schedules.controller.test.ts`): a valid spec writes a row wit
 404, and a caller without `org.manage` is a 403; `next-run.ts`'s pure computation is proved directly.
 Deferred to worker infrastructure (Needs-Peter): the dispatcher that fires runs, and a per-schedule
 enable/disable toggle endpoint.
+
+## SEC / Work — work item file attachments (attach/list/detach) (x205, module 7)
+
+The join the audit found missing: Work is built, Files are built, and nothing linked them. This
+slice adds `work_item_files` (migration `0086`), a tenant-scoped join row naming one work item and
+one already-uploaded file of the same studio and — enforced in the service — the same project. No
+bytes move: the upload flow (FILE-001) already produced the asset; this only records the link.
+Attach/list/detach, and nothing more.
+
+**Cross-module tenant boundary.** The service resolves _both_ ends tenant-scoped before it writes.
+The work item is read first and `authorize()` asked against its project and audience; a cross-tenant
+or unrelated work item is a 404 with no write. Attach then resolves the file the same way and
+requires it belong to the work item's project — a cross-tenant, absent or cross-project `fileAssetId`
+is the same 404, never a link to another studio's (or sibling project's) file. Two composite foreign
+keys (`(organization_id, work_item_id)` and `(organization_id, file_asset_id)`) are the engine half.
+Attach and detach are behind `work.update`; the list read is behind `file.download`. The new table is
+registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql`
+grant (INSERT + DELETE; no UPDATE, and the 0086 trigger pins the row immutable), and the on-disk
+migration the readdir migrator applies.
+
+**Surfaces.** `ItemFileView` (`item-files.service.ts`) is a live `Exact` pair with the web's
+`ItemFile` (`apps/web/src/lib/api/work-items.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`WorkItemFilesScreen` (`apps/web/src/components/screens/WorkItemFilesScreen.tsx`) lists a work item's
+attachments, attaches a file by id, and detaches one. Proved database-free with the real `authorize`
+(`item-files.controller.test.ts`): attach/list/detach round-trips, attach is idempotent per pair, a
+cross-tenant/absent file id and a cross-project file id are each a 404 with no write, a cross-tenant
+work item is a 404, an unrelated member's list is a 404, and a caller who may read but not update the
+item is a 403 on attach; a missing `fileAssetId` is a 400. No byte upload path is added (reuses the
+existing file.upload flow).

@@ -9,11 +9,13 @@ import {
   WORK_FORMS_REPOSITORY,
   WORK_ITEMS_REPOSITORY,
   WORK_ITEMS_SERVICE,
+  WORK_ITEM_FILES_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { FileAssetsRepository } from '../files/file-assets.repository.js';
 import { WorkItemsRepository } from './work-items.repository.js';
 import { WorkItemsService } from './work-items.service.js';
 import { WorkItemsController } from './work-items.controller.js';
@@ -25,6 +27,9 @@ import { WorkFormsController } from './work-forms.controller.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
 import { WorkCommentsService } from './work-comments.service.js';
 import { WorkCommentsController } from './work-comments.controller.js';
+import { WorkItemFilesRepository } from './item-files.repository.js';
+import { WorkItemFilesService } from './item-files.service.js';
+import { WorkItemFilesController } from './item-files.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -74,15 +79,38 @@ export class WorkModule {
         new WorkCommentsService(database, workItems, new WorkCommentsRepository()),
     };
 
+    // x205 work-item file attachments. Injects the work-items repository (the parent) and a
+    // stateless `FileAssetsRepository` (the file end) — the cross-module join resolves both ends
+    // tenant-scoped before it writes.
+    const itemFilesService: Provider = {
+      provide: WORK_ITEM_FILES_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkItemFilesService(
+          database,
+          workItems,
+          new FileAssetsRepository(),
+          new WorkItemFilesRepository(),
+        ),
+    };
+
     return {
       module: WorkModule,
-      providers: [repository, service, checklistService, formsRepository, commentsService],
+      providers: [
+        repository,
+        service,
+        checklistService,
+        formsRepository,
+        commentsService,
+        itemFilesService,
+      ],
       exports: [service],
       controllers: [
         WorkItemsController,
         WorkChecklistController,
         WorkFormsController,
         WorkCommentsController,
+        WorkItemFilesController,
       ],
     };
   }

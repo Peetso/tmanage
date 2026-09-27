@@ -1246,6 +1246,43 @@ export const workItemComments = mysqlTable(
   ],
 );
 
+/**
+ * x205 (Work module 7). The join between a work item and an already-uploaded file — the audit's
+ * "Work built; Files built; no join between them". A link names one work item and one file asset
+ * of the same studio (`organization_id`) and, enforced in the service, the same project. Both
+ * ends are bound by composite foreign keys that include `organization_id`
+ * (`0086_work_item_files.sql`), so a cross-tenant work item id OR a cross-tenant file id is a
+ * non-existent pair, not a leak. A link is added and removed (detach is a DELETE), never edited:
+ * the 0086 trigger pins every column immutable for the credentials that hold UPDATE, and the
+ * runtime credential holds INSERT and DELETE only. `0086_work_item_files.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const workItemFiles = mysqlTable(
+  'work_item_files',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    attachedByMembershipId: char('attached_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_files_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_files_edge').on(
+      table.organizationId,
+      table.workItemId,
+      table.fileAssetId,
+    ),
+    index('ix_work_item_files_item').on(
+      table.organizationId,
+      table.workItemId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2809,6 +2846,7 @@ export const TABLES = {
   integration_connections: integrationConnections,
   webhook_endpoints: webhookEndpoints,
   automation_schedules: automationSchedules,
+  work_item_files: workItemFiles,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2823,6 +2861,8 @@ export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelec
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
 export type WorkItemCommentRow = typeof workItemComments.$inferSelect;
 export type NewWorkItemCommentRow = typeof workItemComments.$inferInsert;
+export type WorkItemFileRow = typeof workItemFiles.$inferSelect;
+export type NewWorkItemFileRow = typeof workItemFiles.$inferInsert;
 export type ClientRequestRow = typeof clientRequests.$inferSelect;
 export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
 export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;
