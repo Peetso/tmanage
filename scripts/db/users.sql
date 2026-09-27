@@ -497,6 +497,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`doc_bookmarks`     TO 'tmanage_app'@'
 -- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
 -- `doc_bookmarks` posture above.
 GRANT INSERT, DELETE         ON `tmanage`.`focus_blocks`      TO 'tmanage_app'@'%';
+-- INBOX saved filters (0131, x261) per-membership named inbox filter sets. INSERT to save and DELETE
+-- to remove, and **no UPDATE**: a saved filter is created and removed, never edited, so the missing
+-- privilege is the control (no immutability trigger, none needed). Reading is the database-wide
+-- SELECT above. The worker gets nothing here — this table is the API's alone, the `doc_bookmarks`
+-- posture above.
+GRANT INSERT, DELETE         ON `tmanage`.`inbox_saved_filters` TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)

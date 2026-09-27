@@ -198,6 +198,8 @@ export const INBOX_SERVICE = Symbol.for('tmanage.InboxService');
 export const INBOX_FLAG_SERVICE = Symbol.for('tmanage.InboxFlagService');
 export const PORTAL_INBOX_SERVICE = Symbol.for('tmanage.PortalInboxService');
 export const INBOX_SNOOZE_SERVICE = Symbol.for('tmanage.InboxSnoozeService');
+/** INBOX saved filters (IN-02, x261). The per-membership, tenant-scoped saved inbox filters service. */
+export const INBOX_SAVED_FILTERS_SERVICE = Symbol.for('tmanage.InboxSavedFiltersService');
 export const MAILER = Symbol.for('tmanage.Mailer');
 export const INVITATION_MAILER = Symbol.for('tmanage.InvitationMailer');
 export const OBJECT_STORE = Symbol.for('tmanage.ObjectStore');

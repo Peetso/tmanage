@@ -29,6 +29,7 @@ import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { InboxSnoozeModule } from './modules/inbox/inbox-snooze.module.js';
 import { InboxFlagModule } from './modules/inbox/inbox-flag.module.js';
+import { InboxSavedFiltersModule } from './modules/inbox/inbox-saved-filters.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { NotificationsFeedModule } from './modules/notifications/notifications-feed.module.js';
 import { NotificationKindPrefsModule } from './modules/notifications/notification-kind-prefs.module.js';
@@ -295,6 +296,10 @@ export class AppModule {
         // caller's own notification rows directly, so a flag is only ever a member's own on a bundle
         // they may see.
         InboxFlagModule.register(),
+        // INBOX saved filters (IN-02, x261). A member's own named inbox filter sets (create/list/
+        // delete) behind the inbox read capability. Separate from `InboxModule` because both are
+        // `.register()`-based; a stateless service over the tenant database with its own repository.
+        InboxSavedFiltersModule.register(),
         // NOTIF-001. The caller's own notification settings (GET/PUT). No tenant object to
         // resolve, so unlike the inbox it depends on nothing but the database.
         NotificationPreferencesModule.register(),

@@ -268,6 +268,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // unregistered table, so registering it here is what scopes its reads, its delete and its recent
   // prune; tenant-isolation.db.test.ts enforces the entry.
   saved_searches: 'organization_id',
+  // INBOX saved filters (IN-02, x261, migration 0131). Tenant-owned: a saved inbox filter belongs to
+  // one membership in one studio, and an unscoped `SELECT ... FROM inbox_saved_filters` would be
+  // every member's saved filters across every studio on the server. The layer-3 guard fails OPEN on
+  // an unregistered table, so registering it here is what scopes its reads and its delete;
+  // tenant-isolation.db.test.ts enforces the entry.
+  inbox_saved_filters: 'organization_id',
   // HOME-05 (0035). Tenant-owned: a pin names a tenant entity and belongs to one user in one
   // studio, and an unscoped read would be a map of what every person in every studio keeps at
   // hand. The layer-3 guard fails OPEN on an unregistered table, so registering it here is what
