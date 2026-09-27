@@ -74,6 +74,8 @@ export const CAPACITY_HEATMAP_SERVICE = Symbol.for('tmanage.CapacityHeatmapServi
 export const PERSON_SKILLS_REPOSITORY = Symbol.for('tmanage.PersonSkillsRepository');
 /** x194. The read-only skill directory search repository (find members by skill tag). */
 export const PERSON_SKILL_SEARCH_REPOSITORY = Symbol.for('tmanage.PersonSkillSearchRepository');
+/** Billing profile (module 19, x180). The org-scoped read/upsert billing-profile repository. */
+export const BILLING_PROFILE_REPOSITORY = Symbol.for('tmanage.BillingProfileRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */

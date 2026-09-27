@@ -74,6 +74,8 @@ import { FaqContentModule } from './modules/public-site/faq.module.js';
 import { PeopleSkillsModule } from './modules/people/people-skills.module.js';
 import { SkillSearchModule } from './modules/people/skill-search.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
+import { BillingModule } from './modules/billing/billing.module.js';
+import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -396,6 +398,16 @@ export class AppModule {
         // module of its own, depending only on the tenant database; it records a plan-change intent
         // (`pending_change`) and executes no charge (real payment is Needs-Peter).
         BillingModule.register(),
+        // Billing / module 19 (x180). The org-scoped billing profile (read/update the billing
+        // contact, tax id and address) behind `org.manage`. Depends only on the tenant database, so
+        // its position here is by subject; it stores non-secret metadata only — no payment
+        // instruments, which are the provider's.
+        BillingModule.register(),
+        // Billing / module 19 (x199). The org's nominated billing/notification contacts (add/list/
+        // remove) behind `org.manage`. File-disjoint from the billing profile; depends only on the
+        // tenant database, so its position here is by subject. No email is sent and no payment
+        // instrument is stored — contacts only.
+        BillingContactsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

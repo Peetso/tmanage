@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  BILLING_PROFILE_REPOSITORY,
   PLAN_PREVIEW_SERVICE,
   SUBSCRIPTION_REPOSITORY,
   SUBSCRIPTION_SERVICE,
@@ -12,6 +13,8 @@ import { SubscriptionService } from './subscription.service.js';
 import { SubscriptionController } from './subscription.controller.js';
 import { PlanPreviewService } from './plan-preview.service.js';
 import { PlanPreviewController } from './plan-preview.controller.js';
+import { BillingProfileRepository } from './profile.repository.js';
+import { BillingProfileController } from './profile.controller.js';
 
 /**
  * Billing / module 19 (x177). The subscription module — an organization's current plan (view, and
@@ -21,6 +24,11 @@ import { PlanPreviewController } from './plan-preview.controller.js';
  * takes the tenant database and the repository, and one controller. Org-scoped (no project in the
  * path), so it needs no `ProjectsRepository` to resolve one, and it depends only on the global tenant
  * database — it couples to no other feature module's wiring.
+ *
+ * Billing (module 19, x180) — also carries the billing-settings wiring: one stateless profile
+ * repository under its token and one controller that injects it alongside the tenant database. The
+ * controller authorizes (`org.manage`, deny-by-default) and validates, and the repository owns the
+ * single org-scoped read/upsert — the same shape the work-forms slice takes.
  */
 @Module({})
 export class BillingModule {
@@ -43,12 +51,16 @@ export class BillingModule {
       useFactory: (database: TenantDatabase, subscriptions: SubscriptionRepository) =>
         new PlanPreviewService(database, subscriptions),
     };
+    const profileRepository: Provider = {
+      provide: BILLING_PROFILE_REPOSITORY,
+      useFactory: () => new BillingProfileRepository(),
+    };
 
     return {
       module: BillingModule,
-      providers: [repository, service, planPreview],
+      providers: [repository, service, planPreview, profileRepository],
       exports: [service, planPreview],
-      controllers: [SubscriptionController, PlanPreviewController],
+      controllers: [SubscriptionController, PlanPreviewController, BillingProfileController],
     };
   }
 }

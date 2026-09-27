@@ -147,6 +147,8 @@ import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '..
 import type { WorkflowConditionView as ApiWorkflowConditionView } from '../../apps/api/src/modules/automations/conditions.controller.js';
 import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
 import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/api/src/modules/people/capacity-heatmap.service.js';
+import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
+import type { BillingContactView as ApiBillingContactView } from '../../apps/api/src/modules/billing/contacts.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -216,6 +218,8 @@ import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/m
 import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
 import type { SkillSearchView as ApiSkillSearchView } from '../../apps/api/src/modules/people/skill-search.controller.js';
 import type { SkillSearchResult as WebSkillSearchResult } from '../../apps/web/src/lib/api/people-skill-search';
+import type { BillingProfileView as WebBillingProfileView } from '../../apps/web/src/lib/api/billing';
+import type { BillingContactView as WebBillingContactView } from '../../apps/web/src/lib/api/billing-contacts';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -835,6 +839,22 @@ type _personSkill = Assert<Exact<ApiPersonSkillView, WebPersonSkillSummary>>;
  * and `organizationId` is absent on both — the wire never echoes the tenant.
  */
 type _skillSearch = Assert<Exact<ApiSkillSearchView, WebSkillSearchResult>>;
+ * Billing profile (module 19, x180). `BillingProfileView` (`GET`/`PUT …/billing/profile`, response) —
+ * the org-scoped billing metadata. Paired with a live web consumer: `BillingProfileScreen` reads
+ * exactly this response to seed and save the billing-settings form. The nested `address` object
+ * (`{ line1, line2, city, region, postalCode, country }`, each `string | null`) is identical on both
+ * sides; there is deliberately no card or bank field on either side.
+ */
+type _billingProfile = Assert<Exact<ApiBillingProfileView, WebBillingProfileView>>;
+
+/**
+ * Billing contacts (module 19, x199). `BillingContactView` (`GET`/`POST`/`DELETE …/billing/contacts`,
+ * response) — one org-scoped billing contact (`id`, `name`, `email`, `role: string | null`,
+ * `createdAt`). Paired with a live web consumer: `BillingContactsScreen` reads exactly this shape to
+ * list, add and remove contacts. `organizationId` is deliberately absent on both sides, and there is no
+ * card or bank field on either — contacts carry non-secret metadata only.
+ */
+type _billingContact = Assert<Exact<ApiBillingContactView, WebBillingContactView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

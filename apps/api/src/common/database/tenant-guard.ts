@@ -369,6 +369,18 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // table has, so the guard must scope its reads and its writes; the layer-3 guard fails OPEN on an
   // unregistered table, so this entry is what scopes them (tenant-isolation.db.test.ts enforces it).
   subscriptions: 'organization_id',
+  // Billing profile (module 19, x180, migration 0077). Org-owned: exactly one billing profile per
+  // organization, and an unscoped `SELECT ... FROM billing_profiles` would be every studio's billing
+  // contact, tax id and address on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
+  // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
+  billing_profiles: 'organization_id',
+  // Billing contacts (module 19, x199, migration 0082). Org-owned: the people a studio nominates for
+  // billing notices, and an unscoped `SELECT ... FROM billing_contacts` would be every studio's
+  // contact names and emails on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
+  // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
+  billing_contacts: 'organization_id',
 });
 
 /**

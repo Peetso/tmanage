@@ -2050,12 +2050,72 @@ export const subscriptions = mysqlTable(
     planId: varchar('plan_id', { length: 64 }).notNull(),
     status: mysqlEnum('status', SUBSCRIPTION_STATUSES).notNull().default('active'),
     currentPeriodEnd: datetime('current_period_end', { mode: 'date', fsp: 3 }),
+ * A billing profile's postal address — the typed shape of `billing_profiles.address_json`. All
+ * fields are nullable: a profile may carry only some of them. The application validates and bounds
+ * each field before storing; the column holds the object whole.
+ */
+export interface BillingAddress {
+  readonly line1: string | null;
+  readonly line2: string | null;
+  readonly city: string | null;
+  readonly region: string | null;
+  readonly postalCode: string | null;
+  readonly country: string | null;
+}
+
+/**
+ * Billing profile (module 19, x180, migration 0077). Org-scoped, exactly one row per organization:
+ * the non-secret billing metadata a studio keeps — a contact email, a company name, a tax id and a
+ * postal address. There are deliberately no payment-instrument columns: card and bank numbers are
+ * held by the payment provider (04-SECURITY-PRIVACY §4), never here, and the application rejects any
+ * card/PAN-shaped value into these fields. `organization_id` is immutable at the engine (0077's
+ * trigger); everything else is editable via the upsert. `uq_billing_profiles_org` (organization_id
+ * alone) is the upsert key.
+ */
+export const billingProfiles = mysqlTable(
+  'billing_profiles',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    billingEmail: varchar('billing_email', { length: 320 }),
+    companyName: varchar('company_name', { length: 190 }),
+    taxId: varchar('tax_id', { length: 64 }),
+    addressJson: json('address_json').$type<BillingAddress>().notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [
     uniqueIndex('uq_subscriptions_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_subscriptions_org').on(table.organizationId),
+    uniqueIndex('uq_billing_profiles_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per organization.
+    uniqueIndex('uq_billing_profiles_org').on(table.organizationId),
+  ],
+);
+
+/**
+ * Billing contacts (module 19, x199, migration 0082). Org-scoped list of the people a studio nominates
+ * for its billing and account notices — each a name, an email and an optional role label. Contacts are
+ * added and removed, never edited in place (no update path), so there is no `updated_at`. As with the
+ * billing profile there are deliberately no payment-instrument columns: card and bank numbers are held
+ * by the payment provider (04-SECURITY-PRIVACY §4), never here, and the application rejects any
+ * card/PAN-shaped value into these fields. `organization_id` is immutable at the engine (0082's
+ * trigger). No email is sent to these contacts — delivery is Needs-Peter; the row is the whole effect.
+ */
+export const billingContacts = mysqlTable(
+  'billing_contacts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 190 }).notNull(),
+    email: varchar('email', { length: 320 }).notNull(),
+    role: varchar('role', { length: 80 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_billing_contacts_org_id').on(table.organizationId, table.id),
+    // The org-scoped list read leads with organization_id, newest first.
+    index('ix_billing_contacts_org_created').on(table.organizationId, table.createdAt),
   ],
 );
 
@@ -3133,6 +3193,8 @@ export const TABLES = {
   person_skills: personSkills,
   custom_roles: customRoles,
   subscriptions,
+  billing_profiles: billingProfiles,
+  billing_contacts: billingContacts,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3188,6 +3250,8 @@ export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
 export type PersonCapacityRow = typeof personCapacity.$inferSelect;
 export type PersonSkillRow = typeof personSkills.$inferSelect;
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
+export type BillingProfileRow = typeof billingProfiles.$inferSelect;
+export type BillingContactRow = typeof billingContacts.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;
