@@ -146,6 +146,9 @@ export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService
 export const APPROVALS_SERVICE = Symbol.for('tmanage.ApprovalsService');
 export const CONVERSATIONS_REPOSITORY = Symbol.for('tmanage.ConversationsRepository');
 export const CONVERSATIONS_SERVICE = Symbol.for('tmanage.ConversationsService');
+/** CH-09 (x252). A member's own conversation mute state. */
+export const CONVERSATION_MUTE_REPOSITORY = Symbol.for('tmanage.ConversationMuteRepository');
+export const CONVERSATION_MUTE_SERVICE = Symbol.for('tmanage.ConversationMuteService');
 export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');
 export const NOTIFICATIONS_REPOSITORY = Symbol.for('tmanage.NotificationsRepository');
 export const NOTIFICATION_PREFERENCES_REPOSITORY = Symbol.for(

@@ -3282,6 +3282,38 @@ export const quietHours = mysqlTable(
   ],
 );
 
+/**
+ * CH-09 — a member's own mute/unmute state for one conversation (migration 0124, x252, module Chat).
+ *
+ * One row per `(organization_id, conversation_id, membership_id)`: whether the acting member has
+ * muted a channel's notifications. Keyed by membership (like `pref_quiet_hours`) rather than the
+ * global user, because it is scoped to who the caller is *in this studio* and never leaves the tenant.
+ * The write is a single upsert against `uq_conversation_mutes_org_conv_membership`, so a second save
+ * flips `muted` in place; `updated_at` follows the column's `ON UPDATE`. Absence is the shipped
+ * default (not muted), not an error — the read returns `false` when no row exists. Read-only preference
+ * this slice: nothing dispatches off it yet.
+ */
+export const conversationMutes = mysqlTable(
+  'conversation_mutes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    conversationId: char('conversation_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    muted: boolean('muted').notNull().default(false),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_conversation_mutes_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member per conversation.
+    uniqueIndex('uq_conversation_mutes_org_conv_membership').on(
+      table.organizationId,
+      table.conversationId,
+      table.membershipId,
+    ),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -4017,6 +4049,7 @@ export const TABLES = {
   messages,
   message_revisions: messageRevisions,
   message_work_links: messageWorkLinks,
+  conversation_mutes: conversationMutes,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -4187,6 +4220,7 @@ export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
 export type A11yPreferenceRow = typeof a11yPreferences.$inferSelect;
 export type QuietHoursRow = typeof quietHours.$inferSelect;
 export type UserPreferenceRow = typeof userPreferences.$inferSelect;
+export type ConversationMuteRow = typeof conversationMutes.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;

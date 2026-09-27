@@ -131,6 +131,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // CHAT-003. Tenant-owned: the link names a message and a work item, both tenant rows, and
   // an unscoped read of it would be a map of which studio converted what.
   message_work_links: 'organization_id',
+  // CH-09 (x252). A member's mute state for a conversation. Tenant-owned: the row names a
+  // conversation and a membership of one studio, and the read is scoped to the acting
+  // membership, so an unscoped read would expose who muted which channel across studios.
+  conversation_mutes: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',
