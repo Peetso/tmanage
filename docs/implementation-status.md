@@ -15714,3 +15714,31 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## SEC / Client portal settings (module 13, x238)
+
+**Audit gap.** The client portal is built (CLIENT-002 and siblings) but there was no per-project
+configuration of how it presents itself. This slice adds `portal_settings` (migration `0110`), a
+tenant-scoped, project-owned table keyed `(organization_id, project_id)`: `welcome_message`,
+`accent_color` (a fixed palette), `show_team` and `show_timeline`, plus the internal `updated_by`
+stamp. New table registered in all four places — `schema.ts` def + `TABLES`, tenant-guard
+`TENANT_TABLES`, `users.sql` grant (INSERT+UPDATE, the upsert; no DELETE), and the migration file the
+migrator auto-discovers.
+
+**Surfaces.** `GET`/`PUT …/projects/:id/portal-settings` behind `project.manage` (internal:
+`PortalSettingsController`), and `GET …/portal/projects/:id/portal-settings` behind
+`client_projection.read` (the client projection: `PortalSettingsClientController`). Both share
+`PortalSettingsService`, which resolves the project tenant-scoped **before** authorize (a cross-tenant
+`:id` is 404, never a foreign-key 500; an internal caller who cannot manage it is 404, not 403) and
+upserts via `INSERT ... ON DUPLICATE KEY UPDATE`. The read fills code-level defaults when a project has
+never been configured, so a resolvable project always reads a settings object. The client projection is
+built field by field (`25-AUTH §7`): it carries the presentation fields only and never `updated_by`,
+the one internal field. Off-palette accent / oversize welcome message → 400 before any write; no
+`capabilities.ts` edit (both routes reuse existing caps). Files: `portal-settings.controller.ts` +
+`.service.ts` + `.repository.ts` + `.controller.test.ts` (`PortalSettingsModule`, registered in
+`app.module.ts`). `PortalSettingsView` is a live `Exact` pair with
+`apps/web/src/lib/api/portal-settings.ts` via `e2e/contracts/api-web-shapes.ts`;
+`PortalSettingsScreen` reads/saves it. The client `PortalSettingsClientView` is exempted in
+`scripts/contracts-check.mjs` (no client-portal render reads it yet). No DB test / no new e2e in slice
+(the chain owns both); the tenant predicates and the migration are proven by the chain's isolation and
+migrator DB suites.

@@ -786,6 +786,16 @@ GRANT INSERT, DELETE ON `tmanage`.`objective_work_links` TO 'tmanage_app'@'%';
 -- at the engine, so an edit can only ever move the body, never re-parent or re-attribute the row.
 -- There is no delete surface this slice, so **no DELETE**. Reading is the database-wide SELECT above.
 GRANT INSERT, UPDATE ON `tmanage`.`objective_key_results` TO 'tmanage_app'@'%';
+-- `portal_settings` (SEC / Client portal, module 13, x238) gets INSERT and UPDATE. A project's
+-- client-portal settings are created and then replaced in place: the read/upsert repository writes
+-- `INSERT ... ON DUPLICATE KEY UPDATE` against `(organization_id, project_id)`, so a save is one
+-- statement needing both privileges. UPDATE moves the presentation columns and the `updated_by` stamp;
+-- the 0110 trigger (`trg_portal_settings_pin_identity`) refuses `id`, `organization_id`, `project_id`
+-- and `created_at` at the engine, so settings cannot be re-pointed at another project or tenant by the
+-- runtime credential. **No DELETE**: settings default when absent, so there is nothing a delete buys —
+-- a project's portal is reset by saving the defaults, not by removing the row. Reading is the
+-- database-wide SELECT (line 60).
+GRANT INSERT, UPDATE ON `tmanage`.`portal_settings` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

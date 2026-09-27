@@ -101,6 +101,10 @@ const EXEMPT = new Map([
     'ImportValidationView',
     'No web consumer yet: ON-09 import is API-only this slice (validate/dry-run); the ON-09 screen is a follow-up. Pair it when that screen lands.',
   ],
+  [
+    'PortalSettingsClientView',
+    'No web consumer: SEC / Client portal settings (x238) client projection (welcome/accent/toggles only, no updatedBy). The internal PortalSettingsView is the paired one (PortalSettingsScreen); the client-portal render that reads this projection is a later slice. Pair it when that render lands.',
+  ],
 ]);
 
 /**

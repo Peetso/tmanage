@@ -124,6 +124,7 @@ import type { ClientMilestoneView as ApiClientMilestoneView } from '../../apps/a
 import type { MilestoneEditView as ApiMilestoneEditView } from '../../apps/api/src/modules/clients/milestone-lifecycle.controller.js';
 import type { ProjectRiskView as ApiProjectRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
 import type { ClientRiskView as ApiClientRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
+import type { PortalSettingsView as ApiPortalSettingsView } from '../../apps/api/src/modules/clients/portal-settings.controller.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
@@ -280,6 +281,7 @@ import type { InvoiceDetail as WebInvoiceDetail } from '../../apps/web/src/lib/a
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { ProjectInternalRiskSummary as WebProjectInternalRiskSummary } from '../../apps/web/src/lib/api/project-risk-register';
+import type { PortalSettingsView as WebPortalSettingsView } from '../../apps/web/src/lib/api/portal-settings';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
 import type { AutomationScheduleSummary as WebAutomationScheduleSummary } from '../../apps/web/src/lib/api/automation-schedules';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
@@ -489,6 +491,12 @@ type _updateComment = Assert<Exact<ApiUpdateCommentView, WebUpdateComment>>;
 type _clientUpdateComment = Assert<Exact<ApiClientUpdateCommentView, WebClientUpdateComment>>;
 type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
 type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
+// SEC / Client portal settings (x238): the internal per-project portal settings read/save over
+// `…/projects/:id/portal-settings`. `PortalSettingsScreen` reads exactly this response (welcome,
+// accent, the two toggles, plus the internal `updatedBy`/`updatedAt`), so the pair is Exact. The
+// client projection (`PortalSettingsClientView`) drops `updatedBy`/`updatedAt`/`projectId` and has no
+// web consumer yet — it is exempted in scripts/contracts-check.mjs.
+type _portalSettings = Assert<Exact<ApiPortalSettingsView, WebPortalSettingsView>>;
 type _portalFile = Assert<Exact<ApiPortalFileView, WebPortalFile>>;
 type _portalPerson = Assert<Exact<ApiPortalPersonView, WebPortalPerson>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;
