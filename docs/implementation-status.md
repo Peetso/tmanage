@@ -14997,3 +14997,75 @@ offers an edit form and a clone form. Proved database-free with the real `author
 caller cannot exercise is a 403 (on both edit and clone), an off-allowlist string is a 400, an unknown or
 cross-tenant id is a 404 before authorize, a name collision is a 409, and both routes sit behind
 `org.manage`. Deferred: role deletion and assigning a custom role to a membership.
+## SEC / Organization access policies — module 18 Administration (x174, 2026-09-27)
+
+**What shipped.** The Administration access-policy surface the audit named absent (rank #9, Admin
+Partial: policies absent). Two routes behind `org.manage` under
+`/v1/organizations/:orgSlug/policies`: `GET` reads the organization's access policy (its stored
+document, or the defaults if none), and `PUT` updates it. Distinct from x153's `org_settings`
+(general string preferences — timezone, re-auth window, default project visibility): this is the
+**access-policy** surface — session lifetime, invite-domain allowlist, guest access — a fixed-key
+allowlist of _typed, bounded_ values held as one JSON document per organization (`org_policies`,
+migration `0072`). No `capabilities.ts` edit — `org.manage` is reused.
+
+**The allowlist is the substance.** `policies.allowlist.ts` is the single source of which policies
+exist, their defaults and their per-key validators. A key outside `ORG_POLICY_KEYS`
+(`session_max_hours`, `invite_domain_allowlist`, `guest_access_enabled`) is a 400 with no write; a
+value out of range or of the wrong type (session hours outside 1..720, a malformed domain, a
+non-boolean guest flag) is a 400 with no write. A PUT is a partial document: the provided fields are
+validated, canonicalised (numeric strings → numbers, domains lower-cased and de-duplicated) and
+merged onto the stored document (or the defaults), and the whole document is upserted on
+`organization_id` — one row per organization.
+
+**Known-trap order (complete).** The write resolves the organization tenant-scoped _before_ it
+authorizes or writes: a cross-tenant context is a 404 with no write, before the 403, before the
+allowlist 400s. The real org-wide `org.manage` `authorize()` runs in the handler besides the coarse
+`@RequireCapability` gate. The new table is registered in all four places — `schema.ts` def +
+`TABLES` + `OrgPolicyRow` type, tenant-guard `TENANT_TABLES` (`organization_id`), `users.sql` grant
+(INSERT, UPDATE — the upsert; no DELETE), and the on-disk migration the readdir migrator applies. A
+`BEFORE UPDATE` trigger pins `organization_id` immutable at the engine.
+
+**Surfaces.** `OrgPolicyView` (`policies.controller.ts`) is a live `Exact` pair with the web's
+`OrgPolicyView` (`apps/web/src/lib/api/policies.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`AdminPoliciesScreen` (`apps/web/src/components/screens/AdminPoliciesScreen.tsx`), routed at
+`/[orgSlug]/policies`, renders the typed policy form (session hours, domain allowlist, guest-access
+checkbox) and saves it; axe-clean. Proved database-free with the real `authorize`
+(`policies.controller.test.ts`): read defaults → update → read back, a partial update merges, values
+canonicalise, an off-list key / out-of-range / wrongly-typed value / non-object body is a 400 with no
+write, a cross-tenant org is a 404 before authorize, and a caller without `org.manage` is a 403 on
+both routes. A self-contained `AdminPoliciesModule` registered from `app.module.ts` keeps the slice
+file-disjoint from x153's org-settings controller. Deferred to NEXT-SCOPES-13: the role/capability
+editor (ADM-03, blocked) and broader security-policy escalations.
+
+## SEC / Access-policy simulation — module 18 Administration (x196, 2026-09-27)
+
+**What shipped.** The dry-run "can member X do Y?" evaluator the audit named absent (x174 stored
+access policies with no way to test their effect). One route behind `org.manage`:
+`POST /v1/organizations/:orgSlug/policies/simulate`, body `{ memberId, capability, context? }` →
+the decision the live `authorize()` would reach for that member, with the deciding rule (an allow's
+granting role, or a deny's stable code) made explicit. **Read-only** — it opens a read, not a
+transaction, and writes nothing.
+
+**Why it does not lie.** The decision is made by the same `authorize()` the request path uses, over a
+`Principal` assembled from the same `PrincipalRepository.projectScope` the session builder uses
+(`policy-simulate.service.ts`). The service adds no rule of its own; a re-implemented evaluator would
+drift and an administrator would act on a wrong answer. The member's real membership status is read
+from the row (not assumed active), so a suspended member is honestly denied `membership_inactive`.
+
+**Known-trap order.** Every lookup is tenant-scoped before compute: the organization is resolved
+(404, before authorize) and the member is resolved with an `organization_id` predicate (a cross-tenant
+member is a 404, indistinguishable from unknown). The caller's own `org.manage` runs with the real
+`authorize` in the service besides the coarse `@RequireCapability` gate (403); an unknown capability is
+a 400. No new table (pure read/compute), so no registry change and no `capabilities.ts` edit.
+
+**Surfaces.** `PolicySimulationView` (`policy-simulate.service.ts`) is a live `Exact` pair with the
+web's `PolicySimulationView` (`apps/web/src/lib/api/policy-simulate.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `PolicySimulationScreen`
+(`apps/web/src/components/screens/PolicySimulationScreen.tsx`), routed at `/[orgSlug]/policies/simulate`,
+picks a member + capability (+ optional project) and renders the allow/deny explanation. Proved
+database-free with the real `authorize` (`policy-simulate.controller.test.ts`): an owner is allowed
+`org.manage` with the deciding rule named, an ordinary member denied with the code reported, a suspended
+member denied `membership_inactive`, an unknown capability a 400, a missing member a 404, a cross-tenant
+organization a 404 before authorize, and a caller without `org.manage` a 403. A self-contained
+`AdminPolicySimulateModule` registered from `app.module.ts` keeps the slice file-disjoint from x174's
+`AdminPoliciesModule`.

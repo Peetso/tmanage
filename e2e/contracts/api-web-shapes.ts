@@ -163,6 +163,8 @@ import type {
 } from '../../apps/api/src/modules/platform/maintenance.controller.js';
 import type { CustomRoleView as ApiCustomRoleView } from '../../apps/api/src/modules/admin/roles.controller.js';
 import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules/admin/role-edit.controller.js';
+import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
+import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -181,6 +183,8 @@ import type { NotificationKindPrefView as WebNotificationKindPrefView } from '..
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
 import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api/admin-role-edit';
+import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/api/policies';
+import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
@@ -908,6 +912,26 @@ type _customRoles = Assert<Exact<ApiCustomRoleView, WebCustomRoleView>>;
  * sides, so this pair covers it structurally. The wire projection never echoes the tenant id.
  */
 type _roleEdit = Assert<Exact<ApiRoleEditView, WebRoleEditView>>;
+
+/**
+ * Organization access policies (x174). `OrgPolicyView` (`GET/PUT …/policies`, response) — the
+ * organization's typed, bounded access policy (session lifetime, invite-domain allowlist, guest access).
+ * Paired with a live web consumer: `AdminPoliciesScreen` reads exactly this response to render one
+ * labelled control per policy. One projection; its `policy` document is inlined identically on both
+ * sides, so this pair covers it structurally. Distinct from x153's `OrgSettingsView`. The wire
+ * projection never echoes the tenant id.
+ */
+type _orgPolicies = Assert<Exact<ApiOrgPolicyView, WebOrgPolicyView>>;
+
+/**
+ * Access-policy simulation (x196). `PolicySimulationView` (`POST …/policies/simulate`, response) — the
+ * read-only decision the live evaluator reaches for a member/capability/context, with the deciding rule
+ * made explicit. Paired with a live web consumer: `PolicySimulationScreen` reads exactly this response
+ * to render the allow/deny panel. One projection; its `result` object is inlined identically on both
+ * sides, so this pair covers it structurally. Distinct from x174's stored-document `OrgPolicyView`. The
+ * wire projection never echoes the tenant id.
+ */
+type _policySimulation = Assert<Exact<ApiPolicySimulationView, WebPolicySimulationView>>;
 
 /**
  * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and

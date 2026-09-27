@@ -106,6 +106,7 @@
 --     documents, decisions
 --     saved_views, meeting_attendees, org_settings
 --     saved_views, meeting_attendees, a11y_preferences
+--     saved_views, meeting_attendees, org_settings, org_policies
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
 --     saved_views, meeting_attendees
@@ -422,6 +423,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`notification_kind_prefs` TO 'tmanage_
 -- with the code that writes it. The 0058 trigger pins organization_id/setting_key immutable for every
 -- credential besides, so UPDATE can move only the value (and who set it, and when).
 GRANT INSERT, UPDATE         ON `tmanage`.`org_settings`      TO 'tmanage_app'@'%';
+-- Organization access policies (0072, x174). **INSERT and UPDATE** — the policy document is created
+-- (INSERT) and edited in place (UPDATE), the two halves of the upsert (`INSERT ... ON DUPLICATE KEY
+-- UPDATE`), and read (the database-wide SELECT above). **No DELETE** — a policy document is created and
+-- edited, never removed by a runtime credential. The 0072 trigger pins organization_id/id immutable for
+-- every credential besides, so UPDATE can move only the JSON document (and who set it, and when).
+GRANT INSERT, UPDATE         ON `tmanage`.`org_policies`      TO 'tmanage_app'@'%';
 -- ON-10 guided-tour progress (x155, 0059). **INSERT only** — a step is marked complete (INSERT) and
 -- read (the database-wide SELECT). Progress is forward-only: re-completing a step is an idempotent
 -- no-op the repository swallows on the unique-key conflict, never an UPDATE, and there is no

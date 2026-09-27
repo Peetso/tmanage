@@ -1993,6 +1993,44 @@ export const customRoles = mysqlTable(
   ],
 );
 
+/**
+ * The typed access-policy document stored in `org_policies.policy_json` (Administration module 18,
+ * x174). The typed shape of the JSON column below; the application validates a request against the
+ * fixed-key allowlist (`policies.allowlist.ts`) before storing, and reads it back through the same
+ * module's normaliser. Distinct from `org_settings` (general string key/value preferences): this is
+ * the org's *access policy* — session lifetime, invite-domain allowlist, guest access — one typed,
+ * bounded document per organization.
+ */
+export interface OrgPolicyValue {
+  readonly session_max_hours: number;
+  readonly invite_domain_allowlist: readonly string[];
+  readonly guest_access_enabled: boolean;
+}
+
+/**
+ * Organization access policies (Administration module 18, x174, migration 0072). Exactly **one row
+ * per organization** (`uq_org_policies_org`): the org's access-policy document, held as typed JSON.
+ * The allowlist (`policies.allowlist.ts`) is the single source of which policies exist, their defaults,
+ * and their per-key validators; this is only the shape at rest. Identity (`organization_id`, `id`) is
+ * immutable at the engine. The runtime credential holds INSERT and UPDATE (the upsert) and no DELETE —
+ * a policy document is created and edited, never removed by a runtime path.
+ */
+export const orgPolicies = mysqlTable(
+  'org_policies',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    policyJson: json('policy_json').$type<OrgPolicyValue>().notNull(),
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_policies_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_org_policies_org').on(table.organizationId),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -3050,6 +3088,7 @@ export const TABLES = {
   search_index: searchIndex,
   notification_kind_prefs: notificationKindPrefs,
   org_settings: orgSettings,
+  org_policies: orgPolicies,
   onboarding_progress: onboardingProgress,
   incidents,
   changelog_entries: changelogEntries,
@@ -3138,6 +3177,7 @@ export type A11yPreferenceRow = typeof a11yPreferences.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
+export type OrgPolicyRow = typeof orgPolicies.$inferSelect;
 export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
 export type PersonAllocationRow = typeof personAllocations.$inferSelect;
 export type CustomRoleRow = typeof customRoles.$inferSelect;

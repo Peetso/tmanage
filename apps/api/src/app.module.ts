@@ -46,6 +46,8 @@ import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
 import { CustomRolesModule } from './modules/admin/roles.controller.js';
 import { RoleEditModule } from './modules/admin/role-edit.controller.js';
+import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
+import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
@@ -165,6 +167,14 @@ export class AppModule {
         OrgSettingsModule.register(),
         CustomRolesModule.register(),
         RoleEditModule.register(),
+        // Organization access policies (Administration module 18, x174) behind `org.manage`. A module of
+        // its own, file-disjoint from x153's org-settings routes; depends only on the global
+        // `TENANT_DATABASE`.
+        AdminPoliciesModule.register(),
+        // Access-policy simulation (Administration module 18, x196) behind `org.manage`. Read-only
+        // "can member X do Y?" over stored roles + policies; a module of its own, file-disjoint from
+        // x174's AdminPoliciesModule, depends only on the global `TENANT_DATABASE`.
+        AdminPolicySimulateModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),
