@@ -61,8 +61,7 @@ export function ConversationSearchView({
   const query = useQuery({
     queryKey: ['conversation-search', organizationSlug, conversationId, term],
     enabled: term.trim() !== '',
-    queryFn: () =>
-      searchConversationMessages(api, organizationSlug, conversationId, { q: term }),
+    queryFn: () => searchConversationMessages(api, organizationSlug, conversationId, { q: term }),
   });
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -81,7 +80,11 @@ export function ConversationSearchView({
       title="Search this conversation"
       description="Find messages in this channel. Only messages you can read are searched."
     >
-      <form onSubmit={onSubmit} role="search" style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+      <form
+        onSubmit={onSubmit}
+        role="search"
+        style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}
+      >
         <SearchField
           label="Search this conversation"
           labelVisible
@@ -93,7 +96,7 @@ export function ConversationSearchView({
       </form>
 
       {query.isError ? (
-        <InlineAlert tone="danger" heading="That search could not be run">
+        <InlineAlert tone="danger" title="That search could not be run" live>
           Try again, or reload the channel.
         </InlineAlert>
       ) : null}

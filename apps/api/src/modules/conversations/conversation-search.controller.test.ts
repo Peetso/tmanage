@@ -126,9 +126,7 @@ describe('ConversationSearchService', () => {
 
 describe('ConversationSearchController', () => {
   it('rejects a non-positive page or limit with 400', async () => {
-    const controller = new ConversationSearchController(
-      reachableService([]).service,
-    );
+    const controller = new ConversationSearchController(reachableService([]).service);
     await expect(
       controller.run(context, principal(), CONVERSATION, 'atlas', '0'),
     ).rejects.toMatchObject({ status: 400 });
