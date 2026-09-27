@@ -46,6 +46,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
+import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -247,6 +248,11 @@ export class AppModule {
         // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
         // constructs its own repository handle (see its doc), so its position here is by subject.
         WorkloadForecastModule.register(),
+        // Public & trust site (module 1, x156). The unauthenticated marketing home — a single
+        // `@Public()` read serving deterministic, code-defined content. Depends on nothing (no
+        // database, no tenant, no mailer), so its position here is free; registered last, beside
+        // the other feature modules, for discoverability only.
+        PublicSiteModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

@@ -95,6 +95,7 @@ import type { ClientRiskView as ApiClientRiskView } from '../../apps/api/src/mod
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
+import type { PublicHomeView as ApiPublicHomeView } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
@@ -208,6 +209,7 @@ import type {
   ProjectSummary as WebProjectSummary,
   WorkspaceSummary as WebWorkspaceSummary,
 } from '../../apps/web/src/lib/api/projects';
+import type { PublicHome as WebPublicHome } from '../../apps/web/src/lib/api/public-site';
 import type { RealtimeTicket as WebRealtimeTicket } from '../../apps/web/src/lib/api/realtime';
 import type { SearchResult as WebSearchResult } from '../../apps/web/src/lib/api/search';
 import type {
@@ -292,6 +294,13 @@ type _projectMilestone = Assert<Exact<ApiProjectMilestoneView, WebProjectMilesto
 type _clientMilestone = Assert<Exact<ApiClientMilestoneView, WebClientMilestone>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
+
+/**
+ * Public & trust site (module 1, x156). `GET /v1/public/site/home` — the marketing home content.
+ * `MarketingHomeScreen` reads exactly this deterministic payload (hero, features, CTA targets), so
+ * the pair is Exact.
+ */
+type _publicHome = Assert<Exact<ApiPublicHomeView, WebPublicHome>>;
 
 /**
  * ADM-02 (x116). `GET/POST/PATCH/DELETE …/projects/:projectId/members` — a project membership row.
