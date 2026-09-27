@@ -118,6 +118,34 @@ export class WorkflowTemplatesRepository {
   }
 
   /**
+   * Fetch one template by name, within the acting tenant (x219, clone collision check).
+   *
+   * The predicate carries the composite tenant key `(organization_id, name)`, so a name that exists
+   * only in another customer's tenant resolves to null here — a clone's collision check can never see
+   * across tenants. Used before a clone insert to turn a duplicate name into a 409 rather than a
+   * second row: `workflow_templates` has no unique-name constraint (the define/list path allows two
+   * templates to share a name), so the clone enforces uniqueness in the application, tenant-scoped.
+   */
+  async findByName(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    name: string,
+  ): Promise<WorkflowTemplateRow | null> {
+    const db = tenantDrizzle(runner);
+    const rows = await db
+      .select()
+      .from(workflowTemplates)
+      .where(
+        and(
+          eq(workflowTemplates.organizationId, context.organizationId),
+          eq(workflowTemplates.name, name),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /**
    * Create a template.
    *
    * The id is generated here (UUIDv7, `07-DATA-MODEL`). `organization_id` comes from the context,

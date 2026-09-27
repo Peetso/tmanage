@@ -108,6 +108,31 @@ export interface WorkflowTemplateEditView {
   readonly createdAt: string;
 }
 
+/**
+ * The cloned template — paired Exact with the API's `TemplateCloneView` (x219). Structurally
+ * identical to {@link WorkflowTemplateSummary}: the clone POST returns the full new template, and the
+ * wire projection never echoes the tenant id. The clone always comes back `enabled: false`.
+ */
+export interface TemplateCloneView {
+  readonly id: string;
+  readonly name: string;
+  readonly triggerKind: string;
+  readonly actionKind: string;
+  readonly config: Record<string, unknown>;
+  readonly enabled: boolean;
+  readonly createdBy: string;
+  readonly createdAt: string;
+}
+
+/**
+ * The fields a clone sends — just the new name (x219). Request-side (suffix `Input`), so the
+ * contracts gate ignores it. The source's trigger/action/config are copied server-side; the caller
+ * supplies only the new name.
+ */
+export interface CloneWorkflowTemplateInput {
+  readonly name: string;
+}
+
 /** The comparison operators a condition may use. Mirrors the API's `WORKFLOW_CONDITION_OPS`. */
 export type WorkflowConditionOp = 'eq' | 'neq' | 'gt' | 'lt' | 'contains';
 
@@ -235,6 +260,24 @@ export async function updateWorkflowTemplate(
   const { data } = await client.request<WorkflowTemplateEditView>({
     method: 'PATCH',
     path: `${base(organizationSlug)}/${encodeURIComponent(templateId)}`,
+    body: input,
+  });
+  return data;
+}
+
+/**
+ * Clone one workflow template into a new, disabled copy under `input.name` (x219). The server copies
+ * the source's trigger/action/config; a duplicate name is a 409, and the clone never starts enabled.
+ */
+export async function cloneWorkflowTemplate(
+  client: ApiClient,
+  organizationSlug: string,
+  templateId: string,
+  input: CloneWorkflowTemplateInput,
+): Promise<TemplateCloneView> {
+  const { data } = await client.request<TemplateCloneView>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(templateId)}/clone`,
     body: input,
   });
   return data;

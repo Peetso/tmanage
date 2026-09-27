@@ -185,6 +185,7 @@ import type { WebhookEndpointView as ApiWebhookEndpointView } from '../../apps/a
 import type { WorkflowRunHistoryView as ApiWorkflowRunHistoryView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '../../apps/api/src/modules/automations/template-edit.controller.js';
+import type { TemplateCloneView as ApiTemplateCloneView } from '../../apps/api/src/modules/automations/template-clone.controller.js';
 import type { WorkflowConditionView as ApiWorkflowConditionView } from '../../apps/api/src/modules/automations/conditions.controller.js';
 import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
 import type { ReportingLineView as ApiReportingLineView } from '../../apps/api/src/modules/people/reporting-lines.controller.js';
@@ -266,6 +267,7 @@ import type { WebhookEndpointSummary as WebWebhookEndpointSummary } from '../../
 import type { WorkflowRunHistoryItem as WebWorkflowRunHistoryItem } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '../../apps/web/src/lib/api/automations';
+import type { TemplateCloneView as WebTemplateCloneView } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowConditionSummary as WebWorkflowConditionSummary } from '../../apps/web/src/lib/api/automations';
 import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
 import type { ReportingLine as WebReportingLine } from '../../apps/web/src/lib/api/reporting-lines';
@@ -1072,6 +1074,16 @@ type _workflowRunDetail = Assert<Exact<ApiWorkflowRunDetailView, WebWorkflowRunD
 type _workflowTemplateEdit = Assert<
   Exact<ApiWorkflowTemplateEditView, WebWorkflowTemplateEditView>
 >;
+
+/**
+ * Automations & integrations clone (x219). `TemplateCloneView` (`POST …/automations/templates/:id/clone`,
+ * response) — the full new template the clone returns. Paired Exact with the web `TemplateCloneView`
+ * that `cloneWorkflowTemplate` returns and `AutomationTemplateCloneControl` consumes. Structurally the
+ * same eight fields as the define/list and edit pairs; `organizationId` is absent on both, and
+ * `triggerKind`/`actionKind` are `string` on both (the closed set is enforced server-side). The clone
+ * always comes back `enabled: false`.
+ */
+type _templateClone = Assert<Exact<ApiTemplateCloneView, WebTemplateCloneView>>;
 
 /**
  * Automations & integrations (x190). `WorkflowConditionView` (`GET`/`POST
