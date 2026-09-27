@@ -131,6 +131,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // CHAT-003. Tenant-owned: the link names a message and a work item, both tenant rows, and
   // an unscoped read of it would be a map of which studio converted what.
   message_work_links: 'organization_id',
+  // x246. Tenant-owned: a reaction names a message and a membership, both tenant rows, and an
+  // unscoped read would be a map of who reacted to what across every studio on the server.
+  message_reactions: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',
