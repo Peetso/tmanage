@@ -198,6 +198,7 @@ import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/a
 import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
 import type { BillingContactView as ApiBillingContactView } from '../../apps/api/src/modules/billing/contacts.service.js';
 import type { BillingSeatView as ApiBillingSeatView } from '../../apps/api/src/modules/billing/seats.controller.js';
+import type { BillingCreditView as ApiBillingCreditView } from '../../apps/api/src/modules/billing/credits.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -292,6 +293,7 @@ import type { SkillSearchResult as WebSkillSearchResult } from '../../apps/web/s
 import type { BillingProfileView as WebBillingProfileView } from '../../apps/web/src/lib/api/billing';
 import type { BillingContactView as WebBillingContactView } from '../../apps/web/src/lib/api/billing-contacts';
 import type { BillingSeat as WebBillingSeat } from '../../apps/web/src/lib/api/billing-seats';
+import type { BillingCreditView as WebBillingCreditView } from '../../apps/web/src/lib/api/billing-credits';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { InvoiceSummary as WebInvoiceSummary } from '../../apps/web/src/lib/api/invoices';
@@ -1218,6 +1220,16 @@ type _billingContact = Assert<Exact<ApiBillingContactView, WebBillingContactView
  * `organizationId` is absent on both — the wire projection never echoes the tenant id.
  */
 type _billingSeat = Assert<Exact<ApiBillingSeatView, WebBillingSeat>>;
+
+/**
+ * Billing credits (module 19, x226). `BillingCreditView` (`GET`/`POST …/billing/credits`, response) —
+ * one org-scoped manual credit / adjustment ledger entry (`id`, signed integer-minor-units `amount`,
+ * `reason`, `createdBy`, `createdAt`). Paired with a live web consumer: `BillingCreditsScreen` reads
+ * exactly this shape to list the ledger and post a credit. `organizationId` is deliberately absent on
+ * both sides. The list envelope's running `balance` is an inline `number`, not a projection, so only the
+ * element shape is paired here; the ledger is append-only and moves no money.
+ */
+type _billingCredit = Assert<Exact<ApiBillingCreditView, WebBillingCreditView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

@@ -471,6 +471,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // thresholds on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
   // key every tenant table has, so the guard must scope its reads and its writes.
   billing_usage_alerts: 'organization_id',
+  // Billing credits (x226, migration 0100). Org-owned: a manual credit / adjustment ledger entry
+  // belongs to the acting tenant, and an unscoped `SELECT ... FROM billing_credits` would be every
+  // studio's credit history and balance on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
+  // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
+  billing_credits: 'organization_id',
   // INS saved views (x210, migration 0089). Tenant-owned: a saved insights view belongs to a studio
   // and a person, and an unscoped `SELECT ... FROM insight_saved_views` would be every studio's saved
   // views on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key

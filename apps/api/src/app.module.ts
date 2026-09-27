@@ -105,6 +105,7 @@ import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 import { InvoicesModule } from './modules/billing/invoices.module.js';
 import { MemberProfileModule } from './modules/people/member-profile.controller.js';
 import { InvoiceLineItemsModule } from './modules/billing/invoice-line-items.module.js';
+import { BillingCreditsModule } from './modules/billing/credits.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -569,6 +570,10 @@ export class AppModule {
         // GLOBAL users.display_name (the leak that blocked x192).
         MemberProfileModule.register(),
         InvoiceLineItemsModule.register(),
+        // Billing & entitlements module 19 (x226). A manual credit / adjustment ledger (post/list with a
+        // running balance) behind `org.manage`, over the new `billing_credits` table (0100). Append-only
+        // and self-contained; no money moves and no gateway is called — real settlement is Needs-Peter.
+        BillingCreditsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

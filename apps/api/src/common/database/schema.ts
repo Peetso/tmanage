@@ -1051,6 +1051,28 @@ export const billingUsageAlerts = mysqlTable(
 );
 
 /**
+ * BILLING / module 19 (x226). An org-scoped manual credit / adjustment ledger entry — a signed
+ * `amount` in integer minor units (a positive credit or a negative adjustment), a free-text `reason`,
+ * and who posted it and when. Tenant-owned and org-scoped like `billing_usage_alerts` (0083) and
+ * `billing_contacts` (0082): no `project_id`, the tenant key is `organization_id` bound to
+ * `organizations`. Append-only — a posted credit is immutable (no `updated_at`, no update path; the
+ * runtime is granted INSERT and SELECT only), and the running balance is summed in-app, never stored
+ * and never a settlement. `0100_billing_credits.sql` is the source of truth; this is its typed mirror.
+ */
+export const billingCredits = mysqlTable(
+  'billing_credits',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    amount: int('amount').notNull(),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_billing_credits_org_id').on(table.organizationId, table.id)],
+);
+
+/**
  * The project-objective status set, mirroring the `0040` `ENUM`. An objective is `open` at creation
  * and its lifecycle transitions to `met` or `missed`.
  */
@@ -4295,6 +4317,7 @@ export const TABLES = {
   billing_profiles: billingProfiles,
   billing_contacts: billingContacts,
   billing_usage_alerts: billingUsageAlerts,
+  billing_credits: billingCredits,
   work_item_files: workItemFiles,
   insight_saved_views: insightSavedViews,
   insight_snapshots: insightSnapshots,
@@ -4383,6 +4406,7 @@ export type DecisionLockRow = typeof decisionLocks.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type AutomationScheduleRow = typeof automationSchedules.$inferSelect;
 export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
+export type BillingCreditRow = typeof billingCredits.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;

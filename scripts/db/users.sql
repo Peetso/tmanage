@@ -459,6 +459,13 @@ GRANT INSERT                 ON `tmanage`.`automation_schedules` TO 'tmanage_app
 -- gets nothing here: threshold-alert *dispatch* (email/notification) is Needs-Peter infrastructure and
 -- gets its grant with the code that runs it.
 GRANT INSERT, UPDATE         ON `tmanage`.`billing_usage_alerts` TO 'tmanage_app'@'%';
+-- Billing credits (0100, x226). **INSERT only** — a credit / adjustment is posted (INSERT) and read
+-- (the database-wide SELECT above). The ledger is append-only: a posted credit is never edited or
+-- removed, and a correction is a new offsetting entry, so **no UPDATE and no DELETE**. Immutability is
+-- enforced by withholding those grants (the row carries no `updated_at` and there is no update path);
+-- this is the `insight_snapshots` (0090) posture. No money moves here — the running balance is summed
+-- in the application, never settled — so no worker grant either.
+GRANT INSERT                 ON `tmanage`.`billing_credits`   TO 'tmanage_app'@'%';
 -- CLIENT-003 (x125, 0041). A project update is posted (INSERT) and read (the database-wide
 -- SELECT above); `published` is set at INSERT time, and this slice ships no edit/unpublish
 -- endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0041 trigger pins
