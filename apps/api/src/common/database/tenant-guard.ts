@@ -96,6 +96,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // x205. The work-item ↔ file join. Tenant-owned: a link names two tenant rows (a work item and
   // a file asset), and an unscoped read of it would be every studio's attachments at once.
   work_item_files: 'organization_id',
+  // x256 (0126). A personal reminder on a work item: tenant-owned and member-owned, and an unscoped
+  // read would be every studio's reminders (and who is reminded of what) at once. `organization_id`
+  // is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes its reads, its
+  // upserts and its deletes.
+  work_item_reminders: 'organization_id',
   // x231 (0103). Logged effort per work item: tenant-owned, and an unscoped read would be every
   // studio's effort ledger at once. `organization_id` is NOT NULL and carries the
   // `(organization_id, id)` key, so the guard scopes its reads and its writes.

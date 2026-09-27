@@ -468,3 +468,71 @@ export async function unsubscribeFromWorkItem(
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/watchers`,
   });
 }
+
+// ── x256: work item personal reminders ───────────────────────────────────────
+
+/**
+ * The acting member's personal reminder on a work item — x256 (Work module 7). The API projection
+ * is `WorkItemReminderView`; this is its web mirror, paired `Exact` in `e2e/contracts`. Self-service:
+ * the client sets and clears its own reminder, and there is no route to set anyone else's.
+ * `membershipId` is a membership id, never an email. No notification is dispatched — storage only.
+ */
+export interface WorkItemReminder {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly membershipId: string;
+  readonly remindAt: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/**
+ * One entry in the "My Reminders" due list — x256. The API projection is `DueReminderView`; this is
+ * its web mirror, paired `Exact` in `e2e/contracts`. A reminder joined to the item it names, so the
+ * list can render a title and state.
+ */
+export interface DueReminder {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly workItemTitle: string;
+  readonly workItemState: string;
+  readonly membershipId: string;
+  readonly remindAt: string;
+}
+
+export async function setWorkItemReminder(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  remindAt: string,
+): Promise<WorkItemReminder> {
+  const { data } = await client.request<WorkItemReminder>({
+    method: 'PUT',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/reminder`,
+    body: { remindAt },
+  });
+  return data;
+}
+
+export async function clearWorkItemReminder(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/reminder`,
+  });
+}
+
+export async function listDueReminders(
+  client: ApiClient,
+  organizationSlug: string,
+  before?: string,
+): Promise<readonly DueReminder[]> {
+  const query = before === undefined ? '' : `?before=${encodeURIComponent(before)}`;
+  const { data } = await client.request<{ reminders: readonly DueReminder[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/reminders/due${query}`,
+  });
+  return data.reminders;
+}

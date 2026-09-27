@@ -12,6 +12,7 @@ import {
   WORK_ITEMS_SERVICE,
   WORK_ITEM_LINKS_SERVICE,
   WORK_ITEM_FILES_SERVICE,
+  WORK_ITEM_REMINDERS_SERVICE,
   WORK_TIME_LOGS_SERVICE,
   WORK_WATCHERS_SERVICE,
   WORK_LABELS_SERVICE,
@@ -38,6 +39,9 @@ import { WorkItemLinksController } from './item-links.controller.js';
 import { WorkItemFilesRepository } from './item-files.repository.js';
 import { WorkItemFilesService } from './item-files.service.js';
 import { WorkItemFilesController } from './item-files.controller.js';
+import { WorkItemRemindersRepository } from './item-reminders.repository.js';
+import { WorkItemRemindersService } from './item-reminders.service.js';
+import { WorkItemRemindersController } from './item-reminders.controller.js';
 import { BulkTransitionService } from './bulk-transition.service.js';
 import { BulkTransitionController } from './bulk-transition.controller.js';
 import { WorkTimeLogsRepository } from './time-logs.repository.js';
@@ -122,6 +126,16 @@ export class WorkModule {
         ),
     };
 
+    // x256. A personal reminder on a work item — a self-service sub-resource behind work.read,
+    // wired like the watchers: the work-items repository resolves the parent tenant-scoped, the
+    // service holds the policy (resolve-before-authorize, own-only, bound remind_at, upsert/clear).
+    const itemRemindersService: Provider = {
+      provide: WORK_ITEM_REMINDERS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkItemRemindersService(database, workItems, new WorkItemRemindersRepository()),
+    };
+
     // x206: the bulk status transition composes the single-item service — it applies no
     // divergent bulk logic, so it needs nothing but that service to reuse every guard.
     const bulkTransitionService: Provider = {
@@ -165,6 +179,7 @@ export class WorkModule {
         commentsService,
         itemLinksService,
         itemFilesService,
+        itemRemindersService,
         bulkTransitionService,
         timeLogsService,
         watchersService,
@@ -178,6 +193,7 @@ export class WorkModule {
         WorkCommentsController,
         WorkItemLinksController,
         WorkItemFilesController,
+        WorkItemRemindersController,
         BulkTransitionController,
         WorkTimeLogsController,
         WorkWatchersController,

@@ -172,6 +172,10 @@ import type {
 } from '../../apps/api/src/modules/work/time-logs.service.js';
 import type { ItemWatcherView as ApiItemWatcherView } from '../../apps/api/src/modules/work/watchers.service.js';
 import type {
+  WorkItemReminderView as ApiWorkItemReminderView,
+  DueReminderView as ApiDueReminderView,
+} from '../../apps/api/src/modules/work/item-reminders.service.js';
+import type {
   ItemLabelView as ApiItemLabelView,
   WorkLabelView as ApiWorkLabelView,
 } from '../../apps/api/src/modules/work/work-labels.service.js';
@@ -401,6 +405,8 @@ import type { ItemFile as WebItemFile } from '../../apps/web/src/lib/api/work-it
 import type { TimeLog as WebTimeLog } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/work-items';
 import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
+import type { WorkItemReminder as WebWorkItemReminder } from '../../apps/web/src/lib/api/work-items';
+import type { DueReminder as WebDueReminder } from '../../apps/web/src/lib/api/work-items';
 import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
@@ -958,6 +964,16 @@ type _timeLogList = Assert<Exact<ApiTimeLogListView, WebTimeLogList>>;
  * carries a membership id, never an email: the pair keeps it that way on both sides.
  */
 type _itemWatcher = Assert<Exact<ApiItemWatcherView, WebItemWatcher>>;
+
+/**
+ * x256. Personal work-item reminders (Work module 7). `WorkItemReminderView` ↔ `WorkItemReminder` —
+ * the acting member's reminder on one item (`PUT`/`DELETE …/work-items/:id/reminder`);
+ * `DueReminderView` ↔ `DueReminder` — one entry in the own "My Reminders" due list
+ * (`GET …/work-items/reminders/due`). `WorkItemReminderView` reads exactly these shapes, and both
+ * carry a membership id, never an email — the pair keeps it that way on both sides. No dispatch.
+ */
+type _workItemReminder = Assert<Exact<ApiWorkItemReminderView, WebWorkItemReminder>>;
+type _dueReminder = Assert<Exact<ApiDueReminderView, WebDueReminder>>;
 
 /**
  * x233. Work item labels / tags (Work module 7). `WorkLabelView` ↔ `WorkLabel` — one org-scoped label
