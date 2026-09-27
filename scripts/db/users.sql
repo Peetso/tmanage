@@ -237,6 +237,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`conversation_memberships` TO 'tmanage
 -- erasure. UPDATE is needed for an edit and for a moderation, and the trigger in 0007 refuses
 -- the six columns that say what the message *is*.
 GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_app'@'%';
+-- x247 chat pins. A pin is created (pin) and removed (unpin), never edited: INSERT and DELETE,
+-- and **no UPDATE** — there is no repository UPDATE path, so the withheld privilege is the control.
+-- Curating a channel's pinned context is `conversation.moderate`; the pinned row is a reference, not
+-- a copy of the message, so removing it removes nothing the moderation ledger needs to keep.
+GRANT INSERT, DELETE         ON `tmanage`.`conversation_pinned_messages` TO 'tmanage_app'@'%';
 
 -- `message_revisions` gets NO write grant at all, and the absence is the mechanism. The
 -- rows are written by `trg_messages_record_revision` (0008), which fires with its definer's

@@ -112,6 +112,7 @@ import type {
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageReactionTallyView as ApiMessageReactionTallyView } from '../../apps/api/src/modules/conversations/message-reactions.service.js';
+import type { PinnedMessageView as ApiPinnedMessageView } from '../../apps/api/src/modules/conversations/message-pins.service.js';
 import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { PortalFileView as ApiPortalFileView } from '../../apps/api/src/modules/files/portal-file-list.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
@@ -344,6 +345,7 @@ import type {
   MessageSummary as WebMessageSummary,
 } from '../../apps/web/src/lib/api/conversations';
 import type { MessageReactionTally as WebMessageReactionTally } from '../../apps/web/src/lib/api/message-reactions';
+import type { PinnedMessage as WebPinnedMessage } from '../../apps/web/src/lib/api/message-pins';
 import type { DocumentView as WebDocumentView } from '../../apps/web/src/lib/api/documents';
 import type { DocumentCommentView as WebDocumentCommentView } from '../../apps/web/src/lib/api/document-comments';
 import type {
@@ -533,6 +535,9 @@ type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
 type _messageRevision = Assert<Exact<ApiMessageRevisionView, WebMessageRevisionSummary>>;
 type _messageReactionTally = Assert<Exact<ApiMessageReactionTallyView, WebMessageReactionTally>>;
+// x247. The pinned-message reference the strip lists and a pin write returns — the same shape on
+// both sides, so the pair is Exact.
+type _pinnedMessage = Assert<Exact<ApiPinnedMessageView, WebPinnedMessage>>;
 type _inboxBundle = Assert<Exact<ApiInboxBundleView, WebInboxBundle>>;
 type _inboxUsageNotice = Assert<Exact<ApiInboxUsageNoticeView, WebInboxUsageNotice>>;
 type _inboxPage = Assert<Exact<ApiInboxPageView, WebInboxPage>>;
