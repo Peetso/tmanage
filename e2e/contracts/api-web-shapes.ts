@@ -49,6 +49,7 @@ import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocRevisionView as ApiDocRevisionView } from '../../apps/api/src/modules/docs/revisions.service.js';
 import type { DocBookmarkView as ApiDocBookmarkView } from '../../apps/api/src/modules/docs/bookmarks.service.js';
+import type { InboxSavedFilterView as ApiInboxSavedFilterView } from '../../apps/api/src/modules/inbox/inbox-saved-filters.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -253,6 +254,7 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
 import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
+import type { InboxSavedFilterView as WebInboxSavedFilterView } from '../../apps/web/src/lib/api/inbox-saved-filters';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -642,6 +644,15 @@ type _docRevision = Assert<Exact<ApiDocRevisionView, WebDocRevisionSummary>>;
  * the bookmark toggle read exactly this response, so the pair is Exact.
  */
 type _docBookmark = Assert<Exact<ApiDocBookmarkView, WebDocBookmarkSummary>>;
+
+/**
+ * INBOX saved filters (IN-02, x261). `InboxSavedFilterView` (`POST`/`GET`/`DELETE
+ * …/inbox/saved-filters`) — one of the caller's named inbox filter sets. The
+ * `InboxSavedFiltersScreen` reads exactly this response, so the pair is Exact. `organizationId`/
+ * `membershipId` are on neither side — the API never echoes the tenant id, and the membership is
+ * always the caller's own.
+ */
+type _inboxSavedFilter = Assert<Exact<ApiInboxSavedFilterView, WebInboxSavedFilterView>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

@@ -156,6 +156,8 @@ export const NOTIFICATION_PREFERENCES_SERVICE = Symbol.for(
 );
 export const INBOX_SERVICE = Symbol.for('tmanage.InboxService');
 export const PORTAL_INBOX_SERVICE = Symbol.for('tmanage.PortalInboxService');
+/** INBOX saved filters (IN-02, x261). The per-membership, tenant-scoped saved inbox filters service. */
+export const INBOX_SAVED_FILTERS_SERVICE = Symbol.for('tmanage.InboxSavedFiltersService');
 export const MAILER = Symbol.for('tmanage.Mailer');
 export const INVITATION_MAILER = Symbol.for('tmanage.InvitationMailer');
 export const OBJECT_STORE = Symbol.for('tmanage.ObjectStore');

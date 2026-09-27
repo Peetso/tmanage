@@ -3926,6 +3926,45 @@ export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
 
 /**
+ * INBOX saved filters (IN-02 "All inbox", x261). A membership's private, named inbox filter set — the
+ * fact "this membership saved this named inbox filter". `filterJson` is the client's opaque,
+ * serialized facet set (source / project / kind); the server stores and returns it verbatim. Per
+ * membership and tenant-scoped like `doc_bookmarks` (0114): created (INSERT) and removed (DELETE),
+ * never edited, so there is no immutability trigger — the withheld UPDATE grant is the control. The
+ * `(organization_id, membership_id, name)` unique key makes a second filter of the same name a
+ * collision the service maps to 409. `0131_inbox_saved_filters.sql` is the source of truth; this is
+ * its typed mirror.
+ */
+export const inboxSavedFilters = mysqlTable(
+  'inbox_saved_filters',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 200 }).notNull(),
+    filterJson: text('filter_json').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_inbox_saved_filters_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_inbox_saved_filters_name').on(
+      table.organizationId,
+      table.membershipId,
+      table.name,
+    ),
+    index('ix_inbox_saved_filters_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export type InboxSavedFilterRow = typeof inboxSavedFilters.$inferSelect;
+export type NewInboxSavedFilterRow = typeof inboxSavedFilters.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -3986,6 +4025,7 @@ export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
 export const TABLES = {
   home_widget_prefs: homeWidgetPrefs,
+  inbox_saved_filters: inboxSavedFilters,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,

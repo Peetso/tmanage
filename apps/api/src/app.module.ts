@@ -25,6 +25,7 @@ import { RequestsModule } from './modules/requests/requests.module.js';
 import { RequestAgingModule } from './modules/requests/request-aging.controller.js';
 import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
+import { InboxSavedFiltersModule } from './modules/inbox/inbox-saved-filters.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { NotificationsFeedModule } from './modules/notifications/notifications-feed.module.js';
 import { NotificationKindPrefsModule } from './modules/notifications/notification-kind-prefs.module.js';
@@ -249,6 +250,10 @@ export class AppModule {
         // never through a read path of the inbox's own. The module constructs its own
         // instances of both (see its doc), so its position here is by subject, not by need.
         InboxModule.register(),
+        // INBOX saved filters (IN-02, x261). A member's own named inbox filter sets (create/list/
+        // delete) behind the inbox read capability. Separate from `InboxModule` because both are
+        // `.register()`-based; a stateless service over the tenant database with its own repository.
+        InboxSavedFiltersModule.register(),
         // NOTIF-001. The caller's own notification settings (GET/PUT). No tenant object to
         // resolve, so unlike the inbox it depends on nothing but the database.
         NotificationPreferencesModule.register(),
