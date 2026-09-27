@@ -68,6 +68,7 @@ import { ImportModule } from './modules/import/import.module.js';
 import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { SavedSearchesModule } from './modules/search/saved-searches.module.js';
+import { CommandsModule } from './modules/search/commands.controller.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { SavedInsightViewsModule } from './modules/insights/saved-insight-views.module.js';
@@ -384,6 +385,12 @@ export class AppModule {
         // and their recent queries (read), private per user, behind the reused `search.use`. A
         // separate module from `SearchModule` so the search slices stay file-disjoint.
         SavedSearchesModule.register(),
+        // SRCH command palette (x181). The palette's contents — `GET …/search/commands?q=`, a
+        // bounded, relevance-ordered list drawn from a static command registry by a pure matcher.
+        // A module of its own beside `SearchModule` so the search slices stay file-disjoint; it
+        // depends on nothing (the registry is a constant, the matcher is pure), and shares the
+        // `search.use` gate global search reads under — no new capability, no database, no migration.
+        CommandsModule.register(),
         // INS-06. The org-wide adoption roll-up (active members, members who created work, meetings
         // held) in a clamped window. A separate module from `InsightsModule` so the insights slices
         // stay file-disjoint; read-only, behind the same reused `work.read`.

@@ -139,6 +139,7 @@ import type { KeyResultView as ApiKeyResultView } from '../../apps/api/src/modul
 import type { DecisionWorkLinkView as ApiDecisionWorkLinkView } from '../../apps/api/src/modules/decisions/decision-work-links.service.js';
 import type { PersonAllocationView as ApiPersonAllocationView } from '../../apps/api/src/modules/people/allocations.controller.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
+import type { CommandView as ApiCommandView } from '../../apps/api/src/modules/search/commands.controller.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
@@ -348,6 +349,7 @@ import type {
 import type { RealtimeTicket as WebRealtimeTicket } from '../../apps/web/src/lib/api/realtime';
 import type { SearchResult as WebSearchResult } from '../../apps/web/src/lib/api/search';
 import type { ContactSubmitView as WebContactSubmitView } from '../../apps/web/src/lib/api/contact';
+import type { Command as WebCommand } from '../../apps/web/src/lib/api/commands';
 import type {
   EstablishedSession as WebEstablishedSession,
   SessionSummary as WebSessionSummary,
@@ -1060,6 +1062,13 @@ type _searchResult = Assert<Exact<ApiSearchResultView, WebSearchResult>>;
  */
 type _savedSearch = Assert<Exact<ApiSavedSearchView, WebSavedSearch>>;
 type _recentSearch = Assert<Exact<ApiRecentSearchView, WebRecentSearch>>;
+ * SRCH command palette (x181). `CommandView` ↔ `Command` — one palette command
+ * (`GET …/search/commands?q=`). Paired Exact, not exempt: x181 ships `CommandPalette`, a real web
+ * consumer, so the `id`/`title`/`section`/`kind`/`href`/`action` shape and the `CommandKind` union
+ * (`navigate | action`) are held identical on both sides. Distinct from `SearchResult`: a command is
+ * a fixed navigation or allowlisted quick action, never a row.
+ */
+type _command = Assert<Exact<ApiCommandView, WebCommand>>;
 
 /**
  * HOME-03 My Day. The response is one projection — its per-row entry is inlined on both sides
