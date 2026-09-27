@@ -118,6 +118,7 @@ import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/c
 import type { MessageReactionTallyView as ApiMessageReactionTallyView } from '../../apps/api/src/modules/conversations/message-reactions.service.js';
 import type { PinnedMessageView as ApiPinnedMessageView } from '../../apps/api/src/modules/conversations/message-pins.service.js';
 import type { SavedMessageView as ApiSavedMessageView } from '../../apps/api/src/modules/conversations/message-bookmarks.service.js';
+import type { MentionView as ApiMentionView } from '../../apps/api/src/modules/conversations/my-mentions.service.js';
 import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { PortalFileView as ApiPortalFileView } from '../../apps/api/src/modules/files/portal-file-list.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
@@ -352,6 +353,7 @@ import type {
 } from '../../apps/web/src/lib/api/conversations';
 import type { MessageReactionTally as WebMessageReactionTally } from '../../apps/web/src/lib/api/message-reactions';
 import type { PinnedMessage as WebPinnedMessage } from '../../apps/web/src/lib/api/message-pins';
+import type { MentionSummary as WebMentionSummary } from '../../apps/web/src/lib/api/my-mentions';
 import type { DocumentView as WebDocumentView } from '../../apps/web/src/lib/api/documents';
 import type { DocumentCommentView as WebDocumentCommentView } from '../../apps/web/src/lib/api/document-comments';
 import type {
@@ -543,6 +545,9 @@ type _homeWidgetPrefs = Assert<Exact<ApiHomeWidgetPrefsView, WebHomeWidgetPrefsV
 type _digestPref = Assert<Exact<ApiDigestPrefView, WebDigestPrefView>>;
 type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
+// CHAT my-mentions (x254): the caller's own recent mentions across their channels, read over
+// `/me/mentions`. The screen reads exactly this response, so the pair is Exact.
+type _mention = Assert<Exact<ApiMentionView, WebMentionSummary>>;
 type _messageRevision = Assert<Exact<ApiMessageRevisionView, WebMessageRevisionSummary>>;
 type _messageReactionTally = Assert<Exact<ApiMessageReactionTallyView, WebMessageReactionTally>>;
 // x247. The pinned-message reference the strip lists and a pin write returns — the same shape on

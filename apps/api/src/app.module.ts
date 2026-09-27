@@ -41,6 +41,7 @@ import { ThreadRepliesModule } from './modules/conversations/thread-replies.modu
 import { ConversationReadStateModule } from './modules/conversations/read-state.module.js';
 import { ConversationMuteModule } from './modules/conversations/conversation-mute.module.js';
 import { ConversationSearchModule } from './modules/conversations/conversation-search.module.js';
+import { MyMentionsModule } from './modules/conversations/my-mentions.controller.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
 import { CalendarGridModule } from './modules/calendar/grid.controller.js';
@@ -351,6 +352,11 @@ export class AppModule {
         // CH-10 (x253). In-conversation message search — read-only, its own gate reused from the
         // conversation service, mounted at `…/messages/search`.
         ConversationSearchModule.register(),
+        // CHAT my-mentions (x254). A read-only, own-principal list of the messages that mention the
+        // caller across the channels they belong to. Its own module beside `ConversationsModule` so
+        // the sibling chat slices stay file-disjoint; no table, and the relation filter is the
+        // service's, exactly as the channel list's is.
+        MyMentionsModule.register(),
         // CAL-01 / MTG-01 (x90). After `ProjectsModule` for the same reason as conversations: a
         // meeting names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
