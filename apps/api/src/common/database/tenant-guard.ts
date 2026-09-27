@@ -258,6 +258,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // an unregistered table, so registering it here is what scopes the reads and writes;
   // tenant-isolation.db.test.ts enforces the entry.
   project_risks: 'organization_id',
+  // PROJ / module 8 internal risk register (x209, 0088). Tenant-owned: a risk names a project, and an
+  // unscoped `SELECT ... FROM project_internal_risks` would be every studio's internal risk register
+  // on the server. Distinct from `project_risks` (x140): internal-only, never projected to a client.
+  // The layer-3 guard fails OPEN on an unregistered table, so registering it here is what scopes the
+  // reads and writes; tenant-isolation.db.test.ts enforces the entry.
+  project_internal_risks: 'organization_id',
   // HOME-05 follow-up (x144, migration 0050). Tenant-owned: a pin names a tenant target and belongs
   // to one membership in one studio, and an unscoped read would be a map of what every member in
   // every studio keeps on their Home. The layer-3 guard fails OPEN on an unregistered table, so

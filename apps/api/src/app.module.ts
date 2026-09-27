@@ -34,6 +34,7 @@ import { AutomationSchedulesModule } from './modules/automations/schedules.contr
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
+import { ProjectRiskRegisterModule } from './modules/projects/risk-register.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-links.module.js';
@@ -239,6 +240,14 @@ export class AppModule {
         // in its path, and the composite foreign key means a caller who names one that is not theirs
         // gets a refusal rather than a foreign-key 500.
         ProjectObjectivesModule.register(),
+        // PROJ / module 8 (x209). A project's internal risk register (log/list/update) — a formal
+        // likelihood×impact matrix with a computed severity and a mitigation plan. After
+        // `ProjectsModule` for the same reason as the objectives register: a risk names a project in
+        // its path, and the composite foreign key means a caller who names one that is not theirs gets
+        // a 404 rather than a foreign-key 500. Internal-only and distinct from x140's portal risks:
+        // a different path (`…/projects/:id/risk-register`) and a different table
+        // (`project_internal_risks`); never projected to a client.
+        ProjectRiskRegisterModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.

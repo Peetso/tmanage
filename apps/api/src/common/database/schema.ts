@@ -866,6 +866,57 @@ export const projectObjectives = mysqlTable(
   ],
 );
 
+/** PROJ / module 8 (x209). The two axes of the internal risk matrix — a fixed three-point scale. */
+export const PROJECT_INTERNAL_RISK_LIKELIHOODS = ['low', 'medium', 'high'] as const;
+export const PROJECT_INTERNAL_RISK_IMPACTS = ['low', 'medium', 'high'] as const;
+/** PROJ / module 8 (x209). Where a logged risk sits in its lifecycle. */
+export const PROJECT_INTERNAL_RISK_STATUSES = [
+  'open',
+  'mitigating',
+  'mitigated',
+  'closed',
+] as const;
+
+/**
+ * PROJ / module 8 (x209). A project's **internal** risk register — distinct from `project_risks`
+ * (0049, x140), which is the clients-module surface that publishes a `severity` + `client_summary`
+ * to a client's portal. This table is internal-only: a `title`, a `likelihood` and an `impact` (the
+ * two axes of a risk matrix), an optional `mitigation` plan, a lifecycle `status`, and who logged it
+ * and when. `severity` is deliberately NOT a column — it is computed from `likelihood` × `impact` in
+ * the service, so the matrix is the single source of truth. This register is never projected to a
+ * client (no `client_summary`, no `published`; the portal service does not read it).
+ *
+ * Tenant-scoped and project-owned like `project_objectives` (0040) and `project_milestones` (0048):
+ * the composite foreign key binds `(organization_id, project_id)` to `projects`. Its identity columns
+ * are pinned by the `0088` `BEFORE UPDATE` trigger; its substance is editable.
+ * `0088_project_internal_risks.sql` is the source of truth; this is its typed mirror.
+ */
+export const projectInternalRisks = mysqlTable(
+  'project_internal_risks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    likelihood: mysqlEnum('likelihood', PROJECT_INTERNAL_RISK_LIKELIHOODS)
+      .notNull()
+      .default('medium'),
+    impact: mysqlEnum('impact', PROJECT_INTERNAL_RISK_IMPACTS).notNull().default('medium'),
+    mitigation: text('mitigation'),
+    status: mysqlEnum('status', PROJECT_INTERNAL_RISK_STATUSES).notNull().default('open'),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_internal_risks_org_id').on(table.organizationId, table.id),
+    index('ix_project_internal_risks_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.createdAt,
+    ),
+  ],
+);
+
 /** DOC-04 (x130). The value kinds a template variable can declare. */
 export const DOCUMENT_TEMPLATE_VARIABLE_TYPES = ['text', 'date', 'number'] as const;
 
@@ -2783,6 +2834,7 @@ export const TABLES = {
   decision_locks: decisionLocks,
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
+  project_internal_risks: projectInternalRisks,
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
@@ -2867,6 +2919,7 @@ export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type AutomationScheduleRow = typeof automationSchedules.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
+export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
