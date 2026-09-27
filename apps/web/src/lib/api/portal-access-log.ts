@@ -14,11 +14,7 @@ import type { ApiClient } from './client';
 
 /** The kind of portal resource an event records. Mirrors the API's `PortalAccessResourceKind`. */
 export type PortalAccessResourceKind =
-  | 'project'
-  | 'work_item'
-  | 'deliverable'
-  | 'deliverable_file'
-  | 'update';
+  'project' | 'work_item' | 'deliverable' | 'deliverable_file' | 'update';
 
 /**
  * One client access event. Paired Exact with the API's `PortalAccessLogView` in the contracts gate;

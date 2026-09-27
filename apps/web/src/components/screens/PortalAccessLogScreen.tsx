@@ -5,10 +5,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import {
-  listPortalAccessLog,
-  MAX_PORTAL_ACCESS_PAGE,
-} from '../../lib/api/portal-access-log';
+import { listPortalAccessLog, MAX_PORTAL_ACCESS_PAGE } from '../../lib/api/portal-access-log';
 import type {
   PortalAccessLogEvent,
   PortalAccessResourceKind,
@@ -94,7 +91,9 @@ export function PortalAccessLogScreen({
       ) : null}
 
       {!events.isPending && !events.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral">No client access has been recorded for this project.</InlineAlert>
+        <InlineAlert tone="neutral">
+          No client access has been recorded for this project.
+        </InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (

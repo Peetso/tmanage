@@ -1898,7 +1898,9 @@ type _messageSearchMatch = Assert<Exact<ApiMessageSearchMatchView, WebMessageSea
 type _messageDraft = Assert<Exact<ApiMessageDraftView, WebMessageDraftView>>;
 
 /** x250 - conversation read-state and unread count. Paired Exact. */
-type _conversationReadState = Assert<Exact<ApiConversationReadStateView, WebConversationReadStateView>>;
+type _conversationReadState = Assert<
+  Exact<ApiConversationReadStateView, WebConversationReadStateView>
+>;
 type _conversationUnread = Assert<Exact<ApiConversationUnreadView, WebConversationUnreadView>>;
 
 /** x259 - inbox snooze list. Paired Exact (the inlined snooze item matches web InboxSnooze). */
