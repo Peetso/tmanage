@@ -15713,3 +15713,36 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## Automations & integrations — workflow template clone (x219, module 17)
+
+The lifecycle step x162/x189 left open: a template could be defined, listed and edited but never
+duplicated as the starting point for a variant. This slice adds `POST
+/v1/organizations/:orgSlug/automations/templates/:id/clone` — copy a tenant-owned template's
+behaviour into a fresh row under a caller-supplied name — in a distinct controller and file
+(`template-clone.controller.ts`) on the same route base. No new table (INSERT a new `workflow_templates`
+row; the x189 grant already covers INSERT), no columns added, and it reuses `org.manage`, so there is
+no `capabilities.ts` edit and no registry change.
+
+**Security order (the id-named-route trap).** The **source** template is resolved by the composite
+tenant key `(organization_id, id)` **before** authorize or any write: an unknown or cross-tenant id is
+a 404 with nothing authorized and nothing written, so existence never leaks across tenants. Only then
+is the org-scoped `org.manage` decision made with the real `authorize` (403 on an existing but denied
+template), and only then is the new name validated (400 on empty/over-long). The collision check and
+the insert run in one transaction: `workflow_templates` has no unique-name constraint, so a name that
+already exists in the tenant is a 409 (`workflow_template_name_conflict`) with no insert. The clone
+copies only `trigger_kind`/`action_kind`/`config_json`; `id`, `organization_id` and `created_by` are
+generated fresh (identity is never carried from the source — the `0063` trigger keeps it immutable), and
+the copy starts **disabled** regardless of the source's `enabled` state, so a duplicated automation
+never begins firing on creation.
+
+**Surfaces.** `TemplateCloneView` (`template-clone.controller.ts`) is a live `Exact` pair with the web's
+`TemplateCloneView` (`apps/web/src/lib/api/automations.ts`) in `e2e/contracts/api-web-shapes.ts`; it
+never echoes `organization_id`. `AutomationTemplateCloneControl`
+(`apps/web/src/components/screens/AutomationTemplateCloneControl.tsx`) is a distinct file from the edit
+screen — a small inline control that collects the new name (defaulting to `"<name> (copy)"`), calls the
+clone POST, and surfaces the server's 403/404/409 refusals. Proved database-free with the real
+`authorize` (`template-clone.controller.test.ts`): a valid clone is a fresh disabled copy leaving the
+source untouched, an unknown and a cross-tenant source id are each a 404 with no insert, a role without
+`org.manage` is a 403, a duplicate name is a 409, and an empty name is a 400 — each with no write. No DB
+test / no new e2e in slice (the chain owns both).

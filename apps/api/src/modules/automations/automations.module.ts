@@ -15,13 +15,14 @@ import { WorkflowRunController } from './run.controller.js';
 import { WorkflowRunHistoryRepository } from './history.repository.js';
 import { WorkflowRunHistoryController } from './history.controller.js';
 import { WorkflowTemplateEditController } from './template-edit.controller.js';
+import { WorkflowTemplateCloneController } from './template-clone.controller.js';
 import { WorkflowConditionsRepository } from './conditions.repository.js';
 import { WorkflowConditionsController } from './conditions.controller.js';
 
 /**
- * Automations & integrations (module 17). Workflow templates — define, list (x162), edit (x189) —
- * execution — run a template, record the run (x163) — run history — list runs, read one (x164) — and
- * per-step conditions that gate a template's actions (x190).
+ * Automations & integrations (module 17). Workflow templates — define, list (x162), edit (x189),
+ * clone (x219) — execution — run a template, record the run (x163) — run history — list runs, read
+ * one (x164) — and per-step conditions that gate a template's actions (x190).
  *
  * The same shape as the org-scoped read/write modules: stateless repositories under their tokens and
  * controllers that resolve `TENANT_DATABASE` and the repositories. It reuses `org.manage`, so it adds
@@ -65,6 +66,7 @@ export class AutomationsModule {
       controllers: [
         WorkflowTemplatesController,
         WorkflowTemplateEditController,
+        WorkflowTemplateCloneController,
         WorkflowRunController,
         WorkflowRunHistoryController,
         WorkflowConditionsController,
