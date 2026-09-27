@@ -577,6 +577,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table has,
   // so the guard scopes its reads and its writes; tenant-isolation.db.test.ts enforces the entry.
   portal_settings: 'organization_id',
+  // PREF-DIGEST (x245, migration 0117). Tenant-owned: a row is one membership's notification digest
+  // cadence in one studio, and an unscoped `SELECT ... FROM pref_digest` would be every member's
+  // cadence across every studio on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard scopes its reads and its
+  // writes; tenant-isolation.db.test.ts enforces the entry.
+  pref_digest: 'organization_id',
 });
 
 /**
