@@ -1924,6 +1924,38 @@ export const clientRequests = mysqlTable(
   ],
 );
 
+/**
+ * Free-text triage labels on a client request (x316, Requests module 11). Unlike `work_item_labels`'
+ * definition/assignment split, the label is the free text itself, carried on the row; a request may
+ * carry a label only once (`uq_request_tags_label`, folded case-insensitively by the table
+ * collation). `fk_request_tags_request` binds `(organization_id, client_request_id)` to
+ * `client_requests`, so a cross-tenant request id is a non-existent pair — migration
+ * `0184_request_tags.sql`.
+ */
+export const requestTags = mysqlTable(
+  'request_tags',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientRequestId: char('client_request_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 120 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_request_tags_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_request_tags_label').on(
+      table.organizationId,
+      table.clientRequestId,
+      table.label,
+    ),
+    index('ix_request_tags_request').on(table.organizationId, table.clientRequestId, table.id),
+  ],
+);
+
+export type RequestTagRow = typeof requestTags.$inferSelect;
+export type NewRequestTagRow = typeof requestTags.$inferInsert;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Approvals — FR-05 (0027)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4961,6 +4993,7 @@ export const TABLES = {
   work_item_links: workItemLinks,
   work_blockers: workBlockers,
   client_requests: clientRequests,
+  request_tags: requestTags,
   deliverable_versions: deliverableVersions,
   approvals,
   client_projections: clientProjections,

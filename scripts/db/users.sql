@@ -369,6 +369,10 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_reminders`    TO 'tmanage_a
 -- item). No UPDATE: a label is defined once and a tag is added or removed, never amended in place;
 -- the 0105 trigger pins organization_id immutable, and reading is the database-wide SELECT above.
 GRANT INSERT, DELETE         ON `tmanage`.`work_item_labels`      TO 'tmanage_app'@'%';
+-- x316 request tags. INSERT (tag a client request with a free-text label) and DELETE (untag). No
+-- UPDATE: a tag is added or removed, never amended in place; the 0184 trigger pins organization_id
+-- immutable, and reading is the database-wide SELECT above.
+GRANT INSERT, DELETE         ON `tmanage`.`request_tags`          TO 'tmanage_app'@'%';
 -- x257 work item recurrence. INSERT and UPDATE (a PUT upserts the single rule per item — inserts it
 -- the first time, rewrites freq/interval/until in place after) and DELETE (clear the rule). Reading
 -- is the database-wide SELECT above; the 0127 trigger pins organization_id immutable.

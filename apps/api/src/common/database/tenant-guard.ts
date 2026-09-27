@@ -117,6 +117,8 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
   // NOT NULL, so every row belongs both to a studio and to one of its clients.
   client_requests: 'organization_id',
+  // x316. Free-text triage labels on a client request; tenant-owned, parent-scoped to the request.
+  request_tags: 'organization_id',
   // FR-05 (0027). Both tenant-owned: a deliverable version and the approval bound to it belong to
   // one studio, and an unscoped read of either would leak another studio's governed content or
   // decisions.
