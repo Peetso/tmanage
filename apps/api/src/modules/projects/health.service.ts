@@ -1,0 +1,229 @@
+import { authorize } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { ProjectRow } from '../../common/database/schema.js';
+import { ProjectsRepository } from './projects.repository.js';
+import { ProjectHealthRepository } from './health.repository.js';
+
+/**
+ * The application service for PROJ / module 8 (x208) — the computed project-health roll-up.
+ *
+ * ## What it is
+ *
+ * A **read** that turns the signals already stored against a project — overdue milestones (x139),
+ * open risks (x140) and objective progress (x124) — into a single deterministic score and a
+ * traffic-light band. The portfolio (x137) deliberately stopped at arithmetic and deferred a score
+ * to "NS-13"; this is that slice. Every input is a count anyone can re-derive, the weights are fixed
+ * constants stated below, and the arithmetic is repeatable: the same project on the same day yields
+ * the same band. No division is performed, so an empty project cannot raise a divide error — it has
+ * no signals at all and is reported as the `neutral` band, not as a false green.
+ *
+ * ## The thresholds are constants, not input
+ *
+ * The Known-trap for this slice: the band thresholds and signal weights are **fixed module
+ * constants** ({@link HEALTH_WEIGHTS}, {@link HEALTH_BANDS}), never per-request parameters. A caller
+ * cannot pass a weight or a cut-off and move a project's band, so two callers see the same project in
+ * the same colour. The only request input is which project(s) to read, and that is gated below.
+ *
+ * ## The two authorization layers
+ *
+ * `CapabilityGuard` on the route asks the coarse `work.read` question. This service adds the
+ * **relation** filter the guard cannot, exactly as `portfolio.service.ts` and `projects.service.ts`
+ * do: it authorizes each project row against `authorize()` before it contributes a single signal.
+ * The single-project read returns **not found** (never forbidden) for a project the caller may not
+ * see or that belongs to another tenant, because 403 would confirm the project exists — the same
+ * stance `ProjectsService.get` takes.
+ */
+
+/** Signal weights, in score points deducted per occurrence. Fixed; never per-request. */
+export const HEALTH_WEIGHTS = {
+  /** A planned milestone past its day. */
+  overdueMilestone: 15,
+  /** An open risk marked high severity. */
+  highRisk: 20,
+  /** An open risk of low or medium severity (an open risk that is not high). */
+  otherOpenRisk: 8,
+  /** An objective recorded as missed. */
+  missedObjective: 12,
+} as const;
+
+/** Band cut-offs on the 0..100 score. `score >= green` → green; `>= amber` → amber; else red. */
+export const HEALTH_BANDS = { green: 80, amber: 50 } as const;
+
+/** The best possible score, and the ceiling a project with no penalties reports. */
+export const HEALTH_MAX_SCORE = 100;
+
+export type ProjectHealthBand = 'green' | 'amber' | 'red' | 'neutral';
+
+/** The signal counts a band is derived from — each one independently checkable on the project. */
+export interface ProjectHealthSignals {
+  readonly overdueMilestones: number;
+  readonly openRisks: number;
+  readonly highRisks: number;
+  readonly objectivesTotal: number;
+  readonly objectivesMet: number;
+  readonly objectivesMissed: number;
+}
+
+/** One project's computed health. `organizationId` is deliberately absent. */
+export interface ProjectHealthView {
+  readonly projectId: string;
+  readonly name: string;
+  readonly status: string;
+  /** 0..100; `HEALTH_MAX_SCORE` for a project with no penalties (including an empty project). */
+  readonly score: number;
+  /** `neutral` when the project has no health signals at all; otherwise the banded score. */
+  readonly band: ProjectHealthBand;
+  readonly signals: ProjectHealthSignals;
+}
+
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
+export interface ListHealthOptions {
+  readonly limit?: number;
+}
+
+export class ProjectHealthService {
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    private readonly health: ProjectHealthRepository = new ProjectHealthRepository(),
+    /** The clock, injectable so the overdue-milestone cut-off is deterministic in tests. */
+    private readonly now: () => Date = () => new Date(),
+  ) {}
+
+  /**
+   * The health band for every project this principal may read, in a deterministic, bounded page.
+   *
+   * The relation filter runs first (id ascending, `MAX_LIMIT`-bounded, the same keyset order the
+   * portfolio pages by); the three signal aggregates are then handed only the surviving ids, so a
+   * cross-tenant or unrelated project never contributes.
+   */
+  async list(
+    context: TenantContext,
+    principal: Principal,
+    options: ListHealthOptions = {},
+  ): Promise<readonly ProjectHealthView[]> {
+    const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
+
+    const rows = await this.database.read(context, (runner) =>
+      this.projects.list(runner, context, { limit }),
+    );
+    const visible = rows.filter((row) => this.mayRead(principal, row));
+
+    return this.computeFor(context, visible);
+  }
+
+  /**
+   * The computed health of one project, or **not found** if the caller may not see it (a foreign or
+   * unrelated project is indistinguishable from a missing one).
+   */
+  async get(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<ProjectHealthView> {
+    const row = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, projectId),
+    );
+
+    if (!row || !this.mayRead(principal, row)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+
+    const [view] = await this.computeFor(context, [row]);
+    // `computeFor` returns exactly one view per input row, so this is always defined.
+    return view!;
+  }
+
+  /** Read the three signal aggregates for the given rows and fold each into a banded view. */
+  private async computeFor(
+    context: TenantContext,
+    projects: readonly ProjectRow[],
+  ): Promise<readonly ProjectHealthView[]> {
+    const projectIds = projects.map((row) => row.id);
+    const today = toCalendarDay(this.now());
+
+    const [milestones, risks, objectives] = await this.database.read(context, async (runner) => {
+      const m = await this.health.milestoneSignals(runner, context, projectIds, today);
+      const r = await this.health.riskSignals(runner, context, projectIds);
+      const o = await this.health.objectiveSignals(runner, context, projectIds);
+      return [m, r, o] as const;
+    });
+
+    const milestonesByProject = new Map(milestones.map((row) => [row.projectId, row]));
+    const risksByProject = new Map(risks.map((row) => [row.projectId, row]));
+    const objectivesByProject = new Map<string, { open: number; met: number; missed: number }>();
+    for (const row of objectives) {
+      const tally = objectivesByProject.get(row.projectId) ?? { open: 0, met: 0, missed: 0 };
+      tally[row.status] = row.count;
+      objectivesByProject.set(row.projectId, tally);
+    }
+
+    return projects.map((project) => {
+      const objective = objectivesByProject.get(project.id) ?? { open: 0, met: 0, missed: 0 };
+      const signals: ProjectHealthSignals = {
+        overdueMilestones: milestonesByProject.get(project.id)?.overdueMilestones ?? 0,
+        openRisks: risksByProject.get(project.id)?.openRisks ?? 0,
+        highRisks: risksByProject.get(project.id)?.highRisks ?? 0,
+        objectivesTotal: objective.open + objective.met + objective.missed,
+        objectivesMet: objective.met,
+        objectivesMissed: objective.missed,
+      };
+      const score = scoreFor(signals);
+      return {
+        projectId: project.id,
+        name: project.name,
+        status: project.status,
+        score,
+        band: bandFor(signals, score),
+        signals,
+      };
+    });
+  }
+
+  /** The relation gate: `work.read` against the project row, exactly as `ProjectsService`. */
+  private mayRead(principal: Principal, row: ProjectRow): boolean {
+    return authorize({
+      principal,
+      capability: 'work.read',
+      resource: {
+        organizationId: row.organizationId,
+        projectId: row.id,
+        audience: 'internal',
+        lifecycle: row.archivedAt ? 'archived' : 'active',
+      },
+    }).allowed;
+  }
+}
+
+/** The deterministic 0..100 score: full marks less the fixed penalty for each signal. */
+export function scoreFor(signals: ProjectHealthSignals): number {
+  const otherOpenRisks = Math.max(signals.openRisks - signals.highRisks, 0);
+  const penalty =
+    signals.overdueMilestones * HEALTH_WEIGHTS.overdueMilestone +
+    signals.highRisks * HEALTH_WEIGHTS.highRisk +
+    otherOpenRisks * HEALTH_WEIGHTS.otherOpenRisk +
+    signals.objectivesMissed * HEALTH_WEIGHTS.missedObjective;
+  return Math.min(Math.max(HEALTH_MAX_SCORE - penalty, 0), HEALTH_MAX_SCORE);
+}
+
+/**
+ * The band for a score. A project with no signals at all is `neutral` — there is nothing to assess,
+ * and a full-marks green would imply a clean bill of health the data does not support.
+ */
+export function bandFor(signals: ProjectHealthSignals, score: number): ProjectHealthBand {
+  const hasSignal =
+    signals.overdueMilestones > 0 || signals.openRisks > 0 || signals.objectivesTotal > 0;
+  if (!hasSignal) return 'neutral';
+  if (score >= HEALTH_BANDS.green) return 'green';
+  if (score >= HEALTH_BANDS.amber) return 'amber';
+  return 'red';
+}
+
+/** A `Date` as the `YYYY-MM-DD` UTC calendar day, to compare against the `DATE`-typed `due_on`. */
+function toCalendarDay(instant: Date): string {
+  return instant.toISOString().slice(0, 10);
+}

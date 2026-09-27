@@ -122,6 +122,7 @@ import type {
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
+import type { ProjectHealthView as ApiProjectHealthView } from '../../apps/api/src/modules/projects/health.service.js';
 import type { PublicPlanView as ApiPublicPlanView } from '../../apps/api/src/modules/public-site/plan-catalog.service.js';
 import type { ObjectiveWorkLinkView as ApiObjectiveWorkLinkView } from '../../apps/api/src/modules/projects/objective-work-links.service.js';
 import type { KeyResultView as ApiKeyResultView } from '../../apps/api/src/modules/projects/key-results.service.js';
@@ -240,6 +241,7 @@ import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSumm
 import type { AutomationScheduleSummary as WebAutomationScheduleSummary } from '../../apps/web/src/lib/api/automation-schedules';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
 import type { ProjectPortfolioSummary as WebProjectPortfolioSummary } from '../../apps/web/src/lib/api/project-portfolio';
+import type { ProjectHealthSummary as WebProjectHealthSummary } from '../../apps/web/src/lib/api/project-health';
 import type { PublicPlanView as WebPublicPlanView } from '../../apps/web/src/lib/api/public-plans';
 import type { ObjectiveWorkLink as WebObjectiveWorkLink } from '../../apps/web/src/lib/api/objective-work-links';
 import type { KeyResult as WebKeyResult } from '../../apps/web/src/lib/api/key-results';
@@ -484,6 +486,16 @@ type _orgObjective = Assert<Exact<ApiOrgObjectiveView, WebOrgObjectiveSummary>>;
  * `Exact` pair, including the nested `objectiveCounts` object, which is the same shape on both sides.
  */
 type _projectPortfolio = Assert<Exact<ApiProjectPortfolioView, WebProjectPortfolioSummary>>;
+
+/**
+ * PROJ / module 8 (x208). `ProjectHealthView` (`GET …/projects/health` and
+ * `GET …/projects/:projectId/health`) — one project's computed health: a fixed-weight 0..100 score, a
+ * green/amber/red/neutral band, and the signal counts (overdue milestones, open/high risks, objective
+ * tallies) it was derived from. Paired with a live web consumer: `ProjectHealthScreen` reads exactly
+ * this response, so this is a real `Exact` pair, including the nested `signals` object, which is the
+ * same shape on both sides.
+ */
+type _projectHealth = Assert<Exact<ApiProjectHealthView, WebProjectHealthSummary>>;
 
 /**
  * FEAT · module 1 Public site (x157). `PublicPlanView` (`GET /v1/public/site/plans`) — one plan tier
