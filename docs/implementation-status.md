@@ -15216,6 +15216,36 @@ caller cannot exercise is a 403 (on both edit and clone), an off-allowlist strin
 cross-tenant id is a 404 before authorize, a name collision is a 409, and both routes sit behind
 `org.manage`. Deferred: role deletion and assigning a custom role to a membership.
 
+## SEC / Admin bulk role assignment (Administration module 18, x222, 2026-09-27)
+
+**Status.** Built. Fills the "assigning a custom role to a membership" flow x195 deferred, and does it in
+bulk: one route behind `org.manage`, `POST .../admin/members/bulk-role`, body `{ roleId, membershipIds[] }`,
+assigns an existing tenant custom role (`custom_roles`, x173) to many memberships in a single bounded batch.
+No new table (a tenant-scoped UPDATE over `memberships`; the grant already covers membership role update),
+no `capabilities.ts` edit.
+
+**Safety.** The addressed **role** is resolved tenant-scoped **before** authorize/guard/write (an unknown or
+cross-tenant `roleId` is a 404 with no write, the Known trap — indistinguishable from an unknown one, never a
+403 leak). Then the real org-wide `org.manage` authorize (403), then the same escalation guard x173/x195 use,
+re-run on the role's capability subset: every capability the role carries must be one the caller can exercise
+org-wide right now (the real `authorize`), so **a bulk assign can never hand a group of people a role that
+grants beyond the admin performing it** even when a more privileged author defined that role. Each membership
+is written under an `(organization_id, id)` predicate: a foreign or unknown id matches no row, is reported
+`not_found` for that id, and is never applied — the batch is **per-id, not all-or-nothing**, the response a
+per-id outcome, and no id ever leaks whether it exists in another studio. The batch is bounded (`MAX_BATCH`
+100); an over-cap or empty list is a 400 with no write. Each applied write bumps `version` and
+`policy_version` (the authorization epoch) exactly as a single `changeRole` does, and leaves `has_org_wide_scope`
+and the workspace scope untouched (a role change must not silently widen or narrow reach).
+
+**Surfaces.** `MemberBulkRoleView` (`member-bulk-role.controller.ts`) is a live `Exact` pair with the web's
+`MemberBulkRoleView` (`apps/web/src/lib/api/admin-member-bulk-role.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`BulkRoleAssignBar` (`apps/web/src/components/admin/BulkRoleAssignBar.tsx`), a distinct file from x195's role
+edit screen, picks a role and a set of members and renders the per-id outcome (assigned vs. skipped). Proved
+database-free with the real `authorize` (`member-bulk-role.controller.test.ts`): a valid batch assigns every
+member one write per de-duplicated id, a role carrying a capability the caller cannot exercise is a 403 with no
+write, a foreign membership id is reported not-found and never written, an over-cap or empty batch is a 400, an
+unknown/cross-tenant role id is a 404 before authorize, and the route sits behind `org.manage`.
+
 ## SEC / Organization access policies — module 18 Administration (x174, 2026-09-27)
 
 **What shipped.** The Administration access-policy surface the audit named absent (rank #9, Admin
