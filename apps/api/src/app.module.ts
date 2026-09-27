@@ -89,6 +89,7 @@ import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 import { ConnectionHealthModule } from './modules/automations/connection-health.controller.js';
 import { WebhooksModule } from './modules/automations/webhooks.controller.js';
+import { WebhookDeliveriesModule } from './modules/automations/webhook-deliveries.controller.js';
 import { MaintenanceModule } from './modules/platform/maintenance.controller.js';
 import { FaqContentModule } from './modules/public-site/faq.module.js';
 import { PeopleSkillsModule } from './modules/people/people-skills.module.js';
@@ -497,6 +498,11 @@ export class AppModule {
         // `org.manage`, over the new `webhook_endpoints` table. Self-contained and file-disjoint;
         // delivery/dispatch to third parties is a later slice (external egress, Needs-Peter).
         WebhooksModule.register(),
+        // Automations module 17 (x221). Webhook delivery log: a read/history route
+        // (`GET …/automations/webhooks/:endpointId/deliveries`) over the new `webhook_deliveries`
+        // table, behind `org.manage`, plus a guarded internal record helper for the (later) dispatch
+        // path. Self-contained and file-disjoint; no external egress in this slice.
+        WebhookDeliveriesModule.register(),
         // Platform states (x185). The platform maintenance / degraded-mode window: a `@Public()`
         // read (`GET /public/site/maintenance`) over the GLOBAL `maintenance_windows` table (0080),
         // and an `org.manage` write (`POST …/admin/maintenance`) that persists globally. Its
