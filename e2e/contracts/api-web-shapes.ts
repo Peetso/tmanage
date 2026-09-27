@@ -188,6 +188,7 @@ import type { MetricTargetView as ApiMetricTargetView } from '../../apps/api/src
 import type { MetricTargetStatusView as ApiMetricTargetStatusView } from '../../apps/api/src/modules/insights/targets.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
+import type { RequestTriageView as ApiRequestTriageView } from '../../apps/api/src/modules/requests/request-triage.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
 import type { MemberProfileView as ApiMemberProfileView } from '../../apps/api/src/modules/people/member-profile.controller.js';
@@ -490,6 +491,7 @@ import type { MetricTargetView as WebMetricTargetView } from '../../apps/web/src
 import type { MetricTargetStatusView as WebMetricTargetStatusView } from '../../apps/web/src/lib/api/insights-targets';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
+import type { RequestTriageView as WebRequestTriageView } from '../../apps/web/src/lib/api/request-triage';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
 import type { MemberProfileView as WebMemberProfileView } from '../../apps/web/src/lib/api/member-profile';
@@ -1147,6 +1149,14 @@ type _workloadForecast = Assert<Exact<ApiWorkloadForecastView, WebWorkloadForeca
  * response, so this is a live `Exact` pair, not an exemption.
  */
 type _requestAging = Assert<Exact<ApiRequestAgingView, WebRequestAgingView>>;
+
+/**
+ * x265 — `GET`/`PUT …/client-requests/:id/triage`. The internal request triage: `requestId`, the
+ * `category` it is filed under (null until triaged), the `assigneeMembershipId` (null when unassigned
+ * or untriaged), and `triaged`. The `RequestTriagePanelScreen` reads and writes exactly this shape,
+ * so this is a live `Exact` pair, not an exemption.
+ */
+type _requestTriage = Assert<Exact<ApiRequestTriageView, WebRequestTriageView>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API

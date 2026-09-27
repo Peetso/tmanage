@@ -25,6 +25,7 @@ import { HomeWidgetPrefsModule } from './modules/home/widget-prefs.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { RequestAgingModule } from './modules/requests/request-aging.controller.js';
+import { RequestTriageModule } from './modules/requests/request-triage.controller.js';
 import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { InboxSnoozeModule } from './modules/inbox/inbox-snooze.module.js';
@@ -278,6 +279,11 @@ export class AppModule {
         // `RequestsModule`, so it stays file-disjoint from the list/triage controller; read-only over
         // `client_requests`, behind the same reused `client_request.triage`.
         RequestAgingModule.register(),
+        // module 11 requests, x265. Internal triage metadata for a request (category + assignee),
+        // `PUT`/`GET /client-requests/:id/triage`. Its own module and table (`request_triage`) rather
+        // than an edit to the list/lifecycle controller, so it stays file-disjoint; behind the same
+        // reused internal-only `client_request.triage`.
+        RequestTriageModule.register(),
         // FR-05 (x92). After `ProjectsModule`: an approval binds a deliverable version to a
         // project, and a caller naming one that is not theirs should get 404 rather than a
         // foreign-key 500. Authorization is object-layer only (the reviewer relation), so this

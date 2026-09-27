@@ -659,6 +659,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // OPEN on an unregistered table, so this entry is what scopes them, and tenant-isolation.db.test.ts
   // enforces the entry.
   inbox_flags: 'organization_id',
+  // Request triage metadata (x265, migration 0135). Tenant-owned: a row is the category and internal
+  // assignee for one client request in one studio, and an unscoped `SELECT ... FROM request_triage`
+  // would be every studio's internal routing across the server. `organization_id` is NOT NULL and
+  // carries the `(organization_id, id)` key every tenant table has, so the guard scopes its reads and
+  // its upsert; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes
+  // them, and tenant-isolation.db.test.ts enforces the entry.
+  request_triage: 'organization_id',
 });
 
 /**
