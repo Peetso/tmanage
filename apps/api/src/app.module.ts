@@ -31,6 +31,7 @@ import { A11yPreferencesModule } from './modules/preferences/a11y-preferences.mo
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
+import { CalendarGridModule } from './modules/calendar/grid.controller.js';
 import { DocsModule } from './modules/docs/docs.module.js';
 import { DocumentTemplateVariablesModule } from './modules/docs/document-template-variables.controller.js';
 import { AutomationSchedulesModule } from './modules/automations/schedules.controller.js';
@@ -259,6 +260,11 @@ export class AppModule {
         // table, in its own module beside `CalendarModule` so the sibling calendar slices stay
         // file-disjoint (each registers here rather than all editing `calendar.module.ts`).
         MeetingAgendaModule.register(),
+        // CAL week/month grid (x212). A read-only grid over the same `meetings` table plus the
+        // `meeting_series` recurrence rules, in its own module beside `MeetingAgendaModule` so the
+        // sibling calendar slices stay file-disjoint. Its `CalendarGridModule` is exported from the
+        // controller file rather than a separate module file.
+        CalendarGridModule.register(),
         // DOC-01 (x91). After `ProjectsModule` for the same reason as conversations and meetings:
         // a document names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
