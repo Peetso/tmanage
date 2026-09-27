@@ -15714,3 +15714,30 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## Insights — metric targets (x230, module 15)
+
+**Status.** Built. On top of the live insights reports (x133–x135), snapshots (x211) and comparison
+(x229), a studio can now set an org-wide target/goal line per metric and measure the live figure
+against it (audit: insights were reported but had no target to judge them against). Distinct from
+x210 saved-views (a saved filter), x211 snapshots (a frozen roll-up) and x228 schedules (a delivery
+cadence): those store _what_ to look at or _when_; this stores the _goal_. Migration
+`0102_insight_targets.sql` adds one tenant-scoped table `{metric, target_value, period}` keyed
+`(organization_id, metric)` for the upsert; registered in the four places (`schema.ts` def + `TABLES`,
+`tenant-guard.ts` `TENANT_TABLES`, `scripts/db/users.sql` grant of INSERT+UPDATE only — the upsert, no
+DELETE — and the numbered migration file the directory-driven migrator applies).
+
+**Surfaces.** `PUT/GET …/insights/targets` and `GET …/insights/targets/status` in
+`targets.controller.ts` + `.service.ts` + `.repository.ts` (`InsightTargetsModule`). The write is
+behind `org.manage` (org configuration — a viewer with `work.read` alone is a 403); the two reads are
+behind `work.read`, the internal-read capability the sibling insights reads reuse (no `capabilities.ts`
+edit). Each handler re-checks the capability org-level (`projectId: null`), belt-and-braces to the
+route guard; an unknown `metric`/`period` or an out-of-range `targetValue` is a 400 with no write; the
+tenant is the slug resolved against the caller's membership, so a cross-tenant caller is a 404 there.
+The status read reuses `InsightsService.orgWorkload` for the live figures and guards a zero target so
+the attainment ratio never divides by zero. `MetricTargetView` and `MetricTargetStatusView` are live
+`Exact` pairs with `apps/web/src/lib/api/insights-targets.ts` via `e2e/contracts/api-web-shapes.ts`.
+`InsightTargetsScreen` (`apps/web/src/app/[orgSlug]/insights/targets/page.tsx`) sets a target and lists
+each metric's current value, target and attainment with an on-track/behind badge. No DB test / no new
+e2e in slice (the chain owns both); the target SQL predicates are proven by the chain's isolation and
+migrator DB suites.
