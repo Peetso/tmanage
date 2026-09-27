@@ -160,6 +160,7 @@ import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
+import type { MemberProfileView as ApiMemberProfileView } from '../../apps/api/src/modules/people/member-profile.controller.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { BulkTransitionView as ApiBulkTransitionView } from '../../apps/api/src/modules/work/bulk-transition.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
@@ -392,6 +393,7 @@ import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
+import type { MemberProfileView as WebMemberProfileView } from '../../apps/web/src/lib/api/member-profile';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { BulkTransitionView as WebBulkTransitionView } from '../../apps/web/src/lib/api/work-bulk-transition';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
@@ -876,6 +878,15 @@ type _insightSnapshot = Assert<Exact<ApiSnapshotView, WebSnapshotView>>;
  * it — so this is a live `Exact` pair, not an exemption.
  */
 type _personProfile = Assert<Exact<ApiPersonProfileView, WebPersonProfileView>>;
+
+/**
+ * x216 — `GET/PUT …/people/:membershipId/profile`. A member's tenant-local editable profile:
+ * `membershipId` plus the four editable fields (`department`, `bio`, `contactEmail`, `contactPhone`,
+ * each nullable). Distinct from x169's read-only `PersonProfileView` — it carries no global identity
+ * field (never `displayName`). Paired with a real web consumer — `MemberProfileEditScreen` reads and
+ * saves it — so this is a live `Exact` pair, not an exemption.
+ */
+type _memberProfile = Assert<Exact<ApiMemberProfileView, WebMemberProfileView>>;
 
 /**
  * x134 — `GET …/insights/workload-forecast?weeks`. The forward-looking workload forecast: `weeks`

@@ -2095,6 +2095,34 @@ export const userPreferences = mysqlTable(
 );
 
 /**
+ * x216 (0094) — a member's tenant-local editable profile (module 14 People & capacity). The
+ * writable store x168's directory and x169's read-only profile never had: `display_name` is on the
+ * GLOBAL `users` table, so it can never be edited from an org-scoped route (the reason x192 was
+ * blocked). One row per member per studio, keyed by `(organization_id, user_id)`; all four fields
+ * are NULLable and edited only through `/people/:membershipId/profile`. The composite FK binds the
+ * pair to a membership of this same tenant.
+ */
+export const memberProfiles = mysqlTable(
+  'member_profiles',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    department: varchar('department', { length: 120 }),
+    bio: varchar('bio', { length: 2000 }),
+    contactEmail: varchar('contact_email', { length: 320 }),
+    contactPhone: varchar('contact_phone', { length: 40 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_member_profiles_org_id').on(table.organizationId, table.id),
+    // The upsert key: one profile per member per studio.
+    uniqueIndex('uq_member_profiles_org_user').on(table.organizationId, table.userId),
+  ],
+);
+
+/**
  * The field types a work intake form (0052, x146) can declare. Kept small and closed: a value
  * outside this set is a validation error (`work-forms.validate.ts`), never stored.
  */
@@ -4096,6 +4124,7 @@ export const TABLES = {
   billing_seats: billingSeats,
   invoices: invoices,
   user_preferences: userPreferences,
+  member_profiles: memberProfiles,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -4195,6 +4224,7 @@ export type SecuritySettingsRow = typeof securitySettings.$inferSelect;
 export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
 export type PersonAllocationRow = typeof personAllocations.$inferSelect;
 export type CustomRoleRow = typeof customRoles.$inferSelect;
+export type MemberProfileRow = typeof memberProfiles.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;

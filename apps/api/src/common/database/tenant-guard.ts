@@ -491,6 +491,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them,
   // and tenant-isolation.db.test.ts enforces the entry.
   home_widget_prefs: 'organization_id',
+  // x216 (0094). Tenant-owned: a member's profile belongs to one membership of one studio, and an
+  // unscoped `SELECT ... FROM member_profiles` would be every studio's people details on the server.
+  // `organization_id` is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes
+  // both the profile read and the upsert.
+  member_profiles: 'organization_id',
 });
 
 /**

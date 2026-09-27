@@ -96,6 +96,7 @@ import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.control
 import { PersonProfileModule } from './modules/people/profile.controller.js';
 import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 import { InvoicesModule } from './modules/billing/invoices.module.js';
+import { MemberProfileModule } from './modules/people/member-profile.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -528,6 +529,10 @@ export class AppModule {
         // slices; the detail resolves the id tenant-scoped before authorizing, so a cross-tenant id
         // is a 404.
         InvoicesModule.register(),
+        // x216: the tenant-local member profile edit (member_profiles, 0094) behind `org.manage`.
+        // File-disjoint from x169's read-only profile; writes only member_profiles, never the
+        // GLOBAL users.display_name (the leak that blocked x192).
+        MemberProfileModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

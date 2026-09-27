@@ -119,6 +119,8 @@
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items, person_skills
 --   · `INSERT, DELETE` on: work_item_dependencies, work_item_files, saved_context,
 --     document_template_variables, home_pinned_items, objective_work_links, decision_work_links
+--     saved_views, meeting_attendees, member_profiles
+--   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     document_comments, decision_supersessions, document_templates, work_forms, onboarding_progress, marketing_leads
@@ -644,6 +646,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'
 -- upsert against `uq_home_widget_prefs_org_membership`. No DELETE: a member clears their layout by
 -- saving the default, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`home_widget_prefs` TO 'tmanage_app'@'%';
+-- Member profiles (x216, 0094). **INSERT, UPDATE** — the profile is an upsert (`INSERT ... ON
+-- DUPLICATE KEY UPDATE` on `uq_member_profiles_org_user`): the first save inserts, later saves
+-- update in place. No DELETE — a profile is cleared by writing empty fields, never removed; the
+-- withheld privilege is the control. The route only ever touches this table, never the GLOBAL
+-- `users.display_name`.
+GRANT INSERT, UPDATE         ON `tmanage`.`member_profiles`   TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
