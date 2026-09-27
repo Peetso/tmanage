@@ -106,6 +106,7 @@ import type {
 } from '../../apps/api/src/modules/tenancy/offboarding.service.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
+import type { MentionView as ApiMentionView } from '../../apps/api/src/modules/conversations/my-mentions.service.js';
 import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { PortalFileView as ApiPortalFileView } from '../../apps/api/src/modules/files/portal-file-list.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
@@ -296,6 +297,7 @@ import type {
   MessageRevisionSummary as WebMessageRevisionSummary,
   MessageSummary as WebMessageSummary,
 } from '../../apps/web/src/lib/api/conversations';
+import type { MentionSummary as WebMentionSummary } from '../../apps/web/src/lib/api/my-mentions';
 import type { DocumentView as WebDocumentView } from '../../apps/web/src/lib/api/documents';
 import type { DocumentCommentView as WebDocumentCommentView } from '../../apps/web/src/lib/api/document-comments';
 import type {
@@ -473,6 +475,9 @@ type _quietHoursActive = Assert<Exact<ApiQuietHoursActiveView, WebQuietHoursActi
 type _homeWidgetPrefs = Assert<Exact<ApiHomeWidgetPrefsView, WebHomeWidgetPrefsView>>;
 type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
+// CHAT my-mentions (x254): the caller's own recent mentions across their channels, read over
+// `/me/mentions`. The screen reads exactly this response, so the pair is Exact.
+type _mention = Assert<Exact<ApiMentionView, WebMentionSummary>>;
 type _messageRevision = Assert<Exact<ApiMessageRevisionView, WebMessageRevisionSummary>>;
 type _inboxBundle = Assert<Exact<ApiInboxBundleView, WebInboxBundle>>;
 type _inboxUsageNotice = Assert<Exact<ApiInboxUsageNoticeView, WebInboxUsageNotice>>;
