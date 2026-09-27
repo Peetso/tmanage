@@ -132,6 +132,8 @@ import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/m
 import type { IntegrationAppView as ApiIntegrationAppView } from '../../apps/api/src/modules/automations/directory.controller.js';
 import type { IntegrationConnectionView as ApiIntegrationConnectionView } from '../../apps/api/src/modules/automations/directory.controller.js';
 import type { WebhookEndpointView as ApiWebhookEndpointView } from '../../apps/api/src/modules/automations/webhooks.controller.js';
+import type { WorkflowRunHistoryView as ApiWorkflowRunHistoryView } from '../../apps/api/src/modules/automations/history.controller.js';
+import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -177,6 +179,8 @@ import type { WorkflowRunSummary as WebWorkflowRunSummary } from '../../apps/web
 import type { IntegrationAppView as WebIntegrationAppView } from '../../apps/web/src/lib/api/integration-directory';
 import type { IntegrationConnectionView as WebIntegrationConnectionView } from '../../apps/web/src/lib/api/integration-directory';
 import type { WebhookEndpointSummary as WebWebhookEndpointSummary } from '../../apps/web/src/lib/api/webhooks';
+import type { WorkflowRunHistoryItem as WebWorkflowRunHistoryItem } from '../../apps/web/src/lib/api/automations';
+import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/src/lib/api/automations';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -677,6 +681,22 @@ type _integrationApp = Assert<Exact<ApiIntegrationAppView, WebIntegrationAppView
  * never projected — so this is a real `Exact` pair.
  */
 type _webhookEndpoint = Assert<Exact<ApiWebhookEndpointView, WebWebhookEndpointSummary>>;
+ * Automations & integrations (x164). `WorkflowRunHistoryView` (`GET …/automations/runs`, list element)
+ * — one run in the org-scoped, newest-first run history. Paired with a live web consumer:
+ * `AutomationRunHistoryScreen` reads exactly this response to list runs. `detail` is deliberately absent
+ * on both sides — the list is bounded and a run's detail is read one at a time from the detail route.
+ * `status` is `string` on both (the closed set is enforced server-side), and `organizationId` is absent
+ * on both.
+ */
+type _workflowRunHistory = Assert<Exact<ApiWorkflowRunHistoryView, WebWorkflowRunHistoryItem>>;
+
+/**
+ * Automations & integrations (x164). `WorkflowRunDetailView` (`GET …/automations/runs/:runId`,
+ * response) — one run in detail. Paired with a live web consumer: `AutomationRunHistoryScreen` reads
+ * exactly this response to fill the detail drawer. `detail` is an arbitrary object on both, `status` is
+ * `string` on both, and `organizationId` is absent on both.
+ */
+type _workflowRunDetail = Assert<Exact<ApiWorkflowRunDetailView, WebWorkflowRunDetail>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

@@ -61,8 +61,43 @@ export interface WorkflowRunSummary {
   readonly finishedAt: string;
 }
 
+/**
+ * One workflow run in the *history list* (x164) — paired Exact with the API's `WorkflowRunHistoryView`.
+ * `organizationId` is absent on both sides, and `detail` is absent: the list is bounded, and a run's
+ * full detail is read one at a time via {@link getWorkflowRun}. `status` is `string` (not a union),
+ * matching the API view exactly — the closed set (`succeeded` | `failed`) is enforced server side.
+ */
+export interface WorkflowRunHistoryItem {
+  readonly id: string;
+  readonly templateId: string;
+  readonly status: string;
+  readonly startedAt: string;
+  readonly finishedAt: string;
+}
+
+/**
+ * One workflow run in *detail* (x164) — paired Exact with the API's `WorkflowRunDetailView`. The list
+ * projection plus the run's `detail` object. `organizationId` is absent on both sides; `detail` is an
+ * arbitrary object on both.
+ */
+export interface WorkflowRunDetail {
+  readonly id: string;
+  readonly templateId: string;
+  readonly status: string;
+  readonly detail: Record<string, unknown>;
+  readonly startedAt: string;
+  readonly finishedAt: string;
+}
+
+/** The allowlisted run statuses a history filter may select. Mirrors the API's `WORKFLOW_RUN_STATUSES`. */
+export type WorkflowRunStatus = 'succeeded' | 'failed';
+
 function base(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/automations/templates`;
+}
+
+function runsBase(organizationSlug: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/automations/runs`;
 }
 
 /** List the organization's workflow templates, name-ascending. */
@@ -99,6 +134,34 @@ export async function runWorkflowTemplate(
   const { data } = await client.request<WorkflowRunSummary>({
     method: 'POST',
     path: `${base(organizationSlug)}/${encodeURIComponent(templateId)}/run`,
+  });
+  return data;
+}
+
+/**
+ * List the organization's workflow runs across all templates, newest first (x164). An optional
+ * `status` narrows the list to one allowlisted outcome; the API rejects any other value.
+ */
+export async function listWorkflowRuns(
+  client: ApiClient,
+  organizationSlug: string,
+  options: { readonly status?: WorkflowRunStatus } = {},
+): Promise<readonly WorkflowRunHistoryItem[]> {
+  const query = options.status !== undefined ? `?status=${encodeURIComponent(options.status)}` : '';
+  const { data } = await client.request<{ runs: readonly WorkflowRunHistoryItem[] }>({
+    path: `${runsBase(organizationSlug)}${query}`,
+  });
+  return data.runs;
+}
+
+/** Read one workflow run's detail (x164). */
+export async function getWorkflowRun(
+  client: ApiClient,
+  organizationSlug: string,
+  runId: string,
+): Promise<WorkflowRunDetail> {
+  const { data } = await client.request<WorkflowRunDetail>({
+    path: `${runsBase(organizationSlug)}/${encodeURIComponent(runId)}`,
   });
   return data;
 }
