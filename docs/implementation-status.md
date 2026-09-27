@@ -15714,3 +15714,30 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## Insight period comparison — Insights & reporting, module 15 (x229)
+
+**Status.** Built. Closes the audit gap that the insights reads are single-period ("no
+period-over-period comparison"): a **live two-window compute**, distinct from x211 snapshots (stored
+points compared over time). No new table, no column, no migration — it counts existing insights
+source data (`work_items`, `meetings`) over two caller-supplied windows.
+
+**Surface.** `GET /v1/organizations/:orgSlug/insights/compare?metric=&periodA=&periodB=`
+(`InsightComparisonController` + `comparison.service.ts`, `InsightComparisonModule` registered in
+`app.module.ts`), behind the reused `work.read` (no `capabilities.ts` edit). The route resolves
+`metric` against a fixed allowlist (`work_items_created` | `meetings_held`; unknown → 400) and parses
+each `start..end` window into bound `Date` values, never the DB clock (the admin-pool clock trap);
+a malformed or inverted window is a 400 with no partial compute. It returns each window's count with
+`delta` (`b − a`) and `pct` (the fractional change, `null` when the base is 0 — divide-by-zero
+guarded, never `NaN`/500). Authorized once at org level (`work.read` with `projectId: null`); a
+refusal is a 403, and a client is refused because `work.read` is internal-only. Every count filters
+on `organization_id` from the context, so a comparison never reads across tenants.
+
+**Web.** `PeriodComparisonView` (`comparison.service.ts`) is a live `Exact` pair with the web's
+`PeriodComparisonView` in `apps/web/src/lib/api/insights-comparison.ts` via
+`e2e/contracts/api-web-shapes.ts`. `InsightComparisonScreen` picks a metric and two calendar windows
+and shows the two counts, the change and the percentage side by side. Proved database-free
+(`comparison.controller.test.ts`): the real `authorize` gate refuses a client with a 403 before any
+parse or count, an unknown metric and an inverted window are 400s, and delta/pct (including the
+base-0 → null guard) compute for a permitted principal. No DB test / no new e2e in slice (the chain
+owns both).

@@ -156,6 +156,7 @@ import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../ap
 import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps/api/src/modules/insights/adoption.controller.js';
 import type { SnapshotView as ApiSnapshotView } from '../../apps/api/src/modules/insights/snapshots.service.js';
+import type { PeriodComparisonView as ApiPeriodComparisonView } from '../../apps/api/src/modules/insights/comparison.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
@@ -388,6 +389,7 @@ import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/s
 import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps/web/src/lib/api/insights-workload';
 import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps/web/src/lib/api/insights-adoption';
 import type { SnapshotView as WebSnapshotView } from '../../apps/web/src/lib/api/insights-snapshots';
+import type { PeriodComparisonView as WebPeriodComparisonView } from '../../apps/web/src/lib/api/insights-comparison';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
@@ -876,6 +878,15 @@ type _insightSnapshot = Assert<Exact<ApiSnapshotView, WebSnapshotView>>;
  * it — so this is a live `Exact` pair, not an exemption.
  */
 type _personProfile = Assert<Exact<ApiPersonProfileView, WebPersonProfileView>>;
+
+/**
+ * x229 — `GET …/insights/compare?metric&periodA&periodB`. A metric compared across two windows:
+ * `metric` (`work_items_created` | `meetings_held`), `a` and `b` (each window's `start`/`end`/`value`),
+ * `delta` (`b − a`) and `pct` (the fractional change, `null` when the base is 0), plus `computedAt`.
+ * Paired with a real web consumer — x229 ships `InsightComparisonScreen`, so this is a live `Exact`
+ * pair, not an exemption.
+ */
+type _insightComparison = Assert<Exact<ApiPeriodComparisonView, WebPeriodComparisonView>>;
 
 /**
  * x134 — `GET …/insights/workload-forecast?weeks`. The forward-looking workload forecast: `weeks`
