@@ -316,6 +316,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // The layer-3 guard fails OPEN on an unregistered table, so registering it here is what scopes the
   // reads and writes; tenant-isolation.db.test.ts enforces the entry.
   project_internal_risks: 'organization_id',
+  // PROJ / module 8 milestone-plan baseline (x295, 0162). Tenant-owned: a baseline names a project and
+  // freezes its milestone plan, so an unscoped `SELECT ... FROM project_baselines` would be every
+  // studio's saved plans on the server. The layer-3 guard fails OPEN on an unregistered table, so
+  // registering it here is what scopes the baseline reads and writes; tenant-isolation.db.test.ts
+  // enforces the entry.
+  project_baselines: 'organization_id',
   // HOME-05 follow-up (x144, migration 0050). Tenant-owned: a pin names a tenant target and belongs
   // to one membership in one studio, and an unscoped read would be a map of what every member in
   // every studio keeps on their Home. The layer-3 guard fails OPEN on an unregistered table, so

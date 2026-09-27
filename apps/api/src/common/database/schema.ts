@@ -1139,6 +1139,50 @@ export const projectInternalRisks = mysqlTable(
   ],
 );
 
+/**
+ * PROJ / module 8 (x295). One frozen milestone in a baseline's `snapshot` JSON — a milestone id and
+ * the target date it held at snapshot time (`YYYY-MM-DD`, or null when the milestone had no committed
+ * date). The array of these is the plan the variance view compares today's milestones against.
+ */
+export interface ProjectBaselineMilestoneSnapshot {
+  readonly milestoneId: string;
+  /** The frozen target day, or null when the milestone had no committed date at snapshot time. */
+  readonly targetDate: string | null;
+}
+
+/**
+ * PROJ / module 8 (x295). A project's **milestone-plan baseline** — a point-in-time, named snapshot
+ * of the current milestone plan. A `label`, the freezing user and instant, and a frozen `snapshot`
+ * (an array of `{milestoneId, targetDate}`) captured from `project_milestones` (0048) at snapshot
+ * time. The variance view recomputes today's dates against this frozen plan at read time, so the
+ * snapshot itself is immutable.
+ *
+ * Tenant-scoped and project-owned like `project_milestones` (0048): the composite foreign key binds
+ * `(organization_id, project_id)` to `projects`. Append-only — INSERT and DELETE, never UPDATE
+ * (users.sql), so it carries no `updated_at` and no update trigger. `0162_project_baselines.sql` is
+ * the source of truth; this is its typed mirror.
+ */
+export const projectBaselines = mysqlTable(
+  'project_baselines',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 300 }).notNull(),
+    snapshot: json('snapshot').$type<readonly ProjectBaselineMilestoneSnapshot[]>().notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_baselines_org_id').on(table.organizationId, table.id),
+    index('ix_project_baselines_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.createdAt,
+    ),
+  ],
+);
+
 /** DOC-04 (x130). The value kinds a template variable can declare. */
 export const DOCUMENT_TEMPLATE_VARIABLE_TYPES = ['text', 'date', 'number'] as const;
 
@@ -4047,6 +4091,7 @@ export const TABLES = {
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
   project_internal_risks: projectInternalRisks,
+  project_baselines: projectBaselines,
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
@@ -4175,6 +4220,7 @@ export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
+export type ProjectBaselineRow = typeof projectBaselines.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
