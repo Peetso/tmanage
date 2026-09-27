@@ -170,6 +170,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
   // tenant table has, so the guard scopes its reads and writes.
   document_versions: 'organization_id',
+  // DOC revision history (0113, x241). Tenant-owned: a revision is the body a document held at a
+  // moment, and an unscoped `SELECT ... FROM doc_revisions` would be every studio's document history
+  // on the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
+  // tenant table has, so the guard scopes its reads and writes.
+  doc_revisions: 'organization_id',
   // Docs "collaboration later" (0045, x132). Tenant-owned: a comment cites a document, and an
   // unscoped `SELECT ... FROM document_comments` would be every studio's document discussion on the
   // server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every

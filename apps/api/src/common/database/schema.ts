@@ -773,6 +773,33 @@ export const documentVersions = mysqlTable(
 );
 
 /**
+ * DOC revision history (x241). The append-only revision trail behind a `documents` row — a parallel
+ * of `document_versions` (0036) kept in its own table for this slice. Each capture appends one
+ * immutable snapshot (the body as it stood, and who saved it) and bumps the parent `documents.body`
+ * to match, in one transaction; a restore appends a new revision whose body equals a prior snapshot
+ * — forward-append, never a rewrite. `rev_no` counts a document's captures from 1, monotonic per
+ * document, and the `(organization_id, doc_id, rev_no)` unique key is the list/restore index and the
+ * racing-capture concurrency guard. `0113_doc_revisions.sql` is the source of truth; this is its
+ * typed mirror.
+ */
+export const docRevisions = mysqlTable(
+  'doc_revisions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    docId: char('doc_id', { length: 36 }).notNull(),
+    revNo: int('rev_no', { unsigned: true }).notNull(),
+    bodySnapshot: text('body_snapshot').notNull(),
+    savedBy: char('saved_by', { length: 36 }).notNull(),
+    savedAt: datetime('saved_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_doc_revisions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_doc_revisions_org_doc_rev').on(table.organizationId, table.docId, table.revNo),
+  ],
+);
+
+/**
  * Docs "collaboration later" (x132). A comment on a `documents` row — a body, an author membership
  * and a time, against an existing document. Document-owned and tenant-scoped like `document_versions`
  * (0036): the comment carries no `project_id`; the relation it is read and written by is the
@@ -3908,6 +3935,7 @@ export const TABLES = {
   meetings,
   documents,
   document_versions: documentVersions,
+  doc_revisions: docRevisions,
   document_comments: documentComments,
   decisions,
   decision_supersessions: decisionSupersessions,
@@ -4018,6 +4046,8 @@ export type SavedViewRow = typeof savedViews.$inferSelect;
 export type SavedSearchRow = typeof savedSearches.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
+export type DocRevisionRow = typeof docRevisions.$inferSelect;
+export type NewDocRevisionRow = typeof docRevisions.$inferInsert;
 export type DocumentCommentRow = typeof documentComments.$inferSelect;
 export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;

@@ -38,6 +38,7 @@ import { OccurrenceOverrideModule } from './modules/calendar/occurrence-override
 import { MeetingRsvpModule } from './modules/calendar/rsvp.module.js';
 import { DocsModule } from './modules/docs/docs.module.js';
 import { DocumentTemplateVariablesModule } from './modules/docs/document-template-variables.controller.js';
+import { RevisionsModule } from './modules/docs/revisions.controller.js';
 import { AutomationSchedulesModule } from './modules/automations/schedules.controller.js';
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links.module.js';
@@ -310,6 +311,11 @@ export class AppModule {
         // the same pass appends to; it depends only on the global tenant database and reuses the
         // read-only `DocumentTemplatesRepository` to resolve the parent template tenant-scoped.
         DocumentTemplateVariablesModule.register(),
+        // DOC revision history (x241). A document's snapshot trail (capture/list/restore). Its own
+        // module rather than folded into `DocsModule`, so this slice touches no file another docs
+        // slice in the same pass appends to; it depends only on the global tenant database and reuses
+        // the read-only `DocumentsRepository` to resolve the parent document tenant-scoped.
+        RevisionsModule.register(),
         AutomationSchedulesModule.register(),
         // DEC-01 (x113). The cross-meeting decision register. After `ProjectsModule` and
         // `CalendarModule` for the same reason: a decision names a project and, optionally, a

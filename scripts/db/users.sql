@@ -420,6 +420,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`home_pinned_items` TO 'tmanage_app'@'
 -- it changed, so a runtime credential must not be able to erase it (the `deliverable_versions`
 -- posture above).
 GRANT INSERT                 ON `tmanage`.`document_versions` TO 'tmanage_app'@'%';
+-- DOC revision history (0113, x241) doc revisions. **INSERT only** — a revision is an immutable
+-- snapshot of the body at a capture: a restore is a new row (forward-append), never an edit, and the
+-- 0113 trigger refuses UPDATE for every credential. No DELETE: a document's history is the record of
+-- how it changed, so a runtime credential must not be able to erase it.
+GRANT INSERT                 ON `tmanage`.`doc_revisions` TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
