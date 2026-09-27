@@ -405,6 +405,13 @@ GRANT INSERT, UPDATE          ON `tmanage`.`saved_views`      TO 'tmanage_app'@'
 -- row's identity and body fixed (the `saved_context`/`home_pinned_items` posture, no immutability
 -- trigger and none needed). Reading is the database-wide SELECT above. The worker gets nothing here.
 GRANT INSERT, DELETE         ON `tmanage`.`saved_searches`   TO 'tmanage_app'@'%';
+-- SRCH quick-access pins (0158, x290). A pin is created (INSERT), the same-target pin refreshes its
+-- label via the write's ON DUPLICATE KEY (the INSERT privilege covers it), and it is removed
+-- (DELETE), so INSERT and DELETE and **no UPDATE**: there is no standalone edit endpoint, so the
+-- missing privilege is the control that keeps a pin's identity fixed (the `saved_searches`/
+-- `saved_context` posture, no immutability trigger and none needed). Reading is the database-wide
+-- SELECT above. The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, DELETE         ON `tmanage`.`search_pins`      TO 'tmanage_app'@'%';
 -- HOME-05 (0035) saved/pinned context. INSERT to pin and DELETE to unpin, and **no UPDATE**: a
 -- pin is created and removed, never edited, so the missing privilege is the control that keeps it
 -- so (there is no immutability trigger and none is needed). Reading is the database-wide SELECT

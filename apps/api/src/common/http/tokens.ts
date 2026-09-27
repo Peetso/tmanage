@@ -204,6 +204,8 @@ export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
 /** SRCH saved/recent (x214). The per-user, tenant-scoped saved & recent searches service. */
 export const SAVED_SEARCHES_SERVICE = Symbol.for('tmanage.SavedSearchesService');
 
+export const SEARCH_PINS_SERVICE = Symbol.for('tmanage.SearchPinsService');
+
 /** Public & trust site (x159). The public status page's published-only incidents read. */
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');
 /** x161. The public site's contact / lead intake — the INSERT-only writer over `marketing_leads`. */

@@ -742,6 +742,49 @@ export const savedSearches = mysqlTable(
 );
 
 /**
+ * SRCH quick-access pins (x290, migration 0158).
+ *
+ * A member's pinned indexed entities — a `work_item`, `document`, `meeting` or `project` kept for
+ * quick access from the Search module. A pin stores only a **type + id reference** (`objectType`,
+ * `objectId`) and a display `label` the client caches; it holds no copy of the entity, so the
+ * resolver reads the target's read side later and a pin to a non-readable object renders as
+ * unavailable rather than leaking it. Private to one member in one studio: `organization_id` scopes
+ * the tenant and `membership_id` the owner, so every read, the pin and the unpin carry both
+ * predicates and one member never sees another's. Created and removed, never updated (a repeat pin
+ * refreshes the label via the write's ON DUPLICATE KEY, which the INSERT grant covers) — the runtime
+ * credential holds INSERT and DELETE alone, so the withheld UPDATE is the control (no immutability
+ * trigger, none needed). `uq_search_pins_member_target` is the idempotence guard the PUT relies on.
+ * `0158_search_pins.sql` is the source of truth; this is its typed mirror.
+ */
+export const searchPins = mysqlTable(
+  'search_pins',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    objectType: varchar('object_type', { length: 64 }).notNull(),
+    objectId: char('object_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 300 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_search_pins_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_search_pins_member_target').on(
+      table.organizationId,
+      table.membershipId,
+      table.objectType,
+      table.objectId,
+    ),
+    index('ix_search_pins_org_member').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * DOC-02/DOC-03 (x112). The append-only version history behind a `documents` row.
  *
  * Each save appends one immutable snapshot (the body as it stood, and who saved it) and bumps the
@@ -4059,6 +4102,7 @@ export const TABLES = {
   meeting_occurrence_overrides: meetingOccurrenceOverrides,
   saved_views: savedViews,
   saved_searches: savedSearches,
+  search_pins: searchPins,
   saved_context: savedContext,
   project_updates: projectUpdates,
   project_update_comments: projectUpdateComments,
@@ -4147,6 +4191,7 @@ export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type SavedSearchRow = typeof savedSearches.$inferSelect;
+export type SearchPinRow = typeof searchPins.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DocRevisionRow = typeof docRevisions.$inferSelect;

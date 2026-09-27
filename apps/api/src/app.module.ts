@@ -73,6 +73,7 @@ import { ImportModule } from './modules/import/import.module.js';
 import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { SavedSearchesModule } from './modules/search/saved-searches.module.js';
+import { SearchPinsModule } from './modules/search/search-pins.module.js';
 import { CommandsModule } from './modules/search/commands.controller.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
@@ -410,6 +411,10 @@ export class AppModule {
         // and their recent queries (read), private per user, behind the reused `search.use`. A
         // separate module from `SearchModule` so the search slices stay file-disjoint.
         SavedSearchesModule.register(),
+        // SRCH quick-access pins (x290). A member's own pinned entities (pin/list/unpin) for quick
+        // access, private per member, behind the reused `search.use`. A separate module from
+        // `SearchModule`/`SavedSearchesModule` so the search slices stay file-disjoint.
+        SearchPinsModule.register(),
         // SRCH command palette (x181). The palette's contents — `GET …/search/commands?q=`, a
         // bounded, relevance-ordered list drawn from a static command registry by a pure matcher.
         // A module of its own beside `SearchModule` so the search slices stay file-disjoint; it
