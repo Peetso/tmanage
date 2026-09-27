@@ -3926,6 +3926,37 @@ export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
 
 /**
+ * Org-wide admin announcement banners (Administration module 18, x276). One row is the fact "this
+ * organization is broadcasting this message" — a title, a body, and an optional `[starts_at, ends_at]`
+ * active window (null bounds are open). An admin (`org.manage`) posts and deletes; any member
+ * (`work.read`) reads the announcements active right now. Posted (INSERT) and removed (DELETE), never
+ * edited — like `doc_bookmarks` (0114) the withheld UPDATE grant is the control, so there is no
+ * immutability trigger. Per-member dismissal is remembered in the browser this slice, so there is no
+ * second table. The `(organization_id, created_by)` composite FK binds the author within one tenant.
+ * `0145_org_announcements.sql` is the source of truth; this is its typed mirror.
+ */
+export const orgAnnouncements = mysqlTable(
+  'org_announcements',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    body: text('body').notNull(),
+    startsAt: datetime('starts_at', { mode: 'date', fsp: 3 }),
+    endsAt: datetime('ends_at', { mode: 'date', fsp: 3 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_announcements_org_id').on(table.organizationId, table.id),
+    index('ix_org_announcements_org_created').on(table.organizationId, table.createdAt, table.id),
+  ],
+);
+
+export type OrgAnnouncementRow = typeof orgAnnouncements.$inferSelect;
+export type NewOrgAnnouncementRow = typeof orgAnnouncements.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -3985,6 +4016,7 @@ export const homeWidgetPrefs = mysqlTable(
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
 export const TABLES = {
+  org_announcements: orgAnnouncements,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,

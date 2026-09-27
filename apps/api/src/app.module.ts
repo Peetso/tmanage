@@ -61,6 +61,7 @@ import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AdminSecurityModule } from './modules/admin/security.controller.js';
+import { OrgAnnouncementsModule } from './modules/admin/announcements.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -213,6 +214,11 @@ export class AppModule {
         // the org-settings and audit slices in the same module; depends only on the global
         // `TENANT_DATABASE`. Config surface only — enforcement in the auth path is a later slice.
         AdminSecurityModule.register(),
+        // ADM org announcements (module 18, x276). Org-wide announcement banners: post + delete behind
+        // `org.manage`, active-now read behind `work.read`. A module of its own, file-disjoint from the
+        // other administration slices; depends only on the global `TENANT_DATABASE`. Per-member
+        // dismissal is client-remembered, so there is no second table.
+        OrgAnnouncementsModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),
