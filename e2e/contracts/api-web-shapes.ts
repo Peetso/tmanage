@@ -63,6 +63,7 @@ import type { HomeSummaryView as ApiHomeSummaryView } from '../../apps/api/src/m
 import type { HomePulseView as ApiHomePulseView } from '../../apps/api/src/modules/home/home-pulse.service.js';
 import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src/modules/home/home.service.js';
 import type { HomePinView as ApiHomePinView } from '../../apps/api/src/modules/home/home-pins.controller.js';
+import type { UserPreferencesView as ApiUserPreferencesView } from '../../apps/api/src/modules/preferences/preferences.controller.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -130,6 +131,7 @@ import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/h
 import type { HomePulse as WebHomePulse } from '../../apps/web/src/lib/api/home';
 import type { SavedContext as WebSavedContext } from '../../apps/web/src/lib/api/home';
 import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/home';
+import type { UserPreferencesView as WebUserPreferencesView } from '../../apps/web/src/lib/api/preferences';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -570,6 +572,13 @@ type _savedContext = Assert<Exact<ApiSavedContextView, WebSavedContext>>;
  * match exactly. The `MyDayScreen` Pinned section reads exactly this response.
  */
 type _homePins = Assert<Exact<ApiHomePinView, WebHomePinView>>;
+
+/**
+ * PREF-001 (x182). `GET/PUT .../me/preferences` — the acting member's own appearance/locale settings.
+ * One projection, three closed unions (`theme`, `locale`, `density`) that must match exactly on both
+ * sides; the `PreferencesScreen` reads and writes exactly this shape.
+ */
+type _userPreferences = Assert<Exact<ApiUserPreferencesView, WebUserPreferencesView>>;
 
 /**
  * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The

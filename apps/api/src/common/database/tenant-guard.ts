@@ -253,6 +253,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
   // table has, so the guard must scope its reads and its writes.
   work_forms: 'organization_id',
+  // PREF-001 appearance & accessibility preferences (x182, migration 0078). Tenant + membership
+  // owned: a row is one member's own appearance/locale settings, and an unscoped read would be every
+  // member's preferences in every studio. The layer-3 guard fails OPEN on an unregistered table, so
+  // registering it here is what scopes the read and the upsert; tenant-isolation.db.test.ts enforces
+  // the entry.
+  user_preferences: 'organization_id',
 });
 
 /**
