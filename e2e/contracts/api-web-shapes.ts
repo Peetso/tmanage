@@ -133,6 +133,7 @@ import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modul
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
+import type { PublicLegalView as ApiPublicLegalView } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type {
   PublicIncidentView as ApiPublicIncidentView,
   PublicStatusView as ApiPublicStatusView,
@@ -264,6 +265,7 @@ import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
 import type { SavedViewView as WebSavedViewView } from '../../apps/web/src/lib/api/work-views';
 import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
+import type { PublicLegalView as WebPublicLegalView } from '../../apps/web/src/lib/api/public-legal';
 import type {
   PublicIncidentView as WebPublicIncidentView,
   PublicStatusView as WebPublicStatusView,
@@ -930,6 +932,15 @@ type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;
  * the API serves and the copy the screen renders from drifting into two security postures.
  */
 type _publicTrust = Assert<Exact<ApiPublicTrustView, WebPublicTrustView>>;
+/**
+ * `GET /v1/public/site/legal/:doc` — the public legal documents, terms and privacy (x188, module 1).
+ *
+ * Public and tenant-less: deterministic code-defined copy (title, a frozen effective date, and the
+ * long-form sections). The `PublicLegalView` pair keeps the terms the API serves and the terms the
+ * screen renders from drifting. The `doc` field's union (`terms | privacy`) is the same allowlist on
+ * both sides.
+ */
+type _publicLegal = Assert<Exact<ApiPublicLegalView, WebPublicLegalView>>;
 /**
  * `POST /public/site/contact` — the public site's contact / lead intake (module 1, x161).
  *
