@@ -197,6 +197,12 @@ describe('the grants and the schema agree', () => {
         'database-wide read grant); no invoice mutation route exists this slice — invoices are ' +
         'produced by the subscription lifecycle or the seed, and the write path (Needs-Peter) adds ' +
         'the INSERT/UPDATE grant with the code that writes it',
+      invoice_line_items:
+        'x225 read-only from the application, same rule as its parent `invoices`: the per-invoice ' +
+        'line read only SELECTs (via the database-wide read grant); lines are produced by the ' +
+        'subscription lifecycle or the seed, not by a request under this credential, so ' +
+        'INSERT/UPDATE/DELETE are withheld — the provider-driven billing run (Needs-Peter) adds the ' +
+        'write grant with the code that writes it',
     };
     for (const table of schemaTables) {
       const writable = privilegesOn('tmanage_app', table);
