@@ -3327,6 +3327,47 @@ export const maintenanceWindows = mysqlTable(
   (table) => [index('ix_maintenance_windows_published_ends').on(table.published, table.endsAt)],
 );
 
+/** The insights reports a saved view may name. Mirrors the `0089` `report_kind` ENUM. */
+export const INSIGHT_REPORT_KINDS = [
+  'portfolio',
+  'delivery-flow',
+  'approval-cycle',
+  'workload',
+  'adoption',
+  'forecast',
+] as const;
+export type InsightReportKind = (typeof INSIGHT_REPORT_KINDS)[number];
+
+/** A saved insights view's remembered filter set — a small `{ field: value }` object, stored whole. */
+export type InsightViewFilters = Readonly<Record<string, string>>;
+
+/**
+ * Insights saved views (x210, migration 0089). A member's own named, saved insights filter set — a
+ * display `name`, the `report_kind` it names (a closed vocabulary), and the `filters` it remembers.
+ *
+ * Owner- and tenant-scoped, and private to its creator: `owner_user_id` is who may see or remove it
+ * and `organization_id` scopes it to the studio. Unlike `saved_views` (0034) there is no `shared`
+ * flag — an insights view is one person's this slice. `filters` is the remembered configuration,
+ * echoed to the client rather than interpreted here. `0089_insight_saved_views.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const insightSavedViews = mysqlTable(
+  'insight_saved_views',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    ownerUserId: char('owner_user_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    reportKind: mysqlEnum('report_kind', INSIGHT_REPORT_KINDS).notNull(),
+    filters: json('filters').$type<InsightViewFilters>().notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_saved_views_org_id').on(table.organizationId, table.id),
+    index('ix_insight_saved_views_org_owner').on(table.organizationId, table.ownerUserId, table.id),
+  ],
+);
+
 /**
  * Every table this schema describes, keyed by its SQL name.
  *
@@ -3429,6 +3470,7 @@ export const TABLES = {
   billing_contacts: billingContacts,
   billing_usage_alerts: billingUsageAlerts,
   work_item_files: workItemFiles,
+  insight_saved_views: insightSavedViews,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3538,3 +3580,4 @@ export type ChangelogEntryRow = typeof changelogEntries.$inferSelect;
 export type MarketingLeadRow = typeof marketingLeads.$inferSelect;
 export type NewMarketingLeadRow = typeof marketingLeads.$inferInsert;
 export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;
+export type InsightSavedViewRow = typeof insightSavedViews.$inferSelect;

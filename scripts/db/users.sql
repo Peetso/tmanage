@@ -553,6 +553,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`custom_roles`       TO 'tmanage_app'@
 -- a subscription is created and changed, never removed by the runtime credential; the 0074 trigger
 -- pins organization_id immutable for every credential.
 GRANT INSERT, UPDATE         ON `tmanage`.`subscriptions`     TO 'tmanage_app'@'%';
+-- INS saved views (x210, module 15, 0089). **INSERT, DELETE** — a saved insights view is created
+-- once and removed, never edited in place this slice, so no UPDATE. Reading is the database-wide
+-- SELECT above; least privilege withholds UPDATE until an edit endpoint (and the code that writes it)
+-- lands, per this file's rule that a grant names a statement that exists.
+GRANT INSERT, DELETE         ON `tmanage`.`insight_saved_views` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
