@@ -55,6 +55,7 @@ import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
 import { ContactModule } from './modules/public-site/contact.module.js';
+import { AutomationsModule } from './modules/automations/automations.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -300,6 +301,10 @@ export class AppModule {
         // (the repository writes on the identity/no-tenant path over the global `marketing_leads`),
         // so it couples to no feature module; position here is by subject (public surface, last).
         ContactModule.register(),
+        // AUTO-01 / module 17 (x162). Org-scoped automation workflow templates (define/list), behind
+        // `org.manage`. Depends only on the global tenant database — an org-admin definition with no
+        // project to resolve — so its position here is by subject, not by need. Execution/runs are x163.
+        AutomationsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

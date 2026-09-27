@@ -293,6 +293,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // registering it here is what scopes the progress reads and the completion upsert; the
   // tenant-isolation suite enforces the entry.
   onboarding_progress: 'organization_id',
+  // Automation workflow templates (x162, migration 0063). Org-owned: a template belongs to the acting
+  // tenant, and an unscoped `SELECT ... FROM workflow_templates` would be every studio's automation
+  // definitions on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
+  // key every tenant table has, so the guard must scope its reads and its writes.
+  workflow_templates: 'organization_id',
 });
 
 /**

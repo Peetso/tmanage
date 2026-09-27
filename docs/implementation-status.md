@@ -14382,3 +14382,32 @@ by the org-less `IdentityShell` (skip link, one `<main>`, one `<h1>`). Proved da
 non-string, over-length and malformed-email inputs are each a 400 with no write; the controller
 exposes only the write handler. Deferred: email delivery, and any admin lead viewer (own slice, own
 SELECT grant).
+## Automations & integrations — workflow templates (define/list) (x162, module 17)
+
+`38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Automations & integrations names _workflow templates_,
+the module's first persistence. This slice adds an org-scoped `workflow_templates` table (migration
+`0063`) — a name, a `trigger_kind`, an `action_kind`, a bounded `config_json` object and an `enabled`
+flag — and two endpoints under `/v1/organizations/:orgSlug/automations/templates`: `POST` to define a
+template and `GET` to list the tenant's templates name-ascending and bounded. Both reuse `org.manage`
+(automations are an org-admin concern; no `automation.*` capability exists), so there is no
+`capabilities.ts` edit. Nothing executes a template here — a definition at rest; execution and run
+history are x163.
+
+**Security order.** The tenant is resolved by `TenantContextGuard` and read from the context, never
+the body, so a create writes into the acting tenant alone and a list is org-scoped by the repository
+(a cross-tenant read is impossible). The `org.manage` decision is made with the real `authorize`
+before any write. `trigger_kind` and `action_kind` are validated against a fixed application allowlist
+and `config_json` against a serialized-size bound before the repository is touched, so an off-list or
+over-size body is a 400 with nothing written. The new table is registered in all four places —
+`schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT only; no editor
+or toggle this slice), and the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `WorkflowTemplateView` (`automations/templates.controller.ts`) is a live `Exact` pair
+with the web's `WorkflowTemplateSummary` (`apps/web/src/lib/api/automations.ts`) in
+`e2e/contracts/api-web-shapes.ts`; it never echoes `organization_id`. `AutomationTemplatesScreen`
+(`apps/web/src/components/screens/AutomationTemplatesScreen.tsx`), routed at `/[orgSlug]/automations`,
+defines a template and lists the organization's templates in an accessible table. Proved database-free
+with the real `authorize` (`templates.controller.test.ts`): create→list, an off-list trigger/action
+and an over-size config are each a 400 with no write, a role without `org.manage` (org_admin) is a 403
+on both routes, and the list is scoped to the acting tenant name-ascending. Deferred to a later slice:
+execution/runs (x163), an editor, and an enable/disable toggle.
