@@ -14673,3 +14673,29 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+
+## DOC revision history (x241) — module 10 (Docs & knowledge)
+
+**What this adds.** `38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Docs — a document's snapshot trail
+beside the built editor/templates/comments. A new tenant-scoped, append-only table `doc_revisions`
+(migration 0113) holds `{rev_no, body_snapshot, saved_by, saved_at}` per `(organization_id, doc_id)`;
+`rev_no` is monotonic per document and the `(organization_id, doc_id, rev_no)` unique key is the
+list index and the racing-capture guard. Registered in the four places: `schema.ts` def + `TABLES`,
+tenant-guard `TENANT_TABLES`, `users.sql` (INSERT only — a revision is immutable, the 0113 trigger
+refuses UPDATE and there is no DELETE), and the 0113 migration.
+
+**Routes.** `GET`/`POST …/documents/:documentId/revisions` (`doc.read`/`doc.write`) list newest-first
+and capture a snapshot; `POST …/documents/:documentId/revisions/:revId/restore` (`doc.write`) restores
+a prior revision by forward-appending a NEW revision equal to that snapshot and bumping the current
+body — never a raw column overwrite, so history survives. The document is resolved tenant-scoped
+BEFORE authorize (Known-trap): an unknown/cross-tenant `:id` or `:revId` is 404, never a 500; a
+non-member is 404, never 403 (a 403 would confirm the document exists). Relation-gated as
+`work.read`/`work.create`, the ceiling-mirror of `doc.read`/`doc.write`.
+
+**Surfaces.** `DocRevisionView` (`revisions.service.ts`) is a live `Exact` pair with the web's
+`DocRevisionSummary` (`apps/web/src/lib/api/doc-revisions.ts`) via `e2e/contracts/api-web-shapes.ts`.
+`DocRevisionsScreen` (`apps/web/src/components/screens/DocRevisionsScreen.tsx`) lists the trail and
+restores. Proved database-free (`revisions.controller.test.ts`): capture→list newest-first with a
+monotonic `rev_no`, restore forward-appends a new revision, a cross-tenant document id is 404 with no
+write, and a non-member is the masked 404 with no write. Its own module (`RevisionsModule`, registered
+in `app.module.ts`) so the slice touches no file another docs slice appends to.

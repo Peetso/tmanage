@@ -43,6 +43,7 @@ import type { ConvertMessageResultView as ApiConvertMessageResultView } from '..
 import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
+import type { DocRevisionView as ApiDocRevisionView } from '../../apps/api/src/modules/docs/revisions.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -178,6 +179,7 @@ import type {
 } from '../../apps/web/src/lib/api/client-requests';
 import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
+import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -439,6 +441,13 @@ type _meetingNote = Assert<Exact<ApiMeetingNoteView, WebMeetingNoteView>>;
  * reads exactly this response for its history/compare/restore, so the pair is Exact.
  */
 type _documentVersion = Assert<Exact<ApiDocumentVersionView, WebDocumentVersionSummary>>;
+
+/**
+ * DOC revision history (x241). `DocRevisionView` (`GET`/`POST …/documents/:id/revisions`,
+ * `POST …/documents/:id/revisions/:revId/restore`) — one immutable revision of a document. The
+ * `DocRevisionsScreen` reads exactly this response for its history/restore, so the pair is Exact.
+ */
+type _docRevision = Assert<Exact<ApiDocRevisionView, WebDocRevisionSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST
