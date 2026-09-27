@@ -571,6 +571,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table
   // has, so the guard must scope its reads.
   invoice_line_items: 'organization_id',
+  // SEC / Client portal (x238, migration 0110). Tenant-owned: a row is one project's client-portal
+  // settings/branding in one studio, keyed `(organization_id, project_id)`, and an unscoped
+  // `SELECT ... FROM portal_settings` would be every studio's portal configuration on the server.
+  // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table has,
+  // so the guard scopes its reads and its writes; tenant-isolation.db.test.ts enforces the entry.
+  portal_settings: 'organization_id',
 });
 
 /**

@@ -129,6 +129,7 @@ import type { MilestoneEditView as ApiMilestoneEditView } from '../../apps/api/s
 import type { ProjectRiskView as ApiProjectRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
 import type { PortalAccessLogView as ApiPortalAccessLogView } from '../../apps/api/src/modules/clients/portal-access-log.controller.js';
 import type { ClientRiskView as ApiClientRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
+import type { PortalSettingsView as ApiPortalSettingsView } from '../../apps/api/src/modules/clients/portal-settings.controller.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
@@ -321,6 +322,7 @@ import type {
   ProjectStatusUpdatePage as WebProjectStatusUpdatePage,
   ProjectStatusUpdateSummary as WebProjectStatusUpdateSummary,
 } from '../../apps/web/src/lib/api/project-status-updates';
+import type { PortalSettingsView as WebPortalSettingsView } from '../../apps/web/src/lib/api/portal-settings';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
 import type { AutomationScheduleSummary as WebAutomationScheduleSummary } from '../../apps/web/src/lib/api/automation-schedules';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
@@ -544,6 +546,12 @@ type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
 // `PortalAccessLogScreen` reads exactly this response, so the pair is Exact. There is no client-facing
 // pair — the log is internal, never projected to a client.
 type _portalAccessLog = Assert<Exact<ApiPortalAccessLogView, WebPortalAccessLogEvent>>;
+// SEC / Client portal settings (x238): the internal per-project portal settings read/save over
+// `…/projects/:id/portal-settings`. `PortalSettingsScreen` reads exactly this response (welcome,
+// accent, the two toggles, plus the internal `updatedBy`/`updatedAt`), so the pair is Exact. The
+// client projection (`PortalSettingsClientView`) drops `updatedBy`/`updatedAt`/`projectId` and has no
+// web consumer yet — it is exempted in scripts/contracts-check.mjs.
+type _portalSettings = Assert<Exact<ApiPortalSettingsView, WebPortalSettingsView>>;
 type _portalFile = Assert<Exact<ApiPortalFileView, WebPortalFile>>;
 type _portalPerson = Assert<Exact<ApiPortalPersonView, WebPortalPerson>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;

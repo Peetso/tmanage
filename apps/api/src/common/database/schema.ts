@@ -4279,6 +4279,39 @@ export const insightTargets = mysqlTable(
 );
 
 /**
+ * SEC / Client portal (module 13, x238). A project's client-portal settings / branding — one row per
+ * project, keyed `(organization_id, project_id)`. Every column is a presentation field (the welcome
+ * message, the accent colour, and whether the team and timeline are shown) except `updated_by`, the
+ * internal stamp of which member last saved the settings. The client-facing projection never carries
+ * `updated_by`; there is no internal-notes column (portal settings are branding, not a private
+ * record). The read/upsert repository writes `INSERT ... ON DUPLICATE KEY UPDATE` against the
+ * `(organization_id, project_id)` unique key, so a second save updates in place. Tenant-scoped and
+ * project-owned: the composite foreign key binds `(organization_id, project_id)` to `projects`, and
+ * the `0110` `BEFORE UPDATE` trigger pins the identity columns immutable.
+ * `0110_portal_settings.sql` is the source of truth; this is its typed mirror.
+ */
+export const portalSettings = mysqlTable(
+  'portal_settings',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    welcomeMessage: varchar('welcome_message', { length: 2000 }),
+    accentColor: varchar('accent_color', { length: 7 }).notNull().default('#2563eb'),
+    showTeam: boolean('show_team').notNull().default(true),
+    showTimeline: boolean('show_timeline').notNull().default(true),
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_portal_settings_org_id').on(table.organizationId, table.id),
+    // The upsert key: one settings row per project per studio.
+    uniqueIndex('uq_portal_settings_org_project').on(table.organizationId, table.projectId),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -4578,6 +4611,7 @@ export const TABLES = {
   admin_export_requests: adminExportRequests,
   invoice_line_items: invoiceLineItems,
   insight_targets: insightTargets,
+  portal_settings: portalSettings,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -4719,3 +4753,5 @@ export type AdminExportStatus = (typeof ADMIN_EXPORT_STATUSES)[number];
 export type InsightTargetRow = typeof insightTargets.$inferSelect;
 export type InsightTargetMetric = (typeof INSIGHT_TARGET_METRICS)[number];
 export type InsightTargetPeriod = (typeof INSIGHT_TARGET_PERIODS)[number];
+export type PortalSettingsRow = typeof portalSettings.$inferSelect;
+export type NewPortalSettingsRow = typeof portalSettings.$inferInsert;
