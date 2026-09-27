@@ -249,6 +249,10 @@ GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_ap
 -- makes "immutable" true for the runtime credential specifically, the way it is for the
 -- moderation ledger above.
 GRANT INSERT                 ON `tmanage`.`message_work_links`   TO 'tmanage_app'@'%';
+-- x246 message reactions. INSERT and DELETE, and NO UPDATE: a reaction is added and removed,
+-- never edited — the emoji is the row — so withholding UPDATE is what keeps a reaction's
+-- identity fixed for the runtime credential. Reading the tally is the database-wide SELECT.
+GRANT INSERT, DELETE         ON `tmanage`.`message_reactions`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 -- NOTIF-001. UPDATE is for marking read — the trigger in 0010 confines it to `read_at`,

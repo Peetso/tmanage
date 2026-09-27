@@ -4,6 +4,8 @@ import {
   AUDIT_SERVICE,
   CONVERSATIONS_REPOSITORY,
   CONVERSATIONS_SERVICE,
+  MESSAGE_REACTIONS_REPOSITORY,
+  MESSAGE_REACTIONS_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
@@ -16,6 +18,9 @@ import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ConversationsRepository } from './conversations.repository.js';
 import { ConversationsService } from './conversations.service.js';
 import { ConversationsController } from './conversations.controller.js';
+import { MessageReactionsRepository } from './message-reactions.repository.js';
+import { MessageReactionsService } from './message-reactions.service.js';
+import { MessageReactionsController } from './message-reactions.controller.js';
 
 /**
  * CHAT-001's wiring.
@@ -63,10 +68,29 @@ export class ConversationsModule {
         ),
     };
 
+    // x246 message reactions. Its own repository and service, registered alongside the
+    // conversation aggregate they hang off. The service reuses `ConversationsRepository` to
+    // resolve the conversation, its membership and the message before its own gate decides
+    // anything — the same stateless-repository reasoning the providers above give.
+    const reactionsRepository: Provider = {
+      provide: MESSAGE_REACTIONS_REPOSITORY,
+      useFactory: () => new MessageReactionsRepository(),
+    };
+
+    const reactionsService: Provider = {
+      provide: MESSAGE_REACTIONS_SERVICE,
+      inject: [TENANT_DATABASE, CONVERSATIONS_REPOSITORY, MESSAGE_REACTIONS_REPOSITORY],
+      useFactory: (
+        database: TenantDatabase,
+        conversations: ConversationsRepository,
+        reactions: MessageReactionsRepository,
+      ) => new MessageReactionsService(database, conversations, reactions),
+    };
+
     return {
       module: ConversationsModule,
-      providers: [repository, service],
-      controllers: [ConversationsController],
+      providers: [repository, service, reactionsRepository, reactionsService],
+      controllers: [ConversationsController, MessageReactionsController],
     };
   }
 }
