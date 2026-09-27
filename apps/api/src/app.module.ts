@@ -16,6 +16,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
 import { PersonCapacityModule } from './modules/people/capacity.module.js';
+import { CapacityHeatmapModule } from './modules/people/capacity-heatmap.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { HomePulseModule } from './modules/home/home-pulse.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
@@ -230,6 +231,10 @@ export class AppModule {
         // the controller resolves `:membershipId` tenant-scoped via a `MembershipsRepository` (provided
         // in the module's own scope) before any write, so a cross-tenant member is a 404, not a 500.
         PersonCapacityModule.register(),
+        // People / module 14 (x193). Team capacity heatmap: a read-only org-level roll-up that folds
+        // the x170 capacity and x171 allocation facts into a member × week utilisation grid. Behind
+        // `work.read`, tenant-scoped, with the window bounded before any read; adds no table.
+        CapacityHeatmapModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
         // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the

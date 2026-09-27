@@ -13955,6 +13955,7 @@ database-free with the real `authorize` (`allocations.controller.test.ts`): assi
 of range → 400, duplicate active → 409, cross-tenant project/membership → 404 with no write, and a
 manager not related to the project → 404 (never a 403). Deferred: reassignment/end-date edit and a
 time-phased capacity model.
+
 ## People / module 14 — per-member weekly capacity (x170)
 
 _Audit #4 (People Missing — capacity not built)._ This slice adds a tenant-scoped `person_capacity`
@@ -13983,3 +13984,35 @@ the x169 profile file, reads and edits the figure and is axe-clean (labelled `Fi
 `authorize` (`capacity.controller.test.ts`): set→read returns the figure, hours out of `[0,168]` is a
 400 with no write, a cross-tenant member id is a 404 with no write, a set without `project.manage` is a
 403, and a read without `work.read` is a 403. Deferred to a later slice: a capacity-history table.
+
+## Team capacity heatmap — org-level utilisation roll-up (x193, module 14)
+
+_Audit (People capacity built per-person; no team-level heatmap view)._ This slice adds a read-only
+org-level roll-up over the two facts x170/x171 already own — `person_capacity` (weekly hours) and
+`person_allocations` (a member's share of a project, with an optional window) — behind one endpoint
+`GET /v1/organizations/:orgSlug/people/capacity/heatmap?from=YYYY-MM-DD&weeks=N` (`work.read`). It adds
+no table. For each week bucket in the window a member's **allocated percent** is the sum of the
+`percent` of every allocation whose `[start_date, end_date]` window overlaps that week; **capacity
+hours** is the member's `weekly_hours` once `effective_from` is reached (0 before); **utilisation** is
+`allocatedPercent / 100` (null with no capacity); a week over 100% is flagged over-allocated. The fold
+is pure arithmetic — same input, same output. Capabilities are reused (`work.read`); no
+`capabilities.ts` edit, no migration.
+
+**Known-trap.** The read is tenant-scoped in the repository (`organization_id = context` on every
+statement), and the window is validated and bounded _before_ any read — `from` must be an ISO date and
+`weeks` an integer in `[1,26]`, else a 400 with no read — so an absurd or open-ended range can never
+fan out into an unbounded tenant-wide scan. The allocation read is further predicated on the requested
+window (`start_date <= to AND (end_date IS NULL OR end_date >= from)`). The service adds the org-scoped
+`authorize()` the route guard cannot: a client principal, who never holds the internal-only
+`work.read`, is a 403. `CapacityHeatmapView` never echoes `organization_id`.
+
+**Surfaces.** `CapacityHeatmapView` (`capacity-heatmap.service.ts`) is a live `Exact` pair with the
+web's `CapacityHeatmapView` (`apps/web/src/lib/api/team-capacity-heatmap.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `TeamCapacityHeatmapScreen`
+(`apps/web/src/components/screens/TeamCapacityHeatmapScreen.tsx`), disjoint from the x170 per-person
+section and the x171 allocations screen, renders a member × week grid with a colour scale that is never
+colour alone (each cell carries the percent text and a visually-hidden band label; a legend maps the
+bands) and a focusable scroll region (WCAG 2.2 2.1.1). Proved database-free with the real `authorize`
+(`capacity-heatmap.controller.test.ts`): the utilisation fold and over-allocation flag are correct for
+a seeded member set, a member with allocations but no capacity reads null utilisation, an out-of-range
+`weeks` or malformed `from` is a 400, only the acting tenant's rows are folded, and a client read is a 403. Deferred: a Monday-snapped default window on the server and a per-project drill-down.

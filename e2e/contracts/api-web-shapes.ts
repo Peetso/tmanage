@@ -114,6 +114,7 @@ import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
+import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/api/src/modules/people/capacity-heatmap.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -146,6 +147,7 @@ import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
+import type { CapacityHeatmapView as WebCapacityHeatmapView } from '../../apps/web/src/lib/api/team-capacity-heatmap';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -533,6 +535,15 @@ type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
  * a rename or retype on either side fails the gate.
  */
 type _personCapacity = Assert<Exact<ApiPersonCapacityView, WebPersonCapacity>>;
+
+/**
+ * Team capacity heatmap (module 14, x193). `CapacityHeatmapView` (`GET …/people/capacity/heatmap`,
+ * response) — the org-level member × week utilisation grid folded from the x170 capacity and x171
+ * allocation facts. Paired Exact with its live web consumer: `TeamCapacityHeatmapScreen` reads exactly
+ * this response to render the grid and legend. `organizationId` is absent throughout; the nested
+ * member/cell shapes are held identical, so a rename or retype on either side fails the gate.
+ */
+type _capacityHeatmap = Assert<Exact<ApiCapacityHeatmapView, WebCapacityHeatmapView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit
