@@ -89,6 +89,7 @@ import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
+import type { MeetingActionItemView as ApiMeetingActionItemView } from '../../apps/api/src/modules/calendar/meeting-action-items.service.js';
 import type { MeetingRsvpView as ApiMeetingRsvpView } from '../../apps/api/src/modules/calendar/rsvp.service.js';
 import type { MeetingAgendaView as ApiMeetingAgendaView } from '../../apps/api/src/modules/calendar/meeting-agenda.controller.js';
 import type { CalendarGridView as ApiCalendarGridView } from '../../apps/api/src/modules/calendar/grid.service.js';
@@ -312,6 +313,7 @@ import type {
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
+import type { MeetingActionItemView as WebMeetingActionItemView } from '../../apps/web/src/lib/api/meeting-action-items';
 import type { MeetingRsvpView as WebMeetingRsvpView } from '../../apps/web/src/lib/api/meeting-rsvp';
 import type { MeetingAgendaView as WebMeetingAgendaView } from '../../apps/web/src/lib/api/meeting-agenda';
 import type { CalendarGridView as WebCalendarGridView } from '../../apps/web/src/lib/api/calendar-grid';
@@ -708,6 +710,14 @@ type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
  * internal `membershipId`; paired Exact, so a rename or retype on either side fails the gate.
  */
 type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeView>>;
+
+/**
+ * CAL / MTG-03 meeting action items (x266). `GET`/`POST .../meetings/:meetingId/action-items` and
+ * `PATCH`/`DELETE .../action-items/:actionItemId` — a meeting's action items, read and driven by
+ * `MeetingActionItemsScreen`. The owner is named by `ownerMembershipId` (or null); paired Exact, so
+ * a rename or retype on either side fails the gate.
+ */
+type _meetingActionItem = Assert<Exact<ApiMeetingActionItemView, WebMeetingActionItemView>>;
 
 /**
  * CAL meeting RSVP (x240). `GET`/`PUT .../meetings/:meetingId/rsvp` — a member's own response

@@ -212,6 +212,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // unscoped `SELECT ... FROM meeting_rsvps` would be who is coming to every studio's meetings on the
   // server (x240).
   meeting_rsvps: 'organization_id',
+  // CAL / MTG-03 meeting action items (x266). Tenant-owned: an action item cites a meeting (and an
+  // optional owner membership), and an unscoped `SELECT ... FROM meeting_action_items` would be every
+  // studio's outstanding actions on the server. The guard must scope its reads and its writes.
+  meeting_action_items: 'organization_id',
   // CAL recurrence (x129). Tenant-owned and org-scoped (no project): a series is one studio's
   // recurrence rule, and an unscoped `SELECT ... FROM meeting_series` would be every studio's
   // calendar rules on the server. The guard must scope its reads and its writes.

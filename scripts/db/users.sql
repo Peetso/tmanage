@@ -380,6 +380,11 @@ GRANT INSERT, UPDATE          ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@
 -- file's rule that a grant names a statement that exists (the same treatment `meeting_attendees`
 -- has above).
 GRANT INSERT, UPDATE          ON `tmanage`.`meeting_rsvps`     TO 'tmanage_app'@'%';
+-- CAL / MTG-03 meeting action items (x266). An action item is captured (INSERT), edited and toggled
+-- open/done in place (UPDATE), and removed (DELETE) — this slice ships create/list/edit/delete — so
+-- INSERT, UPDATE and DELETE. 0136's trigger pins organization_id/meeting_id immutable (title, owner,
+-- due date and status may change) for every credential besides.
+GRANT INSERT, UPDATE, DELETE  ON `tmanage`.`meeting_action_items` TO 'tmanage_app'@'%';
 -- CAL recurrence (x129) meeting series. A series is created (INSERT) and read (the database-wide
 -- SELECT); this slice has no edit or delete endpoint, so **no UPDATE and no DELETE** — least
 -- privilege, and there is no immutability trigger because the withheld privilege is the control
