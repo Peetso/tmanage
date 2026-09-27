@@ -106,6 +106,7 @@ import type {
 } from '../../apps/api/src/modules/tenancy/offboarding.service.js';
 import type { MessageRevisionView as ApiMessageRevisionView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { MessageView as ApiMessageView } from '../../apps/api/src/modules/conversations/conversations.service.js';
+import type { MessageAttachmentView as ApiMessageAttachmentView } from '../../apps/api/src/modules/conversations/message-attachments.service.js';
 import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { PortalFileView as ApiPortalFileView } from '../../apps/api/src/modules/files/portal-file-list.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
@@ -253,6 +254,7 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
 import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
+import type { MessageAttachmentSummary as WebMessageAttachmentSummary } from '../../apps/web/src/lib/api/message-attachments';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -642,6 +644,14 @@ type _docRevision = Assert<Exact<ApiDocRevisionView, WebDocRevisionSummary>>;
  * the bookmark toggle read exactly this response, so the pair is Exact.
  */
 type _docBookmark = Assert<Exact<ApiDocBookmarkView, WebDocBookmarkSummary>>;
+
+/**
+ * CH-06 composer attachments (x275). `MessageAttachmentView` (`POST`/`DELETE`/`GET
+ * …/conversations/:cid/messages/:mid/attachments`) — one file attached to a message. The
+ * `MessageAttachmentsView` chips and picker read exactly this response, so the pair is Exact.
+ * `sizeBytes` is `null` before the file's first version; the internal object key is never echoed.
+ */
+type _messageAttachment = Assert<Exact<ApiMessageAttachmentView, WebMessageAttachmentSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST
