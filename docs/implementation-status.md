@@ -14207,3 +14207,43 @@ renders the step checklist with a done count and marks a step complete. Proved d
 real `authorize` (`onboarding-tour.controller.test.ts`): complete→list is own-scoped, an unknown step
 is a 400 with no write, a re-complete writes no duplicate, another member's progress never shows, and
 the routes sit behind `work.read`. Deferred to NEXT-SCOPES-13: sample-data seeding and coach-marks.
+
+## SEC / Organization access policies — module 18 Administration (x174, 2026-09-27)
+
+**What shipped.** The Administration access-policy surface the audit named absent (rank #9, Admin
+Partial: policies absent). Two routes behind `org.manage` under
+`/v1/organizations/:orgSlug/policies`: `GET` reads the organization's access policy (its stored
+document, or the defaults if none), and `PUT` updates it. Distinct from x153's `org_settings`
+(general string preferences — timezone, re-auth window, default project visibility): this is the
+**access-policy** surface — session lifetime, invite-domain allowlist, guest access — a fixed-key
+allowlist of _typed, bounded_ values held as one JSON document per organization (`org_policies`,
+migration `0072`). No `capabilities.ts` edit — `org.manage` is reused.
+
+**The allowlist is the substance.** `policies.allowlist.ts` is the single source of which policies
+exist, their defaults and their per-key validators. A key outside `ORG_POLICY_KEYS`
+(`session_max_hours`, `invite_domain_allowlist`, `guest_access_enabled`) is a 400 with no write; a
+value out of range or of the wrong type (session hours outside 1..720, a malformed domain, a
+non-boolean guest flag) is a 400 with no write. A PUT is a partial document: the provided fields are
+validated, canonicalised (numeric strings → numbers, domains lower-cased and de-duplicated) and
+merged onto the stored document (or the defaults), and the whole document is upserted on
+`organization_id` — one row per organization.
+
+**Known-trap order (complete).** The write resolves the organization tenant-scoped _before_ it
+authorizes or writes: a cross-tenant context is a 404 with no write, before the 403, before the
+allowlist 400s. The real org-wide `org.manage` `authorize()` runs in the handler besides the coarse
+`@RequireCapability` gate. The new table is registered in all four places — `schema.ts` def +
+`TABLES` + `OrgPolicyRow` type, tenant-guard `TENANT_TABLES` (`organization_id`), `users.sql` grant
+(INSERT, UPDATE — the upsert; no DELETE), and the on-disk migration the readdir migrator applies. A
+`BEFORE UPDATE` trigger pins `organization_id` immutable at the engine.
+
+**Surfaces.** `OrgPolicyView` (`policies.controller.ts`) is a live `Exact` pair with the web's
+`OrgPolicyView` (`apps/web/src/lib/api/policies.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`AdminPoliciesScreen` (`apps/web/src/components/screens/AdminPoliciesScreen.tsx`), routed at
+`/[orgSlug]/policies`, renders the typed policy form (session hours, domain allowlist, guest-access
+checkbox) and saves it; axe-clean. Proved database-free with the real `authorize`
+(`policies.controller.test.ts`): read defaults → update → read back, a partial update merges, values
+canonicalise, an off-list key / out-of-range / wrongly-typed value / non-object body is a 400 with no
+write, a cross-tenant org is a 404 before authorize, and a caller without `org.manage` is a 403 on
+both routes. A self-contained `AdminPoliciesModule` registered from `app.module.ts` keeps the slice
+file-disjoint from x153's org-settings controller. Deferred to NEXT-SCOPES-13: the role/capability
+editor (ADM-03, blocked) and broader security-policy escalations.
