@@ -645,6 +645,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'
 -- saving the default, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`home_widget_prefs` TO 'tmanage_app'@'%';
 
+-- Per-org optional-module feature flags (x278, module 18 Administration). **INSERT, UPDATE** — a
+-- flag's state is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE`
+-- upsert against `uq_org_feature_flags_org_key`. No DELETE: a flag is turned off by setting
+-- `enabled = 0`, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`org_feature_flags` TO 'tmanage_app'@'%';
+
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
 -- successful verification. `user_recovery_codes` needs UPDATE to spend a code and to revoke

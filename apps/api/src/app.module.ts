@@ -61,6 +61,7 @@ import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AdminSecurityModule } from './modules/admin/security.controller.js';
+import { FeatureFlagsModule } from './modules/admin/feature-flags.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -213,6 +214,11 @@ export class AppModule {
         // the org-settings and audit slices in the same module; depends only on the global
         // `TENANT_DATABASE`. Config surface only — enforcement in the auth path is a later slice.
         AdminSecurityModule.register(),
+        // ADM per-org feature flags (module 18, x278). An org admin enables/disables optional
+        // modules via named flags behind `org.manage`; the resolved flag map for the caller's own
+        // org is read behind `work.read`. Both org-scoped, file-disjoint from the other admin
+        // slices; depends only on the global `TENANT_DATABASE`.
+        FeatureFlagsModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

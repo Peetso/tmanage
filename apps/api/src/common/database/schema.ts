@@ -3984,7 +3984,39 @@ export const homeWidgetPrefs = mysqlTable(
 
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
+/**
+ * Per-org optional-module feature flags (x278, migration 0147, module 18 Administration).
+ *
+ * One row per `(organization_id, flag_key)`: whether one optional module (a key from a fixed
+ * application allowlist) is enabled for this studio, plus the membership that last changed it and
+ * when. Tenant-owned and registered in the query guard's TENANT_TABLES. `flag_key` is validated
+ * against the allowlist by the application before any write (a key off it is a 400, no upsert); the
+ * read side resolves an absent row — and any unknown key — to the default (off), so "never set" and
+ * "explicitly disabled" read alike. The write is a single upsert against
+ * `uq_org_feature_flags_org_key`, so a second PUT for the same key updates in place; `updated_at`
+ * follows the column's `ON UPDATE`.
+ */
+export const orgFeatureFlags = mysqlTable(
+  'org_feature_flags',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    flagKey: varchar('flag_key', { length: 64 }).notNull(),
+    enabled: boolean('enabled').notNull().default(false),
+    updatedBy: char('updated_by', { length: 36 }),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_feature_flags_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per flag per studio.
+    uniqueIndex('uq_org_feature_flags_org_key').on(table.organizationId, table.flagKey),
+  ],
+);
+
+export type OrgFeatureFlagRow = typeof orgFeatureFlags.$inferSelect;
+
 export const TABLES = {
+  org_feature_flags: orgFeatureFlags,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,

@@ -491,6 +491,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them,
   // and tenant-isolation.db.test.ts enforces the entry.
   home_widget_prefs: 'organization_id',
+  // Per-org optional-module feature flags (x278, migration 0147). Tenant-owned: a row is one
+  // studio's toggle for one optional module, and an unscoped `SELECT ... FROM org_feature_flags`
+  // would be every studio's module configuration on the server. `organization_id` is NOT NULL and
+  // carries the `(organization_id, id)` key every tenant table has, so the guard scopes its reads
+  // and its writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what
+  // scopes them, and tenant-isolation.db.test.ts enforces the entry.
+  org_feature_flags: 'organization_id',
 });
 
 /**
