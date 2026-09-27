@@ -49,6 +49,10 @@ import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocRevisionView as ApiDocRevisionView } from '../../apps/api/src/modules/docs/revisions.service.js';
 import type { DocBookmarkView as ApiDocBookmarkView } from '../../apps/api/src/modules/docs/bookmarks.service.js';
+import type {
+  CollectionView as ApiCollectionView,
+  CollectionDocumentView as ApiCollectionDocumentView,
+} from '../../apps/api/src/modules/docs/collections.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -253,6 +257,10 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
 import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
+import type {
+  DocCollectionSummary as WebDocCollectionSummary,
+  CollectionDocumentSummary as WebCollectionDocumentSummary,
+} from '../../apps/web/src/lib/api/doc-collections';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -642,6 +650,14 @@ type _docRevision = Assert<Exact<ApiDocRevisionView, WebDocRevisionSummary>>;
  * the bookmark toggle read exactly this response, so the pair is Exact.
  */
 type _docBookmark = Assert<Exact<ApiDocBookmarkView, WebDocBookmarkSummary>>;
+
+/**
+ * DOC collections (x264). `CollectionView` (`GET`/`POST …/doc-collections`) — one named collection —
+ * and `CollectionDocumentView` (`GET …/doc-collections/:id`, `PUT …/:id/documents/:docId`) — one
+ * document in a collection. The collections screen reads exactly these responses, so each pair is Exact.
+ */
+type _docCollection = Assert<Exact<ApiCollectionView, WebDocCollectionSummary>>;
+type _collectionDocument = Assert<Exact<ApiCollectionDocumentView, WebCollectionDocumentSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

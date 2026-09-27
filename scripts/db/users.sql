@@ -432,6 +432,12 @@ GRANT INSERT                 ON `tmanage`.`doc_revisions` TO 'tmanage_app'@'%';
 -- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
 -- `home_pinned_items` posture above.
 GRANT INSERT, DELETE         ON `tmanage`.`doc_bookmarks`     TO 'tmanage_app'@'%';
+-- DOC collections (0134, x264) named document collections and their membership, one table. INSERT to
+-- create a collection and to add a document, DELETE to remove a document, and **no UPDATE**: a
+-- collection and a membership are created and removed, never edited, so the missing privilege is the
+-- control (no immutability trigger, none needed — the doc_bookmarks posture above). Reading is the
+-- database-wide SELECT above. The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, DELETE         ON `tmanage`.`doc_collections`   TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
