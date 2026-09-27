@@ -57,6 +57,8 @@ export const WORK_FORMS_REPOSITORY = Symbol.for('tmanage.WorkFormsRepository');
 /** x147. A work item's comments / activity, behind `work.read`/`work.update`. */
 export const WORK_COMMENTS_SERVICE = Symbol.for('tmanage.WorkCommentsService');
 export const WORKFLOW_TEMPLATES_REPOSITORY = Symbol.for('tmanage.WorkflowTemplatesRepository');
+export const WORKFLOW_RUNS_REPOSITORY = Symbol.for('tmanage.WorkflowRunsRepository');
+export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */

@@ -298,6 +298,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // definitions on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
   // key every tenant table has, so the guard must scope its reads and its writes.
   workflow_templates: 'organization_id',
+  // Automation workflow runs (x163, migration 0064). Org-owned: a run belongs to the acting tenant,
+  // and an unscoped `SELECT ... FROM workflow_runs` would be every studio's automation history on the
+  // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
+  // table has, so the guard must scope its reads and its writes.
+  workflow_runs: 'organization_id',
 });
 
 /**

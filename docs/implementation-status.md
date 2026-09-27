@@ -14411,3 +14411,36 @@ with the real `authorize` (`templates.controller.test.ts`): create→list, an of
 and an over-size config are each a 400 with no write, a role without `org.manage` (org_admin) is a 403
 on both routes, and the list is scoped to the acting tenant name-ascending. Deferred to a later slice:
 execution/runs (x163), an editor, and an enable/disable toggle.
+
+## Automations & integrations — run a workflow template (execution) (x163, module 17)
+
+`38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Automations & integrations names execution, and AUDIT-2026-09-27
+ranks "Automations Missing — execution" #2. This slice adds the execution half over x162's templates: an
+org-scoped, append-only `workflow_runs` table (migration `0064`) — a `template_id` composite-keyed to
+`workflow_templates (organization_id, id)`, a `status` (`succeeded` | `failed`) from a fixed application
+allowlist, a bounded `detail_json`, and start/finish instants — and one endpoint,
+`POST /v1/organizations/:orgSlug/automations/templates/:templateId/run`. It reuses `org.manage` (no
+`automation.*` capability exists), so there is no `capabilities.ts` edit.
+
+**Security order — resolve before authorize.** The template id is a path parameter, so it is resolved
+within the acting tenant (`templates.findById`, tenant-scoped) before any authorization or write: a
+cross-tenant or unknown id is a 404 with nothing written, never a 403 that would reveal another tenant's
+template. Only then does the real `authorize` make the org-scoped `org.manage` decision (403 on denial),
+then the enabled check (a disabled template is a 409 with no run), then execution and a single
+`workflow_runs` insert. The tenant is read from the context, never the request. Execution is in-app only:
+`WorkflowRunService` is a pure, dependency-free deterministic executor with no network egress; an external
+action kind (`send_email_digest`) records a `failed` run rather than attempting delivery — external
+delivery is x166 / Needs-Peter. The new table is registered in all four places — `schema.ts` def +
+`TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT only; a run is append-only), and the
+on-disk migration the readdir migrator applies.
+
+**Surfaces.** `WorkflowRunView` (`automations/run.controller.ts`) is a live `Exact` pair with the web's
+`WorkflowRunSummary` (`apps/web/src/lib/api/automations.ts`) in `e2e/contracts/api-web-shapes.ts`; it
+never echoes `organization_id`. `AutomationRunButton`
+(`apps/web/src/components/screens/AutomationRunButton.tsx`) runs one template and announces the outcome in
+a polite live region. Proved database-free with the real `authorize` and the real service
+(`run.controller.test.ts`): an enabled in-app template records a succeeded run, an external action records
+a failed run rather than any egress, a disabled template is a 409 with no run, a cross-tenant/unknown id
+is a 404 with no write, and a role without `org.manage` (org_admin) is a 403. Deferred to later slices:
+run history listing, real downstream side-effects (create work item / notification writes), and external
+delivery (x166).
