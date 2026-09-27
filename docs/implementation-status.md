@@ -14207,6 +14207,7 @@ renders the step checklist with a done count and marks a step complete. Proved d
 real `authorize` (`onboarding-tour.controller.test.ts`): complete→list is own-scoped, an unknown step
 is a 400 with no write, a re-complete writes no duplicate, another member's progress never shows, and
 the routes sit behind `work.read`. Deferred to NEXT-SCOPES-13: sample-data seeding and coach-marks.
+
 ## x156 — Public & trust site (module 1): marketing home
 
 The first page an unauthenticated visitor sees (audit rank #1, Public site Missing). A new API
@@ -14232,6 +14233,7 @@ guards stand aside), the payload is identical across calls, and an unknown sub-p
 `/v1/public/site` is a 404. `marketing-home.test.tsx` renders the hero, the feature grid and the
 CTAs and is axe-clean. Deferred to later pass-21 slices: pricing (x157), security/trust (x158),
 status (x159), changelog (x160), and contact/lead intake (x161).
+
 ## FEAT / Public site — pricing page + plan catalog (x157, module 1)
 
 **What landed.** The public site had no pricing page (AUDIT-2026-09-27 rank #1: Public site
@@ -14263,6 +14265,7 @@ stable order, exactly one featured, route is `@Public()` with no capability) and
 (one card per tier, price + seat rule rendered, the continue link carries only the tier id, axe-clean,
 plain error on load failure). Deferred to NEXT-SCOPES-13: a feature-comparison matrix and real
 billing/checkout.
+
 ## Public security & trust page (x158, module 1)
 
 **What landed.** The public site had no security/trust page (audit rank #1, Missing). This slice
@@ -14284,6 +14287,7 @@ status, with its own landmarks and one `<h1>` (A11Y-01). Proved database-free:
 `trust-content.controller.test.ts` (controls present, non-empty subprocessors, and the route is
 public/tenant-less with no capability metadata) and `apps/web/tests/trust.test.tsx` (renders the
 server content, accessible structure, axe-clean).
+
 ## Public status page — Public & trust site, module 1 (x159)
 
 **What landed.** The application had no public site at all (AUDIT-2026-09-27 rank #1, "Public site
@@ -14315,6 +14319,7 @@ pairs with the web's shapes in `apps/web/src/lib/api/public-site.ts` via `e2e/co
 renders the overall banner and the incident timeline inside `IdentityShell` (skip link, `<main>`, one
 `<h1>`), axe-clean. Deferred: the admin write path (draft/publish incidents), maintenance windows and
 component-level status.
+
 ## Public changelog — product-updates page over a GLOBAL table (x160, module 1 Public site)
 
 **What landed.** The public marketing site had no changelog — the 2026-09-27 audit's rank #1 (Public
@@ -14347,6 +14352,7 @@ text (React text node, never `dangerouslySetInnerHTML`). Proved database-free wi
 (`changelog.controller.test.ts`): the route is public (no capability/tenant metadata), entries group
 by month newest-first, a draft (no live date) is excluded, and the page is bounded to 200. Deferred to
 a later admin slice: authoring/editing entries and rendered-Markdown bodies.
+
 ## x161 — Public site (module 1): contact / lead intake (SEC — untrusted public write)
 
 **Slice.** `x161-public-contact`, off `master` `bcfe397`; migration `0062`. Audit rank #1 (Public

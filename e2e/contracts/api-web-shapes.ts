@@ -486,6 +486,7 @@ type _meetingAgenda = Assert<Exact<ApiMeetingAgendaView, WebMeetingAgendaView>>;
  */
 type _notification = Assert<Exact<ApiNotificationView, WebNotificationView>>;
 type _notificationFeed = Assert<Exact<ApiNotificationFeedView, WebNotificationFeedView>>;
+/**
  * Public changelog (x160). `GET /v1/public/site/changelog` — a `@Public()` read of the GLOBAL
  * `changelog_entries` (0061), published entries newest-first grouped by month, read by
  * `ChangelogScreen`. Paired Exact with the web `PublicChangelogView`; the nested month/entry shapes
@@ -929,6 +930,7 @@ type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;
  * the API serves and the copy the screen renders from drifting into two security postures.
  */
 type _publicTrust = Assert<Exact<ApiPublicTrustView, WebPublicTrustView>>;
+/**
  * `POST /public/site/contact` — the public site's contact / lead intake (module 1, x161).
  *
  * The only unauthenticated write in the public site. Its response is a bare acknowledgement that

@@ -27,7 +27,6 @@ export async function getPublicHome(client: ApiClient): Promise<PublicHome> {
   return data;
 }
 
-
 /**
  * The public status page's read — Public & trust site, module 1 (x159).
  *

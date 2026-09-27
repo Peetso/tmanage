@@ -1657,6 +1657,8 @@ export const orgSettings = mysqlTable(
     uniqueIndex('uq_org_settings_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_org_settings_org_key').on(table.organizationId, table.settingKey),
   ],
+);
+/**
  * Public-site contact / lead intake (0062, x161). GLOBAL, org-less — a lead is submitted by a
  * member of the public with no session and no organization, so it carries no `organization_id` and
  * is registered in the tenant guard's `NON_TENANT_TABLES`, not `TENANT_TABLES`. Write-only at

@@ -75,7 +75,9 @@ describe('ContactScreen', () => {
     await fill(user);
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
-    await waitFor(() => expect(screen.getByText('Thanks — we have your message')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Thanks — we have your message')).toBeInTheDocument(),
+    );
     expect(calls).toHaveLength(1);
     expect(calls[0]!.method).toBe('POST');
     expect(calls[0]!.url).toContain('/public/site/contact');
@@ -116,8 +118,6 @@ describe('ContactScreen', () => {
     await fill(user);
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 
-    expect(
-      await screen.findByText('name, email and message are required'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('name, email and message are required')).toBeInTheDocument();
   });
 });

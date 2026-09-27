@@ -1,7 +1,6 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { Public } from '../../common/http/decorators.js';
-import { PlanCatalogService } from './plan-catalog.service.js';
-import type { PublicPlanView } from './plan-catalog.service.js';
+import type { PlanCatalogService, PublicPlanView } from './plan-catalog.service.js';
 
 /**
  * FEAT · module 1 Public site (x157). The public pricing endpoint.
