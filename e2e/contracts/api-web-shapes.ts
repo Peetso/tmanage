@@ -112,6 +112,7 @@ import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
+import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -143,6 +144,7 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
+import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -512,6 +514,15 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * submission response is the created work item, covered by the `WorkItemView`↔`WorkItemSummary` pair.
  */
 type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
+
+/**
+ * Automations & integrations (x162). `WorkflowTemplateView` (`GET`/`POST …/automations/templates`,
+ * response) — an org-scoped automation template definition. Paired with a live web consumer:
+ * `AutomationTemplatesScreen` reads exactly this response to list templates and drive the define form.
+ * `triggerKind`/`actionKind` are `string` on both sides (the closed set is enforced server-side), and
+ * `config` is an arbitrary object on both. `organizationId` is absent on both.
+ */
+type _workflowTemplate = Assert<Exact<ApiWorkflowTemplateView, WebWorkflowTemplateSummary>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

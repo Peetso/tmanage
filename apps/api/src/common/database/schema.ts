@@ -1490,6 +1490,40 @@ export const workForms = mysqlTable(
   ],
 );
 
+/**
+ * The action configuration a workflow template (0063, x162) carries — a small, bounded object read
+ * and written whole with the template. The application validates its size and shape before storing;
+ * the column holds it whole. Typed loosely here (an arbitrary object) because the meaningful shape is
+ * per-`action_kind` and validated in the module, not by the schema.
+ */
+export type WorkflowTemplateConfig = Record<string, unknown>;
+
+/**
+ * Automation workflow templates (0063, x162). Org-scoped like `work_forms`: a named pairing of a
+ * trigger and an action, plus the action's bounded `config_json`. `trigger_kind` and `action_kind`
+ * are validated against a fixed application allowlist before any write, so each column only ever holds
+ * a known token. A definition at rest — nothing executes a template in this slice (runs are x163).
+ * Identity (`organization_id`, `created_by`) is immutable at the engine.
+ */
+export const workflowTemplates = mysqlTable(
+  'workflow_templates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    triggerKind: varchar('trigger_kind', { length: 64 }).notNull(),
+    actionKind: varchar('action_kind', { length: 64 }).notNull(),
+    configJson: json('config_json').$type<WorkflowTemplateConfig>().notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_workflow_templates_org_id').on(table.organizationId, table.id),
+    index('ix_workflow_templates_org_name').on(table.organizationId, table.name, table.id),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2321,6 +2355,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  workflow_templates: workflowTemplates,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2366,6 +2401,7 @@ export type DocumentCommentRow = typeof documentComments.$inferSelect;
 export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
+export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
