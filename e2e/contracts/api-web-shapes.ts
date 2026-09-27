@@ -106,6 +106,7 @@ import type {
   NotificationFeedView as ApiNotificationFeedView,
 } from '../../apps/api/src/modules/notifications/notifications-feed.controller.js';
 import type { MeetingSeriesView as ApiMeetingSeriesView } from '../../apps/api/src/modules/calendar/meeting-series.service.js';
+import type { AgendaTemplateView as ApiAgendaTemplateView } from '../../apps/api/src/modules/calendar/agenda-templates.service.js';
 import type { OccurrenceOverrideView as ApiOccurrenceOverrideView } from '../../apps/api/src/modules/calendar/occurrence-override.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type { PersonDirectoryView as ApiPersonDirectoryView } from '../../apps/api/src/modules/people/directory.controller.js';
@@ -398,6 +399,7 @@ import type {
   NotificationFeedView as WebNotificationFeedView,
 } from '../../apps/web/src/lib/api/notifications-feed';
 import type { MeetingSeriesView as WebMeetingSeriesView } from '../../apps/web/src/lib/api/meeting-series';
+import type { AgendaTemplateView as WebAgendaTemplateView } from '../../apps/web/src/lib/api/agenda-templates';
 import type { OccurrenceOverrideView as WebOccurrenceOverrideView } from '../../apps/web/src/lib/api/meeting-occurrence-override';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type { PersonSummary as WebPersonSummary } from '../../apps/web/src/lib/api/people';
@@ -934,6 +936,17 @@ type _publicChangelog = Assert<Exact<ApiPublicChangelogView, WebPublicChangelogV
  * `daily|weekly|monthly` union on both sides.
  */
 type _meetingSeries = Assert<Exact<ApiMeetingSeriesView, WebMeetingSeriesView>>;
+
+/**
+ * CAL agenda templates (x314). `GET`/`POST .../meetings/agenda-templates`, `PUT`/`DELETE
+ * .../agenda-templates/:templateId`, and `POST .../meetings/:meetingId/apply-agenda-template` — a
+ * tenant's reusable meeting agendas (name + ordered items), listed/created/edited/removed and applied
+ * by `MeetingAgendaTemplatesView`. The template view is paired Exact from the start — the screen and
+ * its `apps/web` shape ship in the same slice — so a renamed or retyped field on either side is a
+ * compile error here. The apply response is a `{ meetingId, templateId, seeded, skipped }` shape with
+ * no named `*View`, so nothing to pair there. The nested item shape is inlined on both sides.
+ */
+type _agendaTemplate = Assert<Exact<ApiAgendaTemplateView, WebAgendaTemplateView>>;
 
 /**
  * CAL per-occurrence override (x213). `GET`/`POST`/`DELETE .../meeting-series/:seriesId/occurrences/

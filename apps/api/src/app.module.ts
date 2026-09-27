@@ -45,6 +45,7 @@ import { ConversationSearchModule } from './modules/conversations/conversation-s
 import { MyMentionsModule } from './modules/conversations/my-mentions.controller.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
+import { AgendaTemplatesModule } from './modules/calendar/agenda-templates.module.js';
 import { CalendarGridModule } from './modules/calendar/grid.controller.js';
 import { OccurrenceOverrideModule } from './modules/calendar/occurrence-override.module.js';
 import { MeetingRsvpModule } from './modules/calendar/rsvp.module.js';
@@ -371,6 +372,10 @@ export class AppModule {
         // table, in its own module beside `CalendarModule` so the sibling calendar slices stay
         // file-disjoint (each registers here rather than all editing `calendar.module.ts`).
         MeetingAgendaModule.register(),
+        // CAL agenda templates (x314). Reusable meeting agenda templates (name + ordered items) and
+        // an apply action that seeds a meeting's item store idempotently, in its own module beside
+        // `MeetingAgendaModule` so the sibling calendar slices stay file-disjoint.
+        AgendaTemplatesModule.register(),
         // CAL week/month grid (x212). A read-only grid over the same `meetings` table plus the
         // `meeting_series` recurrence rules, in its own module beside `MeetingAgendaModule` so the
         // sibling calendar slices stay file-disjoint. Its `CalendarGridModule` is exported from the

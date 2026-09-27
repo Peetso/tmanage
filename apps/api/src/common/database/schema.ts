@@ -728,6 +728,43 @@ export const meetingOccurrenceOverrides = mysqlTable(
   ],
 );
 
+/** One ordered agenda item in a template: a short title and its position in the list. */
+export interface MeetingAgendaTemplateItem {
+  readonly title: string;
+  /** 0-based position; the application assigns it from the item's index in the ordered list. */
+  readonly position: number;
+}
+
+/**
+ * CAL agenda templates (x314). A reusable meeting agenda — a `name` and an ordered list of items
+ * (`items_json`, {@link MeetingAgendaTemplateItem}[]) — that a member applies to a meeting to seed
+ * its agenda items idempotently.
+ *
+ * Org-scoped, NOT project-owned (like `meeting_series` 0043 and `work_forms` 0052): a template names
+ * no project, so it is read/written behind `meeting.read`/`meeting.write` at the tenant level with no
+ * project relation. Applying one seeds the meeting's existing per-meeting item store (`meeting_notes`
+ * 0033, kind `note`) — this table holds no per-meeting row and no meeting foreign key. Created,
+ * listed, edited (idempotent PUT) and removed this slice, so `updated_at` tracks the last edit and
+ * the 0182 BEFORE UPDATE trigger pins the immutable identity (as `saved_views` 0034).
+ * `0182_meeting_agenda_templates.sql` is the source of truth; this is its typed mirror.
+ */
+export const meetingAgendaTemplates = mysqlTable(
+  'meeting_agenda_templates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    itemsJson: json('items_json').$type<readonly MeetingAgendaTemplateItem[]>().notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_agenda_templates_org_id').on(table.organizationId, table.id),
+    index('ix_meeting_agenda_templates_org_name').on(table.organizationId, table.name, table.id),
+  ],
+);
+
 /** One remembered filter: a field name and the value the saved view pins it to. */
 export interface SavedViewFilter {
   readonly field: string;
@@ -5018,6 +5055,7 @@ export const TABLES = {
   meeting_rsvps: meetingRsvps,
   meeting_series: meetingSeries,
   meeting_occurrence_overrides: meetingOccurrenceOverrides,
+  meeting_agenda_templates: meetingAgendaTemplates,
   saved_views: savedViews,
   saved_searches: savedSearches,
   saved_context: savedContext,
@@ -5130,6 +5168,7 @@ export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type MeetingRsvpRow = typeof meetingRsvps.$inferSelect;
 export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$inferSelect;
+export type MeetingAgendaTemplateRow = typeof meetingAgendaTemplates.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type SavedSearchRow = typeof savedSearches.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
