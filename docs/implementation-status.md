@@ -14711,3 +14711,25 @@ routed `/resources/[slug]`) are tenant-free public screens (skip link, one `<mai
 (`resources.controller.test.ts`): the index is stable and body-less, a known slug returns its body,
 and an unknown or traversal-shaped slug is a 404 — all with no session and no capability;
 `marketing-resources.test.tsx` proves both screens render and are axe-clean plus the not-found path.
+## 2026-09-27 — x188 · Public legal pages (terms + privacy), module 1
+
+**FEAT (public, no cap, no tenant, no table).** `38-MODULE-MAP` §Public & trust site listed
+terms/privacy as absent. New `GET /v1/public/site/legal/:doc` (`legal.controller.ts`, `@Public()`),
+serving deterministic code-defined copy from the existing `PublicContentService` (`legal(doc)`), with
+a frozen `effectiveDate` — no database, no session, no organization, no capability, and
+`capabilities.ts` untouched.
+
+**Security line — the `:doc` allowlist.** `:doc` is narrowed against the two-value union
+`terms | privacy` in the service; anything else returns `undefined` and the controller answers 404,
+so an arbitrary segment never indexes the content map and the key set cannot be enumerated. Proved in
+`legal.controller.test.ts` (no DB): terms and privacy each return a stable payload with an effective
+date to an anonymous, capability-less caller; a second call is identical; `home`, `cookies`, `TERMS`,
+`terms.json` and `__proto__` are each 404.
+
+**Surfaces.** `PublicLegalView` (`public-content.service.ts`) is a live `Exact` pair with the web's
+`PublicLegalView` (`apps/web/src/lib/api/public-legal.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`MarketingLegalScreen` (`apps/web/src/components/screens/MarketingLegalScreen.tsx`), routed at
+`/legal/terms` and `/legal/privacy`, renders a title, effective date, an in-page anchor nav and the
+long-form sections with its own landmarks (skip link, one `<main>`, one `<h1>`, labelled `<nav>`);
+proved axe-clean in `apps/web/tests/legal.test.tsx`. Deferred: no new table (static content, registry
+N/A).

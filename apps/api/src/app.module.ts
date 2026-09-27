@@ -299,6 +299,9 @@ export class AppModule {
         // Public & trust site (x159). Also serves `GET /v1/public/site/status`, `@Public()`, over the
         // GLOBAL `incidents` table (0060) — resolves no tenant and asks for no capability; folded into
         // the same PublicSiteModule.
+        // x188. Also serves `GET /v1/public/site/legal/:doc` (terms/privacy), `@Public()`, deterministic
+        // code-defined copy from the same PublicContentService — no table, no tenant, no capability;
+        // `:doc` is a two-value allowlist so an arbitrary segment is a 404.
         PublicSiteModule.register(),
         // x187. Module 1, the public resources/guides surface — `GET /v1/public/site/resources` and
         // `…/resources/:slug`, both `@Public()`: no session, no tenant, no capability. Deterministic,
