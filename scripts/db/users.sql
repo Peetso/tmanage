@@ -605,6 +605,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`person_capacity`   TO 'tmanage_app'@'
 -- manager in place), and clearing a member's manager DELETEs the row. The 0095 trigger pins
 -- organization_id/member_id immutable for every credential besides; reads use the database-wide SELECT.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`member_reporting_lines` TO 'tmanage_app'@'%';
+-- Member availability / out-of-office windows (x218, 0096). **INSERT, DELETE** — a window is added
+-- (INSERT) and removed (DELETE), and read through the database-wide SELECT above. No UPDATE: a member
+-- edits a window by delete-and-add, and the 0096 trigger refuses any amendment for every credential
+-- besides, so a re-date slice adds UPDATE with the code that writes it. A removed window leaves no
+-- history to protect, so DELETE is the right grant here (the person_skills posture).
+GRANT INSERT, DELETE         ON `tmanage`.`member_availability` TO 'tmanage_app'@'%';
 -- People member skills (x172, migration 0070). **INSERT, DELETE** — a skill is added (INSERT) and
 -- removed (DELETE), and read through the database-wide SELECT. No UPDATE: a re-label is a delete and
 -- re-add, and the 0070 trigger pins organization_id/membership_id/label immutable for every

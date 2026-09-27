@@ -87,6 +87,8 @@ export const PERSON_ALLOCATIONS_REPOSITORY = Symbol.for('tmanage.PersonAllocatio
 export const PERSON_CAPACITY_REPOSITORY = Symbol.for('tmanage.PersonCapacityRepository');
 /** People reporting lines / org chart (x217). The tenant-scoped per-member manager repository. */
 export const REPORTING_LINES_REPOSITORY = Symbol.for('tmanage.ReportingLinesRepository');
+/** Member availability (x218). The tenant-scoped per-member out-of-office window repository. */
+export const MEMBER_AVAILABILITY_REPOSITORY = Symbol.for('tmanage.MemberAvailabilityRepository');
 /** Team capacity heatmap (x193). The org-level read service that folds capacity × allocations. */
 export const CAPACITY_HEATMAP_SERVICE = Symbol.for('tmanage.CapacityHeatmapService');
 export const PERSON_SKILLS_REPOSITORY = Symbol.for('tmanage.PersonSkillsRepository');
