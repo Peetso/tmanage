@@ -194,6 +194,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // recurrence rule, and an unscoped `SELECT ... FROM meeting_series` would be every studio's
   // calendar rules on the server. The guard must scope its reads and its writes.
   meeting_series: 'organization_id',
+  // CAL per-occurrence override (x213). Tenant-owned and org-scoped: an override decorates one
+  // studio's series occurrence, and an unscoped `SELECT ... FROM meeting_occurrence_overrides` would
+  // be every studio's calendar exceptions on the server. The guard must scope its reads and writes.
+  meeting_occurrence_overrides: 'organization_id',
   // WK-08 (x107). Tenant-owned: a saved view belongs to a studio and a person, and an unscoped
   // `SELECT ... FROM saved_views` would be every studio's saved Work views on the server. The
   // guard must scope its reads and its writes.

@@ -95,6 +95,9 @@ export const MEETING_ATTENDEES_REPOSITORY = Symbol.for('tmanage.MeetingAttendees
 export const MEETING_ATTENDEES_SERVICE = Symbol.for('tmanage.MeetingAttendeesService');
 export const MEETING_SERIES_REPOSITORY = Symbol.for('tmanage.MeetingSeriesRepository');
 export const MEETING_SERIES_SERVICE = Symbol.for('tmanage.MeetingSeriesService');
+export const MEETING_OCCURRENCE_OVERRIDE_SERVICE = Symbol.for(
+  'tmanage.MeetingOccurrenceOverrideService',
+);
 /** DOC-01 (x91). The docs module's document read/write. */
 export const DOCUMENTS_REPOSITORY = Symbol.for('tmanage.DocumentsRepository');
 export const DOCUMENTS_SERVICE = Symbol.for('tmanage.DocumentsService');

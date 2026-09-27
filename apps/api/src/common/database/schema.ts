@@ -530,6 +530,9 @@ export const meetingAttendees = mysqlTable(
 
 export const MEETING_SERIES_FREQ = ['daily', 'weekly', 'monthly'] as const;
 
+/** The per-occurrence override kinds (x213): a moved occurrence or a cancelled one. */
+export const MEETING_OCCURRENCE_OVERRIDE_STATUS = ['moved', 'cancelled'] as const;
+
 /**
  * CAL recurrence (x129). A recurring meeting *series* — a rule, not an event: a title, a recurrence
  * `freq`, an every-N `interval` and an optional end date `until`.
@@ -559,6 +562,49 @@ export const meetingSeries = mysqlTable(
   (table) => [
     uniqueIndex('uq_meeting_series_org_id').on(table.organizationId, table.id),
     index('ix_meeting_series_org_id_created').on(table.organizationId, table.id),
+  ],
+);
+
+/**
+ * CAL per-occurrence override (x213). One row per overridden occurrence of a recurring series
+ * (`meeting_series`, 0043): a `cancelled` occurrence the expansion drops, or a `moved` occurrence the
+ * expansion replaces with `newDate` (and an optional `newStartTime`/`newTitle`).
+ *
+ * Org-scoped like its parent (a series names no project), read/written behind
+ * `meeting.read`/`meeting.write`. Keyed by the ORIGINAL occurrence date so the merge over the base
+ * expansion is deterministic — exactly one override per (series, original date). `POST` upserts and
+ * `DELETE` removes, so unlike the series this row carries an `updatedAt`. The composite foreign key
+ * (organization_id, series_id) → meeting_series binds an override to the same tenant as its series
+ * (ADR-0001 layer 1). `0091_meeting_occurrence_overrides.sql` is the source of truth; this mirrors it.
+ * `new_start_time` is `TIME`; the property is `newStartTime`.
+ */
+export const meetingOccurrenceOverrides = mysqlTable(
+  'meeting_occurrence_overrides',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    seriesId: char('series_id', { length: 36 }).notNull(),
+    /** The original occurrence date the rule falls on, `'YYYY-MM-DD'` (0012) — the override's key. */
+    occurrenceDate: date('occurrence_date', { mode: 'string' }).notNull(),
+    status: mysqlEnum('status', MEETING_OCCURRENCE_OVERRIDE_STATUS).notNull(),
+    /** For a `moved` override: the new calendar date, `'YYYY-MM-DD'`, or `null`. */
+    newDate: date('new_date', { mode: 'string' }),
+    /** For a `moved` override: an optional new time-of-day, `'HH:MM:SS'`, or `null`. */
+    newStartTime: time('new_start_time'),
+    /** For a `moved` override: an optional new title, or `null`. */
+    newTitle: varchar('new_title', { length: 300 }),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_occurrence_overrides_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_meeting_occurrence_overrides_series_date').on(
+      table.organizationId,
+      table.seriesId,
+      table.occurrenceDate,
+    ),
+    index('ix_meeting_occurrence_overrides_org_series').on(table.organizationId, table.seriesId),
   ],
 );
 
@@ -3479,6 +3525,7 @@ export const TABLES = {
   meeting_notes: meetingNotes,
   meeting_attendees: meetingAttendees,
   meeting_series: meetingSeries,
+  meeting_occurrence_overrides: meetingOccurrenceOverrides,
   saved_views: savedViews,
   saved_context: savedContext,
   project_updates: projectUpdates,
@@ -3558,6 +3605,7 @@ export type ProjectRiskRow = typeof projectRisks.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
+export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
