@@ -43,6 +43,9 @@ export const PROJECT_RISKS_SERVICE = Symbol.for('tmanage.ProjectRisksService');
 /** FEAT: Billing invoices (x179). The invoice-history read surface and its repository. */
 export const INVOICES_REPOSITORY = Symbol.for('tmanage.InvoicesRepository');
 export const INVOICES_SERVICE = Symbol.for('tmanage.InvoicesService');
+/** FEAT: Billing invoice line items (x225). The per-invoice line read surface and its repository. */
+export const INVOICE_LINE_ITEMS_REPOSITORY = Symbol.for('tmanage.InvoiceLineItemsRepository');
+export const INVOICE_LINE_ITEMS_SERVICE = Symbol.for('tmanage.InvoiceLineItemsService');
 export const INVITATIONS_REPOSITORY = Symbol.for('tmanage.InvitationsRepository');
 export const INVITATIONS_SERVICE = Symbol.for('tmanage.InvitationsService');
 /** ADM-12/13 (x121). Member offboarding — the access-impact preview and the offboard execution. */

@@ -380,6 +380,11 @@ GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'
 -- DELETE are withheld — there is no invoice mutation route to grant a statement for, per this
 -- file's rule that a grant names a statement that exists. A provider-driven billing run that writes
 -- invoices (Needs-Peter) adds the grant it needs with the code that writes it.
+-- x225 (0099) invoice_line_items. Same rule as its parent `invoices`: **NO write grant at all**, and
+-- the absence is the mechanism. The per-invoice line read is the only endpoint; reading is the
+-- database-wide SELECT above. Rows are produced by the subscription lifecycle or the seed, not by a
+-- request under this credential, so INSERT/UPDATE/DELETE are withheld — the provider-driven billing
+-- run that writes lines (Needs-Peter) adds the grant with the code that writes it.
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

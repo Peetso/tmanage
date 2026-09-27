@@ -1536,6 +1536,40 @@ export const invoices = mysqlTable(
   ],
 );
 
+/**
+ * FEAT: Billing & plan management (module 19) — per-invoice line-item detail (x225). A tenant-scoped,
+ * read-only child of {@link invoices}: one billed line — a description, a quantity, a per-unit price
+ * and a line total, all in integer minor units — carrying a stable display `position`. Rows are
+ * produced by the subscription lifecycle or the seed; this slice reads them (there is no line
+ * mutation route, and the runtime credential is granted no write). The summed `amountCents` of an
+ * invoice's lines reconciles to the header's stored total. `0099_invoice_line_items.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const invoiceLineItems = mysqlTable(
+  'invoice_line_items',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    invoiceId: char('invoice_id', { length: 36 }).notNull(),
+    description: varchar('description', { length: 255 }).notNull(),
+    // Integer, never a float.
+    quantity: int('quantity', { unsigned: true }).notNull(),
+    // Integer minor units, never a float — a billing total must be exact.
+    unitAmountCents: bigint('unit_amount_cents', { mode: 'number', unsigned: true }).notNull(),
+    amountCents: bigint('amount_cents', { mode: 'number', unsigned: true }).notNull(),
+    position: int('position', { unsigned: true }).notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_invoice_line_items_org_id').on(table.organizationId, table.id),
+    index('ix_invoice_line_items_org_invoice').on(
+      table.organizationId,
+      table.invoiceId,
+      table.position,
+    ),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2368,6 +2402,7 @@ export const TABLES = {
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
   invoices: invoices,
+  invoice_line_items: invoiceLineItems,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2414,6 +2449,7 @@ export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
 export type InvoiceRow = typeof invoices.$inferSelect;
+export type InvoiceLineItemRow = typeof invoiceLineItems.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;

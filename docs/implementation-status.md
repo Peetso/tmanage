@@ -13952,3 +13952,36 @@ renders the history table and a detail drawer. Proved database-free with the rea
 (`invoices.controller.test.ts`): list newest-first with integer-cent amounts, detail by id with line
 items, a cross-tenant/unknown id is a 404 before any capability check, and a caller without
 `org.manage` is a 403.
+
+## x225 — Billing invoice line items (Billing module 19)
+
+**What shipped.** The per-invoice line breakdown: `GET /v1/organizations/:orgSlug/billing/invoices/:invoiceId/lines`
+behind `org.manage` — the capability x179's sibling billing reads reuse (DIVERGENCE AUTH-16; no
+`capabilities.ts` edit). x179 built the invoice header history; this slice promotes the breakdown to
+a durable, queryable child table so the lines have their own tenant-scoped read and their summed
+total can be reconciled against the stored header. Read-only: lines are produced by the subscription
+lifecycle or the seed, so there is no mutation route and the runtime credential is granted no write
+on the table. Generating real invoices and their lines from a payment provider is Needs-Peter.
+
+**Known-trap order.** `invoiceId` is resolved tenant-scoped _first_ (against `invoices`), so an
+unknown or cross-tenant id is a 404 before the capability check — a probe learns nothing about
+another tenant's invoices. Only then is `org.manage` authorized (403 for a member without it). Money
+is integer minor units throughout (`amountCents`, `unitAmountCents`, `BIGINT UNSIGNED`), never a
+float; when stored lines exist and their summed `amountCents` does not equal the header total the
+read faults 500 rather than serving a wrong total.
+
+**Registration.** The new tenant table `invoice_line_items` is registered in all four places —
+`schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` (no write grant; read is the
+database-wide SELECT), and the on-disk migration `0099_invoice_line_items.sql` the readdir migrator
+applies. `(organization_id, invoice_id)` references x179's `invoices (organization_id, id)` composite
+key; a `BEFORE UPDATE` trigger pins `organization_id`/`invoice_id` immutable.
+
+**Surfaces.** `InvoiceLineItemView` and `InvoiceLinesView` (`invoice-line-items.controller.ts`) are
+live `Exact` pairs with the web's `InvoiceLineItem`/`InvoiceLines`
+(`apps/web/src/lib/api/invoice-line-items.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`InvoiceLineItemsScreen` (`apps/web/src/components/screens/InvoiceLineItemsScreen.tsx`), routed at
+`/[orgSlug]/billing/invoices/[invoiceId]/lines`, renders the line table and its reconciled total.
+Proved database-free with the real `authorize` (`invoice-line-items.controller.test.ts`): list in
+order with a summed total reconciling to the header (integer minor units), a cross-tenant/unknown id
+is a 404 before any capability check, a caller without `org.manage` is a 403, and an unreconciled
+stored breakdown faults 500.
