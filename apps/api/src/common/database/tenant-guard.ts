@@ -491,6 +491,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them,
   // and tenant-isolation.db.test.ts enforces the entry.
   home_widget_prefs: 'organization_id',
+  // Home quick links (x273, migration 0143). Tenant-owned: a row is one membership's personal My Day
+  // shortcut, and an unscoped `SELECT ... FROM home_quick_links` would be every member's links across
+  // every studio on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
+  // key every tenant table has, so the guard scopes its reads and its writes; the layer-3 guard fails
+  // OPEN on an unregistered table, so this entry is what scopes them, and tenant-isolation.db.test.ts
+  // enforces the entry.
+  home_quick_links: 'organization_id',
 });
 
 /**
