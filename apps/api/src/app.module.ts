@@ -57,6 +57,7 @@ import { PublicChangelogModule } from './modules/public-site/changelog.module.js
 import { ContactModule } from './modules/public-site/contact.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
+import { WebhooksModule } from './modules/automations/webhooks.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -311,6 +312,10 @@ export class AppModule {
         // app. Behind `org.manage`; a self-contained module so the Automations slices stay
         // file-disjoint. No secrets are stored (secret exchange is Needs-Peter).
         IntegrationDirectoryModule.register(),
+        // Automations module 17 (x166). Outbound webhook endpoints (register/list/disable) behind
+        // `org.manage`, over the new `webhook_endpoints` table. Self-contained and file-disjoint;
+        // delivery/dispatch to third parties is a later slice (external egress, Needs-Peter).
+        WebhooksModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

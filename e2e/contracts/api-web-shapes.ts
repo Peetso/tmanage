@@ -130,6 +130,7 @@ import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
 import type { IntegrationAppView as ApiIntegrationAppView } from '../../apps/api/src/modules/automations/directory.controller.js';
 import type { IntegrationConnectionView as ApiIntegrationConnectionView } from '../../apps/api/src/modules/automations/directory.controller.js';
+import type { WebhookEndpointView as ApiWebhookEndpointView } from '../../apps/api/src/modules/automations/webhooks.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -174,6 +175,7 @@ import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../.
 import type { WorkflowRunSummary as WebWorkflowRunSummary } from '../../apps/web/src/lib/api/automations';
 import type { IntegrationAppView as WebIntegrationAppView } from '../../apps/web/src/lib/api/integration-directory';
 import type { IntegrationConnectionView as WebIntegrationConnectionView } from '../../apps/web/src/lib/api/integration-directory';
+import type { WebhookEndpointSummary as WebWebhookEndpointSummary } from '../../apps/web/src/lib/api/webhooks';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -654,6 +656,13 @@ type _integrationConnection = Assert<
   Exact<ApiIntegrationConnectionView, WebIntegrationConnectionView>
 >;
 type _integrationApp = Assert<Exact<ApiIntegrationAppView, WebIntegrationAppView>>;
+ * Automations webhooks (x166). `WebhookEndpointView` (`GET`/`POST …/automations/webhooks` and the
+ * `PATCH …/webhooks/:id` response) — one org-scoped outbound webhook endpoint. Paired with a live web
+ * consumer: `WebhookEndpointsScreen` reads exactly this response to list endpoints and toggle one.
+ * Neither side carries `organizationId` or any secret field — the signing secret is stored hashed and
+ * never projected — so this is a real `Exact` pair.
+ */
+type _webhookEndpoint = Assert<Exact<ApiWebhookEndpointView, WebWebhookEndpointSummary>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

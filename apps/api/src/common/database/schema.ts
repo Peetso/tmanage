@@ -1780,6 +1780,24 @@ export const integrationConnections = mysqlTable(
   ],
 );
 
+export const webhookEndpoints = mysqlTable(
+  'webhook_endpoints',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    url: varchar('url', { length: 2048 }).notNull(),
+    eventKind: varchar('event_kind', { length: 64 }).notNull(),
+    secretHash: char('secret_hash', { length: 64 }).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_webhook_endpoints_org_id').on(table.organizationId, table.id),
+    index('ix_webhook_endpoints_org_created').on(table.organizationId, table.createdAt, table.id),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2760,6 +2778,7 @@ export const TABLES = {
   workflow_templates: workflowTemplates,
   workflow_runs: workflowRuns,
   integration_connections: integrationConnections,
+  webhook_endpoints: webhookEndpoints,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2810,6 +2829,7 @@ export type WorkFormRow = typeof workForms.$inferSelect;
 export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
 export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
 export type IntegrationConnectionRow = typeof integrationConnections.$inferSelect;
+export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;
