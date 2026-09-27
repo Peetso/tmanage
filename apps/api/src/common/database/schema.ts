@@ -5406,10 +5406,49 @@ export const requestTriage = mysqlTable(
 export type RequestTriageRow = typeof requestTriage.$inferSelect;
 export type NewRequestTriageRow = typeof requestTriage.$inferInsert;
 
+/**
+ * Home quick links (x273, migration 0143, module 4 Home / My Day).
+ *
+ * A member's own small, ordered list of personal shortcuts on My Day — each a human `label` and a
+ * relative in-app `path`. Keyed by `(organization_id, id)` and scoped to `membership_id` (like
+ * `home_pinned_items` and `home_widget_prefs`) rather than the global user, because a quick link is
+ * scoped to who the caller is *in this studio* and never leaves the tenant. `position` gives the
+ * member's chosen order — a dense `0..n-1` sequence reassigned on reorder — with `created_at`
+ * breaking ties. The application validates `path` is a leading-slash, scheme-less, same-origin path
+ * (an open-redirect guard) and `label` is non-empty before storing, and caps the count; a malformed
+ * body is a 400 and nothing is written.
+ */
+export const homeQuickLinks = mysqlTable(
+  'home_quick_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 200 }).notNull(),
+    path: varchar('path', { length: 512 }).notNull(),
+    position: int('position', { unsigned: true }).notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_home_quick_links_org_id').on(table.organizationId, table.id),
+    // The listing/order index: one member's links in position order, id breaking ties.
+    index('ix_home_quick_links_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.position,
+      table.id,
+    ),
+  ],
+);
+
+export type HomeQuickLinkRow = typeof homeQuickLinks.$inferSelect;
+
 export const TABLES = {
   focus_blocks: focusBlocks,
   inbox_flags: inboxFlags,
   request_triage: requestTriage,
+  home_quick_links: homeQuickLinks,
   home_widget_prefs: homeWidgetPrefs,
   inbox_saved_filters: inboxSavedFilters,
   glossary_terms: glossaryTerms,

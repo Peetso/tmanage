@@ -830,6 +830,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`inbox_flags`      TO 'tmanage_app'@'%
 -- no "un-triage" that removes it. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`request_triage`     TO 'tmanage_app'@'%';
 
+-- Home quick links (x273, module 4 Home / My Day). **INSERT, UPDATE, DELETE** — a member adds a
+-- quick link (INSERT), reorders their list in place (UPDATE of `position`) and removes one (DELETE).
+-- SELECT is the database-wide grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`home_quick_links` TO 'tmanage_app'@'%';
+
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
 -- successful verification. `user_recovery_codes` needs UPDATE to spend a code and to revoke
