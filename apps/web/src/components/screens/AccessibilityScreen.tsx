@@ -58,7 +58,7 @@ function applyToShell(settings: A11yPreferencesView): void {
 }
 
 /**
- * **Accessibility preferences (module 20 Preferences & accessibility, A11Y-183, x183).**
+ * **Accessibility preferences (module 20 Preferences & accessibility, A11Y, x183).**
  *
  * `38-MODULE-MAP` §Preferences & accessibility ("font size / reduced motion / high contrast"). The
  * audit found the a11y baselines present but the user-facing controls absent; this is the screen that

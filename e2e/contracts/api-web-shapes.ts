@@ -693,6 +693,8 @@ type _integrationApp = Assert<Exact<ApiIntegrationAppView, WebIntegrationAppView
  * never projected — so this is a real `Exact` pair.
  */
 type _webhookEndpoint = Assert<Exact<ApiWebhookEndpointView, WebWebhookEndpointSummary>>;
+
+/**
  * Automations & integrations (x164). `WorkflowRunHistoryView` (`GET …/automations/runs`, list element)
  * — one run in the org-scoped, newest-first run history. Paired with a live web consumer:
  * `AutomationRunHistoryScreen` reads exactly this response to list runs. `detail` is deliberately absent
@@ -921,6 +923,8 @@ type _workspace = Assert<Exact<ApiWorkspaceView, WebWorkspaceSummary>>;
  */
 type _publicIncident = Assert<Exact<ApiPublicIncidentView, WebPublicIncidentView>>;
 type _publicStatus = Assert<Exact<ApiPublicStatusView, WebPublicStatusView>>;
+
+/**
  * Platform states (x185). `GET /public/site/maintenance` — the public maintenance / degraded-mode
  * banner read, and the `MaintenanceWindowView` the admin schedule (`POST …/admin/maintenance`)
  * returns. ISO-string dates and the `active` flag on the wire; the `severity` union is the same on

@@ -5,7 +5,7 @@ import { AccessibilityScreen } from '../../../../components/screens/Accessibilit
 import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
 
 /**
- * **Accessibility preferences (module 20, A11Y-183, x183).**
+ * **Accessibility preferences (module 20, A11Y, x183).**
  *
  * The member's own font-size / reduced-motion / high-contrast controls, at
  * `/{orgSlug}/settings/accessibility`. The organization name is still a fixture, the reason every

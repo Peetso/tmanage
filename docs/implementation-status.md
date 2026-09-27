@@ -249,6 +249,7 @@ notifications slices stay file-disjoint. Deferred: per-kind opt-out (x152), real
 No DB test / no new e2e journey per pass-20 rules (the chain owns both).
 
 ---
+
 ## 2026-09-27 — A11Y-183: accessibility preferences (module 20, slice x183)
 
 Status: **implemented** (unit-tested; DB round-trip and e2e deferred to the chain per pass-21 rules).
@@ -14563,6 +14564,7 @@ real `authorize` (`schedules.controller.test.ts`): a valid spec writes a row wit
 404, and a caller without `org.manage` is a 403; `next-run.ts`'s pure computation is proved directly.
 Deferred to worker infrastructure (Needs-Peter): the dispatcher that fires runs, and a per-schedule
 enable/disable toggle endpoint.
+
 ## Automations & integrations — run history (list + detail read) (x164, module 17)
 
 `38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Automations & integrations names run history, and
@@ -14593,6 +14595,7 @@ the real `authorize` (`history.controller.test.ts`): the list is org-scoped newe
 status filter is a 400, an allowlisted filter narrows the list, a role without `org.manage` (org_admin)
 is a 403 on both routes, one run's detail reads back, and a cross-tenant/unknown run id is a 404 resolved
 before authorize. Deferred to the chain: the DB round-trip and an e2e journey.
+
 ## Platform states — the standard state matrix as shared components (x184, module 21)
 
 **What landed.** `38-MODULE-MAP` §Platform states asks for one consistent set of state views —
@@ -14632,6 +14635,7 @@ every state view is axe clean. Deferred (recorded, not implied by a green run): 
 arithmetically in `tests/contrast.test.ts`). The colocated test path the brief named
 (`components/state/StateScreens.test.tsx`) is under `apps/web/tests/` instead, because `vitest.config`
 includes only `tests/**`.
+
 ## Platform maintenance banner — Platform states, module 21 (x185)
 
 **What landed.** Platform states was Partial: no maintenance / degraded-mode state existed

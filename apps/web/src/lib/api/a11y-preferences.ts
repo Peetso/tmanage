@@ -1,7 +1,7 @@
 import type { ApiClient } from './client';
 
 /**
- * A11Y-183 accessibility preferences (module 20, x183) — the caller's own font-scale / reduced-motion
+ * A11Y accessibility preferences (module 20, x183) — the caller's own font-scale / reduced-motion
  * / high-contrast settings, read and replaced. Behind `work.read` on the server (the internal-read
  * capability NOTIF-001's preferences reuse); a caller without it gets the ordinary 403 the shared
  * client turns into an error. The tenant is the slug in the path resolved against the caller's
