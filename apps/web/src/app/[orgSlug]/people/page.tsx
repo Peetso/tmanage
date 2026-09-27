@@ -1,31 +1,26 @@
 'use client';
 
 import { use } from 'react';
-import { PlannedInternalScreen } from '../../../components/screens/PlannedInternalScreen';
+import { PeopleDirectoryScreen } from '../../../components/screens/PeopleDirectoryScreen';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
 
 /**
- * **People** — the seventh destination on the internal rail (`22-SCREEN-BY-SCREEN` §1).
+ * **People** — the People & capacity destination on the internal rail (`22-SCREEN-BY-SCREEN` §1),
+ * module 14 / audit #4.
  *
- * A member directory is the surface `D16` needs so ownership can be assigned by name rather
- * than a pasted id, and no endpoint returns one yet; no ticket schedules the screen either, so
- * this route names none. It resolves to the shell — rail reachable, destination named — and
- * says the screen is not built.
+ * This route was the last true `PlannedInternalScreen` stub: a named destination the rail drew
+ * and could not open with anything but "not built yet". It now resolves to the member directory —
+ * everyone in the organization, by name, with their role, status and project count — served by
+ * `GET /v1/organizations/:orgSlug/people` behind `work.read`. The offboarding write boundary keeps
+ * its own sub-route at `/people/offboarding`.
  */
 export default function PeoplePage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
 
   return (
-    <PlannedInternalScreen
+    <PeopleDirectoryScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
-      activeNavigationId="people"
-      title="People"
-      description="Everyone in your organization."
-    >
-      People is named in the navigation but has no screen and no scheduled backlog ticket yet, and
-      no endpoint returns a member directory. This page keeps the destination reachable rather than
-      answering it with a 404.
-    </PlannedInternalScreen>
+    />
   );
 }

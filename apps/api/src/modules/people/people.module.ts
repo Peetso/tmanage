@@ -9,16 +9,22 @@ import { PersonAllocationsRepository } from './allocations.repository.js';
 import { PersonAllocationsController } from './allocations.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
+import { PeopleDirectoryRepository } from './directory.repository.js';
+import { PeopleDirectoryController } from './directory.controller.js';
 
 /**
- * PEOPLE / module 14 (x171). The people module — a project's people allocations (assign, list).
+ * PEOPLE / module 14.
  *
- * The controller carries the orchestration itself (resolve both ids tenant-scoped, `authorize()`,
- * validate, one-active-per-pair, write), so this module wires three stateless repositories under their
- * tokens: the allocations repository, plus a `ProjectsRepository` and a `MembershipsRepository` to
- * resolve the two ids the request names inside the tenant before the write (so an unknown or
- * cross-tenant id is a 404, not a foreign-key 500). Each is stateless and holds no connection, so a
- * module-local instance is correct even where another module also provides the same token.
+ * (x171) People allocations (assign, list). The controller carries the orchestration itself (resolve
+ * both ids tenant-scoped, `authorize()`, validate, one-active-per-pair, write), so this module wires
+ * three stateless repositories under their tokens: the allocations repository, plus a
+ * `ProjectsRepository` and a `MembershipsRepository` to resolve the two ids the request names inside
+ * the tenant before the write (so an unknown or cross-tenant id is a 404, not a foreign-key 500).
+ *
+ * (x168) People & capacity directory — the org member directory with a per-person project count,
+ * behind the reused `work.read`. Read-only over `memberships` + `users` + `project_memberships`; its
+ * own stateless `PeopleDirectoryRepository`, resolving `TENANT_DATABASE` for the read. No new table.
+ * Both surfaces share this one module so the People slices stay file-disjoint in `app.module.ts`.
  */
 @Module({})
 export class PeopleModule {
@@ -35,11 +41,20 @@ export class PeopleModule {
       provide: MEMBERSHIPS_REPOSITORY,
       useFactory: () => new MembershipsRepository(),
     };
+    const directoryRepository: Provider = {
+      provide: PeopleDirectoryRepository,
+      useValue: new PeopleDirectoryRepository(),
+    };
 
     return {
       module: PeopleModule,
-      providers: [allocationsRepository, projectsRepository, membershipsRepository],
-      controllers: [PersonAllocationsController],
+      providers: [
+        allocationsRepository,
+        projectsRepository,
+        membershipsRepository,
+        directoryRepository,
+      ],
+      controllers: [PersonAllocationsController, PeopleDirectoryController],
     };
   }
 }
