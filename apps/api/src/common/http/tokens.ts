@@ -42,6 +42,8 @@ export const PROJECT_MILESTONES_SERVICE = Symbol.for('tmanage.ProjectMilestonesS
 /** SEC / Portal milestone lifecycle (x202) — edit and complete an existing milestone. */
 export const MILESTONE_LIFECYCLE_SERVICE = Symbol.for('tmanage.MilestoneLifecycleService');
 export const PROJECT_RISKS_SERVICE = Symbol.for('tmanage.ProjectRisksService');
+/** SEC / Client portal access log (x237) — record client access + the internal audit read. */
+export const PORTAL_ACCESS_LOG_SERVICE = Symbol.for('tmanage.PortalAccessLogService');
 /** SEC / Portal update comments (x203). Internal post + read and the client projection. */
 export const UPDATE_COMMENTS_SERVICE = Symbol.for('tmanage.UpdateCommentsService');
 /** FEAT: Billing invoices (x179). The invoice-history read surface and its repository. */

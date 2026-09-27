@@ -20,10 +20,12 @@ import type {
   ClientProjectionRow,
   FileAssetRow,
   FileVersionRow,
+  PortalAccessResourceKind,
   ProjectRow,
   ProjectUpdateRow,
   WorkItemRow,
 } from '../../common/database/schema.js';
+import type { PortalAccessRecorder } from './portal-access-log.controller.js';
 
 /**
  * How many repository pages one portal list may walk while filling a page of readable rows.
@@ -331,7 +333,33 @@ export class PortalService {
      * against it.
      */
     private readonly updates: ProjectUpdatesRepository = new ProjectUpdatesRepository(),
+    /**
+     * SEC / Client portal access log (x237). Optional: when wired, a successful **client** read of a
+     * deliverable or update records one access event. Left undefined in the unit suite and any
+     * caller that does not need the log, so recording is opt-in and a read never depends on it —
+     * recording is best-effort and never breaks or delays the client's read.
+     */
+    private readonly accessRecorder?: PortalAccessRecorder,
   ) {}
+
+  /**
+   * Record a client access event, best-effort. A logging failure must never deny a client the read
+   * that just succeeded, so any error here is swallowed; the record is a side effect, not part of
+   * the read. No-op when no recorder is wired or the caller is not a client principal.
+   */
+  private async recordAccess(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    resourceKind: PortalAccessResourceKind,
+  ): Promise<void> {
+    if (!this.accessRecorder || principal.clientOrganizationId === null) return;
+    try {
+      await this.accessRecorder.record(context, principal, { projectId, resourceKind });
+    } catch {
+      // Best-effort. The client's read has already succeeded; a failed log must not undo it.
+    }
+  }
 
   /**
    * The projects this principal may see through the portal.
@@ -452,6 +480,7 @@ export class PortalService {
     const rows = await this.database.read(context, (runner) =>
       this.projections.listByProject(runner, context, projectId),
     );
+    await this.recordAccess(context, principal, projectId, 'deliverable');
     return rows.map(toDeliverableView);
   }
 
@@ -530,6 +559,7 @@ export class PortalService {
     const rows = await this.database.read(context, (runner) =>
       this.updates.list(runner, context, { projectId, publishedOnly: true, limit }),
     );
+    await this.recordAccess(context, principal, projectId, 'update');
     return rows.map(toUpdateView);
   }
 

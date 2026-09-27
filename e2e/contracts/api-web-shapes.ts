@@ -123,6 +123,7 @@ import type { ProjectMilestoneView as ApiProjectMilestoneView } from '../../apps
 import type { ClientMilestoneView as ApiClientMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { MilestoneEditView as ApiMilestoneEditView } from '../../apps/api/src/modules/clients/milestone-lifecycle.controller.js';
 import type { ProjectRiskView as ApiProjectRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
+import type { PortalAccessLogView as ApiPortalAccessLogView } from '../../apps/api/src/modules/clients/portal-access-log.controller.js';
 import type { ClientRiskView as ApiClientRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
@@ -352,6 +353,7 @@ import type {
   ProjectRisk as WebProjectRisk,
   ClientRisk as WebClientRisk,
 } from '../../apps/web/src/lib/api/portal';
+import type { PortalAccessLogEvent as WebPortalAccessLogEvent } from '../../apps/web/src/lib/api/portal-access-log';
 import type {
   ImportReceipt as WebImportReceipt,
   ImportReceiptRow as WebImportReceiptRow,
@@ -489,6 +491,10 @@ type _updateComment = Assert<Exact<ApiUpdateCommentView, WebUpdateComment>>;
 type _clientUpdateComment = Assert<Exact<ApiClientUpdateCommentView, WebClientUpdateComment>>;
 type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
 type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
+// SEC / Client portal access log (x237): the internal audit read of what a client accessed. The
+// `PortalAccessLogScreen` reads exactly this response, so the pair is Exact. There is no client-facing
+// pair — the log is internal, never projected to a client.
+type _portalAccessLog = Assert<Exact<ApiPortalAccessLogView, WebPortalAccessLogEvent>>;
 type _portalFile = Assert<Exact<ApiPortalFileView, WebPortalFile>>;
 type _portalPerson = Assert<Exact<ApiPortalPersonView, WebPortalPerson>>;
 type _portalWorkItem = Assert<Exact<ApiPortalWorkItemView, WebPortalWorkItem>>;

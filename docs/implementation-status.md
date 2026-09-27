@@ -15714,3 +15714,28 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## Client portal — access log (x237, module 13)
+
+**Status.** Built. On top of the portal read paths (x114 deliverables, CLIENT-003 updates), the
+studio now records what a client accessed. Migration `0109_portal_access_log.sql` adds one
+tenant-scoped, append-only table `portal_access_log` `{project_id, client_member_id, resource_kind,
+accessed_at}`; registered in the four places (`schema.ts` def + `TABLES`, `tenant-guard.ts`
+`TENANT_TABLES`, `scripts/db/users.sql` grant of INSERT only, and the numbered migration file the
+directory-driven migrator applies). The row is immutable at the engine (`BEFORE UPDATE`/`DELETE`
+triggers) and carries nothing sensitive — a fixed `resource_kind` and an instant.
+
+**Surfaces.** A guarded internal `record()` helper (`portal-access-log.controller.ts` +
+`.repository.ts`, in `ClientsModule`) is called from the existing portal read handlers
+(`portal.service.ts` `deliverablesFor`/`updatesFor`) after a successful **client** read; it records a
+client access only (internal previews write nothing), validates the kind against the fixed enum, and
+re-checks the `client_projection.read` relation before the write (best-effort — a logging failure
+never denies the client's read). The internal audit read is `GET
+…/projects/:id/portal-access-log`, behind `project.manage`, resolving the project tenant-scoped before
+authorize (cross-tenant/unmanageable id → 404; a client role → 403 from the guard); newest-first,
+keyset-paged. **The log is internal — there is no `/portal` route to it, so a client can never read
+it.** `PortalAccessLogView` is a live `Exact` pair with `apps/web/src/lib/api/portal-access-log.ts`
+via `e2e/contracts/api-web-shapes.ts`. `PortalAccessLogScreen`
+(`apps/web/src/app/[orgSlug]/projects/[projectId]/portal-access-log/page.tsx`) lists the access events
+with keyset "Load more". No DB test / no new e2e in slice (the chain owns both); the tenant predicate
+and append-only trigger are proven by the chain's isolation and migrator DB suites.

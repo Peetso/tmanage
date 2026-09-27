@@ -463,6 +463,53 @@ export const projectRisks = mysqlTable(
   ],
 );
 
+/**
+ * SEC / Client portal access log (x237). The fixed vocabulary of portal resources whose access is
+ * recorded — the `record()` helper passes one of these literals, never client input. Kept in step
+ * with the `resource_kind` ENUM in `0109_portal_access_log.sql`.
+ */
+export const PORTAL_ACCESS_RESOURCE_KINDS = [
+  'project',
+  'work_item',
+  'deliverable',
+  'deliverable_file',
+  'update',
+] as const;
+export type PortalAccessResourceKind = (typeof PORTAL_ACCESS_RESOURCE_KINDS)[number];
+
+/**
+ * SEC / Client portal access log (x237, migration 0109).
+ *
+ * One row per client access event: the project accessed, the client membership that accessed it,
+ * the kind of resource, and the instant. Recorded by a guarded internal `record()` helper from
+ * within the existing portal read paths, and read by an **internal** audit screen behind
+ * `project.manage` — it is never projected to a client. The row carries nothing sensitive (a fixed
+ * `resource_kind` and a timestamp), and is append-only: `0109`'s triggers refuse every UPDATE and
+ * DELETE, and the runtime credential holds INSERT alone, so there is no edit path. `organization_id`
+ * scopes the tenant and both foreign keys are composite, so an event can only cite a project and a
+ * member of its own tenant. `0109_portal_access_log.sql` is the source of truth; this is its typed
+ * mirror.
+ */
+export const portalAccessLog = mysqlTable(
+  'portal_access_log',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    clientMemberId: char('client_member_id', { length: 36 }).notNull(),
+    resourceKind: mysqlEnum('resource_kind', PORTAL_ACCESS_RESOURCE_KINDS).notNull(),
+    accessedAt: datetime('accessed_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_portal_access_log_org_id').on(table.organizationId, table.id),
+    index('ix_portal_access_log_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.id,
+    ),
+  ],
+);
+
 export const MEETING_NOTE_KINDS = ['note', 'decision'] as const;
 
 /**
@@ -4064,6 +4111,7 @@ export const TABLES = {
   project_update_comments: projectUpdateComments,
   project_milestones: projectMilestones,
   project_risks: projectRisks,
+  portal_access_log: portalAccessLog,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
   search_index: searchIndex,
@@ -4140,6 +4188,7 @@ export type ProjectUpdateRow = typeof projectUpdates.$inferSelect;
 export type ProjectUpdateCommentRow = typeof projectUpdateComments.$inferSelect;
 export type ProjectMilestoneRow = typeof projectMilestones.$inferSelect;
 export type ProjectRiskRow = typeof projectRisks.$inferSelect;
+export type PortalAccessLogRow = typeof portalAccessLog.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type MeetingRsvpRow = typeof meetingRsvps.$inferSelect;
