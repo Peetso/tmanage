@@ -129,6 +129,7 @@ import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modul
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
+import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -145,6 +146,7 @@ import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/h
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/api/policies';
+import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
@@ -666,6 +668,16 @@ type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
  * projection never echoes the tenant id.
  */
 type _orgPolicies = Assert<Exact<ApiOrgPolicyView, WebOrgPolicyView>>;
+
+/**
+ * Access-policy simulation (x196). `PolicySimulationView` (`POST …/policies/simulate`, response) — the
+ * read-only decision the live evaluator reaches for a member/capability/context, with the deciding rule
+ * made explicit. Paired with a live web consumer: `PolicySimulationScreen` reads exactly this response
+ * to render the allow/deny panel. One projection; its `result` object is inlined identically on both
+ * sides, so this pair covers it structurally. Distinct from x174's stored-document `OrgPolicyView`. The
+ * wire projection never echoes the tenant id.
+ */
+type _policySimulation = Assert<Exact<ApiPolicySimulationView, WebPolicySimulationView>>;
 
 /**
  * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and

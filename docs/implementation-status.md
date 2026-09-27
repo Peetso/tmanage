@@ -14247,3 +14247,36 @@ write, a cross-tenant org is a 404 before authorize, and a caller without `org.m
 both routes. A self-contained `AdminPoliciesModule` registered from `app.module.ts` keeps the slice
 file-disjoint from x153's org-settings controller. Deferred to NEXT-SCOPES-13: the role/capability
 editor (ADM-03, blocked) and broader security-policy escalations.
+
+## SEC / Access-policy simulation — module 18 Administration (x196, 2026-09-27)
+
+**What shipped.** The dry-run "can member X do Y?" evaluator the audit named absent (x174 stored
+access policies with no way to test their effect). One route behind `org.manage`:
+`POST /v1/organizations/:orgSlug/policies/simulate`, body `{ memberId, capability, context? }` →
+the decision the live `authorize()` would reach for that member, with the deciding rule (an allow's
+granting role, or a deny's stable code) made explicit. **Read-only** — it opens a read, not a
+transaction, and writes nothing.
+
+**Why it does not lie.** The decision is made by the same `authorize()` the request path uses, over a
+`Principal` assembled from the same `PrincipalRepository.projectScope` the session builder uses
+(`policy-simulate.service.ts`). The service adds no rule of its own; a re-implemented evaluator would
+drift and an administrator would act on a wrong answer. The member's real membership status is read
+from the row (not assumed active), so a suspended member is honestly denied `membership_inactive`.
+
+**Known-trap order.** Every lookup is tenant-scoped before compute: the organization is resolved
+(404, before authorize) and the member is resolved with an `organization_id` predicate (a cross-tenant
+member is a 404, indistinguishable from unknown). The caller's own `org.manage` runs with the real
+`authorize` in the service besides the coarse `@RequireCapability` gate (403); an unknown capability is
+a 400. No new table (pure read/compute), so no registry change and no `capabilities.ts` edit.
+
+**Surfaces.** `PolicySimulationView` (`policy-simulate.service.ts`) is a live `Exact` pair with the
+web's `PolicySimulationView` (`apps/web/src/lib/api/policy-simulate.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `PolicySimulationScreen`
+(`apps/web/src/components/screens/PolicySimulationScreen.tsx`), routed at `/[orgSlug]/policies/simulate`,
+picks a member + capability (+ optional project) and renders the allow/deny explanation. Proved
+database-free with the real `authorize` (`policy-simulate.controller.test.ts`): an owner is allowed
+`org.manage` with the deciding rule named, an ordinary member denied with the code reported, a suspended
+member denied `membership_inactive`, an unknown capability a 400, a missing member a 404, a cross-tenant
+organization a 404 before authorize, and a caller without `org.manage` a 403. A self-contained
+`AdminPolicySimulateModule` registered from `app.module.ts` keeps the slice file-disjoint from x174's
+`AdminPoliciesModule`.
