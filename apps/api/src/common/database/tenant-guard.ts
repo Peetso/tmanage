@@ -325,6 +325,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // carries the `(organization_id, id)` key every tenant table has, so the guard scopes its
   // reads and its writes; tenant-isolation.db.test.ts enforces the entry.
   a11y_preferences: 'organization_id',
+  // Automation workflow conditions (x190, migration 0081). Org-owned: a condition gates a step of one
+  // tenant's template, and an unscoped `SELECT ... FROM workflow_conditions` would be every studio's
+  // branching rules on the server. The layer-3 guard fails OPEN on an unregistered table, so this
+  // entry is what scopes the condition reads and writes; `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has.
+  workflow_conditions: 'organization_id',
 });
 
 /**

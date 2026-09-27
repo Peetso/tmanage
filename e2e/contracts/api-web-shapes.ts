@@ -141,6 +141,7 @@ import type { WebhookEndpointView as ApiWebhookEndpointView } from '../../apps/a
 import type { WorkflowRunHistoryView as ApiWorkflowRunHistoryView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '../../apps/api/src/modules/automations/template-edit.controller.js';
+import type { WorkflowConditionView as ApiWorkflowConditionView } from '../../apps/api/src/modules/automations/conditions.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -195,6 +196,7 @@ import type { WebhookEndpointSummary as WebWebhookEndpointSummary } from '../../
 import type { WorkflowRunHistoryItem as WebWorkflowRunHistoryItem } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '../../apps/web/src/lib/api/automations';
+import type { WorkflowConditionSummary as WebWorkflowConditionSummary } from '../../apps/web/src/lib/api/automations';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -744,6 +746,15 @@ type _workflowRunDetail = Assert<Exact<ApiWorkflowRunDetailView, WebWorkflowRunD
 type _workflowTemplateEdit = Assert<
   Exact<ApiWorkflowTemplateEditView, WebWorkflowTemplateEditView>
 >;
+
+/**
+ * Automations & integrations (x190). `WorkflowConditionView` (`GET`/`POST
+ * …/automations/templates/:id/conditions`, response) — the org-scoped per-step condition that gates a
+ * template's actions. Paired with a live web consumer: `AutomationConditionsScreen` reads exactly this
+ * response to list conditions and drive the add form. `op` is `string` on both sides (the closed set is
+ * enforced server-side), `targetStep` is `number` on both, and `organizationId` is absent on both.
+ */
+type _workflowCondition = Assert<Exact<ApiWorkflowConditionView, WebWorkflowConditionSummary>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit
