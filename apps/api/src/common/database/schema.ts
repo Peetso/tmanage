@@ -542,11 +542,7 @@ export const portalAccessLog = mysqlTable(
   },
   (table) => [
     uniqueIndex('uq_portal_access_log_org_id').on(table.organizationId, table.id),
-    index('ix_portal_access_log_org_project').on(
-      table.organizationId,
-      table.projectId,
-      table.id,
-    ),
+    index('ix_portal_access_log_org_project').on(table.organizationId, table.projectId, table.id),
   ],
 );
 

@@ -185,9 +185,9 @@ describe('MilestoneLinksController link → list → unlink', () => {
 describe('the invariants', () => {
   it('a self-link is a 400 and writes nothing', async () => {
     const { controller, store } = build({});
-    await expect(
-      controller.link(context, owner, M1, { dependsOnMilestoneId: M1 }),
-    ).rejects.toEqual(expect.objectContaining({ status: 400, code: 'validation_failed' }));
+    await expect(controller.link(context, owner, M1, { dependsOnMilestoneId: M1 })).rejects.toEqual(
+      expect.objectContaining({ status: 400, code: 'validation_failed' }),
+    );
     expect(store).toHaveLength(0);
   });
 
@@ -202,9 +202,9 @@ describe('the invariants', () => {
       createdAt: new Date(Date.UTC(2026, 0, 1)),
     } as MilestoneLinkRow;
     const { controller, store } = build({ linksSeed: [seed] });
-    await expect(
-      controller.link(context, owner, M1, { dependsOnMilestoneId: M2 }),
-    ).rejects.toEqual(expect.objectContaining({ status: 400, code: 'validation_failed' }));
+    await expect(controller.link(context, owner, M1, { dependsOnMilestoneId: M2 })).rejects.toEqual(
+      expect.objectContaining({ status: 400, code: 'validation_failed' }),
+    );
     expect(store).toHaveLength(1);
   });
 
@@ -228,9 +228,9 @@ describe('the invariants', () => {
       },
     ] as MilestoneLinkRow[];
     const { controller, store } = build({ linksSeed: seeds });
-    await expect(
-      controller.link(context, owner, M1, { dependsOnMilestoneId: M2 }),
-    ).rejects.toEqual(expect.objectContaining({ status: 400 }));
+    await expect(controller.link(context, owner, M1, { dependsOnMilestoneId: M2 })).rejects.toEqual(
+      expect.objectContaining({ status: 400 }),
+    );
     expect(store).toHaveLength(2);
   });
 });
@@ -238,9 +238,9 @@ describe('the invariants', () => {
 describe('the Known-trap: an unknown or cross-tenant id is a 404, no write, never a 500', () => {
   it('link against an unknown milestone is a 404 and writes nothing', async () => {
     const { controller, store } = build({ milestones: [] });
-    await expect(
-      controller.link(context, owner, M1, { dependsOnMilestoneId: M2 }),
-    ).rejects.toEqual(expect.objectContaining({ status: 404, code: 'not_found' }));
+    await expect(controller.link(context, owner, M1, { dependsOnMilestoneId: M2 })).rejects.toEqual(
+      expect.objectContaining({ status: 404, code: 'not_found' }),
+    );
     expect(store).toHaveLength(0);
   });
 
@@ -248,9 +248,9 @@ describe('the Known-trap: an unknown or cross-tenant id is a 404, no write, neve
     const { controller, store } = build({
       milestones: [milestoneRow(M1), milestoneRow(M2, ORG, OTHER_PROJECT)],
     });
-    await expect(
-      controller.link(context, owner, M1, { dependsOnMilestoneId: M2 }),
-    ).rejects.toEqual(expect.objectContaining({ status: 404 }));
+    await expect(controller.link(context, owner, M1, { dependsOnMilestoneId: M2 })).rejects.toEqual(
+      expect.objectContaining({ status: 404 }),
+    );
     expect(store).toHaveLength(0);
   });
 
@@ -258,9 +258,9 @@ describe('the Known-trap: an unknown or cross-tenant id is a 404, no write, neve
     const { controller, store } = build({
       milestones: [milestoneRow(M1, OTHER_ORG, PROJECT), milestoneRow(M2, OTHER_ORG, PROJECT)],
     });
-    await expect(
-      controller.link(context, owner, M1, { dependsOnMilestoneId: M2 }),
-    ).rejects.toEqual(expect.objectContaining({ status: 404 }));
+    await expect(controller.link(context, owner, M1, { dependsOnMilestoneId: M2 })).rejects.toEqual(
+      expect.objectContaining({ status: 404 }),
+    );
     expect(store).toHaveLength(0);
   });
 });

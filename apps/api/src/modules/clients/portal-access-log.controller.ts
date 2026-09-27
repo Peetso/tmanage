@@ -6,15 +6,9 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { PORTAL_ACCESS_LOG_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { PORTAL_ACCESS_RESOURCE_KINDS } from '../../common/database/schema.js';
-import type {
-  PortalAccessLogRow,
-  PortalAccessResourceKind,
-} from '../../common/database/schema.js';
+import type { PortalAccessLogRow, PortalAccessResourceKind } from '../../common/database/schema.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
-import {
-  PortalAccessLogRepository,
-  effectivePageSize,
-} from './portal-access-log.repository.js';
+import { PortalAccessLogRepository, effectivePageSize } from './portal-access-log.repository.js';
 
 /**
  * SEC / Client portal access log (x237) — record what a client accessed, and the internal audit read.
@@ -79,8 +73,7 @@ function toView(row: PortalAccessLogRow): PortalAccessLogView {
 
 function isResourceKind(value: unknown): value is PortalAccessResourceKind {
   return (
-    typeof value === 'string' &&
-    (PORTAL_ACCESS_RESOURCE_KINDS as readonly string[]).includes(value)
+    typeof value === 'string' && (PORTAL_ACCESS_RESOURCE_KINDS as readonly string[]).includes(value)
   );
 }
 
@@ -238,9 +231,7 @@ export class PortalAccessLogController {
     const parsedLimit = limit === undefined ? undefined : Number(limit);
     if (
       parsedLimit !== undefined &&
-      (!Number.isSafeInteger(parsedLimit) ||
-        parsedLimit < 1 ||
-        parsedLimit > VIEWER_MAX_PAGE_SIZE)
+      (!Number.isSafeInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > VIEWER_MAX_PAGE_SIZE)
     ) {
       throw new ApiError(400, 'validation_failed', 'The query is invalid', [
         { field: 'limit', message: `must be an integer between 1 and ${VIEWER_MAX_PAGE_SIZE}` },
