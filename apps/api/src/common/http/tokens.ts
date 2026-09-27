@@ -39,6 +39,8 @@ export const PROJECT_CLIENTS_REPOSITORY = Symbol.for('tmanage.ProjectClientsRepo
 export const CLIENTS_SERVICE = Symbol.for('tmanage.ClientsService');
 export const PORTAL_SERVICE = Symbol.for('tmanage.PortalService');
 export const PROJECT_MILESTONES_SERVICE = Symbol.for('tmanage.ProjectMilestonesService');
+/** SEC / Portal milestone lifecycle (x202) — edit and complete an existing milestone. */
+export const MILESTONE_LIFECYCLE_SERVICE = Symbol.for('tmanage.MilestoneLifecycleService');
 export const PROJECT_RISKS_SERVICE = Symbol.for('tmanage.ProjectRisksService');
 export const INVITATIONS_REPOSITORY = Symbol.for('tmanage.InvitationsRepository');
 export const INVITATIONS_SERVICE = Symbol.for('tmanage.InvitationsService');

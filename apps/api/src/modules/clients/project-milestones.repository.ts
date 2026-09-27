@@ -41,6 +41,21 @@ export interface CreateProjectMilestoneInput {
   readonly createdByUserId: string;
 }
 
+/**
+ * The mutable fields of a milestone — SEC / Portal milestone lifecycle (x202).
+ *
+ * Every field is optional: an absent field is left untouched, so this is a partial edit. Note what
+ * is *not* here — `organizationId`, `projectId`, `createdByUserId` (identity, immutable at the
+ * engine) and `published` (its own edit/unpublish slice). The tenant still comes from the context,
+ * never a field, exactly as {@link CreateProjectMilestoneInput}.
+ */
+export interface UpdateProjectMilestonePatch {
+  readonly title?: string;
+  /** A 'YYYY-MM-DD' target day, or null to clear the committed date. */
+  readonly dueOn?: string | null;
+  readonly status?: ProjectMilestoneStatus;
+}
+
 export interface ListProjectMilestonesOptions {
   /** Required: this reads one project's milestones, never a whole tenant's. */
   readonly projectId: string;
@@ -159,5 +174,46 @@ export class ProjectMilestonesRepository {
     const row = await this.findById(runner, context, id);
     if (!row) throw new Error(`project milestone ${id} vanished immediately after insert`);
     return row;
+  }
+
+  /**
+   * Apply an edit to one milestone's mutable fields, within the acting tenant — SEC / Portal
+   * milestone lifecycle (x202).
+   *
+   * Only `title`, `dueOn` and `status` are settable here: `organization_id`, `project_id` and
+   * `created_by_user_id` are what a milestone *is* (0048's `trg_project_milestones_immutable`
+   * refuses to move them), and `published` has its own edit/unpublish slice. Absent fields are
+   * left untouched — a partial edit, not a replace.
+   *
+   * The `WHERE` carries **both** the tenant and the id predicates, so a forgotten tenant clause is
+   * a type-guarded impossibility here as everywhere else. `updated_at` is set to the server clock
+   * so the completion/edit instant is recorded (the column's `ON UPDATE` would do it too; setting
+   * it explicitly keeps the value deterministic for the read-back). The caller has already resolved
+   * the milestone tenant-scoped, so this updates a row it has seen; the read-back returns the new state.
+   */
+  async update(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    milestoneId: string,
+    patch: UpdateProjectMilestonePatch,
+  ): Promise<ProjectMilestoneRow | null> {
+    const db = tenantDrizzle(runner);
+
+    const values: Record<string, unknown> = { updatedAt: sql`current_timestamp(3)` };
+    if (patch.title !== undefined) values['title'] = patch.title;
+    if (patch.dueOn !== undefined) values['dueOn'] = patch.dueOn;
+    if (patch.status !== undefined) values['status'] = patch.status;
+
+    await db
+      .update(projectMilestones)
+      .set(values)
+      .where(
+        and(
+          eq(projectMilestones.organizationId, context.organizationId),
+          eq(projectMilestones.id, milestoneId),
+        ),
+      );
+
+    return this.findById(runner, context, milestoneId);
   }
 }

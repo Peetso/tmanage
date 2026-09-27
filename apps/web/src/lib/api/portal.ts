@@ -197,6 +197,69 @@ export async function createProjectMilestone(
   return data;
 }
 
+/**
+ * A milestone after an internal edit or completion — SEC / Portal milestone lifecycle (x202).
+ *
+ * It is `ProjectMilestone` plus `updatedAt`: the edit/complete transitions record when they
+ * happened, and for a completed milestone that instant is its completion date (there is no separate
+ * `completed_at` column). Behind `project.manage`, on the internal `projects` path — never `/portal`,
+ * so it carries the full internal record.
+ */
+export interface MilestoneEdit {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly dueOn: string | null;
+  readonly status: MilestoneStatus;
+  readonly published: boolean;
+  readonly createdByUserId: string;
+  readonly createdAt: string;
+  /** An ISO-8601 instant — the last edit, and for a completed milestone its completion date. */
+  readonly updatedAt: string;
+}
+
+/** A partial edit of a milestone — provide at least one field. Identity and publish are never here. */
+export interface EditProjectMilestoneInput {
+  readonly title?: string;
+  /** A 'YYYY-MM-DD' target day, or null to clear the committed date. */
+  readonly dueOn?: string | null;
+}
+
+/**
+ * Edit a milestone's title and/or due date — SEC / Portal milestone lifecycle (x202).
+ *
+ * On the internal `projects` path behind `project.manage`; the tenant comes from the session and a
+ * milestone the caller cannot manage answers 404, never 403.
+ */
+export async function editProjectMilestone(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  milestoneId: string,
+  input: EditProjectMilestoneInput,
+): Promise<MilestoneEdit> {
+  const { data } = await client.request<MilestoneEdit>({
+    method: 'PATCH',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/milestones/${encodeURIComponent(milestoneId)}`,
+    body: input,
+  });
+  return data;
+}
+
+/** Mark a milestone complete (`status = met`) — SEC / Portal milestone lifecycle (x202). */
+export async function completeProjectMilestone(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  milestoneId: string,
+): Promise<MilestoneEdit> {
+  const { data } = await client.request<MilestoneEdit>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/milestones/${encodeURIComponent(milestoneId)}/complete`,
+  });
+  return data;
+}
+
 /** The risk severities a client is shown — 12-PERMISSION-MATRIX §4's "published risk". */
 export type RiskSeverity = 'low' | 'medium' | 'high';
 /** The risk lifecycle states a client is shown. */

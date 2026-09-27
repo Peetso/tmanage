@@ -99,6 +99,7 @@ import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../ap
 import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { ProjectMilestoneView as ApiProjectMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { ClientMilestoneView as ApiClientMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
+import type { MilestoneEditView as ApiMilestoneEditView } from '../../apps/api/src/modules/clients/milestone-lifecycle.controller.js';
 import type { ProjectRiskView as ApiProjectRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
 import type { ClientRiskView as ApiClientRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
@@ -239,6 +240,7 @@ import type {
   PortalWorkItem as WebPortalWorkItem,
   ProjectMilestone as WebProjectMilestone,
   ClientMilestone as WebClientMilestone,
+  MilestoneEdit as WebMilestoneEdit,
   ProjectRisk as WebProjectRisk,
   ClientRisk as WebClientRisk,
 } from '../../apps/web/src/lib/api/portal';
@@ -342,6 +344,9 @@ type _portalDeliverable = Assert<Exact<ApiPortalDeliverableView, WebPortalDelive
 type _portalDeliverableFile = Assert<Exact<ApiPortalDeliverableFileView, WebPortalDeliverableFile>>;
 type _projectMilestone = Assert<Exact<ApiProjectMilestoneView, WebProjectMilestone>>;
 type _clientMilestone = Assert<Exact<ApiClientMilestoneView, WebClientMilestone>>;
+// SEC / Portal milestone lifecycle (x202): PATCH/complete return the internal edit view (the full
+// record plus `updatedAt` — the completion date). Exact against the web `MilestoneEdit`.
+type _milestoneEdit = Assert<Exact<ApiMilestoneEditView, WebMilestoneEdit>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
 
