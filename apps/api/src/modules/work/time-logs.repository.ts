@@ -1,0 +1,117 @@
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { uuidv7 } from '@tmanage/domain';
+import { tenantDrizzle } from '../../common/database/drizzle.js';
+import { workItemTimeLogs } from '../../common/database/schema.js';
+import type { WorkItemTimeLogRow } from '../../common/database/schema.js';
+import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+
+/**
+ * Work item time logs — x231's storage half (Work module 7).
+ *
+ * Follows `WorkChecklistRepository`: `TenantContext` is the scoping parameter, no `organizationId`
+ * on any input type (it comes from the context), and every read and write is bound to
+ * `(organization_id, …)` so a caller in the wrong tenant sees nothing rather than a leak. The
+ * repository holds no policy — the service decides who may read, write or delete, and the composite
+ * foreign key of migration 0103 is what makes a cross-tenant `work_item_id` a non-existent pair.
+ */
+
+/** The largest time-log page a single read returns; mirrors the bounded reads elsewhere. */
+export const MAX_TIME_LOG_PAGE = 500;
+
+export interface CreateTimeLogInput {
+  readonly workItemId: string;
+  readonly loggedBy: string;
+  readonly minutes: number;
+  readonly spentOn: string;
+  readonly note: string | null;
+}
+
+export class WorkTimeLogsRepository {
+  /** One time-log entry, scoped to the tenant and its parent work item; `null` if absent. */
+  async findEntry(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    entryId: string,
+  ): Promise<WorkItemTimeLogRow | null> {
+    const rows = await tenantDrizzle(runner)
+      .select()
+      .from(workItemTimeLogs)
+      .where(
+        and(
+          eq(workItemTimeLogs.organizationId, context.organizationId),
+          eq(workItemTimeLogs.workItemId, workItemId),
+          eq(workItemTimeLogs.id, entryId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  /** The work item's time-log entries, newest day first (then id), bounded to one page. */
+  async listForWorkItem(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    limit: number = MAX_TIME_LOG_PAGE,
+  ): Promise<readonly WorkItemTimeLogRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(workItemTimeLogs)
+      .where(
+        and(
+          eq(workItemTimeLogs.organizationId, context.organizationId),
+          eq(workItemTimeLogs.workItemId, workItemId),
+        ),
+      )
+      .orderBy(desc(workItemTimeLogs.spentOn), desc(workItemTimeLogs.id))
+      .limit(Math.min(Math.max(1, Math.trunc(limit)), MAX_TIME_LOG_PAGE));
+  }
+
+  /** Insert one time-log entry and read it back so the caller sees the stored row. */
+  async create(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: CreateTimeLogInput,
+  ): Promise<WorkItemTimeLogRow> {
+    const id = uuidv7();
+
+    await tenantDrizzle(runner)
+      .insert(workItemTimeLogs)
+      .values({
+        id,
+        organizationId: context.organizationId,
+        workItemId: input.workItemId,
+        loggedBy: input.loggedBy,
+        minutes: input.minutes,
+        spentOn: input.spentOn,
+        note: input.note,
+        createdAt: sql`current_timestamp(3)`,
+      });
+
+    const created = await this.findEntry(runner, context, input.workItemId, id);
+    if (!created) {
+      // Unreachable: the insert above committed this row in this transaction.
+      throw new Error('time-log entry vanished immediately after insert');
+    }
+    return created;
+  }
+
+  /** Delete one entry, scoped to the tenant and its parent; returns the rows affected. */
+  async remove(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    entryId: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .delete(workItemTimeLogs)
+      .where(
+        and(
+          eq(workItemTimeLogs.organizationId, context.organizationId),
+          eq(workItemTimeLogs.workItemId, workItemId),
+          eq(workItemTimeLogs.id, entryId),
+        ),
+      );
+  }
+}

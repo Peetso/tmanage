@@ -1570,6 +1570,37 @@ export const workItemFiles = mysqlTable(
   ],
 );
 
+/**
+ * x231 (0103). Logged effort per work item (Work module 7). Each entry records `minutes` spent by
+ * one membership (`logged_by`) on a calendar day (`spent_on`), with an optional `note`. Parent- and
+ * tenant-owned — the composite foreign key `fk_work_item_time_logs_work_item` binds
+ * `(organization_id, work_item_id)` to `work_items`, so a cross-tenant parent is a non-existent pair
+ * rather than a leak. `organization_id` and `work_item_id` are pinned immutable by the migration's
+ * `BEFORE UPDATE` trigger; there is no edit path this slice.
+ */
+export const workItemTimeLogs = mysqlTable(
+  'work_item_time_logs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    loggedBy: char('logged_by', { length: 36 }).notNull(),
+    minutes: int('minutes', { unsigned: true }).notNull(),
+    spentOn: date('spent_on', { mode: 'string' }).notNull(),
+    note: varchar('note', { length: 500 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_time_logs_org_id').on(table.organizationId, table.id),
+    index('ix_work_item_time_logs_item').on(
+      table.organizationId,
+      table.workItemId,
+      table.spentOn,
+      table.id,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3726,6 +3757,7 @@ export const TABLES = {
   work_item_dependencies: workItemDependencies,
   work_item_checklist_items: workItemChecklistItems,
   work_item_comments: workItemComments,
+  work_item_time_logs: workItemTimeLogs,
   work_item_links: workItemLinks,
   work_blockers: workBlockers,
   client_requests: clientRequests,
@@ -3826,6 +3858,8 @@ export type WorkItemRow = typeof workItems.$inferSelect;
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
+export type WorkItemTimeLogRow = typeof workItemTimeLogs.$inferSelect;
+export type NewWorkItemTimeLogRow = typeof workItemTimeLogs.$inferInsert;
 export type WorkItemCommentRow = typeof workItemComments.$inferSelect;
 export type NewWorkItemCommentRow = typeof workItemComments.$inferInsert;
 export type WorkItemLinkRow = typeof workItemLinks.$inferSelect;

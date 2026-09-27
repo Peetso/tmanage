@@ -162,6 +162,10 @@ import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../ap
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
 import type { WorkItemLinkView as ApiWorkItemLinkView } from '../../apps/api/src/modules/work/item-links.service.js';
 import type { ItemFileView as ApiItemFileView } from '../../apps/api/src/modules/work/item-files.service.js';
+import type {
+  TimeLogView as ApiTimeLogView,
+  TimeLogListView as ApiTimeLogListView,
+} from '../../apps/api/src/modules/work/time-logs.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -381,6 +385,8 @@ import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/s
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
 import type { WorkItemLink as WebWorkItemLink } from '../../apps/web/src/lib/api/work-items';
 import type { ItemFile as WebItemFile } from '../../apps/web/src/lib/api/work-items';
+import type { TimeLog as WebTimeLog } from '../../apps/web/src/lib/api/work-items';
+import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -890,6 +896,15 @@ type _workItemLink = Assert<Exact<ApiWorkItemLinkView, WebWorkItemLink>>;
  * held identical on both sides. Attach/detach only: there is no edit route, so no update shape.
  */
 type _itemFile = Assert<Exact<ApiItemFileView, WebItemFile>>;
+
+/**
+ * x231. `TimeLogView` ↔ `TimeLog` — one work-item logged-effort entry, and `TimeLogListView` ↔
+ * `TimeLogList` — the list response with its summed total (`GET`/`POST`/`DELETE …/work-items/:id/
+ * time-logs`). `WorkItemTimeLogScreen` reads exactly these shapes, so the entry's fields and the
+ * `{ entries, totalMinutes }` envelope are held identical on both sides.
+ */
+type _timeLog = Assert<Exact<ApiTimeLogView, WebTimeLog>>;
+type _timeLogList = Assert<Exact<ApiTimeLogListView, WebTimeLogList>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

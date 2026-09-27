@@ -12,6 +12,7 @@ import {
   WORK_ITEMS_SERVICE,
   WORK_ITEM_LINKS_SERVICE,
   WORK_ITEM_FILES_SERVICE,
+  WORK_TIME_LOGS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -37,6 +38,9 @@ import { WorkItemFilesService } from './item-files.service.js';
 import { WorkItemFilesController } from './item-files.controller.js';
 import { BulkTransitionService } from './bulk-transition.service.js';
 import { BulkTransitionController } from './bulk-transition.controller.js';
+import { WorkTimeLogsRepository } from './time-logs.repository.js';
+import { WorkTimeLogsService } from './time-logs.service.js';
+import { WorkTimeLogsController } from './time-logs.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -116,6 +120,14 @@ export class WorkModule {
       provide: BULK_TRANSITION_SERVICE,
       inject: [WORK_ITEMS_SERVICE],
       useFactory: (workItems: WorkItemsService) => new BulkTransitionService(workItems),
+    // x231. Logged effort per work item. A tenant-scoped sub-resource behind work.read/work.update,
+    // wired like the checklist: the work-items repository resolves the parent, the service holds the
+    // policy (resolve-before-authorize, minutes bound, delete-own).
+    const timeLogsService: Provider = {
+      provide: WORK_TIME_LOGS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkTimeLogsService(database, workItems, new WorkTimeLogsRepository()),
     };
 
     return {
@@ -129,6 +141,7 @@ export class WorkModule {
         itemLinksService,
         itemFilesService,
         bulkTransitionService,
+        timeLogsService,
       ],
       exports: [service],
       controllers: [
@@ -139,6 +152,7 @@ export class WorkModule {
         WorkItemLinksController,
         WorkItemFilesController,
         BulkTransitionController,
+        WorkTimeLogsController,
       ],
     };
   }
