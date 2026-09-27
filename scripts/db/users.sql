@@ -364,6 +364,12 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`meeting_occurrence_overrides` TO 'tma
 -- owner_user_id immutable for every credential besides. DELETE is added with the code that writes
 -- it, per this file's rule that a grant names a statement that exists.
 GRANT INSERT, UPDATE          ON `tmanage`.`saved_views`      TO 'tmanage_app'@'%';
+-- SRCH saved/recent searches (0092, x214). A saved search is created (INSERT) and deleted (DELETE),
+-- and a recent is inserted and pruned (INSERT + DELETE), so INSERT and DELETE and **no UPDATE**:
+-- there is no rename/edit endpoint this slice, so the missing privilege is the control that keeps a
+-- row's identity and body fixed (the `saved_context`/`home_pinned_items` posture, no immutability
+-- trigger and none needed). Reading is the database-wide SELECT above. The worker gets nothing here.
+GRANT INSERT, DELETE         ON `tmanage`.`saved_searches`   TO 'tmanage_app'@'%';
 -- HOME-05 (0035) saved/pinned context. INSERT to pin and DELETE to unpin, and **no UPDATE**: a
 -- pin is created and removed, never edited, so the missing privilege is the control that keeps it
 -- so (there is no immutability trigger and none is needed). Reading is the database-wide SELECT

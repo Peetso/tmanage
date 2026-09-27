@@ -15653,3 +15653,23 @@ database-free (`grid.controller.test.ts`): the `meeting.read` metadata, day buck
 expanded occurrences across the full window, the Monday-based week derivation, the relation-filter
 drop of a cross-tenant row, and a 400 on a missing or malformed `range`/`anchor`. Deferred:
 per-occurrence series overrides (x213) and any write from the grid.
+## Search — saved & recent searches (x214, module 16)
+
+**Status.** Built. On top of SRCH-01 global search (x111) and its ranking (x148), a member can keep
+named searches and see the queries they recently ran. Migration `0092_saved_searches.sql` adds one
+tenant-scoped, per-user table carrying both kinds keyed by `kind` (`'saved'` / `'recent'`); registered
+in the four places (`schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `scripts/db/users.sql`
+grant of INSERT+DELETE only, and the numbered migration file the directory-driven migrator applies).
+
+**Surfaces.** `GET/POST/DELETE …/search/saved` and `GET …/search/recent`, all behind the reused
+`search.use` capability (no `capabilities.ts` edit), in `saved-searches.controller.ts` +
+`.service.ts` + `.repository.ts` (`SavedSearchesModule`). Every read, the delete and the recent prune
+are scoped by tenant **and** owner (`organization_id` + `user_id`), so a saved search is private to
+its owner: a cross-tenant or other-user id is a 404, and a caller without `search.use` is a 403 (the
+global guard's). Recents are recorded best-effort by the global search after a successful run, deduped
+to the front and pruned to the newest 10. `SavedSearchView` and `RecentSearchEntry` are live `Exact`
+pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-shapes.ts`.
+`SavedSearchesScreen` (`apps/web/src/app/[orgSlug]/search/saved/page.tsx`) saves, lists and deletes
+saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
+slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
+migrator DB suites.
