@@ -96,6 +96,25 @@ several were in fact already resolved in later dated sections of this file (note
   role-operation-grid `audit.export` note ("declared but unwired") is now stale — it is wired at the
   route and enforced in the service, matching how `audit.read` is treated (kept off the DB route
   sweep); the note was left for a follow-up to avoid a package-wide rebuild in this slice.
+- **x197** (branch `x197-admin-audit-export`, off `master` `cc1ccc1` after pass 21): ADM-09
+  **filtered** audit export — `GET .../audit/export.csv?from=&to=&actor=&action=` behind `audit.export`
+  (module 18). A date-windowed CSV, distinct from x118's `events/export` (whole trail, actor/entity
+  only): it adds a bounded from/to **window** and an **action** filter. The security half is inherited
+  unchanged from `AuditService.exportForViewer` — the `audit.export` gate (403 for a caller with only
+  `audit.read`), the tenant scope, the own-activity narrowing and the 10 000-row cap (413) — so no
+  service or repository edit. The controller (`audit-export.controller.ts`, its own `AuditExportModule`
+  in `app.module.ts`) owns three things: window validation (a missing, malformed, inverted or
+  over-`366`-day window is a **400** with no read), the in-memory window/action filter over the narrow
+  projection, and CSV serialization through the shared, injection-guarded `auditEventsToCsv`.
+  `AuditExportScreen.tsx` (route `admin/audit/export`) is a dedicated filter form building the download
+  link; client helper `admin-audit-export.ts` (`auditFilteredExportUrl` + request-side
+  `AuditExportQuery`). Known limitation: the from/to filter is applied in memory after the inherited
+  row-cap read, so a tenant with more than the cap of total rows can hit the 413 even for a narrow
+  window — pushing the date range into the query needs a repository/service edit, deferred to keep the
+  slice file-disjoint from x118's audit files. Export body is bytes → no new `View` shape, contracts
+  unchanged (same pattern as x118 / insights-export / document-export). No migration, no DB change; no
+  `capabilities.ts` edit. Window-400, cap-vs-`audit.read` 403, cross-tenant/window exclusion and the
+  injection guard are unit-proven (api + web); no DB test / no new e2e (chain owns).
 - **x141** (pass 20): FILE-003 · WEB-006 client portal file downloads UI — `GET
 /portal/projects/:projectId/files` (`client_projection.read`) lists the request-attachment files
   the FILE-002 download door would serve to this client organization (project resolved
