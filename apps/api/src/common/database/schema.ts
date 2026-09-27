@@ -3002,6 +3002,49 @@ export const a11yPreferences = mysqlTable(
   ],
 );
 
+/**
+ * PREF-QUIET (x215, module 20 Preferences & accessibility). A member's notification quiet-hours
+ * window, stored whole in `pref_quiet_hours.quiet_json`. Distinct from the per-kind notification
+ * opt-out (x152): this is a *time-window* do-not-disturb rule, not a per-kind switch. `days` is the
+ * set of weekdays (0 = Sunday … 6 = Saturday) the window applies to; `startTime`/`endTime` are
+ * `HH:MM` (24-hour) local to `timezone` (an IANA zone). The application validates a request against
+ * this shape before storing (the same division `a11y_preferences.a11y_json` takes).
+ */
+export interface QuietHours {
+  readonly enabled: boolean;
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly timezone: string;
+  readonly days: readonly number[];
+}
+
+/**
+ * PREF-QUIET — a member's own notification quiet-hours (migration 0093, x215, module 20).
+ *
+ * One row per `(organization_id, membership_id)`: the do-not-disturb window the acting member sets.
+ * Keyed by membership (like `a11y_preferences`) rather than the global user, because it is scoped to
+ * who the caller is *in this studio* and never leaves the tenant. `quiet_json` holds the whole
+ * {@link QuietHours} object; the settings are read and written as one, never queried across rows. The
+ * write is a single upsert against `uq_pref_quiet_hours_org_membership`, so a second save updates in
+ * place; `updated_at` follows the column's `ON UPDATE`. Absence is the shipped default (disabled), not
+ * an error — the read returns the defaults when no row exists.
+ */
+export const quietHours = mysqlTable(
+  'pref_quiet_hours',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    quietJson: json('quiet_json').$type<QuietHours>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_pref_quiet_hours_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member per studio.
+    uniqueIndex('uq_pref_quiet_hours_org_membership').on(table.organizationId, table.membershipId),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -3542,6 +3585,7 @@ export const TABLES = {
   notifications,
   notification_preferences: notificationPreferences,
   a11y_preferences: a11yPreferences,
+  pref_quiet_hours: quietHours,
   usage_counters: usageCounters,
   usage_ledger_entries: usageLedgerEntries,
   file_assets: fileAssets,
@@ -3691,6 +3735,7 @@ export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
 export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
 export type A11yPreferenceRow = typeof a11yPreferences.$inferSelect;
+export type QuietHoursRow = typeof quietHours.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;

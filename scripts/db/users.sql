@@ -107,6 +107,7 @@
 --     saved_views, meeting_attendees, org_settings
 --     saved_views, meeting_attendees, a11y_preferences
 --     saved_views, meeting_attendees, org_settings, org_policies
+--     saved_views, meeting_attendees, a11y_preferences, pref_quiet_hours
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
 --     documents, decisions, work_item_checklist_items, billing_profiles
@@ -570,6 +571,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`subscriptions`     TO 'tmanage_app'@'
 -- SELECT above; least privilege withholds UPDATE until an edit endpoint (and the code that writes it)
 -- lands, per this file's rule that a grant names a statement that exists.
 GRANT INSERT, DELETE         ON `tmanage`.`insight_saved_views` TO 'tmanage_app'@'%';
+-- PREF-QUIET quiet hours (x215, module 20). **INSERT, UPDATE** — a member's notification quiet-hours
+-- window is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert
+-- against `uq_pref_quiet_hours_org_membership`. No DELETE: a member clears the window by saving
+-- disabled, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`pref_quiet_hours` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
