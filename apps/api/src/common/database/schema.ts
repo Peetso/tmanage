@@ -3810,6 +3810,45 @@ export const billingSeats = mysqlTable(
 );
 
 /**
+ * Conversation read-state (x250, migration 0122, module CHAT / conversations).
+ *
+ * One row per `(organization_id, conversation_id, membership_id)`: the last message the acting member
+ * has read in one channel, and when they read it. Keyed by membership (like `conversation_memberships`
+ * is keyed by identity) because a read position is the caller's own and never leaves the tenant — the
+ * route has no path or body field that could name another member's position, so a caller reads and
+ * upserts their own row and no other. `last_read_message_id` is a plain column, not a composite
+ * foreign key: `messages` carries no `(organization_id, id)` unique key to bind to (its key is
+ * `(organization_id, id, depth)`), so the application resolves the message tenant-scoped and refuses a
+ * `last_read_message_id` that is not in this conversation with a 400 before any write. The write is a
+ * single upsert against `uq_conversation_read_state_member`, so a second mark-read updates in place;
+ * unread is computed as the count of messages in the channel created after the last-read message's
+ * `created_at`, self-scoped to the caller's row. Absence of a row means everything is unread.
+ */
+export const conversationReadState = mysqlTable(
+  'conversation_read_state',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    conversationId: char('conversation_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    lastReadMessageId: char('last_read_message_id', { length: 36 }).notNull(),
+    readAt: datetime('read_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_conversation_read_state_org_id').on(table.organizationId, table.id),
+    // The upsert key: one read position per member per conversation.
+    uniqueIndex('uq_conversation_read_state_member').on(
+      table.organizationId,
+      table.conversationId,
+      table.membershipId,
+    ),
+  ],
+);
+
+export type ConversationReadStateRow = typeof conversationReadState.$inferSelect;
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -3989,6 +4028,7 @@ export const TABLES = {
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
+  conversation_read_state: conversationReadState,
   users,
   sessions,
   session_refresh_tokens: sessionRefreshTokens,

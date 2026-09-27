@@ -246,6 +246,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_ap
 -- makes "immutable" true for the runtime credential specifically, the way it is for the
 -- moderation ledger above.
 GRANT INSERT                 ON `tmanage`.`message_work_links`   TO 'tmanage_app'@'%';
+-- Conversation read-state (0122, x250). **INSERT, UPDATE** — a member's last-read position in a
+-- channel is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert
+-- against `uq_conversation_read_state_member`. No DELETE: a read position is only ever advanced,
+-- never removed. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`conversation_read_state` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 -- NOTIF-001. UPDATE is for marking read — the trigger in 0010 confines it to `read_at`,
