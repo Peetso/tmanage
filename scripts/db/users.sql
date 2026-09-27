@@ -644,6 +644,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'
 -- upsert against `uq_home_widget_prefs_org_membership`. No DELETE: a member clears their layout by
 -- saving the default, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`home_widget_prefs` TO 'tmanage_app'@'%';
+-- Request triage metadata (x265, module 11 Requests). **INSERT, UPDATE** — a request's category and
+-- internal assignee are created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE`
+-- upsert against `uq_request_triage_org_request`. No DELETE: re-triaging overwrites the row; there is
+-- no "un-triage" that removes it. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`request_triage`     TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

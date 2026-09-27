@@ -3984,7 +3984,66 @@ export const homeWidgetPrefs = mysqlTable(
 
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
+/**
+ * The fixed set of triage categories a studio may file an incoming client request under (REQ-02
+ * request triage, x265). A small, closed vocabulary — the buckets the triage panel offers. The
+ * category on a `request_triage` row is validated against this set in `request-triage.controller.ts`;
+ * a value outside it is a 400 and nothing is written. Widening the vocabulary means adding an id
+ * here (and the panel picks it up). Internal-only: triage metadata never reaches the client
+ * projection.
+ */
+export const REQUEST_TRIAGE_CATEGORIES = [
+  'general',
+  'bug',
+  'change_request',
+  'question',
+  'billing',
+  'feedback',
+] as const;
+export type RequestTriageCategory = (typeof REQUEST_TRIAGE_CATEGORIES)[number];
+
+/**
+ * Request triage metadata (x265, migration 0135, module 11 Requests).
+ *
+ * One row per `(organization_id, request_id)`: the category the studio filed an incoming client
+ * request under and, optionally, the internal member it assigned the request to — the triage step
+ * before commitment (REQ-02). Distinct from `client_requests`' own lifecycle: this is internal-only
+ * routing metadata that is never part of the client-facing projection. The write is a single upsert
+ * against `uq_request_triage_org_request`, so re-triaging updates in place rather than adding a
+ * second row; `updated_at` follows the column's `ON UPDATE`. Absence means "not yet triaged", not an
+ * error — the read returns a null category when no row exists. Both the request and, when named, the
+ * assignee membership are bound to the acting tenant by composite foreign keys, so a triage row can
+ * never point at another studio's request or member.
+ */
+export const requestTriage = mysqlTable(
+  'request_triage',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    requestId: char('request_id', { length: 36 }).notNull(),
+    category: varchar('category', { length: 64 }).notNull(),
+    /** The internal member the request is assigned to. NULL until someone is picked. */
+    assigneeMembershipId: char('assignee_membership_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_request_triage_org_id').on(table.organizationId, table.id),
+    // The upsert key: one triage row per request per studio.
+    uniqueIndex('uq_request_triage_org_request').on(table.organizationId, table.requestId),
+    index('ix_request_triage_org_assignee').on(
+      table.organizationId,
+      table.assigneeMembershipId,
+      table.requestId,
+    ),
+  ],
+);
+
+export type RequestTriageRow = typeof requestTriage.$inferSelect;
+export type NewRequestTriageRow = typeof requestTriage.$inferInsert;
+
 export const TABLES = {
+  request_triage: requestTriage,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,
