@@ -181,6 +181,7 @@ import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
 import type { IntegrationAppView as ApiIntegrationAppView } from '../../apps/api/src/modules/automations/directory.controller.js';
 import type { IntegrationConnectionView as ApiIntegrationConnectionView } from '../../apps/api/src/modules/automations/directory.controller.js';
+import type { ConnectionHealthView as ApiConnectionHealthView } from '../../apps/api/src/modules/automations/connection-health.controller.js';
 import type { WebhookEndpointView as ApiWebhookEndpointView } from '../../apps/api/src/modules/automations/webhooks.controller.js';
 import type { WorkflowRunHistoryView as ApiWorkflowRunHistoryView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../apps/api/src/modules/automations/history.controller.js';
@@ -263,6 +264,7 @@ import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../.
 import type { WorkflowRunSummary as WebWorkflowRunSummary } from '../../apps/web/src/lib/api/automations';
 import type { IntegrationAppView as WebIntegrationAppView } from '../../apps/web/src/lib/api/integration-directory';
 import type { IntegrationConnectionView as WebIntegrationConnectionView } from '../../apps/web/src/lib/api/integration-directory';
+import type { ConnectionHealthView as WebConnectionHealthView } from '../../apps/web/src/lib/api/connection-health';
 import type { WebhookEndpointSummary as WebWebhookEndpointSummary } from '../../apps/web/src/lib/api/webhooks';
 import type { WorkflowRunHistoryItem as WebWorkflowRunHistoryItem } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/src/lib/api/automations';
@@ -1036,6 +1038,15 @@ type _integrationConnection = Assert<
   Exact<ApiIntegrationConnectionView, WebIntegrationConnectionView>
 >;
 type _integrationApp = Assert<Exact<ApiIntegrationAppView, WebIntegrationAppView>>;
+
+/**
+ * Automations connection health (x220). `ConnectionHealthView` (`GET
+ * …/automations/connections/:id/health` and the roll-up `…/connections/health`) — the deterministic,
+ * in-app validity verdict for one recorded connection. Paired Exact with the web consumer
+ * (`ConnectionHealthScreen` via `lib/api/connection-health`): the `status` and `issues` unions and
+ * the `missingConfigKeys` array are identical on both sides. No config value is projected on either.
+ */
+type _connectionHealth = Assert<Exact<ApiConnectionHealthView, WebConnectionHealthView>>;
 
 /**
  * Automations webhooks (x166). `WebhookEndpointView` (`GET`/`POST …/automations/webhooks` and the

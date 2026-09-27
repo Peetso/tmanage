@@ -87,6 +87,7 @@ import { PublicChangelogModule } from './modules/public-site/changelog.module.js
 import { ContactModule } from './modules/public-site/contact.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
+import { ConnectionHealthModule } from './modules/automations/connection-health.controller.js';
 import { WebhooksModule } from './modules/automations/webhooks.controller.js';
 import { MaintenanceModule } from './modules/platform/maintenance.controller.js';
 import { FaqContentModule } from './modules/public-site/faq.module.js';
@@ -487,6 +488,11 @@ export class AppModule {
         // app. Behind `org.manage`; a self-contained module so the Automations slices stay
         // file-disjoint. No secrets are stored (secret exchange is Needs-Peter).
         IntegrationDirectoryModule.register(),
+        // x220. Automations connection health: a read-only, in-app validity verdict over the org's
+        // recorded connections (catalog app still known, required non-secret config keys present,
+        // connection live rather than pending) plus a roll-up. Behind `org.manage`; no new table and
+        // no outbound network call — a live third-party probe is external and paid (Needs-Peter).
+        ConnectionHealthModule.register(),
         // Automations module 17 (x166). Outbound webhook endpoints (register/list/disable) behind
         // `org.manage`, over the new `webhook_endpoints` table. Self-contained and file-disjoint;
         // delivery/dispatch to third parties is a later slice (external egress, Needs-Peter).
