@@ -124,6 +124,7 @@ import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
 import type { PublicPlanView as ApiPublicPlanView } from '../../apps/api/src/modules/public-site/plan-catalog.service.js';
 import type { ObjectiveWorkLinkView as ApiObjectiveWorkLinkView } from '../../apps/api/src/modules/projects/objective-work-links.service.js';
+import type { KeyResultView as ApiKeyResultView } from '../../apps/api/src/modules/projects/key-results.service.js';
 import type { DecisionWorkLinkView as ApiDecisionWorkLinkView } from '../../apps/api/src/modules/decisions/decision-work-links.service.js';
 import type { PersonAllocationView as ApiPersonAllocationView } from '../../apps/api/src/modules/people/allocations.controller.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
@@ -241,6 +242,7 @@ import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/w
 import type { ProjectPortfolioSummary as WebProjectPortfolioSummary } from '../../apps/web/src/lib/api/project-portfolio';
 import type { PublicPlanView as WebPublicPlanView } from '../../apps/web/src/lib/api/public-plans';
 import type { ObjectiveWorkLink as WebObjectiveWorkLink } from '../../apps/web/src/lib/api/objective-work-links';
+import type { KeyResult as WebKeyResult } from '../../apps/web/src/lib/api/key-results';
 import type { DecisionWorkLink as WebDecisionWorkLink } from '../../apps/web/src/lib/api/decision-work-links';
 import type { PersonAllocationSummary as WebPersonAllocationSummary } from '../../apps/web/src/lib/api/person-allocations';
 import type {
@@ -498,6 +500,14 @@ type _publicPlan = Assert<Exact<ApiPublicPlanView, WebPublicPlanView>>;
  * web consumer: `ObjectiveWorkLinksPanel` reads exactly this response, so this is a real `Exact` pair.
  */
 type _objectiveWorkLink = Assert<Exact<ApiObjectiveWorkLinkView, WebObjectiveWorkLink>>;
+
+/**
+ * PROJ / module 8 (x207). `KeyResultView` (`GET`/`POST …/objectives/:id/key-results` and the
+ * `PATCH …/key-results/:keyResultId` response) — an objective's measurable key result with its numeric
+ * target/current value, unit, and the server-computed `progressPercent`. Paired with a live web
+ * consumer: `KeyResultsScreen` reads exactly this response, so this is a real `Exact` pair.
+ */
+type _keyResult = Assert<Exact<ApiKeyResultView, WebKeyResult>>;
 
 /**
  * DEC / module 12 (x149). `DecisionWorkLinkView` (`GET`/`POST …/decisions/:id/work-links` response) —

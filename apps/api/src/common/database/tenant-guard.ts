@@ -257,6 +257,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // writes. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes the
   // link reads and writes.
   objective_work_links: 'organization_id',
+  // PROJ / module 8 (x207, migration 0087). Tenant-owned: a key result names an objective (itself a
+  // tenant row), and an unscoped `SELECT ... FROM objective_key_results` would be every studio's
+  // OKR progress on the server. `organization_id` is NOT NULL and it carries the `(organization_id,
+  // id)` key every tenant table has, so the guard must scope its reads and its writes. The layer-3
+  // guard fails OPEN on an unregistered table, so this entry is what scopes the key-result reads and
+  // writes.
+  objective_key_results: 'organization_id',
   // SEC / Portal milestones (x139, 0048). Tenant-owned: a project milestone names a project, and
   // an unscoped `SELECT ... FROM project_milestones` would be every studio's milestone timeline on
   // the server — and, because the client read filters `published = 1`, an unscoped read would also

@@ -117,6 +117,9 @@ export const PROJECT_PORTFOLIO_REPOSITORY = Symbol.for('tmanage.ProjectPortfolio
 export const PROJECT_PORTFOLIO_SERVICE = Symbol.for('tmanage.ProjectPortfolioService');
 export const OBJECTIVE_WORK_LINKS_REPOSITORY = Symbol.for('tmanage.ObjectiveWorkLinksRepository');
 export const OBJECTIVE_WORK_LINKS_SERVICE = Symbol.for('tmanage.ObjectiveWorkLinksService');
+/** PROJ / module 8 (x207). An objective's key results — create/list/update, progress computed on read. */
+export const KEY_RESULTS_REPOSITORY = Symbol.for('tmanage.KeyResultsRepository');
+export const KEY_RESULTS_SERVICE = Symbol.for('tmanage.KeyResultsService');
 export const CLIENT_REQUESTS_REPOSITORY = Symbol.for('tmanage.ClientRequestsRepository');
 export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService');
 /** FR-05 (x92). The approvals aggregate — deliverable versions and the decide path. */
