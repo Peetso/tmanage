@@ -276,6 +276,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // unregistered table, so registering it here is what scopes the reads and the append;
   // tenant-isolation.db.test.ts enforces the entry.
   project_update_comments: 'organization_id',
+  // x304 (0172). A pinned portal banner belongs to one client organization of one studio; an
+  // unscoped `SELECT ... FROM portal_announcements` would be every studio's client notices at once.
+  // Tenant-owned, `organization_id` NOT NULL, `(organization_id, id)` keyed like every sibling — the
+  // guard scopes its reads, its inserts and its deletes.
+  portal_announcements: 'organization_id',
   // PROJ / module 8 (x136, migration 0046). Tenant-owned: an org objective belongs to one studio,
   // and an unscoped `SELECT ... FROM org_objectives` would be every studio's OKRs on the server.
   // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table

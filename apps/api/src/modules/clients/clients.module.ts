@@ -11,6 +11,7 @@ import {
   INVITATIONS_SERVICE,
   MILESTONE_LIFECYCLE_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
+  PORTAL_ANNOUNCEMENTS_SERVICE,
   PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
   PROJECT_MILESTONES_SERVICE,
@@ -40,6 +41,9 @@ import {
 } from './update-comments.controller.js';
 import { UpdateCommentsService } from './update-comments.service.js';
 import { ProjectUpdateCommentsRepository } from './update-comments.repository.js';
+import { PortalAnnouncementsController } from './portal-announcements.controller.js';
+import { PortalAnnouncementsService } from './portal-announcements.service.js';
+import { PortalAnnouncementsRepository } from './portal-announcements.repository.js';
 import {
   PortalMilestonesController,
   ProjectMilestonesController,
@@ -278,6 +282,22 @@ export class ClientsModule {
         ),
     };
 
+    /**
+     * POR client portal (x304). Portal announcement banners: internal create/delete + client read.
+     * The repositories are constructed here, like the `portal` provider above — stateless collections
+     * of queries, and reaching for another module's provider would register that dynamic module twice.
+     */
+    const portalAnnouncements: Provider = {
+      provide: PORTAL_ANNOUNCEMENTS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new PortalAnnouncementsService(
+          database,
+          new ClientOrganizationsRepository(),
+          new PortalAnnouncementsRepository(),
+        ),
+    };
+
     return {
       module: ClientsModule,
       providers: [
@@ -292,6 +312,7 @@ export class ClientsModule {
         milestoneLifecycle,
         risks,
         updateComments,
+        portalAnnouncements,
       ],
       exports: [service, portal],
       controllers: [
@@ -306,6 +327,7 @@ export class ClientsModule {
         PortalRisksController,
         ProjectUpdateCommentsController,
         PortalUpdateCommentsController,
+        PortalAnnouncementsController,
       ],
     };
   }

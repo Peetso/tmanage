@@ -119,6 +119,8 @@ import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../ap
 import type { PortalDeliverableFileView as ApiPortalDeliverableFileView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { UpdateCommentView as ApiUpdateCommentView } from '../../apps/api/src/modules/clients/update-comments.service.js';
 import type { ClientUpdateCommentView as ApiClientUpdateCommentView } from '../../apps/api/src/modules/clients/update-comments.service.js';
+import type { PortalAnnouncementView as ApiPortalAnnouncementView } from '../../apps/api/src/modules/clients/portal-announcements.service.js';
+import type { ClientPortalAnnouncementView as ApiClientPortalAnnouncementView } from '../../apps/api/src/modules/clients/portal-announcements.service.js';
 import type { ProjectMilestoneView as ApiProjectMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { ClientMilestoneView as ApiClientMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { MilestoneEditView as ApiMilestoneEditView } from '../../apps/api/src/modules/clients/milestone-lifecycle.controller.js';
@@ -353,6 +355,10 @@ import type {
   ClientRisk as WebClientRisk,
 } from '../../apps/web/src/lib/api/portal';
 import type {
+  PortalAnnouncement as WebPortalAnnouncement,
+  ClientPortalAnnouncement as WebClientPortalAnnouncement,
+} from '../../apps/web/src/lib/api/portal-announcements';
+import type {
   ImportReceipt as WebImportReceipt,
   ImportReceiptRow as WebImportReceiptRow,
 } from '../../apps/web/src/lib/api/imports';
@@ -487,6 +493,12 @@ type _updateEdit = Assert<Exact<ApiUpdateEditView, WebUpdateEdit>>;
 // reads exactly these responses, so both pairs are Exact; the client view drops the staff author.
 type _updateComment = Assert<Exact<ApiUpdateCommentView, WebUpdateComment>>;
 type _clientUpdateComment = Assert<Exact<ApiClientUpdateCommentView, WebClientUpdateComment>>;
+// POR client portal (x304): the internal record returned by create and the client projection. The
+// client view drops the staff author and createdAt; both pairs are Exact.
+type _portalAnnouncement = Assert<Exact<ApiPortalAnnouncementView, WebPortalAnnouncement>>;
+type _clientPortalAnnouncement = Assert<
+  Exact<ApiClientPortalAnnouncementView, WebClientPortalAnnouncement>
+>;
 type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
 type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
 type _portalFile = Assert<Exact<ApiPortalFileView, WebPortalFile>>;

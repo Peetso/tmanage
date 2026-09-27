@@ -44,6 +44,8 @@ export const MILESTONE_LIFECYCLE_SERVICE = Symbol.for('tmanage.MilestoneLifecycl
 export const PROJECT_RISKS_SERVICE = Symbol.for('tmanage.ProjectRisksService');
 /** SEC / Portal update comments (x203). Internal post + read and the client projection. */
 export const UPDATE_COMMENTS_SERVICE = Symbol.for('tmanage.UpdateCommentsService');
+/** POR client portal (x304). Portal announcement banners: internal create/delete + client read. */
+export const PORTAL_ANNOUNCEMENTS_SERVICE = Symbol.for('tmanage.PortalAnnouncementsService');
 /** FEAT: Billing invoices (x179). The invoice-history read surface and its repository. */
 export const INVOICES_REPOSITORY = Symbol.for('tmanage.InvoicesRepository');
 export const INVOICES_SERVICE = Symbol.for('tmanage.InvoicesService');

@@ -377,6 +377,42 @@ export const projectUpdateComments = mysqlTable(
   ],
 );
 
+/**
+ * Portal announcements (x304, migration 0172, POR client portal). A pinned banner an internal
+ * staffer posts to one client organization's portal, live for an active window.
+ *
+ * Distinct from `project_update_comments`/`project_updates` (a post stream) and from org-wide
+ * announcements: keyed by `client_id`, not by project or org alone. Tenant-scoped and client-owned —
+ * the composite foreign key binds `(organization_id, client_id)` to `client_organizations`, so a
+ * banner can never reference another studio's client. Created (INSERT) and retracted (DELETE), never
+ * edited: `users.sql` withholds UPDATE, so the missing privilege is the control (the `doc_bookmarks`
+ * posture, no immutability trigger). The client read selects `starts_at <= now` and `ends_at` null or
+ * future. `0172_portal_announcements.sql` is the source of truth; this is its typed mirror.
+ */
+export const portalAnnouncements = mysqlTable(
+  'portal_announcements',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientId: char('client_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    body: text('body').notNull(),
+    startsAt: datetime('starts_at', { mode: 'date', fsp: 3 }).notNull(),
+    endsAt: datetime('ends_at', { mode: 'date', fsp: 3 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_portal_announcements_org_id').on(table.organizationId, table.id),
+    index('ix_portal_announcements_org_client').on(
+      table.organizationId,
+      table.clientId,
+      table.startsAt,
+      table.id,
+    ),
+  ],
+);
+
 export const PROJECT_MILESTONE_STATUSES = ['planned', 'met', 'missed'] as const;
 
 /**
@@ -4062,6 +4098,7 @@ export const TABLES = {
   saved_context: savedContext,
   project_updates: projectUpdates,
   project_update_comments: projectUpdateComments,
+  portal_announcements: portalAnnouncements,
   project_milestones: projectMilestones,
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
@@ -4138,6 +4175,7 @@ export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type ProjectUpdateRow = typeof projectUpdates.$inferSelect;
 export type ProjectUpdateCommentRow = typeof projectUpdateComments.$inferSelect;
+export type PortalAnnouncementRow = typeof portalAnnouncements.$inferSelect;
 export type ProjectMilestoneRow = typeof projectMilestones.$inferSelect;
 export type ProjectRiskRow = typeof projectRisks.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
