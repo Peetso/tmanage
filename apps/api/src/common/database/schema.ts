@@ -1051,6 +1051,45 @@ export const billingUsageAlerts = mysqlTable(
 );
 
 /**
+ * The plan-change-request lifecycle, mirroring the `0153` ENUM. A request is `pending` at creation and
+ * transitions once to `cancelled`; the `0153` trigger forbids the reverse move at the engine.
+ */
+export const PLAN_CHANGE_REQUEST_STATUSES = ['pending', 'cancelled'] as const;
+
+/**
+ * Billing & entitlements (module 19, x284). An organization's plan-change requests — a recorded intent
+ * to move to another plan: the `target_plan_code` (validated against the application plan catalog),
+ * the `effective_on` date, an optional `note`, and a `status`. A recorded intent only — nothing here
+ * charges, calls a provider, or changes an entitlement.
+ *
+ * Org-scoped like `billing_usage_alerts` (0083): the tenant key is `organization_id` alone (no
+ * project). At most one `pending` request per organization — the app checks inside the create
+ * transaction (a second POST while pending is a 409) and the `0153` `pending_guard` generated column
+ * carries a UNIQUE key so the engine refuses a second pending row under a race. Identity is immutable;
+ * only `status` is editable (`pending → cancelled`), pinned by the `0153` trigger.
+ * `0153_billing_plan_change_requests.sql` is the source of truth; this is its typed mirror. The
+ * engine-internal `pending_guard` generated column is deliberately absent — the app never reads or
+ * writes it.
+ */
+export const billingPlanChangeRequests = mysqlTable(
+  'billing_plan_change_requests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    targetPlanCode: varchar('target_plan_code', { length: 64 }).notNull(),
+    effectiveOn: date('effective_on', { mode: 'string' }).notNull(),
+    note: text('note'),
+    status: mysqlEnum('status', PLAN_CHANGE_REQUEST_STATUSES).notNull().default('pending'),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_billing_plan_change_requests_org_id').on(table.organizationId, table.id),
+    index('ix_billing_plan_change_requests_org_created').on(table.organizationId, table.createdAt),
+  ],
+);
+
+/**
  * The project-objective status set, mirroring the `0040` `ENUM`. An objective is `open` at creation
  * and its lifecycle transitions to `met` or `missed`.
  */
@@ -4090,6 +4129,7 @@ export const TABLES = {
   billing_profiles: billingProfiles,
   billing_contacts: billingContacts,
   billing_usage_alerts: billingUsageAlerts,
+  billing_plan_change_requests: billingPlanChangeRequests,
   work_item_files: workItemFiles,
   insight_saved_views: insightSavedViews,
   insight_snapshots: insightSnapshots,
@@ -4172,6 +4212,7 @@ export type DecisionLockRow = typeof decisionLocks.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type AutomationScheduleRow = typeof automationSchedules.$inferSelect;
 export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
+export type BillingPlanChangeRequestRow = typeof billingPlanChangeRequests.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;

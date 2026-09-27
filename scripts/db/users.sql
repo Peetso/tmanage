@@ -457,6 +457,12 @@ GRANT INSERT                 ON `tmanage`.`automation_schedules` TO 'tmanage_app
 -- gets nothing here: threshold-alert *dispatch* (email/notification) is Needs-Peter infrastructure and
 -- gets its grant with the code that runs it.
 GRANT INSERT, UPDATE         ON `tmanage`.`billing_usage_alerts` TO 'tmanage_app'@'%';
+-- Billing plan-change requests (x284, 0153). A request is created (INSERT) and read (the database-wide
+-- SELECT above); the cancel path moves `status` pending → cancelled (UPDATE). This slice ships no
+-- removal path, so **no DELETE**, and the 0153 trigger pins organization_id/created_by/target_plan_code/
+-- effective_on/note immutable (and forbids leaving cancelled) for every credential besides, so UPDATE
+-- can only move `status`. No provider call or charge happens here — that is Needs-Peter infrastructure.
+GRANT INSERT, UPDATE         ON `tmanage`.`billing_plan_change_requests` TO 'tmanage_app'@'%';
 -- CLIENT-003 (x125, 0041). A project update is posted (INSERT) and read (the database-wide
 -- SELECT above); `published` is set at INSERT time, and this slice ships no edit/unpublish
 -- endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0041 trigger pins
