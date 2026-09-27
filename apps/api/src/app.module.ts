@@ -73,6 +73,7 @@ import { ImportModule } from './modules/import/import.module.js';
 import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { SavedSearchesModule } from './modules/search/saved-searches.module.js';
+import { SavedSearchSharesModule } from './modules/search/saved-search-shares.module.js';
 import { CommandsModule } from './modules/search/commands.controller.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
@@ -410,6 +411,10 @@ export class AppModule {
         // and their recent queries (read), private per user, behind the reused `search.use`. A
         // separate module from `SearchModule` so the search slices stay file-disjoint.
         SavedSearchesModule.register(),
+        // SRCH saved-search sharing (x272). Share one of your own saved searches with the studio,
+        // unshare it, and list what the studio has shared — behind the reused `search.use`. A
+        // separate module from `SavedSearchesModule` so the sharing half never edits x214's files.
+        SavedSearchSharesModule.register(),
         // SRCH command palette (x181). The palette's contents — `GET …/search/commands?q=`, a
         // bounded, relevance-ordered list drawn from a static command registry by a pure matcher.
         // A module of its own beside `SearchModule` so the search slices stay file-disjoint; it
