@@ -15241,3 +15241,38 @@ unknown metric and an out-of-range threshold are 400s with no write, a cross-ten
 caller without `org.manage` is a 403, and `status` flags a breached active rule from a seeded band.
 Deferred to worker infrastructure (Needs-Peter): the dispatcher that delivers an alert when a threshold
 is crossed, and a per-rule removal path.
+## x201 — Portal update edit/unpublish lifecycle (module 13 Client Portal)
+
+CLIENT-003 (x125) let a manager **create** a project update and let a client read the published
+ones; there was no way to correct one or take one back. x201 adds the lifecycle on the internal
+side, reusing `project_updates` (0041) — **no new table, no new column, no migration**, no
+`capabilities.ts` edit.
+
+**Routes.** Both on the internal `projects` path (never `/portal`), behind `project.manage`, in a
+controller of their own (`update-lifecycle.controller.ts`, distinct from the create controller):
+`PATCH …/projects/:projectId/updates/:id` edits an update's title and/or body (a partial edit; a
+sent field must be a non-empty string, title ≤ 300, at least one field required, else 400), and
+`POST …/projects/:projectId/updates/:id/unpublish` flips `published` to draft so the update
+disappears from the client projection.
+
+**Security.** Resolve-before-authorize, the module's Known-trap order: `:projectId` and `:id` are
+resolved **tenant-scoped before authorize or write** (`PortalService.editUpdate` /
+`unpublishUpdate` via `resolveManageableUpdate`), and every refusal is the same **404, not 403** — a
+cross-tenant `:id` (tenant-scoped `findById` returns null), an `:id` that belongs to another project
+(the `projectId` match rejects it), and a caller who cannot manage the project (a client role never
+holds `project.manage`) are all 404 with no write. `CapabilityGuard` also refuses a principal
+without the capability with 403 before the handler runs. The repository writes carry the full
+`organization_id` + `project_id` + `id` predicate. Unpublish removing the row from the client read
+is the same query-predicate gate the client list already had (`published = 1` in SQL, re-verified),
+so a draft is never in the client result set; an edit never touches `published` or
+`created_by_user_id`, so it cannot silently publish a draft or reattribute authorship.
+
+**Surfaces.** New internal `UpdateEditView` (`portal.service.ts`) carries `updatedAt` (edit/unpublish
+confirmation the client `PortalUpdateView` omits) and is a live `Exact` pair with the web's
+`UpdateEdit` (`apps/web/src/lib/api/portal.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`UpdateLifecycleControls` (`apps/web/src/components/screens/UpdateLifecycleControls.tsx`), a distinct
+file from x125's timeline, renders the edit form and unpublish control. Proved database-free with the
+real `authorize` (`update-lifecycle.controller.test.ts`): an edit persists title/body and advances
+`updatedAt` without touching author, an unpublish drops the row from the client projection, a
+cross-tenant/cross-project id is a 404 with no write, a client principal cannot edit, and the
+`project.manage` route ceiling is pinned. No DB test / no new e2e (the chain owns both).

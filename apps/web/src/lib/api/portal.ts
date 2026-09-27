@@ -102,6 +102,66 @@ export async function postProjectUpdate(
   return data;
 }
 
+/**
+ * The internal edit/unpublish response — x201.
+ *
+ * Distinct from {@link PortalUpdate}: this is the **internal** compose surface's view (behind
+ * `project.manage`, never the client's read), so it carries `updatedAt` — the confirmation that
+ * the edit or unpublish landed — which the client projection has no reason to see. It still leaks
+ * no author, the same way `PortalUpdate` does not.
+ */
+export interface UpdateEdit {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly body: string;
+  readonly published: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/** A partial edit of an existing update. Either field may be sent; at least one must be. */
+export interface EditProjectUpdateInput {
+  readonly title?: string;
+  readonly body?: string;
+}
+
+/**
+ * Edit an update's title/body — x201. On the internal `projects` path behind `project.manage`. The
+ * API answers 404 for an update the caller cannot manage or that is not in the named project.
+ */
+export async function editProjectUpdate(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  updateId: string,
+  input: EditProjectUpdateInput,
+): Promise<UpdateEdit> {
+  const { data } = await client.request<UpdateEdit>({
+    method: 'PATCH',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/updates/${encodeURIComponent(updateId)}`,
+    body: input,
+  });
+  return data;
+}
+
+/**
+ * Unpublish an update so it disappears from the client portal — x201. No body; the id is the whole
+ * request. The returned row's `published` is `false`.
+ */
+export async function unpublishProjectUpdate(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  updateId: string,
+): Promise<UpdateEdit> {
+  const { data } = await client.request<UpdateEdit>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/projects/${encodeURIComponent(projectId)}/updates/${encodeURIComponent(updateId)}/unpublish`,
+  });
+  return data;
+}
+
 /** The milestone states a client is shown — 12-PERMISSION-MATRIX §4's "milestone state". */
 export type MilestoneStatus = 'planned' | 'met' | 'missed';
 

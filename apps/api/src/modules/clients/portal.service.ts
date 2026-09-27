@@ -188,12 +188,57 @@ function toUpdateView(row: ProjectUpdateRow): PortalUpdateView {
   };
 }
 
+/**
+ * What the internal edit/unpublish routes return — x201.
+ *
+ * A view of its own rather than {@link PortalUpdateView}: this is an **internal** response (behind
+ * `project.manage`, never on the `/portal` path), so it may carry `updatedAt` — the proof the edit
+ * or unpublish persisted, which the client projection has no business showing and so
+ * `PortalUpdateView` omits. It still lists its fields rather than spreading the row: the internal
+ * write surface must stay a decided projection too, so `createdByUserId` never rides along by
+ * accident. `published` is here because the internal surface renders the draft/live state it
+ * controls.
+ */
+export interface UpdateEditView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly body: string;
+  readonly published: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+function toUpdateEditView(row: ProjectUpdateRow): UpdateEditView {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    body: row.body,
+    published: row.published,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 /** What an internal principal posts. The tenant and the author come from the context, never the body. */
 export interface PostProjectUpdateInput {
   readonly projectId: string;
   readonly title: string;
   readonly body: string;
   readonly published: boolean;
+}
+
+/**
+ * What an internal principal edits — x201. The update and its owning project are named in the
+ * path; `title`/`body` are the only editable content and both are optional (a partial edit). The
+ * tenant is the context's, never the body's.
+ */
+export interface EditProjectUpdateInput {
+  readonly projectId: string;
+  readonly updateId: string;
+  readonly title?: string;
+  readonly body?: string;
 }
 
 /** The audiences a client may ever see. `internal` is not among them and never will be. */
@@ -544,6 +589,115 @@ export class PortalService {
     );
 
     return toUpdateView(row);
+  }
+
+  /**
+   * Edit a project update's client-facing text — x201, the internal half. `project.manage`.
+   *
+   * The Known-trap order the whole module shares (FAST-PROTOCOL 19:55): the `:projectId` and
+   * `:id` are resolved **tenant-scoped before authorize or write**, and every failure is the
+   * same **404, not 403** so a caller learns neither which projects exist nor which updates:
+   *
+   * 1. The project is resolved inside this tenant (`findById` is tenant-scoped). Unknown or
+   *    cross-tenant → 404.
+   * 2. The update is resolved inside this tenant and must belong to the named project. A
+   *    cross-tenant `:id` returns `null`; an `:id` that is another project's update fails the
+   *    `projectId` match. Either → 404, with no write.
+   * 3. `authorize('project.manage')` with the project in hand. A caller who cannot manage it —
+   *    including any client role, which never holds `project.manage` — is 404, not a 403 that
+   *    would confirm the update exists. (`CapabilityGuard` also refuses a principal without the
+   *    capability at all with 403 before the handler runs; this is the finer per-project gate.)
+   *
+   * Only `title`/`body` move; `published` and `created_by_user_id` are untouched, so an edit can
+   * neither silently publish a draft nor reattribute authorship.
+   */
+  async editUpdate(
+    context: TenantContext,
+    principal: Principal,
+    input: EditProjectUpdateInput,
+  ): Promise<UpdateEditView> {
+    await this.resolveManageableUpdate(context, principal, input.projectId, input.updateId);
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.updates.updateContent(tx, context, {
+        updateId: input.updateId,
+        projectId: input.projectId,
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.body !== undefined ? { body: input.body } : {}),
+      }),
+    );
+    if (!row)
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'update_not_found');
+    return toUpdateEditView(row);
+  }
+
+  /**
+   * Unpublish a project update — x201, the internal half. `project.manage`.
+   *
+   * Same resolve-before-authorize order and same 404-not-403 refusals as {@link editUpdate}.
+   * Flipping `published` to `false` is exactly what removes the row from the client projection:
+   * the client read filters on `published = 1` in the query, so a drafted update is no longer in
+   * that result set. Re-publishing is out of scope here (the compose surface posts `published`).
+   */
+  async unpublishUpdate(
+    context: TenantContext,
+    principal: Principal,
+    input: { readonly projectId: string; readonly updateId: string },
+  ): Promise<UpdateEditView> {
+    await this.resolveManageableUpdate(context, principal, input.projectId, input.updateId);
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.updates.setPublished(tx, context, {
+        updateId: input.updateId,
+        projectId: input.projectId,
+        published: false,
+      }),
+    );
+    if (!row)
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'update_not_found');
+    return toUpdateEditView(row);
+  }
+
+  /**
+   * Resolve `:projectId`/`:id` tenant-scoped and authorize `project.manage`, or throw 404 — the
+   * shared precondition of {@link editUpdate} and {@link unpublishUpdate}. It performs no write,
+   * so a refusal has changed nothing.
+   */
+  private async resolveManageableUpdate(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    updateId: string,
+  ): Promise<void> {
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, projectId),
+    );
+    if (!project) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+
+    const update = await this.database.read(context, (runner) =>
+      this.updates.findById(runner, context, updateId),
+    );
+    // Tenant-scoped `findById` returns null for a cross-tenant id; the project match rejects an
+    // update id that belongs to another project in this tenant. Either is a not-found.
+    if (!update || update.projectId !== projectId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'update_not_found');
+    }
+
+    const permitted = authorize({
+      principal,
+      capability: 'project.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+    if (!permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
   }
 
   /**
