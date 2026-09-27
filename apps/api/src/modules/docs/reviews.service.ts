@@ -202,7 +202,13 @@ export class DocReviewsService {
         throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'review_not_found');
       }
       if (existing.decidedAt !== null || existing.state !== 'pending') {
-        throw new ApiError(409, 'conflict', 'This review has already been decided', undefined, 'review_already_decided');
+        throw new ApiError(
+          409,
+          'conflict',
+          'This review has already been decided',
+          undefined,
+          'review_already_decided',
+        );
       }
 
       const moved = await this.reviews.decide(tx, context, {
@@ -212,7 +218,13 @@ export class DocReviewsService {
       });
       if (moved === 0) {
         // Lost a race to another decision between the read and the update.
-        throw new ApiError(409, 'conflict', 'This review has already been decided', undefined, 'review_already_decided');
+        throw new ApiError(
+          409,
+          'conflict',
+          'This review has already been decided',
+          undefined,
+          'review_already_decided',
+        );
       }
 
       const decided = await this.reviews.findById(tx, context, reviewId);

@@ -72,7 +72,9 @@ export class DocReviewsRepository {
     const rows = await tenantDrizzle(runner)
       .select()
       .from(docReviews)
-      .where(and(eq(docReviews.organizationId, context.organizationId), eq(docReviews.id, reviewId)))
+      .where(
+        and(eq(docReviews.organizationId, context.organizationId), eq(docReviews.id, reviewId)),
+      )
       .limit(1);
     return rows[0] ?? null;
   }

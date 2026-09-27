@@ -105,7 +105,12 @@ function serviceWith(options: {
     create: async (
       _runner: unknown,
       ctx: TenantContext,
-      input: { documentId: string; requestedBy: string; reviewerUserId: string; note: string | null },
+      input: {
+        documentId: string;
+        requestedBy: string;
+        reviewerUserId: string;
+        note: string | null;
+      },
     ) => {
       const row = {
         id: `docreview-0000-0000-00000000000${++seq}`,
