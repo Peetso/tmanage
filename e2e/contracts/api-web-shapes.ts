@@ -140,6 +140,7 @@ import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps
 import type { ProjectHealthView as ApiProjectHealthView } from '../../apps/api/src/modules/projects/health.service.js';
 import type { PublicPlanView as ApiPublicPlanView } from '../../apps/api/src/modules/public-site/plan-catalog.service.js';
 import type { ObjectiveWorkLinkView as ApiObjectiveWorkLinkView } from '../../apps/api/src/modules/projects/objective-work-links.service.js';
+import type { MilestoneLinkView as ApiMilestoneLinkView } from '../../apps/api/src/modules/projects/milestone-links.service.js';
 import type { KeyResultView as ApiKeyResultView } from '../../apps/api/src/modules/projects/key-results.service.js';
 import type { DecisionWorkLinkView as ApiDecisionWorkLinkView } from '../../apps/api/src/modules/decisions/decision-work-links.service.js';
 import type { PersonAllocationView as ApiPersonAllocationView } from '../../apps/api/src/modules/people/allocations.controller.js';
@@ -287,6 +288,7 @@ import type { ProjectPortfolioSummary as WebProjectPortfolioSummary } from '../.
 import type { ProjectHealthSummary as WebProjectHealthSummary } from '../../apps/web/src/lib/api/project-health';
 import type { PublicPlanView as WebPublicPlanView } from '../../apps/web/src/lib/api/public-plans';
 import type { ObjectiveWorkLink as WebObjectiveWorkLink } from '../../apps/web/src/lib/api/objective-work-links';
+import type { MilestoneLink as WebMilestoneLink } from '../../apps/web/src/lib/api/milestone-links';
 import type { KeyResult as WebKeyResult } from '../../apps/web/src/lib/api/key-results';
 import type { DecisionWorkLink as WebDecisionWorkLink } from '../../apps/web/src/lib/api/decision-work-links';
 import type { PersonAllocationSummary as WebPersonAllocationSummary } from '../../apps/web/src/lib/api/person-allocations';
@@ -590,6 +592,14 @@ type _publicPlan = Assert<Exact<ApiPublicPlanView, WebPublicPlanView>>;
  * web consumer: `ObjectiveWorkLinksPanel` reads exactly this response, so this is a real `Exact` pair.
  */
 type _objectiveWorkLink = Assert<Exact<ApiObjectiveWorkLinkView, WebObjectiveWorkLink>>;
+
+/**
+ * PROJ / module 8 (x236). `MilestoneLinkView` (`GET`/`POST …/projects/milestones/:id/links` response)
+ * — the "depends-on" edge from one milestone to a prerequisite, with the prerequisite's title and
+ * status. Paired with a live web consumer: `MilestoneDependenciesPanel` reads exactly this response,
+ * so this is a real `Exact` pair.
+ */
+type _milestoneLink = Assert<Exact<ApiMilestoneLinkView, WebMilestoneLink>>;
 
 /**
  * PROJ / module 8 (x207). `KeyResultView` (`GET`/`POST …/objectives/:id/key-results` and the

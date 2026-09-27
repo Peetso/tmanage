@@ -15714,3 +15714,26 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## Milestone dependencies — Projects & portfolio, module 8 (x236)
+
+**Status.** Built. Deeper flow on project milestones (x139, 0048): x139 gave a project its
+milestones; this slice adds the "depends-on" edge between two of them (milestone A depends on
+prerequisite B). Migration `0108_milestone_links.sql` adds one tenant-scoped table keyed by
+`(organization_id, milestone_id, depends_on_milestone_id)`; registered in the four places
+(`schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `scripts/db/users.sql` grant of
+INSERT+DELETE only, and the numbered migration file the directory-driven migrator applies).
+
+**Surfaces.** `GET/POST/DELETE …/projects/milestones/:milestoneId/links`, all behind the reused
+`project.manage` capability (no `capabilities.ts` edit), in `milestone-links.controller.ts` +
+`.service.ts` + `.repository.ts` (`MilestoneLinksModule`). Both milestone ids are resolved
+tenant-scoped and relation-gated on their (shared) project BEFORE any write, so an unknown or
+cross-tenant id — and a non-member's probe — is a 404, never a foreign-key 500 or a 403 that
+confirms existence; a prerequisite in another project is the same not-found. A self-link and any
+cycle (a breadth-first reachability walk over the project's dependency edges) are rejected with 400;
+a duplicate pair resolves idempotently to the existing edge; unlink is idempotent (204 either way).
+`MilestoneLinkView` is a live `Exact` pair with `apps/web/src/lib/api/milestone-links.ts` via
+`e2e/contracts/api-web-shapes.ts`; `MilestoneDependenciesPanel` (distinct from the x139 milestone
+screens) links, lists and unlinks a milestone's prerequisites. No DB test / no new e2e in slice (the
+chain owns both); the tenant-scoped SQL predicates are proven by the chain's isolation and migrator
+DB suites.

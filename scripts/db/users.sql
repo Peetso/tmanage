@@ -780,6 +780,11 @@ GRANT INSERT, UPDATE ON `tmanage`.`org_objectives` TO 'tmanage_app'@'%';
 -- posture `work_item_dependencies` and `saved_context` carry. Reading is the database-wide SELECT
 -- above.
 GRANT INSERT, DELETE ON `tmanage`.`objective_work_links` TO 'tmanage_app'@'%';
+-- `milestone_links` (PROJ / module 8, x236) gets INSERT and DELETE. A milestone-dependency edge is
+-- created (link) and removed (unlink), never edited — there is no column to change on a link, so
+-- **no UPDATE** — the posture `objective_work_links` carries. Reading is the database-wide SELECT
+-- above.
+GRANT INSERT, DELETE ON `tmanage`.`milestone_links` TO 'tmanage_app'@'%';
 -- `objective_key_results` (PROJ / module 8, x207) gets INSERT and UPDATE. A key result is created
 -- (INSERT) and its body — title/target/current/unit — is revised as work progresses (UPDATE); the
 -- 0087 column-pinning trigger (`trg_objective_key_results_pin_columns`) refuses every identity column

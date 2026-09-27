@@ -303,6 +303,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // so registering it here is what scopes the reads and writes; tenant-isolation.db.test.ts
   // enforces the entry.
   project_milestones: 'organization_id',
+  // PROJ / module 8 (x236, migration 0108). Tenant-owned: a milestone-dependency edge names two
+  // milestones (both tenant rows), and an unscoped `SELECT ... FROM milestone_links` would be every
+  // studio's milestone dependency graph on the server. `organization_id` is NOT NULL and it carries
+  // the `(organization_id, id)` key every tenant table has, so the guard must scope its reads and
+  // its writes. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes
+  // the link reads and writes; tenant-isolation.db.test.ts enforces the entry.
+  milestone_links: 'organization_id',
   // SEC / Portal risks (x140, 0049). Tenant-owned: a project risk names a project, and an unscoped
   // `SELECT ... FROM project_risks` would be every studio's risk register on the server — and,
   // because the client read filters `published = 1` and the internal note is the substance, an
