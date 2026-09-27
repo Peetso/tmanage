@@ -146,6 +146,8 @@ export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService
 export const APPROVALS_SERVICE = Symbol.for('tmanage.ApprovalsService');
 export const CONVERSATIONS_REPOSITORY = Symbol.for('tmanage.ConversationsRepository');
 export const CONVERSATIONS_SERVICE = Symbol.for('tmanage.ConversationsService');
+/** x247. Pinning a message to a conversation's pinned-context list. */
+export const MESSAGE_PINS_SERVICE = Symbol.for('tmanage.MessagePinsService');
 export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');
 export const NOTIFICATIONS_REPOSITORY = Symbol.for('tmanage.NotificationsRepository');
 export const NOTIFICATION_PREFERENCES_REPOSITORY = Symbol.for(

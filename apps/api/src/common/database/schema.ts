@@ -2932,6 +2932,41 @@ export const conversationMemberships = mysqlTable(
 );
 
 /**
+ * x247 (0119). A message pinned to a conversation's pinned-context list — CH-07 "Message actions"
+ * (pin) and CH-02 "pinned context". Tenant-owned: a pin names a message and a conversation, both
+ * tenant rows. The unique key on `(organization_id, conversation_id, message_id)` makes pinning
+ * idempotent (a second pin of the same message collides rather than adding a row); the service
+ * turns that collision into the idempotent PUT and enforces the per-conversation cap. `messageId`
+ * FKs to a message of the same tenant only — the conversation match is the service's, resolved
+ * before the write.
+ */
+export const conversationPinnedMessages = mysqlTable(
+  'conversation_pinned_messages',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    conversationId: char('conversation_id', { length: 36 }).notNull(),
+    messageId: char('message_id', { length: 36 }).notNull(),
+    pinnedByUserId: char('pinned_by_user_id', { length: 36 }).notNull(),
+    pinnedAt: datetime('pinned_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_conversation_pinned_messages_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_conversation_pinned_messages_pin').on(
+      table.organizationId,
+      table.conversationId,
+      table.messageId,
+    ),
+    index('ix_conversation_pinned_messages_list').on(
+      table.organizationId,
+      table.conversationId,
+      table.pinnedAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * CHAT-001. One thing somebody said.
  *
  * `depth` and `parentDepth` are not redundant bookkeeping: together with
@@ -4014,6 +4049,7 @@ export const TABLES = {
   client_projections: clientProjections,
   conversations,
   conversation_memberships: conversationMemberships,
+  conversation_pinned_messages: conversationPinnedMessages,
   messages,
   message_revisions: messageRevisions,
   message_work_links: messageWorkLinks,
@@ -4125,6 +4161,7 @@ export type ClientProjectionRow = typeof clientProjections.$inferSelect;
 export type NewClientProjectionRow = typeof clientProjections.$inferInsert;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type ConversationMembershipRow = typeof conversationMemberships.$inferSelect;
+export type ConversationPinnedMessageRow = typeof conversationPinnedMessages.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
 export type MessageRevisionRow = typeof messageRevisions.$inferSelect;
 export type MessageWorkLinkRow = typeof messageWorkLinks.$inferSelect;

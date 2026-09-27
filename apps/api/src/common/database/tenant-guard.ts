@@ -122,6 +122,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // transcript of every studio on the server.
   conversations: 'organization_id',
   conversation_memberships: 'organization_id',
+  // x247. Tenant-owned: a pin names a message and a conversation, both tenant rows. Curating a
+  // channel's pinned context is a moderation act, and the pinned strip is scoped to one tenant.
+  conversation_pinned_messages: 'organization_id',
   messages: 'organization_id',
   // CHAT-002. Tenant-owned for the reason `messages` is — a revision is a message body that
   // was superseded, which is exactly as much somebody else's transcript as the current one.
