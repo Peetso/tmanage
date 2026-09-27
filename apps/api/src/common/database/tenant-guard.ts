@@ -452,6 +452,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // studio's seat roster on the server. `organization_id` is NOT NULL and carries the
   // `(organization_id, id)` key, so the guard must scope its reads and its writes.
   billing_seats: 'organization_id',
+  // x179 (0076) invoices. Billing history is per-tenant: an unscoped `SELECT ... FROM invoices`
+  // would be every studio's billing on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads.
+  invoices: 'organization_id',
 });
 
 /**

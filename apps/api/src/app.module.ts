@@ -89,6 +89,7 @@ import { BillingContactsModule } from './modules/billing/contacts.controller.js'
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
 import { PersonProfileModule } from './modules/people/profile.controller.js';
 import { BillingSeatsModule } from './modules/billing/seats.controller.js';
+import { InvoicesModule } from './modules/billing/invoices.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -490,6 +491,11 @@ export class AppModule {
         // rather than a foreign-key 500, so it couples to no other module and its position is by
         // subject.
         BillingSeatsModule.register(),
+        // FEAT: Billing invoice history (x179). Read-only invoice list + by-id detail behind
+        // `org.manage`. A module of its own so it stays file-disjoint from the sibling billing
+        // slices; the detail resolves the id tenant-scoped before authorizing, so a cross-tenant id
+        // is a 404.
+        InvoicesModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

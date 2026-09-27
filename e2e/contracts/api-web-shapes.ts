@@ -51,6 +51,8 @@ import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/a
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionLockView as ApiDecisionLockView } from '../../apps/api/src/modules/decisions/decisions.service.js';
+import type { InvoiceView as ApiInvoiceView } from '../../apps/api/src/modules/billing/invoices.controller.js';
+import type { InvoiceDetailView as ApiInvoiceDetailView } from '../../apps/api/src/modules/billing/invoices.controller.js';
 import type { DocumentTemplateView as ApiDocumentTemplateView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentTemplateVariableView as ApiDocumentTemplateVariableView } from '../../apps/api/src/modules/docs/document-template-variables.controller.js';
 import type { AutomationScheduleView as ApiAutomationScheduleView } from '../../apps/api/src/modules/automations/schedules.controller.js';
@@ -254,6 +256,8 @@ import type { BillingContactView as WebBillingContactView } from '../../apps/web
 import type { BillingSeat as WebBillingSeat } from '../../apps/web/src/lib/api/billing-seats';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
+import type { InvoiceSummary as WebInvoiceSummary } from '../../apps/web/src/lib/api/invoices';
+import type { InvoiceDetail as WebInvoiceDetail } from '../../apps/web/src/lib/api/invoices';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { ProjectInternalRiskSummary as WebProjectInternalRiskSummary } from '../../apps/web/src/lib/api/project-risk-register';
@@ -628,6 +632,14 @@ type _decisionDetail = Assert<Exact<ApiDecisionDetailView, WebDecisionDetail>>;
  * Exact. `organizationId` is absent on both sides — the wire projection never echoes the tenant id.
  */
 type _decisionLock = Assert<Exact<ApiDecisionLockView, WebDecisionLock>>;
+ * FEAT: Billing invoice history (x179). `InvoiceView` (`GET …/billing/invoices`, the list row) and
+ * `InvoiceDetailView` (`GET …/billing/invoices/:invoiceId`, the summary plus the bounded line-item
+ * breakdown). Paired with a live web consumer — `BillingInvoicesScreen` reads exactly these to render
+ * the history table and the detail drawer — so both are real `Exact` pairs. `amountCents` is integer
+ * cents on both sides; the `status` union (`paid | open | void`) is the same on both.
+ */
+type _invoice = Assert<Exact<ApiInvoiceView, WebInvoiceSummary>>;
+type _invoiceDetail = Assert<Exact<ApiInvoiceDetailView, WebInvoiceDetail>>;
 
 /**
  * DOC-04/ADM-06 (x119). `DocumentTemplateView` (`GET`/`POST …/documents/templates`) — one org-scoped

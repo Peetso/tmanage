@@ -2478,6 +2478,49 @@ export const securitySettings = mysqlTable(
   (table) => [
     uniqueIndex('uq_security_settings_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_security_settings_org').on(table.organizationId),
+export const INVOICE_STATUSES = ['paid', 'open', 'void'] as const;
+
+/**
+ * One line of an invoice's breakdown, carried in the `line_items` JSON column. Detail, not a
+ * queryable relation — the detail read returns a bounded array of these; there is no child table.
+ * Money is integer cents (`unitAmountCents`, `amountCents`), never a float.
+ */
+export interface InvoiceLineItemDef {
+  readonly description: string;
+  readonly quantity: number;
+  readonly unitAmountCents: number;
+  readonly amountCents: number;
+}
+
+/**
+ * FEAT: Billing & plan management (module 19) — invoice history (x179). A tenant-scoped, read-only
+ * billing record: a number, a billing period, a total in integer cents, a currency, a status and an
+ * issued time, plus a bounded line-item breakdown for the detail read. Rows are produced by the
+ * subscription lifecycle or the seed; this slice reads them (there is no invoice mutation route, and
+ * the runtime credential is granted no write). `0076_invoices.sql` is the source of truth; this is
+ * its typed mirror.
+ */
+export const invoices = mysqlTable(
+  'invoices',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    number: varchar('number', { length: 64 }).notNull(),
+    periodStart: datetime('period_start', { mode: 'date', fsp: 3 }).notNull(),
+    periodEnd: datetime('period_end', { mode: 'date', fsp: 3 }).notNull(),
+    // Integer cents, never a float — a billing total must be exact.
+    amountCents: bigint('amount_cents', { mode: 'number', unsigned: true }).notNull(),
+    // ISO-4217, stored uppercase.
+    currency: char('currency', { length: 3 }).notNull(),
+    status: mysqlEnum('status', INVOICE_STATUSES).notNull().default('open'),
+    lineItems: json('line_items').$type<readonly InvoiceLineItemDef[]>(),
+    issuedAt: datetime('issued_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_invoices_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_invoices_org_number').on(table.organizationId, table.number),
+    index('ix_invoices_org_issued').on(table.organizationId, table.issuedAt),
   ],
 );
 
@@ -3722,6 +3765,7 @@ export const TABLES = {
   insight_saved_views: insightSavedViews,
   insight_snapshots: insightSnapshots,
   billing_seats: billingSeats,
+  invoices: invoices,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3786,6 +3830,7 @@ export type PersonSkillRow = typeof personSkills.$inferSelect;
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
 export type BillingProfileRow = typeof billingProfiles.$inferSelect;
 export type BillingContactRow = typeof billingContacts.$inferSelect;
+export type InvoiceRow = typeof invoices.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;
