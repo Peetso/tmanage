@@ -46,6 +46,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
+import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -247,6 +248,12 @@ export class AppModule {
         // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
         // constructs its own repository handle (see its doc), so its position here is by subject.
         WorkloadForecastModule.register(),
+        // Billing module 19 (x178). Seat management (assign/list/reclaim) behind `org.manage`. A
+        // self-contained module — no billing API module existed at this base — that depends only on
+        // the tenant database: it resolves the target membership/seat tenant-scoped to answer 404
+        // rather than a foreign-key 500, so it couples to no other module and its position is by
+        // subject.
+        BillingSeatsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

@@ -13925,3 +13925,31 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Billing seats — assign / list / reclaim (x178, module 19)
+
+**What landed.** Billing had a subscription and a storage-usage read but no _seat management_ — the
+audit's "Billing Partial — seat mgmt not built" gap. This slice adds a tenant-scoped `billing_seats`
+table (migration `0075`) — `membership_id`, `assigned_at`, and a nullable `released_at` — and three
+endpoints under `/v1/organizations/:orgSlug/billing/seats`, all behind `org.manage`: `POST` assigns a
+seat to a membership, `GET` lists the active seats and their count, and `DELETE :seatId` reclaims one
+with a soft close (`released_at`). No money moves: seat ceilings against a paid plan and charging are
+Needs-Peter (real payment / card storage out of scope). `org.manage` is reused; no `capabilities.ts`
+edit.
+
+**Known-trap order.** The `membershipId` (assign) and `seatId` (release) are resolved tenant-scoped
+_first_, so an unknown or cross-tenant target is a 404 with no write, before the service authorizes
+`org.manage` (403) and before any insert or update. A membership that already holds an active seat is
+a 409. Release is a soft close (sets `released_at`), never a hard delete; a double-release is the same
+404 an absent seat gives. `BillingSeatView` never echoes `organization_id`. The new table is
+registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql`
+grant (INSERT + UPDATE; no DELETE, with the `0075` trigger pinning tenant/membership/assigned_at), and
+the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `BillingSeatView` (`billing/seats.controller.ts`) is a live `Exact` pair with the web's
+`BillingSeat` (`apps/web/src/lib/api/billing-seats.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`BillingSeatsScreen` (`apps/web/src/components/screens/BillingSeatsScreen.tsx`), routed at
+`/[orgSlug]/billing/seats`, assigns a seat by membership id and reclaims one from the roster. Proved
+database-free with the real `authorize` (`seats.controller.test.ts`): assign→list→reclaim, a
+duplicate active seat is a 409 with no write, a cross-tenant membership or seat is a 404 with no
+write, and an assign without `org.manage` is a 403.

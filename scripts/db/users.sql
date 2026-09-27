@@ -102,7 +102,7 @@
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
 --     notifications, notification_preferences, work_blockers, usage_counters, file_assets,
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
---     documents, decisions
+--     documents, decisions, billing_seats
 --     saved_views, meeting_attendees
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
@@ -373,6 +373,11 @@ GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'
 -- adds UPDATE with the code that writes it. No DELETE. Submitting a form writes no work_forms row —
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- Billing seats (x178, migration 0075). INSERT (assign a seat) and UPDATE (release a seat by
+-- setting released_at, a soft close). **No DELETE** — a seat's history is the point of the table,
+-- so the withheld privilege is the control, and the 0075 trigger pins organization_id/membership_id/
+-- assigned_at immutable so an UPDATE can move only released_at. Reading is the database-wide SELECT.
+GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
