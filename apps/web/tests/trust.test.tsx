@@ -15,7 +15,12 @@ import { expectNoAxeViolations } from './axe';
  */
 const VIEW: PublicTrustView = {
   controls: [
-    { id: 'access', title: 'Access control', summary: 'Every request is authenticated.', controls: ['Sessions are short-lived.'] },
+    {
+      id: 'access',
+      title: 'Access control',
+      summary: 'Every request is authenticated.',
+      controls: ['Sessions are short-lived.'],
+    },
   ],
   dataHandling: ['Customer data belongs to the customer.'],
   subprocessors: [{ name: 'Hostinger', purpose: 'Hosting', location: 'European Union' }],
@@ -29,7 +34,10 @@ function clientReturning(view: PublicTrustView): ApiClient {
     csrfCookieName: 'tm_session_csrf',
     fetch: (() =>
       Promise.resolve(
-        new Response(JSON.stringify(view), { status: 200, headers: { 'content-type': 'application/json' } }),
+        new Response(JSON.stringify(view), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
       )) as typeof globalThis.fetch,
     readCsrfToken: () => undefined,
     newCorrelationId: () => 'correlation-fixed',

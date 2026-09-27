@@ -67,7 +67,8 @@ const TRUST_CONTENT: PublicTrustView = Object.freeze({
     Object.freeze({
       id: 'access',
       title: 'Access control',
-      summary: 'Every request is authenticated, bound to one organization, and checked against a role ceiling.',
+      summary:
+        'Every request is authenticated, bound to one organization, and checked against a role ceiling.',
       controls: Object.freeze([
         'Sessions are short-lived access tokens with server-side revocation; refresh tokens rotate and reuse is detected.',
         'Multi-factor enrolment is supported for accounts that hold elevated roles.',
@@ -88,7 +89,8 @@ const TRUST_CONTENT: PublicTrustView = Object.freeze({
     Object.freeze({
       id: 'resilience',
       title: 'Resilience and operations',
-      summary: 'Changes are reviewed, migrations are reversible, and every governed action is recorded.',
+      summary:
+        'Changes are reviewed, migrations are reversible, and every governed action is recorded.',
       controls: Object.freeze([
         'Schema changes ship as ordered, forward-only migrations applied by a single migrator.',
         'Governed actions are written to an append-only audit log with a named actor and a result.',
@@ -112,9 +114,21 @@ const TRUST_CONTENT: PublicTrustView = Object.freeze({
     'Only the subprocessors listed below handle customer data, and only for the stated purpose.',
   ]),
   subprocessors: Object.freeze([
-    Object.freeze({ name: 'Hostinger', purpose: 'Application and database hosting', location: 'European Union' }),
-    Object.freeze({ name: 'Object storage (S3-compatible)', purpose: 'Uploaded file storage', location: 'European Union' }),
-    Object.freeze({ name: 'SMTP email provider', purpose: 'Transactional email delivery', location: 'European Union' }),
+    Object.freeze({
+      name: 'Hostinger',
+      purpose: 'Application and database hosting',
+      location: 'European Union',
+    }),
+    Object.freeze({
+      name: 'Object storage (S3-compatible)',
+      purpose: 'Uploaded file storage',
+      location: 'European Union',
+    }),
+    Object.freeze({
+      name: 'SMTP email provider',
+      purpose: 'Transactional email delivery',
+      location: 'European Union',
+    }),
   ]),
   compliance: Object.freeze([
     'TManage is built to the practices described on this page; independent third-party certification is on the roadmap and not yet claimed.',
