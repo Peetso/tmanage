@@ -14673,3 +14673,30 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+
+## Saved insight views — Insights & reporting, module 15 (x210)
+
+**What landed.** The insights reads exist (delivery-flow / adoption / forecast / workload / CSV,
+x109/x120/x123/x133–x135), but a person could not name and re-open a report configuration. This slice
+adds a new tenant-scoped, per-user `insight_saved_views` table (migration `0089`) — a display `name`,
+the `report_kind` it names (a closed ENUM mirrored by `INSIGHT_REPORT_KINDS` in `schema.ts`), and the
+`filters` it remembers (stored whole as JSON, echoed back, not interpreted). It ships
+`GET/POST/DELETE /v1/organizations/:orgSlug/insights/saved-views` (`InsightSavedViewsController` +
+`InsightSavedViewsService`, `SavedInsightViewsModule`), all behind the reused **`work.read`** cap (no
+`capabilities.ts` edit). Owner- and tenant-scoped: every op is scoped by `(organization_id,
+owner_user_id = context.userId)`, so a view is private to its creator — the list is only ever the
+caller's own, and a delete that names another user's view (or none) removes nothing and answers **404**.
+An unknown `report_kind`, an empty name or a non-string filter value is a **400** with no write; a
+caller without `work.read` is refused **403** by `CapabilityGuard`.
+
+**Four-place table registration.** `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`
+(`organization_id`), `users.sql` grant (**INSERT + DELETE**, no UPDATE — a view is named once and
+removed, never edited in place this slice), and the on-disk migration `0089`.
+
+**Surfaces.** `InsightSavedViewView` (`saved-views.controller.ts`) is a live `Exact` pair with the
+web's shape in `apps/web/src/lib/api/insight-saved-views.ts` via `e2e/contracts/api-web-shapes.ts`.
+`SavedInsightViewsScreen` (`apps/web/src/components/screens/SavedInsightViewsScreen.tsx`), mounted at
+`[orgSlug]/insights/saved-views`, lists the caller's views and offers a create form and a per-row
+remove. Unit-proven in `saved-views.controller.test.ts` (create/list/delete own; unknown kind → 400;
+non-owned/absent delete → 404; `work.read` on all three routes). Deferred: editing a view in place
+(UPDATE grant + endpoint) and applying a view's filters directly from the insights reads.
