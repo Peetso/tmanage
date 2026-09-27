@@ -112,6 +112,8 @@
 --     document_comments, decision_supersessions, document_templates, work_forms, onboarding_progress, marketing_leads
 --     document_comments, decision_supersessions, document_templates, work_forms,
 --     workflow_templates, workflow_runs
+--     document_comments, decision_supersessions, document_templates, work_forms,
+--     integration_connections
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -429,6 +431,12 @@ GRANT INSERT                 ON `tmanage`.`workflow_templates` TO 'tmanage_app'@
 -- updates a run at all. No UPDATE, no DELETE. In-app actions in this slice have no external egress and
 -- write no other tenant table, so the app needs no further privilege here.
 GRANT INSERT                 ON `tmanage`.`workflow_runs`      TO 'tmanage_app'@'%';
+-- Automations app/integration connections (x165). **INSERT only** — a connection is created (INSERT)
+-- and read (the database-wide SELECT above). This slice ships no editor and no removal path; the 0065
+-- trigger pins organization_id/app_id/created_by immutable for every credential, and an editor is a
+-- later slice that adds UPDATE with the code that writes it. No DELETE. No credentials are stored in
+-- the row — the application rejects secret-shaped config keys before the INSERT.
+GRANT INSERT                 ON `tmanage`.`integration_connections` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

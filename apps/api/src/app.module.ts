@@ -56,6 +56,7 @@ import { TrustContentModule } from './modules/public-site/trust-content.module.j
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
 import { ContactModule } from './modules/public-site/contact.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
+import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -305,6 +306,11 @@ export class AppModule {
         // `org.manage`. Depends only on the global tenant database — an org-admin definition with no
         // project to resolve — so its position here is by subject, not by need. Execution/runs are x163.
         AutomationsModule.register(),
+        // x165. Automations app directory: the static integration catalog merged with the org's
+        // recorded connections, and a create that records a non-secret connection against a catalog
+        // app. Behind `org.manage`; a self-contained module so the Automations slices stay
+        // file-disjoint. No secrets are stored (secret exchange is Needs-Peter).
+        IntegrationDirectoryModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

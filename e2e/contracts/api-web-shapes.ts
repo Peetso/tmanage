@@ -128,6 +128,8 @@ import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/m
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
+import type { IntegrationAppView as ApiIntegrationAppView } from '../../apps/api/src/modules/automations/directory.controller.js';
+import type { IntegrationConnectionView as ApiIntegrationConnectionView } from '../../apps/api/src/modules/automations/directory.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -170,6 +172,8 @@ import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/l
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowRunSummary as WebWorkflowRunSummary } from '../../apps/web/src/lib/api/automations';
+import type { IntegrationAppView as WebIntegrationAppView } from '../../apps/web/src/lib/api/integration-directory';
+import type { IntegrationConnectionView as WebIntegrationConnectionView } from '../../apps/web/src/lib/api/integration-directory';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -639,6 +643,17 @@ type _workflowTemplate = Assert<Exact<ApiWorkflowTemplateView, WebWorkflowTempla
  * `organizationId` is absent on both.
  */
 type _workflowRun = Assert<Exact<ApiWorkflowRunView, WebWorkflowRunSummary>>;
+ * Automations app directory (x165). `IntegrationConnectionView` (`GET`/`POST
+ * …/automations/apps[/:appId/connections]`) — one recorded connection, and `IntegrationAppView` — a
+ * catalog app with its connections merged. Paired Exact with the web consumer
+ * (`IntegrationDirectoryScreen` via `lib/api/integration-directory`): the `status` union
+ * (`connected | pending`), the `config` bag (`Record<string, string | number | boolean>`) and the
+ * nested `connections` element are identical on both sides. `organizationId` is absent on both.
+ */
+type _integrationConnection = Assert<
+  Exact<ApiIntegrationConnectionView, WebIntegrationConnectionView>
+>;
+type _integrationApp = Assert<Exact<ApiIntegrationAppView, WebIntegrationAppView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

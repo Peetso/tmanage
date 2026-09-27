@@ -1747,6 +1747,39 @@ export const workflowRuns = mysqlTable(
   ],
 );
 
+/** An integration connection's status: a live connection, or an intent awaiting a later exchange. */
+export const INTEGRATION_CONNECTION_STATUSES = ['connected', 'pending'] as const;
+export type IntegrationConnectionStatus = (typeof INTEGRATION_CONNECTION_STATUSES)[number];
+
+/** A connection's non-secret settings bag: bounded scalar values under bounded keys, never a token. */
+export type IntegrationConnectionConfig = Readonly<Record<string, string | number | boolean>>;
+
+/**
+ * Automations app/integration connections (0065, x165). Org-scoped like `work_forms`: which
+ * code-defined catalog app the organization has connected, a display label, a `status`, and a bounded
+ * bag of NON-SECRET settings in `config_json`. No credentials are ever stored — the application
+ * rejects secret-shaped keys before a row is written. Identity (`organization_id`, `app_id`,
+ * `created_by`) is immutable at the engine; `status` is stored as a VARCHAR validated by the
+ * application, matching the on-disk DDL (0065).
+ */
+export const integrationConnections = mysqlTable(
+  'integration_connections',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    appId: varchar('app_id', { length: 64 }).notNull(),
+    label: varchar('label', { length: 300 }).notNull(),
+    status: varchar('status', { length: 20 }).$type<IntegrationConnectionStatus>().notNull(),
+    configJson: json('config_json').$type<IntegrationConnectionConfig>().notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_integration_connections_org_id').on(table.organizationId, table.id),
+    index('ix_integration_connections_org_app').on(table.organizationId, table.appId, table.id),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2726,6 +2759,7 @@ export const TABLES = {
   marketing_leads: marketingLeads,
   workflow_templates: workflowTemplates,
   workflow_runs: workflowRuns,
+  integration_connections: integrationConnections,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2775,6 +2809,7 @@ export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
 export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
 export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
+export type IntegrationConnectionRow = typeof integrationConnections.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;
