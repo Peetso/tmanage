@@ -251,3 +251,63 @@ export async function addWorkComment(
   });
   return data;
 }
+
+// ── x231: work item time logs / logged effort ────────────────────────────────
+
+/**
+ * One logged-effort entry hanging off a work item — x231 (Work module 7). The API projection is
+ * `TimeLogView`; this is its web mirror, paired `Exact` in `e2e/contracts`.
+ */
+export interface TimeLog {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly loggedBy: string;
+  readonly minutes: number;
+  /** The calendar day the effort was spent, `YYYY-MM-DD`. */
+  readonly spentOn: string;
+  readonly note: string | null;
+  readonly createdAt: string;
+}
+
+/** The list response: the entries plus their summed total minutes for one work item. */
+export interface TimeLogList {
+  readonly entries: readonly TimeLog[];
+  readonly totalMinutes: number;
+}
+
+export async function listTimeLogs(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<TimeLogList> {
+  const { data } = await client.request<TimeLogList>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/time-logs`,
+  });
+  return data;
+}
+
+export async function addTimeLog(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: { readonly minutes: number; readonly spentOn: string; readonly note?: string | null },
+): Promise<TimeLog> {
+  const { data } = await client.request<TimeLog>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/time-logs`,
+    body: input,
+  });
+  return data;
+}
+
+export async function deleteTimeLog(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  entryId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/time-logs/${encodeURIComponent(entryId)}`,
+  });
+}

@@ -127,6 +127,10 @@ import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/a
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
+import type {
+  TimeLogView as ApiTimeLogView,
+  TimeLogListView as ApiTimeLogListView,
+} from '../../apps/api/src/modules/work/time-logs.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -281,6 +285,8 @@ import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/w
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
+import type { TimeLog as WebTimeLog } from '../../apps/web/src/lib/api/work-items';
+import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -644,6 +650,15 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * Append-only: there is no edit or delete route, so no update shape to pair.
  */
 type _workComment = Assert<Exact<ApiWorkCommentView, WebWorkComment>>;
+
+/**
+ * x231. `TimeLogView` ↔ `TimeLog` — one work-item logged-effort entry, and `TimeLogListView` ↔
+ * `TimeLogList` — the list response with its summed total (`GET`/`POST`/`DELETE …/work-items/:id/
+ * time-logs`). `WorkItemTimeLogScreen` reads exactly these shapes, so the entry's fields and the
+ * `{ entries, totalMinutes }` envelope are held identical on both sides.
+ */
+type _timeLog = Assert<Exact<ApiTimeLogView, WebTimeLog>>;
+type _timeLogList = Assert<Exact<ApiTimeLogListView, WebTimeLogList>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

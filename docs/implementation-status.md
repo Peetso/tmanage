@@ -14673,3 +14673,36 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+
+## WORK item time tracking / logged effort (x231, module 7)
+
+**What landed.** The audit read "Work built; no time/effort logging". This slice adds a
+`work_item_time_logs` table (migration `0103`; tenant- and parent-scoped, the composite FK
+`(organization_id, work_item_id) → work_items (organization_id, id)`) and three endpoints under
+`/v1/organizations/:orgSlug/work-items/:workItemId/time-logs`: `POST` to log an entry
+(`work.update`), `GET` to list them newest-day-first with a summed `totalMinutes` (`work.read`), and
+`DELETE :entryId` to remove one (`work.update`). An entry records `minutes` (bounded `0 < m ≤ 1440`,
+else 400), `spent_on` (a `YYYY-MM-DD` calendar day parsed from a bound request value — never the
+admin-pool clock), an optional `note`, and `logged_by` (the acting membership). Per-entry edit and a
+rate/billing dimension are deferred to NS-13. Capabilities are reused (`work.read`/`work.update`); no
+`capabilities.ts` edit.
+
+**Known-trap order.** The parent `workItemId` is resolved tenant-scoped _before_ `authorize` or any
+write, so an unknown or cross-tenant id is a 404 with no row written. A caller who may read the item
+but not update it gets a 403 on log/delete; an unrelated caller gets a 404. Delete additionally
+requires that the caller authored the entry (`logged_by = principal.membershipId`) — another member
+is refused 403 and nothing is removed. The new table is registered in all four places — `schema.ts`
+def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT + DELETE; no UPDATE, with a
+`BEFORE UPDATE` trigger pinning identity as defence in depth), and the on-disk migration `0103` the
+readdir migrator applies.
+
+**Surfaces.** `TimeLogView` and `TimeLogListView` (`time-logs.service.ts`) are live `Exact` pairs
+with the web's `TimeLog` and `TimeLogList` (`apps/web/src/lib/api/work-items.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `WorkItemTimeLogScreen`
+(`apps/web/src/components/screens/WorkItemTimeLogScreen.tsx`, routed at
+`/[orgSlug]/work/[workItemId]/time-logs`) lists the entries with a running total, adds an entry, and
+deletes an own entry. Proved database-free with the real `authorize`
+(`time-logs.controller.test.ts`): log→list with a summed total→delete-own for a related member,
+minutes ≤ 0 / non-integer / over cap → 400 with no write, a bad `spentOn` → 400, a cross-tenant/absent
+parent → 404 with no write, an unrelated member's list → 404, an add on an item the caller can read
+but not update → 403, and delete of another member's entry → 403.

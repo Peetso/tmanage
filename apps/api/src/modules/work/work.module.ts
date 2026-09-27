@@ -9,6 +9,7 @@ import {
   WORK_FORMS_REPOSITORY,
   WORK_ITEMS_REPOSITORY,
   WORK_ITEMS_SERVICE,
+  WORK_TIME_LOGS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -25,6 +26,9 @@ import { WorkFormsController } from './work-forms.controller.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
 import { WorkCommentsService } from './work-comments.service.js';
 import { WorkCommentsController } from './work-comments.controller.js';
+import { WorkTimeLogsRepository } from './time-logs.repository.js';
+import { WorkTimeLogsService } from './time-logs.service.js';
+import { WorkTimeLogsController } from './time-logs.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -74,15 +78,33 @@ export class WorkModule {
         new WorkCommentsService(database, workItems, new WorkCommentsRepository()),
     };
 
+    // x231. Logged effort per work item. A tenant-scoped sub-resource behind work.read/work.update,
+    // wired like the checklist: the work-items repository resolves the parent, the service holds the
+    // policy (resolve-before-authorize, minutes bound, delete-own).
+    const timeLogsService: Provider = {
+      provide: WORK_TIME_LOGS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkTimeLogsService(database, workItems, new WorkTimeLogsRepository()),
+    };
+
     return {
       module: WorkModule,
-      providers: [repository, service, checklistService, formsRepository, commentsService],
+      providers: [
+        repository,
+        service,
+        checklistService,
+        formsRepository,
+        commentsService,
+        timeLogsService,
+      ],
       exports: [service],
       controllers: [
         WorkItemsController,
         WorkChecklistController,
         WorkFormsController,
         WorkCommentsController,
+        WorkTimeLogsController,
       ],
     };
   }
