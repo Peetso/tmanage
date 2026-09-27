@@ -4878,6 +4878,40 @@ export type MemberTeamRow = typeof memberTeams.$inferSelect;
 export type NewMemberTeamRow = typeof memberTeams.$inferInsert;
 
 /**
+ * x267. Project tags / labels (Projects / portfolio module). One table, two row kinds distinguished
+ * by nullability — the `work_item_labels` (0105, x233) pattern scoped to projects instead of work
+ * items: a **definition** row carries `name` (with `project_id`/`tag_id` NULL), an **assignment** row
+ * carries `project_id` + `tag_id` (with `name` NULL). `fk_project_tags_project` binds
+ * `(organization_id, project_id)` to `projects`, and the self-referential `fk_project_tags_tag` binds
+ * `(organization_id, tag_id)` back to this table, so a cross-tenant project or tag id is a
+ * non-existent pair — migration `0137_project_tags.sql`.
+ */
+export const projectTags = mysqlTable(
+  'project_tags',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    tagId: char('tag_id', { length: 36 }),
+    name: varchar('name', { length: 120 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_tags_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_project_tags_org_name').on(table.organizationId, table.name),
+    uniqueIndex('uq_project_tags_assignment').on(
+      table.organizationId,
+      table.tagId,
+      table.projectId,
+    ),
+    index('ix_project_tags_project').on(table.organizationId, table.projectId, table.id),
+  ],
+);
+
+export type ProjectTagRow = typeof projectTags.$inferSelect;
+export type NewProjectTagRow = typeof projectTags.$inferInsert;
+
+/**
  * DOC bookmarks / favorites (x242). A membership's private favorite of a `documents` row â€” the fact
  * "this membership bookmarked this document". Per-membership and tenant-scoped like `home_pinned_items`
  * (0050): created (INSERT) and removed (DELETE), never edited, so there is no immutability trigger â€”
@@ -5221,6 +5255,7 @@ export const TABLES = {
   work_item_recurrence: workItemRecurrence,
   member_teams: memberTeams,
   doc_collections: docCollections,
+  project_tags: projectTags,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   conversation_read_state: conversationReadState,

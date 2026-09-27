@@ -118,6 +118,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `SELECT ... FROM member_teams` would be every studio's teams and rosters at once.
   // `organization_id` is NOT NULL and carries the `(organization_id, id)` key.
   member_teams: 'organization_id',
+  // x267. Project tags / labels — the org-defined tag taxonomy and its per-project assignments in
+  // one table (0137). Tenant-scoped like `work_item_labels`; an unscoped read would be every
+  // studio's tags and which project carries which at once.
+  project_tags: 'organization_id',
   // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
   // NOT NULL, so every row belongs both to a studio and to one of its clients.
   client_requests: 'organization_id',
