@@ -463,6 +463,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
   // writes; tenant-isolation.db.test.ts enforces the entry.
   insight_snapshots: 'organization_id',
+  // Insight annotations (x271, migration 0141). Tenant-owned: a row is one member's explanatory note
+  // on a snapshot, and an unscoped `SELECT ... FROM insight_annotations` would be every studio's
+  // notes on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key
+  // every tenant table has, so the guard must scope its reads, its inserts, and its deletes; the
+  // layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
+  insight_annotations: 'organization_id',
   // PREF-QUIET (x215, migration 0093). Tenant-owned: a row is one membership's notification
   // quiet-hours window in one studio, and an unscoped `SELECT ... FROM pref_quiet_hours` would be
   // every member's window across every studio on the server. `organization_id` is NOT NULL and
