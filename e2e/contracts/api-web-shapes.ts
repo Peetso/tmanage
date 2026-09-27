@@ -196,6 +196,7 @@ import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src
 import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { SavedSearchView as ApiSavedSearchView } from '../../apps/api/src/modules/search/saved-searches.service.js';
 import type { RecentSearchView as ApiRecentSearchView } from '../../apps/api/src/modules/search/saved-searches.service.js';
+import type { SearchHistoryEntryView as ApiSearchHistoryEntryView } from '../../apps/api/src/modules/search/search-history.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
@@ -409,6 +410,7 @@ import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src
 import type { SavedViewView as WebSavedViewView } from '../../apps/web/src/lib/api/work-views';
 import type { SavedSearch as WebSavedSearch } from '../../apps/web/src/lib/api/saved-searches';
 import type { RecentSearch as WebRecentSearch } from '../../apps/web/src/lib/api/saved-searches';
+import type { SearchHistoryEntry as WebSearchHistoryEntry } from '../../apps/web/src/lib/api/search-history';
 import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
 import type { PublicFaqView as WebPublicFaqView } from '../../apps/web/src/lib/api/public-faq';
 import type { PublicLegalView as WebPublicLegalView } from '../../apps/web/src/lib/api/public-legal';
@@ -1144,6 +1146,14 @@ type _searchResult = Assert<Exact<ApiSearchResultView, WebSearchResult>>;
  */
 type _savedSearch = Assert<Exact<ApiSavedSearchView, WebSavedSearch>>;
 type _recentSearch = Assert<Exact<ApiRecentSearchView, WebRecentSearch>>;
+
+/**
+ * Search recent history (x288). `SearchHistoryEntryView` ↔ `SearchHistoryEntry`
+ * (`POST/GET/DELETE …/search/history`). Paired Exact with a live web consumer: `SearchHistoryList`
+ * reads the list. Both are `{ query, recordedAt }` — `recordedAt` an ISO string on both, and no
+ * `id`/`organizationId`/`membershipId` on either.
+ */
+type _searchHistoryEntry = Assert<Exact<ApiSearchHistoryEntryView, WebSearchHistoryEntry>>;
 
 /**
  * SRCH command palette (x181). `CommandView` ↔ `Command` — one palette command

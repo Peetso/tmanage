@@ -742,6 +742,43 @@ export const savedSearches = mysqlTable(
 );
 
 /**
+ * Search recent history (x288, migration 0157). Search module 16.
+ *
+ * A member's recently-run queries, so the search box can offer a "recent" list. Tenant-scoped
+ * (`organization_id`) and membership-owned (`membership_id`): every read, the clear and the
+ * retention prune carry both predicates, so one member never sees or clears another's history even
+ * inside the same studio. One row per `(organization_id, membership_id, query)` — a repeat refreshes
+ * `created_at` rather than adding a duplicate (the INSERT … ON DUPLICATE KEY UPDATE target), and the
+ * newest {@link SEARCH_HISTORY_LIMIT} are kept. Created, refreshed (`created_at` only) and deleted;
+ * the `BEFORE UPDATE` trigger holds identity immutable at the engine. `0157_search_history.sql` is
+ * the source of truth; this is its typed mirror.
+ */
+export const searchHistory = mysqlTable(
+  'search_history',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    query: varchar('query', { length: 300 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_search_history_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_search_history_member_query').on(
+      table.organizationId,
+      table.membershipId,
+      table.query,
+    ),
+    index('ix_search_history_member_recent').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * DOC-02/DOC-03 (x112). The append-only version history behind a `documents` row.
  *
  * Each save appends one immutable snapshot (the body as it stood, and who saved it) and bumps the
@@ -4059,6 +4096,7 @@ export const TABLES = {
   meeting_occurrence_overrides: meetingOccurrenceOverrides,
   saved_views: savedViews,
   saved_searches: savedSearches,
+  search_history: searchHistory,
   saved_context: savedContext,
   project_updates: projectUpdates,
   project_update_comments: projectUpdateComments,
@@ -4147,6 +4185,7 @@ export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type SavedSearchRow = typeof savedSearches.$inferSelect;
+export type SearchHistoryRow = typeof searchHistory.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DocRevisionRow = typeof docRevisions.$inferSelect;

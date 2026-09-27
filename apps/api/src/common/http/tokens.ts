@@ -203,6 +203,8 @@ export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
 export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
 /** SRCH saved/recent (x214). The per-user, tenant-scoped saved & recent searches service. */
 export const SAVED_SEARCHES_SERVICE = Symbol.for('tmanage.SavedSearchesService');
+/** Search recent history (x288). The per-member, tenant-scoped recent search history service. */
+export const SEARCH_HISTORY_SERVICE = Symbol.for('tmanage.SearchHistoryService');
 
 /** Public & trust site (x159). The public status page's published-only incidents read. */
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');
