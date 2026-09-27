@@ -3926,6 +3926,43 @@ export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
 
 /**
+ * Calendar focus blocks (x255, migration 0125, module Calendar / CAL-04 "Focus block"). A member's
+ * own protected time on the calendar: one row is the fact "this membership has protected
+ * `[starts_at, ends_at)` for `title`". Per-membership and tenant-scoped like `doc_bookmarks` (0114):
+ * created (INSERT) and removed (DELETE), never edited, so there is no immutability trigger — the
+ * withheld UPDATE grant is the control. The composite FK `(organization_id, membership_id)` binds the
+ * row to a membership of this same tenant, so a block can never cite a membership in another studio.
+ * The application enforces `ends_at > starts_at` and a bounded duration (400 otherwise), so the store
+ * holds only well-formed rows. `0125_focus_blocks.sql` is the source of truth; this is its typed
+ * mirror.
+ */
+export const focusBlocks = mysqlTable(
+  'focus_blocks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    startsAt: datetime('starts_at', { mode: 'date', fsp: 3 }).notNull(),
+    endsAt: datetime('ends_at', { mode: 'date', fsp: 3 }).notNull(),
+    title: varchar('title', { length: 200 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_focus_blocks_org_id').on(table.organizationId, table.id),
+    // The one read: a membership's blocks in a bounded window, ordered by start, id breaking ties.
+    index('ix_focus_blocks_org_membership_starts').on(
+      table.organizationId,
+      table.membershipId,
+      table.startsAt,
+      table.id,
+    ),
+  ],
+);
+
+export type FocusBlockRow = typeof focusBlocks.$inferSelect;
+export type NewFocusBlockRow = typeof focusBlocks.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -3985,6 +4022,7 @@ export const homeWidgetPrefs = mysqlTable(
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
 export const TABLES = {
+  focus_blocks: focusBlocks,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,

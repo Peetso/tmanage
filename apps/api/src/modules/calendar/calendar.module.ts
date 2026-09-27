@@ -21,6 +21,9 @@ import { MeetingIcsController } from './meeting-ics.controller.js';
 import { MeetingSeriesRepository } from './meeting-series.repository.js';
 import { MeetingSeriesService } from './meeting-series.service.js';
 import { MeetingSeriesController } from './meeting-series.controller.js';
+import { FocusBlocksRepository } from './focus-blocks.repository.js';
+import { FocusBlocksService } from './focus-blocks.service.js';
+import { FocusBlocksController, FOCUS_BLOCKS_SERVICE } from './focus-blocks.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 
@@ -89,6 +92,18 @@ export class CalendarModule {
         new MeetingSeriesService(database, series),
     };
 
+    // CAL-04 "Focus block" (x255). A member's own protected time over its own `focus_blocks` table:
+    // create/list/delete, self-scoped by the acting membership. It owns a stateless repository and a
+    // service over the tenant database — no projects or memberships repository, because a focus block
+    // names no other entity to resolve. The token is the service's own symbol (declared beside the
+    // controller); the service constructs its repository, so no separate repository provider is needed.
+    const focusBlocksService: Provider = {
+      provide: FOCUS_BLOCKS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new FocusBlocksService(database, new FocusBlocksRepository()),
+    };
+
     return {
       module: CalendarModule,
       providers: [
@@ -98,6 +113,7 @@ export class CalendarModule {
         attendeesService,
         seriesRepository,
         seriesService,
+        focusBlocksService,
       ],
       exports: [service, attendeesService, seriesService],
       controllers: [
@@ -105,6 +121,7 @@ export class CalendarModule {
         MeetingAttendeesController,
         MeetingIcsController,
         MeetingSeriesController,
+        FocusBlocksController,
       ],
     };
   }
