@@ -491,6 +491,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them,
   // and tenant-isolation.db.test.ts enforces the entry.
   home_widget_prefs: 'organization_id',
+  // Inbox routing rules (x301, migration 0169). Tenant + membership owned: a row is one member's own
+  // routing rule in one studio, and an unscoped `SELECT ... FROM inbox_rules` would be every member's
+  // rules across every studio on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard scopes its reads and its writes;
+  // the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them, and
+  // tenant-isolation.db.test.ts enforces the entry.
+  inbox_rules: 'organization_id',
 });
 
 /**

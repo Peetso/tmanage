@@ -644,6 +644,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'
 -- upsert against `uq_home_widget_prefs_org_membership`. No DELETE: a member clears their layout by
 -- saving the default, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`home_widget_prefs` TO 'tmanage_app'@'%';
+-- Inbox routing rules (x301, module Inbox). **INSERT, DELETE** — a member adds a routing rule and
+-- removes their own; a rule is never edited in place (reorder is a delete-and-add in the UI), so no
+-- UPDATE grant. No immutability trigger: identity is the row, and a rule carries nothing an update
+-- would need to protect. SELECT is the database-wide grant.
+GRANT INSERT, DELETE         ON `tmanage`.`inbox_rules`      TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
