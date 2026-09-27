@@ -6,6 +6,7 @@ import {
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
   WORK_CHECKLIST_SERVICE,
+  WORK_SUBTASKS_SERVICE,
   WORK_COMMENTS_SERVICE,
   WORK_FORMS_REPOSITORY,
   WORK_ITEMS_REPOSITORY,
@@ -30,6 +31,9 @@ import { WorkItemsController } from './work-items.controller.js';
 import { WorkChecklistRepository } from './work-checklist.repository.js';
 import { WorkChecklistService } from './work-checklist.service.js';
 import { WorkChecklistController } from './work-checklist.controller.js';
+import { WorkSubtasksRepository } from './subtasks.repository.js';
+import { WorkSubtasksService } from './subtasks.service.js';
+import { WorkSubtasksController } from './subtasks.controller.js';
 import { WorkFormsRepository } from './work-forms.repository.js';
 import { WorkFormsController } from './work-forms.controller.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
@@ -93,6 +97,16 @@ export class WorkModule {
       inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
       useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
         new WorkChecklistService(database, workItems, new WorkChecklistRepository()),
+    };
+
+    // x307. A work item's ordered subtasks / breakdown — a tenant-scoped sub-resource behind
+    // work.read/work.update, wired like the checklist: the work-items repository resolves the
+    // parent, the service holds the policy (resolve-before-authorize) and the done/total roll-up.
+    const subtasksService: Provider = {
+      provide: WORK_SUBTASKS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkSubtasksService(database, workItems, new WorkSubtasksRepository()),
     };
 
     // WORK intake forms (x146). A stateless repository under its token; the controller injects it
@@ -204,6 +218,7 @@ export class WorkModule {
         repository,
         service,
         checklistService,
+        subtasksService,
         formsRepository,
         commentsService,
         itemLinksService,
@@ -220,6 +235,7 @@ export class WorkModule {
       controllers: [
         WorkItemsController,
         WorkChecklistController,
+        WorkSubtasksController,
         WorkFormsController,
         WorkCommentsController,
         WorkItemLinksController,

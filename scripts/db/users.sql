@@ -308,6 +308,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_blockers`          TO 'tmanage_a
 -- item *is*. DELETE is added with the code that writes it, per this file's rule that a grant names
 -- a statement that exists.
 GRANT INSERT, UPDATE         ON `tmanage`.`work_item_checklist_items` TO 'tmanage_app'@'%';
+-- x307 (0175) work item subtasks / breakdown. A subtask is added (INSERT), read (the database-wide
+-- SELECT), toggled/renamed/reordered in place (UPDATE) and removed (DELETE) — this slice ships
+-- add/list/edit/delete — so INSERT, UPDATE and DELETE. The 0175 trigger pins `organization_id` and
+-- `parent_work_item_id` immutable for every credential besides, so UPDATE can move
+-- `title`/`is_done`/`position` and nothing that says what the subtask *is*.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_subtasks`      TO 'tmanage_app'@'%';
 -- x147 work item comments. **INSERT only** — a comment is an append-only record of what was said,
 -- when: this slice ships add/list, and neither edit nor delete. Reading is the database-wide
 -- SELECT above; the 0053 trigger refuses UPDATE for every credential besides, and no DELETE is

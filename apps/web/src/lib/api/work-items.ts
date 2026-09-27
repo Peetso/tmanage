@@ -212,6 +212,84 @@ export async function updateChecklistItem(
   return data;
 }
 
+// ── x307: work item subtasks / breakdown ─────────────────────────────────────
+
+/**
+ * One subtask hanging off a work item — x307 (Work module). The API projection is
+ * `WorkSubtaskView`; this is its web mirror, paired `Exact` in `e2e/contracts`.
+ */
+export interface WorkSubtask {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly title: string;
+  readonly done: boolean;
+  /** The ordinal the list is read by, ascending. */
+  readonly position: number;
+  readonly createdAt: string;
+}
+
+/**
+ * The subtask list plus the parent's done/total roll-up — x307. The API projection is
+ * `WorkSubtaskListView`; this is its web mirror, paired `Exact` in `e2e/contracts`.
+ */
+export interface WorkSubtaskList {
+  readonly items: readonly WorkSubtask[];
+  readonly done: number;
+  readonly total: number;
+}
+
+export async function listSubtasks(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<WorkSubtaskList> {
+  const { data } = await client.request<WorkSubtaskList>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/subtasks`,
+  });
+  return data;
+}
+
+export async function addSubtask(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: { readonly title: string },
+): Promise<WorkSubtask> {
+  const { data } = await client.request<WorkSubtask>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/subtasks`,
+    body: input,
+  });
+  return data;
+}
+
+export async function updateSubtask(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  subtaskId: string,
+  input: { readonly title?: string; readonly done?: boolean; readonly position?: number },
+): Promise<WorkSubtask> {
+  const { data } = await client.request<WorkSubtask>({
+    method: 'PUT',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/subtasks/${encodeURIComponent(subtaskId)}`,
+    body: input,
+  });
+  return data;
+}
+
+export async function deleteSubtask(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  subtaskId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/subtasks/${encodeURIComponent(subtaskId)}`,
+  });
+}
+
 // ── x147: work item comments / activity ──────────────────────────────────────
 
 /**
