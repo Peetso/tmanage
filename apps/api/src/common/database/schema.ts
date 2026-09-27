@@ -3782,6 +3782,48 @@ export const insightSnapshots = mysqlTable(
   ],
 );
 
+/** The cadences a scheduled insights report may repeat on. Mirrors the `0101` `cadence` ENUM. */
+export const INSIGHT_REPORT_CADENCES = ['daily', 'weekly'] as const;
+export type InsightReportCadence = (typeof INSIGHT_REPORT_CADENCES)[number];
+
+/**
+ * Insight report schedules (x228, migration 0101). A member's own recurring insights-report
+ * definition — the report it names (`report_key`, the closed `INSIGHT_REPORT_KINDS` vocabulary the
+ * saved views reuse), the `cadence` it repeats on (daily or weekly), the `hour` of day it runs and,
+ * for a weekly schedule, the `day_of_week` (0=Sunday) it lands on. `next_run_at` is the next instant
+ * the definition is due, computed by the application from a bound `now` — NOT the admin-pool clock,
+ * the trap the sibling snapshots avoid — and stored so a future dispatcher (out of this slice:
+ * definition and next-run compute only, no dispatch or egress) can find due rows.
+ *
+ * Owner- and tenant-scoped, and private to its creator: `owner_user_id` is who may see or remove it
+ * and `organization_id` scopes it to the studio, the exact shape `insight_saved_views` (0089) takes.
+ * A schedule is created once and removed, never edited in place this slice, so the app is granted
+ * INSERT and DELETE and no UPDATE. `0101_insight_report_schedules.sql` is the source of truth; this is
+ * its typed mirror.
+ */
+export const insightReportSchedules = mysqlTable(
+  'insight_report_schedules',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    ownerUserId: char('owner_user_id', { length: 36 }).notNull(),
+    reportKey: mysqlEnum('report_key', INSIGHT_REPORT_KINDS).notNull(),
+    cadence: mysqlEnum('cadence', INSIGHT_REPORT_CADENCES).notNull(),
+    hour: tinyint('hour').notNull(),
+    dayOfWeek: tinyint('day_of_week'),
+    nextRunAt: datetime('next_run_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_report_schedules_org_id').on(table.organizationId, table.id),
+    index('ix_insight_report_schedules_org_owner').on(
+      table.organizationId,
+      table.ownerUserId,
+      table.id,
+    ),
+  ],
+);
+
 /**
  * Billing seats (Billing module 19, 0075, x178). A seat is a licence a membership holds against the
  * organization's plan: `membership_id` is bound composite to a membership of the same tenant, and a
@@ -4093,6 +4135,7 @@ export const TABLES = {
   work_item_files: workItemFiles,
   insight_saved_views: insightSavedViews,
   insight_snapshots: insightSnapshots,
+  insight_report_schedules: insightReportSchedules,
   billing_seats: billingSeats,
   invoices: invoices,
   user_preferences: userPreferences,
@@ -4219,4 +4262,5 @@ export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;
 export type InsightSavedViewRow = typeof insightSavedViews.$inferSelect;
 export type InsightSnapshotRow = typeof insightSnapshots.$inferSelect;
 export type InsightSnapshotKind = (typeof INSIGHT_SNAPSHOT_KINDS)[number];
+export type InsightReportScheduleRow = typeof insightReportSchedules.$inferSelect;
 export type BillingSeatRow = typeof billingSeats.$inferSelect;

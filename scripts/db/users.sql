@@ -622,6 +622,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`subscriptions`     TO 'tmanage_app'@'
 -- SELECT above; least privilege withholds UPDATE until an edit endpoint (and the code that writes it)
 -- lands, per this file's rule that a grant names a statement that exists.
 GRANT INSERT, DELETE         ON `tmanage`.`insight_saved_views` TO 'tmanage_app'@'%';
+-- Insight report schedules (x228, module 15, 0101). **INSERT, DELETE** — a member's recurring
+-- insights-report definition is created once and removed, never edited in place this slice, so no
+-- UPDATE. `next_run_at` is computed by the application from a bound `now` and written on INSERT; there
+-- is no dispatcher and no egress in this slice. Reading is the database-wide SELECT above.
+GRANT INSERT, DELETE         ON `tmanage`.`insight_report_schedules` TO 'tmanage_app'@'%';
 -- PREF-QUIET quiet hours (x215, module 20). **INSERT, UPDATE** — a member's notification quiet-hours
 -- window is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert
 -- against `uq_pref_quiet_hours_org_membership`. No DELETE: a member clears the window by saving

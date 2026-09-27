@@ -198,6 +198,8 @@ export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');
 export const INSIGHT_SAVED_VIEWS_SERVICE = Symbol.for('tmanage.InsightSavedViewsService');
 /** x211. The insight-snapshots service — captures and lists point-in-time metric snapshots. */
 export const INSIGHTS_SNAPSHOTS_SERVICE = Symbol.for('tmanage.InsightSnapshotsService');
+/** x228. The per-user recurring insights-report schedule create/list/delete service. */
+export const INSIGHT_REPORT_SCHEDULES_SERVICE = Symbol.for('tmanage.InsightReportSchedulesService');
 /** SRCH-01 (x111). Global tenant-scoped search over work items, documents and meetings. */
 export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
 export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');

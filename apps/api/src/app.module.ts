@@ -78,6 +78,7 @@ import { InsightsAdoptionModule } from './modules/insights/adoption.controller.j
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { SavedInsightViewsModule } from './modules/insights/saved-insight-views.module.js';
 import { InsightSnapshotsModule } from './modules/insights/snapshots.controller.js';
+import { InsightReportSchedulesModule } from './modules/insights/report-schedules.module.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { PublicResourcesModule } from './modules/public-site/resources.controller.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
@@ -433,6 +434,11 @@ export class AppModule {
         // `InsightsModule` so the insights slices stay file-disjoint; behind the reused `work.read`,
         // it reuses `InsightsService` to compute what it stores in the tenant-scoped `insight_snapshots`.
         InsightSnapshotsModule.register(),
+        // x228. The recurring half of module 15: a member's own scheduled insights-report definitions
+        // (create/list/delete). A separate module from `InsightsModule` so the insights slices stay
+        // file-disjoint; behind the reused `work.read`. Definition and next-run compute only — no
+        // dispatcher and no egress in this slice.
+        InsightReportSchedulesModule.register(),
         // Public & trust site (module 1, x156). The unauthenticated marketing home — a single
         // `@Public()` read serving deterministic, code-defined content. Depends on nothing (no
         // database, no tenant, no mailer), so its position here is free; registered last, beside
