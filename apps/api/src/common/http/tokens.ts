@@ -172,6 +172,7 @@ export const MESSAGE_REACTIONS_REPOSITORY = Symbol.for('tmanage.MessageReactions
 export const MESSAGE_REACTIONS_SERVICE = Symbol.for('tmanage.MessageReactionsService');
 /** x247. Pinning a message to a conversation's pinned-context list. */
 export const MESSAGE_PINS_SERVICE = Symbol.for('tmanage.MessagePinsService');
+export const THREAD_REPLIES_SERVICE = Symbol.for('tmanage.ThreadRepliesService');
 export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');
 export const NOTIFICATIONS_REPOSITORY = Symbol.for('tmanage.NotificationsRepository');
 export const NOTIFICATION_PREFERENCES_REPOSITORY = Symbol.for(

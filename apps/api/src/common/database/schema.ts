@@ -3474,6 +3474,36 @@ export const messageBookmarks = mysqlTable(
   ],
 );
 
+/**
+ * A message's thread replies — x249, planning ref CH-05 "Thread".
+ *
+ * Append-only and lighter than the `messages` threading it sits beside: a reply here never
+ * enters the channel sequence, never edits and never deletes. Written once by the application
+ * (INSERT is the only write grant in `users.sql`) and refused UPDATE by trigger for every
+ * credential. The author is the caller's **membership**, not a bare user id — the reply
+ * belongs to the actor inside this studio. See `0121_conversation_thread_replies.sql`.
+ */
+export const conversationThreadReplies = mysqlTable(
+  'conversation_thread_replies',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    conversationId: char('conversation_id', { length: 36 }).notNull(),
+    rootMessageId: char('root_message_id', { length: 36 }).notNull(),
+    authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_conversation_thread_replies_org_id').on(table.organizationId, table.id),
+    index('ix_conversation_thread_replies_root').on(
+      table.organizationId,
+      table.rootMessageId,
+      table.createdAt,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Platform primitives
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4670,6 +4700,7 @@ export const TABLES = {
   message_work_links: messageWorkLinks,
   message_reactions: messageReactions,
   message_bookmarks: messageBookmarks,
+  conversation_thread_replies: conversationThreadReplies,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -4799,6 +4830,8 @@ export type MessageRevisionRow = typeof messageRevisions.$inferSelect;
 export type MessageWorkLinkRow = typeof messageWorkLinks.$inferSelect;
 export type MessageReactionRow = typeof messageReactions.$inferSelect;
 export type MessageBookmarkRow = typeof messageBookmarks.$inferSelect;
+export type ConversationThreadReplyRow = typeof conversationThreadReplies.$inferSelect;
+export type NewConversationThreadReplyRow = typeof conversationThreadReplies.$inferInsert;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;

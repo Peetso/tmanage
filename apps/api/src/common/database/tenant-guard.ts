@@ -140,6 +140,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // CH-07 saved messages (x248). Tenant-owned and per-membership: a row names a message and the
   // membership that saved it, and an unscoped read of it would be who saved what across studios.
   message_bookmarks: 'organization_id',
+  // x249. A message's thread replies — internal prose about a studio's conversation, tenant-owned
+  // like `messages` for the same reason: an unscoped read of it would be everyone's thread replies
+  // on the server. `organization_id` NOT NULL, `(organization_id, id)` keyed; the guard scopes its
+  // reads and its append.
+  conversation_thread_replies: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',

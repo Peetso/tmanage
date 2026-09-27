@@ -37,6 +37,7 @@ import { DigestPreferenceModule } from './modules/preferences/digest.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { MessagePinsModule } from './modules/conversations/message-pins.module.js';
 import { MessageBookmarksModule } from './modules/conversations/message-bookmarks.controller.js';
+import { ThreadRepliesModule } from './modules/conversations/thread-replies.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
 import { CalendarGridModule } from './modules/calendar/grid.controller.js';
@@ -334,6 +335,10 @@ export class AppModule {
         // `conversations.module.ts`). Its `MessageBookmarksModule` is exported from the controller
         // file rather than a separate module file.
         MessageBookmarksModule.register(),
+        // x249. A message's thread replies — its own append-only table, resolving the conversation
+        // and root message through a read-only handle; after `ConversationsModule` for the same
+        // foreign-key reason.
+        ThreadRepliesModule.register(),
         // CAL-01 / MTG-01 (x90). After `ProjectsModule` for the same reason as conversations: a
         // meeting names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
