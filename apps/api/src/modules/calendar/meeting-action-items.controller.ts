@@ -15,7 +15,7 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { MEETING_ACTION_ITEMS_SERVICE } from './meeting-action-items.tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { ActionItemStatus, UpdateActionItemInput } from './meeting-action-items.repository.js';
+import type { ActionItemStatus } from './meeting-action-items.repository.js';
 import type {
   MeetingActionItemView,
   MeetingActionItemsService,
@@ -170,7 +170,12 @@ export class MeetingActionItemsController {
     }
 
     const details: { field: string; message: string }[] = [];
-    const changes: UpdateActionItemInput = {};
+    const changes: {
+      title?: string;
+      ownerMembershipId?: string | null;
+      dueOn?: string | null;
+      status?: ActionItemStatus;
+    } = {};
 
     if (body?.title !== undefined) {
       const title = typeof body.title === 'string' ? body.title.trim() : '';

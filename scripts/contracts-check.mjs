@@ -145,6 +145,10 @@ const WEB_EXEMPT = new Map([
     'WebhookDeliveryPage',
     'x221 — the keyset page wrapper (deliveries + nextCursor). The API returns the page inline with no named page view; its element `WebhookDeliveryView` is paired Exact.',
   ],
+  [
+    'HomeQuickLink',
+    'x273 — the single quick link. The API names its element `HomeQuickLinkItem` (not a standalone …View), and the wrapper `HomeQuickLinksView` is paired Exact, so the item shape is covered there.',
+  ],
   // class-1-lift (MemberSummary, WorkspaceSummary, AuthenticatedResponse, MfaRequiredResponse)
   // was exempted here while its API interface was unexported. x79 exported each interface
   // (members.controller `MemberView`, workspaces.controller `WorkspaceView`, authentication.controller

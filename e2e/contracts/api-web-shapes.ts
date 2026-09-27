@@ -570,6 +570,16 @@ import type {
   MaintenanceWindowView as WebMaintenanceWindowView,
   PublicMaintenanceView as WebPublicMaintenanceView,
 } from '../../apps/web/src/lib/api/maintenance';
+import type {
+  InboxFlagView as ApiInboxFlagView,
+  InboxFlaggedView as ApiInboxFlaggedView,
+} from '../../apps/api/src/modules/inbox/inbox-flag.service.js';
+import type { HomeQuickLinksView as ApiHomeQuickLinksView } from '../../apps/api/src/modules/home/quick-links.service.js';
+import type {
+  InboxFlagView as WebInboxFlagView,
+  InboxFlaggedView as WebInboxFlaggedView,
+} from '../../apps/web/src/lib/api/inbox-flags';
+import type { HomeQuickLinksView as WebHomeQuickLinksView } from '../../apps/web/src/lib/api/home-quick-links';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -2081,3 +2091,11 @@ type _conversationUnread = Assert<Exact<ApiConversationUnreadView, WebConversati
 
 /** x259 - inbox snooze list. Paired Exact (the inlined snooze item matches web InboxSnooze). */
 type _inboxSnooze = Assert<Exact<ApiInboxSnoozeView, WebInboxSnoozeView>>;
+// INBOX important flags (IN-01, x260). `InboxFlagView` (PUT/DELETE a bundle's flag) and
+// `InboxFlaggedView` (GET the caller's flagged ids). The screen reads exactly these, so both Exact.
+type _inboxFlag = Assert<Exact<ApiInboxFlagView, WebInboxFlagView>>;
+type _inboxFlagged = Assert<Exact<ApiInboxFlaggedView, WebInboxFlaggedView>>;
+// HOME quick links (module 4 My Day, x273). `HomeQuickLinksView` wraps the caller's ordered links;
+// the screen reads exactly this response, so the pair is Exact. Its element (web `HomeQuickLink`,
+// API `HomeQuickLinkItem`) is covered transitively through this pair — see WEB_EXEMPT.
+type _homeQuickLinks = Assert<Exact<ApiHomeQuickLinksView, WebHomeQuickLinksView>>;
