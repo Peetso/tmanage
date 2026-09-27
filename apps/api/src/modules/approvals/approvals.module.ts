@@ -7,6 +7,9 @@ import { DeliverableVersionsRepository } from './deliverable-versions.repository
 import { ClientProjectionsRepository } from './client-projections.repository.js';
 import { ApprovalsService } from './approvals.service.js';
 import { ApprovalsController } from './approvals.controller.js';
+import { ApprovalStepsRepository } from './steps.repository.js';
+import { APPROVAL_STEPS_SERVICE, ApprovalStepsService } from './steps.service.js';
+import { ApprovalStepsController } from './steps.controller.js';
 
 /**
  * FR-05's wiring.
@@ -31,11 +34,25 @@ export class ApprovalsModule {
         ),
     };
 
+    // x315 — sequential approval steps. Its own service and repository, constructed in the factory
+    // like the approvals repositories above, sharing the one tenant database. Its controller mounts
+    // beside the approvals surface under `/approvals/:approvalId/steps`.
+    const stepsService: Provider = {
+      provide: APPROVAL_STEPS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new ApprovalStepsService(
+          database,
+          new ApprovalsRepository(),
+          new ApprovalStepsRepository(),
+        ),
+    };
+
     return {
       module: ApprovalsModule,
-      providers: [service],
-      exports: [service],
-      controllers: [ApprovalsController],
+      providers: [service, stepsService],
+      exports: [service, stepsService],
+      controllers: [ApprovalsController, ApprovalStepsController],
     };
   }
 }
