@@ -942,6 +942,16 @@ GRANT INSERT, UPDATE ON `tmanage`.`objective_key_results` TO 'tmanage_app'@'%';
 -- a project's portal is reset by saving the defaults, not by removing the row. Reading is the
 -- database-wide SELECT (line 60).
 GRANT INSERT, UPDATE ON `tmanage`.`portal_settings` TO 'tmanage_app'@'%';
+-- `portal_branding` (SEC / Client portal, module 13, x323) gets INSERT and UPDATE. A client
+-- organization's client-facing branding is created and then replaced in place: the read/upsert
+-- repository writes `INSERT ... ON DUPLICATE KEY UPDATE` against `(organization_id, client_org_scope_id)`,
+-- so a save is one statement needing both privileges. UPDATE moves the presentation columns
+-- (accent_color, welcome_heading, welcome_text) and the `updated_by` stamp; the 0191 trigger
+-- (`trg_portal_branding_pin_identity`) refuses `id`, `organization_id`, `client_org_scope_id` and
+-- `created_at` at the engine, so branding cannot be re-pointed at another client or tenant by the
+-- runtime credential. **No DELETE**: branding defaults when absent, so a client's portal is reset by
+-- saving the defaults, not by removing the row. Reading is the database-wide SELECT (line 60).
+GRANT INSERT, UPDATE ON `tmanage`.`portal_branding` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

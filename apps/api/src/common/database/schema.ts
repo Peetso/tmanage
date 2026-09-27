@@ -4582,6 +4582,41 @@ export const portalSettings = mysqlTable(
 );
 
 /**
+ * Per-client-organization portal branding (x323, migration 0191, module 13 / Client Portal).
+ *
+ * A different axis from `portal_settings` (0110, per project): one branding row per client
+ * organization holds the client-facing accent colour and welcome copy that every project shared with
+ * that client themes by. Keyed `(organization_id, client_org_scope_id)`, so a studio brands each of
+ * its clients independently. The read/upsert repository writes `INSERT ... ON DUPLICATE KEY UPDATE`
+ * against that unique key, so a second save updates in place. Text and colour only this slice (no logo
+ * upload). Every column is a presentation field a client may read except `updated_by` — which member
+ * last edited the branding — which the client projection (`client_projection.read`) never carries.
+ * Tenant-scoped and client-owned: the composite foreign key binds `(organization_id,
+ * client_org_scope_id)` to `client_organizations`, and the `0191` `BEFORE UPDATE` trigger pins the
+ * identity columns immutable. `0191_portal_branding.sql` is the source of truth; this is its typed
+ * mirror.
+ */
+export const portalBranding = mysqlTable(
+  'portal_branding',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientOrgScopeId: char('client_org_scope_id', { length: 36 }).notNull(),
+    accentColor: varchar('accent_color', { length: 7 }).notNull().default('#2563eb'),
+    welcomeHeading: varchar('welcome_heading', { length: 200 }),
+    welcomeText: varchar('welcome_text', { length: 2000 }),
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_portal_branding_org_id').on(table.organizationId, table.id),
+    // The upsert key: one branding row per client organization per studio.
+    uniqueIndex('uq_portal_branding_org_client').on(table.organizationId, table.clientOrgScopeId),
+  ],
+);
+
+/**
  * Conversation read-state (x250, migration 0122, module CHAT / conversations).
  *
  * One row per `(organization_id, conversation_id, membership_id)`: the last message the acting member
@@ -5071,6 +5106,7 @@ export const TABLES = {
   invoice_line_items: invoiceLineItems,
   insight_targets: insightTargets,
   portal_settings: portalSettings,
+  portal_branding: portalBranding,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -5226,3 +5262,5 @@ export type InsightTargetMetric = (typeof INSIGHT_TARGET_METRICS)[number];
 export type InsightTargetPeriod = (typeof INSIGHT_TARGET_PERIODS)[number];
 export type PortalSettingsRow = typeof portalSettings.$inferSelect;
 export type NewPortalSettingsRow = typeof portalSettings.$inferInsert;
+export type PortalBrandingRow = typeof portalBranding.$inferSelect;
+export type NewPortalBrandingRow = typeof portalBranding.$inferInsert;
