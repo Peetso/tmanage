@@ -1,4 +1,5 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { projectUpdates } from '../../common/database/schema.js';
@@ -35,6 +36,25 @@ export interface CreateProjectUpdateInput {
   readonly published: boolean;
   /** The person posting the update — the service passes `context.userId`. */
   readonly createdByUserId: string;
+}
+
+/**
+ * Edit one existing update — x201. Both `title` and `body` are optional so a partial edit writes
+ * only the field the caller changed; the tenant and the owning project are identity, not content,
+ * and neither is a field a request body could populate.
+ */
+export interface EditProjectUpdateInput {
+  readonly updateId: string;
+  readonly projectId: string;
+  readonly title?: string;
+  readonly body?: string;
+}
+
+/** Set one update's client-visibility flag — x201's unpublish flips it to `false`. */
+export interface SetProjectUpdatePublishedInput {
+  readonly updateId: string;
+  readonly projectId: string;
+  readonly published: boolean;
 }
 
 export interface ListProjectUpdatesOptions {
@@ -148,5 +168,74 @@ export class ProjectUpdatesRepository {
     const row = await this.findById(runner, context, id);
     if (!row) throw new Error(`project update ${id} vanished immediately after insert`);
     return row;
+  }
+
+  /**
+   * Edit one update's client-facing text — x201.
+   *
+   * The `WHERE` carries **all three** of `organization_id`, `project_id` and `id`: the tenant
+   * predicate is spec §6, and the `project_id` predicate makes the row's ownership by the named
+   * project part of the statement rather than a check the caller must remember — a `:id` that
+   * belongs to a different project in the same tenant matches nothing and updates nothing. Only
+   * the fields present in `input` are written, so an edit of the body alone leaves the title
+   * untouched; `updated_at` is always advanced. `published` is never touched here — the
+   * publish/unpublish lifecycle is {@link setPublished}. The service has already resolved the
+   * row tenant-scoped and authorized the write; this returns the row read back so the caller
+   * sees the server-advanced `updated_at`.
+   */
+  async updateContent(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: EditProjectUpdateInput,
+  ): Promise<ProjectUpdateRow | null> {
+    const db = tenantDrizzle(runner);
+    const values: { title?: string; body?: string; updatedAt: SQL } = {
+      updatedAt: sql`current_timestamp(3)`,
+    };
+    if (input.title !== undefined) values.title = input.title;
+    if (input.body !== undefined) values.body = input.body;
+
+    await db
+      .update(projectUpdates)
+      .set(values)
+      .where(
+        and(
+          eq(projectUpdates.organizationId, context.organizationId),
+          eq(projectUpdates.projectId, input.projectId),
+          eq(projectUpdates.id, input.updateId),
+        ),
+      );
+
+    return this.findById(runner, context, input.updateId);
+  }
+
+  /**
+   * Set one update's client-visibility flag — x201's unpublish.
+   *
+   * The same three-part tenant-and-project-scoped `WHERE` as {@link updateContent}. Flipping
+   * `published` to `false` is what removes the row from the client projection: the client read
+   * ({@link ProjectUpdatesRepository.list} with `publishedOnly`) has `published = 1` as a query
+   * predicate, so a drafted row is never in that result set — the gate is in the SQL, not a
+   * filter the read must remember. `updated_at` is advanced so the change is dated.
+   */
+  async setPublished(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: SetProjectUpdatePublishedInput,
+  ): Promise<ProjectUpdateRow | null> {
+    const db = tenantDrizzle(runner);
+
+    await db
+      .update(projectUpdates)
+      .set({ published: input.published, updatedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(projectUpdates.organizationId, context.organizationId),
+          eq(projectUpdates.projectId, input.projectId),
+          eq(projectUpdates.id, input.updateId),
+        ),
+      );
+
+    return this.findById(runner, context, input.updateId);
   }
 }

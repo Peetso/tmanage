@@ -93,6 +93,7 @@ import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../ap
 import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalUpdateView as ApiPortalUpdateView } from '../../apps/api/src/modules/clients/portal.service.js';
+import type { UpdateEditView as ApiUpdateEditView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalPersonView as ApiPortalPersonView } from '../../apps/api/src/modules/clients/portal-people.repository.js';
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../apps/api/src/modules/clients/portal.service.js';
@@ -236,6 +237,7 @@ import type {
   PortalPerson as WebPortalPerson,
   PortalProject as WebPortalProject,
   PortalUpdate as WebPortalUpdate,
+  UpdateEdit as WebUpdateEdit,
   PortalWorkItem as WebPortalWorkItem,
   ProjectMilestone as WebProjectMilestone,
   ClientMilestone as WebClientMilestone,
@@ -331,6 +333,8 @@ type _portalInboxBundle = Assert<Exact<ApiPortalInboxBundleView, WebPortalInboxB
 type _portalInboxPage = Assert<Exact<ApiPortalInboxPageView, WebPortalInboxPage>>;
 type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
 type _portalUpdate = Assert<Exact<ApiPortalUpdateView, WebPortalUpdate>>;
+// x201: the internal edit/unpublish response carries updatedAt (the client PortalUpdate does not).
+type _updateEdit = Assert<Exact<ApiUpdateEditView, WebUpdateEdit>>;
 type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
 type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
 type _portalFile = Assert<Exact<ApiPortalFileView, WebPortalFile>>;

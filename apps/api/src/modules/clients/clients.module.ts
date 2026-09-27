@@ -30,6 +30,7 @@ import { ClientsController } from './clients.controller.js';
 import { PortalService } from './portal.service.js';
 import { PortalController } from './portal.controller.js';
 import { ProjectUpdatesController } from './project-updates.controller.js';
+import { UpdateLifecycleController } from './update-lifecycle.controller.js';
 import { ProjectUpdatesRepository } from './project-updates.repository.js';
 import {
   PortalMilestonesController,
@@ -251,6 +252,7 @@ export class ClientsModule {
         ClientsController,
         PortalController,
         ProjectUpdatesController,
+        UpdateLifecycleController,
         ProjectMilestonesController,
         PortalMilestonesController,
         ProjectRisksController,
