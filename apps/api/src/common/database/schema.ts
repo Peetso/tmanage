@@ -3984,8 +3984,42 @@ export const homeWidgetPrefs = mysqlTable(
 
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
+/**
+ * Org glossary of terms (x263, migration 0133, module Docs — the DOC hub's "decision register,
+ * glossary"). One row is the fact "in this studio, this term means this": an org-wide, shared
+ * vocabulary, not a per-membership or per-document surface. A member with the doc-authoring
+ * capability adds a term (INSERT), edits its definition (UPDATE), or removes it (DELETE); any member
+ * who may read docs searches and reads it. `uq_glossary_terms_org_term` under the column's
+ * case-insensitive collation makes a repeated term (in any case) a collision the service maps to 409;
+ * the tenant is immutable (BEFORE UPDATE trigger), the term and definition are not.
+ * `0133_glossary_terms.sql` is the source of truth; this is its typed mirror.
+ */
+export const glossaryTerms = mysqlTable(
+  'glossary_terms',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    term: varchar('term', { length: 190 }).notNull(),
+    definition: text('definition').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_glossary_terms_org_id').on(table.organizationId, table.id),
+    // One term per studio, case-insensitively (the column's ci collation): a duplicate add collides
+    // here and the service maps it to 409.
+    uniqueIndex('uq_glossary_terms_org_term').on(table.organizationId, table.term),
+    // The alphabetical list, and the prefix search the list route runs; id breaks ties for a total order.
+    index('ix_glossary_terms_org_term').on(table.organizationId, table.term, table.id),
+  ],
+);
+
+export type GlossaryTermRow = typeof glossaryTerms.$inferSelect;
+export type NewGlossaryTermRow = typeof glossaryTerms.$inferInsert;
+
 export const TABLES = {
   home_widget_prefs: homeWidgetPrefs,
+  glossary_terms: glossaryTerms,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
