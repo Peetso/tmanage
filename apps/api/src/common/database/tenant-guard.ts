@@ -385,6 +385,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // registering it here is what scopes the pin reads and writes; tenant-isolation.db.test.ts
   // enforces the entry.
   home_pinned_items: 'organization_id',
+  // HOME recents (x324, migration 0192). Tenant-owned: a recent belongs to the acting tenant and a
+  // member, and an unscoped `SELECT ... FROM home_recent_items` would be every studio's recently-
+  // viewed references. The layer-3 guard fails OPEN on an unregistered table, so this entry is what
+  // scopes the recents reads and the upsert; tenant-isolation.db.test.ts enforces it.
+  home_recent_items: 'organization_id',
   // INBOX snooze (x259, migration 0129). Org-owned: a snooze belongs to the acting tenant and a
   // member, and an unscoped `SELECT ... FROM inbox_snoozes` would be every studio's snoozes; the
   // entry scopes the snooze reads and writes, and tenant-isolation.db.test.ts enforces it.

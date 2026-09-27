@@ -474,6 +474,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`message_bookmarks` TO 'tmanage_app'@'
 -- moves the snooze time in place) and DELETE (the un-snooze). Reading is the database-wide SELECT
 -- above. The worker gets nothing here — this table is the API's alone, the `saved_context` posture.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`inbox_snoozes` TO 'tmanage_app'@'%';
+-- HOME recents (0192, x324) membership-scoped recently-viewed references. INSERT and UPDATE (the
+-- upsert refreshes viewed_at in place) and DELETE (a member may clear a recent). Reading is the
+-- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
+-- `inbox_snoozes` upsert posture above.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`home_recent_items` TO 'tmanage_app'@'%';
 -- DOC-02/DOC-03 (x112) document versions. **INSERT only** — a version is an immutable snapshot of
 -- the body at a save: DOC-03's restore is a new row (forward-append), never an edit, and the 0036
 -- trigger refuses UPDATE for every credential. No DELETE: a document's history is the record of how
