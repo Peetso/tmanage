@@ -39,6 +39,7 @@ import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-link
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
+import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
@@ -144,6 +145,10 @@ export class AppModule {
         // stays file-disjoint from the organization-profile routes; depends only on the global
         // `TENANT_DATABASE`.
         OrgSettingsModule.register(),
+        // x175: the admin overview roll-up. Read-only org-health aggregation over memberships,
+        // usage counters and audit events behind `org.manage`; a module of its own so it stays
+        // file-disjoint from the other administration slices. Depends only on `TENANT_DATABASE`.
+        AdminOverviewModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

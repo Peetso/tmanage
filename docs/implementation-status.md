@@ -14207,3 +14207,28 @@ renders the step checklist with a done count and marks a step complete. Proved d
 real `authorize` (`onboarding-tour.controller.test.ts`): complete→list is own-scoped, an unknown step
 is a 400 with no write, a re-complete writes no duplicate, another member's progress never shows, and
 the routes sit behind `work.read`. Deferred to NEXT-SCOPES-13: sample-data seeding and coach-marks.
+
+## ADM overview — module 18 Administration, org-health roll-up (x175, 2026-09-27)
+
+The audit's rank #9 "Admin Partial" named a consolidated administration overview absent: the
+sub-screens existed (audit viewer x115, members x116, offboarding x121, org settings x153) but nothing
+rolled their org-level facts into one health read. x175 adds it. A new `GET .../admin/overview`
+(behind `org.manage`, the same org-administration capability the sub-screens reuse — no
+`capabilities.ts` edit) returns five computed figures: active members, seats used (every non-offboarded
+membership), storage bytes used, audit events over a fixed 30-day window, and offboardings in progress
+(suspended memberships). Read-only aggregation over `memberships`, `usage_counters` and `audit_events`;
+no table, no column, no write, no migration.
+
+**API.** `apps/api/src/modules/admin/{overview.repository.ts,overview.controller.ts}` (a self-contained
+module registered from `app.module.ts`, disjoint by file from x115/x116/x121/x153). The service is the
+tenant-scoped read seam (each `SELECT` filters `organization_id`, the audit window is `now(3) - 30 day`
+in SQL); the controller authorizes once at org level with the real `authorize` (a refusal is a 403, not
+an empty roll-up), then counts after a belt-and-braces tenant filter (Known-trap: scope before the
+count). Proved database-free in `overview.controller.test.ts` over the module's fakes with the real
+`authorize`: correct tenant-scoped counts with a cross-tenant row dropped, null-safe zero storage, a
+client (org.manage is internal-only) is a 403, and the route sits behind `org.manage`.
+
+**Web + contract.** `AdminOverviewScreen` (routed at `[orgSlug]/admin`, the administration front door,
+not a rail destination) reads `apps/web/src/lib/api/admin-overview.ts` and renders the figures as
+accessible stat tiles with links to the sub-screens. `AdminOverviewView` is paired Exact in
+`e2e/contracts/api-web-shapes.ts`. No DB test / no new e2e (the chain owns both).
