@@ -56,6 +56,8 @@ export const WORK_CHECKLIST_SERVICE = Symbol.for('tmanage.WorkChecklistService')
 export const WORK_FORMS_REPOSITORY = Symbol.for('tmanage.WorkFormsRepository');
 /** PEOPLE allocations (x171). The project-scoped person-allocation repository. */
 export const PERSON_ALLOCATIONS_REPOSITORY = Symbol.for('tmanage.PersonAllocationsRepository');
+/** People capacity (x170). The tenant-scoped per-member weekly-capacity repository. */
+export const PERSON_CAPACITY_REPOSITORY = Symbol.for('tmanage.PersonCapacityRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */
