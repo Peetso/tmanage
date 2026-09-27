@@ -4549,6 +4549,64 @@ export const insightTargets = mysqlTable(
 );
 
 /**
+ * The metric keys a custom insight report may compose (x320, migration 0188). The same four org-wide
+ * roll-up figures `InsightsService.orgWorkload` computes and `INSIGHT_TARGET_METRICS` (0102) judges —
+ * a custom report composes an *arbitrary ordered selection* of them (distinct from `insight_targets`,
+ * one goal per metric). A metric key off this allowlist is a 400 in the controller, never a stored row.
+ */
+export const INSIGHT_CUSTOM_REPORT_METRICS = [
+  'open_items',
+  'scheduled_items',
+  'active_projects',
+  'active_assignees',
+] as const;
+export type InsightCustomReportMetric = (typeof INSIGHT_CUSTOM_REPORT_METRICS)[number];
+
+/** How a custom report is laid out on the screen — a closed vocabulary, mirroring the `0188` ENUM. */
+export const INSIGHT_CUSTOM_REPORT_LAYOUTS = ['list', 'grid'] as const;
+export type InsightCustomReportLayout = (typeof INSIGHT_CUSTOM_REPORT_LAYOUTS)[number];
+
+/** A custom report's ordered metric-key selection — a JSON array of allowlisted metric keys. */
+export type InsightCustomReportMetricKeys = readonly InsightCustomReportMetric[];
+
+/**
+ * Insight custom reports (x320, migration 0188). A member's own named, custom insight report — a
+ * display `name`, an ordered `metric_keys` selection over the known metric allowlist, and a `layout`
+ * hint. It composes already-built insight metrics (no new metric computation): the by-id read renders
+ * each selected key via the existing insights read services.
+ *
+ * Owner- and tenant-scoped, and private to its creator: `owner_user_id` is who may see, replace or
+ * remove it and `organization_id` scopes it to the studio. Distinct from `insight_saved_views` (0089,
+ * a filter preset over one fixed report) — this composes an arbitrary metric set. `metric_keys` is the
+ * ordered selection stored whole (validated against the allowlist in the controller, never queried
+ * across rows). The row is created (POST), replaced in place (idempotent PUT) and removed (DELETE):
+ * the app is granted INSERT, UPDATE and DELETE, and the `0188` BEFORE UPDATE trigger pins
+ * `organization_id`/`owner_user_id` immutable at the engine. `0188_insight_custom_reports.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const insightCustomReports = mysqlTable(
+  'insight_custom_reports',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    ownerUserId: char('owner_user_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    metricKeys: json('metric_keys').$type<InsightCustomReportMetricKeys>().notNull(),
+    layout: mysqlEnum('layout', INSIGHT_CUSTOM_REPORT_LAYOUTS).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_custom_reports_org_id').on(table.organizationId, table.id),
+    index('ix_insight_custom_reports_org_owner').on(
+      table.organizationId,
+      table.ownerUserId,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * SEC / Client portal (module 13, x238). A project's client-portal settings / branding — one row per
  * project, keyed `(organization_id, project_id)`. Every column is a presentation field (the welcome
  * message, the accent colour, and whether the team and timeline are shown) except `updated_by`, the
@@ -5070,6 +5128,7 @@ export const TABLES = {
   admin_export_requests: adminExportRequests,
   invoice_line_items: invoiceLineItems,
   insight_targets: insightTargets,
+  insight_custom_reports: insightCustomReports,
   portal_settings: portalSettings,
 } as const;
 
@@ -5226,3 +5285,4 @@ export type InsightTargetMetric = (typeof INSIGHT_TARGET_METRICS)[number];
 export type InsightTargetPeriod = (typeof INSIGHT_TARGET_PERIODS)[number];
 export type PortalSettingsRow = typeof portalSettings.$inferSelect;
 export type NewPortalSettingsRow = typeof portalSettings.$inferInsert;
+export type InsightCustomReportRow = typeof insightCustomReports.$inferSelect;

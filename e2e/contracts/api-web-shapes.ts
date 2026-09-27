@@ -31,6 +31,10 @@
 import type { AcceptedClientRequestView as ApiAcceptedClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { A11yPreferencesView as ApiA11yPreferencesView } from '../../apps/api/src/modules/preferences/a11y.controller.js';
 import type { InsightSavedViewView as ApiInsightSavedViewView } from '../../apps/api/src/modules/insights/saved-views.controller.js';
+import type {
+  InsightCustomReportView as ApiInsightCustomReportView,
+  InsightCustomReportRenderedView as ApiInsightCustomReportRenderedView,
+} from '../../apps/api/src/modules/insights/custom-reports.controller.js';
 import type { ReportScheduleView as ApiReportScheduleView } from '../../apps/api/src/modules/insights/report-schedules.controller.js';
 import type { QuietHoursView as ApiQuietHoursView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
 import type { QuietHoursActiveView as ApiQuietHoursActiveView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
@@ -265,6 +269,10 @@ import type {
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
 import type { A11yPreferencesView as WebA11yPreferencesView } from '../../apps/web/src/lib/api/a11y-preferences';
 import type { InsightSavedViewView as WebInsightSavedViewView } from '../../apps/web/src/lib/api/insight-saved-views';
+import type {
+  InsightCustomReportView as WebInsightCustomReportView,
+  InsightCustomReportRenderedView as WebInsightCustomReportRenderedView,
+} from '../../apps/web/src/lib/api/insight-custom-reports';
 import type { ReportScheduleView as WebReportScheduleView } from '../../apps/web/src/lib/api/insight-report-schedules';
 import type { QuietHoursView as WebQuietHoursView } from '../../apps/web/src/lib/api/quiet-hours';
 import type { QuietHoursActiveView as WebQuietHoursActiveView } from '../../apps/web/src/lib/api/quiet-hours';
@@ -562,6 +570,13 @@ type _a11yPreferences = Assert<Exact<ApiA11yPreferencesView, WebA11yPreferencesV
 // INS saved views (x210): a member's own named insights view, created/listed/deleted over
 // `/insights/saved-views`. The screen reads exactly this response, so the pair is Exact.
 type _insightSavedView = Assert<Exact<ApiInsightSavedViewView, WebInsightSavedViewView>>;
+// INS custom reports (x320): a member's own composed insight report, created/listed/replaced/deleted
+// over `/insights/custom-reports`, and read back rendered by id. The screen reads exactly these
+// responses, so both pairs are Exact.
+type _insightCustomReport = Assert<Exact<ApiInsightCustomReportView, WebInsightCustomReportView>>;
+type _insightCustomReportRendered = Assert<
+  Exact<ApiInsightCustomReportRenderedView, WebInsightCustomReportRenderedView>
+>;
 // INS report schedules (x228): a member's own recurring insights-report definition, created/listed/
 // deleted over `/insights/report-schedules`. The screen reads exactly this response, so the pair is Exact.
 type _insightReportSchedule = Assert<Exact<ApiReportScheduleView, WebReportScheduleView>>;
