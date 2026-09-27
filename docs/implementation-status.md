@@ -14632,3 +14632,40 @@ every state view is axe clean. Deferred (recorded, not implied by a green run): 
 arithmetically in `tests/contrast.test.ts`). The colocated test path the brief named
 (`components/state/StateScreens.test.tsx`) is under `apps/web/tests/` instead, because `vitest.config`
 includes only `tests/**`.
+## Platform maintenance banner — Platform states, module 21 (x185)
+
+**What landed.** Platform states was Partial: no maintenance / degraded-mode state existed
+(AUDIT-2026-09-27, "Platform states Partial — maintenance/degraded state absent"). This slice adds a
+new GLOBAL, org-less `maintenance_windows` table (migration `0080`) — a public `message`, a
+`severity` (`info | degraded | down`), the window's `starts_at`/`ends_at` bounds, a `published`
+visibility gate and `created_at` — and two surfaces: a genuinely public read
+`GET /public/site/maintenance` (`PublicMaintenanceController`, `@Public()`, no cap, no tenant) that
+returns the current-or-next published window (or none), and an admin write
+`POST /v1/organizations/:orgSlug/admin/maintenance` (`AdminMaintenanceController`, `org.manage`) that
+schedules one. No `capabilities.ts` edit.
+
+**Global table, admin write / public read.** Like `incidents`/`credential_change_notices`,
+`maintenance_windows` carries no `organization_id`: it announces the state of the whole service and is
+read before any tenant is named. It is registered as a **global** in `schema.ts` def + `TABLES`, the
+tenant-guard **`NON_TENANT_TABLES`** (NOT `TENANT_TABLES`), the `users.sql` **INSERT** grant, and the
+on-disk migration the readdir migrator applies. The flag is platform-wide, so writing it is gated by
+`org.manage` on the org the operator names — but the row persists on the identity path
+(`identityTransaction`): authority is proved against the tenant, persistence is global.
+
+**Known-trap.** Published-only and time-order are held twice. The read's SQL filters `published = 1`
+and `ends_at > now`, and the controller's pure `toPublicMaintenance` re-derives `active`
+(`starts_at <= now < ends_at`) so a future window is never reported live. The write authorizes
+`org.manage` first (403 no write), then validates the `severity` enum and `starts_at < ends_at`
+(400 no write) before the repository is reached. Proved database-free
+(`maintenance.controller.test.ts`): public read returns the active window with no session, schedule
+writes exactly one row, a caller without `org.manage` (an `org_admin`, which holds every capability
+except it) is 403 with no write, and a bad severity or `starts_at >= ends_at` is a 400 with no write.
+
+**Surfaces.** `MaintenanceWindowView` and `PublicMaintenanceView` (`maintenance.controller.ts`) are
+live `Exact` pairs with the web's shapes in `apps/web/src/lib/api/maintenance.ts` via
+`e2e/contracts/api-web-shapes.ts`. `MaintenanceBanner`
+(`apps/web/src/components/screens/MaintenanceBanner.tsx`), mounted once in `AppShell`, reads the
+public endpoint and renders an accessible (`role="region"`, `aria-live`) banner only when a window is
+active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
+Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
+operator screen for the write.

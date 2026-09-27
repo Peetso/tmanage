@@ -157,3 +157,5 @@ export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');
 /** x161. The public site's contact / lead intake — the INSERT-only writer over `marketing_leads`. */
 export const MARKETING_LEADS_REPOSITORY = Symbol.for('tmanage.MarketingLeadsRepository');
+/** Platform states (x185). The GLOBAL maintenance-window read (public) and schedule (admin). */
+export const MAINTENANCE_WINDOWS_REPOSITORY = Symbol.for('tmanage.MaintenanceWindowsRepository');

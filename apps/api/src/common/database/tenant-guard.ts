@@ -377,6 +377,14 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // public, no-tenant path. Registering it here is what lets the repository reach it through
   // `identityTransaction`; it is deliberately NOT in `TENANT_TABLES`. `0062_marketing_leads.sql`.
   'marketing_leads',
+  // Platform states (x185, migration 0080). The platform maintenance / degraded-mode window is
+  // GLOBAL: it announces the state of the whole service and is read by the app shell before and
+  // independently of any organization, so `maintenance_windows` carries no `organization_id` (0080
+  // explains). Registered here — NOT in TENANT_TABLES — so the layer-3 guard treats the org-less
+  // public read (and the admin write, which is authorized against a tenant but persists globally) as
+  // legitimate, and the identity path (`makeIdentityRunner`) may reach it. The public read still
+  // filters `published = 1` in SQL; the guard's job here is only to allow the unscoped access.
+  'maintenance_windows',
 ]);
 
 export function isTenantTable(name: string): boolean {

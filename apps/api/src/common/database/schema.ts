@@ -2772,6 +2772,41 @@ export const changelogEntries = mysqlTable(
   (table) => [index('ix_changelog_published').on(table.published, table.publishedAt, table.id)],
 );
 
+// Platform states — GLOBAL, deliberately NOT tenant-owned (0080, x185)
+// ─────────────────────────────────────────────────────────────────────────────
+// The platform maintenance / degraded-mode window the app shell reads. Like `incidents` (0060)
+// and `credential_change_notices` (0020), this table carries no `organization_id`: it announces the
+// state of the whole service, is read before/independently of any tenant, and is registered in the
+// guard's NON_TENANT_TABLES (not TENANT_TABLES) and read on the identity path.
+
+/** The banner severities. Mirrors the `0080` `severity` ENUM. */
+export const MAINTENANCE_SEVERITIES = ['info', 'degraded', 'down'] as const;
+
+/**
+ * Platform states (x185, migration 0080). A platform maintenance / degraded-mode window — a public
+ * `message`, a `severity` the banner renders, the window's `starts_at`/`ends_at` bounds, and whether
+ * it is `published`.
+ *
+ * Global (org-less): a maintenance window describes the whole service and is read by the app shell
+ * before any tenant is resolved, so there is no `organization_id` and no tenant foreign key — the
+ * shape `incidents` (0060) and `credential_change_notices` (0020) use. `published` is the
+ * public-visibility gate: the read selects `published = 1` only, so a draft window is never announced.
+ * `0080_maintenance_windows.sql` is the source of truth; this is its typed mirror.
+ */
+export const maintenanceWindows = mysqlTable(
+  'maintenance_windows',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    message: text('message').notNull(),
+    severity: mysqlEnum('severity', MAINTENANCE_SEVERITIES).notNull(),
+    startsAt: datetime('starts_at', { mode: 'date', fsp: 3 }).notNull(),
+    endsAt: datetime('ends_at', { mode: 'date', fsp: 3 }).notNull(),
+    published: boolean('published').notNull().default(false),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_maintenance_windows_published_ends').on(table.published, table.endsAt)],
+);
+
 /**
  * Every table this schema describes, keyed by its SQL name.
  *
@@ -2858,6 +2893,7 @@ export const TABLES = {
   integration_connections: integrationConnections,
   webhook_endpoints: webhookEndpoints,
   automation_schedules: automationSchedules,
+  maintenance_windows: maintenanceWindows,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2949,3 +2985,4 @@ export type IncidentRow = typeof incidents.$inferSelect;
 export type ChangelogEntryRow = typeof changelogEntries.$inferSelect;
 export type MarketingLeadRow = typeof marketingLeads.$inferSelect;
 export type NewMarketingLeadRow = typeof marketingLeads.$inferInsert;
+export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;

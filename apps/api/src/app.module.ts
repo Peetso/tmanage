@@ -60,6 +60,7 @@ import { ContactModule } from './modules/public-site/contact.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 import { WebhooksModule } from './modules/automations/webhooks.controller.js';
+import { MaintenanceModule } from './modules/platform/maintenance.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -323,6 +324,11 @@ export class AppModule {
         // `org.manage`, over the new `webhook_endpoints` table. Self-contained and file-disjoint;
         // delivery/dispatch to third parties is a later slice (external egress, Needs-Peter).
         WebhooksModule.register(),
+        // Platform states (x185). The platform maintenance / degraded-mode window: a `@Public()`
+        // read (`GET /public/site/maintenance`) over the GLOBAL `maintenance_windows` table (0080),
+        // and an `org.manage` write (`POST …/admin/maintenance`) that persists globally. Its
+        // position here is by subject, at the end of the feature modules.
+        MaintenanceModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
