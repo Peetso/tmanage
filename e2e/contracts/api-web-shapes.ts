@@ -61,6 +61,7 @@ import type {
   CollectionView as ApiCollectionView,
   CollectionDocumentView as ApiCollectionDocumentView,
 } from '../../apps/api/src/modules/docs/collections.service.js';
+import type { ProjectFavoriteView as ApiProjectFavoriteView } from '../../apps/api/src/modules/projects/project-favorites.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -325,6 +326,7 @@ import type {
   DocCollectionSummary as WebDocCollectionSummary,
   CollectionDocumentSummary as WebCollectionDocumentSummary,
 } from '../../apps/web/src/lib/api/doc-collections';
+import type { ProjectFavoriteSummary as WebProjectFavoriteSummary } from '../../apps/web/src/lib/api/project-favorites';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -859,6 +861,13 @@ type _glossaryTerm = Assert<Exact<ApiGlossaryTermView, WebGlossaryTermSummary>>;
  */
 type _docCollection = Assert<Exact<ApiCollectionView, WebDocCollectionSummary>>;
 type _collectionDocument = Assert<Exact<ApiCollectionDocumentView, WebCollectionDocumentSummary>>;
+
+/**
+ * PROJ project favorites (x268). `ProjectFavoriteView` (`PUT …/projects/:id/favorite`,
+ * `GET …/projects/favorites`) — one of the caller's favorited projects. The `ProjectFavoritesSwitcher`
+ * and the favorite star read exactly this response, so the pair is Exact.
+ */
+type _projectFavorite = Assert<Exact<ApiProjectFavoriteView, WebProjectFavoriteSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

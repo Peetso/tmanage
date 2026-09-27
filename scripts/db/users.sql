@@ -528,6 +528,12 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`glossary_terms`    TO 'tmanage_app'@'
 -- control (no immutability trigger, none needed — the doc_bookmarks posture above). Reading is the
 -- database-wide SELECT above. The worker gets nothing here — this table is the API's alone.
 GRANT INSERT, DELETE         ON `tmanage`.`doc_collections`   TO 'tmanage_app'@'%';
+-- PROJ project favorites (0138, x268) per-membership project favorites for the switcher. INSERT to
+-- star and DELETE to unstar, and **no UPDATE**: a favorite is created and removed, never edited, so
+-- the missing privilege is the control (no immutability trigger, none needed). Reading is the
+-- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
+-- `doc_bookmarks` posture above.
+GRANT INSERT, DELETE         ON `tmanage`.`project_favorites` TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
