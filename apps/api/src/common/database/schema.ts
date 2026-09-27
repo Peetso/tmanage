@@ -648,6 +648,44 @@ export const meetingRsvps = mysqlTable(
   ],
 );
 
+export const MEETING_ACTION_ITEM_STATUSES = ['open', 'done'] as const;
+
+/**
+ * CAL / MTG-03 meeting action items (x266). An action captured on a meeting (0029) — a `title`
+ * (what will be done), an optional `ownerMembershipId` (who owns it) and an optional `dueOn` (when) —
+ * that moves between `open` and `done`. `0033_meeting_notes.sql` deferred the linked actions
+ * explicitly; this is that table.
+ *
+ * The row carries no `projectId`: the relation it is read and written by is the meeting's, resolved
+ * in the service, so the two can never disagree. The owner, when present, is a membership row (not a
+ * bare user id) kept inside the tenant by the composite FK. Identity (`organizationId`/`meetingId`)
+ * is immutable at the engine; `title`/`ownerMembershipId`/`dueOn`/`status` (and `updatedAt`) are what
+ * an UPDATE may change (0136's trigger pins the rest). `0136_meeting_action_items.sql` is the source
+ * of truth; this is its typed mirror.
+ */
+export const meetingActionItems = mysqlTable(
+  'meeting_action_items',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 500 }).notNull(),
+    ownerMembershipId: char('owner_membership_id', { length: 36 }),
+    dueOn: date('due_on', { mode: 'string' }),
+    status: mysqlEnum('status', MEETING_ACTION_ITEM_STATUSES).notNull().default('open'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_action_items_org_id').on(table.organizationId, table.id),
+    index('ix_meeting_action_items_org_meeting').on(
+      table.organizationId,
+      table.meetingId,
+      table.id,
+    ),
+  ],
+);
+
 export const MEETING_SERIES_FREQ = ['daily', 'weekly', 'monthly'] as const;
 
 /** The per-occurrence override kinds (x213): a moved occurrence or a cancelled one. */
@@ -5262,6 +5300,7 @@ export const TABLES = {
   meeting_notes: meetingNotes,
   meeting_attendees: meetingAttendees,
   meeting_rsvps: meetingRsvps,
+  meeting_action_items: meetingActionItems,
   meeting_series: meetingSeries,
   meeting_occurrence_overrides: meetingOccurrenceOverrides,
   saved_views: savedViews,
@@ -5374,6 +5413,7 @@ export type PortalAccessLogRow = typeof portalAccessLog.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type MeetingRsvpRow = typeof meetingRsvps.$inferSelect;
+export type MeetingActionItemRow = typeof meetingActionItems.$inferSelect;
 export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;

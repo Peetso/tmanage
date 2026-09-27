@@ -50,6 +50,7 @@ import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
 import { CalendarGridModule } from './modules/calendar/grid.controller.js';
 import { OccurrenceOverrideModule } from './modules/calendar/occurrence-override.module.js';
+import { MeetingActionItemsModule } from './modules/calendar/meeting-action-items.module.js';
 import { MeetingRsvpModule } from './modules/calendar/rsvp.module.js';
 import { DocsModule } from './modules/docs/docs.module.js';
 import { DocumentTemplateVariablesModule } from './modules/docs/document-template-variables.controller.js';
@@ -407,6 +408,12 @@ export class AppModule {
         // so the sibling calendar slices stay file-disjoint (each registers here rather than all
         // editing `calendar.module.ts`); it resolves the path meeting tenant-scoped before authorize.
         MeetingRsvpModule.register(),
+        // CAL / MTG-03 meeting action items (x266). Capture/list/edit/toggle/remove the actions
+        // linked to a meeting, over its own `meeting_action_items` table. In its own module beside
+        // `CalendarModule` so the sibling calendar slices stay file-disjoint (each registers here
+        // rather than all editing `calendar.module.ts`); it resolves the path meeting tenant-scoped
+        // before authorize, so a cross-tenant meeting is a 404 with no write.
+        MeetingActionItemsModule.register(),
         // DOC-01 (x91). After `ProjectsModule` for the same reason as conversations and meetings:
         // a document names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
