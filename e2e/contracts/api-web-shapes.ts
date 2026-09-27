@@ -79,6 +79,7 @@ import type { SavedContextView as ApiSavedContextView } from '../../apps/api/src
 import type { HomePinView as ApiHomePinView } from '../../apps/api/src/modules/home/home-pins.controller.js';
 import type { NotificationKindPrefView as ApiNotificationKindPrefView } from '../../apps/api/src/modules/notifications/notification-kind-prefs.controller.js';
 import type { OnboardingTourView as ApiOnboardingTourView } from '../../apps/api/src/modules/home/onboarding-tour.controller.js';
+import type { UserPreferencesView as ApiUserPreferencesView } from '../../apps/api/src/modules/preferences/preferences.controller.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -224,6 +225,7 @@ import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/a
 import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
 import type { SecuritySettingsView as WebSecuritySettingsView } from '../../apps/web/src/lib/api/admin-security';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
+import type { UserPreferencesView as WebUserPreferencesView } from '../../apps/web/src/lib/api/preferences';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
   MfaRequiredResponse as WebMfaRequiredResponse,
@@ -1193,6 +1195,11 @@ type _securitySettings = Assert<Exact<ApiSecuritySettingsView, WebSecuritySettin
  * share_portal`) must match exactly. The `OnboardingTourScreen` reads exactly this response.
  */
 type _onboardingTour = Assert<Exact<ApiOnboardingTourView, WebOnboardingTourView>>;
+ * PREF-001 (x182). `GET/PUT .../me/preferences` — the acting member's own appearance/locale settings.
+ * One projection, three closed unions (`theme`, `locale`, `density`) that must match exactly on both
+ * sides; the `PreferencesScreen` reads and writes exactly this shape.
+ */
+type _userPreferences = Assert<Exact<ApiUserPreferencesView, WebUserPreferencesView>>;
 
 /**
  * WK-04 (x94). `GET .../work-views/timeline/:projectId` — the accessible Work timeline. The

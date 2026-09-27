@@ -102,6 +102,7 @@
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
 --     notifications, notification_preferences, notification_kind_prefs, work_blockers,
 --     usage_counters, file_assets,
+--     notifications, notification_preferences, user_preferences, work_blockers, usage_counters, file_assets,
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
 --     saved_views, meeting_attendees, org_settings
@@ -256,6 +257,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`notifications`        TO 'tmanage_app
 -- until a delivery slice reads it, and the read grant it would then need is added with that
 -- slice, per this file's rule that a grant names a statement that exists.
 GRANT INSERT, UPDATE         ON `tmanage`.`notification_preferences` TO 'tmanage_app'@'%';
+-- PREF-001 appearance & accessibility preferences (x182). INSERT to create a member's settings row
+-- and UPDATE to replace it in place — the `INSERT ... ON DUPLICATE KEY UPDATE` upsert needs both.
+-- **No DELETE**: settings are replaced, never removed, so a member cannot be silently reverted to
+-- defaults they did not choose. Reading is the database-wide SELECT.
+GRANT INSERT, UPDATE         ON `tmanage`.`user_preferences`     TO 'tmanage_app'@'%';
 -- WORK-003. A dependency is a removable planning edge — the second DELETE this file
 -- grants, and like the first (idempotency housekeeping) it destroys no history the audit
 -- trail does not keep: the removal is audited. A blocker is a ledger: INSERT to raise,

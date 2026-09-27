@@ -29,6 +29,7 @@ import { NotificationsFeedModule } from './modules/notifications/notifications-f
 import { NotificationKindPrefsModule } from './modules/notifications/notification-kind-prefs.module.js';
 import { A11yPreferencesModule } from './modules/preferences/a11y-preferences.module.js';
 import { QuietHoursModule } from './modules/preferences/quiet-hours.module.js';
+import { PreferencesModule } from './modules/preferences/preferences.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
@@ -262,6 +263,7 @@ export class AppModule {
         // resolves no tenant object and depends on nothing but the database; file-disjoint from
         // x182/x183.
         QuietHoursModule.register(),
+        PreferencesModule.register(),
         // After `ProjectsModule`: `ClientsService` reads `PROJECTS_REPOSITORY` to answer 404
         // rather than 500 when a caller shares a project that is not in this tenant.
         ClientsModule.register(),

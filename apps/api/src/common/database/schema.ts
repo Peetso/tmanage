@@ -1921,6 +1921,45 @@ export type OnboardingTourStep = (typeof ONBOARDING_TOUR_STEPS)[number];
  */
 export const onboardingProgress = mysqlTable(
   'onboarding_progress',
+ * PREF-001 (x182) — the closed vocabularies a user preference can take. Each is a fixed allowlist
+ * checked on write: a theme, locale or density outside its set is a 400 with no row written, so a
+ * `prefs_json` blob can never hold a value the appearance/locale surface does not know how to
+ * render. Kept here beside the table so the write validator and the column `$type` share one source.
+ */
+export const THEME_PREFERENCES = ['system', 'light', 'dark'] as const;
+export type ThemePreference = (typeof THEME_PREFERENCES)[number];
+
+/** The density of the internal shell — the two the design system lays out for. */
+export const DENSITY_PREFERENCES = ['comfortable', 'compact'] as const;
+export type DensityPreference = (typeof DENSITY_PREFERENCES)[number];
+
+/**
+ * The locales the app is translated for. A closed allowlist rather than any BCP-47 string: an
+ * unknown locale would fall back to the default at render time anyway, so accepting only what the
+ * bundle ships keeps "unset", "default" and "a locale we do not have" from being confused, and a
+ * typo a 400 rather than a stored value nothing honours.
+ */
+export const PREFERENCE_LOCALES = ['en', 'en-GB', 'fr', 'de', 'es'] as const;
+export type PreferenceLocale = (typeof PREFERENCE_LOCALES)[number];
+
+/** The settings stored in `user_preferences.prefs_json` — the exact shape the GET/PUT exchanges. */
+export interface UserPreferencesJson {
+  readonly theme: ThemePreference;
+  readonly locale: PreferenceLocale;
+  readonly density: DensityPreference;
+}
+
+/**
+ * PREF-001 appearance & accessibility preferences (x182, migration 0078). One row per membership
+ * per studio, holding that member's own appearance/locale settings as a fixed-key JSON blob. Own-
+ * principal: the read and the upsert are both scoped by `membership_id = the acting context's
+ * membership`, so a member reaches only their own row and never another's, even inside one tenant.
+ * Distinct from `notification_preferences` (that is delivery channels, keyed by user); this is the
+ * appearance/locale surface the audit named absent. Created and replaced in place, never removed —
+ * INSERT and UPDATE only (the upsert), no DELETE.
+ */
+export const userPreferences = mysqlTable(
+  'user_preferences',
   {
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
@@ -1941,6 +1980,14 @@ export const onboardingProgress = mysqlTable(
       table.completedAt,
       table.id,
     ),
+    prefsJson: json('prefs_json').$type<UserPreferencesJson>().notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_user_preferences_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per membership per studio.
+    uniqueIndex('uq_user_preferences_org_membership').on(table.organizationId, table.membershipId),
   ],
 );
 
@@ -3766,6 +3813,7 @@ export const TABLES = {
   insight_snapshots: insightSnapshots,
   billing_seats: billingSeats,
   invoices: invoices,
+  user_preferences: userPreferences,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3851,6 +3899,7 @@ export type NotificationPreferenceRow = typeof notificationPreferences.$inferSel
 export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
 export type A11yPreferenceRow = typeof a11yPreferences.$inferSelect;
 export type QuietHoursRow = typeof quietHours.$inferSelect;
+export type UserPreferenceRow = typeof userPreferences.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
