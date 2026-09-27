@@ -183,6 +183,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // membership, and an unscoped `SELECT ... FROM meeting_attendees` would be who is invited to
   // every studio's meetings on the server. The guard must scope its reads and its writes.
   meeting_attendees: 'organization_id',
+  // A meeting RSVP is a member's own answer, tenant- and meeting-scoped by its composite keys, and an
+  // unscoped `SELECT ... FROM meeting_rsvps` would be who is coming to every studio's meetings on the
+  // server (x240).
+  meeting_rsvps: 'organization_id',
   // CAL recurrence (x129). Tenant-owned and org-scoped (no project): a series is one studio's
   // recurrence rule, and an unscoped `SELECT ... FROM meeting_series` would be every studio's
   // calendar rules on the server. The guard must scope its reads and its writes.
