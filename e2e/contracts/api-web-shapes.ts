@@ -127,6 +127,10 @@ import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/a
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
+import type {
+  ItemLabelView as ApiItemLabelView,
+  WorkLabelView as ApiWorkLabelView,
+} from '../../apps/api/src/modules/work/work-labels.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -281,6 +285,8 @@ import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/w
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
+import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
+import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -644,6 +650,16 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * Append-only: there is no edit or delete route, so no update shape to pair.
  */
 type _workComment = Assert<Exact<ApiWorkCommentView, WebWorkComment>>;
+
+/**
+ * x233. Work item labels / tags (Work module 7). `WorkLabelView` ↔ `WorkLabel` — one org-scoped label
+ * definition (`GET`/`POST …/work/labels`); `ItemLabelView` ↔ `ItemLabel` — one label assigned to a
+ * work item (`GET`/`PUT …/work-items/:id/labels`, `DELETE …/labels/:labelId`). `WorkLabelsScreen`
+ * reads the definitions and `WorkItemLabelChips` reads the assignments, so both pairs are held
+ * identical on the two sides. `organizationId` is absent on all four.
+ */
+type _workLabel = Assert<Exact<ApiWorkLabelView, WebWorkLabel>>;
+type _itemLabel = Assert<Exact<ApiItemLabelView, WebItemLabel>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

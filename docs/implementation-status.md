@@ -14673,3 +14673,32 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+
+## x233 — Work item labels / tags (Work module 7)
+
+**Route + storage this slice.** `work_item_labels` (migration `0105`, registered in the four places:
+`schema.ts` def + `TABLES` + row types, `tenant-guard.ts` `TENANT_TABLES`, `scripts/db/users.sql`
+grant, and the migration file the migrator loads by directory order). One table holds two row kinds
+distinguished by nullability: a **definition** row carries `name` + `color` (`work_item_id`/`label_id`
+NULL), an **assignment** row carries `work_item_id` + `label_id` (`name`/`color` NULL).
+`fk_work_item_labels_work_item` binds `(organization_id, work_item_id)` to `work_items`, and the
+self-referential `fk_work_item_labels_label` binds `(organization_id, label_id)` back to this table, so
+a cross-tenant item or label id is a non-existent pair. `uq_work_item_labels_org_name` makes a name
+unique per studio; `uq_work_item_labels_assignment` makes tagging idempotent; the 0105 trigger pins
+`organization_id` immutable.
+
+**API.** `WorkLabelsController` (`v1/organizations/:orgSlug`): `GET`/`POST work/labels` (`work.read`
+list, `work.update` define; duplicate name → 409, colour outside `WORK_LABEL_COLORS` → 400) and
+`GET`/`PUT work-items/:workItemId/labels` + `DELETE …/labels/:labelId` (`work.read`/`work.update`;
+the parent work item and the label are resolved tenant-scoped BEFORE authorize → cross-tenant/absent →
+404, unknown label → 404, assign idempotent). `WorkLabelsService` holds the two rules;
+`WorkLabelsRepository` is the storage half. Unit proof (`work-labels.controller.test.ts`): define→list,
+assign→remove idempotent, duplicate 409, bad colour 400, cross-tenant item 404 (no write), unknown
+label 404, and a related reader on an archived item 403. No DB test / no e2e in-slice (the chain owns
+the engine-backed FK/trigger and journey proofs).
+
+**Web.** `WorkLabelView`/`ItemLabelView` are live `Exact` pairs with `WorkLabel`/`ItemLabel`
+(`apps/web/src/lib/api/work-labels.ts`) via `e2e/contracts/api-web-shapes.ts`. `WorkLabelsScreen`
+defines and lists the org's labels; `WorkItemLabelChips` renders an item's labels as chips with an
+optional remove control. Deferred: rename/recolour a definition and per-label filtering of the work
+list.

@@ -9,6 +9,7 @@ import {
   WORK_FORMS_REPOSITORY,
   WORK_ITEMS_REPOSITORY,
   WORK_ITEMS_SERVICE,
+  WORK_LABELS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -25,6 +26,9 @@ import { WorkFormsController } from './work-forms.controller.js';
 import { WorkCommentsRepository } from './work-comments.repository.js';
 import { WorkCommentsService } from './work-comments.service.js';
 import { WorkCommentsController } from './work-comments.controller.js';
+import { WorkLabelsRepository } from './work-labels.repository.js';
+import { WorkLabelsService } from './work-labels.service.js';
+import { WorkLabelsController } from './work-labels.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -74,15 +78,31 @@ export class WorkModule {
         new WorkCommentsService(database, workItems, new WorkCommentsRepository()),
     };
 
+    // Work item labels / tags (x233). Definitions are org-scoped; assignments hang off a work item.
+    const labelsService: Provider = {
+      provide: WORK_LABELS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkLabelsService(database, workItems, new WorkLabelsRepository()),
+    };
+
     return {
       module: WorkModule,
-      providers: [repository, service, checklistService, formsRepository, commentsService],
+      providers: [
+        repository,
+        service,
+        checklistService,
+        formsRepository,
+        commentsService,
+        labelsService,
+      ],
       exports: [service],
       controllers: [
         WorkItemsController,
         WorkChecklistController,
         WorkFormsController,
         WorkCommentsController,
+        WorkLabelsController,
       ],
     };
   }
