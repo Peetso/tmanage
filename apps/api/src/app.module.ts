@@ -61,6 +61,7 @@ import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 import { WebhooksModule } from './modules/automations/webhooks.controller.js';
 import { MaintenanceModule } from './modules/platform/maintenance.controller.js';
+import { FaqContentModule } from './modules/public-site/faq.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -329,6 +330,10 @@ export class AppModule {
         // and an `org.manage` write (`POST …/admin/maintenance`) that persists globally. Its
         // position here is by subject, at the end of the feature modules.
         MaintenanceModule.register(),
+        // x186. Module 1, the public FAQ page — `GET /v1/public/site/faq`, `@Public()`: no session,
+        // no tenant, no capability. Deterministic code-defined grouped Q&A copy; depends on nothing
+        // (no database, no mailer), so its position here is free.
+        FaqContentModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

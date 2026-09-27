@@ -6,6 +6,16 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
+## x186 — public FAQ page (module 1, public site) — branch `x186-public-faq`
+
+FEAT. Adds the FAQ sub-page to the already-BUILT public site. New `@Public()`/`@NoTenant()` read
+`GET /v1/public/site/faq` serving deterministic, code-defined grouped Q&A copy from
+`FaqContentService` — no session, no tenant, no capability, no database, no `capabilities.ts` edit,
+no new table. Web `MarketingFaqScreen` renders it at `/faq` as a native `<details>` accordion
+(keyboard-operable, axe-clean). `PublicFaqView` paired Exact in `e2e/contracts/api-web-shapes.ts`.
+Unit: `faq.controller.test.ts` (public door 200 with no session/cap, stable grouped payload, unknown
+sub-path 404) + `apps/web/tests/faq.test.tsx` (renders content, one `<h1>`, axe-clean).
+
 **Last updated:** 2026-09-20 (**x87 — status-doc truth-up: the frontier is x86**, branch
 `x87-status-doc-truth-up` off `master` `d6ccc9a`) — this changelog is a reverse-chronological
 append-log and it had drifted. The top entry read **x80** while `master` had reached **x86**
