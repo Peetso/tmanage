@@ -157,6 +157,7 @@ import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps
 import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps/api/src/modules/insights/adoption.controller.js';
 import type { SnapshotView as ApiSnapshotView } from '../../apps/api/src/modules/insights/snapshots.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
+import type { InsightDashboardLayoutView as ApiInsightDashboardLayoutView } from '../../apps/api/src/modules/insights/dashboard-layout.controller.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
@@ -389,6 +390,7 @@ import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps
 import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps/web/src/lib/api/insights-adoption';
 import type { SnapshotView as WebSnapshotView } from '../../apps/web/src/lib/api/insights-snapshots';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
+import type { InsightDashboardLayoutView as WebInsightDashboardLayoutView } from '../../apps/web/src/lib/api/insight-dashboard-layout';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
@@ -884,6 +886,16 @@ type _personProfile = Assert<Exact<ApiPersonProfileView, WebPersonProfileView>>;
  * exactly this response, so this is a live `Exact` pair, not an exemption.
  */
 type _workloadForecast = Assert<Exact<ApiWorkloadForecastView, WebWorkloadForecastView>>;
+
+/**
+ * x302 — `GET`/`PUT …/insights/dashboard-layout`. The member's own arrangement of the insights-
+ * dashboard metric tiles: `tiles` is an array of `{ key, position, visible }` over the fixed
+ * known-metric allowlist. The `InsightDashboardLayoutScreen` reads and writes exactly this response,
+ * so this is a live `Exact` pair, not an exemption.
+ */
+type _insightDashboardLayout = Assert<
+  Exact<ApiInsightDashboardLayoutView, WebInsightDashboardLayoutView>
+>;
 
 /**
  * x154 — `GET …/client-requests/aging`. The request-aging roll-up: `thresholds` (the fixed day

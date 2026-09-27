@@ -3984,7 +3984,72 @@ export const homeWidgetPrefs = mysqlTable(
 
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
+/**
+ * The fixed, closed vocabulary of insight-dashboard metric tiles — the metric surfaces the Insights
+ * dashboard actually renders (the portfolio roll-up, delivery-flow, approval-cycle, workload,
+ * workload forecast, adoption, snapshots and saved views). Every tile key in a saved layout is
+ * validated against this set (`dashboard-layout.controller.ts`); a key outside it is a validation
+ * error (400), never stored. Adding a metric tile to the dashboard means adding its key here.
+ */
+export const INSIGHT_METRIC_KEYS = [
+  'portfolio',
+  'deliveryFlow',
+  'approvalCycle',
+  'workload',
+  'workloadForecast',
+  'adoption',
+  'snapshots',
+  'savedViews',
+] as const;
+export type InsightMetricKey = (typeof INSIGHT_METRIC_KEYS)[number];
+
+/**
+ * One tile in a member's insight-dashboard layout: which metric it is, where it sits, and whether it
+ * is shown. The typed element of `insight_dashboard_layouts.tiles_json`; the application validates a
+ * request against {@link INSIGHT_METRIC_KEYS} before storing (the same division
+ * `home_widget_prefs.widget_order_json` and `a11y_preferences.a11y_json` take).
+ */
+export interface InsightDashboardTile {
+  readonly key: InsightMetricKey;
+  readonly position: number;
+  readonly visible: boolean;
+}
+
+/**
+ * Per-user insight dashboard layout (x302, migration 0170, module 16 Insights).
+ *
+ * One row per `(organization_id, membership_id)`: the metric tiles the acting member wants on the
+ * insights dashboard, in what order, and which are hidden. Keyed by membership (like
+ * `home_widget_prefs` and `a11y_preferences`) rather than the global user, because the layout is
+ * scoped to who the caller is *in this studio* and never leaves the tenant. `tiles_json` holds the
+ * list whole; it is read and written as one, never queried across rows. The write is a single upsert
+ * against `uq_insight_dashboard_layouts_org_membership`, so a second save updates in place;
+ * `updated_at` follows the column's `ON UPDATE`. Absence is the default layout, not an error — the
+ * read returns the shipped default when no row exists.
+ */
+export const insightDashboardLayouts = mysqlTable(
+  'insight_dashboard_layouts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    tilesJson: json('tiles_json').$type<InsightDashboardTile[]>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_dashboard_layouts_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member.
+    uniqueIndex('uq_insight_dashboard_layouts_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+    ),
+  ],
+);
+
+export type InsightDashboardLayoutRow = typeof insightDashboardLayouts.$inferSelect;
+
 export const TABLES = {
+  insight_dashboard_layouts: insightDashboardLayouts,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,
