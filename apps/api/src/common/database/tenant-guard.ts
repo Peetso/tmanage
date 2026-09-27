@@ -295,6 +295,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // every tenant table has, so the guard must scope its reads and its writes. The layer-3 guard fails
   // OPEN on an unregistered table, so this entry is what scopes the lock reads and writes.
   decision_locks: 'organization_id',
+  // x317 (migration 0185). Tenant-owned: a decision comment cites a decision of the acting tenant,
+  // and an unscoped `SELECT ... FROM decision_comments` would be every studio's decision discussion
+  // on the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
+  // tenant table has, so the guard scopes its reads, its inserts and its deletes.
+  decision_comments: 'organization_id',
   // PROJ / module 8 (x124, migration 0040). Tenant-owned: an objective names a project, and an
   // unscoped `SELECT ... FROM project_objectives` would be every studio's objectives on the server.
   // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table
