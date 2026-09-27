@@ -14673,3 +14673,32 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+
+## DOC bookmarks / favorites (x242) — module 10 (Docs & knowledge)
+
+**What this adds.** `38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Docs — a member's private favorites
+over documents, beside the built editor/templates/comments/revisions. A new tenant-scoped table
+`doc_bookmarks` (migration 0114) holds `{doc_id, membership_id, created_at}` with a unique
+`(organization_id, doc_id, membership_id)` key so a repeated bookmark is idempotent, never a second
+row. Registered in the four places: `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`,
+`users.sql` (INSERT + DELETE — a bookmark is created and removed, never edited; no UPDATE grant, no
+trigger needed, the `home_pinned_items` posture), and the 0114 migration.
+
+**Routes.** `PUT`/`DELETE`/`GET …/documents/:documentId/bookmark` (`doc.read`) bookmark, unbookmark,
+and read the caller's bookmark status of one document; `GET …/document-bookmarks` (`doc.read`) lists
+the caller's bookmarks newest-first. The list lives at the distinct top-level `document-bookmarks` so
+it is never matched as `documents/:documentId`. The document is resolved tenant-scoped BEFORE authorize
+(Known-trap): an unknown/cross-tenant `:id` is 404, never a 500; a non-member is 404, never 403 (a 403
+would confirm the document exists). Relation-gated as `work.read`, the ceiling-mirror of `doc.read`. A
+member bookmarks/lists only their own rows (scoped to `context.membershipId`), and the list projects
+only documents the caller can still read.
+
+**Surfaces.** `DocBookmarkView` (`bookmarks.service.ts`) is a live `Exact` pair with the web's
+`DocBookmarkSummary` (`apps/web/src/lib/api/doc-bookmarks.ts`) via `e2e/contracts/api-web-shapes.ts`.
+`BookmarkToggle` (`apps/web/src/components/docs/BookmarkToggle.tsx`) toggles the per-document favorite
+(`aria-pressed`), and `MyBookmarksScreen` (`apps/web/src/components/screens/MyBookmarksScreen.tsx`)
+lists the caller's favorites. Proved database-free (`bookmarks.controller.test.ts`): bookmark self
+idempotently, status, list own newest-first, unbookmark idempotent, another membership's bookmarks not
+listed, a cross-tenant document id is 404 with no write, and a non-member is the masked 404 with no
+write. Its own module (`BookmarksModule`, registered in `app.module.ts`) so the slice touches no file
+another docs slice appends to.
