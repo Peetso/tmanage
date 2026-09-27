@@ -755,6 +755,13 @@ GRANT INSERT ON `tmanage`.`maintenance_windows` TO 'tmanage_app'@'%';
 -- append-only tables above are (the 0090 trigger pins every column immutable besides). A
 -- retention/purge surface is a later slice that adds the privilege with the code that writes it.
 GRANT INSERT ON `tmanage`.`insight_snapshots` TO 'tmanage_app'@'%';
+-- `admin_export_requests` (Administration & governance, x224, 0098) gets INSERT and nothing else. A
+-- request is recorded (INSERT) and read (the database-wide SELECT, line 60); it is a historical fact,
+-- never amended or removed by the runtime API credential, so UPDATE and DELETE are withheld the way
+-- the append-only tables above are (the 0098 trigger pins identity + request facts immutable besides).
+-- Moving a request through its status lifecycle is the later async export worker's job, which is
+-- granted UPDATE alongside the code that writes it — the withheld UPDATE keeps the record honest here.
+GRANT INSERT ON `tmanage`.`admin_export_requests` TO 'tmanage_app'@'%';
 -- `decisions` (DEC-01, x113) gets INSERT, and now UPDATE (DEC-01-b, x117). A decision is authored
 -- (INSERT), read (the database-wide SELECT, line 60), and moved through its lifecycle (UPDATE):
 -- `proposed → accepted` on accept and `→ superseded` on supersede. UPDATE writes exactly `status`;

@@ -516,6 +516,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `organization_id` is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes
   // both the profile read and the upsert.
   member_profiles: 'organization_id',
+  // Admin data-export requests (x224, migration 0098). Tenant-owned: a request records that one studio
+  // asked for a data export, and an unscoped `SELECT ... FROM admin_export_requests` would be every
+  // studio's export requests on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard scopes its reads and its writes;
+  // the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
+  admin_export_requests: 'organization_id',
 });
 
 /**

@@ -3927,6 +3927,57 @@ export const billingSeats = mysqlTable(
 );
 
 /**
+ * What an admin data-export request may cover, a closed vocabulary mirrored by the `0098` `ENUM`:
+ * `full` (the whole organization), `members`, `projects`, `work_items`, `billing`. An unknown scope
+ * is a 400 in the controller, never a stored row.
+ */
+export const ADMIN_EXPORT_SCOPES = [
+  'full',
+  'members',
+  'projects',
+  'work_items',
+  'billing',
+] as const;
+
+/** The lifecycle of an export request; created `pending`, moved on by a later async worker. */
+export const ADMIN_EXPORT_STATUSES = ['pending', 'processing', 'completed', 'failed'] as const;
+
+/**
+ * Admin data-export requests (Administration & governance, module 18, x224, migration 0098). A
+ * recorded, GDPR-style request to export a studio's data, with a status an administrator can track.
+ * Distinct from the audit CSV export (x197, a synchronous read): the actual bulk file generation and
+ * delivery is Needs-Peter (an async worker plus storage), so this slice records and tracks the request
+ * only — no file is produced and nothing leaves the system.
+ *
+ * Tenant-owned and keyed by the composite `(organization_id, id)` every tenant-scoped table carries,
+ * so a request can never be fetched across a tenant boundary. `requestedAt` is the instant the admin
+ * asked, bound by the application — NOT a server-clock default — the admin-pool clock trap. A request
+ * is recorded and read, never edited or removed by the API credential: the 0098 trigger pins the
+ * identity and request facts immutable and `users.sql` grants INSERT only.
+ * `0098_admin_export_requests.sql` is the source of truth; this is its typed mirror.
+ */
+export const adminExportRequests = mysqlTable(
+  'admin_export_requests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    scope: mysqlEnum('scope', ADMIN_EXPORT_SCOPES).notNull(),
+    status: mysqlEnum('status', ADMIN_EXPORT_STATUSES).notNull().default('pending'),
+    requestedBy: char('requested_by', { length: 36 }).notNull(),
+    requestedAt: datetime('requested_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_admin_export_requests_org_id').on(table.organizationId, table.id),
+    index('ix_admin_export_requests_org_requested').on(
+      table.organizationId,
+      table.requestedAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -4217,6 +4268,7 @@ export const TABLES = {
   invoices: invoices,
   user_preferences: userPreferences,
   member_profiles: memberProfiles,
+  admin_export_requests: adminExportRequests,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -4345,3 +4397,6 @@ export type InsightSnapshotRow = typeof insightSnapshots.$inferSelect;
 export type InsightSnapshotKind = (typeof INSIGHT_SNAPSHOT_KINDS)[number];
 export type BillingSeatRow = typeof billingSeats.$inferSelect;
 export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
+export type AdminExportRequestRow = typeof adminExportRequests.$inferSelect;
+export type AdminExportScope = (typeof ADMIN_EXPORT_SCOPES)[number];
+export type AdminExportStatus = (typeof ADMIN_EXPORT_STATUSES)[number];
