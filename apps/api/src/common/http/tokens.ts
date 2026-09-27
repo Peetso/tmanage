@@ -144,3 +144,5 @@ export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
 export const SUBSCRIPTION_SERVICE = Symbol.for('tmanage.SubscriptionService');
 /** Billing / module 19 (x177). The `subscriptions` repository — one row per organization. */
 export const SUBSCRIPTION_REPOSITORY = Symbol.for('tmanage.SubscriptionRepository');
+/** Billing / module 19 (x198). The plan-change preview service — a deterministic cost estimate. */
+export const PLAN_PREVIEW_SERVICE = Symbol.for('tmanage.PlanPreviewService');

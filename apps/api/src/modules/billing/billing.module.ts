@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  PLAN_PREVIEW_SERVICE,
   SUBSCRIPTION_REPOSITORY,
   SUBSCRIPTION_SERVICE,
   TENANT_DATABASE,
@@ -9,6 +10,8 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { SubscriptionRepository } from './subscription.repository.js';
 import { SubscriptionService } from './subscription.service.js';
 import { SubscriptionController } from './subscription.controller.js';
+import { PlanPreviewService } from './plan-preview.service.js';
+import { PlanPreviewController } from './plan-preview.controller.js';
 
 /**
  * Billing / module 19 (x177). The subscription module — an organization's current plan (view, and
@@ -32,12 +35,20 @@ export class BillingModule {
       useFactory: (database: TenantDatabase, subscriptions: SubscriptionRepository) =>
         new SubscriptionService(database, subscriptions),
     };
+    // Billing / module 19 (x198). The plan-change preview reuses the subscriptions repository for the
+    // tenant-scoped current-plan read; it writes nothing and charges nothing (estimate only).
+    const planPreview: Provider = {
+      provide: PLAN_PREVIEW_SERVICE,
+      inject: [TENANT_DATABASE, SUBSCRIPTION_REPOSITORY],
+      useFactory: (database: TenantDatabase, subscriptions: SubscriptionRepository) =>
+        new PlanPreviewService(database, subscriptions),
+    };
 
     return {
       module: BillingModule,
-      providers: [repository, service],
-      exports: [service],
-      controllers: [SubscriptionController],
+      providers: [repository, service, planPreview],
+      exports: [service, planPreview],
+      controllers: [SubscriptionController, PlanPreviewController],
     };
   }
 }

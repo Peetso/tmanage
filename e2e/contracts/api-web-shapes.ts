@@ -104,6 +104,7 @@ import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { SubscriptionView as ApiSubscriptionView } from '../../apps/api/src/modules/billing/subscription.service.js';
+import type { PlanChangePreviewView as ApiPlanChangePreviewView } from '../../apps/api/src/modules/billing/plan-preview.service.js';
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../apps/api/src/modules/insights/insights.service.js';
@@ -217,6 +218,7 @@ import type {
 } from '../../apps/web/src/lib/api/session';
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { SubscriptionView as WebSubscriptionView } from '../../apps/web/src/lib/api/subscription';
+import type { PlanChangePreviewView as WebPlanChangePreviewView } from '../../apps/web/src/lib/api/plan-preview';
 import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
@@ -436,6 +438,14 @@ type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
  * consumer — x177 ships `SubscriptionScreen` — so this is an `Exact` pair, not an exemption.
  */
 type _subscription = Assert<Exact<ApiSubscriptionView, WebSubscriptionView>>;
+
+/**
+ * Billing / module 19 (x198) — `GET …/billing/plan-change/preview?target=&seats=`. A deterministic
+ * cost estimate of moving to a target plan at a seat count: the new base and seat deltas and the
+ * monthly change, all integer cents, against the tenant's current subscription. Read-only, no charge.
+ * Paired with a live web consumer — x198 ships `PlanChangePreviewScreen` — so this is an `Exact` pair.
+ */
+type _planChangePreview = Assert<Exact<ApiPlanChangePreviewView, WebPlanChangePreviewView>>;
 
 /**
  * INS-02 — `GET …/insights/projects/:projectId/approval-cycle`. A project's approvals rolled up by
