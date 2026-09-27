@@ -79,6 +79,8 @@ export const WORK_WATCHERS_SERVICE = Symbol.for('tmanage.WorkWatchersService');
 /** x256. A work item's personal reminders (set/clear own + own due list), behind `work.read`. */
 export const WORK_ITEM_REMINDERS_SERVICE = Symbol.for('tmanage.WorkItemRemindersService');
 export const WORK_LABELS_SERVICE = Symbol.for('tmanage.WorkLabelsService');
+/** x257. A work item's recurrence rule + in-app next-occurrence, behind `work.read`/`work.update`. */
+export const WORK_ITEM_RECURRENCE_SERVICE = Symbol.for('tmanage.WorkItemRecurrenceService');
 export const WORKFLOW_TEMPLATES_REPOSITORY = Symbol.for('tmanage.WorkflowTemplatesRepository');
 export const WORKFLOW_RUNS_REPOSITORY = Symbol.for('tmanage.WorkflowRunsRepository');
 export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');

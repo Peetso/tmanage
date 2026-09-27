@@ -4710,6 +4710,39 @@ export const workItemLabels = mysqlTable(
 export type WorkItemLabelRow = typeof workItemLabels.$inferSelect;
 export type NewWorkItemLabelRow = typeof workItemLabels.$inferInsert;
 
+/** The cadences a work item recurrence rule may use — x257. A value outside this set is a 400. */
+export const WORK_ITEM_RECURRENCE_FREQS = ['daily', 'weekly', 'monthly'] as const;
+
+/**
+ * x257. A work item's recurrence rule (Work module 7). One rule per work item: a `freq`
+ * (`daily`/`weekly`/`monthly`), an `interval_count` (1..365), and an optional `until_at` bound.
+ * `fk_work_item_recurrence_work_item` binds `(organization_id, work_item_id)` to `work_items`, so a
+ * cross-tenant `work_item_id` is a non-existent pair; `uq_work_item_recurrence_item` holds the
+ * one-rule-per-item invariant so a PUT upserts rather than duplicates. The next occurrence is
+ * computed in-app from this rule — no worker generates anything, and this table holds only the
+ * rule — migration `0127_work_item_recurrence.sql`.
+ */
+export const workItemRecurrence = mysqlTable(
+  'work_item_recurrence',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    freq: varchar('freq', { length: 20 }).notNull(),
+    intervalCount: int('interval_count').notNull(),
+    untilAt: datetime('until_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_recurrence_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_recurrence_item').on(table.organizationId, table.workItemId),
+  ],
+);
+
+export type WorkItemRecurrenceRow = typeof workItemRecurrence.$inferSelect;
+export type NewWorkItemRecurrenceRow = typeof workItemRecurrence.$inferInsert;
+
 /**
  * DOC bookmarks / favorites (x242). A membership's private favorite of a `documents` row â€” the fact
  * "this membership bookmarked this document". Per-membership and tenant-scoped like `home_pinned_items`
@@ -4843,6 +4876,7 @@ export const TABLES = {
   focus_blocks: focusBlocks,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
+  work_item_recurrence: workItemRecurrence,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   conversation_read_state: conversationReadState,
