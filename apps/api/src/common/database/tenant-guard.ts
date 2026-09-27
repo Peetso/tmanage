@@ -403,6 +403,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // entry is what scopes the condition reads and writes; `organization_id` is NOT NULL and carries the
   // `(organization_id, id)` key every tenant table has.
   workflow_conditions: 'organization_id',
+  // Automation variables (x305, migration 0173). Org-owned: a variable is one tenant's non-secret
+  // `(key -> value)` config for its automations, and an unscoped `SELECT ... FROM automation_variables`
+  // would be every studio's variables on the server. The layer-3 guard fails OPEN on an unregistered
+  // table, so this entry is what scopes the reads, the upsert and the delete; `organization_id` is NOT
+  // NULL and carries the `(organization_id, id)` key every tenant table has.
+  automation_variables: 'organization_id',
   // PEOPLE allocations (x171, migration 0069). Tenant-owned and project-owned: an allocation belongs
   // to the acting tenant, and an unscoped `SELECT ... FROM person_allocations` would be every studio's
   // capacity plan on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`

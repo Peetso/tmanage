@@ -2343,6 +2343,31 @@ export const workflowConditions = mysqlTable(
 );
 
 /**
+ * Automation variables (0173, x305). Org-scoped, **non-secret** `(var_key -> var_value)` map a
+ * workflow template may reference. Addressed by `var_key` within the tenant — the `(organization_id,
+ * var_key)` unique key is the upsert target (`PUT` writes `INSERT ... ON DUPLICATE KEY UPDATE` against
+ * it). Secrets/credentials are out of scope: the application refuses a secret-like key name and holds
+ * `var_key` to a safe-identifier grammar before any write. Identity (`organization_id`, `var_key`) is
+ * immutable at the engine; the app is granted INSERT/UPDATE/DELETE (upsert and remove). `0173_automation_variables.sql`
+ * is the source of truth; this is its typed mirror.
+ */
+export const automationVariables = mysqlTable(
+  'automation_variables',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    varKey: varchar('var_key', { length: 64 }).notNull(),
+    varValue: varchar('var_value', { length: 2000 }).notNull(),
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_automation_variables_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_automation_variables_org_key').on(table.organizationId, table.varKey),
+  ],
+);
+
+/**
  * PEOPLE / module 14 (x171). A person's allocation to a project — which membership, which project,
  * what share of their time (`percent`, 1..100), an optional `start_date`/`end_date` window, and when
  * the row was created. Tenant-scoped and project-owned like `project_objectives` (0040), plus a second
@@ -4082,6 +4107,7 @@ export const TABLES = {
   automation_schedules: automationSchedules,
   maintenance_windows: maintenanceWindows,
   workflow_conditions: workflowConditions,
+  automation_variables: automationVariables,
   person_allocations: personAllocations,
   person_capacity: personCapacity,
   person_skills: personSkills,
@@ -4160,6 +4186,7 @@ export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
 export type IntegrationConnectionRow = typeof integrationConnections.$inferSelect;
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
+export type AutomationVariableRow = typeof automationVariables.$inferSelect;
 export type PersonCapacityRow = typeof personCapacity.$inferSelect;
 export type PersonSkillRow = typeof personSkills.$inferSelect;
 export type SubscriptionRow = typeof subscriptions.$inferSelect;

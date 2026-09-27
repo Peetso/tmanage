@@ -586,6 +586,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`a11y_preferences`  TO 'tmanage_app'@'
 -- slice that adds UPDATE with the code that writes it. No DELETE. A condition gates a step of a template
 -- the run evaluator reads; it writes no other tenant table, so the app needs no further privilege here.
 GRANT INSERT                 ON `tmanage`.`workflow_conditions` TO 'tmanage_app'@'%';
+-- Automation variables (x305, 0173). **INSERT, UPDATE and DELETE** — the PUT is an upsert against the
+-- `(organization_id, var_key)` natural key (a first set INSERTs, a later value UPDATEs in place), and
+-- the DELETE removes one variable idempotently. SELECT is the database-wide grant above. The 0173
+-- trigger pins organization_id/var_key immutable for every credential, so the upsert can only move the
+-- value; the app writes no other tenant table here.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`automation_variables` TO 'tmanage_app'@'%';
 -- PEOPLE allocations (x171). **INSERT only** — an allocation is created (INSERT) and read (the
 -- database-wide SELECT). This slice ships no edit and no removal path; there is no allocation-column
 -- lifecycle yet, so no UPDATE, and no DELETE. Reassignment or an end-date edit is a later slice that
