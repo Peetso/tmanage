@@ -9,6 +9,7 @@ import {
   CLIENT_ORGANIZATIONS_REPOSITORY,
   INVITATION_MAILER,
   INVITATIONS_SERVICE,
+  MILESTONE_LIFECYCLE_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
@@ -37,6 +38,10 @@ import {
   ProjectMilestonesController,
   ProjectMilestonesService,
 } from './project-milestones.controller.js';
+import {
+  MilestoneLifecycleController,
+  MilestoneLifecycleService,
+} from './milestone-lifecycle.controller.js';
 import { ProjectMilestonesRepository } from './project-milestones.repository.js';
 import {
   PortalRisksController,
@@ -223,6 +228,22 @@ export class ClientsModule {
     };
 
     /**
+     * SEC / Portal milestone lifecycle (x202). Edit and complete an existing milestone. Its own
+     * service beside x139's create/read one; the repositories are constructed here, like the
+     * `milestones` provider above, for the same reason.
+     */
+    const milestoneLifecycle: Provider = {
+      provide: MILESTONE_LIFECYCLE_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new MilestoneLifecycleService(
+          database,
+          new ProjectsRepository(),
+          new ProjectMilestonesRepository(),
+        ),
+    };
+
+    /**
      * SEC / Portal risks (x140). The repositories are constructed here, like the `portal` provider
      * above: they are stateless collections of queries, and reaching for another module's provider
      * would register that dynamic module twice.
@@ -245,6 +266,7 @@ export class ClientsModule {
         invitations,
         clientRequests,
         milestones,
+        milestoneLifecycle,
         risks,
       ],
       exports: [service, portal],
@@ -255,6 +277,7 @@ export class ClientsModule {
         UpdateLifecycleController,
         ProjectMilestonesController,
         PortalMilestonesController,
+        MilestoneLifecycleController,
         ProjectRisksController,
         PortalRisksController,
       ],

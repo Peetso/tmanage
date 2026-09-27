@@ -15276,3 +15276,32 @@ real `authorize` (`update-lifecycle.controller.test.ts`): an edit persists title
 `updatedAt` without touching author, an unpublish drops the row from the client projection, a
 cross-tenant/cross-project id is a 404 with no write, a client principal cannot edit, and the
 `project.manage` route ceiling is pinned. No DB test / no new e2e (the chain owns both).
+## SEC / Portal milestone lifecycle — module 13 (x202, 2026-09-27)
+
+**What shipped.** The edit and complete transitions x139 left out ("Portal milestones published-only
+in pass 20; no edit/complete"). Two internal routes on the `projects` path behind `project.manage`:
+`PATCH …/projects/:projectId/milestones/:id` edits a milestone's `title` and/or `dueOn`, and `POST
+…/projects/:projectId/milestones/:id/complete` sets `status = met`. No new table (reuses
+`project_milestones` 0048, so no migration) and no `capabilities.ts` edit. A milestone is _complete_
+when it has been **met** — the enum's achieved terminal state — and there is no separate
+`completed_at` column, so the completion date is `updated_at`, surfaced on the new `MilestoneEditView`.
+
+**Security.** Client-audience isolation is the substance. Both writes resolve the project
+tenant-scoped and check the `project.manage` relation **before** fetching the milestone or writing
+(the Known-trap order): an unknown or cross-tenant `projectId`, a milestone id that belongs to a
+different project, or a caller who cannot manage the project is a **404 with no write**, never a 403
+or a foreign-key 500. Identity (`organization_id`/`project_id`/`created_by_user_id`) is never in the
+patch — 0048's `BEFORE UPDATE` trigger holds it at the engine too — and `published` is untouched
+(its own slice), so nothing here can move a milestone into another client's portal. The client
+projection is unchanged: `PortalMilestonesController` still reads published-only milestones through
+`ClientMilestoneView` (no staff identity, no publish flag); this slice adds no client-facing route.
+
+**Surfaces.** `MilestoneEditView` (`milestone-lifecycle.controller.ts`) is a live `Exact` pair with
+the web's `MilestoneEdit` (`apps/web/src/lib/api/portal.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`MilestoneLifecycleControls` (`apps/web/src/components/screens/MilestoneLifecycleControls.tsx`) — a
+distinct component from x139's `MilestoneComposer` — edits and completes an existing milestone and
+invalidates the internal and portal milestone queries. Proved database-free with the real `authorize`
+(`milestone-lifecycle.controller.test.ts`): an edit persists title/due and returns the updated
+instant, complete sets `met` with a completion instant, a cross-tenant/unknown milestone id is a 404
+with no write, a client (no `project.manage`) is refused with 404, and both routes are guarded by
+`project.manage`. DB round-trip and live e2e are the chain's.
