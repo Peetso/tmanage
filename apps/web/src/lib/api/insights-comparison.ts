@@ -15,8 +15,13 @@ import type { ApiClient } from './client';
 /** The metrics a comparison may be run over — mirrors the server's closed allowlist. */
 export type ComparisonMetric = 'work_items_created' | 'meetings_held';
 
-/** One window's contribution — its bounds echoed as ISO instants and the count computed over it. */
-export interface PeriodResult {
+/**
+ * One window's contribution — its bounds echoed as ISO instants and the count computed over it.
+ * Not exported: it is a nested element of {@link PeriodComparisonView}, paired structurally through
+ * that parent's `Exact` assertion (an exported standalone would need its own pair, and there is no
+ * `…View` on the API side to name it against — the sibling nested-shape convention).
+ */
+interface PeriodResult {
   readonly start: string;
   readonly end: string;
   readonly value: number;

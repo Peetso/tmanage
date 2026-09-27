@@ -1,10 +1,12 @@
-import { and, count, eq, gte, isNull, lt } from 'drizzle-orm';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
-import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { meetings, workItems } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { COMPARISON_METRICS, InsightComparisonRepository } from './comparison.repository.js';
+import type { ComparisonMetric } from './comparison.repository.js';
+
+export { COMPARISON_METRICS } from './comparison.repository.js';
+export type { ComparisonMetric } from './comparison.repository.js';
 
 /**
  * x229's service — Insight period-over-period comparison (module 15, Insights & reporting).
@@ -37,12 +39,6 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
  * read across tenants.
  */
 
-/** The metrics a comparison may be run over — a closed vocabulary, never an arbitrary column. */
-export const COMPARISON_METRICS = ['work_items_created', 'meetings_held'] as const;
-
-/** One of the known comparison metrics. */
-export type ComparisonMetric = (typeof COMPARISON_METRICS)[number];
-
 /**
  * x229's read shape — a metric compared across two windows.
  *
@@ -60,8 +56,12 @@ export interface PeriodComparisonView {
   readonly computedAt: string;
 }
 
-/** One window's contribution — its bounds echoed as ISO instants and the count computed over it. */
-export interface PeriodResult {
+/**
+ * One window's contribution — its bounds echoed as ISO instants and the count computed over it. A
+ * nested element of {@link PeriodComparisonView}, paired structurally through that parent's `Exact`
+ * assertion, so it is not exported as a standalone projection.
+ */
+interface PeriodResult {
   readonly start: string;
   readonly end: string;
   readonly value: number;
@@ -114,6 +114,8 @@ function invalidWindow(field: string, message: string): ApiError {
 }
 
 export class InsightComparisonService {
+  private readonly repository = new InsightComparisonRepository();
+
   constructor(private readonly database: TenantDatabase) {}
 
   /**
@@ -167,38 +169,15 @@ export class InsightComparisonService {
   }
 
   /**
-   * Count one metric over one window, tenant-scoped. The window bounds are bound `Date` parameters
-   * (`>= start AND < end`), never the DB clock, so the count is exactly the caller's window. Filters
-   * on `organization_id` from the context, so a cross-tenant row never contributes.
+   * Count one metric over one window, tenant-scoped. Delegates the driver-held `SELECT count(*)` to
+   * {@link InsightComparisonRepository} (the only layer permitted a database handle), inside a
+   * `TenantDatabase.read` so the count runs on a tenant-scoped connection. The window bounds are the
+   * caller's bound `Date` values, never the DB clock; the repository filters on `organization_id`
+   * from the context, so a cross-tenant row never contributes.
    */
   private count(context: TenantContext, metric: ComparisonMetric, window: Window): Promise<number> {
-    return this.database.read(context, async (runner) => {
-      const db = tenantDrizzle(runner);
-      const org = context.organizationId;
-      const rows =
-        metric === 'work_items_created'
-          ? await db
-              .select({ total: count() })
-              .from(workItems)
-              .where(
-                and(
-                  eq(workItems.organizationId, org),
-                  isNull(workItems.deletedAt),
-                  gte(workItems.createdAt, window.start),
-                  lt(workItems.createdAt, window.end),
-                ),
-              )
-          : await db
-              .select({ total: count() })
-              .from(meetings)
-              .where(
-                and(
-                  eq(meetings.organizationId, org),
-                  gte(meetings.startsAt, window.start),
-                  lt(meetings.startsAt, window.end),
-                ),
-              );
-      return Number(rows[0]?.total ?? 0);
-    });
+    return this.database.read(context, (runner) =>
+      this.repository.countMetricInWindow(runner, context, metric, window.start, window.end),
+    );
   }
 }

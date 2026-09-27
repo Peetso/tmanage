@@ -6,10 +6,7 @@ import { Button, DateField, InlineAlert, LoadingRegion, Select, Skeleton } from 
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPeriodComparison } from '../../lib/api/insights-comparison';
-import type {
-  ComparisonMetric,
-  PeriodComparisonView,
-} from '../../lib/api/insights-comparison';
+import type { ComparisonMetric, PeriodComparisonView } from '../../lib/api/insights-comparison';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -46,7 +43,9 @@ function defaultDays(): { aStart: string; aEnd: string; bStart: string; bEnd: st
   const now = new Date();
   const thisMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const lastMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const tomorrow = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+  );
   return {
     aStart: isoDay(lastMonthStart),
     aEnd: isoDay(thisMonthStart),

@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Module, Query } from '@nestjs/common';
+import { Controller, Get, Module, Query } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
