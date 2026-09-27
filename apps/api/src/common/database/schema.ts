@@ -3926,6 +3926,46 @@ export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
 
 /**
+ * DOC links + backlinks (x296). An author-created wiki-style relation between two `documents` rows —
+ * the fact "source_doc links to target_doc". Tenant-scoped, created (INSERT) and removed (DELETE),
+ * never edited (the withheld UPDATE grant plus a BEFORE UPDATE trigger are the control, the
+ * work_item_links / doc_bookmarks posture). The `(organization_id, source_doc_id, target_doc_id)`
+ * unique key makes a repeated link a collision the service treats as success (idempotent create); a
+ * BEFORE INSERT trigger and the service both refuse a self-link. Two composite FKs bind both ends
+ * within one tenant. `0163_doc_links.sql` is the source of truth; this is its typed mirror.
+ */
+export const docLinks = mysqlTable(
+  'doc_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    sourceDocId: char('source_doc_id', { length: 36 }).notNull(),
+    targetDocId: char('target_doc_id', { length: 36 }).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_doc_links_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_doc_links_edge').on(table.organizationId, table.sourceDocId, table.targetDocId),
+    index('ix_doc_links_source').on(
+      table.organizationId,
+      table.sourceDocId,
+      table.createdAt,
+      table.id,
+    ),
+    index('ix_doc_links_target').on(
+      table.organizationId,
+      table.targetDocId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export type DocLinkRow = typeof docLinks.$inferSelect;
+export type NewDocLinkRow = typeof docLinks.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -3987,6 +4027,7 @@ export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 export const TABLES = {
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
+  doc_links: docLinks,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   users,

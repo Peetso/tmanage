@@ -13,6 +13,12 @@ import { DocumentsController } from './documents.controller.js';
 import { DocumentExportController } from './document-export.controller.js';
 import { DocumentCommentsService } from './document-comments.service.js';
 import { DocumentCommentsController } from './document-comments.controller.js';
+import { DocLinksService } from './doc-links.service.js';
+import {
+  DOC_LINKS_SERVICE,
+  DocBacklinksController,
+  DocLinksController,
+} from './doc-links.controller.js';
 
 /**
  * DOC-01 (x91). The docs module's first vertical slice: document read/write.
@@ -45,14 +51,29 @@ export class DocsModule {
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) => new DocumentCommentsService(database),
     };
+    // DOC links + backlinks (x296): its own service resolves each document tenant-scoped through a
+    // `DocumentsRepository` (the Known-trap order) and reads/writes through its `DocLinksRepository`,
+    // both constructed with their defaults, so it needs only the tenant database injected.
+    const docLinksService: Provider = {
+      provide: DOC_LINKS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new DocLinksService(database),
+    };
 
     return {
       module: DocsModule,
-      providers: [repository, service, commentsService],
+      providers: [repository, service, commentsService, docLinksService],
       exports: [service, commentsService],
       // DOC export (x131): a second controller on the same `documents` base path, serving the
       // read-only Markdown download. It resolves the same `DOCUMENTS_SERVICE` this module provides.
-      controllers: [DocumentsController, DocumentExportController, DocumentCommentsController],
+      // DOC links + backlinks (x296): the outgoing-links and backlinks controllers.
+      controllers: [
+        DocumentsController,
+        DocumentExportController,
+        DocumentCommentsController,
+        DocLinksController,
+        DocBacklinksController,
+      ],
     };
   }
 }
