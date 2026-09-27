@@ -3893,6 +3893,36 @@ export type WorkItemLabelRow = typeof workItemLabels.$inferSelect;
 export type NewWorkItemLabelRow = typeof workItemLabels.$inferInsert;
 
 /**
+ * x270. File tags (Files module). One table, two row kinds distinguished by nullability: a
+ * **definition** row carries `name` (with `file_id`/`tag_id` NULL), an **assignment** row carries
+ * `file_id` + `tag_id` (with `name` NULL). `fk_file_tags_file` binds `(organization_id, file_id)` to
+ * `file_assets`, and the self-referential `fk_file_tags_tag` binds `(organization_id, tag_id)` back
+ * to this table, so a cross-tenant file or tag id is a non-existent pair — migration
+ * `0140_file_tags.sql`.
+ */
+export const fileTags = mysqlTable(
+  'file_tags',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    fileId: char('file_id', { length: 36 }),
+    tagId: char('tag_id', { length: 36 }),
+    name: varchar('name', { length: 120 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_file_tags_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_file_tags_org_name').on(table.organizationId, table.name),
+    uniqueIndex('uq_file_tags_assignment').on(table.organizationId, table.tagId, table.fileId),
+    index('ix_file_tags_file').on(table.organizationId, table.fileId, table.id),
+    index('ix_file_tags_tag').on(table.organizationId, table.tagId, table.id),
+  ],
+);
+
+export type FileTagRow = typeof fileTags.$inferSelect;
+export type NewFileTagRow = typeof fileTags.$inferInsert;
+
+/**
  * DOC bookmarks / favorites (x242). A membership's private favorite of a `documents` row â€” the fact
  * "this membership bookmarked this document". Per-membership and tenant-scoped like `home_pinned_items`
  * (0050): created (INSERT) and removed (DELETE), never edited, so there is no immutability trigger â€”
@@ -3988,6 +4018,7 @@ export const TABLES = {
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,
+  file_tags: fileTags,
   work_item_watchers: workItemWatchers,
   users,
   sessions,

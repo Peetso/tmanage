@@ -184,6 +184,8 @@ export const FILE_VERIFIER = Symbol.for('tmanage.FileVerifier');
 /** FILE-002 slice B. The scan pass — resolved by `verify.ts` after the verifier, on the same tick. */
 export const FILE_SCANNER = Symbol.for('tmanage.FileScanner');
 export const FILE_DOWNLOAD_SERVICE = Symbol.for('tmanage.FileDownloadService');
+/** x270. File tags — define org tags and assign / list them on file assets. */
+export const FILE_TAGS_SERVICE = Symbol.for('tmanage.FileTagsService');
 /** FILE-003 · WEB-006. The client portal's file-list read (`GET /portal/projects/:projectId/files`). */
 export const PORTAL_FILE_LIST_SERVICE = Symbol.for('tmanage.PortalFileListService');
 /** FILE-002 slice B. The malware scanner port, provided by `ScannerModule`. */
