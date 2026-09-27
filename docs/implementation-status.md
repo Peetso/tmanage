@@ -13925,3 +13925,33 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Automations webhooks — register/list/disable outbound endpoints (x166, module 17)
+
+**What landed.** The Automations module had no outbound webhook configuration (audit rank #2). This
+slice adds an org-scoped `webhook_endpoints` table (migration `0066`) — a target `url`, one
+allowlisted `event_kind`, a `secret_hash`, an `enabled` flag and authorship — and three endpoints
+under `/v1/organizations/:orgSlug/automations/webhooks`, all gated on `org.manage`: `POST` to
+register, `GET` to list the tenant's endpoints newest-first, and `PATCH :id` to enable/disable. The
+capability is reused; no `capabilities.ts` edit. This slice **registers and validates** endpoints
+only — actual delivery/dispatch to third parties is a later slice (external egress + retry infra,
+Needs-Peter).
+
+**Known-trap order (SSRF + secret + tenant).** The URL is SSRF-guarded at the write (`url-guard.ts`):
+https only, a public host, never localhost / private / link-local / loopback / metadata — a rejected
+URL is a 400 with no row written. The `event_kind` is allowlisted (`WEBHOOK_EVENT_KINDS`); off-list
+→ 400. The signing secret is supplied by the caller, stored only as its SHA-256 digest, and never
+echoed — `WebhookEndpointView` has no `secret`/`organizationId` field, so it cannot leak through the
+projection. `PATCH :id` resolves the endpoint tenant-scoped _first_, so a cross-tenant or unknown id
+is a 404 with no write; only `enabled` is mutable (the `0066` column-pinning trigger refuses the rest
+at the engine). The new table is registered in all four places — `schema.ts` def + `TABLES`,
+tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT + UPDATE, no DELETE), and the on-disk
+migration the readdir migrator applies.
+
+**Surfaces.** `WebhookEndpointView` (`webhooks.controller.ts`) is a live `Exact` pair with the web's
+`WebhookEndpointSummary` (`apps/web/src/lib/api/webhooks.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`WebhookEndpointsScreen` (`apps/web/src/components/screens/WebhookEndpointsScreen.tsx`), routed at
+`/[orgSlug]/admin/automations/webhooks`, registers an endpoint and toggles one. Proved database-free
+with the real `authorize` (`webhooks.controller.test.ts`): an https public URL registers (201, secret
+not echoed), an SSRF/non-https URL and an off-list event are 400s with no write, a cross-tenant `:id`
+is a 404 with no write, and a caller without `org.manage` is a 403.

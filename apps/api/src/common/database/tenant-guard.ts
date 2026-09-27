@@ -253,6 +253,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
   // table has, so the guard must scope its reads and its writes.
   work_forms: 'organization_id',
+  // Automations webhooks (x166, migration 0066). Org-owned: an endpoint belongs to the acting
+  // tenant, and an unscoped `SELECT ... FROM webhook_endpoints` would be every studio's egress
+  // targets on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
+  // key every tenant table has, so the guard must scope its reads and its writes.
+  webhook_endpoints: 'organization_id',
 });
 
 /**

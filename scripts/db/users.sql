@@ -373,6 +373,14 @@ GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'
 -- adds UPDATE with the code that writes it. No DELETE. Submitting a form writes no work_forms row —
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- Automations webhook endpoints (x166). **INSERT and UPDATE** — an endpoint is registered (INSERT),
+-- read (the database-wide SELECT), and toggled enabled/disabled (UPDATE). UPDATE writes exactly
+-- `enabled`; the 0066 column-pinning trigger (`trg_webhook_endpoints_pin_columns`) refuses every
+-- other column at the engine, so an endpoint's URL, event kind, secret hash and authorship are
+-- immutable for the runtime credential specifically. **No DELETE**: a delete surface is a later
+-- slice that adds the privilege with the code that writes it, per this file's rule that a grant names
+-- a statement that exists.
+GRANT INSERT, UPDATE         ON `tmanage`.`webhook_endpoints` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

@@ -1490,6 +1490,24 @@ export const workForms = mysqlTable(
   ],
 );
 
+export const webhookEndpoints = mysqlTable(
+  'webhook_endpoints',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    url: varchar('url', { length: 2048 }).notNull(),
+    eventKind: varchar('event_kind', { length: 64 }).notNull(),
+    secretHash: char('secret_hash', { length: 64 }).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_webhook_endpoints_org_id').on(table.organizationId, table.id),
+    index('ix_webhook_endpoints_org_created').on(table.organizationId, table.createdAt, table.id),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2321,6 +2339,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  webhook_endpoints: webhookEndpoints,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2366,6 +2385,7 @@ export type DocumentCommentRow = typeof documentComments.$inferSelect;
 export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
+export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
