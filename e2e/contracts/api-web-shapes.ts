@@ -139,6 +139,7 @@ import type {
 } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { ProjectInternalRiskView as ApiProjectInternalRiskView } from '../../apps/api/src/modules/projects/risk-register.service.js';
+import type { ProjectTemplateView as ApiProjectTemplateView } from '../../apps/api/src/modules/projects/templates.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
 import type { ProjectHealthView as ApiProjectHealthView } from '../../apps/api/src/modules/projects/health.service.js';
@@ -309,6 +310,7 @@ import type { InvoiceLines as WebInvoiceLines } from '../../apps/web/src/lib/api
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { ProjectInternalRiskSummary as WebProjectInternalRiskSummary } from '../../apps/web/src/lib/api/project-risk-register';
+import type { ProjectTemplateView as WebProjectTemplateView } from '../../apps/web/src/lib/api/project-templates';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
 import type { AutomationScheduleSummary as WebAutomationScheduleSummary } from '../../apps/web/src/lib/api/automation-schedules';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
@@ -584,6 +586,15 @@ type _projectObjective = Assert<Exact<ApiProjectObjectiveView, WebProjectObjecti
 type _projectInternalRisk = Assert<
   Exact<ApiProjectInternalRiskView, WebProjectInternalRiskSummary>
 >;
+
+/**
+ * PROJ / module 8 (x234). `ProjectTemplateView` (`GET`/`POST …/organizations/:orgSlug/projects/templates`)
+ * — a reusable project template: a `name`, an optional `description`, the `defaultObjectives` a project
+ * made from it starts with, and its author/created instant. Org-scoped (no `projectId`). Paired with a
+ * live web consumer: `ProjectTemplatesScreen` reads exactly this response, so this is a real `Exact`
+ * pair; `instantiate` returns an ordinary project (`ProjectSummary`), covered by the projects pairing.
+ */
+type _projectTemplate = Assert<Exact<ApiProjectTemplateView, WebProjectTemplateView>>;
 
 /**
  * PROJ / module 8 (x136). `OrgObjectiveView` (`GET`/`POST …/organizations/:orgSlug/objectives` and the

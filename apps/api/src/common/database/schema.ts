@@ -1161,6 +1161,37 @@ export const projectInternalRisks = mysqlTable(
   ],
 );
 
+/**
+ * PROJ / module 8 (x234). A reusable project template — a saved shape a studio can stamp out a new
+ * project from: a `name`, an optional `description`, and the objective titles a project made from the
+ * template should start with (`default_objectives_json`).
+ *
+ * Org-scoped, not project-owned: unlike {@link projectObjectives} (0040) or {@link projectInternalRisks}
+ * (0088) there is no `project_id` — a template belongs to the organization, and authorization is
+ * org-scoped (`project.manage`) rather than relation-gated on a project. `(organization_id, name)` is
+ * unique (a template name is unique within its tenant; the create path maps a collision to 409), and
+ * `(organization_id, created_at)` is the order templates are listed by. The runtime credential holds
+ * INSERT only (no edit route this slice). `0106_project_templates.sql` is the source of truth; this is
+ * its typed mirror.
+ */
+export const projectTemplates = mysqlTable(
+  'project_templates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 190 }).notNull(),
+    description: text('description'),
+    defaultObjectivesJson: json('default_objectives_json').$type<readonly string[]>(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_templates_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_project_templates_org_name').on(table.organizationId, table.name),
+    index('ix_project_templates_org_created').on(table.organizationId, table.createdAt),
+  ],
+);
+
 /** DOC-04 (x130). The value kinds a template variable can declare. */
 export const DOCUMENT_TEMPLATE_VARIABLE_TYPES = ['text', 'date', 'number'] as const;
 
@@ -4360,6 +4391,7 @@ export const TABLES = {
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
   project_internal_risks: projectInternalRisks,
+  project_templates: projectTemplates,
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
@@ -4501,6 +4533,7 @@ export type BillingCreditRow = typeof billingCredits.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
+export type ProjectTemplateRow = typeof projectTemplates.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;

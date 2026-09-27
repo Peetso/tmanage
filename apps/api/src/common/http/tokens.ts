@@ -133,6 +133,9 @@ export const PROJECT_OBJECTIVES_SERVICE = Symbol.for('tmanage.ProjectObjectivesS
 /** PROJ / module 8 (x209). A project's internal risk register — create/list/update (matrix). */
 export const PROJECT_RISK_REGISTER_REPOSITORY = Symbol.for('tmanage.ProjectRiskRegisterRepository');
 export const PROJECT_RISK_REGISTER_SERVICE = Symbol.for('tmanage.ProjectRiskRegisterService');
+/** PROJ / module 8 (x234). Reusable project templates — define/list/instantiate. */
+export const PROJECT_TEMPLATES_REPOSITORY = Symbol.for('tmanage.ProjectTemplatesRepository');
+export const PROJECT_TEMPLATES_SERVICE = Symbol.for('tmanage.ProjectTemplatesService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');

@@ -820,6 +820,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`project_objectives` TO 'tmanage_app'@'%';
 -- `project_id`, `created_by` and `created_at` at the engine, so a risk cannot be re-pointed at another
 -- project or tenant by the runtime credential. **No DELETE**: the register is the durable record.
 GRANT INSERT, UPDATE ON `tmanage`.`project_internal_risks` TO 'tmanage_app'@'%';
+-- `project_templates` (PROJ / module 8, x234) gets INSERT only. A template is authored (INSERT) and
+-- read (the database-wide SELECT, line 60) to list it and to instantiate a project from it; there is
+-- no edit route this slice, so the runtime credential cannot amend a template. **No UPDATE, no
+-- DELETE**: a later edit slice adds UPDATE (with an identity-pinning trigger) alongside the code that
+-- writes it, the same posture `incidents` / `changelog_entries` take.
+GRANT INSERT ON `tmanage`.`project_templates` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes
