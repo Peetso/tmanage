@@ -972,6 +972,43 @@ export const objectiveWorkLinks = mysqlTable(
   ],
 );
 
+/**
+ * PROJ / module 8 (x207). A project objective's key results — the measurable children of a
+ * {@link projectObjectives} row: a title, a numeric `target`/`current` value, the `unit` they are
+ * expressed in, who created it and when, and when it last changed.
+ *
+ * Objective-owned and tenant-scoped like {@link objectiveWorkLinks} (0047): the composite foreign key
+ * binds `(organization_id, objective_id)` to `project_objectives`, so a key result can only ever name
+ * an objective of its own tenant. Progress (%) is computed from `current / target` on read (bounded,
+ * div-by-zero safe) and is deliberately *not* stored, so it cannot drift. The body (`title`,
+ * `targetValue`, `currentValue`, `unit`) is editable — `status` has no analogue here — so the `0087`
+ * column-pinning trigger pins only the identity/provenance columns and lets the body and `updated_at`
+ * change. `0087_objective_key_results.sql` is the source of truth; this is its typed mirror.
+ */
+export const objectiveKeyResults = mysqlTable(
+  'objective_key_results',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    objectiveId: char('objective_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    targetValue: bigint('target_value', { mode: 'number' }).notNull(),
+    currentValue: bigint('current_value', { mode: 'number' }).notNull().default(0),
+    unit: varchar('unit', { length: 64 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_objective_key_results_org_id').on(table.organizationId, table.id),
+    index('ix_objective_key_results_org_objective').on(
+      table.organizationId,
+      table.objectiveId,
+      table.createdAt,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client access
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2786,6 +2823,7 @@ export const TABLES = {
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
+  objective_key_results: objectiveKeyResults,
   import_rows: importRows,
   meeting_notes: meetingNotes,
   meeting_attendees: meetingAttendees,
@@ -2871,6 +2909,7 @@ export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$infe
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
 export type ObjectiveWorkLinkRow = typeof objectiveWorkLinks.$inferSelect;
+export type ObjectiveKeyResultRow = typeof objectiveKeyResults.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;

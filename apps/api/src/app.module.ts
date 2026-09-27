@@ -37,6 +37,7 @@ import { ProjectObjectivesModule } from './modules/projects/project-objectives.m
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-links.module.js';
+import { KeyResultsModule } from './modules/projects/key-results.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
@@ -253,6 +254,12 @@ export class AppModule {
         // the composite foreign keys mean a caller who names one that is not theirs gets a refusal
         // rather than a foreign-key 500.
         ObjectiveWorkLinksModule.register(),
+        // PROJ / module 8 (x207). An objective's key results (create/list/update). After
+        // `ProjectObjectivesModule`: a key result names an objective, and the composite foreign key
+        // means a caller who names one that is not theirs gets a refusal rather than a foreign-key 500.
+        // It reuses `ProjectObjectivesRepository` to resolve the objective (and its project for the
+        // relation gate) before any write.
+        KeyResultsModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
         // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the

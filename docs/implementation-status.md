@@ -13837,6 +13837,39 @@ objective row): link a work item by id, list the linked work, unlink one. `Objec
 live `Exact` pair with the web `ObjectiveWorkLink` (CONTRACT-001). Panel + axe proven in
 `objective-work-links.test.tsx`.
 
+## PROJ / module 8 — objective key results (x207)
+
+Module 8 was **Partial** for OKR depth: x124 gave a project its objectives and x138 the objective→work
+linkage, but an objective had no measurable key-result children (grep clean). x207 ships an objective's
+key results — a title, a numeric target/current value, the unit, and a **computed** progress % — as a
+project-scoped create/list/edit surface. Deferred: key-result deletion and roll-up into objective status.
+
+Migration **0087** creates `objective_key_results`: tenant-scoped like every sibling, with `id`,
+`organization_id`, `objective_id`, `title`, `target_value`, `current_value`, `unit`, `created_by`,
+`created_at` and `updated_at`. A composite foreign key binds `(organization_id, objective_id)` to
+`project_objectives`, so a key result can only name an objective of its own tenant. The body is editable,
+so the `0087` column-pinning trigger pins only the identity/provenance columns and lets the body and
+`updated_at` change. Registered in all four places (Known trap): `schema.ts` def + `TABLES`,
+`tenant-guard.ts` `TENANT_TABLES`, `users.sql` grant (`INSERT, UPDATE`; `SELECT` is database-wide), and
+the migration file the migrator applies from disk. (No DB-suite case this slice — the chain owns it.)
+
+`POST …/objectives/:objectiveId/key-results` (`project.manage`) creates a key result;
+`GET …/objectives/:objectiveId/key-results` (`work.read`) lists them in creation order, bounded to 50;
+`PATCH …/objectives/:objectiveId/key-results/:keyResultId` (`project.manage`) inline-edits the body.
+`progressPercent` is computed server-side from `current / target`, bounded to 0–100 and div-by-zero safe
+(a target of 0 yields 0).
+
+**Known trap (FAST-PROTOCOL).** Every route names ids, so `KeyResultsService` resolves each **tenant-
+and project-scoped before** the relation check and the write: an unknown or cross-tenant `objectiveId`
+or a mis-parented `keyResultId` is a `404`, never a foreign-key 500, and a caller who does not manage the
+objective's project gets the same not-found. Unit-proven with real `authorize()` over fakes in
+`key-results.controller.test.ts` (create→list→update with progress; target=0; cross-tenant 404; relation
+gate; route ceilings) and a pure `computeProgressPercent` case.
+
+**Web.** `KeyResultsScreen` is a section for one objective: add a key result, list them with progress,
+inline-edit a current value. `KeyResultView` is a live `Exact` pair with the web `KeyResult`
+(CONTRACT-001).
+
 ## DEC / module 12 — decision→work-item linkage (x149)
 
 Module 12 was **Partial** for linkage: x113 gave a project its decision register and x117 its

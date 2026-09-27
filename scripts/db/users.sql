@@ -569,6 +569,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`org_objectives` TO 'tmanage_app'@'%';
 -- posture `work_item_dependencies` and `saved_context` carry. Reading is the database-wide SELECT
 -- above.
 GRANT INSERT, DELETE ON `tmanage`.`objective_work_links` TO 'tmanage_app'@'%';
+-- `objective_key_results` (PROJ / module 8, x207) gets INSERT and UPDATE. A key result is created
+-- (INSERT) and its body — title/target/current/unit — is revised as work progresses (UPDATE); the
+-- 0087 column-pinning trigger (`trg_objective_key_results_pin_columns`) refuses every identity column
+-- at the engine, so an edit can only ever move the body, never re-parent or re-attribute the row.
+-- There is no delete surface this slice, so **no DELETE**. Reading is the database-wide SELECT above.
+GRANT INSERT, UPDATE ON `tmanage`.`objective_key_results` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it
