@@ -126,6 +126,9 @@ export const PROJECT_OBJECTIVES_SERVICE = Symbol.for('tmanage.ProjectObjectivesS
 /** PROJ / module 8 (x209). A project's internal risk register — create/list/update (matrix). */
 export const PROJECT_RISK_REGISTER_REPOSITORY = Symbol.for('tmanage.ProjectRiskRegisterRepository');
 export const PROJECT_RISK_REGISTER_SERVICE = Symbol.for('tmanage.ProjectRiskRegisterService');
+/** PROJ / project detail (x293). A project's budget — set/read against tracked effort. */
+export const PROJECT_BUDGET_REPOSITORY = Symbol.for('tmanage.ProjectBudgetRepository');
+export const PROJECT_BUDGET_SERVICE = Symbol.for('tmanage.ProjectBudgetService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');

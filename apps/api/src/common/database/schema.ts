@@ -1139,6 +1139,38 @@ export const projectInternalRisks = mysqlTable(
   ],
 );
 
+/**
+ * PROJ / project detail (x293). A project's planned budget — effort (`budgetMinutes`) and/or an
+ * amount (`budgetAmountMinor` + `currency`) — read back against the effort already tracked on the
+ * project's work items (`work_item_time_logs`, 0103). One row per project, keyed
+ * `(organization_id, project_id)`, upserted `INSERT ... ON DUPLICATE KEY UPDATE`.
+ *
+ * Budget effort is stored in **minutes**, the same unit `work_item_time_logs.minutes` uses, so the
+ * budget-vs-tracked arithmetic is exact integer subtraction; the API speaks in hours and the service
+ * converts at the edge. The amount is a plain planning figure — numbers only, never charged, no
+ * ledger, no rate. Identity columns are pinned by the `0160` `BEFORE UPDATE` trigger; the substance
+ * (`budgetMinutes`, `budgetAmountMinor`, `currency`, `updatedAt`) is editable.
+ * `0160_project_budgets.sql` is the source of truth; this is its typed mirror.
+ */
+export const projectBudgets = mysqlTable(
+  'project_budgets',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    budgetMinutes: int('budget_minutes', { unsigned: true }),
+    budgetAmountMinor: bigint('budget_amount_minor', { mode: 'number', unsigned: true }),
+    currency: char('currency', { length: 3 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_budgets_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_project_budgets_org_project').on(table.organizationId, table.projectId),
+  ],
+);
+
 /** DOC-04 (x130). The value kinds a template variable can declare. */
 export const DOCUMENT_TEMPLATE_VARIABLE_TYPES = ['text', 'date', 'number'] as const;
 
@@ -4047,6 +4079,7 @@ export const TABLES = {
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
   project_internal_risks: projectInternalRisks,
+  project_budgets: projectBudgets,
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
@@ -4175,6 +4208,7 @@ export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
+export type ProjectBudgetRow = typeof projectBudgets.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
