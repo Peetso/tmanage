@@ -213,6 +213,7 @@ import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules
 import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
 import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
 import type { SecuritySettingsView as ApiSecuritySettingsView } from '../../apps/api/src/modules/admin/security.controller.js';
+import type { ApprovalDelegationView as ApiApprovalDelegationView } from '../../apps/api/src/modules/approvals/delegation.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -253,6 +254,7 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
 import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
+import type { ApprovalDelegationSummary as WebApprovalDelegationSummary } from '../../apps/web/src/lib/api/approval-delegations';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -471,6 +473,9 @@ type _quietHours = Assert<Exact<ApiQuietHoursView, WebQuietHoursView>>;
 type _quietHoursActive = Assert<Exact<ApiQuietHoursActiveView, WebQuietHoursActiveView>>;
 // Home widget preferences (x243): the member's own Home widget order/hidden set over `/home/widget-prefs`.
 type _homeWidgetPrefs = Assert<Exact<ApiHomeWidgetPrefsView, WebHomeWidgetPrefsView>>;
+// Approval delegation (x300): a delegator's own delegation over `/approvals/delegations`. The screen
+// reads exactly this response, so the pair is Exact.
+type _approvalDelegation = Assert<Exact<ApiApprovalDelegationView, WebApprovalDelegationSummary>>;
 type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
 type _messageRevision = Assert<Exact<ApiMessageRevisionView, WebMessageRevisionSummary>>;

@@ -491,6 +491,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them,
   // and tenant-isolation.db.test.ts enforces the entry.
   home_widget_prefs: 'organization_id',
+  // x300 (0168). Tenant-owned: a delegation names two memberships of one studio (the delegator and
+  // the delegate they authorise), and an unscoped read would be every studio's approval-delegation
+  // arrangements at once. `organization_id` is NOT NULL and carries the `(organization_id, id)` key
+  // every tenant table has, so the guard scopes its reads, its inserts and its deletes.
+  approval_delegations: 'organization_id',
 });
 
 /**
