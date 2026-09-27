@@ -339,6 +339,12 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // not a per-tenant one. The public `GET /v1/public/site/changelog` read reaches it through
   // `TenantDatabase.identityRead(['changelog_entries'])`, which is why it must be declared here.
   'changelog_entries',
+  // x161. The public site's contact / lead intake. GLOBAL for the reason the credentials are:
+  // a lead is submitted by a member of the public with no session and belonging to no
+  // organization, so there is no `organization_id` to scope it by and it is written on a
+  // public, no-tenant path. Registering it here is what lets the repository reach it through
+  // `identityTransaction`; it is deliberately NOT in `TENANT_TABLES`. `0062_marketing_leads.sql`.
+  'marketing_leads',
 ]);
 
 export function isTenantTable(name: string): boolean {

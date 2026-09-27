@@ -14347,3 +14347,32 @@ text (React text node, never `dangerouslySetInnerHTML`). Proved database-free wi
 (`changelog.controller.test.ts`): the route is public (no capability/tenant metadata), entries group
 by month newest-first, a draft (no live date) is excluded, and the page is bounded to 200. Deferred to
 a later admin slice: authoring/editing entries and rendered-Markdown bodies.
+## x161 — Public site (module 1): contact / lead intake (SEC — untrusted public write)
+
+**Slice.** `x161-public-contact`, off `master` `bcfe397`; migration `0062`. Audit rank #1 (Public
+site Missing — no contact door). The module's only _unauthenticated write_.
+
+**API.** `POST /public/site/contact` — `@Public()` (no session, no CSRF, no tenant, no capability,
+no `capabilities.ts` edit), the same posture as sign-in. It validates and bounds `name` (1–200),
+`email` (1–254, shape-checked) and `message` (1–4000): empty, non-string, over-length or malformed
+input is a `validation_failed` 400 raised **before** the repository is called — nothing is written.
+A valid submit inserts one row and returns `{ status: 'received' }`, reflecting nothing stored (no
+id, no echoed values, no other lead). There is no read/list endpoint and no read method on the
+repository — the door is write-only. All fields are POST-body only; no PII in the URL. Email
+delivery of the lead is Needs-Peter (external mail); this slice persists only.
+
+**GLOBAL table.** `marketing_leads` (`0062_marketing_leads.sql`) is org-less: registered in
+**three** places — `schema.ts` def + `TABLES`, `users.sql` **INSERT-only** grant, the on-disk
+migration the readdir migrator applies — and in the tenant guard's `NON_TENANT_TABLES` (**not**
+`TENANT_TABLES`), which is what lets the repository reach it through `identityTransaction`;
+`tenant-isolation.db.test.ts` holds every table to exactly one registry. Verify post-merge that the
+`TABLES` entry survives auto-merge.
+
+**Surfaces.** `ContactSubmitView` (`contact.controller.ts`) is a live `Exact` pair with the web's
+`ContactSubmitView` (`apps/web/src/lib/api/contact.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`ContactScreen` (`apps/web/src/components/screens/ContactScreen.tsx`), routed at `/contact`, framed
+by the org-less `IdentityShell` (skip link, one `<main>`, one `<h1>`). Proved database-free
+(`contact.controller.test.ts`): a valid submit writes exactly one lead and reflects nothing; empty,
+non-string, over-length and malformed-email inputs are each a 400 with no write; the controller
+exposes only the write handler. Deferred: email delivery, and any admin lead viewer (own slice, own
+SELECT grant).

@@ -1657,6 +1657,23 @@ export const orgSettings = mysqlTable(
     uniqueIndex('uq_org_settings_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_org_settings_org_key').on(table.organizationId, table.settingKey),
   ],
+ * Public-site contact / lead intake (0062, x161). GLOBAL, org-less — a lead is submitted by a
+ * member of the public with no session and no organization, so it carries no `organization_id` and
+ * is registered in the tenant guard's `NON_TENANT_TABLES`, not `TENANT_TABLES`. Write-only at
+ * runtime (the app grant is INSERT only): there is no read/list endpoint in this slice. Every field
+ * is bounded at the column behind the controller's validation. See `0062_marketing_leads.sql`.
+ */
+export const marketingLeads = mysqlTable(
+  'marketing_leads',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    name: varchar('name', { length: 200 }).notNull(),
+    email: varchar('email', { length: 254 }).notNull(),
+    message: varchar('message', { length: 4000 }).notNull(),
+    source: varchar('source', { length: 100 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_marketing_leads_created_at').on(table.createdAt, table.id)],
 );
 
 export const usageCounters = mysqlTable(
@@ -2635,6 +2652,7 @@ export const TABLES = {
   onboarding_progress: onboardingProgress,
   incidents,
   changelog_entries: changelogEntries,
+  marketing_leads: marketingLeads,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2718,3 +2736,5 @@ export type SearchIndexRow = typeof searchIndex.$inferSelect;
 export type NewSearchIndexRow = typeof searchIndex.$inferInsert;
 export type IncidentRow = typeof incidents.$inferSelect;
 export type ChangelogEntryRow = typeof changelogEntries.$inferSelect;
+export type MarketingLeadRow = typeof marketingLeads.$inferSelect;
+export type NewMarketingLeadRow = typeof marketingLeads.$inferInsert;

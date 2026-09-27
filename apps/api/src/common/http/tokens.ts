@@ -148,3 +148,5 @@ export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
 
 /** Public & trust site (x159). The public status page's published-only incidents read. */
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');
+/** x161. The public site's contact / lead intake — the INSERT-only writer over `marketing_leads`. */
+export const MARKETING_LEADS_REPOSITORY = Symbol.for('tmanage.MarketingLeadsRepository');

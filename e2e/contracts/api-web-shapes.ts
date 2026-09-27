@@ -51,6 +51,7 @@ import type { DocumentTemplateVariableView as ApiDocumentTemplateVariableView } 
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
+import type { ContactSubmitView as ApiContactSubmitView } from '../../apps/api/src/modules/public-site/contact.controller.js';
 import type {
   ImportCommitRowView as ApiImportCommitRowView,
   ImportCommitView as ApiImportCommitView,
@@ -240,6 +241,7 @@ import type {
 import type { PublicHome as WebPublicHome } from '../../apps/web/src/lib/api/public-site';
 import type { RealtimeTicket as WebRealtimeTicket } from '../../apps/web/src/lib/api/realtime';
 import type { SearchResult as WebSearchResult } from '../../apps/web/src/lib/api/search';
+import type { ContactSubmitView as WebContactSubmitView } from '../../apps/web/src/lib/api/contact';
 import type {
   EstablishedSession as WebEstablishedSession,
   SessionSummary as WebSessionSummary,
@@ -927,3 +929,11 @@ type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;
  * the API serves and the copy the screen renders from drifting into two security postures.
  */
 type _publicTrust = Assert<Exact<ApiPublicTrustView, WebPublicTrustView>>;
+ * `POST /public/site/contact` — the public site's contact / lead intake (module 1, x161).
+ *
+ * The only unauthenticated write in the public site. Its response is a bare acknowledgement that
+ * reflects nothing stored — `{ status: 'received' }` — so the API `ContactSubmitView` and the web
+ * `ContactSubmitView` pair Exact. The request body (`ContactSubmitInput`) is request-side and is
+ * dropped by `contracts-check`'s `Input` suffix rule.
+ */
+type _contactSubmit = Assert<Exact<ApiContactSubmitView, WebContactSubmitView>>;

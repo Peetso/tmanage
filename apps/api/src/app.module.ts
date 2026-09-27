@@ -54,6 +54,7 @@ import { WorkloadForecastModule } from './modules/insights/workload-forecast.mod
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
+import { ContactModule } from './modules/public-site/contact.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -293,6 +294,12 @@ export class AppModule {
         // session, no tenant, no capability. It reads the GLOBAL `changelog_entries` (0061) on the
         // identity path, so it depends only on the (global) tenant database and couples to nothing.
         PublicChangelogModule.register(),
+        // x161. The public site's contact / lead intake — `POST /public/site/contact`. `@Public()`:
+        // the module's only unauthenticated write, establishing no authority and exercising none, so
+        // it carries no session, CSRF, tenant or capability. It depends only on `TENANT_DATABASE`
+        // (the repository writes on the identity/no-tenant path over the global `marketing_leads`),
+        // so it couples to no feature module; position here is by subject (public surface, last).
+        ContactModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
