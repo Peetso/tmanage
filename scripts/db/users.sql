@@ -644,6 +644,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'
 -- upsert against `uq_home_widget_prefs_org_membership`. No DELETE: a member clears their layout by
 -- saving the default, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`home_widget_prefs` TO 'tmanage_app'@'%';
+-- PREF-STARTUP default startup landing view (x287, module 20). **INSERT, UPDATE** — a member's
+-- chosen landing screen is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY
+-- UPDATE` upsert against `uq_user_startup_prefs_org_membership`. No DELETE: a member reverts by
+-- saving the default, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`user_startup_prefs` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

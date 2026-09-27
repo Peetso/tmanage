@@ -94,6 +94,8 @@ export const PERSON_SKILL_SEARCH_REPOSITORY = Symbol.for('tmanage.PersonSkillSea
 export const BILLING_PROFILE_REPOSITORY = Symbol.for('tmanage.BillingProfileRepository');
 /** PREF-QUIET (x215, module 20). The member's-own notification quiet-hours store. */
 export const QUIET_HOURS_REPOSITORY = Symbol.for('tmanage.QuietHoursRepository');
+/** PREF-STARTUP (x287, module 20). The member's-own default startup landing view store. */
+export const STARTUP_PREFS_REPOSITORY = Symbol.for('tmanage.StartupPrefsRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 /** Home widget preferences (x243, module 4). The member's-own Home widget layout read/write repository. */
 export const HOME_WIDGET_PREFS_REPOSITORY = Symbol.for('tmanage.HomeWidgetPrefsRepository');
