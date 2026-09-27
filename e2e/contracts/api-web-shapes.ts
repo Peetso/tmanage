@@ -31,6 +31,7 @@
 import type { AcceptedClientRequestView as ApiAcceptedClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { A11yPreferencesView as ApiA11yPreferencesView } from '../../apps/api/src/modules/preferences/a11y.controller.js';
 import type { InsightSavedViewView as ApiInsightSavedViewView } from '../../apps/api/src/modules/insights/saved-views.controller.js';
+import type { ReportScheduleView as ApiReportScheduleView } from '../../apps/api/src/modules/insights/report-schedules.controller.js';
 import type { QuietHoursView as ApiQuietHoursView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
 import type { QuietHoursActiveView as ApiQuietHoursActiveView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
 import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
@@ -235,6 +236,7 @@ import type {
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
 import type { A11yPreferencesView as WebA11yPreferencesView } from '../../apps/web/src/lib/api/a11y-preferences';
 import type { InsightSavedViewView as WebInsightSavedViewView } from '../../apps/web/src/lib/api/insight-saved-views';
+import type { ReportScheduleView as WebReportScheduleView } from '../../apps/web/src/lib/api/insight-report-schedules';
 import type { QuietHoursView as WebQuietHoursView } from '../../apps/web/src/lib/api/quiet-hours';
 import type { QuietHoursActiveView as WebQuietHoursActiveView } from '../../apps/web/src/lib/api/quiet-hours';
 import type { MyDay as WebMyDay } from '../../apps/web/src/lib/api/home';
@@ -492,6 +494,9 @@ type _a11yPreferences = Assert<Exact<ApiA11yPreferencesView, WebA11yPreferencesV
 // INS saved views (x210): a member's own named insights view, created/listed/deleted over
 // `/insights/saved-views`. The screen reads exactly this response, so the pair is Exact.
 type _insightSavedView = Assert<Exact<ApiInsightSavedViewView, WebInsightSavedViewView>>;
+// INS report schedules (x228): a member's own recurring insights-report definition, created/listed/
+// deleted over `/insights/report-schedules`. The screen reads exactly this response, so the pair is Exact.
+type _insightReportSchedule = Assert<Exact<ApiReportScheduleView, WebReportScheduleView>>;
 // PREF-QUIET (x215): the member's own notification quiet-hours window and active check.
 type _quietHours = Assert<Exact<ApiQuietHoursView, WebQuietHoursView>>;
 type _quietHoursActive = Assert<Exact<ApiQuietHoursActiveView, WebQuietHoursActiveView>>;
