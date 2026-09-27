@@ -15096,3 +15096,60 @@ member denied `membership_inactive`, an unknown capability a 400, a missing memb
 organization a 404 before authorize, and a caller without `org.manage` a 403. A self-contained
 `AdminPolicySimulateModule` registered from `app.module.ts` keeps the slice file-disjoint from x174's
 `AdminPoliciesModule`.
+## Billing / module 19 — subscription: view + request plan change (x177)
+
+`38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Billing wants the organization's subscription: view the
+current plan and request a plan change. The audit (rank #10, Billing Partial) confirmed the usage
+counter shipped (USAGE-001) but no subscription model or table existed (grep clean). x177 ships an
+org-scoped `subscriptions` table (migration `0074`) — `plan_id`, `status`
+(`active | pending_change`), `current_period_end`, one row per organization
+(`uq_subscriptions_org`) — and two endpoints under `/v1/organizations/:orgSlug/billing/subscription`:
+`GET` reads the current plan (defaulting to the free/base tier when no row exists), and `POST /change`
+records a plan-change intent. Both are behind `org.manage` — the owners-only population the
+storage/usage read sits behind; no `capabilities.ts` edit.
+
+**No money moves.** Real payment, charging and card storage are Needs-Peter (an external provider).
+A plan change validates the target against the plan catalog (off-catalog → 400, no write) and upserts
+the one row with `status = 'pending_change'` — a recorded request, never a charge. There is no charge
+path in the service. The plan catalog (`plan-catalog.ts`) is defined self-contained because x157's
+pricing catalog is not on this slice's base; it is the one place to reconcile when x157 lands.
+
+**Surfaces.** `SubscriptionView` (`billing/subscription.service.ts`) is a live `Exact` pair with the
+web's `SubscriptionView` (`apps/web/src/lib/api/subscription.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`SubscriptionScreen` (`apps/web/src/components/screens/SubscriptionScreen.tsx`), routed at
+`/[orgSlug]/billing/subscription`, shows the current plan and requests a change, stating the change is
+not charged here. The new table is registered in all four places — `schema.ts` def + `TABLES`,
+tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT + UPDATE; upsert, no DELETE), and the on-disk
+migration the readdir migrator applies. Proved database-free with the real `authorize`
+(`billing/subscription.controller.test.ts`): read defaults to free/active, a valid change is recorded
+as `pending_change` (the only write), an off-catalog plan is a 400 with no write, and a caller without
+`org.manage` is a 403 with no write. Deferred: real payment/charging + card storage (Needs-Peter).
+
+## Billing / module 19 — plan-change preview: estimate before switching (x198)
+
+`38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Billing wants a plan-change to preview its cost before
+committing. x177 shipped the subscription state + change request but only the record; there was no
+preview/estimate route (grep clean). x198 adds a read-only estimate under
+`/v1/organizations/:orgSlug/billing/plan-change`: `GET preview?target=&seats=` returns the delta of
+moving to a target plan — new base, per-seat delta and the monthly change, all integer US cents —
+against the tenant's current subscription. Behind `org.manage`, the same owners-only cap the
+subscription routes use; no `capabilities.ts` edit and no new table (computed from the current
+subscription + a fixed local price catalog).
+
+**No money moves; deterministic.** No provider call, no card, no token, no write — an estimate only
+(real charging is Needs-Peter, Stripe test-mode). The computation never reads `now`: the delta is a
+pure function of current plan, target plan and seat count, and `current_period_end` is echoed straight
+from the stored subscription rather than derived from the clock (no drift between a preview and the
+change that follows). `target` is validated against the plan catalog (off-catalog → 400) and `seats`
+against `[1, 1000]`; the current plan reuses the tenant-scoped `SubscriptionRepository.find`.
+
+**Surfaces.** `PlanChangePreviewView` (`billing/plan-preview.service.ts`) is a live `Exact` pair with
+the web's `PlanChangePreviewView` (`apps/web/src/lib/api/plan-preview.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `PlanChangePreviewScreen`
+(`apps/web/src/components/screens/PlanChangePreviewScreen.tsx`), routed at
+`/[orgSlug]/billing/plan-change/preview`, picks a target plan and seat count and shows the current vs
+new monthly figure and the delta, stating the estimate is not a charge. Registered as a second
+controller/service on `BillingModule`. Proved database-free with the real `authorize`
+(`billing/plan-preview.controller.test.ts`): an upgrade delta, a downgrade credit, an off-catalog 400,
+a seat-bound 400, and a 403 without `org.manage`. Deferred: real charging + exact day-proration
+(Needs-Peter).

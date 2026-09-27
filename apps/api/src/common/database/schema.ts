@@ -2028,6 +2028,34 @@ export const orgPolicies = mysqlTable(
   (table) => [
     uniqueIndex('uq_org_policies_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_org_policies_org').on(table.organizationId),
+/** The subscription status set, mirroring the `0074` `ENUM`. */
+export const SUBSCRIPTION_STATUSES = ['active', 'pending_change'] as const;
+
+/**
+ * Billing / module 19 (x177). An organization's current subscription — the plan it is on, that
+ * plan's status, and when the current period ends.
+ *
+ * Tenant-scoped, one row per organization (`uq_subscriptions_org`): the subscription is a property
+ * of the tenant, not a log. The billing screen reads it (defaulting to the free/base tier when no
+ * row exists), and a plan change upserts it with `status = 'pending_change'` — a recorded intent,
+ * never a charge (real payment is out of this slice). `organization_id` is pinned by the `0074`
+ * trigger; `plan_id`, `status` and `current_period_end` are the mutable state a change writes.
+ * `0074_subscriptions.sql` is the source of truth; this is its typed mirror.
+ */
+export const subscriptions = mysqlTable(
+  'subscriptions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    planId: varchar('plan_id', { length: 64 }).notNull(),
+    status: mysqlEnum('status', SUBSCRIPTION_STATUSES).notNull().default('active'),
+    currentPeriodEnd: datetime('current_period_end', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_subscriptions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_subscriptions_org').on(table.organizationId),
   ],
 );
 
@@ -3104,6 +3132,7 @@ export const TABLES = {
   person_capacity: personCapacity,
   person_skills: personSkills,
   custom_roles: customRoles,
+  subscriptions,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3158,6 +3187,7 @@ export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
 export type PersonCapacityRow = typeof personCapacity.$inferSelect;
 export type PersonSkillRow = typeof personSkills.$inferSelect;
+export type SubscriptionRow = typeof subscriptions.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;

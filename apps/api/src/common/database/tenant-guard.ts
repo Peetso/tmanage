@@ -363,6 +363,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // so the guard must scope its reads and its insert; the layer-3 guard fails OPEN on an unregistered
   // table, so registering it here is what scopes them, and tenant-isolation.db.test.ts enforces it.
   custom_roles: 'organization_id',
+  // Billing subscription (x177, migration 0074). Tenant-owned: a subscription is one studio's plan
+  // and status, and an unscoped `SELECT ... FROM subscriptions` would be every studio's plan on the
+  // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
+  // table has, so the guard must scope its reads and its writes; the layer-3 guard fails OPEN on an
+  // unregistered table, so this entry is what scopes them (tenant-isolation.db.test.ts enforces it).
+  subscriptions: 'organization_id',
 });
 
 /**

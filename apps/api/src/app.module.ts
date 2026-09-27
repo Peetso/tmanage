@@ -73,6 +73,7 @@ import { MaintenanceModule } from './modules/platform/maintenance.controller.js'
 import { FaqContentModule } from './modules/public-site/faq.module.js';
 import { PeopleSkillsModule } from './modules/people/people-skills.module.js';
 import { SkillSearchModule } from './modules/people/skill-search.module.js';
+import { BillingModule } from './modules/billing/billing.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -390,6 +391,11 @@ export class AppModule {
         // reused `work.read`; it constructs its own repository handle. A distinct literal path from
         // x172's `…/people/:membershipId/skills`, so no route collision. Position by subject.
         SkillSearchModule.register(),
+        // Billing / module 19 (x177). The organization's subscription (view / request a plan change),
+        // behind `org.manage` — the same owners-only population the storage/usage read sits behind. A
+        // module of its own, depending only on the tenant database; it records a plan-change intent
+        // (`pending_change`) and executes no charge (real payment is Needs-Peter).
+        BillingModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
