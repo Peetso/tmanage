@@ -4462,6 +4462,38 @@ export const insightReportSchedules = mysqlTable(
 );
 
 /**
+ * Insight annotations (x271). An explanatory note attached to an insight snapshot, so a frozen figure
+ * carries the context that explains it (INS-01 "every score is explainable"). Tenant-owned and
+ * parent-scoped: the composite `(organization_id, snapshot_id)` binds a note to a snapshot of its own
+ * tenant, so a cross-tenant snapshot id is a non-existent pair, not a leak; `authorMembershipId` is
+ * bound composite to a membership of the same tenant and is the key the author's own DELETE resolves
+ * against. `createdAt` is the instant the note was posted, bound by the application — NOT a
+ * server-clock default (the admin-pool clock trap). An annotation is inserted, read, and removed by
+ * its author, never edited: the 0141 trigger pins every column immutable and `users.sql` grants INSERT
+ * and DELETE only. `0141_insight_annotations.sql` is the source of truth; this is its typed mirror.
+ */
+export const insightAnnotations = mysqlTable(
+  'insight_annotations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    snapshotId: char('snapshot_id', { length: 36 }).notNull(),
+    authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
+    note: text('note').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_annotations_org_id').on(table.organizationId, table.id),
+    index('ix_insight_annotations_org_snapshot_created').on(
+      table.organizationId,
+      table.snapshotId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * Billing seats (Billing module 19, 0075, x178). A seat is a licence a membership holds against the
  * organization's plan: `membership_id` is bound composite to a membership of the same tenant, and a
  * seat is granted (`assigned_at`) and later reclaimed by a soft close (`released_at`), never deleted.
@@ -5483,6 +5515,7 @@ export const TABLES = {
   insight_saved_views: insightSavedViews,
   insight_snapshots: insightSnapshots,
   insight_report_schedules: insightReportSchedules,
+  insight_annotations: insightAnnotations,
   billing_seats: billingSeats,
   invoices: invoices,
   user_preferences: userPreferences,
@@ -5637,6 +5670,8 @@ export type InsightSavedViewRow = typeof insightSavedViews.$inferSelect;
 export type InsightSnapshotRow = typeof insightSnapshots.$inferSelect;
 export type InsightSnapshotKind = (typeof INSIGHT_SNAPSHOT_KINDS)[number];
 export type InsightReportScheduleRow = typeof insightReportSchedules.$inferSelect;
+export type InsightAnnotationRow = typeof insightAnnotations.$inferSelect;
+export type NewInsightAnnotationRow = typeof insightAnnotations.$inferInsert;
 export type BillingSeatRow = typeof billingSeats.$inferSelect;
 export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
 export type AdminExportRequestRow = typeof adminExportRequests.$inferSelect;

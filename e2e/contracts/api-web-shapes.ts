@@ -192,6 +192,7 @@ import type { SnapshotView as ApiSnapshotView } from '../../apps/api/src/modules
 import type { PeriodComparisonView as ApiPeriodComparisonView } from '../../apps/api/src/modules/insights/comparison.service.js';
 import type { MetricTargetView as ApiMetricTargetView } from '../../apps/api/src/modules/insights/targets.service.js';
 import type { MetricTargetStatusView as ApiMetricTargetStatusView } from '../../apps/api/src/modules/insights/targets.service.js';
+import type { InsightAnnotationView as ApiInsightAnnotationView } from '../../apps/api/src/modules/insights/insight-annotations.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { RequestTriageView as ApiRequestTriageView } from '../../apps/api/src/modules/requests/request-triage.controller.js';
@@ -507,6 +508,7 @@ import type { SnapshotView as WebSnapshotView } from '../../apps/web/src/lib/api
 import type { PeriodComparisonView as WebPeriodComparisonView } from '../../apps/web/src/lib/api/insights-comparison';
 import type { MetricTargetView as WebMetricTargetView } from '../../apps/web/src/lib/api/insights-targets';
 import type { MetricTargetStatusView as WebMetricTargetStatusView } from '../../apps/web/src/lib/api/insights-targets';
+import type { InsightAnnotationView as WebInsightAnnotationView } from '../../apps/web/src/lib/api/insight-annotations';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { RequestTriageView as WebRequestTriageView } from '../../apps/web/src/lib/api/request-triage';
@@ -1133,6 +1135,16 @@ type _insightsAdoption = Assert<Exact<ApiInsightsAdoptionView, WebInsightsAdopti
  * `SnapshotView`, so the element shape is the one contract both sides hold.
  */
 type _insightSnapshot = Assert<Exact<ApiSnapshotView, WebSnapshotView>>;
+
+/**
+ * x271 — `POST/GET/DELETE …/insights/snapshots/:snapshotId/annotations`. One annotation on a snapshot:
+ * `id`, the `authorMembershipId` (so the screen marks the caller's own notes), the `note`, and the ISO
+ * `createdAt`. Paired with a real web consumer — x271 ships `InsightAnnotationsScreen` — so this is a
+ * live `Exact` pair, not an exemption. The list route returns `{ annotations: InsightAnnotationView[] }`
+ * and the create route one `InsightAnnotationView`, so the element shape is the one contract both sides
+ * hold; `organizationId`/`snapshotId` are absent on both sides (never echoed; the snapshot is in path).
+ */
+type _insightAnnotation = Assert<Exact<ApiInsightAnnotationView, WebInsightAnnotationView>>;
 
 /**
  * x169 — `GET …/people/:membershipId`. One member's profile: the non-sensitive header (`displayName`,
