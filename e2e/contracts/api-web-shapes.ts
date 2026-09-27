@@ -161,6 +161,8 @@ import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps
 import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps/api/src/modules/insights/adoption.controller.js';
 import type { SnapshotView as ApiSnapshotView } from '../../apps/api/src/modules/insights/snapshots.service.js';
 import type { PeriodComparisonView as ApiPeriodComparisonView } from '../../apps/api/src/modules/insights/comparison.service.js';
+import type { MetricTargetView as ApiMetricTargetView } from '../../apps/api/src/modules/insights/targets.service.js';
+import type { MetricTargetStatusView as ApiMetricTargetStatusView } from '../../apps/api/src/modules/insights/targets.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
@@ -417,6 +419,8 @@ import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps
 import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps/web/src/lib/api/insights-adoption';
 import type { SnapshotView as WebSnapshotView } from '../../apps/web/src/lib/api/insights-snapshots';
 import type { PeriodComparisonView as WebPeriodComparisonView } from '../../apps/web/src/lib/api/insights-comparison';
+import type { MetricTargetView as WebMetricTargetView } from '../../apps/web/src/lib/api/insights-targets';
+import type { MetricTargetStatusView as WebMetricTargetStatusView } from '../../apps/web/src/lib/api/insights-targets';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
@@ -920,6 +924,15 @@ type _insightSnapshot = Assert<Exact<ApiSnapshotView, WebSnapshotView>>;
  * it — so this is a live `Exact` pair, not an exemption.
  */
 type _personProfile = Assert<Exact<ApiPersonProfileView, WebPersonProfileView>>;
+
+/**
+ * x230 — `PUT/GET …/insights/targets`. One org-wide target: the `metric` (a closed vocabulary), the
+ * bounded `targetValue`, and the `period`. `GET …/targets/status` adds the live `currentValue`, the
+ * `attainment` ratio (null on a zero target — no divide) and the `status` (`on_track` | `behind`).
+ * Both are paired with the real web consumer the `InsightTargetsScreen` reads, live `Exact` pairs.
+ */
+type _insightTarget = Assert<Exact<ApiMetricTargetView, WebMetricTargetView>>;
+type _insightTargetStatus = Assert<Exact<ApiMetricTargetStatusView, WebMetricTargetStatusView>>;
 
 /**
  * x229 — `GET …/insights/compare?metric&periodA&periodB`. A metric compared across two windows:

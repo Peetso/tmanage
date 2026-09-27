@@ -496,6 +496,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // so the guard must scope its reads and its writes; the layer-3 guard fails OPEN on an unregistered
   // table, so this entry is what scopes the schedule reads and deletes.
   insight_report_schedules: 'organization_id',
+  // Insight metric targets (x230, migration 0102). Tenant-owned: a row is one studio's org-wide goal
+  // for one metric, and an unscoped `SELECT ... FROM insight_targets` would be every studio's targets
+  // on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every
+  // tenant table has, so the guard must scope its reads and its upsert; the layer-3 guard fails OPEN on
+  // an unregistered table, so this entry is what scopes the target reads and writes.
+  insight_targets: 'organization_id',
   // PREF-QUIET (x215, migration 0093). Tenant-owned: a row is one membership's notification
   // quiet-hours window in one studio, and an unscoped `SELECT ... FROM pref_quiet_hours` would be
   // every member's window across every studio on the server. `organization_id` is NOT NULL and

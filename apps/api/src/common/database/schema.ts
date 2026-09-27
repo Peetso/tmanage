@@ -4076,6 +4076,53 @@ export const adminExportRequests = mysqlTable(
 );
 
 /**
+ * The insights-metric target vocabulary, mirroring the `0102` `ENUM`. A target judges one org-wide
+ * roll-up figure: `open_items` / `scheduled_items` / `active_projects` / `active_assignees` — the four
+ * totals `InsightsService.orgWorkload` computes. An unknown metric is a 400 in the controller, never a
+ * stored row.
+ */
+export const INSIGHT_TARGET_METRICS = [
+  'open_items',
+  'scheduled_items',
+  'active_projects',
+  'active_assignees',
+] as const;
+
+/** The cadence a target applies to — display/grouping only, mirroring the `0102` `ENUM`. */
+export const INSIGHT_TARGET_PERIODS = ['weekly', 'monthly', 'quarterly'] as const;
+
+/**
+ * Insight metric targets (x230). One org-wide target/goal line per insights metric, so a studio can
+ * measure a live figure against a goal (audit: insights are reported and snapshotted, but there is no
+ * target to judge them against). Tenant-owned and keyed by the composite `(organization_id, id)` every
+ * tenant-scoped table carries, plus a `(organization_id, metric)` upsert key — one target per metric
+ * per studio, so setting a metric's target a second time replaces it in place.
+ *
+ * `metric` and `period` are closed vocabularies (the ENUMs above); `targetValue` is a bounded
+ * non-negative count the status read compares the live metric against, guarding a zero target so the
+ * attainment ratio never divides by zero. The row is set and re-set, never edited by column: the 0102
+ * trigger pins `organization_id` and `metric` immutable and `users.sql` grants INSERT + UPDATE (the
+ * upsert), no DELETE. `0102_insight_targets.sql` is the source of truth; this is its typed mirror.
+ */
+export const insightTargets = mysqlTable(
+  'insight_targets',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    metric: mysqlEnum('metric', INSIGHT_TARGET_METRICS).notNull(),
+    targetValue: int('target_value', { unsigned: true }).notNull(),
+    period: mysqlEnum('period', INSIGHT_TARGET_PERIODS).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_targets_org_id').on(table.organizationId, table.id),
+    // The upsert key: one target per metric per studio.
+    uniqueIndex('uq_insight_targets_org_metric').on(table.organizationId, table.metric),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -4370,6 +4417,7 @@ export const TABLES = {
   member_profiles: memberProfiles,
   admin_export_requests: adminExportRequests,
   invoice_line_items: invoiceLineItems,
+  insight_targets: insightTargets,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -4504,3 +4552,6 @@ export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
 export type AdminExportRequestRow = typeof adminExportRequests.$inferSelect;
 export type AdminExportScope = (typeof ADMIN_EXPORT_SCOPES)[number];
 export type AdminExportStatus = (typeof ADMIN_EXPORT_STATUSES)[number];
+export type InsightTargetRow = typeof insightTargets.$inferSelect;
+export type InsightTargetMetric = (typeof INSIGHT_TARGET_METRICS)[number];
+export type InsightTargetPeriod = (typeof INSIGHT_TARGET_PERIODS)[number];

@@ -685,6 +685,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`member_profiles`   TO 'tmanage_app'@'
 -- database-wide SELECT above. Rows are produced by the subscription lifecycle or the seed, not by a
 -- request under this credential, so INSERT/UPDATE/DELETE are withheld — the provider-driven billing
 -- run that writes lines (Needs-Peter) adds the grant with the code that writes it.
+-- Insight metric targets (x230, module 15, 0102). **INSERT, UPDATE** — an org-wide target per metric
+-- is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert against
+-- `uq_insight_targets_org_metric`. No DELETE: a target is set and re-set this slice, not removed.
+-- SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`insight_targets` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
