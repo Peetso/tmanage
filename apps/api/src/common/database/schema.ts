@@ -2454,6 +2454,33 @@ export const billingContacts = mysqlTable(
   ],
 );
 
+/**
+ * Organization security settings (Administration module 18, x176, migration 0073). Exactly one row per
+ * organization: the org-wide security posture — whether a second factor is enforced (`enforce_2fa`) and
+ * an IP allowlist (`ip_allowlist_json`, an array of validated IPv4/IPv6 addresses and CIDR ranges; empty
+ * means no restriction). This slice **stores** the posture; enforcing it in the auth path is a later
+ * identity slice, so this is only the config at rest. `uq_security_settings_org` makes a re-save an
+ * upsert target, not a second row. Identity (`organization_id`, `id`) is immutable at the engine; only
+ * `enforce_2fa`/`ip_allowlist_json`/`updated_by`/`updated_at` move on an upsert. The runtime credential
+ * holds INSERT and UPDATE (the upsert) and no DELETE — a posture is set and changed, never removed.
+ */
+export const securitySettings = mysqlTable(
+  'security_settings',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    enforce2fa: boolean('enforce_2fa').notNull().default(false),
+    ipAllowlistJson: json('ip_allowlist_json').$type<readonly string[]>().notNull(),
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_security_settings_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_security_settings_org').on(table.organizationId),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -3644,6 +3671,7 @@ export const TABLES = {
   notification_kind_prefs: notificationKindPrefs,
   org_settings: orgSettings,
   org_policies: orgPolicies,
+  security_settings: securitySettings,
   onboarding_progress: onboardingProgress,
   incidents,
   changelog_entries: changelogEntries,
@@ -3754,6 +3782,7 @@ export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type OrgPolicyRow = typeof orgPolicies.$inferSelect;
+export type SecuritySettingsRow = typeof securitySettings.$inferSelect;
 export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
 export type PersonAllocationRow = typeof personAllocations.$inferSelect;
 export type CustomRoleRow = typeof customRoles.$inferSelect;

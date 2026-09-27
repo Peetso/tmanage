@@ -194,6 +194,7 @@ import type { CustomRoleView as ApiCustomRoleView } from '../../apps/api/src/mod
 import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules/admin/role-edit.controller.js';
 import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
 import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
+import type { SecuritySettingsView as ApiSecuritySettingsView } from '../../apps/api/src/modules/admin/security.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -217,6 +218,7 @@ import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib
 import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api/admin-role-edit';
 import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/api/policies';
 import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
+import type { SecuritySettingsView as WebSecuritySettingsView } from '../../apps/web/src/lib/api/admin-security';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type {
   AuthenticatedResponse as WebAuthenticatedResponse,
@@ -1146,6 +1148,13 @@ type _orgPolicies = Assert<Exact<ApiOrgPolicyView, WebOrgPolicyView>>;
  * wire projection never echoes the tenant id.
  */
 type _policySimulation = Assert<Exact<ApiPolicySimulationView, WebPolicySimulationView>>;
+ * Organization security settings (x176). `SecuritySettingsView` (`GET/PUT …/admin/security`, response)
+ * — the org-wide security posture (2FA enforcement + IP allowlist). Paired with a live web consumer:
+ * `AdminSecurityScreen` reads exactly this response to render the 2FA toggle and the allowlist editor.
+ * One projection; `ipAllowlist` is a `readonly string[]` on both sides. The wire projection never
+ * echoes the tenant id.
+ */
+type _securitySettings = Assert<Exact<ApiSecuritySettingsView, WebSecuritySettingsView>>;
 
 /**
  * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and

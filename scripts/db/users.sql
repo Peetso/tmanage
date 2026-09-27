@@ -108,6 +108,7 @@
 --     saved_views, meeting_attendees, a11y_preferences
 --     saved_views, meeting_attendees, org_settings, org_policies
 --     saved_views, meeting_attendees, a11y_preferences, pref_quiet_hours
+--     saved_views, meeting_attendees, org_settings, security_settings
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
 --     documents, decisions, work_item_checklist_items, billing_profiles
@@ -484,6 +485,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`org_settings`      TO 'tmanage_app'@'
 -- edited, never removed by a runtime credential. The 0072 trigger pins organization_id/id immutable for
 -- every credential besides, so UPDATE can move only the JSON document (and who set it, and when).
 GRANT INSERT, UPDATE         ON `tmanage`.`org_policies`      TO 'tmanage_app'@'%';
+-- Organization security settings (0073, x176). **INSERT and UPDATE** — the posture is set (INSERT) and
+-- changed in place (UPDATE), the two halves of the upsert (`INSERT ... ON DUPLICATE KEY UPDATE`), and
+-- read (the database-wide SELECT above). **No DELETE** — a posture is set and changed, never removed by
+-- a runtime credential. The 0073 trigger pins organization_id immutable for every credential besides,
+-- so UPDATE can move only enforce_2fa/ip_allowlist_json (and who set it, and when).
+GRANT INSERT, UPDATE         ON `tmanage`.`security_settings` TO 'tmanage_app'@'%';
 -- ON-10 guided-tour progress (x155, 0059). **INSERT only** — a step is marked complete (INSERT) and
 -- read (the database-wide SELECT). Progress is forward-only: re-completing a step is an idempotent
 -- no-op the repository swallows on the unique-key conflict, never an UPDATE, and there is no

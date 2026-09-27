@@ -55,6 +55,7 @@ import { RoleEditModule } from './modules/admin/role-edit.controller.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
+import { AdminSecurityModule } from './modules/admin/security.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -199,6 +200,11 @@ export class AppModule {
         // usage counters and audit events behind `org.manage`; a module of its own so it stays
         // file-disjoint from the other administration slices. Depends only on `TENANT_DATABASE`.
         AdminOverviewModule.register(),
+        // ADM security (module 18, x176). Organization security settings (2FA enforcement + IP
+        // allowlist config) read + update behind `org.manage`. A module of its own, file-disjoint from
+        // the org-settings and audit slices in the same module; depends only on the global
+        // `TENANT_DATABASE`. Config surface only — enforcement in the auth path is a later slice.
+        AdminSecurityModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),
