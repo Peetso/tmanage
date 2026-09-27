@@ -13,6 +13,7 @@ import {
   WORK_ITEM_LINKS_SERVICE,
   WORK_ITEM_FILES_SERVICE,
   WORK_TIME_LOGS_SERVICE,
+  WORK_WATCHERS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -41,6 +42,9 @@ import { BulkTransitionController } from './bulk-transition.controller.js';
 import { WorkTimeLogsRepository } from './time-logs.repository.js';
 import { WorkTimeLogsService } from './time-logs.service.js';
 import { WorkTimeLogsController } from './time-logs.controller.js';
+import { WorkWatchersRepository } from './watchers.repository.js';
+import { WorkWatchersService } from './watchers.service.js';
+import { WorkWatchersController } from './watchers.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -128,6 +132,11 @@ export class WorkModule {
       inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
       useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
         new WorkTimeLogsService(database, workItems, new WorkTimeLogsRepository()),
+    const watchersService: Provider = {
+      provide: WORK_WATCHERS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkWatchersService(database, workItems, new WorkWatchersRepository()),
     };
 
     return {
@@ -142,6 +151,7 @@ export class WorkModule {
         itemFilesService,
         bulkTransitionService,
         timeLogsService,
+        watchersService,
       ],
       exports: [service],
       controllers: [
@@ -153,6 +163,7 @@ export class WorkModule {
         WorkItemFilesController,
         BulkTransitionController,
         WorkTimeLogsController,
+        WorkWatchersController,
       ],
     };
   }

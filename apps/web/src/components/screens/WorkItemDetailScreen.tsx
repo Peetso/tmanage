@@ -19,6 +19,7 @@ import { MemberSelect } from '../MemberSelect';
 import { BackendPending } from './BackendPending';
 import { WorkChecklistPanel } from './WorkChecklistPanel';
 import { WorkCommentsPanel } from './WorkCommentsPanel';
+import { WorkWatchersPanel } from './WorkWatchersPanel';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getWorkItem, transitionWorkItem, updateWorkItem } from '../../lib/api/work-items';
 import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
@@ -583,6 +584,8 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
       <WorkChecklistPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
 
       <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+
+      <WorkWatchersPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
 
       <BackendPending ticket="WORK-002 · WORK-003 · CHAT-001 · FILE-001 · decisions, unscheduled">
         Description, dependencies, the source this item came from, discussion, files, decisions and

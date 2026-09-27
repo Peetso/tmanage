@@ -166,6 +166,7 @@ import type {
   TimeLogView as ApiTimeLogView,
   TimeLogListView as ApiTimeLogListView,
 } from '../../apps/api/src/modules/work/time-logs.service.js';
+import type { ItemWatcherView as ApiItemWatcherView } from '../../apps/api/src/modules/work/watchers.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -387,6 +388,7 @@ import type { WorkItemLink as WebWorkItemLink } from '../../apps/web/src/lib/api
 import type { ItemFile as WebItemFile } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLog as WebTimeLog } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/work-items';
+import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -905,6 +907,14 @@ type _itemFile = Assert<Exact<ApiItemFileView, WebItemFile>>;
  */
 type _timeLog = Assert<Exact<ApiTimeLogView, WebTimeLog>>;
 type _timeLogList = Assert<Exact<ApiTimeLogListView, WebTimeLogList>>;
+
+/**
+ * x232. `ItemWatcherView` ↔ `ItemWatcher` — one work-item watcher / subscriber
+ * (`GET`/`PUT`/`DELETE …/work-items/:id/watchers`). `WorkWatchersPanel` reads exactly this shape,
+ * so the `id`/`workItemId`/`memberId`/`createdAt` pair is held identical on both sides. The roster
+ * carries a membership id, never an email: the pair keeps it that way on both sides.
+ */
+type _itemWatcher = Assert<Exact<ApiItemWatcherView, WebItemWatcher>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped
