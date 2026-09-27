@@ -491,6 +491,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them,
   // and tenant-isolation.db.test.ts enforces the entry.
   home_widget_prefs: 'organization_id',
+  // Audit-log retention policy (x279, migration 0148). Tenant-owned: one row per organization holding
+  // the days that org keeps its audit_events, and an unscoped `SELECT ... FROM audit_retention_policy`
+  // would be every studio's retention window. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard scopes its reads and its upsert;
+  // the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them, and
+  // tenant-isolation.db.test.ts enforces the entry.
+  audit_retention_policy: 'organization_id',
 });
 
 /**

@@ -213,6 +213,7 @@ import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules
 import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
 import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
 import type { SecuritySettingsView as ApiSecuritySettingsView } from '../../apps/api/src/modules/admin/security.controller.js';
+import type { AuditRetentionView as ApiAuditRetentionView } from '../../apps/api/src/modules/admin/audit-retention.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -238,6 +239,7 @@ import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api
 import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/api/policies';
 import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
 import type { SecuritySettingsView as WebSecuritySettingsView } from '../../apps/web/src/lib/api/admin-security';
+import type { AuditRetentionView as WebAuditRetentionView } from '../../apps/web/src/lib/api/admin-audit-retention';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type { UserPreferencesView as WebUserPreferencesView } from '../../apps/web/src/lib/api/preferences';
 import type {
@@ -1270,6 +1272,16 @@ type _policySimulation = Assert<Exact<ApiPolicySimulationView, WebPolicySimulati
  * echoes the tenant id.
  */
 type _securitySettings = Assert<Exact<ApiSecuritySettingsView, WebSecuritySettingsView>>;
+
+/**
+ * Audit-log retention policy (x279). `AuditRetentionView` (`GET/PUT …/admin/audit-retention`, response)
+ * — the stored retention window in days (null if never set), when it was last set, and a read-only
+ * preview count of audit events older than the window. Paired with a live web consumer:
+ * `AuditRetentionView` (the screen) reads exactly this to render the window field and the "N events
+ * older than the window" preview. One projection; the wire projection never echoes the tenant id or the
+ * actor.
+ */
+type _auditRetention = Assert<Exact<ApiAuditRetentionView, WebAuditRetentionView>>;
 
 /**
  * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and

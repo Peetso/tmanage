@@ -61,6 +61,7 @@ import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AdminSecurityModule } from './modules/admin/security.controller.js';
+import { AdminAuditRetentionModule } from './modules/admin/audit-retention.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -213,6 +214,11 @@ export class AppModule {
         // the org-settings and audit slices in the same module; depends only on the global
         // `TENANT_DATABASE`. Config surface only — enforcement in the auth path is a later slice.
         AdminSecurityModule.register(),
+        // ADM audit retention (module 18, x279). An org-admin sets an audit-log retention window and
+        // previews how many audit_events fall outside it, behind `org.manage`. A module of its own,
+        // file-disjoint from the other administration slices; depends only on the global
+        // `TENANT_DATABASE`. Preview + policy only — no destructive purge in this slice.
+        AdminAuditRetentionModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),
