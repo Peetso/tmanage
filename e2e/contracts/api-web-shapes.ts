@@ -216,6 +216,7 @@ import type {
 } from '../../apps/api/src/modules/platform/maintenance.controller.js';
 import type { CustomRoleView as ApiCustomRoleView } from '../../apps/api/src/modules/admin/roles.controller.js';
 import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules/admin/role-edit.controller.js';
+import type { MemberBulkRoleView as ApiMemberBulkRoleView } from '../../apps/api/src/modules/tenancy/member-bulk-role.controller.js';
 import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
 import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
 import type { SecuritySettingsView as ApiSecuritySettingsView } from '../../apps/api/src/modules/admin/security.controller.js';
@@ -241,6 +242,7 @@ import type { NotificationKindPrefView as WebNotificationKindPrefView } from '..
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
 import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api/admin-role-edit';
+import type { MemberBulkRoleView as WebMemberBulkRoleView } from '../../apps/web/src/lib/api/admin-member-bulk-role';
 import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/api/policies';
 import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
 import type { SecuritySettingsView as WebSecuritySettingsView } from '../../apps/web/src/lib/api/admin-security';
@@ -1311,6 +1313,15 @@ type _customRoles = Assert<Exact<ApiCustomRoleView, WebCustomRoleView>>;
  * sides, so this pair covers it structurally. The wire projection never echoes the tenant id.
  */
 type _roleEdit = Assert<Exact<ApiRoleEditView, WebRoleEditView>>;
+
+/**
+ * Admin bulk role assignment (x222). `MemberBulkRoleView` (`POST …/admin/members/bulk-role`, response) —
+ * the per-id outcome of assigning one custom role to a batch of memberships. Paired with a live web
+ * consumer: `BulkRoleAssignBar` reads exactly this response to report how many assignments landed and how
+ * many ids resolved to no member. One projection; its per-id item (`{ membershipId, outcome }`) is inlined
+ * on both sides, so this pair covers it structurally. The wire projection never echoes the tenant id.
+ */
+type _memberBulkRole = Assert<Exact<ApiMemberBulkRoleView, WebMemberBulkRoleView>>;
 
 /**
  * Organization access policies (x174). `OrgPolicyView` (`GET/PUT …/policies`, response) — the
