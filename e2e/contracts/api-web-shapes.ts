@@ -850,6 +850,8 @@ type _workComment = Assert<Exact<ApiWorkCommentView, WebWorkComment>>;
  * shape to pair.
  */
 type _workItemLink = Assert<Exact<ApiWorkItemLinkView, WebWorkItemLink>>;
+
+/**
  * x205. `ItemFileView` ↔ `ItemFile` — one work-item file attachment
  * (`GET`/`POST`/`DELETE …/work-items/:id/files`). `WorkItemFilesScreen` reads exactly this shape,
  * so the `id`/`workItemId`/`fileAssetId`/`fileName`/`attachedByMembershipId`/`createdAt` pair is
@@ -989,6 +991,8 @@ type _personSkill = Assert<Exact<ApiPersonSkillView, WebPersonSkillSummary>>;
  * and `organizationId` is absent on both — the wire never echoes the tenant.
  */
 type _skillSearch = Assert<Exact<ApiSkillSearchView, WebSkillSearchResult>>;
+
+/**
  * Billing profile (module 19, x180). `BillingProfileView` (`GET`/`PUT …/billing/profile`, response) —
  * the org-scoped billing metadata. Paired with a live web consumer: `BillingProfileScreen` reads
  * exactly this response to seed and save the billing-settings form. The nested `address` object

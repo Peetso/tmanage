@@ -1530,6 +1530,9 @@ export const workItemLinks = mysqlTable(
       table.id,
     ),
     index('ix_work_item_links_to').on(table.organizationId, table.toWorkItemId),
+  ],
+);
+
 /**
  * x205 (Work module 7). The join between a work item and an already-uploaded file — the audit's
  * "Work built; Files built; no join between them". A link names one work item and one file asset
@@ -2349,6 +2352,9 @@ export const orgPolicies = mysqlTable(
   (table) => [
     uniqueIndex('uq_org_policies_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_org_policies_org').on(table.organizationId),
+  ],
+);
+
 /** The subscription status set, mirroring the `0074` `ENUM`. */
 export const SUBSCRIPTION_STATUSES = ['active', 'pending_change'] as const;
 
@@ -2371,6 +2377,16 @@ export const subscriptions = mysqlTable(
     planId: varchar('plan_id', { length: 64 }).notNull(),
     status: mysqlEnum('status', SUBSCRIPTION_STATUSES).notNull().default('active'),
     currentPeriodEnd: datetime('current_period_end', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_subscriptions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_subscriptions_org').on(table.organizationId),
+  ],
+);
+
+/**
  * A billing profile's postal address — the typed shape of `billing_profiles.address_json`. All
  * fields are nullable: a profile may carry only some of them. The application validates and bounds
  * each field before storing; the column holds the object whole.
@@ -2406,8 +2422,6 @@ export const billingProfiles = mysqlTable(
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [
-    uniqueIndex('uq_subscriptions_org_id').on(table.organizationId, table.id),
-    uniqueIndex('uq_subscriptions_org').on(table.organizationId),
     uniqueIndex('uq_billing_profiles_org_id').on(table.organizationId, table.id),
     // The upsert key: one row per organization.
     uniqueIndex('uq_billing_profiles_org').on(table.organizationId),

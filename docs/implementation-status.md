@@ -15288,6 +15288,7 @@ member denied `membership_inactive`, an unknown capability a 400, a missing memb
 organization a 404 before authorize, and a caller without `org.manage` a 403. A self-contained
 `AdminPolicySimulateModule` registered from `app.module.ts` keeps the slice file-disjoint from x174's
 `AdminPoliciesModule`.
+
 ## Billing / module 19 — subscription: view + request plan change (x177)
 
 `38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Billing wants the organization's subscription: view the
@@ -15345,6 +15346,7 @@ controller/service on `BillingModule`. Proved database-free with the real `autho
 (`billing/plan-preview.controller.test.ts`): an upgrade delta, a downgrade credit, an off-catalog 400,
 a seat-bound 400, and a 403 without `org.manage`. Deferred: real charging + exact day-proration
 (Needs-Peter).
+
 ## Billing profile — billing settings (x180, module 19)
 
 **What landed.** Module 19 (Billing) had a subscription but no billing settings (audit #10:
@@ -15400,6 +15402,7 @@ only.
 `/[orgSlug]/billing/contacts`, lists, adds and removes contacts. Proved database-free with the real
 `authorize` (`contacts.controller.test.ts`): add/list/remove within a tenant, a malformed email a 400
 with no write, a cross-tenant/absent id a 404 with no write, and an add without `org.manage` a 403.
+
 ## SEC / Billing & entitlements — usage-alert thresholds (x200, module 19)
 
 **What shipped.** Configurable usage-alert threshold rules over the existing usage/quota reads. This
@@ -15433,6 +15436,7 @@ unknown metric and an out-of-range threshold are 400s with no write, a cross-ten
 caller without `org.manage` is a 403, and `status` flags a breached active rule from a seeded band.
 Deferred to worker infrastructure (Needs-Peter): the dispatcher that delivers an alert when a threshold
 is crossed, and a per-rule removal path.
+
 ## x201 — Portal update edit/unpublish lifecycle (module 13 Client Portal)
 
 CLIENT-003 (x125) let a manager **create** a project update and let a client read the published
@@ -15468,6 +15472,7 @@ real `authorize` (`update-lifecycle.controller.test.ts`): an edit persists title
 `updatedAt` without touching author, an unpublish drops the row from the client projection, a
 cross-tenant/cross-project id is a 404 with no write, a client principal cannot edit, and the
 `project.manage` route ceiling is pinned. No DB test / no new e2e (the chain owns both).
+
 ## SEC / Portal milestone lifecycle — module 13 (x202, 2026-09-27)
 
 **What shipped.** The edit and complete transitions x139 left out ("Portal milestones published-only
@@ -15497,6 +15502,7 @@ invalidates the internal and portal milestone queries. Proved database-free with
 instant, complete sets `met` with a completion instant, a cross-tenant/unknown milestone id is a 404
 with no write, a client (no `project.manage`) is refused with 404, and both routes are guarded by
 `project.manage`. DB round-trip and live e2e are the chain's.
+
 ## SEC / Work — work item file attachments (attach/list/detach) (x205, module 7)
 
 The join the audit found missing: Work is built, Files are built, and nothing linked them. This
@@ -15525,6 +15531,7 @@ cross-tenant/absent file id and a cross-project file id are each a 404 with no w
 work item is a 404, an unrelated member's list is a 404, and a caller who may read but not update the
 item is a 403 on attach; a missing `fileAssetId` is a 400. No byte upload path is added (reuses the
 existing file.upload flow).
+
 ## SEC / Work — bulk status transition (x206, module 7)
 
 **What shipped.** A multi-select status change for the work list. Work items could be transitioned one
@@ -15552,6 +15559,7 @@ counts, an illegal move is reported per id without failing the batch, a foreign-
 never transitioned, a per-item 403 maps to `forbidden`, and an over-cap/empty/unknown-target request is a
 400 that reads nothing. Not wired into `WorkListScreen` in-slice (kept off the existing list to avoid VR
 baseline churn); the bar is authored ready to mount.
+
 ## PROJ / module 8 — computed project health roll-up (read) (x208)
 
 x137 gave projects a portfolio of **counts** and deliberately deferred a health score to "NS-13";
@@ -15584,6 +15592,7 @@ On track / Needs attention / At risk / Not yet assessed, each showing the signal
 so the colour is never a black box (distinct file from x137's `ProjectPortfolioScreen`).
 `ProjectHealthView` is a live `Exact` pair with the web `ProjectHealthSummary` (CONTRACT-001),
 including the nested `signals` object.
+
 ## Saved insight views — Insights & reporting, module 15 (x210)
 
 **What landed.** The insights reads exist (delivery-flow / adoption / forecast / workload / CSV,
@@ -15610,6 +15619,7 @@ web's shape in `apps/web/src/lib/api/insight-saved-views.ts` via `e2e/contracts/
 remove. Unit-proven in `saved-views.controller.test.ts` (create/list/delete own; unknown kind → 400;
 non-owned/absent delete → 404; `work.read` on all three routes). Deferred: editing a view in place
 (UPDATE grant + endpoint) and applying a view's filters directly from the insights reads.
+
 ## Insight snapshots — Insights & reporting, module 15 (x211)
 
 **What landed.** Insights were live-only: a studio could read today's numbers but had no way to
@@ -15646,6 +15656,7 @@ kind, captures a snapshot, and lists the history with the latest flagged as "cur
 one can be compared against it (accessible table + read-only JSON payloads). Deferred to a later
 slice: a route/page wiring the screen into navigation, a scheduled/emailed digest, and a retention or
 purge surface (UPDATE/DELETE grants).
+
 ## CAL / module 9 — calendar week/month grid (x212)
 
 **FEAT.** `38-MODULE-MAP` §Calendar carried a week/month grid as deferred after the x127 agenda:
@@ -15681,6 +15692,7 @@ database-free (`grid.controller.test.ts`): the `meeting.read` metadata, day buck
 expanded occurrences across the full window, the Monday-based week derivation, the relation-filter
 drop of a cross-tenant row, and a 400 on a missing or malformed `range`/`anchor`. Deferred:
 per-occurrence series overrides (x213) and any write from the grid.
+
 ## Search — saved & recent searches (x214, module 16)
 
 **Status.** Built. On top of SRCH-01 global search (x111) and its ranking (x148), a member can keep
