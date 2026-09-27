@@ -155,6 +155,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // table has, so the guard scopes its reads and its upsert; the layer-3 guard fails OPEN on an
   // unregistered table, so this entry is what scopes them.
   conversation_read_state: 'organization_id',
+  // CH-09 (x252). A member's mute state for a conversation. Tenant-owned: the row names a
+  // conversation and a membership of one studio, and the read is scoped to the acting
+  // membership, so an unscoped read would expose who muted which channel across studios.
+  conversation_mutes: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',

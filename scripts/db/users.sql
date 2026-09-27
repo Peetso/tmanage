@@ -272,6 +272,11 @@ GRANT INSERT                 ON `tmanage`.`conversation_thread_replies` TO 'tman
 -- against `uq_conversation_read_state_member`. No DELETE: a read position is only ever advanced,
 -- never removed. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`conversation_read_state` TO 'tmanage_app'@'%';
+-- CH-09 conversation mute (x252, module Chat). **INSERT, UPDATE** — a member's mute state for a
+-- conversation is created and then flipped in place by an `INSERT ... ON DUPLICATE KEY UPDATE`
+-- upsert against `uq_conversation_mutes_org_conv_membership`. No DELETE: a member unmutes by saving
+-- `false`, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`conversation_mutes`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 -- NOTIF-001. UPDATE is for marking read — the trigger in 0010 confines it to `read_at`,

@@ -177,6 +177,9 @@ export const CONVERSATION_READ_STATE_SERVICE = Symbol.for('tmanage.ConversationR
 /** x251. A member's unsent composer draft per conversation. */
 export const MESSAGE_DRAFTS_REPOSITORY = Symbol.for('tmanage.MessageDraftsRepository');
 export const MESSAGE_DRAFTS_SERVICE = Symbol.for('tmanage.MessageDraftsService');
+/** CH-09 (x252). A member's own conversation mute state. */
+export const CONVERSATION_MUTE_REPOSITORY = Symbol.for('tmanage.ConversationMuteRepository');
+export const CONVERSATION_MUTE_SERVICE = Symbol.for('tmanage.ConversationMuteService');
 export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');
 export const NOTIFICATIONS_REPOSITORY = Symbol.for('tmanage.NotificationsRepository');
 export const NOTIFICATION_PREFERENCES_REPOSITORY = Symbol.for(
