@@ -13652,6 +13652,38 @@ the no-`meeting.write` 403; `apps/web/tests/meeting-series-screen.test.tsx` (jsd
 list/create surface and axe-cleanliness. No DB test / no new e2e journey in-slice (the chain owns
 both).
 
+## CAL per-occurrence override — edit/cancel a single occurrence (x213)
+
+x129 shipped the recurrence _rule_; its occurrences are expanded on read and never materialised, so
+there was no way to change one instance. This adds the per-occurrence exception the audit deferred
+(NEXT-SCOPES-12): cancel or move one occurrence of a series without disturbing the rule.
+
+**Migration 0091** `meeting_occurrence_overrides`: id, organization_id, series_id, `occurrence_date`
+(the ORIGINAL date, the override's key), `status` ENUM(moved|cancelled), nullable `new_date`,
+`new_start_time` (TIME), `new_title`, created_by_user_id, created_at, `updated_at` (the row is upserted
+in place). Org-scoped like its parent; `UNIQUE (organization_id, series_id, occurrence_date)` is the
+upsert target and the merge invariant, and the composite FK `(organization_id, series_id)` ->
+`meeting_series (organization_id, id)` binds an override to its series' tenant (ADR-0001 layer 1).
+Registered in the four places (schema `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql`
+INSERT/UPDATE/DELETE grant, migrator by file). No DB test in-slice (the chain owns it).
+
+**Routes** (`occurrence-override.controller.ts`, its own `OccurrenceOverrideModule` beside
+`CalendarModule`): `GET`/`POST`/`DELETE .../meeting-series/:seriesId/occurrences/:date` — read
+(`meeting.read`), upsert (`meeting.write`) and remove (`meeting.write`). The Known-trap order: the
+service resolves the series **tenant-scoped first** (cross-tenant/unknown -> 404, no write), then the
+capability (403), then validates `:date` against the series rule via the pure expansion engine (a
+non-occurrence date -> 400) before any write. A cancelled occurrence carries no move fields; a moved one
+carries at least one (400 otherwise). `applyOverrides` merges overrides over a base expansion
+deterministically — the helper x127/x212 grids consume.
+
+**Web** `OccurrenceOverrideControl.tsx` (a distinct file from the x129 series screen): read the current
+override, save a move/cancel, or clear it. `OccurrenceOverrideView` is paired Exact
+(`_occurrenceOverride`) in `e2e/contracts/api-web-shapes.ts`.
+
+**Tests** (features budget 0.05, one per behaviour): `occurrence-override.controller.test.ts` over a
+real service (real `authorize`) proves upsert->read, the deterministic merge, the cross-tenant 404, the
+non-occurrence-date 400 and the no-`meeting.write` 403. No DB test / no new e2e journey in-slice.
+
 - **x131** (branch `x131-doc-export`, off `master` `f3fe700`): DOC export (module 10) —
   document **Markdown download**, `GET .../documents/:documentId/export.md` behind `doc.read`.
   Read-only: the current-version body under a YAML title front-matter block, served as

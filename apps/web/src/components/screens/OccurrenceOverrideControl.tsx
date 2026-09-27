@@ -1,0 +1,245 @@
+'use client';
+
+import { useState } from 'react';
+import type { FormEvent } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { browserApiClient } from '../../lib/api/browser-client';
+import {
+  MEETING_OCCURRENCE_OVERRIDE_STATUSES,
+  getOccurrenceOverride,
+  removeOccurrenceOverride,
+  upsertOccurrenceOverride,
+} from '../../lib/api/meeting-occurrence-override';
+import type { MeetingOccurrenceOverrideStatus } from '../../lib/api/meeting-occurrence-override';
+import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import type { ApiClient } from '../../lib/api/client';
+
+export interface OccurrenceOverrideControlProps {
+  organizationSlug: string;
+  /** The series whose occurrence is being overridden. */
+  seriesId: string;
+  /** The original occurrence date (`YYYY-MM-DD`) this control decorates. */
+  occurrenceDate: string;
+  client?: ApiClient;
+}
+
+/** How each override kind reads in the picker. */
+const STATUS_LABEL: Record<MeetingOccurrenceOverrideStatus, string> = {
+  moved: 'Moved',
+  cancelled: 'Cancelled',
+};
+
+/**
+ * **CAL per-occurrence override — the occurrence edit control (x213).**
+ *
+ * A recurring series (x129) expands its occurrences on read; this control edits the *exception* for a
+ * single occurrence date without disturbing the rule: cancel that one occurrence, or move it (a new
+ * date, and optionally a new time or title). It is a distinct file from `MeetingSeriesScreen` (x129)
+ * so a calendar grid or agenda (x127/x212) can mount it against whichever occupied cell the user
+ * opens, passing the series and the original date.
+ *
+ * - **Reads the current override** for `(seriesId, occurrenceDate)` behind `meeting.read`; a 404 means
+ *   there is no exception yet and the base rule applies.
+ * - **Saving** → `POST .../occurrences/:date` behind `meeting.write`. A cancelled occurrence carries no
+ *   move fields; a moved one carries at least one of a new date, time or title. A refusal is shown
+ *   in place, the override untouched.
+ * - **Clearing** → `DELETE .../occurrences/:date` behind `meeting.write`, restoring the base rule.
+ */
+export function OccurrenceOverrideControl({
+  organizationSlug,
+  seriesId,
+  occurrenceDate,
+  client,
+}: OccurrenceOverrideControlProps) {
+  const api = client ?? browserApiClient();
+  const queries = useQueryClient();
+  const queryKey = ['occurrence-override', organizationSlug, seriesId, occurrenceDate];
+
+  const [status, setStatus] = useState<MeetingOccurrenceOverrideStatus>('moved');
+  const [newDate, setNewDate] = useState('');
+  const [newStartTime, setNewStartTime] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+
+  const override = useQuery({
+    queryKey,
+    queryFn: async () => {
+      try {
+        return await getOccurrenceOverride(api, organizationSlug, seriesId, occurrenceDate);
+      } catch (error) {
+        // A 404 is the ordinary "no exception yet" state, not an error to surface.
+        if (error instanceof ApiRequestError && error.status === 404) return null;
+        throw error;
+      }
+    },
+  });
+
+  const moving = status === 'moved';
+  const canSave = !moving || newDate !== '' || newStartTime !== '' || newTitle.trim() !== '';
+
+  const save = useMutation({
+    mutationFn: () =>
+      upsertOccurrenceOverride(api, organizationSlug, seriesId, occurrenceDate, {
+        status,
+        ...(moving && newDate !== '' ? { newDate } : {}),
+        ...(moving && newStartTime !== '' ? { newStartTime } : {}),
+        ...(moving && newTitle.trim() !== '' ? { newTitle: newTitle.trim() } : {}),
+      }),
+    onSuccess: () => {
+      void queries.invalidateQueries({ queryKey });
+    },
+  });
+
+  const clear = useMutation({
+    mutationFn: () => removeOccurrenceOverride(api, organizationSlug, seriesId, occurrenceDate),
+    onSuccess: () => {
+      void queries.invalidateQueries({ queryKey });
+    },
+  });
+
+  function submitSave(event: FormEvent) {
+    event.preventDefault();
+    if (!canSave) return;
+    save.mutate();
+  }
+
+  return (
+    <section className="tm-panel tm-stack" aria-labelledby="tm-occurrence-override">
+      <h2 id="tm-occurrence-override" className="tm-eyebrow">
+        Override {occurrenceDate}
+      </h2>
+
+      {override.isPending ? (
+        <LoadingRegion label="Loading the override.">
+          <Skeleton height="var(--row)" />
+        </LoadingRegion>
+      ) : null}
+
+      {override.isError ? (
+        <InlineAlert tone="danger" title="Could not load the override" live>
+          {describeError(override.error)}
+        </InlineAlert>
+      ) : null}
+
+      {override.data ? (
+        <InlineAlert
+          tone="neutral"
+          title={`This occurrence is ${STATUS_LABEL[override.data.status]}`}
+        >
+          {override.data.status === 'moved'
+            ? `Moved to ${override.data.newDate ?? occurrenceDate}${
+                override.data.newStartTime ? ` at ${override.data.newStartTime}` : ''
+              }${override.data.newTitle ? ` — ${override.data.newTitle}` : ''}.`
+            : 'This occurrence is cancelled.'}
+        </InlineAlert>
+      ) : null}
+
+      <form className="tm-stack" onSubmit={submitSave}>
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-override-status">
+            This occurrence
+          </label>
+          <select
+            id="tm-override-status"
+            className="tm-field__control"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as MeetingOccurrenceOverrideStatus)}
+          >
+            {MEETING_OCCURRENCE_OVERRIDE_STATUSES.map((value) => (
+              <option key={value} value={value}>
+                {STATUS_LABEL[value]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {moving ? (
+          <>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-override-date">
+                New date (optional)
+              </label>
+              <input
+                id="tm-override-date"
+                type="date"
+                className="tm-field__control"
+                value={newDate}
+                onChange={(event) => setNewDate(event.target.value)}
+              />
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-override-time">
+                New time (optional)
+              </label>
+              <input
+                id="tm-override-time"
+                type="time"
+                className="tm-field__control"
+                value={newStartTime}
+                onChange={(event) => setNewStartTime(event.target.value)}
+              />
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-override-title">
+                New title (optional)
+              </label>
+              <input
+                id="tm-override-title"
+                className="tm-field__control"
+                value={newTitle}
+                onChange={(event) => setNewTitle(event.target.value)}
+                maxLength={300}
+              />
+              <span className="tm-field__hint">Move needs a new date, time or title.</span>
+            </div>
+          </>
+        ) : null}
+
+        {save.isError ? (
+          <InlineAlert tone="danger" title="Could not save the override" live>
+            {save.error instanceof ApiRequestError
+              ? save.error.message
+              : 'The API did not answer. Try again.'}
+          </InlineAlert>
+        ) : null}
+
+        <div className="tm-row">
+          <Button
+            type="submit"
+            tone="ink"
+            size="accessible"
+            loading={save.isPending}
+            loadingLabel="Saving"
+            disabled={!canSave}
+          >
+            Save override
+          </Button>
+          {override.data ? (
+            <Button
+              type="button"
+              tone="outline"
+              size="accessible"
+              loading={clear.isPending}
+              loadingLabel="Clearing"
+              onClick={() => clear.mutate()}
+            >
+              Clear override
+            </Button>
+          ) : null}
+        </div>
+
+        {clear.isError ? (
+          <InlineAlert tone="danger" title="Could not clear the override" live>
+            {describeError(clear.error)}
+          </InlineAlert>
+        ) : null}
+      </form>
+    </section>
+  );
+}
+
+function describeError(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.message;
+  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
+  return 'Something went wrong. Try again.';
+}

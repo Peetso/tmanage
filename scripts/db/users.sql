@@ -98,7 +98,7 @@
 --   · `INSERT, UPDATE, DELETE` on: organizations, users, sessions, memberships, workspaces,
 --     projects, project_memberships, client_organizations, client_memberships,
 --     project_clients, work_items, conversation_memberships, outbox_events,
---     idempotency_records, search_index
+--     idempotency_records, search_index, meeting_occurrence_overrides
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
 --     notifications, notification_preferences, notification_kind_prefs, work_blockers,
 --     usage_counters, file_assets,
@@ -318,6 +318,12 @@ GRANT INSERT, UPDATE          ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@
 -- grant is added with the code that writes it, per this file's rule that a grant names a statement
 -- that exists.
 GRANT INSERT                 ON `tmanage`.`meeting_series`   TO 'tmanage_app'@'%';
+-- CAL per-occurrence override (x213). An override is created and upserted in place (INSERT and
+-- UPDATE — `POST` replaces the override for a date), removed (DELETE — `DELETE` restores the base
+-- rule for that date) and read (the database-wide SELECT). So INSERT, UPDATE and DELETE: unlike its
+-- immutable parent series this row is edited and deleted by the endpoints this slice ships, and each
+-- grant names a statement that exists (this file's rule). The worker gets nothing here.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`meeting_occurrence_overrides` TO 'tmanage_app'@'%';
 -- WK-08 (x107). A saved view is created (INSERT), read (the database-wide SELECT) and edited in
 -- place (UPDATE) — this slice ships create/list/update — so INSERT and UPDATE and **no DELETE**:
 -- there is no delete endpoint, least privilege, and the 0034 trigger pins organization_id and

@@ -81,6 +81,7 @@ import type {
   NotificationFeedView as ApiNotificationFeedView,
 } from '../../apps/api/src/modules/notifications/notifications-feed.controller.js';
 import type { MeetingSeriesView as ApiMeetingSeriesView } from '../../apps/api/src/modules/calendar/meeting-series.service.js';
+import type { OccurrenceOverrideView as ApiOccurrenceOverrideView } from '../../apps/api/src/modules/calendar/occurrence-override.service.js';
 import type { MemberView as ApiMemberView } from '../../apps/api/src/modules/tenancy/members.controller.js';
 import type {
   MemberOffboardingImpactView as ApiMemberOffboardingImpactView,
@@ -226,6 +227,7 @@ import type {
   NotificationFeedView as WebNotificationFeedView,
 } from '../../apps/web/src/lib/api/notifications-feed';
 import type { MeetingSeriesView as WebMeetingSeriesView } from '../../apps/web/src/lib/api/meeting-series';
+import type { OccurrenceOverrideView as WebOccurrenceOverrideView } from '../../apps/web/src/lib/api/meeting-occurrence-override';
 import type { MemberSummary as WebMemberSummary } from '../../apps/web/src/lib/api/members';
 import type { ProjectMemberSummary as WebProjectMemberSummary } from '../../apps/web/src/lib/api/project-members';
 import type {
@@ -531,6 +533,16 @@ type _publicChangelog = Assert<Exact<ApiPublicChangelogView, WebPublicChangelogV
  * `daily|weekly|monthly` union on both sides.
  */
 type _meetingSeries = Assert<Exact<ApiMeetingSeriesView, WebMeetingSeriesView>>;
+
+/**
+ * CAL per-occurrence override (x213). `GET`/`POST`/`DELETE .../meeting-series/:seriesId/occurrences/
+ * :date` — the exception for one occurrence of a recurring series, read/upserted/removed by
+ * `OccurrenceOverrideControl`. The view is paired `Exact` from the start — the control and its
+ * `apps/web` shape ship in the same slice — so a renamed or retyped field on either side is a compile
+ * error here. `status` is the same `moved|cancelled` union and the `new*` move fields are the same
+ * nullable shapes on both sides; `organizationId` is absent on both (the wire never echoes the tenant).
+ */
+type _occurrenceOverride = Assert<Exact<ApiOccurrenceOverrideView, WebOccurrenceOverrideView>>;
 
 /**
  * DOC-04 (x130). `DocumentTemplateVariableView` (`GET`/`POST …/document-templates/:templateId/

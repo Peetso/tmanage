@@ -29,6 +29,7 @@ import { A11yPreferencesModule } from './modules/preferences/a11y-preferences.mo
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
+import { OccurrenceOverrideModule } from './modules/calendar/occurrence-override.module.js';
 import { DocsModule } from './modules/docs/docs.module.js';
 import { DocumentTemplateVariablesModule } from './modules/docs/document-template-variables.controller.js';
 import { AutomationSchedulesModule } from './modules/automations/schedules.controller.js';
@@ -224,6 +225,11 @@ export class AppModule {
         // table, in its own module beside `CalendarModule` so the sibling calendar slices stay
         // file-disjoint (each registers here rather than all editing `calendar.module.ts`).
         MeetingAgendaModule.register(),
+        // CAL per-occurrence override (x213). Read/upsert/remove the exception for one occurrence of a
+        // recurring series, in its own module beside `CalendarModule` so the sibling calendar slices
+        // stay file-disjoint (each registers here rather than all editing `calendar.module.ts`). The
+        // service resolves the series tenant-scoped before it acts, so a cross-tenant series is a 404.
+        OccurrenceOverrideModule.register(),
         // DOC-01 (x91). After `ProjectsModule` for the same reason as conversations and meetings:
         // a document names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
