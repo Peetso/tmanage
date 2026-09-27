@@ -1561,6 +1561,47 @@ export const workflowRuns = mysqlTable(
   ],
 );
 
+/**
+ * The comparison operators a workflow condition (0081, x190) may use. A closed application allowlist
+ * mirrored by `workflow_conditions.op`: an off-list operator is a 400 with no write and the column only
+ * ever holds a known token. Kept in the application (not a MySQL `ENUM`) so the set can grow without an
+ * `ALTER TABLE`, the same division `workflow_templates.trigger_kind` uses.
+ */
+export const WORKFLOW_CONDITION_OPS = ['eq', 'neq', 'gt', 'lt', 'contains'] as const;
+export type WorkflowConditionOp = (typeof WORKFLOW_CONDITION_OPS)[number];
+
+/**
+ * Automation workflow conditions (0081, x190). Org-scoped per-step gate on a {@link workflowTemplates}
+ * row: a `(field, op, value)` predicate and the `target_step` it governs — the run evaluator (x163)
+ * reads these to decide whether a step fires. Keyed to its template through the composite
+ * `(organization_id, template_id)` foreign key so a condition can never point across a tenant boundary.
+ * `op` is a fixed application allowlist ({@link WORKFLOW_CONDITION_OPS}) validated before any write.
+ * Identity (`organization_id`, `template_id`, `created_by`) is immutable at the engine; the app is
+ * granted INSERT only.
+ */
+export const workflowConditions = mysqlTable(
+  'workflow_conditions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    templateId: char('template_id', { length: 36 }).notNull(),
+    field: varchar('field', { length: 200 }).notNull(),
+    op: varchar('op', { length: 16 }).notNull(),
+    value: varchar('value', { length: 500 }).notNull(),
+    targetStep: int('target_step', { unsigned: true }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_workflow_conditions_org_id').on(table.organizationId, table.id),
+    index('ix_workflow_conditions_org_template').on(
+      table.organizationId,
+      table.templateId,
+      table.targetStep,
+    ),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2394,6 +2435,7 @@ export const TABLES = {
   work_forms: workForms,
   workflow_templates: workflowTemplates,
   workflow_runs: workflowRuns,
+  workflow_conditions: workflowConditions,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2441,6 +2483,7 @@ export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
 export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
 export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
+export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;

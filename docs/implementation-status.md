@@ -13988,3 +13988,37 @@ a failed run rather than any egress, a disabled template is a 409 with no run, a
 is a 404 with no write, and a role without `org.manage` (org_admin) is a 403. Deferred to later slices:
 run history listing, real downstream side-effects (create work item / notification writes), and external
 delivery (x166).
+
+## Automations & integrations — workflow conditions / branching (x190, module 17)
+
+**What shipped.** A per-step **condition** model for workflow templates. x162 defined a template and
+x163 ran one, but every step ran unconditionally — there was no condition model. `POST`/`GET
+…/automations/templates/:id/conditions` (both `org.manage`) add and list a condition: a
+`(field, op, value)` predicate bound to a `target_step` that the run evaluator (x163) reads to decide
+whether a step fires. `op` is a fixed application allowlist (`eq` | `neq` | `gt` | `lt` | `contains`) —
+an off-list operator is a 400 (`workflow_condition_op_off_list`) with no write. The new
+`workflow_conditions` table (0081) is org-scoped, keyed to its template through the composite
+`(organization_id, template_id)` foreign key so a condition can never point across a tenant boundary,
+and registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`,
+`users.sql` grant (INSERT only; identity immutable at the engine), and the on-disk migration the readdir
+migrator applies.
+
+**Security order.** The template id is resolved _within the acting tenant before_ any authorization or
+write: a cross-tenant or unknown id is a 404 with nothing written, never a 403 that would reveal another
+studio's template. Only then does the org-scoped `org.manage` decision run (403), then the body
+validation (400), then the single insert. The tenant is read from the context, never the body.
+
+**Evaluation.** `evaluateCondition` (`conditions.service.ts`) is a pure, total, deterministic function:
+a missing field or a non-numeric operand under `gt`/`lt` yields `false`, so a malformed event can never
+make a step fire by accident. It is dependency-free, so it needs no provider.
+
+**Surfaces.** `WorkflowConditionView` (`conditions.controller.ts`) is a live `Exact` pair with the web's
+`WorkflowConditionSummary` (`apps/web/src/lib/api/automations.ts`) in `e2e/contracts/api-web-shapes.ts`;
+it never echoes `organization_id`. `AutomationConditionsScreen`
+(`apps/web/src/components/screens/AutomationConditionsScreen.tsx`) is the template-edit-surface section
+that lists a template's conditions in step order and adds one over a closed operator set. Proved
+database-free with the real `authorize` (`conditions.controller.test.ts`): a condition persists and is
+returned without the tenant id, an off-list op is a 400 with no write, a cross-tenant template id is a
+404 with no write, a role without `org.manage` (org_admin) is a 403, and the evaluator decides
+true/false across the operators against a sample event. Deferred to later slices: a condition editor /
+removal path (UPDATE/DELETE grants), and wiring the evaluator into the x163 run path.

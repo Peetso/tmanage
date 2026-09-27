@@ -61,8 +61,39 @@ export interface WorkflowRunSummary {
   readonly finishedAt: string;
 }
 
+/** The comparison operators a condition may use. Mirrors the API's `WORKFLOW_CONDITION_OPS`. */
+export type WorkflowConditionOp = 'eq' | 'neq' | 'gt' | 'lt' | 'contains';
+
+/**
+ * One workflow condition (x190) — paired Exact with the API's `WorkflowConditionView`. `organizationId`
+ * is absent on both sides. `op` is `string` (not the union above), matching the API view exactly — the
+ * closed set is enforced server side, and the wire carries whatever token was stored.
+ */
+export interface WorkflowConditionSummary {
+  readonly id: string;
+  readonly templateId: string;
+  readonly field: string;
+  readonly op: string;
+  readonly value: string;
+  readonly targetStep: number;
+  readonly createdBy: string;
+  readonly createdAt: string;
+}
+
+/** The fields a condition create sends. Request-side (suffix `Input`), so the contracts gate ignores it. */
+export interface CreateWorkflowConditionInput {
+  readonly field: string;
+  readonly op: WorkflowConditionOp;
+  readonly value: string;
+  readonly targetStep: number;
+}
+
 function base(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/automations/templates`;
+}
+
+function conditionsBase(organizationSlug: string, templateId: string): string {
+  return `${base(organizationSlug)}/${encodeURIComponent(templateId)}/conditions`;
 }
 
 /** List the organization's workflow templates, name-ascending. */
@@ -99,6 +130,33 @@ export async function runWorkflowTemplate(
   const { data } = await client.request<WorkflowRunSummary>({
     method: 'POST',
     path: `${base(organizationSlug)}/${encodeURIComponent(templateId)}/run`,
+  });
+  return data;
+}
+
+/** List a template's conditions, in step order (x190). */
+export async function listWorkflowConditions(
+  client: ApiClient,
+  organizationSlug: string,
+  templateId: string,
+): Promise<readonly WorkflowConditionSummary[]> {
+  const { data } = await client.request<{ conditions: readonly WorkflowConditionSummary[] }>({
+    path: conditionsBase(organizationSlug, templateId),
+  });
+  return data.conditions;
+}
+
+/** Add a condition to a template (x190). */
+export async function createWorkflowCondition(
+  client: ApiClient,
+  organizationSlug: string,
+  templateId: string,
+  input: CreateWorkflowConditionInput,
+): Promise<WorkflowConditionSummary> {
+  const { data } = await client.request<WorkflowConditionSummary>({
+    method: 'POST',
+    path: conditionsBase(organizationSlug, templateId),
+    body: input,
   });
   return data;
 }
