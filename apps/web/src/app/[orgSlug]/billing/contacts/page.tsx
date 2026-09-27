@@ -17,6 +17,9 @@ export default function BillingContactsPage({ params }: { params: Promise<{ orgS
   const { orgSlug } = use(params);
 
   return (
-    <BillingContactsScreen organizationSlug={orgSlug} organizationName={FIXTURE_ORGANIZATION_NAME} />
+    <BillingContactsScreen
+      organizationSlug={orgSlug}
+      organizationName={FIXTURE_ORGANIZATION_NAME}
+    />
   );
 }

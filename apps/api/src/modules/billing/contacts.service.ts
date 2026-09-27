@@ -1,8 +1,5 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
-import { authorize, uuidv7 } from '@tmanage/domain';
+import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
-import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { billingContacts } from '../../common/database/schema.js';
 import type { BillingContactRow } from '../../common/database/schema.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
@@ -10,6 +7,7 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
+import { BillingContactsRepository } from './contacts.repository.js';
 
 /**
  * Billing contacts — Billing module 19 (x199). The service half: list the organization's billing
@@ -83,9 +81,6 @@ const MAX_ROLE_LENGTH = 80;
 /** A pragmatic email shape — one `@`, a non-empty local part, and a dotted domain. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** The largest contact list a single read returns; mirrors the bounded reads elsewhere. */
-export const MAX_CONTACTS_PAGE = 500;
-
 type Detail = { field: string; message: string };
 
 /**
@@ -96,10 +91,7 @@ type Detail = { field: string; message: string };
  * {@link TenantContext}; no `organizationId` is ever taken from a DTO.
  */
 export interface BillingContactsStore {
-  listAll(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-  ): Promise<readonly BillingContactRow[]>;
+  listAll(runner: TenantQueryRunner, context: TenantContext): Promise<readonly BillingContactRow[]>;
   findById(
     runner: TenantQueryRunner,
     context: TenantContext,
@@ -116,7 +108,7 @@ export interface BillingContactsStore {
 export class BillingContactsService {
   constructor(
     private readonly database: TenantDatabase,
-    private readonly store: BillingContactsStore = new DrizzleBillingContactsStore(),
+    private readonly store: BillingContactsStore = new BillingContactsRepository(),
   ) {}
 
   /** The tenant's billing contacts, oldest first. Behind `org.manage`. */
@@ -188,84 +180,6 @@ export class BillingContactsService {
         `${action}:${verdict.code}`,
       );
     }
-  }
-}
-
-/**
- * The real, tenant-scoped data access. Every read and write is bound to `organization_id` from the
- * context — a caller in the wrong tenant sees nothing rather than a leak — and the insert takes its
- * `organization_id` from the context, never from the input, so a request body cannot choose the tenant
- * it writes into. The composite `(organization_id, id)` key makes a cross-tenant id a non-existent row.
- */
-export class DrizzleBillingContactsStore implements BillingContactsStore {
-  async listAll(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-  ): Promise<readonly BillingContactRow[]> {
-    return tenantDrizzle(runner)
-      .select()
-      .from(billingContacts)
-      .where(eq(billingContacts.organizationId, context.organizationId))
-      .orderBy(asc(billingContacts.createdAt), asc(billingContacts.id))
-      .limit(MAX_CONTACTS_PAGE);
-  }
-
-  async findById(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    contactId: string,
-  ): Promise<BillingContactRow | null> {
-    const rows = await tenantDrizzle(runner)
-      .select()
-      .from(billingContacts)
-      .where(
-        and(
-          eq(billingContacts.organizationId, context.organizationId),
-          eq(billingContacts.id, contactId),
-        ),
-      )
-      .limit(1);
-    return rows[0] ?? null;
-  }
-
-  async insert(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    input: BillingContactInput,
-  ): Promise<BillingContactRow> {
-    const id = uuidv7();
-    await tenantDrizzle(runner)
-      .insert(billingContacts)
-      .values({
-        id,
-        // From the context. Not from `input` — there is no such field.
-        organizationId: context.organizationId,
-        name: input.name,
-        email: input.email,
-        role: input.role,
-        createdAt: sql`current_timestamp(3)`,
-      });
-    const created = await this.findById(runner, context, id);
-    if (!created) {
-      // Unreachable: the insert above committed this row in this transaction.
-      throw new Error('billing contact vanished immediately after insert');
-    }
-    return created;
-  }
-
-  async remove(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    contactId: string,
-  ): Promise<void> {
-    await tenantDrizzle(runner)
-      .delete(billingContacts)
-      .where(
-        and(
-          eq(billingContacts.organizationId, context.organizationId),
-          eq(billingContacts.id, contactId),
-        ),
-      );
   }
 }
 

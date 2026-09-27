@@ -13961,7 +13961,7 @@ held by the provider) and plan-change flows.
 ## Billing contacts (x199, module 19)
 
 **What landed.** The billing profile (x180) carries one billing email on the org row; this slice adds
-the *list* of contacts a studio nominates for its billing and account notices — each a name, an email
+the _list_ of contacts a studio nominates for its billing and account notices — each a name, an email
 and an optional role. New tenant table `billing_contacts` (migration 0082) registered in all four
 places (`schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `users.sql` grant, migrator by
 readdir). Routes on `/v1/organizations/:orgSlug/billing/contacts`: `GET` (list), `POST` (add, 201),

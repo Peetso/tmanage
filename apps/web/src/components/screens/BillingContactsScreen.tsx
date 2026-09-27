@@ -177,7 +177,9 @@ export function BillingContactsScreen({
 
         {rows.length > 0 ? (
           <table className="tm-table">
-            <caption className="tm-visually-hidden">The organization&rsquo;s billing contacts.</caption>
+            <caption className="tm-visually-hidden">
+              The organization&rsquo;s billing contacts.
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Name</th>

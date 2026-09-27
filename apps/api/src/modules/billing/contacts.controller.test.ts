@@ -46,7 +46,11 @@ class FakeStore implements BillingContactsStore {
   async findById(_r: unknown, _c: TenantContext, id: string) {
     return this.rows.find((row) => row.id === id) ?? null;
   }
-  async insert(_r: unknown, _c: TenantContext, input: { name: string; email: string; role: string | null }) {
+  async insert(
+    _r: unknown,
+    _c: TenantContext,
+    input: { name: string; email: string; role: string | null },
+  ) {
     this.inserts += 1;
     const row = {
       id: `contact-${this.rows.length + 1}`,
@@ -101,7 +105,11 @@ describe('BillingContactsController', () => {
       email: 'ada@example.com',
       role: 'Accounts payable',
     });
-    expect(added).toMatchObject({ name: 'Ada Finance', email: 'ada@example.com', role: 'Accounts payable' });
+    expect(added).toMatchObject({
+      name: 'Ada Finance',
+      email: 'ada@example.com',
+      role: 'Accounts payable',
+    });
 
     const listed = await controller.list(context, owner());
     expect(listed.contacts).toHaveLength(1);
