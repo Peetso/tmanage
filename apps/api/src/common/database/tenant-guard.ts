@@ -145,6 +145,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // on the server. `organization_id` NOT NULL, `(organization_id, id)` keyed; the guard scopes its
   // reads and its append.
   conversation_thread_replies: 'organization_id',
+  // Conversation read-state (x250, migration 0122). Tenant + membership owned: a row is one
+  // member's last-read position in one channel, and an unscoped `SELECT ... FROM
+  // conversation_read_state` would be every member's read position across every studio on the
+  // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
+  // table has, so the guard scopes its reads and its upsert; the layer-3 guard fails OPEN on an
+  // unregistered table, so this entry is what scopes them.
+  conversation_read_state: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',

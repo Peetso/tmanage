@@ -263,6 +263,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`message_reactions`    TO 'tmanage_app
 -- makes "a reply, once said, is said" true for the runtime credential. Reading is the
 -- database-wide SELECT.
 GRANT INSERT                 ON `tmanage`.`conversation_thread_replies` TO 'tmanage_app'@'%';
+-- Conversation read-state (0122, x250). **INSERT, UPDATE** — a member's last-read position in a
+-- channel is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert
+-- against `uq_conversation_read_state_member`. No DELETE: a read position is only ever advanced,
+-- never removed. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`conversation_read_state` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 -- NOTIF-001. UPDATE is for marking read — the trigger in 0010 confines it to `read_at`,
