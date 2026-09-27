@@ -104,6 +104,7 @@ import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/s
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { PublicHomeView as ApiPublicHomeView } from '../../apps/api/src/modules/public-site/public-content.service.js';
+import type { PublicFaqView as ApiPublicFaqView } from '../../apps/api/src/modules/public-site/faq.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
@@ -264,6 +265,7 @@ import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
 import type { SavedViewView as WebSavedViewView } from '../../apps/web/src/lib/api/work-views';
 import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
+import type { PublicFaqView as WebPublicFaqView } from '../../apps/web/src/lib/api/public-faq';
 import type {
   PublicIncidentView as WebPublicIncidentView,
   PublicStatusView as WebPublicStatusView,
@@ -930,6 +932,13 @@ type _clientDecide = Assert<Exact<ApiClientDecideView, WebClientDecideResult>>;
  * the API serves and the copy the screen renders from drifting into two security postures.
  */
 type _publicTrust = Assert<Exact<ApiPublicTrustView, WebPublicTrustView>>;
+/**
+ * `GET /v1/public/site/faq` — the public FAQ page (x186, module 1).
+ *
+ * Public and tenant-less: deterministic code-defined grouped Q&A copy. The `PublicFaqView` pair keeps
+ * the copy the API serves and the copy the screen renders from drifting apart.
+ */
+type _publicFaq = Assert<Exact<ApiPublicFaqView, WebPublicFaqView>>;
 /**
  * `POST /public/site/contact` — the public site's contact / lead intake (module 1, x161).
  *

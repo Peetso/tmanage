@@ -55,6 +55,7 @@ import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
 import { ContactModule } from './modules/public-site/contact.module.js';
+import { FaqContentModule } from './modules/public-site/faq.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -300,6 +301,10 @@ export class AppModule {
         // (the repository writes on the identity/no-tenant path over the global `marketing_leads`),
         // so it couples to no feature module; position here is by subject (public surface, last).
         ContactModule.register(),
+        // x186. Module 1, the public FAQ page — `GET /v1/public/site/faq`, `@Public()`: no session,
+        // no tenant, no capability. Deterministic code-defined grouped Q&A copy; depends on nothing
+        // (no database, no mailer), so its position here is free.
+        FaqContentModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
