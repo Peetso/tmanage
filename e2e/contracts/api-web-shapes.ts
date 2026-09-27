@@ -107,6 +107,10 @@ import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/s
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { PublicHomeView as ApiPublicHomeView } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type { PublicFaqView as ApiPublicFaqView } from '../../apps/api/src/modules/public-site/faq.service.js';
+import type {
+  PublicResourceListView as ApiPublicResourceListView,
+  PublicResourceView as ApiPublicResourceView,
+} from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
@@ -262,6 +266,10 @@ import type {
   WorkspaceSummary as WebWorkspaceSummary,
 } from '../../apps/web/src/lib/api/projects';
 import type { PublicHome as WebPublicHome } from '../../apps/web/src/lib/api/public-site';
+import type {
+  PublicResourceListView as WebPublicResourceListView,
+  PublicResourceView as WebPublicResourceView,
+} from '../../apps/web/src/lib/api/public-resources';
 import type { RealtimeTicket as WebRealtimeTicket } from '../../apps/web/src/lib/api/realtime';
 import type { SearchResult as WebSearchResult } from '../../apps/web/src/lib/api/search';
 import type { ContactSubmitView as WebContactSubmitView } from '../../apps/web/src/lib/api/contact';
@@ -369,6 +377,14 @@ type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
  * the pair is Exact.
  */
 type _publicHome = Assert<Exact<ApiPublicHomeView, WebPublicHome>>;
+
+/**
+ * Public & trust site (module 1, x187). `GET /v1/public/site/resources` and `…/resources/:slug` —
+ * the resources/guides index and one article. `MarketingResourcesScreen` reads the index projection
+ * and `MarketingResourceScreen` reads one article, so both pairs are Exact.
+ */
+type _publicResourceList = Assert<Exact<ApiPublicResourceListView, WebPublicResourceListView>>;
+type _publicResource = Assert<Exact<ApiPublicResourceView, WebPublicResourceView>>;
 
 /**
  * ADM-02 (x116). `GET/POST/PATCH/DELETE …/projects/:projectId/members` — a project membership row.

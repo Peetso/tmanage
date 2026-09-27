@@ -14683,3 +14683,31 @@ public endpoint and renders an accessible (`role="region"`, `aria-live`) banner 
 active, dismissible for the session (client-only `sessionStorage`, keyed by window id), axe-clean.
 Deferred to a later slice: editing/clearing a live window in place (UPDATE/DELETE grants) and an
 operator screen for the write.
+## x187 — Public & trust site (module 1): resources/guides index + article
+
+**Audit gap.** The public site had a marketing home, pricing, trust, status, changelog and contact,
+but no resources/guides sub-page (`38-MODULE-MAP` §Public & trust site; grep-clean on `master`).
+
+**API.** Two `@Public()` reads on `PublicResourcesController` (`resources.controller.ts`), the same
+posture as the marketing home: no session, no CSRF, no tenant, no capability, and no `capabilities.ts`
+edit. `GET /v1/public/site/resources` returns the deterministic index (each card: `slug`, `title`,
+`summary`, `category`; no body). `GET /v1/public/site/resources/:slug` returns one article
+(`…` plus `body`). The content is code-defined and frozen in the reused `PublicContentService`
+(`public-content.service.ts`) — no database, no tenant. The `:slug` read is the one place untrusted
+input reaches a handler: the slug is resolved by **membership in the frozen catalog**, never a path or
+a key into anything mutable, so an unknown or traversal-shaped value can only miss and become a 404
+(`NotFoundException`). No new table → registry N/A.
+
+**Wiring.** `PublicResourcesModule` (co-located in `resources.controller.ts`) registered in
+`app.module.ts` beside the sibling public-site slices, file-disjoint. It reuses `PublicContentService`
+under the shared token; a per-module instance is safe because the payload is frozen.
+
+**Surfaces.** `PublicResourceListView` and `PublicResourceView` (`public-content.service.ts`) are live
+`Exact` pairs with the web's `PublicResourceListView` / `PublicResourceView`
+(`apps/web/src/lib/api/public-resources.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`MarketingResourcesScreen` (index grid, routed `/resources`) and `MarketingResourceScreen` (article,
+routed `/resources/[slug]`) are tenant-free public screens (skip link, one `<main>`, one `<h1>`); a
+404 renders an honest "not found" with a link back, not an outage. Proved database-free
+(`resources.controller.test.ts`): the index is stable and body-less, a known slug returns its body,
+and an unknown or traversal-shaped slug is a 404 — all with no session and no capability;
+`marketing-resources.test.tsx` proves both screens render and are axe-clean plus the not-found path.
