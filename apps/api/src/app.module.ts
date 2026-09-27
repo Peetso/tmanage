@@ -46,6 +46,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
+import { MaintenanceModule } from './modules/platform/maintenance.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -247,6 +248,11 @@ export class AppModule {
         // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
         // constructs its own repository handle (see its doc), so its position here is by subject.
         WorkloadForecastModule.register(),
+        // Platform states (x185). The platform maintenance / degraded-mode window: a `@Public()`
+        // read (`GET /public/site/maintenance`) over the GLOBAL `maintenance_windows` table (0080),
+        // and an `org.manage` write (`POST …/admin/maintenance`) that persists globally. Its
+        // position here is by subject, at the end of the feature modules.
+        MaintenanceModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

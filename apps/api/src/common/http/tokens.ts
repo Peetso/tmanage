@@ -140,3 +140,6 @@ export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');
 /** SRCH-01 (x111). Global tenant-scoped search over work items, documents and meetings. */
 export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
 export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
+
+/** Platform states (x185). The GLOBAL maintenance-window read (public) and schedule (admin). */
+export const MAINTENANCE_WINDOWS_REPOSITORY = Symbol.for('tmanage.MaintenanceWindowsRepository');

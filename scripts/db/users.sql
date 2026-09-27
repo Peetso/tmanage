@@ -434,6 +434,13 @@ GRANT INSERT, UPDATE ON `tmanage`.`import_jobs` TO 'tmanage_app'@'%';
 -- so UPDATE and DELETE are withheld the way the append-only ledgers above are. `SELECT` is the
 -- database-wide grant (line 60), which the receipt read-back uses.
 GRANT INSERT ON `tmanage`.`import_rows` TO 'tmanage_app'@'%';
+-- `maintenance_windows` (Platform states, x185, 0080) gets INSERT and nothing else. The admin write
+-- schedules a window (one row) and the public read reads it through the database-wide SELECT (line
+-- 60); a window is never amended in place in this slice, so UPDATE and DELETE are withheld the way
+-- the append-only tables above are. GLOBAL / org-less, so it is in the tenant guard's
+-- NON_TENANT_TABLES; the write is authorized by `org.manage` in the controller but persists on the
+-- identity path.
+GRANT INSERT ON `tmanage`.`maintenance_windows` TO 'tmanage_app'@'%';
 -- `decisions` (DEC-01, x113) gets INSERT, and now UPDATE (DEC-01-b, x117). A decision is authored
 -- (INSERT), read (the database-wide SELECT, line 60), and moved through its lifecycle (UPDATE):
 -- `proposed → accepted` on accept and `→ superseded` on supersede. UPDATE writes exactly `status`;

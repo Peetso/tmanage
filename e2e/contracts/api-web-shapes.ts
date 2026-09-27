@@ -117,6 +117,10 @@ import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { SavedViewView as ApiSavedViewView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
+import type {
+  MaintenanceWindowView as ApiMaintenanceWindowView,
+  PublicMaintenanceView as ApiPublicMaintenanceView,
+} from '../../apps/api/src/modules/platform/maintenance.controller.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -228,6 +232,10 @@ import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
 import type { SavedViewView as WebSavedViewView } from '../../apps/web/src/lib/api/work-views';
+import type {
+  MaintenanceWindowView as WebMaintenanceWindowView,
+  PublicMaintenanceView as WebPublicMaintenanceView,
+} from '../../apps/web/src/lib/api/maintenance';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -686,6 +694,16 @@ type _offboardedMember = Assert<Exact<ApiOffboardedMemberView, WebOffboardedMemb
 
 /** `GET …/workspaces` — one workspace row, ISO-string `createdAt` on the wire. */
 type _workspace = Assert<Exact<ApiWorkspaceView, WebWorkspaceSummary>>;
+
+/**
+ * Platform states (x185). `GET /public/site/maintenance` — the public maintenance / degraded-mode
+ * banner read, and the `MaintenanceWindowView` the admin schedule (`POST …/admin/maintenance`)
+ * returns. ISO-string dates and the `active` flag on the wire; the `severity` union is the same on
+ * both sides, so both pairs are Exact. The admin write body (`ScheduleMaintenanceInput`) is
+ * request-side and dropped by `contracts-check`'s `Input` suffix rule.
+ */
+type _maintenanceWindow = Assert<Exact<ApiMaintenanceWindowView, WebMaintenanceWindowView>>;
+type _publicMaintenance = Assert<Exact<ApiPublicMaintenanceView, WebPublicMaintenanceView>>;
 
 /** `POST /v1/auth/password|mfa|recovery-code` — the established-session arm. */
 type _authenticated = Assert<Exact<ApiEstablishedView, WebAuthenticatedResponse>>;

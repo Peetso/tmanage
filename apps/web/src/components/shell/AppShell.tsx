@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Badge, LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { INTERNAL_NAVIGATION } from './navigation';
+import { MaintenanceBanner } from '../screens/MaintenanceBanner';
 
 export interface AppShellProps {
   /**
@@ -67,6 +68,11 @@ export function AppShell({
     <LiveAnnouncer>
       <div className="tm-app">
         <SkipLink targetId="tm-main" />
+
+        {/* Platform states (x185): the maintenance / degraded-mode banner. Reads the public
+            endpoint and renders nothing unless a window is active, so every internal screen shares
+            it at no cost when the platform is healthy. */}
+        <MaintenanceBanner />
 
         <nav className="tm-rail" aria-label="Primary">
           <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
