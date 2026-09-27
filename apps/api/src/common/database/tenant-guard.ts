@@ -287,6 +287,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // deliberately NOT `outbox_events` — that table's `organization_id` is NOT NULL and this
   // path has no organization to put in it. `0020_credential_change_notices.sql` explains.
   'credential_change_notices',
+  // x160. The public product changelog (0061). Global for the reason the identity tables are —
+  // it carries no `organization_id` at all: a changelog is one public record for the product,
+  // not a per-tenant one. The public `GET /v1/public/site/changelog` read reaches it through
+  // `TenantDatabase.identityRead(['changelog_entries'])`, which is why it must be declared here.
+  'changelog_entries',
 ]);
 
 export function isTenantTable(name: string): boolean {

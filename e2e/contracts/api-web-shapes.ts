@@ -109,6 +109,7 @@ import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../ap
 import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps/api/src/modules/insights/adoption.controller.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
+import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
@@ -222,6 +223,7 @@ import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/s
 import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps/web/src/lib/api/insights-workload';
 import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps/web/src/lib/api/insights-adoption';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
+import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
@@ -404,6 +406,14 @@ type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeV
  * with the web `MeetingAgendaView`; the nested day/entry shapes are inlined on both sides.
  */
 type _meetingAgenda = Assert<Exact<ApiMeetingAgendaView, WebMeetingAgendaView>>;
+
+/**
+ * Public changelog (x160). `GET /v1/public/site/changelog` — a `@Public()` read of the GLOBAL
+ * `changelog_entries` (0061), published entries newest-first grouped by month, read by
+ * `ChangelogScreen`. Paired Exact with the web `PublicChangelogView`; the nested month/entry shapes
+ * are inlined on both sides and no tenant id appears on either (the content belongs to no tenant).
+ */
+type _publicChangelog = Assert<Exact<ApiPublicChangelogView, WebPublicChangelogView>>;
 
 /**
  * CAL recurrence (x129). `GET`/`POST .../meeting-series` — a tenant's recurring meeting series,
