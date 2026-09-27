@@ -528,6 +528,43 @@ export const meetingAttendees = mysqlTable(
   ],
 );
 
+export const MEETING_RSVP_RESPONSES = ['accepted', 'declined', 'tentative'] as const;
+
+/**
+ * CAL meeting RSVP (x240). A meeting attendee's own response — `accepted`, `declined` or
+ * `tentative` — against an existing meeting (0029). Distinct from `meeting_attendees` (0042): the
+ * roster is an organiser inviting members; this is a member answering for themselves, so the row is
+ * keyed on the caller's own `memberId` and a caller can only ever set their own.
+ *
+ * A responder is named by their membership row, not a bare user id — the same identity the roster
+ * uses, kept inside the tenant by the composite FK. The row carries no `projectId`: the relation it
+ * is read and written by is the meeting's, resolved in the service, so the two can never disagree.
+ * Identity (`organizationId`/`meetingId`/`memberId`) is immutable at the engine; `response` (and
+ * `updatedAt`) is what an UPDATE may change (0112's trigger pins the rest). `0112_meeting_rsvps.sql`
+ * is the source of truth; this is its typed mirror.
+ */
+export const meetingRsvps = mysqlTable(
+  'meeting_rsvps',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    memberId: char('member_id', { length: 36 }).notNull(),
+    response: mysqlEnum('response', MEETING_RSVP_RESPONSES).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_rsvps_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_meeting_rsvps_meeting_member').on(
+      table.organizationId,
+      table.meetingId,
+      table.memberId,
+    ),
+    index('ix_meeting_rsvps_org_meeting').on(table.organizationId, table.meetingId, table.id),
+  ],
+);
+
 export const MEETING_SERIES_FREQ = ['daily', 'weekly', 'monthly'] as const;
 
 /** The per-occurrence override kinds (x213): a moved occurrence or a cancelled one. */
@@ -3886,6 +3923,7 @@ export const TABLES = {
   import_rows: importRows,
   meeting_notes: meetingNotes,
   meeting_attendees: meetingAttendees,
+  meeting_rsvps: meetingRsvps,
   meeting_series: meetingSeries,
   meeting_occurrence_overrides: meetingOccurrenceOverrides,
   saved_views: savedViews,
@@ -3973,6 +4011,7 @@ export type ProjectMilestoneRow = typeof projectMilestones.$inferSelect;
 export type ProjectRiskRow = typeof projectRisks.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
+export type MeetingRsvpRow = typeof meetingRsvps.$inferSelect;
 export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;

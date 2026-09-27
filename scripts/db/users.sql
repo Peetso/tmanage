@@ -371,6 +371,14 @@ GRANT INSERT                 ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%
 -- besides. DELETE is added with the code that writes it, per this file's rule that a grant names a
 -- statement that exists (the same treatment `saved_views` has above).
 GRANT INSERT, UPDATE          ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@'%';
+-- CAL meeting RSVP (x240). A member records their own response (INSERT) and re-answers in place
+-- (UPDATE) — this slice ships an idempotent upsert PUT and a read (the database-wide SELECT) — so
+-- INSERT and UPDATE and **no DELETE**: there is no un-answer endpoint, least privilege, and 0112's
+-- trigger pins organization_id/meeting_id/member_id immutable (only `response`/`updated_at` may
+-- change) for every credential besides. DELETE is added with the code that writes it, per this
+-- file's rule that a grant names a statement that exists (the same treatment `meeting_attendees`
+-- has above).
+GRANT INSERT, UPDATE          ON `tmanage`.`meeting_rsvps`     TO 'tmanage_app'@'%';
 -- CAL recurrence (x129) meeting series. A series is created (INSERT) and read (the database-wide
 -- SELECT); this slice has no edit or delete endpoint, so **no UPDATE and no DELETE** — least
 -- privilege, and there is no immutability trigger because the withheld privilege is the control

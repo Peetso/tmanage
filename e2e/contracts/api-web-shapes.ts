@@ -86,6 +86,7 @@ import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
+import type { MeetingRsvpView as ApiMeetingRsvpView } from '../../apps/api/src/modules/calendar/rsvp.service.js';
 import type { MeetingAgendaView as ApiMeetingAgendaView } from '../../apps/api/src/modules/calendar/meeting-agenda.controller.js';
 import type { CalendarGridView as ApiCalendarGridView } from '../../apps/api/src/modules/calendar/grid.service.js';
 import type {
@@ -305,6 +306,7 @@ import type {
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
+import type { MeetingRsvpView as WebMeetingRsvpView } from '../../apps/web/src/lib/api/meeting-rsvp';
 import type { MeetingAgendaView as WebMeetingAgendaView } from '../../apps/web/src/lib/api/meeting-agenda';
 import type { CalendarGridView as WebCalendarGridView } from '../../apps/web/src/lib/api/calendar-grid';
 import type {
@@ -682,6 +684,15 @@ type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
  * internal `membershipId`; paired Exact, so a rename or retype on either side fails the gate.
  */
 type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeView>>;
+
+/**
+ * CAL meeting RSVP (x240). `GET`/`PUT .../meetings/:meetingId/rsvp` — a member's own response
+ * (`accepted`/`declined`/`tentative`) and the meeting's response counts, read and driven by
+ * `MeetingRsvpScreen`. The caller's own answer is `response` (`null` until they answer); paired
+ * Exact, so a rename or retype on either side fails the gate. `organizationId` is on neither side —
+ * the API never echoes the tenant id into a response body.
+ */
+type _meetingRsvp = Assert<Exact<ApiMeetingRsvpView, WebMeetingRsvpView>>;
 
 /**
  * CAL agenda / day view (x127). `GET .../meetings/agenda?from&to` — the tenant's meetings grouped by
