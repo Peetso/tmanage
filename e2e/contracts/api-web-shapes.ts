@@ -62,6 +62,10 @@ import type {
   CollectionDocumentView as ApiCollectionDocumentView,
 } from '../../apps/api/src/modules/docs/collections.service.js';
 import type { ProjectFavoriteView as ApiProjectFavoriteView } from '../../apps/api/src/modules/projects/project-favorites.service.js';
+import type {
+  DocTagView as ApiDocTagView,
+  DocumentTagView as ApiDocumentTagView,
+} from '../../apps/api/src/modules/docs/doc-tags.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -327,6 +331,8 @@ import type {
   CollectionDocumentSummary as WebCollectionDocumentSummary,
 } from '../../apps/web/src/lib/api/doc-collections';
 import type { ProjectFavoriteSummary as WebProjectFavoriteSummary } from '../../apps/web/src/lib/api/project-favorites';
+import type { DocTag as WebDocTag } from '../../apps/web/src/lib/api/doc-tags';
+import type { DocumentTag as WebDocumentTag } from '../../apps/web/src/lib/api/doc-tags';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -868,6 +874,14 @@ type _collectionDocument = Assert<Exact<ApiCollectionDocumentView, WebCollection
  * and the favorite star read exactly this response, so the pair is Exact.
  */
 type _projectFavorite = Assert<Exact<ApiProjectFavoriteView, WebProjectFavoriteSummary>>;
+
+/**
+ * x269 document tags. `DocTagView` (`GET`/`POST …/doc-tags`) is a tag definition; `DocumentTagView`
+ * (`GET`/`PUT`/`DELETE …/documents/:id/tags`) is a tag on a document. The `DocTagsScreen` and the
+ * document tag helpers read exactly these responses, so both pairs are Exact.
+ */
+type _docTag = Assert<Exact<ApiDocTagView, WebDocTag>>;
+type _documentTag = Assert<Exact<ApiDocumentTagView, WebDocumentTag>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

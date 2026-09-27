@@ -241,6 +241,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
   // tenant table has, so the guard scopes its reads and writes.
   project_favorites: 'organization_id',
+  // x269. Document tags / labels: definitions and their document assignments in one table. Tenant-
+  // owned — an unscoped `SELECT ... FROM doc_tags` would be every studio's tag taxonomy at once.
+  // `organization_id` is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes
+  // its reads and writes.
+  doc_tags: 'organization_id',
   // Docs "collaboration later" (0045, x132). Tenant-owned: a comment cites a document, and an
   // unscoped `SELECT ... FROM document_comments` would be every studio's document discussion on the
   // server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
