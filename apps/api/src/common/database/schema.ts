@@ -2016,6 +2016,30 @@ export type OnboardingTourStep = (typeof ONBOARDING_TOUR_STEPS)[number];
  */
 export const onboardingProgress = mysqlTable(
   'onboarding_progress',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    step: mysqlEnum('step', ONBOARDING_TOUR_STEPS).notNull(),
+    completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_onboarding_progress_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_onboarding_progress_step').on(
+      table.organizationId,
+      table.membershipId,
+      table.step,
+    ),
+    index('ix_onboarding_progress_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.completedAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * PREF-001 (x182) — the closed vocabularies a user preference can take. Each is a fixed allowlist
  * checked on write: a theme, locale or density outside its set is a 400 with no row written, so a
  * `prefs_json` blob can never hold a value the appearance/locale surface does not know how to
@@ -2059,22 +2083,6 @@ export const userPreferences = mysqlTable(
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
     membershipId: char('membership_id', { length: 36 }).notNull(),
-    step: mysqlEnum('step', ONBOARDING_TOUR_STEPS).notNull(),
-    completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }).notNull(),
-  },
-  (table) => [
-    uniqueIndex('uq_onboarding_progress_org_id').on(table.organizationId, table.id),
-    uniqueIndex('uq_onboarding_progress_step').on(
-      table.organizationId,
-      table.membershipId,
-      table.step,
-    ),
-    index('ix_onboarding_progress_org_membership').on(
-      table.organizationId,
-      table.membershipId,
-      table.completedAt,
-      table.id,
-    ),
     prefsJson: json('prefs_json').$type<UserPreferencesJson>().notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -2620,6 +2628,9 @@ export const securitySettings = mysqlTable(
   (table) => [
     uniqueIndex('uq_security_settings_org_id').on(table.organizationId, table.id),
     uniqueIndex('uq_security_settings_org').on(table.organizationId),
+  ],
+);
+
 export const INVOICE_STATUSES = ['paid', 'open', 'void'] as const;
 
 /**
@@ -3831,7 +3842,6 @@ export const workItemWatchers = mysqlTable(
   ],
 );
 
-
 export type WorkItemWatcherRow = typeof workItemWatchers.$inferSelect;
 export type NewWorkItemWatcherRow = typeof workItemWatchers.$inferInsert;
 
@@ -3879,7 +3889,6 @@ export const workItemLabels = mysqlTable(
   ],
 );
 
-
 export type WorkItemLabelRow = typeof workItemLabels.$inferSelect;
 export type NewWorkItemLabelRow = typeof workItemLabels.$inferInsert;
 
@@ -3912,7 +3921,6 @@ export const docBookmarks = mysqlTable(
     ),
   ],
 );
-
 
 export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
@@ -3973,7 +3981,6 @@ export const homeWidgetPrefs = mysqlTable(
     uniqueIndex('uq_home_widget_prefs_org_membership').on(table.organizationId, table.membershipId),
   ],
 );
-
 
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 

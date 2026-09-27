@@ -192,6 +192,11 @@ describe('the grants and the schema agree', () => {
         'x160 read-only from the application: the public changelog route only SELECTs (via the ' +
         'database-wide read grant); no app write path exists this slice — entries are authored by ' +
         'a later admin slice, which adds the INSERT/UPDATE grant with the code that writes it',
+      invoices:
+        'x179 read-only from the application: the invoice-history route only SELECTs (via the ' +
+        'database-wide read grant); no invoice mutation route exists this slice — invoices are ' +
+        'produced by the subscription lifecycle or the seed, and the write path (Needs-Peter) adds ' +
+        'the INSERT/UPDATE grant with the code that writes it',
     };
     for (const table of schemaTables) {
       const writable = privilegesOn('tmanage_app', table);

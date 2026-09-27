@@ -128,6 +128,8 @@ export class WorkModule {
       provide: BULK_TRANSITION_SERVICE,
       inject: [WORK_ITEMS_SERVICE],
       useFactory: (workItems: WorkItemsService) => new BulkTransitionService(workItems),
+    };
+
     // x231. Logged effort per work item. A tenant-scoped sub-resource behind work.read/work.update,
     // wired like the checklist: the work-items repository resolves the parent, the service holds the
     // policy (resolve-before-authorize, minutes bound, delete-own).
@@ -136,11 +138,15 @@ export class WorkModule {
       inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
       useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
         new WorkTimeLogsService(database, workItems, new WorkTimeLogsRepository()),
+    };
+
     const watchersService: Provider = {
       provide: WORK_WATCHERS_SERVICE,
       inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
       useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
         new WorkWatchersService(database, workItems, new WorkWatchersRepository()),
+    };
+
     // Work item labels / tags (x233). Definitions are org-scoped; assignments hang off a work item.
     const labelsService: Provider = {
       provide: WORK_LABELS_SERVICE,

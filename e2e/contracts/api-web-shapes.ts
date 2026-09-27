@@ -674,6 +674,8 @@ type _decisionDetail = Assert<Exact<ApiDecisionDetailView, WebDecisionDetail>>;
  * Exact. `organizationId` is absent on both sides — the wire projection never echoes the tenant id.
  */
 type _decisionLock = Assert<Exact<ApiDecisionLockView, WebDecisionLock>>;
+
+/**
  * FEAT: Billing invoice history (x179). `InvoiceView` (`GET …/billing/invoices`, the list row) and
  * `InvoiceDetailView` (`GET …/billing/invoices/:invoiceId`, the summary plus the bounded line-item
  * breakdown). Paired with a live web consumer — `BillingInvoicesScreen` reads exactly these to render
@@ -866,6 +868,8 @@ type _insightsAdoption = Assert<Exact<ApiInsightsAdoptionView, WebInsightsAdopti
  * `SnapshotView`, so the element shape is the one contract both sides hold.
  */
 type _insightSnapshot = Assert<Exact<ApiSnapshotView, WebSnapshotView>>;
+
+/**
  * x169 — `GET …/people/:membershipId`. One member's profile: the non-sensitive header (`displayName`,
  * `role`, `status`), the `projects` they belong to (element paired through this parent), and their
  * `openWorkCount`, plus `computedAt`. Paired with a real web consumer — `PersonProfileScreen` reads
@@ -1115,6 +1119,8 @@ type _billingProfile = Assert<Exact<ApiBillingProfileView, WebBillingProfileView
  * card or bank field on either — contacts carry non-secret metadata only.
  */
 type _billingContact = Assert<Exact<ApiBillingContactView, WebBillingContactView>>;
+
+/**
  * Billing seats (x178). `BillingSeatView` ↔ `BillingSeat` — one billing seat (`GET`/`POST`
  * `…/billing/seats`, `DELETE …/billing/seats/:seatId`). `BillingSeatsScreen` reads exactly this
  * shape, so the `id`/`membershipId`/`assignedAt`/`releasedAt` pair is held identical on both sides.
@@ -1138,6 +1144,8 @@ type _searchResult = Assert<Exact<ApiSearchResultView, WebSearchResult>>;
  */
 type _savedSearch = Assert<Exact<ApiSavedSearchView, WebSavedSearch>>;
 type _recentSearch = Assert<Exact<ApiRecentSearchView, WebRecentSearch>>;
+
+/**
  * SRCH command palette (x181). `CommandView` ↔ `Command` — one palette command
  * (`GET …/search/commands?q=`). Paired Exact, not exempt: x181 ships `CommandPalette`, a real web
  * consumer, so the `id`/`title`/`section`/`kind`/`href`/`action` shape and the `CommandKind` union
@@ -1253,6 +1261,8 @@ type _orgPolicies = Assert<Exact<ApiOrgPolicyView, WebOrgPolicyView>>;
  * wire projection never echoes the tenant id.
  */
 type _policySimulation = Assert<Exact<ApiPolicySimulationView, WebPolicySimulationView>>;
+
+/**
  * Organization security settings (x176). `SecuritySettingsView` (`GET/PUT …/admin/security`, response)
  * — the org-wide security posture (2FA enforcement + IP allowlist). Paired with a live web consumer:
  * `AdminSecurityScreen` reads exactly this response to render the 2FA toggle and the allowlist editor.
@@ -1269,6 +1279,8 @@ type _securitySettings = Assert<Exact<ApiSecuritySettingsView, WebSecuritySettin
  * share_portal`) must match exactly. The `OnboardingTourScreen` reads exactly this response.
  */
 type _onboardingTour = Assert<Exact<ApiOnboardingTourView, WebOnboardingTourView>>;
+
+/**
  * PREF-001 (x182). `GET/PUT .../me/preferences` — the acting member's own appearance/locale settings.
  * One projection, three closed unions (`theme`, `locale`, `density`) that must match exactly on both
  * sides; the `PreferencesScreen` reads and writes exactly this shape.

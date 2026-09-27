@@ -3,7 +3,7 @@ import type { ApiClient } from './client';
 /**
  * Home widget preferences (module 4 Home / My Day, x243) — the caller's own Home widget order and
  * hidden set, read and replaced. Behind `work.read` on the server (the internal-read capability
- * A11Y-183's and NOTIF-001's preferences reuse); a caller without it gets the ordinary 403 the shared
+ * NOTIF-001's preferences reuse); a caller without it gets the ordinary 403 the shared
  * client turns into an error. The tenant is the slug in the path resolved against the caller's
  * membership, and the *member* is the authenticated principal — never a value this client supplies —
  * so it can only ever read or write the caller's own layout.
