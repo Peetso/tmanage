@@ -46,6 +46,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
+import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -247,6 +248,11 @@ export class AppModule {
         // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
         // constructs its own repository handle (see its doc), so its position here is by subject.
         WorkloadForecastModule.register(),
+        // Public & trust site (x159). The one genuinely public read: `GET /v1/public/site/status`,
+        // `@Public()`, over the GLOBAL `incidents` table (0060). It resolves no tenant and asks for
+        // no capability, so it depends on nothing but the global database — its position here is by
+        // subject, at the end of the feature modules.
+        PublicSiteModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

@@ -2251,6 +2251,45 @@ export const importRows = mysqlTable(
   ],
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Public & trust site — GLOBAL, deliberately NOT tenant-owned (0060, x159)
+// ─────────────────────────────────────────────────────────────────────────────
+// The public status page's incidents. Like `users`/`authentication_events`, this table carries
+// no `organization_id`: it is read by anyone, before any tenant is named, and describes the
+// service as a whole. It is registered in the guard's NON_TENANT_TABLES (not TENANT_TABLES) and
+// read on the identity path.
+
+/** DEC-01-style closed vocabulary. Mirrors the `0060` incident `ENUM`. */
+export const INCIDENT_STATUSES = ['investigating', 'identified', 'monitoring', 'resolved'] as const;
+
+/**
+ * Public & trust site (x159, migration 0060). A status-page incident — a component, a lifecycle
+ * `status`, a title, a public write-up, when it started and (if over) when it resolved, and whether
+ * it is `published`.
+ *
+ * Global (org-less): a status page is the operator's public trust surface, read before any tenant is
+ * resolved, so there is no `organization_id` and no tenant foreign key — the shape
+ * `credential_change_notices` (0020) and `authentication_events` (0004) use. `published` is the
+ * public-visibility gate: the read selects `published = 1` only, the way `project_updates` (0041)
+ * gates client content, so a draft is never shown. `0060_incidents.sql` is the source of truth; this
+ * is its typed mirror.
+ */
+export const incidents = mysqlTable(
+  'incidents',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    component: varchar('component', { length: 190 }).notNull(),
+    status: mysqlEnum('status', INCIDENT_STATUSES).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    body: text('body').notNull(),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }).notNull(),
+    resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
+    published: boolean('published').notNull().default(false),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_incidents_published_started').on(table.published, table.startedAt)],
+);
+
 /**
  * Every table this schema describes, keyed by its SQL name.
  *
@@ -2321,6 +2360,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  incidents,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2393,3 +2433,4 @@ export type AuthenticationEventRow = typeof authenticationEvents.$inferSelect;
 export type CredentialChangeNoticeRow = typeof credentialChangeNotices.$inferSelect;
 export type ImportJobRow = typeof importJobs.$inferSelect;
 export type ImportRowRow = typeof importRows.$inferSelect;
+export type IncidentRow = typeof incidents.$inferSelect;

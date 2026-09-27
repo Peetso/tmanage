@@ -13925,3 +13925,36 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Public status page — Public & trust site, module 1 (x159)
+
+**What landed.** The application had no public site at all (AUDIT-2026-09-27 rank #1, "Public site
+Missing"). This slice adds the first public surface: a **status page**. A new GLOBAL, org-less
+`incidents` table (migration `0060`) — `component`, a lifecycle `status`
+(`investigating | identified | monitoring | resolved`), `title`, a public `body`, `started_at`,
+nullable `resolved_at`, a `published` visibility gate and `created_at` — and one genuinely public
+endpoint, `GET /v1/public/site/status` (`PublicSiteStatusController`, `@Public()`). It returns the
+overall banner state and the recent **published** incidents, newest-first by `started_at`, bounded to
+50. There is **no `authorize()` and no capability**: a status page is meant to be read by anyone,
+before any sign-in.
+
+**Global table, not tenant-owned.** Like `authentication_events`/`credential_change_notices`,
+`incidents` carries no `organization_id`: it is read before any tenant is named. It is registered in
+**three places for a global** — `schema.ts` def + `TABLES`, the tenant-guard **`NON_TENANT_TABLES`**
+(NOT `TENANT_TABLES`, so the layer-3 guard treats the unscoped read as legitimate and the identity
+read path may reach it), and the on-disk migration the readdir migrator applies. No `users.sql` write
+grant: this slice ships the READ only (the database-wide SELECT is all it needs); a future admin
+write slice adds INSERT/UPDATE with the code that writes it. No `capabilities.ts` edit.
+
+**Known-trap.** Published-only is held twice: the repository's SQL filters `published = 1`, and the
+controller's pure `toPublicStatus` re-filters (drafts dropped), re-sorts newest-first and caps at 50 —
+so a draft can never reach the response even by another path. Proved database-free
+(`status.controller.test.ts`): published listed newest-first, drafts excluded, `operational` when all
+resolved, and the page bounded — with no session or capability.
+
+**Surfaces.** `PublicIncidentView` and `PublicStatusView` (`status.controller.ts`) are live `Exact`
+pairs with the web's shapes in `apps/web/src/lib/api/public-site.ts` via `e2e/contracts/api-web-shapes.ts`.
+`StatusScreen` (`apps/web/src/components/screens/StatusScreen.tsx`), routed at the public `/status`,
+renders the overall banner and the incident timeline inside `IdentityShell` (skip link, `<main>`, one
+`<h1>`), axe-clean. Deferred: the admin write path (draft/publish incidents), maintenance windows and
+component-level status.
