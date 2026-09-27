@@ -49,6 +49,7 @@ import { RoleEditModule } from './modules/admin/role-edit.controller.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
+import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
 import { StorageModule } from './common/storage/storage.module.js';
 import { ScannerModule } from './common/scan/scanner.module.js';
@@ -151,6 +152,11 @@ export class AppModule {
         // Before the modules whose commands write audit events, and before the global
         // `CapabilityGuard` below resolves `AUDIT_SERVICE` from this injector.
         AuditModule.register(),
+        // ADM-09 filtered export (module 18, x197). A date-windowed CSV of the audit trail behind
+        // `audit.export`, distinct from x118's `events/export`: a module of its own so it stays
+        // file-disjoint from the audit viewer/export controller; depends only on the globally-
+        // exported `AUDIT_SERVICE`, which `AuditModule` above provides.
+        AuditExportModule.register(),
         // PLAT-004: the outbox writer, global for the reason the audit module is — three
         // feature modules append events from inside their own transactions.
         PlatformModule.register(),
