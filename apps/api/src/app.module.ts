@@ -15,6 +15,7 @@ import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
+import { PersonCapacityModule } from './modules/people/capacity.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { HomePulseModule } from './modules/home/home-pulse.module.js';
 import { WorkViewsModule } from './modules/work-views/work-views.module.js';
@@ -219,6 +220,10 @@ export class AppModule {
         // the composite foreign keys mean a caller who names one that is not theirs gets a refusal
         // rather than a foreign-key 500.
         ObjectiveWorkLinksModule.register(),
+        // People / module 14 (x170). Per-member weekly capacity (set/read). After `TenancyModule`:
+        // the controller resolves `:membershipId` tenant-scoped via a `MembershipsRepository` (provided
+        // in the module's own scope) before any write, so a cross-tenant member is a 404, not a 500.
+        PersonCapacityModule.register(),
         // RT-001: the ticket mint. The socket itself lives in the worker.
         RealtimeModule.register(),
         // FILE-001. After `ProjectsModule` and `RequestsModule` for the same reason as the

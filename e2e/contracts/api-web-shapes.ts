@@ -112,6 +112,7 @@ import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
+import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -143,6 +144,7 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
+import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -512,6 +514,15 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * submission response is the created work item, covered by the `WorkItemView`↔`WorkItemSummary` pair.
  */
 type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
+
+/**
+ * People capacity (module 14, x170). `PersonCapacityView` (`GET`/`PUT …/people/:membershipId/capacity`,
+ * response) — one member's weekly capacity. Paired Exact with its live web consumer:
+ * `PersonCapacitySection` reads exactly this response to show and edit the figure. `organizationId` is
+ * absent on both sides; `membershipId`/`weeklyHours`/`effectiveFrom`/`updatedAt` are held identical, so
+ * a rename or retype on either side fails the gate.
+ */
+type _personCapacity = Assert<Exact<ApiPersonCapacityView, WebPersonCapacity>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

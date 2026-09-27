@@ -13925,3 +13925,32 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## People / module 14 — per-member weekly capacity (x170)
+
+_Audit #4 (People Missing — capacity not built)._ This slice adds a tenant-scoped `person_capacity`
+table (migration `0068`) — one active row per member, keyed by `(organization_id, membership_id)`,
+holding `weekly_hours` and the `effective_from` date — and two endpoints under
+`/v1/organizations/:orgSlug/people/:membershipId/capacity`: `PUT` to set the figure (`project.manage`,
+a staffing write) and `GET` to read it (`work.read`, an internal read). The `PUT` is an upsert against
+the natural key, so a first set inserts and a later revision updates in place. Capabilities are reused
+(`project.manage`/`work.read`); no `capabilities.ts` edit.
+
+**Known-trap order.** `:membershipId` is resolved tenant-scoped _first_ (via a `MembershipsRepository`
+provided in the module's own scope), so an unknown or cross-tenant member is a 404 with no write,
+before the application authorize or validation — a cross-tenant probe cannot tell 403 from 404. The
+weekly hours are validated in `[0,168]` next (out of range → 400, no write), and only then is the row
+upserted. `weekly_hours` is also bounded by a `CHECK` at the engine, and the `0068` trigger pins
+`organization_id`/`membership_id` immutable. `PersonCapacityView` never echoes `organization_id`. The
+new table is registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`,
+`users.sql` grant (INSERT + UPDATE — the upsert; no DELETE), and the on-disk migration the readdir
+migrator applies.
+
+**Surfaces.** `PersonCapacityView` (`capacity.controller.ts`) is a live `Exact` pair with the web's
+`PersonCapacity` (`apps/web/src/lib/api/person-capacity.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`PersonCapacitySection` (`apps/web/src/components/screens/PersonCapacitySection.tsx`), disjoint from
+the x169 profile file, reads and edits the figure and is axe-clean (labelled `Field`s, an
+`aria-labelledby` landmark, a submit-path `InlineAlert`). Proved database-free with the real
+`authorize` (`capacity.controller.test.ts`): set→read returns the figure, hours out of `[0,168]` is a
+400 with no write, a cross-tenant member id is a 404 with no write, a set without `project.manage` is a
+403, and a read without `work.read` is a 403. Deferred to a later slice: a capacity-history table.

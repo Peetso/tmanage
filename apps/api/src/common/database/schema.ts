@@ -1490,6 +1490,29 @@ export const workForms = mysqlTable(
   ],
 );
 
+/**
+ * Per-member weekly capacity (0068, x170). People module 14. Tenant-scoped: one active row per
+ * member, keyed by `(organization_id, membership_id)`, holding the available hours a week and the
+ * date the figure takes effect. `weekly_hours` is bounded [0,168] at the engine; identity
+ * (`organization_id`, `membership_id`) is immutable at the engine. The PUT is an upsert against the
+ * natural key, so this table is the current capacity at rest, not a history.
+ */
+export const personCapacity = mysqlTable(
+  'person_capacity',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    weeklyHours: smallint('weekly_hours', { unsigned: true }).notNull(),
+    effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_person_capacity_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_person_capacity_org_membership').on(table.organizationId, table.membershipId),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2321,6 +2344,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  person_capacity: personCapacity,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2366,6 +2390,7 @@ export type DocumentCommentRow = typeof documentComments.$inferSelect;
 export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
+export type PersonCapacityRow = typeof personCapacity.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
