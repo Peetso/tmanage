@@ -388,6 +388,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // (upsert) writes. The layer-3 guard fails OPEN on an unregistered table, so registering it here is
   // what scopes them; tenant-isolation.db.test.ts enforces the entry.
   person_capacity: 'organization_id',
+  // Member availability / out-of-office windows (x218, migration 0096). Tenant-owned: a window
+  // belongs to a membership in one studio, and an unscoped `SELECT ... FROM member_availability`
+  // would be every member's OOO windows across every studio on the server. `organization_id` is NOT
+  // NULL and carries the `(organization_id, id)` key every tenant table has, so the guard must scope
+  // its reads and its (insert/delete) writes; the layer-3 guard fails OPEN on an unregistered table,
+  // so registering it here is what scopes them, and tenant-isolation.db.test.ts enforces the entry.
+  member_availability: 'organization_id',
   // People member skills (x172, migration 0070). Membership-owned within a tenant: an unscoped
   // `SELECT ... FROM person_skills` would be every studio's members' declared skills on the server.
   // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table

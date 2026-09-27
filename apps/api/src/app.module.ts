@@ -16,6 +16,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { WorkModule } from './modules/work/work.module.js';
 import { PersonCapacityModule } from './modules/people/capacity.module.js';
+import { MemberAvailabilityModule } from './modules/people/availability.module.js';
 import { CapacityHeatmapModule } from './modules/people/capacity-heatmap.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { HomePulseModule } from './modules/home/home-pulse.module.js';
@@ -336,6 +337,12 @@ export class AppModule {
         // the controller resolves `:membershipId` tenant-scoped via a `MembershipsRepository` (provided
         // in the module's own scope) before any write, so a cross-tenant member is a 404, not a 500.
         PersonCapacityModule.register(),
+        // People / module 14 (x218). Member availability / out-of-office windows: a member manages
+        // their own dated OOO windows (POST/GET/DELETE), and the team reads a member's windows
+        // (GET .../people/:membershipId/availability). Behind `work.read`, tenant-scoped; the write
+        // surface is owner-scoped (the subject is the acting principal's membership), and the team
+        // read resolves `:membershipId` tenant-scoped before any read. New table member_availability.
+        MemberAvailabilityModule.register(),
         // People / module 14 (x193). Team capacity heatmap: a read-only org-level roll-up that folds
         // the x170 capacity and x171 allocation facts into a member × week utilisation grid. Behind
         // `work.read`, tenant-scoped, with the window bounded before any read; adds no table.

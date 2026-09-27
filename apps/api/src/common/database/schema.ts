@@ -2289,6 +2289,36 @@ export const personCapacity = mysqlTable(
 );
 
 /**
+ * Member availability / out-of-office windows (People module 14, x218, migration 0096). A *list*
+ * (unlike person_capacity's one-row-per-member): zero or more dated OOO windows per member, keyed
+ * `(organization_id, member_id)`, tenant-owned and registered in the query guard's TENANT_TABLES.
+ * A window is added (INSERT) and removed (DELETE), never edited — `kind` is validated against a
+ * fixed allowlist by the application and the 0096 trigger pins rows immutable at the engine.
+ */
+export const memberAvailability = mysqlTable(
+  'member_availability',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    memberId: char('member_id', { length: 36 }).notNull(),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    endDate: date('end_date', { mode: 'string' }).notNull(),
+    kind: varchar('kind', { length: 20 }).notNull(),
+    note: varchar('note', { length: 500 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_member_availability_org_id').on(table.organizationId, table.id),
+    index('ix_member_availability_member').on(
+      table.organizationId,
+      table.memberId,
+      table.startDate,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * Custom roles (Administration module 18, x173, migration 0071). One row per named role per
  * organization: a role's display name and the capability subset it grants. The capability list is a
  * subset of the fixed `CAPABILITIES` allowlist (`12-PERMISSION-MATRIX` §2) — no new capability is ever
@@ -3657,6 +3687,7 @@ export const TABLES = {
   workflow_conditions: workflowConditions,
   person_allocations: personAllocations,
   person_capacity: personCapacity,
+  member_availability: memberAvailability,
   person_skills: personSkills,
   custom_roles: customRoles,
   subscriptions,
@@ -3726,6 +3757,7 @@ export type IntegrationConnectionRow = typeof integrationConnections.$inferSelec
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
 export type PersonCapacityRow = typeof personCapacity.$inferSelect;
+export type MemberAvailabilityRow = typeof memberAvailability.$inferSelect;
 export type PersonSkillRow = typeof personSkills.$inferSelect;
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
 export type BillingProfileRow = typeof billingProfiles.$inferSelect;

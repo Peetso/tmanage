@@ -15713,3 +15713,27 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## 2026-09-27 — FEAT: member availability / out-of-office (module 14 People & capacity, slice x218)
+
+Branch `x218-people-availability` off `master` `174cf4f`, by **Claude Opus 4.8**. The pass-23 People
+audit found weekly capacity (x170, hours) and quiet-hours (x215, per-day time window) built, but no way
+for a member to record that they are away between two calendar dates. This is that flow.
+
+**New table.** `member_availability` (migration 0096), tenant-scoped `(organization_id, member_id)` — a
+_list_ of dated OOO windows `{startDate, endDate, kind, note}` per member (unlike person_capacity's
+one-row-per-member). Registered in the four places (`schema.ts` def + `TABLES`, `tenant-guard.ts`
+`TENANT_TABLES`, `scripts/db/users.sql` grant of INSERT+DELETE only, and the numbered migration file
+the directory-driven migrator applies). Immutable while it exists (0096 trigger); a window is
+delete-and-add, never UPDATE.
+
+**Surfaces.** POST/GET/DELETE `…/people/availability` (owner-scoped: the subject is the acting
+principal's membership, never a body value) and GET `…/people/:membershipId/availability` (team read,
+`:membershipId` resolved tenant-scoped first ⇒ cross-tenant 404), all behind the reused `work.read`
+capability (no `capabilities.ts` edit), in `availability.controller.ts` + `.repository.ts`
+(`MemberAvailabilityModule`). `kind` is a fixed allowlist and `startDate ≤ endDate` (bound dates, never
+the admin-pool clock) — either failure is a 400 with no write; a caller without `work.read` is a 403.
+`AvailabilityView` is a live `Exact` pair with `apps/web/src/lib/api/people-availability.ts` via
+`e2e/contracts/api-web-shapes.ts`. `AvailabilityScreen`
+(`apps/web/src/app/[orgSlug]/people/availability/page.tsx`) lists, adds and removes the caller's own
+windows. No DB test / no new e2e in slice (the chain owns both).

@@ -166,6 +166,7 @@ import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../ap
 import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '../../apps/api/src/modules/automations/template-edit.controller.js';
 import type { WorkflowConditionView as ApiWorkflowConditionView } from '../../apps/api/src/modules/automations/conditions.controller.js';
 import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
+import type { AvailabilityView as ApiAvailabilityView } from '../../apps/api/src/modules/people/availability.controller.js';
 import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/api/src/modules/people/capacity-heatmap.service.js';
 import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
 import type { BillingContactView as ApiBillingContactView } from '../../apps/api/src/modules/billing/contacts.service.js';
@@ -238,6 +239,7 @@ import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/s
 import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowConditionSummary as WebWorkflowConditionSummary } from '../../apps/web/src/lib/api/automations';
 import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
+import type { AvailabilityView as WebAvailabilityView } from '../../apps/web/src/lib/api/people-availability';
 import type { CapacityHeatmapView as WebCapacityHeatmapView } from '../../apps/web/src/lib/api/team-capacity-heatmap';
 import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/modules/people/skills.controller.js';
 import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
@@ -965,6 +967,16 @@ type _workflowCondition = Assert<Exact<ApiWorkflowConditionView, WebWorkflowCond
  * a rename or retype on either side fails the gate.
  */
 type _personCapacity = Assert<Exact<ApiPersonCapacityView, WebPersonCapacity>>;
+
+/**
+ * Member availability / out-of-office (module 14, x218). `AvailabilityView` (POST/GET/DELETE
+ * `…/people/availability` and GET `…/people/:membershipId/availability`, response element) — one
+ * out-of-office window. Paired Exact with its live web consumer: `AvailabilityScreen` reads exactly
+ * this shape to list and remove windows. `organizationId` is absent on both sides;
+ * `id`/`membershipId`/`startDate`/`endDate`/`kind`/`note`/`createdAt` are held identical, so a rename
+ * or retype on either side fails the gate.
+ */
+type _availability = Assert<Exact<ApiAvailabilityView, WebAvailabilityView>>;
 
 /**
  * Team capacity heatmap (module 14, x193). `CapacityHeatmapView` (`GET …/people/capacity/heatmap`,
