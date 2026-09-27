@@ -188,6 +188,7 @@ import type {
   PublicMaintenanceView as ApiPublicMaintenanceView,
 } from '../../apps/api/src/modules/platform/maintenance.controller.js';
 import type { CustomRoleView as ApiCustomRoleView } from '../../apps/api/src/modules/admin/roles.controller.js';
+import type { DataExportRequestView as ApiDataExportRequestView } from '../../apps/api/src/modules/admin/export-requests.controller.js';
 import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules/admin/role-edit.controller.js';
 import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
 import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
@@ -211,6 +212,7 @@ import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/h
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
+import type { DataExportRequestView as WebDataExportRequestView } from '../../apps/web/src/lib/api/admin-export-requests';
 import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api/admin-role-edit';
 import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/api/policies';
 import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
@@ -1105,6 +1107,16 @@ type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
  * structurally. The wire projection never echoes the tenant id.
  */
 type _customRoles = Assert<Exact<ApiCustomRoleView, WebCustomRoleView>>;
+
+/**
+ * Admin data-export requests (x224). `DataExportRequestView` (`GET/POST …/admin/export-requests`,
+ * response) — the organization's recorded, GDPR-style data-export requests, each with its scope,
+ * status and who asked when. Paired with a live web consumer: `AdminExportRequestsScreen` reads exactly
+ * this response to render the request list and the new-request form. One projection; its per-request
+ * item (`{ id, scope, status, requestedBy, requestedAt }`) is inlined on both sides, so this pair
+ * covers it structurally. The wire projection never echoes the tenant id.
+ */
+type _dataExportRequests = Assert<Exact<ApiDataExportRequestView, WebDataExportRequestView>>;
 
 /**
  * Custom role clone + edit (x195). `RoleEditView` (`POST …/admin/roles/:id/clone` and

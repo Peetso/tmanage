@@ -15713,3 +15713,29 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## Admin — data-export requests (x224, module 18)
+
+**Status.** Built. On top of the Administration module, an administrator can record a GDPR-style
+request to export a scope of the studio's data and track its status. Distinct from the audit CSV
+export (x197, a synchronous read): the actual bulk export file generation and delivery (an async
+worker plus storage/egress) is **Needs-Peter** — this slice records and tracks the request only, so
+no file is produced and nothing leaves the system. Migration `0098_admin_export_requests.sql` adds one
+tenant-scoped, append-only table `{scope, status, requested_by, requested_at}`; registered in the four
+places (`schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `scripts/db/users.sql` grant of
+INSERT only, and the numbered migration file the directory-driven migrator applies). `requested_at` is
+bound by the application (the admin-pool clock trap), and the 0098 trigger pins identity + request
+facts immutable.
+
+**Surfaces.** `GET/POST …/admin/export-requests`, both behind the reused `org.manage` capability (no
+`capabilities.ts` edit), in `export-requests.controller.ts` + `.repository.ts`
+(`AdminExportRequestsModule`). The write resolves the organization tenant-scoped **before** it
+authorizes or writes (a cross-tenant context is a 404, no write), then runs the real org-wide
+`org.manage` authorize (403, no write), then validates `scope` against the fixed `ADMIN_EXPORT_SCOPES`
+allowlist (400, no write) before recording a `pending` request. `DataExportRequestView` is a live
+`Exact` pair with `apps/web/src/lib/api/admin-export-requests.ts` via `e2e/contracts/api-web-shapes.ts`.
+`AdminExportRequestsScreen` (`apps/web/src/components/screens/AdminExportRequestsScreen.tsx`) records a
+request and lists requests with their status. Unit: `export-requests.controller.test.ts` (pending
+record + round trip, unknown scope 400 no write, cross-tenant 404 no write, no `org.manage` 403 on
+both routes no write, both routes guarded by `org.manage`). No DB test / no new e2e in slice (the chain
+owns both).
