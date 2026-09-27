@@ -81,9 +81,7 @@ describe('ChangelogController', () => {
       'entry-0000-0000-0000-000000000003',
       'entry-0000-0000-0000-000000000002',
     ]);
-    expect(view.months[1]?.entries.map((e) => e.id)).toEqual([
-      'entry-0000-0000-0000-000000000001',
-    ]);
+    expect(view.months[1]?.entries.map((e) => e.id)).toEqual(['entry-0000-0000-0000-000000000001']);
     // The wire projection narrows the category and echoes the live instant.
     expect(view.months[0]?.entries[0]?.category).toBe('feature');
     expect(view.months[0]?.entries[0]?.publishedAt).toBe('2026-10-05T09:00:00.000Z');
