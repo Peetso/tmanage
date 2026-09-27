@@ -126,6 +126,11 @@ export const PROJECT_OBJECTIVES_SERVICE = Symbol.for('tmanage.ProjectObjectivesS
 /** PROJ / module 8 (x209). A project's internal risk register — create/list/update (matrix). */
 export const PROJECT_RISK_REGISTER_REPOSITORY = Symbol.for('tmanage.ProjectRiskRegisterRepository');
 export const PROJECT_RISK_REGISTER_SERVICE = Symbol.for('tmanage.ProjectRiskRegisterService');
+/** PROJ / module 8 (x235). A project's internal status-update log — post/list (keyset-paged). */
+export const PROJECT_STATUS_UPDATES_REPOSITORY = Symbol.for(
+  'tmanage.ProjectStatusUpdatesRepository',
+);
+export const PROJECT_STATUS_UPDATES_SERVICE = Symbol.for('tmanage.ProjectStatusUpdatesService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');

@@ -135,6 +135,10 @@ import type {
 } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type { ProjectObjectiveView as ApiProjectObjectiveView } from '../../apps/api/src/modules/projects/project-objectives.service.js';
 import type { ProjectInternalRiskView as ApiProjectInternalRiskView } from '../../apps/api/src/modules/projects/risk-register.service.js';
+import type {
+  ProjectStatusUpdatePageView as ApiProjectStatusUpdatePageView,
+  ProjectStatusUpdateView as ApiProjectStatusUpdateView,
+} from '../../apps/api/src/modules/projects/status-updates.service.js';
 import type { OrgObjectiveView as ApiOrgObjectiveView } from '../../apps/api/src/modules/projects/org-objectives.service.js';
 import type { ProjectPortfolioView as ApiProjectPortfolioView } from '../../apps/api/src/modules/projects/portfolio.service.js';
 import type { ProjectHealthView as ApiProjectHealthView } from '../../apps/api/src/modules/projects/health.service.js';
@@ -280,6 +284,10 @@ import type { InvoiceDetail as WebInvoiceDetail } from '../../apps/web/src/lib/a
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { ProjectInternalRiskSummary as WebProjectInternalRiskSummary } from '../../apps/web/src/lib/api/project-risk-register';
+import type {
+  ProjectStatusUpdatePage as WebProjectStatusUpdatePage,
+  ProjectStatusUpdateSummary as WebProjectStatusUpdateSummary,
+} from '../../apps/web/src/lib/api/project-status-updates';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
 import type { AutomationScheduleSummary as WebAutomationScheduleSummary } from '../../apps/web/src/lib/api/automation-schedules';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
@@ -546,6 +554,20 @@ type _projectObjective = Assert<Exact<ApiProjectObjectiveView, WebProjectObjecti
  */
 type _projectInternalRisk = Assert<
   Exact<ApiProjectInternalRiskView, WebProjectInternalRiskSummary>
+>;
+
+/**
+ * PROJ / module 8 (x235). `ProjectStatusUpdateView` (an item of `GET …/projects/:id/status-updates`
+ * and the `POST` response) and its keyset `ProjectStatusUpdatePage` wrapper — a project's **internal**
+ * status changelog entry (`status_band`, `body`, who posted it and when). Paired with a live web
+ * consumer: `ProjectStatusUpdatesScreen` reads exactly these, so both are real `Exact` pairs. Distinct
+ * from the client-facing x125 portal updates: this log is internal-only, never projected to a client.
+ */
+type _projectStatusUpdate = Assert<
+  Exact<ApiProjectStatusUpdateView, WebProjectStatusUpdateSummary>
+>;
+type _projectStatusUpdatePage = Assert<
+  Exact<ApiProjectStatusUpdatePageView, WebProjectStatusUpdatePage>
 >;
 
 /**

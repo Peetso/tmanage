@@ -13982,6 +13982,37 @@ impact, mitigation), a severity-band tally, and a table with each risk's compute
 status control. `ProjectInternalRiskView` is a live `Exact` pair with the web
 `ProjectInternalRiskSummary` (CONTRACT-001).
 
+## PROJ / module 8 — internal project status updates (x235)
+
+The Projects portfolio was built (x137) and a project's health computed (x208), but there was no
+**internal** status log — the studio's own running changelog of where a project stands. The clients
+module publishes client-facing updates to a portal (`project_updates`, 0041/x125); nothing kept the
+team's internal status band and narrative. x235 adds one.
+
+**Table.** `project_status_updates` (migration 0107), tenant-scoped and project-owned like
+`project_objectives` (0040) and `project_internal_risks` (0088): a `status_band`
+(`on_track` / `at_risk` / `off_track`), a required free-text `body`, and who posted it and when. It is
+**internal-only** — no `published`, no `client_summary`; the portal service does not read it, and it
+is absent from every `client_projection.read` path. The row is immutable: the 0107 `BEFORE UPDATE`
+trigger refuses every UPDATE and the runtime credential is granted INSERT only (append-only log).
+Registered in the four places: `schema.ts` (def + `TABLES` + `ProjectStatusUpdateRow`),
+`tenant-guard.ts` (`TENANT_TABLES`), `scripts/db/users.sql` (INSERT grant), and the migration file
+itself (the migrator is directory-scanned).
+
+**API.** `POST`/`GET …/projects/:id/status-updates`, both gated on `project.manage`.
+`ProjectStatusUpdatesService` resolves the project tenant-scoped before the relation gate and the
+write (Known-trap: unknown/cross-tenant ⇒ 404, never a foreign-key 500). An unknown status band or an
+empty body is a 400. The list is newest-first (`posted_at DESC, id DESC`) and keyset-paged (a `before`
+cursor + `limit`, with `nextCursor`). Unit-proven with real `authorize()` over fakes in
+`status-updates.controller.test.ts` (post → list; unknown band ⇒ 400; empty body ⇒ 400;
+unknown/cross-tenant project ⇒ 404; relation gate; the `project.manage` ceiling).
+
+**Web.** `ProjectStatusUpdatesScreen` on `…/projects/:id/status-updates`: post an update (status band
+
+- narrative) and a newest-first log. `ProjectStatusUpdateView` and its `ProjectStatusUpdatePage`
+  wrapper are live `Exact` pairs with the web `ProjectStatusUpdateSummary` / `ProjectStatusUpdatePage`
+  (CONTRACT-001). Distinct from x125's portal updates — never projected to a client.
+
 ## PROJ / module 8 — objective→work-item linkage (x138)
 
 Module 8 was **Partial** for linkage: x124 gave a project its objectives and work items already
