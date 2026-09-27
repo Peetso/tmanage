@@ -131,6 +131,7 @@ import type { MessageReactionTallyView as ApiMessageReactionTallyView } from '..
 import type { PinnedMessageView as ApiPinnedMessageView } from '../../apps/api/src/modules/conversations/message-pins.service.js';
 import type { SavedMessageView as ApiSavedMessageView } from '../../apps/api/src/modules/conversations/message-bookmarks.service.js';
 import type { MentionView as ApiMentionView } from '../../apps/api/src/modules/conversations/my-mentions.service.js';
+import type { MessageAttachmentView as ApiMessageAttachmentView } from '../../apps/api/src/modules/conversations/message-attachments.service.js';
 import type { OrganizationSummaryView as ApiOrganizationSummaryView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { PortalFileView as ApiPortalFileView } from '../../apps/api/src/modules/files/portal-file-list.service.js';
 import type { PortalInboxBundleView as ApiPortalInboxBundleView } from '../../apps/api/src/modules/inbox/portal-inbox.service.js';
@@ -340,6 +341,7 @@ import type {
 import type { ProjectFavoriteSummary as WebProjectFavoriteSummary } from '../../apps/web/src/lib/api/project-favorites';
 import type { DocTag as WebDocTag } from '../../apps/web/src/lib/api/doc-tags';
 import type { DocumentTag as WebDocumentTag } from '../../apps/web/src/lib/api/doc-tags';
+import type { MessageAttachmentSummary as WebMessageAttachmentSummary } from '../../apps/web/src/lib/api/message-attachments';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -894,6 +896,14 @@ type _projectFavorite = Assert<Exact<ApiProjectFavoriteView, WebProjectFavoriteS
  */
 type _docTag = Assert<Exact<ApiDocTagView, WebDocTag>>;
 type _documentTag = Assert<Exact<ApiDocumentTagView, WebDocumentTag>>;
+
+/**
+ * CH-06 composer attachments (x275). `MessageAttachmentView` (`POST`/`DELETE`/`GET
+ * …/conversations/:cid/messages/:mid/attachments`) — one file attached to a message. The
+ * `MessageAttachmentsView` chips and picker read exactly this response, so the pair is Exact.
+ * `sizeBytes` is `null` before the file's first version; the internal object key is never echoed.
+ */
+type _messageAttachment = Assert<Exact<ApiMessageAttachmentView, WebMessageAttachmentSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

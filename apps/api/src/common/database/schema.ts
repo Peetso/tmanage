@@ -3635,6 +3635,43 @@ export const conversationThreadReplies = mysqlTable(
   ],
 );
 
+/**
+ * A file attached to a chat message — CH-06's composer attachments (x275). One row links an
+ * already-uploaded `file_assets` row to a `messages` row; there is no upload here, the file store
+ * is reused read-only.
+ *
+ * `message_bookmarks`' posture applied to a link between a message and a file: created and deleted
+ * only (the runtime credential holds INSERT and DELETE alone, the withheld UPDATE is the control),
+ * idempotent by `(organization_id, message_id, file_asset_id)`. `attached_by_membership_id` records
+ * the author who attached it — only the message author may attach or detach.
+ * `0144_message_attachments.sql` is the source of truth; this is its typed mirror.
+ */
+export const messageAttachments = mysqlTable(
+  'message_attachments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    messageId: char('message_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    attachedByMembershipId: char('attached_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_message_attachments_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_message_attachments_message_file').on(
+      table.organizationId,
+      table.messageId,
+      table.fileAssetId,
+    ),
+    index('ix_message_attachments_org_message').on(
+      table.organizationId,
+      table.messageId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Platform primitives
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5498,6 +5535,7 @@ export const TABLES = {
   conversation_thread_replies: conversationThreadReplies,
   conversation_message_drafts: conversationMessageDrafts,
   conversation_mutes: conversationMutes,
+  message_attachments: messageAttachments,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -5638,6 +5676,7 @@ export type ConversationThreadReplyRow = typeof conversationThreadReplies.$infer
 export type NewConversationThreadReplyRow = typeof conversationThreadReplies.$inferInsert;
 export type ConversationMessageDraftRow = typeof conversationMessageDrafts.$inferSelect;
 export type NewConversationMessageDraftRow = typeof conversationMessageDrafts.$inferInsert;
+export type MessageAttachmentRow = typeof messageAttachments.$inferSelect;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;
