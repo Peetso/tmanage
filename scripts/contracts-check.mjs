@@ -137,6 +137,14 @@ const WEB_EXEMPT = new Map([
     'InboxItem',
     'union alias of InboxBundle | InboxUsageNotice — not a single response projection; the two arms pair individually.',
   ],
+  [
+    'InboxSnooze',
+    'x259 — the single snooze item. The API inlines it inside `InboxSnoozeView` (there is no standalone API item type), and that wrapper is paired Exact, so the item shape is covered there.',
+  ],
+  [
+    'WebhookDeliveryPage',
+    'x221 — the keyset page wrapper (deliveries + nextCursor). The API returns the page inline with no named page view; its element `WebhookDeliveryView` is paired Exact.',
+  ],
   // class-1-lift (MemberSummary, WorkspaceSummary, AuthenticatedResponse, MfaRequiredResponse)
   // was exempted here while its API interface was unexported. x79 exported each interface
   // (members.controller `MemberView`, workspaces.controller `WorkspaceView`, authentication.controller

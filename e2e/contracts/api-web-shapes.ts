@@ -323,6 +323,13 @@ import type { CapacityHeatmapView as WebCapacityHeatmapView } from '../../apps/w
 import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/modules/people/skills.controller.js';
 import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
 import type { SkillSearchView as ApiSkillSearchView } from '../../apps/api/src/modules/people/skill-search.controller.js';
+import type { FocusBlockView as ApiFocusBlockView } from '../../apps/api/src/modules/calendar/focus-blocks.service.js';
+import type { ConversationMuteView as ApiConversationMuteView } from '../../apps/api/src/modules/conversations/conversation-mute.controller.js';
+import type { MessageSearchMatchView as ApiMessageSearchMatchView } from '../../apps/api/src/modules/conversations/conversation-search.service.js';
+import type { MessageDraftView as ApiMessageDraftView } from '../../apps/api/src/modules/conversations/message-drafts.service.js';
+import type { ConversationReadStateView as ApiConversationReadStateView } from '../../apps/api/src/modules/conversations/read-state.service.js';
+import type { ConversationUnreadView as ApiConversationUnreadView } from '../../apps/api/src/modules/conversations/read-state.service.js';
+import type { InboxSnoozeView as ApiInboxSnoozeView } from '../../apps/api/src/modules/inbox/inbox-snooze.service.js';
 import type { SkillSearchResult as WebSkillSearchResult } from '../../apps/web/src/lib/api/people-skill-search';
 import type { BillingProfileView as WebBillingProfileView } from '../../apps/web/src/lib/api/billing';
 import type { BillingContactView as WebBillingContactView } from '../../apps/web/src/lib/api/billing-contacts';
@@ -494,6 +501,13 @@ import type { RecentSearch as WebRecentSearch } from '../../apps/web/src/lib/api
 import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
 import type { PublicFaqView as WebPublicFaqView } from '../../apps/web/src/lib/api/public-faq';
 import type { PublicLegalView as WebPublicLegalView } from '../../apps/web/src/lib/api/public-legal';
+import type { FocusBlockView as WebFocusBlockView } from '../../apps/web/src/lib/api/focus-blocks';
+import type { ConversationMuteView as WebConversationMuteView } from '../../apps/web/src/lib/api/conversation-mute';
+import type { MessageSearchMatch as WebMessageSearchMatch } from '../../apps/web/src/lib/api/conversation-search';
+import type { MessageDraftView as WebMessageDraftView } from '../../apps/web/src/lib/api/conversations';
+import type { ConversationReadStateView as WebConversationReadStateView } from '../../apps/web/src/lib/api/conversation-read-state';
+import type { ConversationUnreadView as WebConversationUnreadView } from '../../apps/web/src/lib/api/conversation-read-state';
+import type { InboxSnoozeView as WebInboxSnoozeView } from '../../apps/web/src/lib/api/inbox-snooze';
 import type {
   PublicIncidentView as WebPublicIncidentView,
   PublicStatusView as WebPublicStatusView,
@@ -1870,3 +1884,22 @@ type _publicLegal = Assert<Exact<ApiPublicLegalView, WebPublicLegalView>>;
  * dropped by `contracts-check`'s `Input` suffix rule.
  */
 type _contactSubmit = Assert<Exact<ApiContactSubmitView, WebContactSubmitView>>;
+
+/** x255 - calendar focus blocks (personal protected time). Paired Exact. */
+type _focusBlock = Assert<Exact<ApiFocusBlockView, WebFocusBlockView>>;
+
+/** x252 - conversation mute own-preference. Paired Exact. */
+type _conversationMute = Assert<Exact<ApiConversationMuteView, WebConversationMuteView>>;
+
+/** x253 - in-conversation message search match. Paired Exact (API MessageSearchMatchView / web MessageSearchMatch). */
+type _messageSearchMatch = Assert<Exact<ApiMessageSearchMatchView, WebMessageSearchMatch>>;
+
+/** x251 - composer draft. Paired Exact. */
+type _messageDraft = Assert<Exact<ApiMessageDraftView, WebMessageDraftView>>;
+
+/** x250 - conversation read-state and unread count. Paired Exact. */
+type _conversationReadState = Assert<Exact<ApiConversationReadStateView, WebConversationReadStateView>>;
+type _conversationUnread = Assert<Exact<ApiConversationUnreadView, WebConversationUnreadView>>;
+
+/** x259 - inbox snooze list. Paired Exact (the inlined snooze item matches web InboxSnooze). */
+type _inboxSnooze = Assert<Exact<ApiInboxSnoozeView, WebInboxSnoozeView>>;
