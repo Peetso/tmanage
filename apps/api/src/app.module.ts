@@ -32,6 +32,7 @@ import { A11yPreferencesModule } from './modules/preferences/a11y-preferences.mo
 import { QuietHoursModule } from './modules/preferences/quiet-hours.module.js';
 import { PreferencesModule } from './modules/preferences/preferences.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
+import { ThreadRepliesModule } from './modules/conversations/thread-replies.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
 import { CalendarGridModule } from './modules/calendar/grid.controller.js';
@@ -284,6 +285,10 @@ export class AppModule {
         // a caller who names one that is not theirs should get 404 rather than a foreign-key
         // violation surfacing as 500.
         ConversationsModule.register(),
+        // x249. A message's thread replies — its own append-only table, resolving the conversation
+        // and root message through a read-only handle; after `ConversationsModule` for the same
+        // foreign-key reason.
+        ThreadRepliesModule.register(),
         // CAL-01 / MTG-01 (x90). After `ProjectsModule` for the same reason as conversations: a
         // meeting names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.

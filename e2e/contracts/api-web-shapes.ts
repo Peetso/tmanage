@@ -44,6 +44,10 @@ import type { ClientRequestClientView as ApiClientRequestClientView } from '../.
 import type { ClientRequestView as ApiClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { ConversationView as ApiConversationView } from '../../apps/api/src/modules/conversations/conversations.service.js';
 import type { ConvertMessageResultView as ApiConvertMessageResultView } from '../../apps/api/src/modules/conversations/conversations.service.js';
+import type {
+  ThreadReplyView as ApiThreadReplyView,
+  ThreadView as ApiThreadView,
+} from '../../apps/api/src/modules/conversations/thread-replies.service.js';
 import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
 import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
@@ -299,6 +303,10 @@ import type {
 import type { DocumentView as WebDocumentView } from '../../apps/web/src/lib/api/documents';
 import type { DocumentCommentView as WebDocumentCommentView } from '../../apps/web/src/lib/api/document-comments';
 import type {
+  ThreadReplyView as WebThreadReplyView,
+  ThreadView as WebThreadView,
+} from '../../apps/web/src/lib/api/thread-replies';
+import type {
   InboxBundle as WebInboxBundle,
   InboxPage as WebInboxPage,
   InboxUsageNotice as WebInboxUsageNotice,
@@ -474,6 +482,10 @@ type _homeWidgetPrefs = Assert<Exact<ApiHomeWidgetPrefsView, WebHomeWidgetPrefsV
 type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
 type _messageRevision = Assert<Exact<ApiMessageRevisionView, WebMessageRevisionSummary>>;
+// x249. A message's thread replies (`GET`/`POST …/messages/:messageId/thread`). The screen reads
+// exactly these responses, so both pairs are Exact.
+type _threadReply = Assert<Exact<ApiThreadReplyView, WebThreadReplyView>>;
+type _thread = Assert<Exact<ApiThreadView, WebThreadView>>;
 type _inboxBundle = Assert<Exact<ApiInboxBundleView, WebInboxBundle>>;
 type _inboxUsageNotice = Assert<Exact<ApiInboxUsageNoticeView, WebInboxUsageNotice>>;
 type _inboxPage = Assert<Exact<ApiInboxPageView, WebInboxPage>>;

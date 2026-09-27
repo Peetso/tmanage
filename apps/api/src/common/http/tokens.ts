@@ -146,6 +146,7 @@ export const CLIENT_REQUESTS_SERVICE = Symbol.for('tmanage.ClientRequestsService
 export const APPROVALS_SERVICE = Symbol.for('tmanage.ApprovalsService');
 export const CONVERSATIONS_REPOSITORY = Symbol.for('tmanage.ConversationsRepository');
 export const CONVERSATIONS_SERVICE = Symbol.for('tmanage.ConversationsService');
+export const THREAD_REPLIES_SERVICE = Symbol.for('tmanage.ThreadRepliesService');
 export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');
 export const NOTIFICATIONS_REPOSITORY = Symbol.for('tmanage.NotificationsRepository');
 export const NOTIFICATION_PREFERENCES_REPOSITORY = Symbol.for(

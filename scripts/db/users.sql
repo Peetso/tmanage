@@ -246,6 +246,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_ap
 -- makes "immutable" true for the runtime credential specifically, the way it is for the
 -- moderation ledger above.
 GRANT INSERT                 ON `tmanage`.`message_work_links`   TO 'tmanage_app'@'%';
+-- x249 thread replies. INSERT only: the table is append-only (planning ref CH-05), the trigger
+-- in 0121 refuses UPDATE for every credential, and withholding UPDATE and DELETE here is what
+-- makes "a reply, once said, is said" true for the runtime credential. Reading is the
+-- database-wide SELECT.
+GRANT INSERT                 ON `tmanage`.`conversation_thread_replies` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`outbox_events`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`idempotency_records`  TO 'tmanage_app'@'%';
 -- NOTIF-001. UPDATE is for marking read — the trigger in 0010 confines it to `read_at`,
