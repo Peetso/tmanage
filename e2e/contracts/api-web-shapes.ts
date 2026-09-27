@@ -120,6 +120,7 @@ import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps
 import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps/api/src/modules/insights/adoption.controller.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
+import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
@@ -252,6 +253,7 @@ import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps
 import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps/web/src/lib/api/insights-adoption';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
+import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
@@ -482,6 +484,12 @@ type _meetingAgenda = Assert<Exact<ApiMeetingAgendaView, WebMeetingAgendaView>>;
  */
 type _notification = Assert<Exact<ApiNotificationView, WebNotificationView>>;
 type _notificationFeed = Assert<Exact<ApiNotificationFeedView, WebNotificationFeedView>>;
+ * Public changelog (x160). `GET /v1/public/site/changelog` — a `@Public()` read of the GLOBAL
+ * `changelog_entries` (0061), published entries newest-first grouped by month, read by
+ * `ChangelogScreen`. Paired Exact with the web `PublicChangelogView`; the nested month/entry shapes
+ * are inlined on both sides and no tenant id appears on either (the content belongs to no tenant).
+ */
+type _publicChangelog = Assert<Exact<ApiPublicChangelogView, WebPublicChangelogView>>;
 
 /**
  * CAL recurrence (x129). `GET`/`POST .../meeting-series` — a tenant's recurring meeting series,

@@ -14315,3 +14315,35 @@ pairs with the web's shapes in `apps/web/src/lib/api/public-site.ts` via `e2e/co
 renders the overall banner and the incident timeline inside `IdentityShell` (skip link, `<main>`, one
 `<h1>`), axe-clean. Deferred: the admin write path (draft/publish incidents), maintenance windows and
 component-level status.
+## Public changelog — product-updates page over a GLOBAL table (x160, module 1 Public site)
+
+**What landed.** The public marketing site had no changelog — the 2026-09-27 audit's rank #1 (Public
+site Missing). This slice adds `GET /v1/public/site/changelog`, a `@Public()` route (no session, no
+tenant, no capability, no `authorize()`, no `capabilities.ts` edit) that returns published product
+updates newest-first, grouped by the month each went live. Backed by a new **GLOBAL (org-less)**
+`changelog_entries` table (migration `0061`) — `id, version, title, body_md, category
+(feature|fix|security), published, published_at, created_at`, no `organization_id`.
+
+**Global-table registration (THREE places + the identity-path registry).** As a global table it is
+registered in `schema.ts` def + `TABLES`, the on-disk migration the readdir migrator applies, and —
+because the public read reaches it through `TenantDatabase.identityRead(['changelog_entries'])` and
+because the isolation corpus requires every table in exactly one registry — `NON_TENANT_TABLES`
+(tenant-guard.ts), **not** `TENANT_TABLES`. `scripts/db/users.sql` grants the app **no** write on it
+(reading is the database-wide SELECT); the read-only decision is recorded in `users-sql.test.ts`'s
+`withheldOnPurpose`, since a later admin slice authors entries and adds the write grant with the code
+that writes it.
+
+**Published-only, and bounded.** The repository's `WHERE published = 1 AND published_at IS NOT NULL`,
+`ORDER BY published_at DESC`, `LIMIT 200` is the whole draft/publish boundary — a draft is never
+fetched, so it can never be grouped or returned; the controller adds only the month grouping and a
+defensive NULL-date guard.
+
+**Surfaces.** `PublicChangelogView` (`changelog.controller.ts`) is a live `Exact` pair with the web's
+`PublicChangelogView` (`apps/web/src/lib/api/public-changelog.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`ChangelogScreen` (`apps/web/src/components/screens/ChangelogScreen.tsx`), routed at the tenant-free
+`/changelog`, lists entries by month with category and version badges; it provides its own landmarks
+(skip link, one `<main>`, one `<h1>`) as a public page with no shell yet, and shows `body_md` as safe
+text (React text node, never `dangerouslySetInnerHTML`). Proved database-free with fakes
+(`changelog.controller.test.ts`): the route is public (no capability/tenant metadata), entries group
+by month newest-first, a draft (no live date) is excluded, and the page is bounded to 200. Deferred to
+a later admin slice: authoring/editing entries and rendered-Markdown bodies.

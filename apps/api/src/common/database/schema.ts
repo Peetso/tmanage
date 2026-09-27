@@ -2530,6 +2530,33 @@ export const searchIndex = mysqlTable(
 );
 
 /**
+ * GLOBAL (org-less) product-changelog entries — Public site, module 1 (x160), migration 0061.
+ *
+ * A single public record of what shipped: one flat list of published product updates, each with a
+ * version handle, a title, a Markdown body and a category. It carries **no** `organization_id` — a
+ * changelog is one record for the product, not a per-tenant one — so it is registered in
+ * `NON_TENANT_TABLES` (tenant-guard.ts), never `TENANT_TABLES`, and the public read reaches it
+ * through `TenantDatabase.identityRead()`.
+ */
+export const changelogEntries = mysqlTable(
+  'changelog_entries',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    version: varchar('version', { length: 100 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    bodyMd: text('body_md').notNull(),
+    /** `feature` | `fix` | `security`; VARCHAR with application validation, as `work_forms` does. */
+    category: varchar('category', { length: 32 }).notNull(),
+    /** Live on the public page. Drafts are never returned by the public read. */
+    published: boolean('published').notNull(),
+    /** When it went live, and the order key (newest first). NULL for a draft. */
+    publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_changelog_published').on(table.published, table.publishedAt, table.id)],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -2607,6 +2634,7 @@ export const TABLES = {
   org_settings: orgSettings,
   onboarding_progress: onboardingProgress,
   incidents,
+  changelog_entries: changelogEntries,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2689,3 +2717,4 @@ export type ImportRowRow = typeof importRows.$inferSelect;
 export type SearchIndexRow = typeof searchIndex.$inferSelect;
 export type NewSearchIndexRow = typeof searchIndex.$inferInsert;
 export type IncidentRow = typeof incidents.$inferSelect;
+export type ChangelogEntryRow = typeof changelogEntries.$inferSelect;

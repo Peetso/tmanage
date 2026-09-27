@@ -334,6 +334,11 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // than a leak, and the identity read path (`makeIdentityRunner`) may reach it. The public read
   // still filters `published = 1` in SQL; the guard's job here is only to allow the unscoped read.
   'incidents',
+  // x160. The public product changelog (0061). Global for the reason the identity tables are —
+  // it carries no `organization_id` at all: a changelog is one public record for the product,
+  // not a per-tenant one. The public `GET /v1/public/site/changelog` read reaches it through
+  // `TenantDatabase.identityRead(['changelog_entries'])`, which is why it must be declared here.
+  'changelog_entries',
 ]);
 
 export function isTenantTable(name: string): boolean {

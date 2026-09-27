@@ -53,6 +53,7 @@ import { InsightsAdoptionModule } from './modules/insights/adoption.controller.j
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
+import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -288,6 +289,10 @@ export class AppModule {
         // x158. Module 1, the public security-and-trust page. Public and tenant-less: it reads no
         // organization and requires no capability, and serves deterministic code-defined copy.
         TrustContentModule.register(),
+        // x160. The public product changelog — `GET /v1/public/site/changelog`, `@Public()`: no
+        // session, no tenant, no capability. It reads the GLOBAL `changelog_entries` (0061) on the
+        // identity path, so it depends only on the (global) tenant database and couples to nothing.
+        PublicChangelogModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
