@@ -3282,6 +3282,53 @@ export const quietHours = mysqlTable(
   ],
 );
 
+/** The cadences a notification digest may be delivered on. A fixed, closed vocabulary. */
+export const DIGEST_CADENCE = ['immediate', 'daily', 'weekly'] as const;
+export type DigestCadence = (typeof DIGEST_CADENCE)[number];
+
+/**
+ * PREF-DIGEST (x245, module 20 Preferences & accessibility). A member's notification digest cadence,
+ * stored whole in `pref_digest.digest_json`. Distinct from the quiet-hours time window (x215) and the
+ * per-kind notification opt-out (x152): this chooses *how often* the batched digest is delivered.
+ * `cadence` is one of {@link DIGEST_CADENCE}; `sendHour` is the hour of day (0–23) the digest is
+ * sent; `dayOfWeek` (0 = Sunday … 6 = Saturday) is the weekday a `weekly` digest is sent (inert for
+ * `immediate`/`daily`, but still validated and stored whole). The application validates a request
+ * against this shape before storing (the same division `pref_quiet_hours.quiet_json` takes). No
+ * dispatcher or email is built by this slice — this is preference storage only.
+ */
+export interface DigestPreference {
+  readonly cadence: DigestCadence;
+  readonly sendHour: number;
+  readonly dayOfWeek: number;
+}
+
+/**
+ * PREF-DIGEST — a member's own notification digest cadence (migration 0117, x245, module 20).
+ *
+ * One row per `(organization_id, membership_id)`: the digest cadence the acting member sets. Keyed by
+ * membership (like `pref_quiet_hours`) rather than the global user, because it is scoped to who the
+ * caller is *in this studio* and never leaves the tenant. `digest_json` holds the whole
+ * {@link DigestPreference} object; the settings are read and written as one, never queried across
+ * rows. The write is a single upsert against `uq_pref_digest_org_membership`, so a second save
+ * updates in place; `updated_at` follows the column's `ON UPDATE`. Absence is the shipped default
+ * (daily at 08:00), not an error — the read returns the defaults when no row exists.
+ */
+export const digestPreferences = mysqlTable(
+  'pref_digest',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    digestJson: json('digest_json').$type<DigestPreference>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_pref_digest_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member per studio.
+    uniqueIndex('uq_pref_digest_org_membership').on(table.organizationId, table.membershipId),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -4024,6 +4071,7 @@ export const TABLES = {
   notification_preferences: notificationPreferences,
   a11y_preferences: a11yPreferences,
   pref_quiet_hours: quietHours,
+  pref_digest: digestPreferences,
   usage_counters: usageCounters,
   usage_ledger_entries: usageLedgerEntries,
   file_assets: fileAssets,
@@ -4187,6 +4235,7 @@ export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
 export type A11yPreferenceRow = typeof a11yPreferences.$inferSelect;
 export type QuietHoursRow = typeof quietHours.$inferSelect;
 export type UserPreferenceRow = typeof userPreferences.$inferSelect;
+export type DigestPreferenceRow = typeof digestPreferences.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;

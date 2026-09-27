@@ -6,6 +6,24 @@ Status vocabulary is fixed by `15-AI-EXECUTION-HANDBOOK.md` §6:
 
 A row is only `tested` if a check was **actually executed** and its result recorded below.
 
+## x245 — notification digest frequency (module 20 Preferences & accessibility) — branch `x245-prefs-notification-digest`
+
+FEAT. The pass-23 audit found appearance, accessibility and quiet-hours preferences built
+(x182/x183/x215) but no digest-cadence preference. New tenant-scoped, per-`(organization_id,
+membership_id)` table `pref_digest` (migration `0117`) whose `digest_json` column holds the cadence
+whole (`cadence` ∈ immediate|daily|weekly, `sendHour` 0–23, `dayOfWeek` 0–6). `GET`/`PUT
+/v1/organizations/:orgSlug/preferences/digest` read and replace the caller's own row behind
+`work.read` (no `capabilities.ts` edit); the subject is always `principal.membershipId` — no path or
+body names another member. Validation is in the controller: an off-allowlist key, a cadence off the
+closed vocabulary, or a send hour / weekday out of range is a 400 with no write. Registered in all
+four places (`schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `users.sql` grant
+INSERT/UPDATE, migration `0117`). Web `DigestPreferenceScreen` at `/{orgSlug}/settings/digest`;
+`DigestPrefView` paired Exact in `e2e/contracts/api-web-shapes.ts`. **No dispatcher and no email**
+(Needs-Peter) — preference storage only, distinct from the quiet-hours time window and the per-kind
+opt-out. Unit: `digest.controller.test.ts` (default when unsaved, valid save/read-back own
+membership, another member's row not read, off-allowlist key 400, bad cadence 400, hour/weekday out
+of range 400, both routes behind `work.read`). No DB test / no new e2e (chain owns).
+
 ## x186 — public FAQ page (module 1, public site) — branch `x186-public-faq`
 
 FEAT. Adds the FAQ sub-page to the already-BUILT public site. New `@Public()`/`@NoTenant()` read

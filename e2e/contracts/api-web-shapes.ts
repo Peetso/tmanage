@@ -33,6 +33,7 @@ import type { A11yPreferencesView as ApiA11yPreferencesView } from '../../apps/a
 import type { InsightSavedViewView as ApiInsightSavedViewView } from '../../apps/api/src/modules/insights/saved-views.controller.js';
 import type { QuietHoursView as ApiQuietHoursView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
 import type { QuietHoursActiveView as ApiQuietHoursActiveView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
+import type { DigestPrefView as ApiDigestPrefView } from '../../apps/api/src/modules/preferences/digest.controller.js';
 import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { AdminAuditEventView as ApiAdminAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
@@ -224,6 +225,7 @@ import type { A11yPreferencesView as WebA11yPreferencesView } from '../../apps/w
 import type { InsightSavedViewView as WebInsightSavedViewView } from '../../apps/web/src/lib/api/insight-saved-views';
 import type { QuietHoursView as WebQuietHoursView } from '../../apps/web/src/lib/api/quiet-hours';
 import type { QuietHoursActiveView as WebQuietHoursActiveView } from '../../apps/web/src/lib/api/quiet-hours';
+import type { DigestPrefView as WebDigestPrefView } from '../../apps/web/src/lib/api/digest';
 import type { MyDay as WebMyDay } from '../../apps/web/src/lib/api/home';
 import type { Waiting as WebWaiting } from '../../apps/web/src/lib/api/home';
 import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/home';
@@ -471,6 +473,7 @@ type _quietHours = Assert<Exact<ApiQuietHoursView, WebQuietHoursView>>;
 type _quietHoursActive = Assert<Exact<ApiQuietHoursActiveView, WebQuietHoursActiveView>>;
 // Home widget preferences (x243): the member's own Home widget order/hidden set over `/home/widget-prefs`.
 type _homeWidgetPrefs = Assert<Exact<ApiHomeWidgetPrefsView, WebHomeWidgetPrefsView>>;
+type _digestPref = Assert<Exact<ApiDigestPrefView, WebDigestPrefView>>;
 type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
 type _messageRevision = Assert<Exact<ApiMessageRevisionView, WebMessageRevisionSummary>>;

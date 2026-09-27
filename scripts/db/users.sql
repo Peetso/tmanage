@@ -111,6 +111,7 @@
 --     saved_views, meeting_attendees, a11y_preferences, pref_quiet_hours
 --     saved_views, meeting_attendees, org_settings, security_settings
 --     saved_views, meeting_attendees, a11y_preferences, home_widget_prefs
+--     saved_views, meeting_attendees, a11y_preferences, pref_quiet_hours, pref_digest
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
 --     documents, decisions, work_item_checklist_items, billing_profiles
@@ -644,6 +645,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_seats`     TO 'tmanage_app'@'
 -- upsert against `uq_home_widget_prefs_org_membership`. No DELETE: a member clears their layout by
 -- saving the default, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`home_widget_prefs` TO 'tmanage_app'@'%';
+-- PREF-DIGEST notification digest cadence (x245, module 20, 0117). **INSERT, UPDATE** — a member's
+-- digest cadence is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE`
+-- upsert against `uq_pref_digest_org_membership`. No DELETE: a member changes cadence by saving a new
+-- value, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`pref_digest` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
