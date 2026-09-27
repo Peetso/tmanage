@@ -863,6 +863,39 @@ export const savedSearches = mysqlTable(
 );
 
 /**
+ * SRCH saved-search sharing (x272, migration 0142).
+ *
+ * A member may share one of their own `saved_searches` rows with the whole studio, so teammates can
+ * run it, and unshare it again. This table is the sharing half only (x214 built the per-user saved
+ * searches; the alert/digest half is out of scope): one row means "this saved search is shared with
+ * the org". `unique (organization_id, saved_search_id)` makes a share idempotent — a saved search is
+ * shared at most once — and PUT/DELETE toggle the single row. The owner who shared is recorded in
+ * `shared_by_membership_id`; the authoritative owner is always resolved from `saved_searches`
+ * (read-only), so only the owning member may share or unshare, a non-owner is a 403 and an unknown
+ * saved search is a 404.
+ *
+ * Tenant-owned: `organization_id` scopes the tenant and the `(organization_id, id)` unique key is the
+ * per-tenant convention. It intentionally carries **no** foreign key to `saved_searches` — the
+ * dependency on x214 is a soft read (resolve-then-404), not a schema-level hard dependency — only an
+ * FK to `organizations`. Created and deleted, never updated: the runtime credential holds INSERT and
+ * DELETE alone. `0142_saved_search_shares.sql` is the source of truth; this is its typed mirror.
+ */
+export const savedSearchShares = mysqlTable(
+  'saved_search_shares',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    savedSearchId: char('saved_search_id', { length: 36 }).notNull(),
+    sharedByMembershipId: char('shared_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_saved_search_shares_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_saved_search_shares_org_saved').on(table.organizationId, table.savedSearchId),
+  ],
+);
+
+/**
  * DOC-02/DOC-03 (x112). The append-only version history behind a `documents` row.
  *
  * Each save appends one immutable snapshot (the body as it stood, and who saved it) and bumps the
@@ -5472,6 +5505,7 @@ export const TABLES = {
   meeting_occurrence_overrides: meetingOccurrenceOverrides,
   saved_views: savedViews,
   saved_searches: savedSearches,
+  saved_search_shares: savedSearchShares,
   saved_context: savedContext,
   project_updates: projectUpdates,
   project_update_comments: projectUpdateComments,
@@ -5586,6 +5620,7 @@ export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type SavedSearchRow = typeof savedSearches.$inferSelect;
+export type SavedSearchShareRow = typeof savedSearchShares.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DocRevisionRow = typeof docRevisions.$inferSelect;
