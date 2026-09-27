@@ -508,6 +508,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`focus_blocks`      TO 'tmanage_app'@'
 -- SELECT above. The worker gets nothing here — this table is the API's alone, the `doc_bookmarks`
 -- posture above.
 GRANT INSERT, DELETE         ON `tmanage`.`inbox_saved_filters` TO 'tmanage_app'@'%';
+-- Org glossary of terms (0133, x263). A term is added (INSERT), its definition edited (UPDATE), and
+-- the term removed (DELETE); reading is the database-wide SELECT above. The BEFORE UPDATE trigger
+-- pins the tenant, so the granted UPDATE can change only the term/definition, never move a row
+-- between studios. The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`glossary_terms`    TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)

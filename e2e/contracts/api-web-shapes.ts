@@ -56,6 +56,7 @@ import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/a
 import type { DocRevisionView as ApiDocRevisionView } from '../../apps/api/src/modules/docs/revisions.service.js';
 import type { DocBookmarkView as ApiDocBookmarkView } from '../../apps/api/src/modules/docs/bookmarks.service.js';
 import type { InboxSavedFilterView as ApiInboxSavedFilterView } from '../../apps/api/src/modules/inbox/inbox-saved-filters.service.js';
+import type { GlossaryTermView as ApiGlossaryTermView } from '../../apps/api/src/modules/docs/glossary.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -309,6 +310,7 @@ import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web
 import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
 import type { SavedMessageSummary as WebSavedMessageSummary } from '../../apps/web/src/lib/api/message-bookmarks';
 import type { InboxSavedFilterView as WebInboxSavedFilterView } from '../../apps/web/src/lib/api/inbox-saved-filters';
+import type { GlossaryTermSummary as WebGlossaryTermSummary } from '../../apps/web/src/lib/api/glossary';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -824,6 +826,13 @@ type _messageBookmark = Assert<Exact<ApiSavedMessageView, WebSavedMessageSummary
  * always the caller's own.
  */
 type _inboxSavedFilter = Assert<Exact<ApiInboxSavedFilterView, WebInboxSavedFilterView>>;
+
+/**
+ * Org glossary of terms (x263). `GlossaryTermView` (`GET/POST/PATCH/DELETE …/glossary/terms`) — one
+ * glossary term and its definition. The `GlossaryScreen` reads exactly this response, so the pair is
+ * Exact.
+ */
+type _glossaryTerm = Assert<Exact<ApiGlossaryTermView, WebGlossaryTermSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST
