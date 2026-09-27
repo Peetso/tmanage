@@ -15398,3 +15398,30 @@ cross-tenant/absent file id and a cross-project file id are each a 404 with no w
 work item is a 404, an unrelated member's list is a 404, and a caller who may read but not update the
 item is a 403 on attach; a missing `fileAssetId` is a 400. No byte upload path is added (reuses the
 existing file.upload flow).
+## SEC / Work — bulk status transition (x206, module 7)
+
+**What shipped.** A multi-select status change for the work list. Work items could be transitioned one
+at a time (`POST …/work-items/:id/transitions`); this adds `POST …/work-items/bulk-transition`
+(`work.transition`), body `{ ids[], targetStatus }`, answered with a per-id outcome — the batch is
+deliberately **not** all-or-nothing. No new table: the batch is built over the existing work items and
+the existing single-item transition path. The controller de-duplicates ids, rejects an empty list, an
+unknown `targetStatus`, or a batch over `MAX_BULK_TRANSITION` (100) with a 400 before any row is read.
+
+**Security.** The one rule this slice cannot break — every id tenant-scoped before it transitions — it
+gets by composing `WorkItemsService.transition` per id rather than writing a divergent bulk path. That
+method reads the row inside the tenant (a foreign, deleted, or unreadable id reads as absent → `not_found`,
+never a 500 and never applied), authorizes `work.transition` against the row (`forbidden` per id), and
+asks the same state machine whether the move is legal (`skipped_invalid` per id); an optimistic-concurrency
+clash surfaces as `conflict`. No facts are supplied, so a move needing a blocker reason or a completion
+time is refused by the machine rather than guessed at. The route guard refuses a caller without
+`work.transition` with 403 before any id is read. No `capabilities.ts` edit; the cap is existing.
+
+**Surfaces.** `BulkTransitionView` (`bulk-transition.service.ts`) is a live `Exact` pair with the web's
+`BulkTransitionView` (`apps/web/src/lib/api/work-bulk-transition.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`WorkBulkActionBar` (`apps/web/src/components/screens/WorkBulkActionBar.tsx`) is a distinct component from
+the list and board screens: it multi-selects the loaded rows, picks a target, applies, and reads the mixed
+batch back per item. Proved database-free (`bulk-transition.controller.test.ts`): a legal batch applies and
+counts, an illegal move is reported per id without failing the batch, a foreign-tenant id is `not_found` and
+never transitioned, a per-item 403 maps to `forbidden`, and an over-cap/empty/unknown-target request is a
+400 that reads nothing. Not wired into `WorkListScreen` in-slice (kept off the existing list to avoid VR
+baseline churn); the bar is authored ready to mount.

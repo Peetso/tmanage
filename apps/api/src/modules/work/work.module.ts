@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   AUDIT_SERVICE,
+  BULK_TRANSITION_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
   WORK_CHECKLIST_SERVICE,
@@ -34,6 +35,8 @@ import { WorkItemLinksController } from './item-links.controller.js';
 import { WorkItemFilesRepository } from './item-files.repository.js';
 import { WorkItemFilesService } from './item-files.service.js';
 import { WorkItemFilesController } from './item-files.controller.js';
+import { BulkTransitionService } from './bulk-transition.service.js';
+import { BulkTransitionController } from './bulk-transition.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -107,6 +110,14 @@ export class WorkModule {
         ),
     };
 
+    // x206: the bulk status transition composes the single-item service — it applies no
+    // divergent bulk logic, so it needs nothing but that service to reuse every guard.
+    const bulkTransitionService: Provider = {
+      provide: BULK_TRANSITION_SERVICE,
+      inject: [WORK_ITEMS_SERVICE],
+      useFactory: (workItems: WorkItemsService) => new BulkTransitionService(workItems),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -117,6 +128,7 @@ export class WorkModule {
         commentsService,
         itemLinksService,
         itemFilesService,
+        bulkTransitionService,
       ],
       exports: [service],
       controllers: [
@@ -126,6 +138,7 @@ export class WorkModule {
         WorkCommentsController,
         WorkItemLinksController,
         WorkItemFilesController,
+        BulkTransitionController,
       ],
     };
   }
