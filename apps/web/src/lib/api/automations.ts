@@ -46,6 +46,21 @@ export interface CreateWorkflowTemplateInput {
   readonly enabled?: boolean;
 }
 
+/**
+ * One workflow run (x163) — paired Exact with the API's `WorkflowRunView`. `organizationId` is absent
+ * on both sides. `status` is `string` (not a union), matching the API view exactly — the closed set
+ * (`succeeded` | `failed`) is enforced server side, and the wire carries whatever token was recorded.
+ * `detail` is an arbitrary object on both.
+ */
+export interface WorkflowRunSummary {
+  readonly id: string;
+  readonly templateId: string;
+  readonly status: string;
+  readonly detail: Record<string, unknown>;
+  readonly startedAt: string;
+  readonly finishedAt: string;
+}
+
 function base(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/automations/templates`;
 }
@@ -71,6 +86,19 @@ export async function createWorkflowTemplate(
     method: 'POST',
     path: base(organizationSlug),
     body: input,
+  });
+  return data;
+}
+
+/** Run one workflow template and return the recorded run. */
+export async function runWorkflowTemplate(
+  client: ApiClient,
+  organizationSlug: string,
+  templateId: string,
+): Promise<WorkflowRunSummary> {
+  const { data } = await client.request<WorkflowRunSummary>({
+    method: 'POST',
+    path: `${base(organizationSlug)}/${encodeURIComponent(templateId)}/run`,
   });
   return data;
 }

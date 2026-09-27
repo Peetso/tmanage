@@ -108,7 +108,7 @@
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     document_comments, decision_supersessions, document_templates, work_forms,
---     workflow_templates
+--     workflow_templates, workflow_runs
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -380,6 +380,12 @@ GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'
 -- slice that adds UPDATE with the code that writes it. No DELETE. Nothing executes a template here
 -- (runs are x163), so the app needs no other privilege on this table.
 GRANT INSERT                 ON `tmanage`.`workflow_templates` TO 'tmanage_app'@'%';
+-- Automation workflow runs (x163, 0064). **INSERT only** — a run is created (INSERT) and read (the
+-- database-wide SELECT). A run is append-only history: this slice ships no editor and no removal path,
+-- the 0064 trigger pins organization_id/template_id immutable for every credential, and nothing
+-- updates a run at all. No UPDATE, no DELETE. In-app actions in this slice have no external egress and
+-- write no other tenant table, so the app needs no further privilege here.
+GRANT INSERT                 ON `tmanage`.`workflow_runs`      TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

@@ -113,6 +113,7 @@ import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
+import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -145,6 +146,7 @@ import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
+import type { WorkflowRunSummary as WebWorkflowRunSummary } from '../../apps/web/src/lib/api/automations';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -523,6 +525,15 @@ type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
  * `config` is an arbitrary object on both. `organizationId` is absent on both.
  */
 type _workflowTemplate = Assert<Exact<ApiWorkflowTemplateView, WebWorkflowTemplateSummary>>;
+
+/**
+ * Automations & integrations (x163). `WorkflowRunView` (`POST …/automations/templates/:id/run`,
+ * response) — the org-scoped record of one template execution. Paired with a live web consumer:
+ * `AutomationRunButton` reads exactly this response to show the run's outcome. `status` is `string` on
+ * both sides (the closed set is enforced server-side), `detail` is an arbitrary object on both, and
+ * `organizationId` is absent on both.
+ */
+type _workflowRun = Assert<Exact<ApiWorkflowRunView, WebWorkflowRunSummary>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

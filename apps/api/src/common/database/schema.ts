@@ -1524,6 +1524,43 @@ export const workflowTemplates = mysqlTable(
   ],
 );
 
+/**
+ * The bounded detail a workflow run (0064, x163) records — a small object describing what the in-app
+ * action did (its kind, its planned effect). The application validates its size before storing; the
+ * column holds it whole. Typed loosely here (an arbitrary object) because the meaningful shape is
+ * per-`action_kind` and produced by the run service, not by the schema.
+ */
+export type WorkflowRunDetail = Record<string, unknown>;
+
+/**
+ * Automation workflow runs (0064, x163). Org-scoped append-only history of one execution of a
+ * {@link workflowTemplates} row: the template it ran, a `status` from a fixed application allowlist
+ * (`succeeded` | `failed`), the bounded `detail_json` the in-app action produced, and the start/finish
+ * instants. The template reference is the composite `(organization_id, template_id)` key so a run
+ * cannot point across a tenant boundary. Identity (`organization_id`, `template_id`) is immutable at
+ * the engine; the app is granted INSERT only.
+ */
+export const workflowRuns = mysqlTable(
+  'workflow_runs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    templateId: char('template_id', { length: 36 }).notNull(),
+    status: varchar('status', { length: 32 }).notNull(),
+    detailJson: json('detail_json').$type<WorkflowRunDetail>().notNull(),
+    startedAt: datetime('started_at', { mode: 'date', fsp: 3 }).notNull(),
+    finishedAt: datetime('finished_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_workflow_runs_org_id').on(table.organizationId, table.id),
+    index('ix_workflow_runs_org_template').on(
+      table.organizationId,
+      table.templateId,
+      table.startedAt,
+    ),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2356,6 +2393,7 @@ export const TABLES = {
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
   workflow_templates: workflowTemplates,
+  workflow_runs: workflowRuns,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2402,6 +2440,7 @@ export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
 export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
+export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
