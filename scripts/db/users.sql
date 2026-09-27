@@ -908,6 +908,11 @@ GRANT INSERT ON `tmanage`.`project_templates` TO 'tmanage_app'@'%';
 -- append-only for the runtime credential specifically. **No UPDATE and no DELETE**: an update is the
 -- durable record of what was said and when. Internal-only, never projected to a client.
 GRANT INSERT ON `tmanage`.`project_status_updates` TO 'tmanage_app'@'%';
+-- `project_retro_notes` (PROJ / module 8, x311) gets INSERT and DELETE. A retro note is captured
+-- (INSERT), read grouped by category (the database-wide SELECT, line 183), and an individual note is
+-- removed (DELETE). **No UPDATE**: a note is a point-in-time reflection; the slice ships create/list/
+-- delete only, with no edit path. Same INSERT+DELETE posture as the typed work-item links (x204).
+GRANT INSERT, DELETE ON `tmanage`.`project_retro_notes` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes

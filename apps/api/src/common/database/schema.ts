@@ -1282,6 +1282,48 @@ export const projectStatusUpdates = mysqlTable(
   ],
 );
 
+/** PROJ / module 8 (x311). The retrospective categories a project retro note may be filed under. */
+export const PROJECT_RETRO_NOTE_CATEGORIES = ['went_well', 'to_improve', 'action'] as const;
+
+/**
+ * PROJ / module 8 (x311). A project's retrospective-notes log — a categorised reflection captured
+ * during a retro. Each note is filed under one of `went_well` / `to_improve` / `action`, carries a
+ * free-text `body`, and may optionally reference the `project_milestones` row the retro was held for
+ * (`milestone_id` NULL when the note is about the project as a whole).
+ *
+ * Distinct from `project_status_updates` (0107, x235), the studio's status-band changelog, and from
+ * `project_update_comments` (0084), threaded discussion under a published client update: a retro note
+ * is an append-oriented, categorised reflection with no status and no assignment. It is deletable
+ * (unlike the immutable status log): the runtime credential holds INSERT, DELETE and SELECT.
+ *
+ * Tenant-scoped and project-owned: the composite foreign key binds `(organization_id, project_id)` to
+ * `projects`, and the optional `(organization_id, milestone_id)` to `project_milestones`, so both
+ * always resolve inside the note's own tenant. `0179_project_retro_notes.sql` is the source of truth;
+ * this is its typed mirror.
+ */
+export const projectRetroNotes = mysqlTable(
+  'project_retro_notes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    milestoneId: char('milestone_id', { length: 36 }),
+    category: mysqlEnum('category', PROJECT_RETRO_NOTE_CATEGORIES).notNull(),
+    body: text('body').notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_retro_notes_org_id').on(table.organizationId, table.id),
+    index('ix_project_retro_notes_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 /**
  * PROJ / module 8 (x234). A reusable project template — a saved shape a studio can stamp out a new
  * project from: a `name`, an optional `description`, and the objective titles a project made from the
@@ -5008,6 +5050,7 @@ export const TABLES = {
   project_internal_risks: projectInternalRisks,
   project_templates: projectTemplates,
   project_status_updates: projectStatusUpdates,
+  project_retro_notes: projectRetroNotes,
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
@@ -5166,6 +5209,7 @@ export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
 export type ProjectTemplateRow = typeof projectTemplates.$inferSelect;
 export type ProjectStatusUpdateRow = typeof projectStatusUpdates.$inferSelect;
+export type ProjectRetroNoteRow = typeof projectRetroNotes.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;

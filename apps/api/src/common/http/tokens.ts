@@ -151,6 +151,9 @@ export const PROJECT_STATUS_UPDATES_REPOSITORY = Symbol.for(
   'tmanage.ProjectStatusUpdatesRepository',
 );
 export const PROJECT_STATUS_UPDATES_SERVICE = Symbol.for('tmanage.ProjectStatusUpdatesService');
+/** PROJ / module 8 (x311). A project's retrospective-notes log — create/list-by-category/delete. */
+export const PROJECT_RETRO_NOTES_REPOSITORY = Symbol.for('tmanage.ProjectRetroNotesRepository');
+export const PROJECT_RETRO_NOTES_SERVICE = Symbol.for('tmanage.ProjectRetroNotesService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');
