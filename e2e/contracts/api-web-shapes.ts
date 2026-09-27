@@ -143,6 +143,7 @@ import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/a
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
+import type { WorkItemLinkView as ApiWorkItemLinkView } from '../../apps/api/src/modules/work/item-links.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -337,6 +338,7 @@ import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/w
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
+import type { WorkItemLink as WebWorkItemLink } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -742,6 +744,16 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * Append-only: there is no edit or delete route, so no update shape to pair.
  */
 type _workComment = Assert<Exact<ApiWorkCommentView, WebWorkComment>>;
+
+/**
+ * x204. `WorkItemLinkView` ↔ `WorkItemLink` — one typed link authored on a work item
+ * (`GET`/`POST …/work-items/:id/links`, `DELETE …/links/:linkId`). `WorkItemDependenciesScreen`
+ * reads exactly this shape, so the `id`/`fromWorkItemId`/`toWorkItemId`/`toWorkItemTitle`/
+ * `toWorkItemState`/`linkType`/`createdAt` pair is held identical on both sides, `linkType` the same
+ * `blocks | blocked_by | relates` union. A link is immutable: there is no edit route, so no update
+ * shape to pair.
+ */
+type _workItemLink = Assert<Exact<ApiWorkItemLinkView, WebWorkItemLink>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

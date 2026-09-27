@@ -14128,6 +14128,39 @@ comment. Proved database-free with the real `authorize` (`work-comments.controll
 add→list oldest-first for a related member, a cross-tenant/absent parent is a 404 with no write, an
 unrelated member's list is a 404, and an add on an item the caller can read but not update is a 403.
 
+## WORK item dependencies / typed links (x204, module 7)
+
+**What landed.** The Work audit was "Work built; no dependency model between items". `0011` gave a
+single `depends_on` edge and a blocker ledger; this slice adds the general, user-authored graph the
+detail screen needs: a new `work_item_links` table (migration `0085`; tenant-scoped, BOTH ends bound
+by composite FKs `(organization_id, from|to_work_item_id) → work_items (organization_id, id)`)
+carrying a `link_type` of `blocks | blocked_by | relates`, and three endpoints under
+`/v1/organizations/:orgSlug/work-items/:workItemId/links`: `POST` to create (`work.update`), `GET` to
+list an item's links created-at ascending (`work.read`), and `DELETE :linkId` to remove one
+(`work.update`). Rows are immutable (a `BEFORE UPDATE` trigger); correcting a link is delete-and-add.
+Capabilities are reused (`work.read`/`work.update`); no `capabilities.ts` edit.
+
+**Refusals and the Known-trap order.** BOTH the path item and the body `toWorkItemId` are resolved
+tenant-scoped _before_ `authorize` or any write, so an unknown or cross-tenant target is a 404 that
+never leaks existence and never a foreign-key 500. A create is refused 400 for a self-link, for a
+duplicate typed edge, and for a `blocks`/`blocked_by` link that would close a cycle (the prospective
+directed edge is walked against the tenant's blocking graph, `blocks` kept and `blocked_by` reversed
+to a canonical blocker→blocked direction; `relates` is undirected and never cycles). A caller who may
+read the item but not update it gets a 403; an unrelated caller gets a 404. The new table is
+registered in all four places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql`
+grant (INSERT + DELETE, no UPDATE — immutable), and the on-disk migration `0085` the readdir migrator
+applies.
+
+**Surfaces.** `WorkItemLinkView` (`item-links.service.ts`) is a live `Exact` pair with the web's
+`WorkItemLink` (`apps/web/src/lib/api/work-items.ts`) in `e2e/contracts/api-web-shapes.ts`, `linkType`
+the same union on both sides. `WorkItemDependenciesScreen`
+(`apps/web/src/components/screens/WorkItemDependenciesScreen.tsx`) mounts additively on the work-item
+detail screen, disjoint from the x145 checklist and x147 comments panels: it lists the links and
+creates/removes one. Proved database-free with the real `authorize`
+(`item-links.controller.test.ts`): create→list→remove for a related member, self-link/duplicate/cycle
+are 400 with no write, a cross-tenant/absent target or path item is a 404, and a create on an item the
+caller can read but not update is a 403.
+
 ## SEC / Decisions — decision lock (immutable once locked) (x150, module 12)
 
 **What landed.** The Decisions audit was "Partial; decision lock deferred": a decision could be moved

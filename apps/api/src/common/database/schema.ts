@@ -1311,6 +1311,47 @@ export const workItemComments = mysqlTable(
   ],
 );
 
+/** x204's typed relation between two work items. `blocks`: from blocks to; `relates`: undirected. */
+export const WORK_ITEM_LINK_TYPES = ['blocks', 'blocked_by', 'relates'] as const;
+
+/**
+ * x204 (migration 0085). A typed link between two work items of one studio — the general,
+ * user-authored relationship the detail screen needs, distinct from the `depends_on` edge of
+ * `0011`. Both ends bind `(organization_id, from_work_item_id)` and `(organization_id,
+ * to_work_item_id)` to `work_items (organization_id, id)`, so a cross-tenant end is a non-existent
+ * pair; `uq_work_item_links_edge` admits one row per typed ordered pair. Rows are immutable
+ * (`0085`'s trigger) — correcting a link is delete-and-add. `0085_work_item_links.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const workItemLinks = mysqlTable(
+  'work_item_links',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    fromWorkItemId: char('from_work_item_id', { length: 36 }).notNull(),
+    toWorkItemId: char('to_work_item_id', { length: 36 }).notNull(),
+    linkType: mysqlEnum('link_type', WORK_ITEM_LINK_TYPES).notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_links_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_links_edge').on(
+      table.organizationId,
+      table.fromWorkItemId,
+      table.toWorkItemId,
+      table.linkType,
+    ),
+    index('ix_work_item_links_from').on(
+      table.organizationId,
+      table.fromWorkItemId,
+      table.createdAt,
+      table.id,
+    ),
+    index('ix_work_item_links_to').on(table.organizationId, table.toWorkItemId),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client requests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3187,6 +3228,7 @@ export const TABLES = {
   work_item_dependencies: workItemDependencies,
   work_item_checklist_items: workItemChecklistItems,
   work_item_comments: workItemComments,
+  work_item_links: workItemLinks,
   work_blockers: workBlockers,
   client_requests: clientRequests,
   deliverable_versions: deliverableVersions,
@@ -3276,6 +3318,8 @@ export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelec
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
 export type WorkItemCommentRow = typeof workItemComments.$inferSelect;
 export type NewWorkItemCommentRow = typeof workItemComments.$inferInsert;
+export type WorkItemLinkRow = typeof workItemLinks.$inferSelect;
+export type NewWorkItemLinkRow = typeof workItemLinks.$inferInsert;
 export type ClientRequestRow = typeof clientRequests.$inferSelect;
 export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
 export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;

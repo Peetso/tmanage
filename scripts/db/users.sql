@@ -283,6 +283,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_profiles`      TO 'tmanage_ap
 -- it again), least privilege, and the 0082 trigger pins `organization_id` immutable for every
 -- credential besides so identity cannot move even were UPDATE granted.
 GRANT INSERT, DELETE         ON `tmanage`.`billing_contacts`      TO 'tmanage_app'@'%';
+-- x204 (0085) work item links. A typed link is added (INSERT), read (the database-wide SELECT) and
+-- removed (DELETE) — this slice ships add/list/remove — so INSERT and DELETE and **no UPDATE**: a
+-- typed edge is immutable, correcting one is delete-and-add, and the 0085 trigger refuses UPDATE for
+-- every credential besides. DELETE destroys the only record of the link, but it is a planning edge
+-- the way `work_item_dependencies` is, removable by the member who owns the work.
+GRANT INSERT, DELETE         ON `tmanage`.`work_item_links`        TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

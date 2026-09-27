@@ -251,3 +251,60 @@ export async function addWorkComment(
   });
   return data;
 }
+
+// ── x204: work item dependencies / typed links ───────────────────────────────
+
+/** The typed relationship one link expresses. `blocks`: this item blocks the target. */
+export type WorkItemLinkType = 'blocks' | 'blocked_by' | 'relates';
+
+/**
+ * One typed link authored on a work item — x204 (Work module 7). The API projection is
+ * `WorkItemLinkView`; this is its web mirror, paired `Exact` in `e2e/contracts`. A link is a
+ * fact with no editable field: the client creates, lists and removes, and there is no edit.
+ */
+export interface WorkItemLink {
+  readonly id: string;
+  readonly fromWorkItemId: string;
+  readonly toWorkItemId: string;
+  readonly toWorkItemTitle: string;
+  readonly toWorkItemState: string;
+  readonly linkType: WorkItemLinkType;
+  readonly createdAt: string;
+}
+
+export async function listItemLinks(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<readonly WorkItemLink[]> {
+  const { data } = await client.request<{ links: readonly WorkItemLink[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/links`,
+  });
+  return data.links;
+}
+
+export async function addItemLink(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  input: { readonly toWorkItemId: string; readonly linkType: WorkItemLinkType },
+): Promise<WorkItemLink> {
+  const { data } = await client.request<WorkItemLink>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/links`,
+    body: input,
+  });
+  return data;
+}
+
+export async function removeItemLink(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  linkId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/links/${encodeURIComponent(linkId)}`,
+  });
+}
