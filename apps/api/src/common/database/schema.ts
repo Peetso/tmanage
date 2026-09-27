@@ -1904,6 +1904,43 @@ export const personAllocations = mysqlTable(
   ],
 );
 
+/** A member skill's three fixed proficiency rungs (0070, x172). The set is the contract. */
+export const PERSON_SKILL_LEVELS = ['basic', 'proficient', 'expert'] as const;
+export type PersonSkillLevel = (typeof PERSON_SKILL_LEVELS)[number];
+
+/**
+ * People member skills (0070, x172). A `label` + `level` hung off a `memberships` row: what a member
+ * can do, so they can be found for matching. Tenant-scoped (`organization_id`) and membership-owned
+ * (`membership_id`); one skill per `(organization_id, membership_id, label)`. Identity
+ * (`organization_id`, `membership_id`, `label`) is immutable at the engine — a re-label is a delete
+ * and re-add. The app holds INSERT and DELETE only.
+ */
+export const personSkills = mysqlTable(
+  'person_skills',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 80 }).notNull(),
+    level: mysqlEnum('level', PERSON_SKILL_LEVELS).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_person_skills_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_person_skills_member_label').on(
+      table.organizationId,
+      table.membershipId,
+      table.label,
+    ),
+    index('ix_person_skills_member_label').on(
+      table.organizationId,
+      table.membershipId,
+      table.label,
+      table.id,
+    ),
+  ],
+);
+
 /**
  * Per-member weekly capacity (0068, x170). People module 14. Tenant-scoped: one active row per
  * member, keyed by `(organization_id, membership_id)`, holding the available hours a week and the
@@ -2997,6 +3034,7 @@ export const TABLES = {
   workflow_conditions: workflowConditions,
   person_allocations: personAllocations,
   person_capacity: personCapacity,
+  person_skills: personSkills,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -3050,6 +3088,7 @@ export type IntegrationConnectionRow = typeof integrationConnections.$inferSelec
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
 export type PersonCapacityRow = typeof personCapacity.$inferSelect;
+export type PersonSkillRow = typeof personSkills.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;

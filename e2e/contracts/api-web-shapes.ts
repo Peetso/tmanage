@@ -202,6 +202,10 @@ import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '..
 import type { WorkflowConditionSummary as WebWorkflowConditionSummary } from '../../apps/web/src/lib/api/automations';
 import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
 import type { CapacityHeatmapView as WebCapacityHeatmapView } from '../../apps/web/src/lib/api/team-capacity-heatmap';
+import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/modules/people/skills.controller.js';
+import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
+import type { SkillSearchView as ApiSkillSearchView } from '../../apps/api/src/modules/people/skill-search.controller.js';
+import type { SkillSearchResult as WebSkillSearchResult } from '../../apps/web/src/lib/api/people-skill-search';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -787,6 +791,23 @@ type _personCapacity = Assert<Exact<ApiPersonCapacityView, WebPersonCapacity>>;
  * member/cell shapes are held identical, so a rename or retype on either side fails the gate.
  */
 type _capacityHeatmap = Assert<Exact<ApiCapacityHeatmapView, WebCapacityHeatmapView>>;
+
+/**
+ * People member skills (x172). `PersonSkillView` (`GET`/`POST …/people/:membershipId/skills`,
+ * response) — one member skill. Paired Exact with a live web consumer: `PersonSkillsPanel` reads
+ * exactly this response to list and add skills. The `level` union (`basic | proficient | expert`) is
+ * identical on both sides, and `organizationId` is absent on both — the wire never echoes the tenant.
+ */
+type _personSkill = Assert<Exact<ApiPersonSkillView, WebPersonSkillSummary>>;
+
+/**
+ * Skill directory search (x194). `SkillSearchView` (`GET …/people/skills/search?skill=&level=`,
+ * response) — one directory hit: a member and the requested skills they matched. Paired Exact with a
+ * live web consumer: `SkillSearchScreen` reads exactly this response to list matching members. The
+ * `matched` element (`{ label, level }`) and the `level`/`status` unions are identical on both sides,
+ * and `organizationId` is absent on both — the wire never echoes the tenant.
+ */
+type _skillSearch = Assert<Exact<ApiSkillSearchView, WebSkillSearchResult>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

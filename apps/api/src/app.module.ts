@@ -66,6 +66,8 @@ import { IntegrationDirectoryModule } from './modules/automations/directory.cont
 import { WebhooksModule } from './modules/automations/webhooks.controller.js';
 import { MaintenanceModule } from './modules/platform/maintenance.controller.js';
 import { FaqContentModule } from './modules/public-site/faq.module.js';
+import { PeopleSkillsModule } from './modules/people/people-skills.module.js';
+import { SkillSearchModule } from './modules/people/skill-search.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -359,6 +361,15 @@ export class AppModule {
         // no tenant, no capability. Deterministic code-defined grouped Q&A copy; depends on nothing
         // (no database, no mailer), so its position here is free.
         FaqContentModule.register(),
+        // x172. People module 14: a member's declared skills / tags, mounted under
+        // `…/people/:membershipId/skills`. Write behind `project.manage`, read behind `work.read`;
+        // it constructs its own repository handle. Position by subject, beside the other People work.
+        PeopleSkillsModule.register(),
+        // x194. People module 14: the skill directory search — find members by one or more skill
+        // tags (+ optional minimum level), mounted at `…/people/skills/search`. Read-only behind the
+        // reused `work.read`; it constructs its own repository handle. A distinct literal path from
+        // x172's `…/people/:membershipId/skills`, so no route collision. Position by subject.
+        SkillSearchModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

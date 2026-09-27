@@ -71,6 +71,9 @@ export const PERSON_ALLOCATIONS_REPOSITORY = Symbol.for('tmanage.PersonAllocatio
 export const PERSON_CAPACITY_REPOSITORY = Symbol.for('tmanage.PersonCapacityRepository');
 /** Team capacity heatmap (x193). The org-level read service that folds capacity × allocations. */
 export const CAPACITY_HEATMAP_SERVICE = Symbol.for('tmanage.CapacityHeatmapService');
+export const PERSON_SKILLS_REPOSITORY = Symbol.for('tmanage.PersonSkillsRepository');
+/** x194. The read-only skill directory search repository (find members by skill tag). */
+export const PERSON_SKILL_SEARCH_REPOSITORY = Symbol.for('tmanage.PersonSkillSearchRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */

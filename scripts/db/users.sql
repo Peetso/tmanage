@@ -108,6 +108,8 @@
 --     saved_views, meeting_attendees, a11y_preferences
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
+--     saved_views, meeting_attendees
+--   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items, person_skills
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     document_comments, decision_supersessions, document_templates, work_forms, onboarding_progress, marketing_leads
@@ -481,6 +483,12 @@ GRANT INSERT                 ON `tmanage`.`person_allocations` TO 'tmanage_app'@
 -- 0068 trigger pins organization_id/membership_id immutable for every credential besides. Reads use
 -- the database-wide SELECT above.
 GRANT INSERT, UPDATE         ON `tmanage`.`person_capacity`   TO 'tmanage_app'@'%';
+-- People member skills (x172, migration 0070). **INSERT, DELETE** — a skill is added (INSERT) and
+-- removed (DELETE), and read through the database-wide SELECT. No UPDATE: a re-label is a delete and
+-- re-add, and the 0070 trigger pins organization_id/membership_id/label immutable for every
+-- credential, so a level-edit slice adds UPDATE with the code that writes it. A removed skill leaves
+-- no history to protect (unlike a message or a notification), so DELETE is the right grant here.
+GRANT INSERT, DELETE         ON `tmanage`.`person_skills`     TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

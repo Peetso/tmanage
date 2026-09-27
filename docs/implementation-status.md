@@ -14886,3 +14886,58 @@ bands) and a focusable scroll region (WCAG 2.2 2.1.1). Proved database-free with
 (`capacity-heatmap.controller.test.ts`): the utilisation fold and over-allocation flag are correct for
 a seeded member set, a member with allocations but no capacity reads null utilisation, an out-of-range
 `weeks` or malformed `from` is a 400, only the acting tenant's rows are folded, and a client read is a 403. Deferred: a Monday-snapped default window on the server and a per-project drill-down.
+## People member skills — add / list / remove a member's skills (x172, module 14)
+
+**What landed.** The People module had a member directory and a profile but no record of what a
+member can do. This slice adds a tenant-scoped, membership-owned `person_skills` table (migration
+`0070`) — a normalised `label` (VARCHAR(80)) and a `level` (`basic | proficient | expert`), one per
+`(organization_id, membership_id, label)` — and three endpoints under
+`/v1/organizations/:orgSlug/people/:membershipId/skills`: `POST` to add a skill (`project.manage`),
+`GET` to list a member's skills label-ascending (`work.read`), and `DELETE :skillId` to remove one
+(`project.manage`). Capabilities are reused; no `capabilities.ts` edit. Skill-based matching is
+deferred to a later slice; this slice owns the add/list/remove of the tag.
+
+**Known-trap order (resolve before authorize).** Every route resolves the `:membershipId`
+tenant-scoped _first_, so an unknown or cross-tenant member is a 404 with no write, before any
+`authorize` or mutation. An add then validates the label (blank/over-length → 400) and the level
+(bad value → 400) and maps the UNIQUE `(member, label)` violation to a 409; a delete resolves the
+skill tenant-and-member-scoped before removing it (unknown → 404, no write). `PersonSkillView` never
+echoes `organization_id`. The new table is registered in all four places — `schema.ts` def +
+`TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT, DELETE — a re-label is a delete
+and re-add; the 0070 trigger pins identity), and the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `PersonSkillView` (`skills.controller.ts`) is a live `Exact` pair with the web's
+`PersonSkillSummary` (`apps/web/src/lib/api/people-skills.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`PersonSkillsPanel` (`apps/web/src/components/screens/PersonSkillsPanel.tsx`) reads its own query,
+adds a skill at a level, lists a member's skills, and removes one; every write invalidates the query.
+Proved database-free with the real `authorize` (`skills.controller.test.ts`): add→list→remove, a
+duplicate label is a 409, a blank/over-length/bad-level payload is a 400 with no write, a
+cross-tenant member id is a 404 with no write, and an add without `project.manage` is a 403. Deferred
+to a later slice: skill-based member matching and a level edit (UPDATE grant lands with it).
+
+## Skill directory search — find members by skill (x194, module 14)
+
+**What landed.** x172 stored members' skills but nothing read across members; the audit's "People —
+no skill-based search". x194 adds one read endpoint, `GET …/people/skills/search?skill=&level=`
+(`SkillSearchController`, behind the reused `work.read`, no `capabilities.ts` edit, no new table):
+filter the directory by one or more skill tags and an optional minimum level, returning matching
+members with the skills they matched. A distinct literal path from x172's
+`…/people/:membershipId/skills`, so the two controllers never collide, wired by its own
+`SkillSearchModule` in `app.module.ts` (file-disjoint from every other module).
+
+**Read-only safety.** Every query is tenant-scoped — the repository predicates `organization_id =
+context` on both the `person_skills` row and the joined `memberships` row, so a member from another
+tenant can never appear. An org-scoped `authorize('work.read', projectId: null)` runs before any read
+(a suspended membership is a 403). A blank query returns an empty result rather than scanning the
+directory; the requested labels are capped (≤20), the level is validated against the stored level set
+(bad → 400), and the member page size is capped (≤50, default 25) so no input yields an unbounded
+read. A result row never echoes `organization_id`.
+
+**Surfaces.** `SkillSearchView` (`skill-search.controller.ts`) is a live `Exact` pair with the web's
+`SkillSearchResult` (`apps/web/src/lib/api/people-skill-search.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`SkillSearchScreen` (`apps/web/src/components/screens/SkillSearchScreen.tsx`) picks skill tags and a
+minimum level and lists matching members; it stays empty until a tag is added. Proved database-free
+with the real `authorize` (`skill-search.controller.test.ts`): a search returns only matching members
+grouped per member, a minimum level narrows, a blank query returns empty with no read, the member page
+is capped, a bad level/limit is a 400, and a suspended membership is a 403 with no read. The
+tenant-scoped join round-trip is the chain's DB suite, not this slice.
