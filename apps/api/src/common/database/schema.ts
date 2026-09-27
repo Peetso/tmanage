@@ -4804,6 +4804,42 @@ export type WorkItemRecurrenceRow = typeof workItemRecurrence.$inferSelect;
 export type NewWorkItemRecurrenceRow = typeof workItemRecurrence.$inferInsert;
 
 /**
+ * x262. People teams (People module 14). One table, two row kinds distinguished by nullability
+ * (the x233 `work_item_labels` pattern): a **definition** row carries `name` (with `team_id`/
+ * `membership_id` NULL) and is the team; an **assignment** row carries `team_id` + `membership_id`
+ * (with `name` NULL) and places one member on one team. `name` is unique per tenant so a duplicate
+ * team name is a 409; `(organization_id, team_id, membership_id)` is unique so assigning is
+ * idempotent. The self-referential `fk_member_teams_team` binds `(organization_id, team_id)` back to
+ * this table and `fk_member_teams_member` binds `(organization_id, membership_id)` to `memberships`,
+ * so a cross-tenant team or a non-member assignment is a non-existent pair — migration
+ * `0132_member_teams.sql`.
+ */
+export const memberTeams = mysqlTable(
+  'member_teams',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    teamId: char('team_id', { length: 36 }),
+    membershipId: char('membership_id', { length: 36 }),
+    name: varchar('name', { length: 120 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_member_teams_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_member_teams_org_name').on(table.organizationId, table.name),
+    uniqueIndex('uq_member_teams_assignment').on(
+      table.organizationId,
+      table.teamId,
+      table.membershipId,
+    ),
+    index('ix_member_teams_team').on(table.organizationId, table.teamId, table.id),
+  ],
+);
+
+export type MemberTeamRow = typeof memberTeams.$inferSelect;
+export type NewMemberTeamRow = typeof memberTeams.$inferInsert;
+
+/**
  * DOC bookmarks / favorites (x242). A membership's private favorite of a `documents` row â€” the fact
  * "this membership bookmarked this document". Per-membership and tenant-scoped like `home_pinned_items`
  * (0050): created (INSERT) and removed (DELETE), never edited, so there is no immutability trigger â€”
@@ -5015,6 +5051,7 @@ export const TABLES = {
   inbox_saved_filters: inboxSavedFilters,
   doc_bookmarks: docBookmarks,
   work_item_recurrence: workItemRecurrence,
+  member_teams: memberTeams,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   conversation_read_state: conversationReadState,

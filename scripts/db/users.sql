@@ -373,6 +373,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`work_item_labels`      TO 'tmanage_ap
 -- the first time, rewrites freq/interval/until in place after) and DELETE (clear the rule). Reading
 -- is the database-wide SELECT above; the 0127 trigger pins organization_id immutable.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_recurrence`  TO 'tmanage_app'@'%';
+-- x262 people teams. INSERT (define a team; assign a member to a team) and DELETE (unassign a
+-- member). No UPDATE: a team is defined once and a member is assigned or unassigned, never amended
+-- in place; the 0132 trigger pins organization_id immutable, and reading is the database-wide SELECT
+-- above.
+GRANT INSERT, DELETE         ON `tmanage`.`member_teams`          TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

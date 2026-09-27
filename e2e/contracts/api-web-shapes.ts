@@ -186,6 +186,11 @@ import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
 import type { MemberProfileView as ApiMemberProfileView } from '../../apps/api/src/modules/people/member-profile.controller.js';
+import type {
+  TeamView as ApiTeamView,
+  TeamMemberView as ApiTeamMemberView,
+  TeamDetailView as ApiTeamDetailView,
+} from '../../apps/api/src/modules/people/teams.controller.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { BulkTransitionView as ApiBulkTransitionView } from '../../apps/api/src/modules/work/bulk-transition.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
@@ -478,6 +483,11 @@ import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
 import type { MemberProfileView as WebMemberProfileView } from '../../apps/web/src/lib/api/member-profile';
+import type {
+  TeamView as WebTeamView,
+  TeamMemberView as WebTeamMemberView,
+  TeamDetailView as WebTeamDetailView,
+} from '../../apps/web/src/lib/api/people-teams';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { BulkTransitionView as WebBulkTransitionView } from '../../apps/web/src/lib/api/work-bulk-transition';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
@@ -1086,6 +1096,16 @@ type _insightComparison = Assert<Exact<ApiPeriodComparisonView, WebPeriodCompari
  * saves it — so this is a live `Exact` pair, not an exemption.
  */
 type _memberProfile = Assert<Exact<ApiMemberProfileView, WebMemberProfileView>>;
+
+/**
+ * x262 — `…/people/teams`. People teams (module 14, planning PEO-03). `TeamView` (`GET`/`POST`
+ * response) is the list row; `TeamDetailView` (`GET …/teams/:id`) carries the roster of
+ * `TeamMemberView` (paired through its parent and on its own). All three pair Exact with the
+ * `TeamsScreen`'s web consumer, so the API projections and the screen cannot drift.
+ */
+type _teamView = Assert<Exact<ApiTeamView, WebTeamView>>;
+type _teamMemberView = Assert<Exact<ApiTeamMemberView, WebTeamMemberView>>;
+type _teamDetailView = Assert<Exact<ApiTeamDetailView, WebTeamDetailView>>;
 
 /**
  * x134 — `GET …/insights/workload-forecast?weeks`. The forward-looking workload forecast: `weeks`
