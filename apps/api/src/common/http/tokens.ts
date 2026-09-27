@@ -75,6 +75,8 @@ export const WORK_ITEM_FILES_SERVICE = Symbol.for('tmanage.WorkItemFilesService'
 export const BULK_TRANSITION_SERVICE = Symbol.for('tmanage.BulkTransitionService');
 /** x231. A work item's logged effort / time entries, behind `work.read`/`work.update`. */
 export const WORK_TIME_LOGS_SERVICE = Symbol.for('tmanage.WorkTimeLogsService');
+/** x258. A work item's effort estimate (plan vs actual), behind `work.read`/`work.update`. */
+export const WORK_ITEM_ESTIMATE_SERVICE = Symbol.for('tmanage.WorkItemEstimateService');
 export const WORK_WATCHERS_SERVICE = Symbol.for('tmanage.WorkWatchersService');
 /** x256. A work item's personal reminders (set/clear own + own due list), behind `work.read`. */
 export const WORK_ITEM_REMINDERS_SERVICE = Symbol.for('tmanage.WorkItemRemindersService');

@@ -105,6 +105,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // studio's effort ledger at once. `organization_id` is NOT NULL and carries the
   // `(organization_id, id)` key, so the guard scopes its reads and its writes.
   work_item_time_logs: 'organization_id',
+  // x258 (0128). An effort estimate per work item: tenant-owned, and an unscoped read would be
+  // every studio's planning figures at once. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key, so the guard scopes its reads and its writes.
+  work_item_estimates: 'organization_id',
   // x232. A work item's watchers/subscribers: a self-service watch list tenant-scoped like every
   // sibling — an unscoped read would be every studio's subscriptions (and who watches what) at once.
   work_item_watchers: 'organization_id',
