@@ -13988,3 +13988,34 @@ a failed run rather than any egress, a disabled template is a 409 with no run, a
 is a 404 with no write, and a role without `org.manage` (org_admin) is a 403. Deferred to later slices:
 run history listing, real downstream side-effects (create work item / notification writes), and external
 delivery (x166).
+
+## Automations & integrations — run history (list + detail read) (x164, module 17)
+
+`38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Automations & integrations names run history, and
+AUDIT-2026-09-27 ranks "Automations Missing — run history" #2. This slice adds the read half over x163's
+`workflow_runs`: two org-scoped, read-only endpoints — `GET /v1/organizations/:orgSlug/automations/runs`
+(list the tenant's runs across all templates, newest first, with an optional allowlisted `status` filter
+and a bounded page) and `GET /v1/organizations/:orgSlug/automations/runs/:runId` (read one run's
+`detail`). It reuses `org.manage` (no `automation.*` capability exists), so there is no `capabilities.ts`
+edit, and it adds **no migration and no table** — it reads the `workflow_runs` x163 created via the
+database-wide SELECT, so `users.sql` is unchanged.
+
+**Security order — resolve before authorize.** On the detail route the run id is a path parameter, so it
+is resolved within the acting tenant (`history.findById`, tenant-scoped) before any authorization: a
+cross-tenant or unknown id is a 404, never a 403 that would reveal another tenant's run. Only then does
+the real `authorize` make the org-scoped `org.manage` decision (403 on denial). The list is tenant-scoped
+by the repository, so a cross-tenant read is impossible; its `status` filter is validated against the
+fixed allowlist (`succeeded` | `failed`) before the repository is touched — an off-list value is a 400,
+never a query predicate — and `limit` is bounded server-side. The slice writes nothing on any path.
+
+**Surfaces.** `WorkflowRunHistoryView` (list, `detail` omitted) and `WorkflowRunDetailView` (with
+`detail`) in `automations/history.controller.ts` are live `Exact` pairs with the web's
+`WorkflowRunHistoryItem` and `WorkflowRunDetail` (`apps/web/src/lib/api/automations.ts`) in
+`e2e/contracts/api-web-shapes.ts`; neither echoes `organization_id`.
+`AutomationRunHistoryScreen` (`apps/web/src/components/screens/AutomationRunHistoryScreen.tsx`, route
+`[orgSlug]/automations/runs`) lists runs in an accessible table with an allowlisted status filter and
+opens a detail drawer that reads one run on demand; it is axe-clean in jsdom. Proved database-free with
+the real `authorize` (`history.controller.test.ts`): the list is org-scoped newest-first, an off-list
+status filter is a 400, an allowlisted filter narrows the list, a role without `org.manage` (org_admin)
+is a 403 on both routes, one run's detail reads back, and a cross-tenant/unknown run id is a 404 resolved
+before authorize. Deferred to the chain: the DB round-trip and an e2e journey.

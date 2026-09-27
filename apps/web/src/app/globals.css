@@ -97,6 +97,24 @@ body {
   justify-content: flex-end;
 }
 
+.tm-row--between {
+  justify-content: space-between;
+}
+
+/* A monospace block for a run's raw detail JSON (x164 automation run history). Wraps rather than
+   overflowing so a long value stays readable without a second scroll region. */
+.tm-code-block {
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--radius-2, 0.5rem);
+  background: var(--surface-sunken, rgba(0, 0, 0, 0.04));
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
 .tm-eyebrow {
   margin: 0;
   font-size: var(--t-caption);

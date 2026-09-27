@@ -114,6 +114,8 @@ import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../ap
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
+import type { WorkflowRunHistoryView as ApiWorkflowRunHistoryView } from '../../apps/api/src/modules/automations/history.controller.js';
+import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../apps/api/src/modules/automations/history.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -147,6 +149,8 @@ import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/l
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowRunSummary as WebWorkflowRunSummary } from '../../apps/web/src/lib/api/automations';
+import type { WorkflowRunHistoryItem as WebWorkflowRunHistoryItem } from '../../apps/web/src/lib/api/automations';
+import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/src/lib/api/automations';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -534,6 +538,24 @@ type _workflowTemplate = Assert<Exact<ApiWorkflowTemplateView, WebWorkflowTempla
  * `organizationId` is absent on both.
  */
 type _workflowRun = Assert<Exact<ApiWorkflowRunView, WebWorkflowRunSummary>>;
+
+/**
+ * Automations & integrations (x164). `WorkflowRunHistoryView` (`GET …/automations/runs`, list element)
+ * — one run in the org-scoped, newest-first run history. Paired with a live web consumer:
+ * `AutomationRunHistoryScreen` reads exactly this response to list runs. `detail` is deliberately absent
+ * on both sides — the list is bounded and a run's detail is read one at a time from the detail route.
+ * `status` is `string` on both (the closed set is enforced server-side), and `organizationId` is absent
+ * on both.
+ */
+type _workflowRunHistory = Assert<Exact<ApiWorkflowRunHistoryView, WebWorkflowRunHistoryItem>>;
+
+/**
+ * Automations & integrations (x164). `WorkflowRunDetailView` (`GET …/automations/runs/:runId`,
+ * response) — one run in detail. Paired with a live web consumer: `AutomationRunHistoryScreen` reads
+ * exactly this response to fill the detail drawer. `detail` is an arbitrary object on both, `status` is
+ * `string` on both, and `organizationId` is absent on both.
+ */
+type _workflowRunDetail = Assert<Exact<ApiWorkflowRunDetailView, WebWorkflowRunDetail>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit
