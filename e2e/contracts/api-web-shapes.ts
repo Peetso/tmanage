@@ -143,6 +143,8 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
+import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/modules/people/skills.controller.js';
+import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -512,6 +514,14 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * submission response is the created work item, covered by the `WorkItemView`↔`WorkItemSummary` pair.
  */
 type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
+
+/**
+ * People member skills (x172). `PersonSkillView` (`GET`/`POST …/people/:membershipId/skills`,
+ * response) — one member skill. Paired Exact with a live web consumer: `PersonSkillsPanel` reads
+ * exactly this response to list and add skills. The `level` union (`basic | proficient | expert`) is
+ * identical on both sides, and `organizationId` is absent on both — the wire never echoes the tenant.
+ */
+type _personSkill = Assert<Exact<ApiPersonSkillView, WebPersonSkillSummary>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

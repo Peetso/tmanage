@@ -104,7 +104,7 @@
 --     file_versions, upload_sessions, user_passwords, user_mfa_factors, user_recovery_codes,
 --     documents, decisions
 --     saved_views, meeting_attendees
---   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items
+--   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items, person_skills
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     document_comments, decision_supersessions, document_templates, work_forms
@@ -373,6 +373,12 @@ GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'
 -- adds UPDATE with the code that writes it. No DELETE. Submitting a form writes no work_forms row —
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
+-- People member skills (x172, migration 0070). **INSERT, DELETE** — a skill is added (INSERT) and
+-- removed (DELETE), and read through the database-wide SELECT. No UPDATE: a re-label is a delete and
+-- re-add, and the 0070 trigger pins organization_id/membership_id/label immutable for every
+-- credential, so a level-edit slice adds UPDATE with the code that writes it. A removed skill leaves
+-- no history to protect (unlike a message or a notification), so DELETE is the right grant here.
+GRANT INSERT, DELETE         ON `tmanage`.`person_skills`     TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

@@ -13925,3 +13925,32 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## People member skills — add / list / remove a member's skills (x172, module 14)
+
+**What landed.** The People module had a member directory and a profile but no record of what a
+member can do. This slice adds a tenant-scoped, membership-owned `person_skills` table (migration
+`0070`) — a normalised `label` (VARCHAR(80)) and a `level` (`basic | proficient | expert`), one per
+`(organization_id, membership_id, label)` — and three endpoints under
+`/v1/organizations/:orgSlug/people/:membershipId/skills`: `POST` to add a skill (`project.manage`),
+`GET` to list a member's skills label-ascending (`work.read`), and `DELETE :skillId` to remove one
+(`project.manage`). Capabilities are reused; no `capabilities.ts` edit. Skill-based matching is
+deferred to a later slice; this slice owns the add/list/remove of the tag.
+
+**Known-trap order (resolve before authorize).** Every route resolves the `:membershipId`
+tenant-scoped _first_, so an unknown or cross-tenant member is a 404 with no write, before any
+`authorize` or mutation. An add then validates the label (blank/over-length → 400) and the level
+(bad value → 400) and maps the UNIQUE `(member, label)` violation to a 409; a delete resolves the
+skill tenant-and-member-scoped before removing it (unknown → 404, no write). `PersonSkillView` never
+echoes `organization_id`. The new table is registered in all four places — `schema.ts` def +
+`TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT, DELETE — a re-label is a delete
+and re-add; the 0070 trigger pins identity), and the on-disk migration the readdir migrator applies.
+
+**Surfaces.** `PersonSkillView` (`skills.controller.ts`) is a live `Exact` pair with the web's
+`PersonSkillSummary` (`apps/web/src/lib/api/people-skills.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`PersonSkillsPanel` (`apps/web/src/components/screens/PersonSkillsPanel.tsx`) reads its own query,
+adds a skill at a level, lists a member's skills, and removes one; every write invalidates the query.
+Proved database-free with the real `authorize` (`skills.controller.test.ts`): add→list→remove, a
+duplicate label is a 409, a blank/over-length/bad-level payload is a 400 with no write, a
+cross-tenant member id is a 404 with no write, and an add without `project.manage` is a 403. Deferred
+to a later slice: skill-based member matching and a level edit (UPDATE grant lands with it).
