@@ -14207,3 +14207,36 @@ renders the step checklist with a done count and marks a step complete. Proved d
 real `authorize` (`onboarding-tour.controller.test.ts`): complete→list is own-scoped, an unknown step
 is a 400 with no write, a re-complete writes no duplicate, another member's progress never shows, and
 the routes sit behind `work.read`. Deferred to NEXT-SCOPES-13: sample-data seeding and coach-marks.
+
+## SRCH command palette (x181)
+
+`38-MODULE-MAP` §Search, command & AI asks for a command palette — keyboard-driven navigation and a
+few safe quick actions over the existing search (audit #8, Search Partial: only basic/ranked search
+was built). This slice ships the non-AI command surface; the AI copilot stays Needs-Peter (an
+external LLM), so it is not here.
+
+**API.** `GET /v1/organizations/:orgSlug/search/commands?q=&limit?=` (`commands.controller.ts`,
+its own `CommandsModule` beside `SearchModule` so the search slices stay file-disjoint) is behind the
+reused `search.use` capability — the same coarse ceiling global search reads under, so no
+`capabilities.ts` edit. It is a deterministic read of a build-time constant: `command-registry.ts`
+declares the whole allowlisted command set in source (navigate commands mirroring the internal rail,
+plus two quick actions over a closed `CommandActionId` union), and `command-match.ts` is a **pure**
+matcher — no wall-clock, no I/O, no `eval` — that scores and orders the registry against the query,
+bounded (default 12, cap 25). No database, no tenant object, no write, no migration. The security
+property, unit-proved in `commands.controller.test.ts`: a caller's query only ever _selects and
+orders_ commands that already exist, so it can never introduce a command, an `href` or an `action`.
+An empty query returns the default set; a non-integer `limit` is a 400. `CommandView`
+(`commands.controller.ts`) is a live `Exact` pair with the web `Command`
+(`apps/web/src/lib/api/commands.ts`) in `e2e/contracts/api-web-shapes.ts`, and is deliberately
+distinct from `SearchResultView` (a command is a fixed navigation or quick action, never a row).
+
+**Web.** `CommandPalette.tsx` (mounted once in `AppShell`, disjoint from `SearchScreen`) opens on
+Ctrl/Cmd-K into a focus-trapped, axe-clean `role="dialog"` listing the commands the API returns for
+the typed query, plus a "search the workspace for …" entry and the tenant's last search (kept in
+per-org `localStorage`). It dispatches only what the server returned — a `navigate` command follows
+its `href`, an `action` command is routed through a hardcoded `switch` over the closed action-id set —
+so the query is only a filter, never an executed action. The outer component is context-free while
+closed (only `useState` + a `keydown` listener, rendering nothing) so every screen that renders the
+shell pays for no `QueryClient` it did not set up; the fetch and focus trap live in an inner dialog
+mounted only when open. Proved in `command-palette.test.tsx`. Deferred to NEXT-SCOPES-13: the AI
+copilot, per-record commands, and deeper destinations beyond the rail.

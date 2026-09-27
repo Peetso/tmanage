@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Badge, LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { INTERNAL_NAVIGATION } from './navigation';
+import { CommandPalette } from '../screens/CommandPalette';
 
 export interface AppShellProps {
   /**
@@ -67,6 +68,10 @@ export function AppShell({
     <LiveAnnouncer>
       <div className="tm-app">
         <SkipLink targetId="tm-main" />
+
+        {/* SRCH command palette (x181): keyboard-driven (Ctrl/Cmd-K) navigation and quick actions
+            over the existing search. Rendered once here so every internal screen shares it. */}
+        <CommandPalette organizationSlug={organizationSlug} />
 
         <nav className="tm-rail" aria-label="Primary">
           <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
