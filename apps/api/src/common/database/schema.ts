@@ -1139,6 +1139,54 @@ export const projectInternalRisks = mysqlTable(
   ],
 );
 
+/**
+ * PROJ / module 8 (x294). A project's timeline **phases** — named, ordered columns a project
+ * manager groups milestones into.
+ *
+ * `0161_project_phases.sql` is the source of truth; this is its typed mirror. One table carries two
+ * row kinds, told apart by `milestoneId`:
+ *
+ * - **Phase definition** (`milestoneId` NULL): a named, positioned column; its handle
+ *   `(organizationId, projectId, name)` is unique (duplicate name in a project ⇒ 409).
+ * - **Milestone assignment** (`milestoneId` set): a milestone placed into a phase (`phaseId` points
+ *   at a definition row); its handle `(organizationId, milestoneId)` is unique (a milestone sits in
+ *   at most one phase, so re-assigning is idempotent). `name`/`position` are NULL.
+ *
+ * The assignment is recorded here, never on `project_milestones` (0048), so this slice references
+ * milestone ids without editing the milestones table.
+ */
+export const projectPhases = mysqlTable(
+  'project_phases',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    /** Definition rows only; NULL on assignment rows. */
+    name: varchar('name', { length: 200 }),
+    /** Definition rows only; the phase column's left-to-right order. NULL on assignment rows. */
+    position: int('position'),
+    /** Assignment rows only; the milestone being placed. NULL on definition rows. */
+    milestoneId: char('milestone_id', { length: 36 }),
+    /** Assignment rows only; the definition row (`project_phases.id`) the milestone is placed into. */
+    phaseId: char('phase_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_phases_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_project_phases_org_project_name').on(
+      table.organizationId,
+      table.projectId,
+      table.name,
+    ),
+    uniqueIndex('uq_project_phases_org_milestone').on(table.organizationId, table.milestoneId),
+    index('ix_project_phases_org_project').on(
+      table.organizationId,
+      table.projectId,
+      table.position,
+    ),
+  ],
+);
+
 /** DOC-04 (x130). The value kinds a template variable can declare. */
 export const DOCUMENT_TEMPLATE_VARIABLE_TYPES = ['text', 'date', 'number'] as const;
 
@@ -4047,6 +4095,7 @@ export const TABLES = {
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
   project_internal_risks: projectInternalRisks,
+  project_phases: projectPhases,
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
@@ -4175,6 +4224,7 @@ export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
+export type ProjectPhaseRow = typeof projectPhases.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
