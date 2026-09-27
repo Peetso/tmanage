@@ -14207,3 +14207,28 @@ renders the step checklist with a done count and marks a step complete. Proved d
 real `authorize` (`onboarding-tour.controller.test.ts`): complete→list is own-scoped, an unknown step
 is a 400 with no write, a re-complete writes no duplicate, another member's progress never shows, and
 the routes sit behind `work.read`. Deferred to NEXT-SCOPES-13: sample-data seeding and coach-marks.
+## x156 — Public & trust site (module 1): marketing home
+
+The first page an unauthenticated visitor sees (audit rank #1, Public site Missing). A new API
+module, `public-site`, serves `GET /v1/public/site/home` — a `@Public()` read with no session, no
+CSRF, no organization and no capability, exactly like the sign-in and refresh doors. The four global
+guards each short-circuit on `IS_PUBLIC`, so the landing page carries no login wall. The route
+returns a deterministic, code-defined payload from `PublicContentService` (hero copy, three feature
+blurbs, two CTA targets into sign-in); there is no database read and no tenant. No migration, no new
+table, no `capabilities.ts` edit.
+
+**Surfaces.** `PublicHomeView` (`public-content.service.ts`) is a live `Exact` pair with the web's
+`PublicHome` (`apps/web/src/lib/api/public-site.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`MarketingHomeScreen` (`apps/web/src/components/screens/MarketingHomeScreen.tsx`) is now the root
+route (`/` no longer redirects to sign-in): a hero, a features grid and calls to action, reading the
+public payload through react-query, degrading to a skeleton while loading and an `InlineAlert` on
+failure. It uses neither `AppShell` (needs a tenant) nor `IdentityShell` (a centred card); the
+landmarks — skip link, `<main>`, one `<h1>` — are built in the screen so `A11Y-01` holds.
+
+**Proved without a database.** `public-content.controller.test.ts` registers the real
+`SessionAuthGuard` and `CapabilityGuard` in the chain over fakes: an anonymous, capability-less
+`GET home` still answers 200 with the stable payload (the `@Public()` annotation is what makes both
+guards stand aside), the payload is identical across calls, and an unknown sub-path under
+`/v1/public/site` is a 404. `marketing-home.test.tsx` renders the hero, the feature grid and the
+CTAs and is axe-clean. Deferred to later pass-21 slices: pricing (x157), security/trust (x158),
+status (x159), changelog (x160), and contact/lead intake (x161).
