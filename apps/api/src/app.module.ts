@@ -94,6 +94,7 @@ import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
 import { PersonProfileModule } from './modules/people/profile.controller.js';
+import { PeopleTeamsModule } from './modules/people/teams.controller.js';
 import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 import { InvoicesModule } from './modules/billing/invoices.module.js';
 
@@ -517,6 +518,11 @@ export class AppModule {
         // the per-member detail behind x168's directory. A separate module so the people slices stay
         // file-disjoint; read-only over existing rows, behind the same reused `work.read`.
         PersonProfileModule.register(),
+        // x262. People module 14: named teams and their members — define a team (`org.manage`),
+        // assign/unassign members (`org.manage`), and read the team list / a team's detail
+        // (`work.read`). One `member_teams` table (the x233 labels one-table pattern). A separate
+        // module so the people slices stay file-disjoint.
+        PeopleTeamsModule.register(),
         // Billing module 19 (x178). Seat management (assign/list/reclaim) behind `org.manage`. A
         // self-contained module — no billing API module existed at this base — that depends only on
         // the tenant database: it resolves the target membership/seat tenant-scoped to answer 404
