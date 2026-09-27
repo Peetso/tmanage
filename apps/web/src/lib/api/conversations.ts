@@ -228,3 +228,57 @@ export async function convertMessageToWork(
   });
   return data;
 }
+
+/**
+ * x251 — the composer draft. A member's unsent text for one conversation, so what they were
+ * typing survives navigating away and back (CH-06). Self-scoped on the server to the acting
+ * membership: this client names no member, and the tenant is the slug resolved against the
+ * caller's membership, so it can only ever read, save or clear the caller's own draft. All three
+ * routes sit behind `conversation.write` — there is nothing to draft in a channel you cannot post
+ * to. Paired Exact with the API's `MessageDraftView`.
+ */
+export interface MessageDraftView {
+  /** The saved draft text, or `null` when none has been saved. */
+  readonly body: string | null;
+  readonly updatedAt: string | null;
+}
+
+function draftPath(organizationSlug: string, conversationId: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/conversations/${encodeURIComponent(conversationId)}/draft`;
+}
+
+export async function getDraft(
+  client: ApiClient,
+  organizationSlug: string,
+  conversationId: string,
+): Promise<MessageDraftView> {
+  const { data } = await client.request<MessageDraftView>({
+    path: draftPath(organizationSlug, conversationId),
+  });
+  return data;
+}
+
+export async function saveDraft(
+  client: ApiClient,
+  organizationSlug: string,
+  conversationId: string,
+  body: string,
+): Promise<MessageDraftView> {
+  const { data } = await client.request<MessageDraftView>({
+    method: 'PUT',
+    path: draftPath(organizationSlug, conversationId),
+    body: { body },
+  });
+  return data;
+}
+
+export async function clearDraft(
+  client: ApiClient,
+  organizationSlug: string,
+  conversationId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: draftPath(organizationSlug, conversationId),
+  });
+}

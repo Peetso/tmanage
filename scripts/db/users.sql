@@ -234,6 +234,10 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`conversation_memberships` TO 'tmanage
 -- erasure. UPDATE is needed for an edit and for a moderation, and the trigger in 0007 refuses
 -- the six columns that say what the message *is*.
 GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_app'@'%';
+-- x251 chat message drafts. A member's unsent composer draft, upserted whole against
+-- `uq_conversation_message_drafts_identity`. DELETE is granted here: clearing a draft on send or
+-- discard is an ordinary removal, and a draft is no record — nothing is lost that mattered.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`conversation_message_drafts` TO 'tmanage_app'@'%';
 
 -- `message_revisions` gets NO write grant at all, and the absence is the mechanism. The
 -- rows are written by `trg_messages_record_revision` (0008), which fires with its definer's

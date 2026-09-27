@@ -123,6 +123,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   conversations: 'organization_id',
   conversation_memberships: 'organization_id',
   messages: 'organization_id',
+  // x251. A member's unsent composer draft, tenant-owned and keyed to the acting membership —
+  // an unscoped read would be everybody's half-typed messages across every studio.
+  conversation_message_drafts: 'organization_id',
   // CHAT-002. Tenant-owned for the reason `messages` is — a revision is a message body that
   // was superseded, which is exactly as much somebody else's transcript as the current one.
   // The application never writes this table (the 0008 trigger does, with definer
