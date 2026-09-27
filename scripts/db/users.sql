@@ -942,6 +942,15 @@ GRANT INSERT, UPDATE ON `tmanage`.`objective_key_results` TO 'tmanage_app'@'%';
 -- a project's portal is reset by saving the defaults, not by removing the row. Reading is the
 -- database-wide SELECT (line 60).
 GRANT INSERT, UPDATE ON `tmanage`.`portal_settings` TO 'tmanage_app'@'%';
+-- x321 (0189) portal deliverable feedback. A client contact leaves one rating+comment on a
+-- published deliverable version and may revise it: the service writes `INSERT ... ON DUPLICATE
+-- KEY UPDATE` against the `(organization_id, deliverable_version_id, client_contact_user_id)`
+-- unique key, so a save is one statement needing INSERT and UPDATE. UPDATE moves only `rating`,
+-- `comment` and `updated_at`; the 0189 trigger (`trg_portal_feedback_immutable`) refuses the
+-- tenant, version and authoring contact at the engine, so feedback cannot be re-pointed by the
+-- runtime credential. **No DELETE**: a client edits their feedback, never has it removed by the
+-- runtime. Reading (the staff feedback list) is the database-wide SELECT (line 60).
+GRANT INSERT, UPDATE ON `tmanage`.`portal_feedback` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

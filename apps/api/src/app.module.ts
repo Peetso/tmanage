@@ -69,6 +69,7 @@ import { KeyResultsModule } from './modules/projects/key-results.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { PortalSettingsModule } from './modules/clients/portal-settings.controller.js';
+import { PortalFeedbackModule } from './modules/portal/feedback.module.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
 import { CustomRolesModule } from './modules/admin/roles.controller.js';
 import { RoleEditModule } from './modules/admin/role-edit.controller.js';
@@ -333,6 +334,14 @@ export class AppModule {
         // new `portal_settings` table; the client projection carries the presentation fields only, never
         // `updatedBy`.
         PortalSettingsModule.register(),
+        // SEC / Portal deliverable feedback (module 13, x321). A client contact rates a published
+        // deliverable (`POST …/portal/deliverables/:id/feedback`, `client_projection.read`) and staff
+        // read the feedback (`GET …/portal/deliverables/:id/feedback`, `client_member.manage`). A
+        // module of its own rather than another controller on `ClientsModule`, so it stays
+        // file-disjoint from the sibling portal slices; it resolves the client-visible version
+        // tenant-scoped (the x114 projection) to answer 404 rather than 500 for a cross-tenant id.
+        // Over the new `portal_feedback` table.
+        PortalFeedbackModule.register(),
         // CHAT-001. After `ProjectsModule` for the same reason: a channel names a project, and
         // a caller who names one that is not theirs should get 404 rather than a foreign-key
         // violation surfacing as 500.
