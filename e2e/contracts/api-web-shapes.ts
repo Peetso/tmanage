@@ -175,6 +175,10 @@ import type {
   ItemLabelView as ApiItemLabelView,
   WorkLabelView as ApiWorkLabelView,
 } from '../../apps/api/src/modules/work/work-labels.service.js';
+import type {
+  WorkItemRecurrenceView as ApiWorkItemRecurrenceView,
+  NextOccurrenceView as ApiNextOccurrenceView,
+} from '../../apps/api/src/modules/work/item-recurrence.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -403,6 +407,8 @@ import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/w
 import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
 import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
+import type { WorkItemRecurrence as WebWorkItemRecurrence } from '../../apps/web/src/lib/api/work-item-recurrence';
+import type { NextOccurrence as WebNextOccurrence } from '../../apps/web/src/lib/api/work-item-recurrence';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -968,6 +974,16 @@ type _itemWatcher = Assert<Exact<ApiItemWatcherView, WebItemWatcher>>;
  */
 type _workLabel = Assert<Exact<ApiWorkLabelView, WebWorkLabel>>;
 type _itemLabel = Assert<Exact<ApiItemLabelView, WebItemLabel>>;
+
+/**
+ * x257. Work item recurrence (Work module 7). `WorkItemRecurrenceView` ↔ `WorkItemRecurrence` — a
+ * work item's recurrence rule (`GET`/`PUT`/`DELETE …/work-items/:id/recurrence`); `NextOccurrenceView`
+ * ↔ `NextOccurrence` — the computed next occurrence (`POST …/recurrence/generate-next`), which
+ * creates no work item. `WorkItemRecurrencePanel` reads both shapes, so both pairs are held identical
+ * on the two sides. `organizationId` is absent on both.
+ */
+type _workItemRecurrence = Assert<Exact<ApiWorkItemRecurrenceView, WebWorkItemRecurrence>>;
+type _nextOccurrence = Assert<Exact<ApiNextOccurrenceView, WebNextOccurrence>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

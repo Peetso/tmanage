@@ -15,6 +15,7 @@ import {
   WORK_TIME_LOGS_SERVICE,
   WORK_WATCHERS_SERVICE,
   WORK_LABELS_SERVICE,
+  WORK_ITEM_RECURRENCE_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -49,6 +50,9 @@ import { WorkWatchersController } from './watchers.controller.js';
 import { WorkLabelsRepository } from './work-labels.repository.js';
 import { WorkLabelsService } from './work-labels.service.js';
 import { WorkLabelsController } from './work-labels.controller.js';
+import { WorkItemRecurrenceRepository } from './item-recurrence.repository.js';
+import { WorkItemRecurrenceService } from './item-recurrence.service.js';
+import { WorkItemRecurrenceController } from './item-recurrence.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -155,6 +159,16 @@ export class WorkModule {
         new WorkLabelsService(database, workItems, new WorkLabelsRepository()),
     };
 
+    // Work item recurrence (x257). A tenant-scoped sub-resource behind work.read/work.update; the
+    // work-items repository resolves the parent, the service holds the policy (resolve-before-
+    // authorize) and the pure next-occurrence arithmetic. generate-next writes no work item.
+    const recurrenceService: Provider = {
+      provide: WORK_ITEM_RECURRENCE_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkItemRecurrenceService(database, workItems, new WorkItemRecurrenceRepository()),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -169,6 +183,7 @@ export class WorkModule {
         timeLogsService,
         watchersService,
         labelsService,
+        recurrenceService,
       ],
       exports: [service],
       controllers: [
@@ -182,6 +197,7 @@ export class WorkModule {
         WorkTimeLogsController,
         WorkWatchersController,
         WorkLabelsController,
+        WorkItemRecurrenceController,
       ],
     };
   }
