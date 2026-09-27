@@ -180,6 +180,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
   // tenant table has, so the guard scopes its reads and writes.
   doc_bookmarks: 'organization_id',
+  // INS metric favorites (0171, x303). Tenant-owned: a favorite names a membership and a metric, and
+  // an unscoped `SELECT ... FROM insight_metric_favorites` would be every studio's starred metrics on
+  // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
+  // tenant table has, so the guard scopes its reads and writes.
+  insight_metric_favorites: 'organization_id',
   // Docs "collaboration later" (0045, x132). Tenant-owned: a comment cites a document, and an
   // unscoped `SELECT ... FROM document_comments` would be every studio's document discussion on the
   // server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every

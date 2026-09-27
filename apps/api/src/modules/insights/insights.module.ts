@@ -10,6 +10,11 @@ import { ApprovalCycleRepository, InsightsApprovalsReader } from './approval-cyc
 import { InsightsService } from './insights.service.js';
 import { InsightsController } from './insights.controller.js';
 import { InsightsExportController } from './insights-export.controller.js';
+import {
+  INSIGHT_METRIC_FAVORITES_SERVICE,
+  InsightMetricFavoritesController,
+} from './metric-favorites.controller.js';
+import { InsightMetricFavoritesService } from './metric-favorites.service.js';
 
 /**
  * INS-01's wiring — the insights module's first slice.
@@ -39,13 +44,22 @@ export class InsightsModule {
         ),
     };
 
+    // INS metric favorites (x303): a member's own starred insight metrics. Its own service and table
+    // (`insight_metric_favorites`), constructed here like the readers above — a per-membership
+    // surface that shares nothing with the roll-up reads but the module's tenant database handle.
+    const metricFavorites: Provider = {
+      provide: INSIGHT_METRIC_FAVORITES_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new InsightMetricFavoritesService(database),
+    };
+
     return {
       module: InsightsModule,
-      providers: [service],
+      providers: [service, metricFavorites],
       exports: [service],
       // INS-05 export shares the JSON reads' service and capability; a separate controller only
       // because its response mode (a CSV download) differs from the JSON reads'.
-      controllers: [InsightsController, InsightsExportController],
+      controllers: [InsightsController, InsightsExportController, InsightMetricFavoritesController],
     };
   }
 }

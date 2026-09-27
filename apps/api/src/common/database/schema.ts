@@ -3984,9 +3984,70 @@ export const homeWidgetPrefs = mysqlTable(
 
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
+/**
+ * The fixed set of insight metric ids a member may star (INS metric favorites, x303). A small, closed
+ * vocabulary — the known insight numbers the Insights screens render as tiles. Every `metricKey` a
+ * member stars is validated against this set (`metric-favorites.controller.ts`); a key outside it is a
+ * 400, never stored. Adding a starrable metric means adding its id here. Distinct from x302's
+ * dashboard layout, which orders the whole tile set: this is the subset a member pins to the top.
+ */
+export const INSIGHT_METRIC_KEYS = [
+  'portfolio.projectCount',
+  'portfolio.openItemCount',
+  'deliveryFlow.itemCount',
+  'approvalCycle.approvalCount',
+  'workload.assigneeCount',
+  'workload.openItemCount',
+  'workload.scheduledItemCount',
+  'adoption.activeMembers',
+] as const;
+export type InsightMetricKey = (typeof INSIGHT_METRIC_KEYS)[number];
+
+/**
+ * Per-user favorite insight metrics (x303, migration 0171, module 15 Insights).
+ *
+ * One row per `(organization_id, membership_id, metric_key)`: the fact "this membership starred this
+ * metric". Keyed by membership (like `doc_bookmarks` and `home_widget_prefs`) rather than the global
+ * user, because a favorite is scoped to who the caller is *in this studio* and never leaves the
+ * tenant. The only writes are INSERT (star) and DELETE (unstar) — there is no UPDATE path and no
+ * UPDATE grant, so the withheld privilege is the control and no immutability trigger is needed.
+ * `uq_insight_metric_favorites_star` makes a repeated star a collision the service treats as success,
+ * so a repeated PUT is idempotent. `metric_key` is validated against {@link INSIGHT_METRIC_KEYS} by
+ * the application before the insert; the column stores it whole. `0171_insight_metric_favorites.sql`
+ * is the source of truth; this is its typed mirror.
+ */
+export const insightMetricFavorites = mysqlTable(
+  'insight_metric_favorites',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    metricKey: varchar('metric_key', { length: 64 }).$type<InsightMetricKey>().notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_metric_favorites_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_insight_metric_favorites_star').on(
+      table.organizationId,
+      table.membershipId,
+      table.metricKey,
+    ),
+    index('ix_insight_metric_favorites_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export type InsightMetricFavoriteRow = typeof insightMetricFavorites.$inferSelect;
+export type NewInsightMetricFavoriteRow = typeof insightMetricFavorites.$inferInsert;
+
 export const TABLES = {
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
+  insight_metric_favorites: insightMetricFavorites,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   users,
