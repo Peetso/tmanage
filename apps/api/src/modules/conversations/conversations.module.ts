@@ -6,6 +6,8 @@ import {
   CONVERSATIONS_SERVICE,
   MESSAGE_REACTIONS_REPOSITORY,
   MESSAGE_REACTIONS_SERVICE,
+  MESSAGE_DRAFTS_REPOSITORY,
+  MESSAGE_DRAFTS_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
@@ -21,6 +23,9 @@ import { ConversationsController } from './conversations.controller.js';
 import { MessageReactionsRepository } from './message-reactions.repository.js';
 import { MessageReactionsService } from './message-reactions.service.js';
 import { MessageReactionsController } from './message-reactions.controller.js';
+import { MessageDraftsRepository } from './message-drafts.repository.js';
+import { MessageDraftsService } from './message-drafts.service.js';
+import { MessageDraftsController } from './message-drafts.controller.js';
 
 /**
  * CHAT-001's wiring.
@@ -87,10 +92,32 @@ export class ConversationsModule {
       ) => new MessageReactionsService(database, conversations, reactions),
     };
 
+    // x251. A member's unsent composer draft. Its own repository and service, wired here beside
+    // the aggregate they hang off. The draft service reuses `ConversationsRepository` (stateless,
+    // constructed inline for the reason the note above gives) to resolve the conversation and
+    // apply the same `conversation.write` gate before any draft row is touched.
+    const draftsRepository: Provider = {
+      provide: MESSAGE_DRAFTS_REPOSITORY,
+      useFactory: () => new MessageDraftsRepository(),
+    };
+    const draftsService: Provider = {
+      provide: MESSAGE_DRAFTS_SERVICE,
+      inject: [TENANT_DATABASE, MESSAGE_DRAFTS_REPOSITORY],
+      useFactory: (database: TenantDatabase, drafts: MessageDraftsRepository) =>
+        new MessageDraftsService(database, drafts, new ConversationsRepository()),
+    };
+
     return {
       module: ConversationsModule,
-      providers: [repository, service, reactionsRepository, reactionsService],
-      controllers: [ConversationsController, MessageReactionsController],
+      providers: [
+        repository,
+        service,
+        reactionsRepository,
+        reactionsService,
+        draftsRepository,
+        draftsService,
+      ],
+      controllers: [ConversationsController, MessageReactionsController, MessageDraftsController],
     };
   }
 }

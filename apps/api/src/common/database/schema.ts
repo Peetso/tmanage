@@ -4529,6 +4529,35 @@ export const conversationReadState = mysqlTable(
 export type ConversationReadStateRow = typeof conversationReadState.$inferSelect;
 
 /**
+ * x251 — a member's unsent composer draft for one conversation (CH-06 "Composer").
+ *
+ * One mutable scratch row per `(organization_id, conversation_id, membership_id)`, keyed to the
+ * acting membership and never to the global user, so a draft is private to who the caller is in
+ * this studio. The draft itself is `{ "body": "<composer text>" }` in `bodyJson`, read and written
+ * whole. Nothing here enters the transcript — `messages` is the sent record; this is only what was
+ * being typed. See `0123_conversation_message_drafts.sql`.
+ */
+export const conversationMessageDrafts = mysqlTable(
+  'conversation_message_drafts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    conversationId: char('conversation_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    bodyJson: json('body_json').$type<unknown>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_conversation_message_drafts_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_conversation_message_drafts_identity').on(
+      table.organizationId,
+      table.conversationId,
+      table.membershipId,
+    ),
+  ],
+);
+
+/**
  * Every table this schema describes, keyed by its SQL name.
  *
  * `schema.db.test.ts` walks this to compare the description against `information_schema`,
@@ -4741,6 +4770,7 @@ export const TABLES = {
   message_reactions: messageReactions,
   message_bookmarks: messageBookmarks,
   conversation_thread_replies: conversationThreadReplies,
+  conversation_message_drafts: conversationMessageDrafts,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -4872,6 +4902,8 @@ export type MessageReactionRow = typeof messageReactions.$inferSelect;
 export type MessageBookmarkRow = typeof messageBookmarks.$inferSelect;
 export type ConversationThreadReplyRow = typeof conversationThreadReplies.$inferSelect;
 export type NewConversationThreadReplyRow = typeof conversationThreadReplies.$inferInsert;
+export type ConversationMessageDraftRow = typeof conversationMessageDrafts.$inferSelect;
+export type NewConversationMessageDraftRow = typeof conversationMessageDrafts.$inferInsert;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;

@@ -174,6 +174,9 @@ export const MESSAGE_REACTIONS_SERVICE = Symbol.for('tmanage.MessageReactionsSer
 export const MESSAGE_PINS_SERVICE = Symbol.for('tmanage.MessagePinsService');
 export const THREAD_REPLIES_SERVICE = Symbol.for('tmanage.ThreadRepliesService');
 export const CONVERSATION_READ_STATE_SERVICE = Symbol.for('tmanage.ConversationReadStateService');
+/** x251. A member's unsent composer draft per conversation. */
+export const MESSAGE_DRAFTS_REPOSITORY = Symbol.for('tmanage.MessageDraftsRepository');
+export const MESSAGE_DRAFTS_SERVICE = Symbol.for('tmanage.MessageDraftsService');
 export const OUTBOX_EVENTS_REPOSITORY = Symbol.for('tmanage.OutboxEventsRepository');
 export const NOTIFICATIONS_REPOSITORY = Symbol.for('tmanage.NotificationsRepository');
 export const NOTIFICATION_PREFERENCES_REPOSITORY = Symbol.for(

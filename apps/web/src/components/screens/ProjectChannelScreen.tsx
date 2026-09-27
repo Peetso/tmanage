@@ -13,12 +13,15 @@ import { newCorrelationId } from '../../lib/api/client';
 import { getProject } from '../../lib/api/projects';
 import {
   MAX_MESSAGE_PAGE,
+  clearDraft,
   convertMessageToWork,
   getConversation,
+  getDraft,
   listMessages,
   listRevisions,
   moderateMessage,
   postMessage,
+  saveDraft,
 } from '../../lib/api/conversations';
 import type {
   ConvertMessageResult,
@@ -608,6 +611,50 @@ function Composer({
   const [inadmissible, setInadmissible] = useState<string | undefined>(undefined);
   const controlRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // x251. Only the channel composer persists an unsent draft; a thread reply is transient and
+  // has no per-thread draft on the server (the draft is keyed to the conversation). The notation
+  // in the textarea is what is saved verbatim, so what is restored is exactly what was typed.
+  const persistDraft = parentMessageId === undefined;
+  const restoredRef = useRef(false);
+
+  // Restore the saved draft once, on open, and never over text the author has already started —
+  // the seed only ever fills an empty box.
+  useEffect(() => {
+    if (!persistDraft || restoredRef.current) return;
+    let cancelled = false;
+    void getDraft(api, organizationSlug, conversationId)
+      .then((saved) => {
+        if (cancelled) return;
+        restoredRef.current = true;
+        if (typeof saved.body === 'string' && saved.body !== '') {
+          setDraft((current) => (current === '' ? (saved.body as string) : current));
+        }
+      })
+      .catch(() => {
+        // A draft that cannot be loaded is not worth surfacing: the composer opens empty, which
+        // is the same state as "no draft", and the send path is unaffected.
+        restoredRef.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, organizationSlug, conversationId, persistDraft]);
+
+  // Save what is typed, debounced, once the restore has settled so a save cannot race the seed.
+  // An emptied box clears the stored draft; a non-empty one upserts it. A failed save is silent —
+  // the draft is a convenience, not the message, and the next keystroke tries again.
+  useEffect(() => {
+    if (!persistDraft || !restoredRef.current) return;
+    const handle = setTimeout(() => {
+      const write =
+        draft === ''
+          ? clearDraft(api, organizationSlug, conversationId)
+          : saveDraft(api, organizationSlug, conversationId, draft);
+      void Promise.resolve(write).catch(() => {});
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [draft, api, organizationSlug, conversationId, persistDraft]);
+
   const composed = useMemo(
     () => (draft.trim() === '' ? undefined : composeMessage(draft)),
     [draft],
@@ -622,6 +669,9 @@ function Composer({
     onSuccess: () => {
       setDraft('');
       setAttemptId(undefined);
+      // The message is sent, so its draft is spent — clear it so a reopen does not restore text
+      // that is already in the transcript.
+      if (persistDraft) void clearDraft(api, organizationSlug, conversationId).catch(() => {});
       void queries.invalidateQueries({ queryKey: ['messages', organizationSlug, conversationId] });
     },
   });

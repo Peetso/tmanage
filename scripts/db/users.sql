@@ -242,6 +242,10 @@ GRANT INSERT, UPDATE         ON `tmanage`.`messages`              TO 'tmanage_ap
 -- Curating a channel's pinned context is `conversation.moderate`; the pinned row is a reference, not
 -- a copy of the message, so removing it removes nothing the moderation ledger needs to keep.
 GRANT INSERT, DELETE         ON `tmanage`.`conversation_pinned_messages` TO 'tmanage_app'@'%';
+-- x251 chat message drafts. A member's unsent composer draft, upserted whole against
+-- `uq_conversation_message_drafts_identity`. DELETE is granted here: clearing a draft on send or
+-- discard is an ordinary removal, and a draft is no record — nothing is lost that mattered.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`conversation_message_drafts` TO 'tmanage_app'@'%';
 
 -- `message_revisions` gets NO write grant at all, and the absence is the mechanism. The
 -- rows are written by `trg_messages_record_revision` (0008), which fires with its definer's
