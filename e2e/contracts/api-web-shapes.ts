@@ -109,6 +109,7 @@ import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../ap
 import type { InsightsWorkloadView as ApiInsightsWorkloadView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsAdoptionView as ApiInsightsAdoptionView } from '../../apps/api/src/modules/insights/adoption.controller.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
+import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
@@ -222,6 +223,7 @@ import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/s
 import type { InsightsWorkloadView as WebInsightsWorkloadView } from '../../apps/web/src/lib/api/insights-workload';
 import type { InsightsAdoptionView as WebInsightsAdoptionView } from '../../apps/web/src/lib/api/insights-adoption';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
+import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
@@ -478,6 +480,14 @@ type _insightsWorkload = Assert<Exact<ApiInsightsWorkloadView, WebInsightsWorklo
  * exemption.
  */
 type _insightsAdoption = Assert<Exact<ApiInsightsAdoptionView, WebInsightsAdoptionView>>;
+
+/**
+ * x169 — `GET …/people/:membershipId`. One member's profile: the non-sensitive header (`displayName`,
+ * `role`, `status`), the `projects` they belong to (element paired through this parent), and their
+ * `openWorkCount`, plus `computedAt`. Paired with a real web consumer — `PersonProfileScreen` reads
+ * it — so this is a live `Exact` pair, not an exemption.
+ */
+type _personProfile = Assert<Exact<ApiPersonProfileView, WebPersonProfileView>>;
 
 /**
  * x134 — `GET …/insights/workload-forecast?weeks`. The forward-looking workload forecast: `weeks`

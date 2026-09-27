@@ -223,6 +223,35 @@ of them (see "D09 — every proxy forwarding header was trusted"). Earlier, run
 
 ---
 
+## 2026-09-27 — People & capacity: per-member profile (slice x169)
+
+Module 14 (People & capacity), **person profile** (`38-MODULE-MAP` §People; audit #4 "People Missing —
+profile view") — the per-member detail behind x168's directory. `GET
+v1/organizations/:orgSlug/people/:membershipId` returns one member's non-sensitive profile: display
+name, org role, membership status, the projects they belong to, and a count of the open work they own.
+Read-only over existing rows; no table, no column, no migration.
+
+- **Resolve before authorize (Known trap).** `profile.controller.ts` resolves the membership
+  tenant-scoped (`(organization_id, :membershipId)`) **before** the belt-and-braces `authorize()`, so a
+  cross-tenant or unknown id is a 404 indistinguishable from the id never existing, never a 403 that
+  would confirm it exists elsewhere. The route's `CapabilityGuard` refuses a caller without `work.read`
+  (403) before the method runs; the in-controller `authorize()` mirrors it as the org-level relation
+  check, so a client (the capability is internal-only) is refused with a 403.
+- **Non-sensitive projection.** `profile.repository.ts` reads only `users.display_name`, the org role
+  and status; no email/locale/timezone. The open-work count reuses the My Day open-state definition
+  (every state but `done`/`archived`), counted in SQL, never widening the owner's work-visibility.
+- **Reuse `work.read`.** No new capability, no `capabilities.ts` / role-grid edit.
+- **Wiring.** `PersonProfileModule` registered in `app.module.ts` (file-disjoint from x168's directory
+  module). `PersonProfileView` paired `Exact` with the web shape in `e2e/contracts/api-web-shapes.ts`.
+- **Web.** `PersonProfileScreen.tsx` (client shape in `lib/api/person-profile.ts`) wired into
+  `people/[membershipId]/page.tsx`, modelled on `InsightsAdoptionScreen`; accessible detail list +
+  captioned projects table.
+- **Tests.** `profile.controller.test.ts` (real `authorize()`, DB-free fakes): projects role/projects/
+  open-work count with no sensitive field; cross-tenant/unknown id → 404 (resolved before authorize);
+  no `work.read` → 403. No DB test / no new e2e journey (the chain owns both).
+
+---
+
 ## 2026-09-26 — Portal people: client-visible project team (slice x142)
 
 Module 13 (Client portal), **People** (`22-SCREEN-BY-SCREEN` §1) — until now a `PlannedPortalScreen`
