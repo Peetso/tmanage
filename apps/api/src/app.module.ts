@@ -25,6 +25,7 @@ import { RequestsModule } from './modules/requests/requests.module.js';
 import { RequestAgingModule } from './modules/requests/request-aging.controller.js';
 import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
+import { InboxSnoozeModule } from './modules/inbox/inbox-snooze.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { NotificationsFeedModule } from './modules/notifications/notifications-feed.module.js';
 import { NotificationKindPrefsModule } from './modules/notifications/notification-kind-prefs.module.js';
@@ -249,6 +250,11 @@ export class AppModule {
         // never through a read path of the inbox's own. The module constructs its own
         // instances of both (see its doc), so its position here is by subject, not by need.
         InboxModule.register(),
+        // INBOX snooze (IN-01/IN-02, x259). A member snoozes an inbox bundle until a chosen time so
+        // it drops out of their active inbox. A module of its own beside the inbox so this slice stays
+        // file-disjoint from it; it resolves the bundle's object through its own tenant-scoped read
+        // and depends on nothing but the database.
+        InboxSnoozeModule.register(),
         // NOTIF-001. The caller's own notification settings (GET/PUT). No tenant object to
         // resolve, so unlike the inbox it depends on nothing but the database.
         NotificationPreferencesModule.register(),

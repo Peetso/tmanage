@@ -1989,6 +1989,44 @@ export const homePinnedItems = mysqlTable(
 );
 
 /**
+ * INBOX snooze (IN-01/IN-02, x259, migration 0129) — a member's own snoozes of inbox bundles.
+ *
+ * One row is the fact "this membership snoozed this bundle until `snoozed_until`". `bundle_id` is the
+ * inbox's opaque `objectType:objectId` string, not a foreign key (the object lives in `work_items` or
+ * `client_requests` per prefix), so the tenant boundary is the service's tenant-scoped resolve of the
+ * object before the write, the `home_pinned_items` target_id posture. Keyed `(organization_id,
+ * membership_id, bundle_id)` for the upsert; snoozes are private to a membership — every read, the
+ * upsert and the delete are scoped by `membership_id`. Identity is immutable (the 0129 trigger); only
+ * `snoozed_until`/`updated_at` change.
+ */
+export const inboxSnoozes = mysqlTable(
+  'inbox_snoozes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    bundleId: varchar('bundle_id', { length: 120 }).notNull(),
+    snoozedUntil: datetime('snoozed_until', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_inbox_snoozes_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_inbox_snoozes_pin').on(
+      table.organizationId,
+      table.membershipId,
+      table.bundleId,
+    ),
+    index('ix_inbox_snoozes_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.snoozedUntil,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * The fixed ON-10 guided-tour steps a member's progress can record. Exported so the controller
  * validates a completion request against the same source of truth the column's ENUM is built from
  * (`onboarding-tour.steps.ts` re-derives the ordered, labelled list from this set).
@@ -4065,6 +4103,7 @@ export const TABLES = {
   project_milestones: projectMilestones,
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
+  inbox_snoozes: inboxSnoozes,
   work_forms: workForms,
   search_index: searchIndex,
   notification_kind_prefs: notificationKindPrefs,
@@ -4189,6 +4228,7 @@ export type QuietHoursRow = typeof quietHours.$inferSelect;
 export type UserPreferenceRow = typeof userPreferences.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
+export type InboxSnoozeRow = typeof inboxSnoozes.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type OrgPolicyRow = typeof orgPolicies.$inferSelect;
 export type SecuritySettingsRow = typeof securitySettings.$inferSelect;

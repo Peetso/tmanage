@@ -156,6 +156,7 @@ export const NOTIFICATION_PREFERENCES_SERVICE = Symbol.for(
 );
 export const INBOX_SERVICE = Symbol.for('tmanage.InboxService');
 export const PORTAL_INBOX_SERVICE = Symbol.for('tmanage.PortalInboxService');
+export const INBOX_SNOOZE_SERVICE = Symbol.for('tmanage.InboxSnoozeService');
 export const MAILER = Symbol.for('tmanage.Mailer');
 export const INVITATION_MAILER = Symbol.for('tmanage.InvitationMailer');
 export const OBJECT_STORE = Symbol.for('tmanage.ObjectStore');
