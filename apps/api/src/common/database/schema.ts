@@ -1051,6 +1051,40 @@ export const billingUsageAlerts = mysqlTable(
 );
 
 /**
+ * The purchase-order status set, mirroring the `0151` `ENUM`. A PO reference is `open` at creation and
+ * its lifecycle transitions to `closed` (idempotently) through the close path.
+ */
+export const BILLING_PURCHASE_ORDER_STATUSES = ['open', 'closed'] as const;
+
+/**
+ * Billing & entitlements (module 19, x282). An org-scoped purchase-order (PO) reference — a
+ * `po_number` (unique per organization), an optional `amount_minor` in the smallest unit of an
+ * optional ISO-4217 `currency`, an optional `note`, and an open/closed `status`. Tenant-owned and
+ * org-scoped like `billing_usage_alerts` (0083): no `project_id`, the tenant key is `organization_id`
+ * bound to `organizations`, and `(organization_id, po_number)` is unique so an organization holds at
+ * most one row per number. `organization_id` and `po_number` are immutable at the engine (0151
+ * trigger); `status` is the one column the close path changes. It is a record, never a payment.
+ * `0151_billing_purchase_orders.sql` is the source of truth; this is its typed mirror.
+ */
+export const billingPurchaseOrders = mysqlTable(
+  'billing_purchase_orders',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    poNumber: varchar('po_number', { length: 128 }).notNull(),
+    amountMinor: bigint('amount_minor', { mode: 'number', unsigned: true }),
+    currency: char('currency', { length: 3 }),
+    note: varchar('note', { length: 500 }),
+    status: mysqlEnum('status', BILLING_PURCHASE_ORDER_STATUSES).notNull().default('open'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_billing_purchase_orders_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_billing_purchase_orders_org_number').on(table.organizationId, table.poNumber),
+  ],
+);
+
+/**
  * The project-objective status set, mirroring the `0040` `ENUM`. An objective is `open` at creation
  * and its lifecycle transitions to `met` or `missed`.
  */
@@ -4090,6 +4124,7 @@ export const TABLES = {
   billing_profiles: billingProfiles,
   billing_contacts: billingContacts,
   billing_usage_alerts: billingUsageAlerts,
+  billing_purchase_orders: billingPurchaseOrders,
   work_item_files: workItemFiles,
   insight_saved_views: insightSavedViews,
   insight_snapshots: insightSnapshots,
@@ -4172,6 +4207,7 @@ export type DecisionLockRow = typeof decisionLocks.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type AutomationScheduleRow = typeof automationSchedules.$inferSelect;
 export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
+export type BillingPurchaseOrderRow = typeof billingPurchaseOrders.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
