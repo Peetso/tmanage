@@ -13925,3 +13925,25 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Public security & trust page (x158, module 1)
+
+**What landed.** The public site had no security/trust page (audit rank #1, Missing). This slice
+adds a public, tenant-less read `GET /v1/public/site/trust` (`@Public()`/`@NoTenant()`, no
+capability, `capabilities.ts` untouched) served by a dependency-free `TrustContentService` that
+returns frozen, code-defined copy: control sections (access, encryption, resilience, data
+protection), data-handling statements, a non-empty subprocessor list, compliance posture, and the
+path to the status page. It is deterministic and identical for everyone — no database, no live
+status. The line between this and the status page (x159) is deliberate: a trust page states the
+design; it never implies a live "operational" it cannot know (the `D15` class of false security
+statement). No new table, so no registry work.
+
+**Surfaces.** `PublicTrustView` (`trust-content.service.ts`) is a live `Exact` pair with the web's
+`PublicTrustView` (`apps/web/src/lib/api/public-trust.ts`) in `e2e/contracts/api-web-shapes.ts`, so
+the copy the API serves and the copy the screen renders cannot drift. `TrustScreen`
+(`apps/web/src/components/screens/TrustScreen.tsx`), routed at `/security`, fetches with
+`authentication: 'none'` and renders the controls, a captioned subprocessor table, and a link to
+status, with its own landmarks and one `<h1>` (A11Y-01). Proved database-free:
+`trust-content.controller.test.ts` (controls present, non-empty subprocessors, and the route is
+public/tenant-less with no capability metadata) and `apps/web/tests/trust.test.tsx` (renders the
+server content, accessible structure, axe-clean).
