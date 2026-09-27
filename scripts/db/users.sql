@@ -502,6 +502,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`focus_blocks`      TO 'tmanage_app'@'
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
 -- that adds the privilege with the code that writes it. No DELETE.
 GRANT INSERT                 ON `tmanage`.`document_comments` TO 'tmanage_app'@'%';
+-- Docs review workflow (0181, x313) document reviews. **INSERT and UPDATE** — a review is requested
+-- (INSERT), read (the database-wide SELECT), and decided exactly once (UPDATE state/note/decided_at).
+-- The single decision is enforced in the application (409 on re-decide); there is no delete path, so
+-- no DELETE. The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, UPDATE         ON `tmanage`.`doc_reviews`        TO 'tmanage_app'@'%';
 -- DOC-04/ADM-06 (x119) document templates. **INSERT only** — a template is created (INSERT) and
 -- read (the database-wide SELECT). This slice ships no editor and no removal path, and the 0039
 -- trigger pins organization_id/created_by_user_id immutable for every credential; an editor is a

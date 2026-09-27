@@ -131,6 +131,8 @@ export const DOCUMENTS_REPOSITORY = Symbol.for('tmanage.DocumentsRepository');
 export const DOCUMENTS_SERVICE = Symbol.for('tmanage.DocumentsService');
 /** Docs "collaboration later" (x132). The docs module's document-comments read/add. */
 export const DOCUMENT_COMMENTS_SERVICE = Symbol.for('tmanage.DocumentCommentsService');
+/** Docs review workflow (x313). The docs module's document review request/decide/list. */
+export const DOC_REVIEWS_SERVICE = Symbol.for('tmanage.DocReviewsService');
 /** DEC-01 (x113). The decisions module's decision register author/list. */
 export const DECISIONS_REPOSITORY = Symbol.for('tmanage.DecisionsRepository');
 export const DECISIONS_SERVICE = Symbol.for('tmanage.DecisionsService');

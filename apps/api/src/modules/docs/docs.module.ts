@@ -4,6 +4,7 @@ import {
   DOCUMENTS_REPOSITORY,
   DOCUMENTS_SERVICE,
   DOCUMENT_COMMENTS_SERVICE,
+  DOC_REVIEWS_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -13,6 +14,8 @@ import { DocumentsController } from './documents.controller.js';
 import { DocumentExportController } from './document-export.controller.js';
 import { DocumentCommentsService } from './document-comments.service.js';
 import { DocumentCommentsController } from './document-comments.controller.js';
+import { DocReviewsService } from './reviews.service.js';
+import { DocReviewsController } from './reviews.controller.js';
 
 /**
  * DOC-01 (x91). The docs module's first vertical slice: document read/write.
@@ -45,14 +48,26 @@ export class DocsModule {
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) => new DocumentCommentsService(database),
     };
+    // Docs review workflow (x313): a request/decide/list service resolving the document tenant-scoped
+    // through its own `DocumentsRepository` (the Known-trap order), so it needs only the database.
+    const reviewsService: Provider = {
+      provide: DOC_REVIEWS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new DocReviewsService(database),
+    };
 
     return {
       module: DocsModule,
-      providers: [repository, service, commentsService],
-      exports: [service, commentsService],
+      providers: [repository, service, commentsService, reviewsService],
+      exports: [service, commentsService, reviewsService],
       // DOC export (x131): a second controller on the same `documents` base path, serving the
       // read-only Markdown download. It resolves the same `DOCUMENTS_SERVICE` this module provides.
-      controllers: [DocumentsController, DocumentExportController, DocumentCommentsController],
+      controllers: [
+        DocumentsController,
+        DocumentExportController,
+        DocumentCommentsController,
+        DocReviewsController,
+      ],
     };
   }
 }
