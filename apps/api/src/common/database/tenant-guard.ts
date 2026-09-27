@@ -363,6 +363,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // unregistered table, so registering it here is what scopes the reads and the append;
   // tenant-isolation.db.test.ts enforces the entry.
   project_update_comments: 'organization_id',
+  // SEC / Client portal messages (x322, 0190). Tenant-owned: a client's inbound message belongs to
+  // one studio's client-org scope, and an unscoped `SELECT ... FROM portal_client_messages` would be
+  // every studio's client inquiries on the server. The layer-3 guard fails OPEN on an unregistered
+  // table, so registering it here is what scopes the reads and the append; tenant-isolation.db.test.ts
+  // enforces the entry.
+  portal_client_messages: 'organization_id',
   // PROJ / module 8 (x136, migration 0046). Tenant-owned: an org objective belongs to one studio,
   // and an unscoped `SELECT ... FROM org_objectives` would be every studio's OKRs on the server.
   // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table

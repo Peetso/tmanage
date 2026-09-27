@@ -246,6 +246,81 @@ export async function listPortalUpdateComments(
   return data.comments;
 }
 
+/**
+ * A message as the **portal** is told it — SEC / Client portal messages (x322).
+ *
+ * What is absent is the point, the same way it is for `ClientUpdateComment`: there is no author, no
+ * scope id and no tenant id. The client posts to and reads their own thread; the projection carries
+ * only what the screen renders.
+ */
+export interface ClientMessage {
+  readonly id: string;
+  readonly subject: string;
+  readonly body: string;
+  readonly createdAt: string;
+}
+
+/**
+ * A message as **staff** are shown it — the studio's inbound list on the portal admin. Carries which
+ * client organization sent it and which contact authored it, behind `client_member.manage`.
+ */
+export interface AdminClientMessage {
+  readonly id: string;
+  readonly clientOrganizationId: string;
+  readonly authorUserId: string;
+  readonly subject: string;
+  readonly body: string;
+  readonly createdAt: string;
+}
+
+export interface PostClientMessageInput {
+  readonly subject: string;
+  readonly body: string;
+}
+
+/**
+ * Post a message to the studio from the portal — the client write. Behind `client_projection.read`;
+ * the tenant, the client-org scope and the author come from the session, never this body.
+ */
+export async function postClientMessage(
+  client: ApiClient,
+  organizationSlug: string,
+  input: PostClientMessageInput,
+): Promise<ClientMessage> {
+  const { data } = await client.request<ClientMessage>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/messages`,
+    body: input,
+  });
+  return data;
+}
+
+/** The caller's own message thread — behind `client_projection.read`, on the `/portal` path. */
+export async function listClientMessages(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<readonly ClientMessage[]> {
+  const { data } = await client.request<{ messages: readonly ClientMessage[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/messages`,
+  });
+  return data.messages;
+}
+
+/**
+ * The inbound messages for one client organization — staff read, behind `client_member.manage`. The
+ * API resolves the client-org scope inside the acting tenant, so a cross-tenant id is a 404.
+ */
+export async function listInboundClientMessages(
+  client: ApiClient,
+  organizationSlug: string,
+  clientOrganizationId: string,
+): Promise<readonly AdminClientMessage[]> {
+  const { data } = await client.request<{ messages: readonly AdminClientMessage[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/messages/admin?clientOrganizationId=${encodeURIComponent(clientOrganizationId)}`,
+  });
+  return data.messages;
+}
+
 /** The milestone states a client is shown — 12-PERMISSION-MATRIX §4's "milestone state". */
 export type MilestoneStatus = 'planned' | 'met' | 'missed';
 

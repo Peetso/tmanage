@@ -4,6 +4,7 @@ import {
   API_CONFIG,
   AUDIT_SERVICE,
   CLIENTS_SERVICE,
+  CLIENT_MESSAGES_SERVICE,
   CLIENT_REQUESTS_SERVICE,
   CLIENT_MEMBERSHIPS_REPOSITORY,
   CLIENT_ORGANIZATIONS_REPOSITORY,
@@ -41,6 +42,9 @@ import {
 } from './update-comments.controller.js';
 import { UpdateCommentsService } from './update-comments.service.js';
 import { ProjectUpdateCommentsRepository } from './update-comments.repository.js';
+import { PortalClientMessagesController } from './client-messages.controller.js';
+import { ClientMessagesService } from './client-messages.service.js';
+import { ClientMessagesRepository } from './client-messages.repository.js';
 import {
   PortalMilestonesController,
   ProjectMilestonesController,
@@ -305,6 +309,22 @@ export class ClientsModule {
         ),
     };
 
+    /**
+     * SEC / Client portal messages (x322). The repositories are constructed here, like the `portal`
+     * provider above: they are stateless collections of queries, and reaching for another module's
+     * provider would register that dynamic module twice.
+     */
+    const clientMessages: Provider = {
+      provide: CLIENT_MESSAGES_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new ClientMessagesService(
+          database,
+          new ClientOrganizationsRepository(),
+          new ClientMessagesRepository(),
+        ),
+    };
+
     return {
       module: ClientsModule,
       providers: [
@@ -320,6 +340,7 @@ export class ClientsModule {
         milestoneLifecycle,
         risks,
         updateComments,
+        clientMessages,
       ],
       exports: [service, portal],
       controllers: [
@@ -335,6 +356,7 @@ export class ClientsModule {
         PortalAccessLogController,
         ProjectUpdateCommentsController,
         PortalUpdateCommentsController,
+        PortalClientMessagesController,
       ],
     };
   }

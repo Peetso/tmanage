@@ -46,6 +46,8 @@ export const PROJECT_RISKS_SERVICE = Symbol.for('tmanage.ProjectRisksService');
 export const PORTAL_ACCESS_LOG_SERVICE = Symbol.for('tmanage.PortalAccessLogService');
 /** SEC / Portal update comments (x203). Internal post + read and the client projection. */
 export const UPDATE_COMMENTS_SERVICE = Symbol.for('tmanage.UpdateCommentsService');
+/** SEC / Client portal messages (x322). Client post + own-thread read and the staff inbound read. */
+export const CLIENT_MESSAGES_SERVICE = Symbol.for('tmanage.ClientMessagesService');
 /** FEAT: Billing invoices (x179). The invoice-history read surface and its repository. */
 export const INVOICES_REPOSITORY = Symbol.for('tmanage.InvoicesRepository');
 export const INVOICES_SERVICE = Symbol.for('tmanage.InvoicesService');
