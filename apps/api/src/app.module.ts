@@ -29,6 +29,7 @@ import { NotificationPreferencesModule } from './modules/notifications/notificat
 import { NotificationsFeedModule } from './modules/notifications/notifications-feed.module.js';
 import { NotificationKindPrefsModule } from './modules/notifications/notification-kind-prefs.module.js';
 import { A11yPreferencesModule } from './modules/preferences/a11y-preferences.module.js';
+import { DisplayPreferencesModule } from './modules/preferences/display-prefs.module.js';
 import { QuietHoursModule } from './modules/preferences/quiet-hours.module.js';
 import { PreferencesModule } from './modules/preferences/preferences.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
@@ -265,6 +266,11 @@ export class AppModule {
         // /me/accessibility). Like NOTIF-001's preferences it resolves no tenant object and depends
         // on nothing but the database; file-disjoint from the sibling preferences slice (x182).
         A11yPreferencesModule.register(),
+        // PREF-DISPLAY (x285, module 20). The caller's own display-preferences hub (GET/PUT
+        // /me/display-preferences: theme/density/locale/timezone/date format). Like the sibling
+        // preferences slices it resolves no tenant object and depends on nothing but the database;
+        // file-disjoint from x182/x183.
+        DisplayPreferencesModule.register(),
         // PREF-QUIET (x215, module 20). The caller's own notification quiet-hours window (GET/PUT
         // /preferences/quiet-hours and GET .../active). Like the sibling preferences slices it
         // resolves no tenant object and depends on nothing but the database; file-disjoint from

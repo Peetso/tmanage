@@ -79,6 +79,10 @@ export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');
 export const WORKFLOW_RUN_HISTORY_REPOSITORY = Symbol.for('tmanage.WorkflowRunHistoryRepository');
 /** A11Y-183 (x183, module 20). The member's-own accessibility-preferences repository. */
 export const A11Y_PREFERENCES_REPOSITORY = Symbol.for('tmanage.A11yPreferencesRepository');
+/** PREF-DISPLAY (x285, module 20). The member's-own display-preferences repository. */
+export const DISPLAY_PREFERENCES_REPOSITORY = Symbol.for('tmanage.DisplayPreferencesRepository');
+/** PREF-DISPLAY (x285, module 20). The member's-own display-preferences service. */
+export const DISPLAY_PREFERENCES_SERVICE = Symbol.for('tmanage.DisplayPreferencesService');
 /** Automation workflow conditions (x190). The org-scoped per-step condition repository. */
 export const WORKFLOW_CONDITIONS_REPOSITORY = Symbol.for('tmanage.WorkflowConditionsRepository');
 /** PEOPLE allocations (x171). The project-scoped person-allocation repository. */

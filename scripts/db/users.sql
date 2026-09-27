@@ -580,6 +580,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`webhook_endpoints` TO 'tmanage_app'@'
 -- `uq_a11y_preferences_org_membership`. No DELETE: a member clears settings by saving the defaults,
 -- not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`a11y_preferences`  TO 'tmanage_app'@'%';
+-- PREF-DISPLAY display preferences (x285, module 20, migration 0154). **INSERT, UPDATE** — a
+-- member's display settings (theme/density/locale/timezone/date format) are created and then
+-- replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert against
+-- `uq_user_display_preferences_org_membership`. No DELETE: a member clears settings by saving the
+-- defaults, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`user_display_preferences` TO 'tmanage_app'@'%';
 -- Automation workflow conditions (x190, 0081). **INSERT only** — a condition is created (INSERT) and
 -- read (the database-wide SELECT). This slice ships no editor and no removal path; the 0081 trigger
 -- pins organization_id/template_id/created_by immutable for every credential, and an editor is a later
