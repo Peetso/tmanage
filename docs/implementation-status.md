@@ -13925,3 +13925,32 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Billing / module 19 — subscription: view + request plan change (x177)
+
+`38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Billing wants the organization's subscription: view the
+current plan and request a plan change. The audit (rank #10, Billing Partial) confirmed the usage
+counter shipped (USAGE-001) but no subscription model or table existed (grep clean). x177 ships an
+org-scoped `subscriptions` table (migration `0074`) — `plan_id`, `status`
+(`active | pending_change`), `current_period_end`, one row per organization
+(`uq_subscriptions_org`) — and two endpoints under `/v1/organizations/:orgSlug/billing/subscription`:
+`GET` reads the current plan (defaulting to the free/base tier when no row exists), and `POST /change`
+records a plan-change intent. Both are behind `org.manage` — the owners-only population the
+storage/usage read sits behind; no `capabilities.ts` edit.
+
+**No money moves.** Real payment, charging and card storage are Needs-Peter (an external provider).
+A plan change validates the target against the plan catalog (off-catalog → 400, no write) and upserts
+the one row with `status = 'pending_change'` — a recorded request, never a charge. There is no charge
+path in the service. The plan catalog (`plan-catalog.ts`) is defined self-contained because x157's
+pricing catalog is not on this slice's base; it is the one place to reconcile when x157 lands.
+
+**Surfaces.** `SubscriptionView` (`billing/subscription.service.ts`) is a live `Exact` pair with the
+web's `SubscriptionView` (`apps/web/src/lib/api/subscription.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`SubscriptionScreen` (`apps/web/src/components/screens/SubscriptionScreen.tsx`), routed at
+`/[orgSlug]/billing/subscription`, shows the current plan and requests a change, stating the change is
+not charged here. The new table is registered in all four places — `schema.ts` def + `TABLES`,
+tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT + UPDATE; upsert, no DELETE), and the on-disk
+migration the readdir migrator applies. Proved database-free with the real `authorize`
+(`billing/subscription.controller.test.ts`): read defaults to free/active, a valid change is recorded
+as `pending_change` (the only write), an off-catalog plan is a 400 with no write, and a caller without
+`org.manage` is a 403 with no write. Deferred: real payment/charging + card storage (Needs-Peter).

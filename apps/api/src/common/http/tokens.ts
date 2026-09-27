@@ -140,3 +140,7 @@ export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');
 /** SRCH-01 (x111). Global tenant-scoped search over work items, documents and meetings. */
 export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
 export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
+/** Billing / module 19 (x177). The subscription read + plan-change service. */
+export const SUBSCRIPTION_SERVICE = Symbol.for('tmanage.SubscriptionService');
+/** Billing / module 19 (x177). The `subscriptions` repository — one row per organization. */
+export const SUBSCRIPTION_REPOSITORY = Symbol.for('tmanage.SubscriptionRepository');

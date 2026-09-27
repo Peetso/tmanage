@@ -103,6 +103,7 @@ import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
+import type { SubscriptionView as ApiSubscriptionView } from '../../apps/api/src/modules/billing/subscription.service.js';
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../apps/api/src/modules/insights/insights.service.js';
@@ -215,6 +216,7 @@ import type {
   SessionSummary as WebSessionSummary,
 } from '../../apps/web/src/lib/api/session';
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
+import type { SubscriptionView as WebSubscriptionView } from '../../apps/web/src/lib/api/subscription';
 import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
@@ -427,6 +429,13 @@ type _documentTemplateVariable = Assert<
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;
+
+/**
+ * Billing / module 19 (x177) — `GET/POST …/billing/subscription`. The organization's current plan:
+ * `{ planId, status: 'active' | 'pending_change', currentPeriodEnd }`. Paired with a live web
+ * consumer — x177 ships `SubscriptionScreen` — so this is an `Exact` pair, not an exemption.
+ */
+type _subscription = Assert<Exact<ApiSubscriptionView, WebSubscriptionView>>;
 
 /**
  * INS-02 — `GET …/insights/projects/:projectId/approval-cycle`. A project's approvals rolled up by

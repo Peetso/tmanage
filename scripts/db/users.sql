@@ -374,6 +374,13 @@ GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'
 -- it creates a `work_items` row through the existing work path, which is granted above.
 GRANT INSERT                 ON `tmanage`.`work_forms`        TO 'tmanage_app'@'%';
 
+-- Billing subscription (x177, migration 0074). One row per organization, upserted: INSERT to create
+-- the first subscription and UPDATE to change the plan (the change is recorded as `pending_change`;
+-- no charge is executed here — real payment is a later slice with an external provider). No DELETE:
+-- a subscription is created and changed, never removed by the runtime credential; the 0074 trigger
+-- pins organization_id immutable for every credential.
+GRANT INSERT, UPDATE         ON `tmanage`.`subscriptions`     TO 'tmanage_app'@'%';
+
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
 -- successful verification. `user_recovery_codes` needs UPDATE to spend a code and to revoke
