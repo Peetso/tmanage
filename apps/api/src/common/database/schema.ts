@@ -4949,6 +4949,43 @@ export type InboxSavedFilterRow = typeof inboxSavedFilters.$inferSelect;
 export type NewInboxSavedFilterRow = typeof inboxSavedFilters.$inferInsert;
 
 /**
+ * DOC collections (x264). Named document collections — lightweight wiki spaces — and their membership,
+ * in one table (the `work_item_labels` one-table posture). A row is EITHER a collection definition (its
+ * `name` is set, `collectionId` and `documentId` are null, and the row's own `id` is the collection id)
+ * OR a membership fact "this document belongs to this collection" (`collectionId` points at a definition
+ * row, `documentId` at a `documents` row, `name` is null). Created (INSERT) and removed (DELETE), never
+ * edited — the withheld UPDATE grant is the control, no immutability trigger. `uq_doc_collections_name`
+ * makes a duplicate collection name a 409 (definitions only; members carry a null name and MySQL permits
+ * many nulls in a unique key); `uq_doc_collections_member` makes adding a document twice idempotent. Two
+ * composite FKs bind a membership row within one tenant. `0134_doc_collections.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const docCollections = mysqlTable(
+  'doc_collections',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    collectionId: char('collection_id', { length: 36 }),
+    documentId: char('document_id', { length: 36 }),
+    name: varchar('name', { length: 200 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_doc_collections_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_doc_collections_name').on(table.organizationId, table.name),
+    uniqueIndex('uq_doc_collections_member').on(
+      table.organizationId,
+      table.collectionId,
+      table.documentId,
+    ),
+    index('ix_doc_collections_member').on(table.organizationId, table.collectionId, table.id),
+  ],
+);
+
+export type DocCollectionRow = typeof docCollections.$inferSelect;
+export type NewDocCollectionRow = typeof docCollections.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -5086,6 +5123,7 @@ export const TABLES = {
   doc_bookmarks: docBookmarks,
   work_item_recurrence: workItemRecurrence,
   member_teams: memberTeams,
+  doc_collections: docCollections,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   conversation_read_state: conversationReadState,

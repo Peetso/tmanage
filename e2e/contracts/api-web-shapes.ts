@@ -57,6 +57,10 @@ import type { DocRevisionView as ApiDocRevisionView } from '../../apps/api/src/m
 import type { DocBookmarkView as ApiDocBookmarkView } from '../../apps/api/src/modules/docs/bookmarks.service.js';
 import type { InboxSavedFilterView as ApiInboxSavedFilterView } from '../../apps/api/src/modules/inbox/inbox-saved-filters.service.js';
 import type { GlossaryTermView as ApiGlossaryTermView } from '../../apps/api/src/modules/docs/glossary.service.js';
+import type {
+  CollectionView as ApiCollectionView,
+  CollectionDocumentView as ApiCollectionDocumentView,
+} from '../../apps/api/src/modules/docs/collections.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -311,6 +315,10 @@ import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web
 import type { SavedMessageSummary as WebSavedMessageSummary } from '../../apps/web/src/lib/api/message-bookmarks';
 import type { InboxSavedFilterView as WebInboxSavedFilterView } from '../../apps/web/src/lib/api/inbox-saved-filters';
 import type { GlossaryTermSummary as WebGlossaryTermSummary } from '../../apps/web/src/lib/api/glossary';
+import type {
+  DocCollectionSummary as WebDocCollectionSummary,
+  CollectionDocumentSummary as WebCollectionDocumentSummary,
+} from '../../apps/web/src/lib/api/doc-collections';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -833,6 +841,14 @@ type _inboxSavedFilter = Assert<Exact<ApiInboxSavedFilterView, WebInboxSavedFilt
  * Exact.
  */
 type _glossaryTerm = Assert<Exact<ApiGlossaryTermView, WebGlossaryTermSummary>>;
+
+/**
+ * DOC collections (x264). `CollectionView` (`GET`/`POST …/doc-collections`) — one named collection —
+ * and `CollectionDocumentView` (`GET …/doc-collections/:id`, `PUT …/:id/documents/:docId`) — one
+ * document in a collection. The collections screen reads exactly these responses, so each pair is Exact.
+ */
+type _docCollection = Assert<Exact<ApiCollectionView, WebDocCollectionSummary>>;
+type _collectionDocument = Assert<Exact<ApiCollectionDocumentView, WebCollectionDocumentSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST
