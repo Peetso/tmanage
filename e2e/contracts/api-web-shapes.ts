@@ -64,6 +64,7 @@ import type {
   UsageAlertView as ApiUsageAlertView,
   UsageAlertStatusView as ApiUsageAlertStatusView,
 } from '../../apps/api/src/modules/billing/usage-alerts.service.js';
+import type { UsageExportView as ApiUsageExportView } from '../../apps/api/src/modules/billing/usage-export.service.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -403,6 +404,7 @@ import type {
   UsageAlertSummary as WebUsageAlertSummary,
   UsageAlertStatus as WebUsageAlertStatus,
 } from '../../apps/web/src/lib/api/billing';
+import type { UsageExportColumns as WebUsageExportColumns } from '../../apps/web/src/lib/api/billing-usage-export';
 import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
 import type { AdminOverviewView as WebAdminOverviewView } from '../../apps/web/src/lib/api/admin-overview';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
@@ -1050,6 +1052,14 @@ type _workflowRun = Assert<Exact<ApiWorkflowRunView, WebWorkflowRunSummary>>;
  */
 type _usageAlert = Assert<Exact<ApiUsageAlertView, WebUsageAlertSummary>>;
 type _usageAlertStatus = Assert<Exact<ApiUsageAlertStatusView, WebUsageAlertStatus>>;
+
+/**
+ * Billing & entitlements (x227). `UsageExportView` — one row of the date-windowed usage CSV export
+ * (`GET …/billing/usage/export.csv`, behind `org.manage`). The transport is CSV, so there is no JSON
+ * payload to parse; the pairing keeps the emitted column set and the web client's `UsageExportColumns`
+ * documentation in step. `organizationId` and the counter's storage internals are absent on both.
+ */
+type _usageExport = Assert<Exact<ApiUsageExportView, WebUsageExportColumns>>;
 
 /**
  * Automations app directory (x165). `IntegrationConnectionView` (`GET`/`POST

@@ -15438,6 +15438,34 @@ caller without `org.manage` is a 403, and `status` flags a breached active rule 
 Deferred to worker infrastructure (Needs-Peter): the dispatcher that delivers an alert when a threshold
 is crossed, and a per-rule removal path.
 
+## SEC / Billing & entitlements — usage CSV export (x227, module 19)
+
+**What shipped.** A date-windowed CSV export of the org's usage counters — a deeper flow over
+`usage_counters` than the x200 usage-alerts read, and distinct from it. **No new table, no migration,
+no `capabilities.ts` edit** (it reads `usage_counters` and reuses `org.manage`). One endpoint:
+`GET …/billing/usage/export.csv?from=&to=` streams the tenant's usage counters (metric key, used and
+reserved values, threshold band, reconciled/updated timestamps) as a spreadsheet-safe CSV attachment.
+
+**Security.** The window is validated at the boundary before any read: a missing, malformed, inverted
+or over-wide window (> 366 days) is a 400 with no partial dump. The service makes the authoritative
+org-scoped `org.manage` decision (`projectId: null`, a 403 for a caller without it) beyond the route
+guard, the repository scopes every read to the caller's `TenantContext` so a counter can never cross
+tenants, and the read is row-capped (413 past 10,000 rows) so an export cannot dump an unbounded table.
+Every cell goes through the shared, formula-injection-guarded `toCsv` (`insights/csv.ts`) — a cell
+beginning `= + - @` (or the tab/CR that lead into a formula) is neutralised — rather than a hand-rolled
+serializer. The download carries `Content-Disposition: attachment`, `nosniff` and `private, no-store`.
+
+**Surfaces.** `UsageExportView` (`usage-export.service.ts`) is an `Exact` pair with the web's
+`UsageExportColumns` (`apps/web/src/lib/api/billing-usage-export.ts`) in
+`e2e/contracts/api-web-shapes.ts` — the transport is CSV, so the pair documents the column set rather
+than a parsed payload. `UsageExportScreen` (`apps/web/src/components/screens/UsageExportScreen.tsx`),
+routed at `/[orgSlug]/billing/usage/export`, is a from/to day-window picker and a download link that
+also refuses an inverted or over-wide window client-side. Proved database-free with the real
+`authorize` (`usage-export.controller.test.ts`): a valid window returns tenant rows and drops a
+cross-tenant and an out-of-window row, an inverted and an over-wide window are 400s with no read, a
+formula-injection cell is neutralised, the row cap is a 413, and a caller without `org.manage` is a 403.
+The tenant-scoped SQL round-trip and the migration N/A (no table) are the chain's DB suite.
+
 ## x201 — Portal update edit/unpublish lifecycle (module 13 Client Portal)
 
 CLIENT-003 (x125) let a manager **create** a project update and let a client read the published

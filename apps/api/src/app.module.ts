@@ -106,6 +106,7 @@ import { InvoicesModule } from './modules/billing/invoices.module.js';
 import { MemberProfileModule } from './modules/people/member-profile.controller.js';
 import { InvoiceLineItemsModule } from './modules/billing/invoice-line-items.module.js';
 import { BillingCreditsModule } from './modules/billing/credits.controller.js';
+import { BillingUsageExportModule } from './modules/billing/usage-export.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -574,6 +575,11 @@ export class AppModule {
         // running balance) behind `org.manage`, over the new `billing_credits` table (0100). Append-only
         // and self-contained; no money moves and no gateway is called — real settlement is Needs-Peter.
         BillingCreditsModule.register(),
+        // Billing & entitlements module 19 (x227). A date-windowed CSV export of the org's usage
+        // counters behind `org.manage`: window-validated (400 on bad/oversized range), tenant-scoped,
+        // row-capped (413), and formula-injection-guarded through the shared `toCsv`. File-disjoint
+        // from the usage-alerts slice; reads `usage_counters` and adds no table.
+        BillingUsageExportModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
