@@ -65,7 +65,9 @@ describe('MarketingResourcesScreen', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Resources & guides' }),
     ).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: LIST.resources[0]!.title });
+    // The cards load asynchronously (react-query); the static heading above renders before the
+    // query settles, so wait for the card link rather than reading it synchronously.
+    const link = await screen.findByRole('link', { name: LIST.resources[0]!.title });
     expect(link).toHaveAttribute('href', '/resources/getting-started');
   });
 
