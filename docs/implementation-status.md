@@ -13925,3 +13925,34 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## Automations — app / integration directory (x165, module 17)
+
+**What landed.** The Automations module had a static, code-defined catalog of apps a studio could
+connect to but nothing recorded which ones an organization had connected. This slice adds an
+org-scoped `integration_connections` table (migration `0065`) — app id, label, status
+(`connected | pending`) and a bounded bag of **non-secret** settings (`config_json`) — and two
+endpoints under `/v1/organizations/:orgSlug/automations/apps`, both behind `org.manage`: `GET` returns
+the catalog (`catalog.service.ts`, a frozen code-defined list) merged with the tenant's connections,
+and `POST :appId/connections` records a connection against a catalog app. Capabilities are reused
+(`org.manage`); no `capabilities.ts` edit. Live OAuth / credential exchange is out of scope
+(Needs-Peter — external, paid); this slice records a connection intent and non-secret config only.
+
+**Known-trap order and the secret boundary.** `appId` is validated against the code-defined catalog
+_first_, so an off-catalog id is a 404 with no write. The body is validated next — a bad label, an
+over-large config, or a **secret-shaped config key** (`token`, `secret`, `password`, `api_key`, …) is
+a 400 with no write — and only then is the row inserted. No credentials are ever stored:
+`config_json` is non-secret settings only. `IntegrationConnectionView` never echoes `organization_id`.
+The new table is registered in all four places — `schema.ts` def + `TABLES`, tenant-guard
+`TENANT_TABLES`, `users.sql` grant (INSERT only; database-wide SELECT covers the read), and the
+on-disk migration the readdir migrator applies.
+
+**Surfaces.** `IntegrationAppView` and `IntegrationConnectionView` (`directory.controller.ts`) are
+live `Exact` pairs with the web's shapes (`apps/web/src/lib/api/integration-directory.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `IntegrationDirectoryScreen`
+(`apps/web/src/components/screens/IntegrationDirectoryScreen.tsx`), routed at
+`/[orgSlug]/automations/apps`, shows the catalog and records a connection with a non-secret setting.
+Proved database-free with the real `authorize` (`directory.controller.test.ts`): the catalog is merged
+with connections, an off-catalog `appId` is a 404 with no write, a secret-shaped config key is a 400
+with no write, and a role without `org.manage` is a 403. Deferred: live OAuth, an editor and a
+disconnect path (each a later slice with its own grant).

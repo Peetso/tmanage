@@ -46,6 +46,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
+import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -247,6 +248,11 @@ export class AppModule {
         // read on the insights base path. Read-only over `work_items`, behind `work.read`; it
         // constructs its own repository handle (see its doc), so its position here is by subject.
         WorkloadForecastModule.register(),
+        // x165. Automations app directory: the static integration catalog merged with the org's
+        // recorded connections, and a create that records a non-secret connection against a catalog
+        // app. Behind `org.manage`; a self-contained module so the Automations slices stay
+        // file-disjoint. No secrets are stored (secret exchange is Needs-Peter).
+        IntegrationDirectoryModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

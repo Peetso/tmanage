@@ -112,6 +112,8 @@ import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
+import type { IntegrationAppView as ApiIntegrationAppView } from '../../apps/api/src/modules/automations/directory.controller.js';
+import type { IntegrationConnectionView as ApiIntegrationConnectionView } from '../../apps/api/src/modules/automations/directory.controller.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -143,6 +145,8 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
+import type { IntegrationAppView as WebIntegrationAppView } from '../../apps/web/src/lib/api/integration-directory';
+import type { IntegrationConnectionView as WebIntegrationConnectionView } from '../../apps/web/src/lib/api/integration-directory';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -512,6 +516,19 @@ type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklis
  * submission response is the created work item, covered by the `WorkItemView`↔`WorkItemSummary` pair.
  */
 type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
+
+/**
+ * Automations app directory (x165). `IntegrationConnectionView` (`GET`/`POST
+ * …/automations/apps[/:appId/connections]`) — one recorded connection, and `IntegrationAppView` — a
+ * catalog app with its connections merged. Paired Exact with the web consumer
+ * (`IntegrationDirectoryScreen` via `lib/api/integration-directory`): the `status` union
+ * (`connected | pending`), the `config` bag (`Record<string, string | number | boolean>`) and the
+ * nested `connections` element are identical on both sides. `organizationId` is absent on both.
+ */
+type _integrationConnection = Assert<
+  Exact<ApiIntegrationConnectionView, WebIntegrationConnectionView>
+>;
+type _integrationApp = Assert<Exact<ApiIntegrationAppView, WebIntegrationAppView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit
