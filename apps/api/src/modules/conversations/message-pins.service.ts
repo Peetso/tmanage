@@ -3,8 +3,8 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ConversationPinnedMessageRow } from '../../common/database/schema.js';
-import { ConversationsRepository } from './conversations.repository.js';
-import { MessagePinsRepository } from './message-pins.repository.js';
+import type { ConversationsRepository } from './conversations.repository.js';
+import type { MessagePinsRepository } from './message-pins.repository.js';
 
 /**
  * x247 — pinning a message to a conversation's pinned-context list (CH-07 "Message actions" / CH-02

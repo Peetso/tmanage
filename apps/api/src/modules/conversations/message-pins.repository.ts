@@ -112,14 +112,16 @@ export class MessagePinsRepository {
 
     const id = uuidv7();
     try {
-      await tenantDrizzle(runner).insert(conversationPinnedMessages).values({
-        id,
-        organizationId: context.organizationId,
-        conversationId: input.conversationId,
-        messageId: input.messageId,
-        pinnedByUserId: input.pinnedByUserId,
-        pinnedAt: sql`current_timestamp(3)`,
-      });
+      await tenantDrizzle(runner)
+        .insert(conversationPinnedMessages)
+        .values({
+          id,
+          organizationId: context.organizationId,
+          conversationId: input.conversationId,
+          messageId: input.messageId,
+          pinnedByUserId: input.pinnedByUserId,
+          pinnedAt: sql`current_timestamp(3)`,
+        });
     } catch (error) {
       if (driverErrorCode(error) === ER_DUP_ENTRY) {
         const raced = await this.findPin(runner, context, input.conversationId, input.messageId);

@@ -95,8 +95,14 @@ class RecordingPins extends MessagePinsRepository {
     input: { conversationId: string; messageId: string; pinnedByUserId: string },
   ): Promise<never> {
     this.inserted.push(input.messageId);
-    // The tests that reach here assert on `inserted`, not on the returned row.
-    return { id: 'p1', ...input } as unknown as never;
+    // The tests that reach here assert on `inserted`; the row only has to be a well-formed pin so
+    // the service's view mapper (which reads `pinnedAt` as a Date) does not throw.
+    return {
+      id: 'p1',
+      organizationId: ORG,
+      ...input,
+      pinnedAt: new Date('2026-01-01T00:00:00.000Z'),
+    } as unknown as never;
   }
 }
 

@@ -27,7 +27,11 @@ export class MessagePinsModule {
       provide: MESSAGE_PINS_SERVICE,
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) =>
-        new MessagePinsService(database, new MessagePinsRepository(), new ConversationsRepository()),
+        new MessagePinsService(
+          database,
+          new MessagePinsRepository(),
+          new ConversationsRepository(),
+        ),
     };
 
     return {
