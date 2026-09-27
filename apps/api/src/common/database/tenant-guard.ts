@@ -137,6 +137,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // x246. Tenant-owned: a reaction names a message and a membership, both tenant rows, and an
   // unscoped read would be a map of who reacted to what across every studio on the server.
   message_reactions: 'organization_id',
+  // CH-07 saved messages (x248). Tenant-owned and per-membership: a row names a message and the
+  // membership that saved it, and an unscoped read of it would be who saved what across studios.
+  message_bookmarks: 'organization_id',
   outbox_events: 'organization_id',
   idempotency_records: 'organization_id',
   audit_events: 'organization_id',

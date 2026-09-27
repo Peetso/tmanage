@@ -427,6 +427,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`saved_context`    TO 'tmanage_app'@'%
 -- (no immutability trigger, none needed). Reading is the database-wide SELECT above. The worker gets
 -- nothing here — this table is the API's alone, the `saved_context` posture above.
 GRANT INSERT, DELETE         ON `tmanage`.`home_pinned_items` TO 'tmanage_app'@'%';
+-- CH-07 saved messages (0120, x248) membership-scoped message bookmarks. INSERT to save and DELETE
+-- to unsave, and **no UPDATE**: a saved message is created and removed, never edited, so the missing
+-- privilege is the control (no immutability trigger, none needed). Reading is the database-wide
+-- SELECT above. The worker gets nothing here — this table is the API's alone, the `home_pinned_items`
+-- posture above.
+GRANT INSERT, DELETE         ON `tmanage`.`message_bookmarks` TO 'tmanage_app'@'%';
 -- DOC-02/DOC-03 (x112) document versions. **INSERT only** — a version is an immutable snapshot of
 -- the body at a save: DOC-03's restore is a new row (forward-append), never an edit, and the 0036
 -- trigger refuses UPDATE for every credential. No DELETE: a document's history is the record of how

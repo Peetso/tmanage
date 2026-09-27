@@ -3438,6 +3438,42 @@ export const messageReactions = mysqlTable(
   ],
 );
 
+/**
+ * A member's privately saved messages — CH-07's "Save" message action (x248). Distinct from
+ * `document_bookmarks` (x242): that saves a document, this saves a `messages` row.
+ *
+ * One row means "this membership saved this message". `home_pinned_items`' posture applied to a
+ * message: private to one membership (every read, the save and the unsave scoped by
+ * `membership_id`), idempotent by `(organization_id, message_id, membership_id)`, created and
+ * deleted only. The runtime credential holds INSERT and DELETE alone — the withheld UPDATE is the
+ * control, so no immutability trigger is needed. `0120_message_bookmarks.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const messageBookmarks = mysqlTable(
+  'message_bookmarks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    messageId: char('message_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_message_bookmarks_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_message_bookmarks_bookmark').on(
+      table.organizationId,
+      table.messageId,
+      table.membershipId,
+    ),
+    index('ix_message_bookmarks_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Platform primitives
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4633,6 +4669,7 @@ export const TABLES = {
   message_revisions: messageRevisions,
   message_work_links: messageWorkLinks,
   message_reactions: messageReactions,
+  message_bookmarks: messageBookmarks,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
   audit_events: auditEvents,
@@ -4761,6 +4798,7 @@ export type MessageRow = typeof messages.$inferSelect;
 export type MessageRevisionRow = typeof messageRevisions.$inferSelect;
 export type MessageWorkLinkRow = typeof messageWorkLinks.$inferSelect;
 export type MessageReactionRow = typeof messageReactions.$inferSelect;
+export type MessageBookmarkRow = typeof messageBookmarks.$inferSelect;
 export type MembershipRow = typeof memberships.$inferSelect;
 export type ClientOrganizationRow = typeof clientOrganizations.$inferSelect;
 export type ClientMembershipRow = typeof clientMemberships.$inferSelect;
