@@ -140,3 +140,5 @@ export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');
 /** SRCH-01 (x111). Global tenant-scoped search over work items, documents and meetings. */
 export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
 export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
+/** x161. The public site's contact / lead intake — the INSERT-only writer over `marketing_leads`. */
+export const MARKETING_LEADS_REPOSITORY = Symbol.for('tmanage.MarketingLeadsRepository');

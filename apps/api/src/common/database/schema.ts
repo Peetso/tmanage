@@ -1490,6 +1490,26 @@ export const workForms = mysqlTable(
   ],
 );
 
+/**
+ * Public-site contact / lead intake (0062, x161). GLOBAL, org-less — a lead is submitted by a
+ * member of the public with no session and no organization, so it carries no `organization_id` and
+ * is registered in the tenant guard's `NON_TENANT_TABLES`, not `TENANT_TABLES`. Write-only at
+ * runtime (the app grant is INSERT only): there is no read/list endpoint in this slice. Every field
+ * is bounded at the column behind the controller's validation. See `0062_marketing_leads.sql`.
+ */
+export const marketingLeads = mysqlTable(
+  'marketing_leads',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    name: varchar('name', { length: 200 }).notNull(),
+    email: varchar('email', { length: 254 }).notNull(),
+    message: varchar('message', { length: 4000 }).notNull(),
+    source: varchar('source', { length: 100 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_marketing_leads_created_at').on(table.createdAt, table.id)],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2321,6 +2341,7 @@ export const TABLES = {
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
+  marketing_leads: marketingLeads,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2393,3 +2414,5 @@ export type AuthenticationEventRow = typeof authenticationEvents.$inferSelect;
 export type CredentialChangeNoticeRow = typeof credentialChangeNotices.$inferSelect;
 export type ImportJobRow = typeof importJobs.$inferSelect;
 export type ImportRowRow = typeof importRows.$inferSelect;
+export type MarketingLeadRow = typeof marketingLeads.$inferSelect;
+export type NewMarketingLeadRow = typeof marketingLeads.$inferInsert;

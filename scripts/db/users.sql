@@ -107,7 +107,7 @@
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
---     document_comments, decision_supersessions, document_templates, work_forms
+--     document_comments, decision_supersessions, document_templates, work_forms, marketing_leads
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -421,6 +421,13 @@ GRANT INSERT ON `tmanage`.`authentication_events` TO 'tmanage_app'@'%';
 -- a statement that exists. Adding the drain means adding SELECT and UPDATE there, and
 -- `least-privilege.db.test.ts` will need the pair asserted the way the outbox's are.
 GRANT INSERT ON `tmanage`.`credential_change_notices` TO 'tmanage_app'@'%';
+
+-- `marketing_leads` (x161) gets INSERT and nothing else. The public contact door writes one lead
+-- row and never reads, amends or deletes it at runtime: there is no listing/read endpoint in this
+-- slice (email delivery is Needs-Peter, and an admin viewer is a later slice with its own SELECT).
+-- GLOBAL / org-less, so it is in the tenant guard's NON_TENANT_TABLES; SELECT stays absent here so
+-- no runtime credential can enumerate the leads.
+GRANT INSERT ON `tmanage`.`marketing_leads` TO 'tmanage_app'@'%';
 
 -- `import_jobs` (ON-09) gets INSERT for the validate/dry-run half (one attempt row per
 -- validation) and UPDATE for the commit half (x100): committing a validated job transitions its

@@ -1,0 +1,116 @@
+import { Body, Controller, HttpCode, Inject, Post, Req } from '@nestjs/common';
+import { ApiError } from '../../common/http/errors.js';
+import { Public } from '../../common/http/decorators.js';
+import { requireRequestState } from '../../common/http/request-state.js';
+import { MARKETING_LEADS_REPOSITORY } from '../../common/http/tokens.js';
+import type { MarketingLeadsRepository } from './contact.repository.js';
+
+/** Column bounds, mirrored from `0062_marketing_leads.sql`. Over-length is a 400, never a truncation. */
+const MAX_NAME = 200;
+const MAX_EMAIL = 254;
+const MAX_MESSAGE = 4000;
+
+/**
+ * A deliberately conservative email shape: one `@`, at least one character before it, and a dotted
+ * domain after it, no whitespace. This is a *shape* check, not deliverability — the point is to
+ * reject obvious rubbish at the boundary, not to guarantee the address exists.
+ */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** The one field a lead submission carries per field; the body is untrusted, so every value is `unknown`. */
+interface ContactSubmitBody {
+  readonly name?: unknown;
+  readonly email?: unknown;
+  readonly message?: unknown;
+}
+
+/**
+ * The response the contact form gets back. Deliberately opaque: it acknowledges receipt and
+ * reflects **nothing** that was stored — not the lead's id, not the submitted values, and never
+ * any other lead. A public write door has no business handing data back.
+ */
+export interface ContactSubmitView {
+  readonly status: 'received';
+}
+
+/**
+ * x161 — the public site's contact / lead intake (Public site module 1, audit rank #1).
+ *
+ * `POST /public/site/contact` is the module's *only unauthenticated write*, so the whole slice is
+ * about the untrusted-input boundary. The route is `@Public()`: it establishes no authority and
+ * exercises none, so it carries no session, no CSRF token, no tenant and no capability — the same
+ * posture as sign-in, which is the only other unauthenticated write in the application.
+ *
+ * The discipline the door keeps:
+ *
+ *  - **Validate and bound every field, 400 with no write on bad input.** Empty, non-string or
+ *    over-length name/email/message, or an email that is not even shaped like one, is a
+ *    `validation_failed` 400 raised *before* the repository is ever called — asserted in
+ *    `contact.controller.test.ts`.
+ *  - **No PII in the URL.** Everything is in the POST body; there is no query string and nothing
+ *    is logged into one.
+ *  - **Write-only.** There is no GET/list/read handler here and no read method on the repository:
+ *    a lead is written and, in this slice, never read back over HTTP.
+ *
+ * Email delivery of the lead is Needs-Peter (an external mail provider); this slice persists only.
+ */
+@Controller('public/site')
+export class ContactController {
+  constructor(
+    @Inject(MARKETING_LEADS_REPOSITORY) private readonly leads: MarketingLeadsRepository,
+  ) {}
+
+  @Post('contact')
+  @Public()
+  @HttpCode(201)
+  async submit(
+    @Body() body: ContactSubmitBody,
+    @Req() request: { headers: Record<string, string | string[] | undefined> },
+  ): Promise<ContactSubmitView> {
+    const state = requireRequestState(request);
+
+    const name = boundedText(body?.name, MAX_NAME);
+    const email = boundedText(body?.email, MAX_EMAIL);
+    const message = boundedText(body?.message, MAX_MESSAGE);
+
+    const details: { field: string; message: string }[] = [];
+    if (name === undefined) details.push({ field: 'name', message: `required, 1–${MAX_NAME} chars` });
+    if (email === undefined) {
+      details.push({ field: 'email', message: `required, 1–${MAX_EMAIL} chars` });
+    } else if (!EMAIL_SHAPE.test(email)) {
+      details.push({ field: 'email', message: 'must be a valid email address' });
+    }
+    if (message === undefined) {
+      details.push({ field: 'message', message: `required, 1–${MAX_MESSAGE} chars` });
+    }
+
+    if (details.length > 0 || name === undefined || email === undefined || message === undefined) {
+      // A shape error, not an authorization one, so it is allowed to be specific. Nothing is
+      // written: the repository is not reached on this path.
+      throw new ApiError(400, 'validation_failed', 'name, email and message are required', details);
+    }
+
+    await this.leads.insert({
+      name,
+      email,
+      message,
+      source: 'contact_form',
+      correlationId: state.correlationId,
+    });
+
+    return { status: 'received' };
+  }
+}
+
+/**
+ * A trimmed string of 1..=max characters, or `undefined` when the value is absent, not a string,
+ * empty after trimming, or longer than the bound. Length is measured on the trimmed value, the same
+ * value that is stored, so a field that fits the column can never be rejected and a rejected one is
+ * never stored.
+ */
+function boundedText(value: unknown, max: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > max) return undefined;
+  return trimmed;
+}

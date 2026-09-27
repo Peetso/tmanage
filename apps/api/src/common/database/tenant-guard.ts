@@ -287,6 +287,12 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // deliberately NOT `outbox_events` — that table's `organization_id` is NOT NULL and this
   // path has no organization to put in it. `0020_credential_change_notices.sql` explains.
   'credential_change_notices',
+  // x161. The public site's contact / lead intake. GLOBAL for the reason the credentials are:
+  // a lead is submitted by a member of the public with no session and belonging to no
+  // organization, so there is no `organization_id` to scope it by and it is written on a
+  // public, no-tenant path. Registering it here is what lets the repository reach it through
+  // `identityTransaction`; it is deliberately NOT in `TENANT_TABLES`. `0062_marketing_leads.sql`.
+  'marketing_leads',
 ]);
 
 export function isTenantTable(name: string): boolean {
