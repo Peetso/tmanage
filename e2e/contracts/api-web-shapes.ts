@@ -113,6 +113,7 @@ import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
+import type { BillingContactView as ApiBillingContactView } from '../../apps/api/src/modules/billing/contacts.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -145,6 +146,7 @@ import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { BillingProfileView as WebBillingProfileView } from '../../apps/web/src/lib/api/billing';
+import type { BillingContactView as WebBillingContactView } from '../../apps/web/src/lib/api/billing-contacts';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -523,6 +525,15 @@ type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
  * sides; there is deliberately no card or bank field on either side.
  */
 type _billingProfile = Assert<Exact<ApiBillingProfileView, WebBillingProfileView>>;
+
+/**
+ * Billing contacts (module 19, x199). `BillingContactView` (`GET`/`POST`/`DELETE …/billing/contacts`,
+ * response) — one org-scoped billing contact (`id`, `name`, `email`, `role: string | null`,
+ * `createdAt`). Paired with a live web consumer: `BillingContactsScreen` reads exactly this shape to
+ * list, add and remove contacts. `organizationId` is deliberately absent on both sides, and there is no
+ * card or bank field on either — contacts carry non-secret metadata only.
+ */
+type _billingContact = Assert<Exact<ApiBillingContactView, WebBillingContactView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

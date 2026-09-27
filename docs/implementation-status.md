@@ -13957,3 +13957,27 @@ fields. Proved database-free with the real `authorize` (`profile.controller.test
 read, a valid update persisting, a malformed email / over-length / card-shaped value each a 400 with
 no write, and a read/update without `org.manage` a 403. Deferred: payment instruments (Needs-Peter,
 held by the provider) and plan-change flows.
+
+## Billing contacts (x199, module 19)
+
+**What landed.** The billing profile (x180) carries one billing email on the org row; this slice adds
+the *list* of contacts a studio nominates for its billing and account notices — each a name, an email
+and an optional role. New tenant table `billing_contacts` (migration 0082) registered in all four
+places (`schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`, `users.sql` grant, migrator by
+readdir). Routes on `/v1/organizations/:orgSlug/billing/contacts`: `GET` (list), `POST` (add, 201),
+`DELETE /:contactId` (remove) — all behind reused `org.manage`, no `capabilities.ts` edit.
+
+**Security shape.** `POST` authorizes `org.manage` then validates (name/email required, email format,
+each field bounded and card/PAN-screened) before the single insert — a bad email or over-length or
+card-shaped value is a 400 with no write. `DELETE` resolves the contact tenant-scoped **first**: a
+cross-tenant or absent id is a 404 with no delete, before authorizing. `organization_id` comes from the
+context (never a DTO) and is immutable at the engine (0082 trigger). No email is sent to a contact
+(delivery is Needs-Peter) and no payment instrument is ever stored — contacts carry non-secret metadata
+only.
+
+**Surfaces.** `BillingContactView` (`contacts.service.ts`) is a live `Exact` pair with the web's
+`BillingContactView` (`apps/web/src/lib/api/billing-contacts.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`BillingContactsScreen` (`apps/web/src/components/screens/BillingContactsScreen.tsx`), routed at
+`/[orgSlug]/billing/contacts`, lists, adds and removes contacts. Proved database-free with the real
+`authorize` (`contacts.controller.test.ts`): add/list/remove within a tenant, a malformed email a 400
+with no write, a cross-tenant/absent id a 404 with no write, and an add without `org.manage` a 403.

@@ -1532,6 +1532,32 @@ export const billingProfiles = mysqlTable(
   ],
 );
 
+/**
+ * Billing contacts (module 19, x199, migration 0082). Org-scoped list of the people a studio nominates
+ * for its billing and account notices — each a name, an email and an optional role label. Contacts are
+ * added and removed, never edited in place (no update path), so there is no `updated_at`. As with the
+ * billing profile there are deliberately no payment-instrument columns: card and bank numbers are held
+ * by the payment provider (04-SECURITY-PRIVACY §4), never here, and the application rejects any
+ * card/PAN-shaped value into these fields. `organization_id` is immutable at the engine (0082's
+ * trigger). No email is sent to these contacts — delivery is Needs-Peter; the row is the whole effect.
+ */
+export const billingContacts = mysqlTable(
+  'billing_contacts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 190 }).notNull(),
+    email: varchar('email', { length: 320 }).notNull(),
+    role: varchar('role', { length: 80 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_billing_contacts_org_id').on(table.organizationId, table.id),
+    // The org-scoped list read leads with organization_id, newest first.
+    index('ix_billing_contacts_org_created').on(table.organizationId, table.createdAt),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2364,6 +2390,7 @@ export const TABLES = {
   home_pinned_items: homePinnedItems,
   work_forms: workForms,
   billing_profiles: billingProfiles,
+  billing_contacts: billingContacts,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2410,6 +2437,7 @@ export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
 export type BillingProfileRow = typeof billingProfiles.$inferSelect;
+export type BillingContactRow = typeof billingContacts.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;

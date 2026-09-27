@@ -47,6 +47,7 @@ import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
+import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -253,6 +254,11 @@ export class AppModule {
         // its position here is by subject; it stores non-secret metadata only — no payment
         // instruments, which are the provider's.
         BillingModule.register(),
+        // Billing / module 19 (x199). The org's nominated billing/notification contacts (add/list/
+        // remove) behind `org.manage`. File-disjoint from the billing profile; depends only on the
+        // tenant database, so its position here is by subject. No email is sent and no payment
+        // instrument is stored — contacts only.
+        BillingContactsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

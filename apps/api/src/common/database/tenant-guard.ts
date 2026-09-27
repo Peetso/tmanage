@@ -259,6 +259,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
   // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
   billing_profiles: 'organization_id',
+  // Billing contacts (module 19, x199, migration 0082). Org-owned: the people a studio nominates for
+  // billing notices, and an unscoped `SELECT ... FROM billing_contacts` would be every studio's
+  // contact names and emails on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
+  // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
+  billing_contacts: 'organization_id',
 });
 
 /**

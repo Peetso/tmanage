@@ -256,6 +256,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`work_item_checklist_items` TO 'tmanag
 -- least privilege, and the 0077 trigger pins `organization_id` immutable for every credential besides
 -- so UPDATE can move the contact/tax id/address and nothing that says which tenant the profile is.
 GRANT INSERT, UPDATE         ON `tmanage`.`billing_profiles`      TO 'tmanage_app'@'%';
+-- x199 (0082) billing contacts. Module 19: the org's nominated billing/notification contacts, added
+-- (INSERT), read (the database-wide SELECT) and removed (DELETE) — so INSERT and DELETE and **no
+-- UPDATE**: a contact is added and removed, never edited in place (to change one, remove it and add
+-- it again), least privilege, and the 0082 trigger pins `organization_id` immutable for every
+-- credential besides so identity cannot move even were UPDATE granted.
+GRANT INSERT, DELETE         ON `tmanage`.`billing_contacts`      TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through
