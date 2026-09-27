@@ -151,6 +151,9 @@ export const PROJECT_STATUS_UPDATES_REPOSITORY = Symbol.for(
   'tmanage.ProjectStatusUpdatesRepository',
 );
 export const PROJECT_STATUS_UPDATES_SERVICE = Symbol.for('tmanage.ProjectStatusUpdatesService');
+/** PROJ / module 8 (x310). Custom fields for projects — define fields (org) and set values per project. */
+export const PROJECT_CUSTOM_FIELDS_REPOSITORY = Symbol.for('tmanage.ProjectCustomFieldsRepository');
+export const PROJECT_CUSTOM_FIELDS_SERVICE = Symbol.for('tmanage.ProjectCustomFieldsService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');

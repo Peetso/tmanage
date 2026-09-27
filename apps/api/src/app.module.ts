@@ -60,6 +60,7 @@ import { PeopleModule } from './modules/people/people.module.js';
 import { ProjectRiskRegisterModule } from './modules/projects/risk-register.module.js';
 import { ProjectTemplatesModule } from './modules/projects/templates.module.js';
 import { ProjectStatusUpdatesModule } from './modules/projects/status-updates.module.js';
+import { ProjectCustomFieldsModule } from './modules/projects/custom-fields.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ProjectHealthModule } from './modules/projects/health.module.js';
@@ -444,6 +445,13 @@ export class AppModule {
         // x125's portal updates: a different path (`…/projects/:id/status-updates`) and a different
         // table (`project_status_updates`); never projected to a client.
         ProjectStatusUpdatesModule.register(),
+        // PROJ / module 8 (x310). Custom fields for projects: org-level field definitions
+        // (`…/projects/custom-fields`, a static segment matched ahead of `:projectId` like
+        // `…/projects/templates`, gated on `org.manage`) and per-project values
+        // (`…/projects/:projectId/custom-fields`, gated on `project.manage`). After `ProjectsModule`
+        // for the same reason as the status log: a value names a project, and the service resolves it
+        // tenant-scoped before it writes so a caller who names one that is not theirs gets a 404.
+        ProjectCustomFieldsModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.

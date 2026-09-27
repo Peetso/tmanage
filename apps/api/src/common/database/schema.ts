@@ -1282,6 +1282,56 @@ export const projectStatusUpdates = mysqlTable(
   ],
 );
 
+/** PROJ / module 8 (x310). Whether a `project_custom_fields` row is a field definition or a value. */
+export const PROJECT_CUSTOM_FIELD_ROW_KINDS = ['definition', 'value'] as const;
+
+/** PROJ / module 8 (x310). The value type a project custom field declares. */
+export const PROJECT_CUSTOM_FIELD_TYPES = ['text', 'number', 'select'] as const;
+
+/**
+ * PROJ / module 8 (x310). An organization's custom fields for projects — one table with a `rowKind`
+ * discriminator (the x294/x306 precedent): a `definition` row declares a field for the whole tenant
+ * (`fieldKey`, `name`, `fieldType`, `optionsJson`), and a `value` row is one project's value for a
+ * field.
+ *
+ * A definition carries the empty sentinel `''` in `projectId` (never NULL) so the unique key
+ * `(organizationId, projectId, fieldKey)` enforces one definition per key and one value per field per
+ * project in a single index. There is no composite foreign key on a value's project: `projectId` is
+ * `''` for definitions, which is not a project, so the service resolves the project tenant-scoped
+ * before the write (the `inboxSnoozes` posture). `0178_project_custom_fields.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const projectCustomFields = mysqlTable(
+  'project_custom_fields',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    rowKind: mysqlEnum('row_kind', PROJECT_CUSTOM_FIELD_ROW_KINDS).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull().default(''),
+    fieldKey: varchar('field_key', { length: 120 }).notNull(),
+    name: varchar('name', { length: 200 }),
+    fieldType: mysqlEnum('field_type', PROJECT_CUSTOM_FIELD_TYPES),
+    optionsJson: json('options_json').$type<readonly string[]>(),
+    valueText: text('value_text'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_custom_fields_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_project_custom_fields_scope').on(
+      table.organizationId,
+      table.projectId,
+      table.fieldKey,
+    ),
+    index('ix_project_custom_fields_org_kind_project').on(
+      table.organizationId,
+      table.rowKind,
+      table.projectId,
+      table.fieldKey,
+    ),
+  ],
+);
+
 /**
  * PROJ / module 8 (x234). A reusable project template — a saved shape a studio can stamp out a new
  * project from: a `name`, an optional `description`, and the objective titles a project made from the
@@ -5008,6 +5058,7 @@ export const TABLES = {
   project_internal_risks: projectInternalRisks,
   project_templates: projectTemplates,
   project_status_updates: projectStatusUpdates,
+  project_custom_fields: projectCustomFields,
   document_template_variables: documentTemplateVariables,
   org_objectives: orgObjectives,
   objective_work_links: objectiveWorkLinks,
@@ -5166,6 +5217,8 @@ export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
 export type ProjectTemplateRow = typeof projectTemplates.$inferSelect;
 export type ProjectStatusUpdateRow = typeof projectStatusUpdates.$inferSelect;
+export type ProjectCustomFieldRow = typeof projectCustomFields.$inferSelect;
+export type NewProjectCustomFieldRow = typeof projectCustomFields.$inferInsert;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;
 export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$inferInsert;
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
