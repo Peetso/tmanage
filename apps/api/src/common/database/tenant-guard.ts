@@ -253,6 +253,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant
   // table has, so the guard must scope its reads and its writes.
   work_forms: 'organization_id',
+  // x216 (0094). Tenant-owned: a member's profile belongs to one membership of one studio, and an
+  // unscoped `SELECT ... FROM member_profiles` would be every studio's people details on the server.
+  // `organization_id` is NOT NULL and carries the `(organization_id, id)` key, so the guard scopes
+  // both the profile read and the upsert.
+  member_profiles: 'organization_id',
 });
 
 /**

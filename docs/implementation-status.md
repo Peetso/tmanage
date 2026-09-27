@@ -13954,3 +13954,35 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## SEC / People — member profile edit (x216, module 14; re-scope of BLOCKED x192)
+
+x168 built the People directory and x169 the read-only per-member profile — both pure reads over
+memberships/users/projects. There was no writable person store: the only editable name field,
+`users.display_name`, is GLOBAL (the users table carries no `organization_id`), so an org-scoped
+route that wrote it would change how the same person appears in every studio — the cross-tenant leak
+that blocked x192. This slice adds the missing tenant-scoped store: `member_profiles` (migration
+`0094`) keyed `(organization_id, user_id)` with `department`, `bio`, `contact_email` and
+`contact_phone`, all editable and tenant-local. The composite FK binds the pair to a membership of
+this same tenant, so a profile can only exist for an actual member here.
+
+**Route.** `GET/PUT /v1/organizations/:orgSlug/people/:membershipId/profile` behind `org.manage`
+(the existing owner-only, internal-only people/admin capability — no `capabilities.ts` edit). The
+membership is resolved tenant-scoped BEFORE authorize (a cross-tenant/unknown id is a 404, no write),
+then a belt-and-braces `authorize()` mirrors the route ceiling (a client or a role without
+`org.manage` is a 403). On PUT the body is validated after resolve — bounded field lengths plus
+email/phone shape, an offender a 400 with no write. The upsert (`INSERT ... ON DUPLICATE KEY UPDATE`
+on `uq_member_profiles_org_user`) touches only `member_profiles`, **never** `users.display_name`.
+
+**Registration (four places).** `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`,
+`scripts/db/users.sql` grant (INSERT, UPDATE — no DELETE), and the on-disk `0094` migration the
+readdir migrator applies.
+
+**Surfaces.** `MemberProfileView` (`member-profile.controller.ts`) is a live `Exact` pair with the
+web's `MemberProfileView` (`apps/web/src/lib/api/member-profile.ts`) in
+`e2e/contracts/api-web-shapes.ts` — distinct from x169's read-only `PersonProfileView`, carrying no
+global identity field. `MemberProfileEditScreen` (`apps/web/src/components/screens/`) reads and saves
+the four fields; an empty field clears the value. Proved database-free with the real `authorize`
+(`member-profile.controller.test.ts`): save→read round-trips the fields, an oversize bio / bad email
+is a 400 with no write, a cross-tenant `membershipId` is a 404 resolved before authorize, and a role
+without `org.manage` is a 403. No DB test / no new e2e in-slice (the chain owns both).
