@@ -15713,3 +15713,31 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## Automations — connection health check (x220, module 17)
+
+**What landed.** The integration directory (x165) recorded which apps an organization had connected
+but offered no way to tell whether a recorded connection was actually usable. This slice adds a
+read-only, in-app health check over the existing `integration_connections` rows — **no new table** —
+and two endpoints under `/v1/organizations/:orgSlug/automations/connections`, both behind `org.manage`
+(reused; no `capabilities.ts` edit): `GET :id/health` returns the verdict for one connection, and
+`GET health` rolls up the verdict for every connection the tenant has recorded. The verdict is
+deterministic and computed only from data already in hand — is the catalog app still known, are the
+required non-secret config keys present (`connection-health.service.ts`, a code-defined per-app map),
+and is the connection live (`connected`) rather than a `pending` intent.
+
+**Known-trap: no egress, no secret in the verdict.** A "health check" invites an outbound ping to the
+third party; this deliberately makes **no network call of any kind** — a live probe of Slack/GitHub/…
+is external and paid (Needs-Peter). Every query is tenant-scoped, and for the single-connection route
+the connection is resolved tenant-scoped _first_, so a cross-tenant `:id` is a 404 before the
+org-scoped `org.manage` decision (403). The verdict carries no config _value_ — only the _names_ of
+required keys found missing (absent by definition) — so no stored setting leaks through it.
+
+**Surfaces.** `ConnectionHealthView` (`connection-health.controller.ts`) is a live `Exact` pair with
+the web's shape (`apps/web/src/lib/api/connection-health.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`ConnectionHealthScreen` (`apps/web/src/components/screens/ConnectionHealthScreen.tsx`) shows a
+per-connection status badge with plain-language issues. Proved database-free with the real `authorize`
+and health service (`connection-health.controller.test.ts`): the verdict is computed from config
+presence, a connection missing its required key is flagged unhealthy, the verdict echoes no stored
+config value, a cross-tenant id is a 404, and a role without `org.manage` is a 403. No DB test / no
+new e2e in slice (the chain owns both). Deferred: a live third-party probe (external, Needs-Peter).
