@@ -802,6 +802,33 @@ export const documentTemplates = mysqlTable(
 );
 
 /**
+ * Automations (x167). A cron-like schedule for a workflow template — when a template should run on
+ * its own. Tenant-owned and keyed to a `workflow_templates` row (x162, migration 0063) by a
+ * composite key that includes `organization_id`, so a schedule can never cross a tenant boundary.
+ *
+ * `specJson` is the recurrence (`{ interval, hour?, dayOfWeek? }`), read and written whole; its shape
+ * and bounds are the application's (`next-run.ts`). `nextRunAt` is computed deterministically at write
+ * time; a dispatcher that fires runs is worker infrastructure (Needs-Peter), out of this slice.
+ * `0067_automation_schedules.sql` is the source of truth; this is its typed mirror.
+ */
+export const automationSchedules = mysqlTable(
+  'automation_schedules',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    templateId: char('template_id', { length: 36 }).notNull(),
+    specJson: json('spec_json').notNull(),
+    nextRunAt: datetime('next_run_at', { mode: 'date', fsp: 3 }).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_automation_schedules_org_id').on(table.organizationId, table.id),
+    index('ix_automation_schedules_org_next').on(table.organizationId, table.nextRunAt, table.id),
+  ],
+);
+
+/**
  * The project-objective status set, mirroring the `0040` `ENUM`. An objective is `open` at creation
  * and its lifecycle transitions to `met` or `missed`.
  */
@@ -2779,6 +2806,7 @@ export const TABLES = {
   workflow_runs: workflowRuns,
   integration_connections: integrationConnections,
   webhook_endpoints: webhookEndpoints,
+  automation_schedules: automationSchedules,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2834,6 +2862,7 @@ export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
+export type AutomationScheduleRow = typeof automationSchedules.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type DocumentTemplateVariableRow = typeof documentTemplateVariables.$inferSelect;

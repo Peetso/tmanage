@@ -48,6 +48,7 @@ import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api
 import type { DecisionLockView as ApiDecisionLockView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DocumentTemplateView as ApiDocumentTemplateView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentTemplateVariableView as ApiDocumentTemplateVariableView } from '../../apps/api/src/modules/docs/document-template-variables.controller.js';
+import type { AutomationScheduleView as ApiAutomationScheduleView } from '../../apps/api/src/modules/automations/schedules.controller.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -181,6 +182,7 @@ import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
 import type { DocumentTemplateVariableSummary as WebDocumentTemplateVariableSummary } from '../../apps/web/src/lib/api/document-template-variables';
+import type { AutomationScheduleSummary as WebAutomationScheduleSummary } from '../../apps/web/src/lib/api/automation-schedules';
 import type { OrgObjectiveSummary as WebOrgObjectiveSummary } from '../../apps/web/src/lib/api/org-objectives';
 import type { ProjectPortfolioSummary as WebProjectPortfolioSummary } from '../../apps/web/src/lib/api/project-portfolio';
 import type { PublicPlanView as WebPublicPlanView } from '../../apps/web/src/lib/api/public-plans';
@@ -523,6 +525,14 @@ type _meetingSeries = Assert<Exact<ApiMeetingSeriesView, WebMeetingSeriesView>>;
 type _documentTemplateVariable = Assert<
   Exact<ApiDocumentTemplateVariableView, WebDocumentTemplateVariableSummary>
 >;
+
+/**
+ * Automations (x167). `AutomationScheduleView` (`GET …/automations/schedules`, `POST
+ * …/automations/templates/:templateId/schedule`) — one scheduled trigger for a workflow template.
+ * `AutomationSchedulesScreen` reads exactly this response, so the pair is Exact. `organizationId` is
+ * absent on both sides — the wire projection never echoes the tenant id.
+ */
+type _automationSchedule = Assert<Exact<ApiAutomationScheduleView, WebAutomationScheduleSummary>>;
 
 /** USAGE-001 slice 5 — `{ used, reserved, quota, unit: 'bytes', reconciledAt }` (§8, no web screen yet). */
 type _usage = Assert<Exact<ApiUsageView, WebOrganizationUsage>>;

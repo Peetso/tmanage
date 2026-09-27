@@ -313,6 +313,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // targets on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
   // key every tenant table has, so the guard must scope its reads and its writes.
   webhook_endpoints: 'organization_id',
+  // Automations scheduled triggers (x167, migration 0067). Org-owned: a schedule belongs to the
+  // acting tenant and to one of its workflow templates, and an unscoped `SELECT ... FROM
+  // automation_schedules` would be every studio's schedules on the server. `organization_id` is NOT
+  // NULL and carries the `(organization_id, id)` key every tenant table has, so the guard must scope
+  // its reads and its writes.
+  automation_schedules: 'organization_id',
 });
 
 /**

@@ -349,6 +349,14 @@ GRANT INSERT                 ON `tmanage`.`document_comments` TO 'tmanage_app'@'
 -- trigger pins organization_id/created_by_user_id immutable for every credential; an editor is a
 -- later slice that adds UPDATE with the code that writes it. No DELETE.
 GRANT INSERT                 ON `tmanage`.`document_templates` TO 'tmanage_app'@'%';
+-- Automations scheduled triggers (0067, x167). **INSERT only** — a schedule is created (INSERT) and
+-- read (the database-wide SELECT above). This slice ships no editor and no per-schedule enable-toggle
+-- endpoint, and the 0067 trigger pins organization_id/template_id immutable for every credential
+-- besides; an editor / toggle is a later slice that adds UPDATE with the code that writes it. No
+-- DELETE (a schedule's history is not erased by a runtime credential — the document_templates
+-- posture). The worker gets nothing here: the dispatcher that will read next_run_at is Needs-Peter
+-- infrastructure and gets its grant with the code that runs it.
+GRANT INSERT                 ON `tmanage`.`automation_schedules` TO 'tmanage_app'@'%';
 -- CLIENT-003 (x125, 0041). A project update is posted (INSERT) and read (the database-wide
 -- SELECT above); `published` is set at INSERT time, and this slice ships no edit/unpublish
 -- endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0041 trigger pins
