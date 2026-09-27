@@ -14,6 +14,7 @@ import {
   OUTBOX_EVENTS_REPOSITORY,
   PORTAL_FILE_LIST_SERVICE,
   QUARANTINE_CLEANUP_JOB,
+  FILE_TAGS_SERVICE,
   TENANT_DATABASE,
   UPLOAD_SESSIONS_REPOSITORY,
   UPLOAD_SESSION_SWEEPER,
@@ -39,6 +40,9 @@ import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
 import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
+import { FileTagsRepository } from './file-tags.repository.js';
+import { FileTagsService } from './file-tags.service.js';
+import { FileTagsController } from './file-tags.controller.js';
 import { PortalFileDownloadsController } from './portal-file-downloads.controller.js';
 import { PortalFileListService } from './portal-file-list.service.js';
 import { PortalFileListController } from './portal-file-list.controller.js';
@@ -279,11 +283,23 @@ export class FilesModule {
         new PortalFileListService(database, assets),
     };
 
+    // x270. File tags: define org tags and assign / list them on file assets. Read-only over the
+    // tenant database and the file-assets repository (it moves no bytes, no counter, no outbox); it
+    // constructs its own ProjectsRepository handle for the file's lifecycle, the way the download
+    // service does, and its own FileTagsRepository — a stateless collection of queries.
+    const fileTags: Provider = {
+      provide: FILE_TAGS_SERVICE,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY],
+      useFactory: (database: TenantDatabase, assets: FileAssetsRepository) =>
+        new FileTagsService(database, assets, new ProjectsRepository(), new FileTagsRepository()),
+    };
+
     return {
       module: FilesModule,
       providers: [
         ...repositories,
         service,
+        fileTags,
         usage,
         sweeper,
         reconciler,
@@ -295,6 +311,7 @@ export class FilesModule {
       ],
       exports: [
         service,
+        fileTags,
         usage,
         sweeper,
         reconciler,
@@ -312,6 +329,7 @@ export class FilesModule {
         PortalFileDownloadsController,
         PortalFileListController,
         UsageController,
+        FileTagsController,
       ],
     };
   }

@@ -231,6 +231,10 @@ import type {
   ProjectTagView as ApiProjectTagView,
   ProjectTagAssignmentView as ApiProjectTagAssignmentView,
 } from '../../apps/api/src/modules/projects/project-tags.service.js';
+import type {
+  FileTagView as ApiFileTagView,
+  FileTagAssignmentView as ApiFileTagAssignmentView,
+} from '../../apps/api/src/modules/files/file-tags.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -532,6 +536,8 @@ import type { WorkItemRecurrence as WebWorkItemRecurrence } from '../../apps/web
 import type { NextOccurrence as WebNextOccurrence } from '../../apps/web/src/lib/api/work-item-recurrence';
 import type { ProjectTag as WebProjectTag } from '../../apps/web/src/lib/api/project-tags';
 import type { ProjectTagAssignment as WebProjectTagAssignment } from '../../apps/web/src/lib/api/project-tags';
+import type { FileTag as WebFileTag } from '../../apps/web/src/lib/api/file-tags';
+import type { FileTagAssignment as WebFileTagAssignment } from '../../apps/web/src/lib/api/file-tags';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -1311,6 +1317,16 @@ type _nextOccurrence = Assert<Exact<ApiNextOccurrenceView, WebNextOccurrence>>;
  */
 type _projectTag = Assert<Exact<ApiProjectTagView, WebProjectTag>>;
 type _projectTagAssignment = Assert<Exact<ApiProjectTagAssignmentView, WebProjectTagAssignment>>;
+
+/**
+ * x270. File tags (Files module). `FileTagView` ↔ `FileTag` — one org-scoped tag definition
+ * (`GET`/`POST …/file-tags`); `FileTagAssignmentView` ↔ `FileTagAssignment` — one tag assigned to a
+ * file (`GET`/`PUT …/files/:id/tags`, `DELETE …/files/:id/tags/:tagId`). `FileTagsScreen` reads the
+ * definitions and the file detail surface reads the assignments, so both pairs are held identical on
+ * the two sides. `organizationId` is absent on all four.
+ */
+type _fileTag = Assert<Exact<ApiFileTagView, WebFileTag>>;
+type _fileTagAssignment = Assert<Exact<ApiFileTagAssignmentView, WebFileTagAssignment>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped
