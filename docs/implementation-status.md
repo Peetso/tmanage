@@ -15437,6 +15437,40 @@ caller without `org.manage` is a 403, and `status` flags a breached active rule 
 Deferred to worker infrastructure (Needs-Peter): the dispatcher that delivers an alert when a threshold
 is crossed, and a per-rule removal path.
 
+## SEC / Billing & entitlements — manual credit / adjustment ledger (x226, module 19)
+
+**What shipped.** An org-scoped manual credit / adjustment ledger over the billing account, filling the
+audit gap that the billing profile, contacts and usage-alert thresholds were built but no credit or
+adjustment record existed. A new tenant-scoped table `billing_credits` (migration **0100**) holds a
+signed `amount` in integer minor units (a positive credit or a negative adjustment), a free-text
+`reason`, and who posted it and when. Two routes behind `org.manage`: `POST …/billing/credits` posts a
+credit and `GET …/billing/credits` lists a tenant's credits newest-first with a running `balance`
+summed in-app. The credit id is a UUIDv7 minted server-side; the tenant comes from the resolved context,
+never the body.
+
+**Bookkeeping only, append-only.** This is a record at rest — nothing here moves money, calls a payment
+gateway, or changes an invoice balance (real settlement is Needs-Peter). The balance is computed by
+summing amounts in the application; it is never stored and never triggers a charge. A posted credit is
+immutable: there is no `updated_at`, no edit and no delete route, and the runtime is granted **INSERT
+and SELECT only** on the table (no UPDATE, no DELETE) — a correction is a new, offsetting entry. The new
+table is registered in all four places: `schema.ts` (def + `TABLES`), `tenant-guard.ts`
+(`TENANT_TABLES`, `organization_id`), `scripts/db/users.sql` (INSERT grant), and the `0100` migration.
+
+**Validation.** `amount` must be a non-zero integer within ±100,000,000 minor units (else 400, no
+write); `reason` is trimmed and must be 1–500 characters (else 400). Both are decided in the controller
+before the service is touched; the engine `CHECK` pins the amount bound besides.
+
+**Surfaces.** `BillingCreditView` (`credits.service.ts`) is a live `Exact` pair with the web's
+`BillingCreditView` (`apps/web/src/lib/api/billing-credits.ts`) in `e2e/contracts/api-web-shapes.ts`
+(the list envelope's `balance` is an inline `number`, so only the element shape is paired).
+`BillingCreditsScreen` (`apps/web/src/components/screens/BillingCreditsScreen.tsx`), routed at
+`/[orgSlug]/billing/credits`, shows the balance and ledger and posts a credit. Proved database-free with
+the real `authorize` (`credits.controller.test.ts`): post→list with a running balance without echoing
+the tenant id, out-of-bounds/zero amount and empty reason are 400s with no write, a cross-tenant row is
+not listed and does not affect the balance, and a caller without `org.manage` is a 403. No DB test / no
+new e2e in slice (the chain owns both); the tenant-scoped SQL and the INSERT-only grant are proven by
+the chain's isolation and migrator DB suites.
+
 ## x201 — Portal update edit/unpublish lifecycle (module 13 Client Portal)
 
 CLIENT-003 (x125) let a manager **create** a project update and let a client read the published

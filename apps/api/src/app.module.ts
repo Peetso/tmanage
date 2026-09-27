@@ -85,6 +85,7 @@ import { SkillSearchModule } from './modules/people/skill-search.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
+import { BillingCreditsModule } from './modules/billing/credits.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -467,6 +468,10 @@ export class AppModule {
         // over the new `billing_usage_alerts` table (0083). Self-contained and file-disjoint; alert
         // delivery (email/notification) is a later slice (external egress, Needs-Peter).
         BillingUsageAlertsModule.register(),
+        // Billing & entitlements module 19 (x226). A manual credit / adjustment ledger (post/list with a
+        // running balance) behind `org.manage`, over the new `billing_credits` table (0100). Append-only
+        // and self-contained; no money moves and no gateway is called — real settlement is Needs-Peter.
+        BillingCreditsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

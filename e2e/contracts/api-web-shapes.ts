@@ -169,6 +169,7 @@ import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api
 import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/api/src/modules/people/capacity-heatmap.service.js';
 import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
 import type { BillingContactView as ApiBillingContactView } from '../../apps/api/src/modules/billing/contacts.service.js';
+import type { BillingCreditView as ApiBillingCreditView } from '../../apps/api/src/modules/billing/credits.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -245,6 +246,7 @@ import type { SkillSearchView as ApiSkillSearchView } from '../../apps/api/src/m
 import type { SkillSearchResult as WebSkillSearchResult } from '../../apps/web/src/lib/api/people-skill-search';
 import type { BillingProfileView as WebBillingProfileView } from '../../apps/web/src/lib/api/billing';
 import type { BillingContactView as WebBillingContactView } from '../../apps/web/src/lib/api/billing-contacts';
+import type { BillingCreditView as WebBillingCreditView } from '../../apps/web/src/lib/api/billing-credits';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
@@ -1009,6 +1011,16 @@ type _billingProfile = Assert<Exact<ApiBillingProfileView, WebBillingProfileView
  * card or bank field on either — contacts carry non-secret metadata only.
  */
 type _billingContact = Assert<Exact<ApiBillingContactView, WebBillingContactView>>;
+
+/**
+ * Billing credits (module 19, x226). `BillingCreditView` (`GET`/`POST …/billing/credits`, response) —
+ * one org-scoped manual credit / adjustment ledger entry (`id`, signed integer-minor-units `amount`,
+ * `reason`, `createdBy`, `createdAt`). Paired with a live web consumer: `BillingCreditsScreen` reads
+ * exactly this shape to list the ledger and post a credit. `organizationId` is deliberately absent on
+ * both sides. The list envelope's running `balance` is an inline `number`, not a projection, so only the
+ * element shape is paired here; the ledger is append-only and moves no money.
+ */
+type _billingCredit = Assert<Exact<ApiBillingCreditView, WebBillingCreditView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit
