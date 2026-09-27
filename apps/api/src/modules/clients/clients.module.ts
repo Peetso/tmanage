@@ -16,6 +16,7 @@ import {
   PROJECT_MILESTONES_SERVICE,
   PROJECT_RISKS_SERVICE,
   TENANT_DATABASE,
+  UPDATE_COMMENTS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -33,6 +34,12 @@ import { PortalController } from './portal.controller.js';
 import { ProjectUpdatesController } from './project-updates.controller.js';
 import { UpdateLifecycleController } from './update-lifecycle.controller.js';
 import { ProjectUpdatesRepository } from './project-updates.repository.js';
+import {
+  PortalUpdateCommentsController,
+  ProjectUpdateCommentsController,
+} from './update-comments.controller.js';
+import { UpdateCommentsService } from './update-comments.service.js';
+import { ProjectUpdateCommentsRepository } from './update-comments.repository.js';
 import {
   PortalMilestonesController,
   ProjectMilestonesController,
@@ -255,6 +262,22 @@ export class ClientsModule {
         new ProjectRisksService(database, new ProjectsRepository(), new ProjectRisksRepository()),
     };
 
+    /**
+     * SEC / Portal update comments (x203). The repositories are constructed here, like the `portal`
+     * provider above: they are stateless collections of queries, and reaching for another module's
+     * provider would register that dynamic module twice.
+     */
+    const updateComments: Provider = {
+      provide: UPDATE_COMMENTS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new UpdateCommentsService(
+          database,
+          new ProjectUpdatesRepository(),
+          new ProjectUpdateCommentsRepository(),
+        ),
+    };
+
     return {
       module: ClientsModule,
       providers: [
@@ -268,6 +291,7 @@ export class ClientsModule {
         milestones,
         milestoneLifecycle,
         risks,
+        updateComments,
       ],
       exports: [service, portal],
       controllers: [
@@ -280,6 +304,8 @@ export class ClientsModule {
         MilestoneLifecycleController,
         ProjectRisksController,
         PortalRisksController,
+        ProjectUpdateCommentsController,
+        PortalUpdateCommentsController,
       ],
     };
   }

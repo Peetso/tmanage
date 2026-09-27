@@ -42,6 +42,8 @@ export const PROJECT_MILESTONES_SERVICE = Symbol.for('tmanage.ProjectMilestonesS
 /** SEC / Portal milestone lifecycle (x202) — edit and complete an existing milestone. */
 export const MILESTONE_LIFECYCLE_SERVICE = Symbol.for('tmanage.MilestoneLifecycleService');
 export const PROJECT_RISKS_SERVICE = Symbol.for('tmanage.ProjectRisksService');
+/** SEC / Portal update comments (x203). Internal post + read and the client projection. */
+export const UPDATE_COMMENTS_SERVICE = Symbol.for('tmanage.UpdateCommentsService');
 export const INVITATIONS_REPOSITORY = Symbol.for('tmanage.InvitationsRepository');
 export const INVITATIONS_SERVICE = Symbol.for('tmanage.InvitationsService');
 /** ADM-12/13 (x121). Member offboarding — the access-impact preview and the offboard execution. */

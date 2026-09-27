@@ -347,6 +347,36 @@ export const projectUpdates = mysqlTable(
   ],
 );
 
+/**
+ * SEC / Portal update comments (x203, module 13). An internally-posted comment on a published
+ * project update (0041) — the *comment* half the 0041 header named and deferred. Append-only and
+ * internal-authored: a client reading the update's timeline is shown these comments, but a client
+ * reply needs a client-write capability the matrix does not yet grant (Needs-Peter), so there is
+ * no author-audience column. `fk_project_update_comments_update` binds `(organization_id,
+ * update_id)` to `project_updates (organization_id, id)`, so a cross-tenant `update_id` is a
+ * non-existent pair — migration `0084_project_update_comments.sql` is the source of truth.
+ */
+export const projectUpdateComments = mysqlTable(
+  'project_update_comments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    updateId: char('update_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_update_comments_org_id').on(table.organizationId, table.id),
+    index('ix_project_update_comments_update').on(
+      table.organizationId,
+      table.updateId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 export const PROJECT_MILESTONE_STATUSES = ['planned', 'met', 'missed'] as const;
 
 /**
@@ -3204,6 +3234,7 @@ export const TABLES = {
   saved_views: savedViews,
   saved_context: savedContext,
   project_updates: projectUpdates,
+  project_update_comments: projectUpdateComments,
   project_milestones: projectMilestones,
   project_risks: projectRisks,
   home_pinned_items: homePinnedItems,
@@ -3266,6 +3297,7 @@ export type ProjectMembershipRow = typeof projectMemberships.$inferSelect;
 export type MeetingRow = typeof meetings.$inferSelect;
 export type DocumentRow = typeof documents.$inferSelect;
 export type ProjectUpdateRow = typeof projectUpdates.$inferSelect;
+export type ProjectUpdateCommentRow = typeof projectUpdateComments.$inferSelect;
 export type ProjectMilestoneRow = typeof projectMilestones.$inferSelect;
 export type ProjectRiskRow = typeof projectRisks.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
