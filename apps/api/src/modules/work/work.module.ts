@@ -15,6 +15,7 @@ import {
   WORK_TIME_LOGS_SERVICE,
   WORK_WATCHERS_SERVICE,
   WORK_LABELS_SERVICE,
+  WORK_ACTIVITY_LOG_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -49,6 +50,8 @@ import { WorkWatchersController } from './watchers.controller.js';
 import { WorkLabelsRepository } from './work-labels.repository.js';
 import { WorkLabelsService } from './work-labels.service.js';
 import { WorkLabelsController } from './work-labels.controller.js';
+import { WorkActivityLogService } from './activity-log.service.js';
+import { WorkActivityLogController } from './activity-log.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -155,6 +158,16 @@ export class WorkModule {
         new WorkLabelsService(database, workItems, new WorkLabelsRepository()),
     };
 
+    // x291. A work item's merged activity timeline — read-only, no table. Wired like the watchers:
+    // the work-items repository resolves the parent tenant-scoped, and the service reads x147's
+    // comments and the audit trail read-only and merges them newest-first. No write, no capability.
+    const activityLogService: Provider = {
+      provide: WORK_ACTIVITY_LOG_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkActivityLogService(database, workItems),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -169,6 +182,7 @@ export class WorkModule {
         timeLogsService,
         watchersService,
         labelsService,
+        activityLogService,
       ],
       exports: [service],
       controllers: [
@@ -182,6 +196,7 @@ export class WorkModule {
         WorkTimeLogsController,
         WorkWatchersController,
         WorkLabelsController,
+        WorkActivityLogController,
       ],
     };
   }

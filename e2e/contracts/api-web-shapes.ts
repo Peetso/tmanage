@@ -171,6 +171,7 @@ import type {
   TimeLogListView as ApiTimeLogListView,
 } from '../../apps/api/src/modules/work/time-logs.service.js';
 import type { ItemWatcherView as ApiItemWatcherView } from '../../apps/api/src/modules/work/watchers.service.js';
+import type { WorkActivityEntryView as ApiWorkActivityEntryView } from '../../apps/api/src/modules/work/activity-log.service.js';
 import type {
   ItemLabelView as ApiItemLabelView,
   WorkLabelView as ApiWorkLabelView,
@@ -401,6 +402,7 @@ import type { ItemFile as WebItemFile } from '../../apps/web/src/lib/api/work-it
 import type { TimeLog as WebTimeLog } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/work-items';
 import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
+import type { WorkActivityEntry as WebWorkActivityEntry } from '../../apps/web/src/lib/api/work-activity';
 import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
@@ -958,6 +960,15 @@ type _timeLogList = Assert<Exact<ApiTimeLogListView, WebTimeLogList>>;
  * carries a membership id, never an email: the pair keeps it that way on both sides.
  */
 type _itemWatcher = Assert<Exact<ApiItemWatcherView, WebItemWatcher>>;
+
+/**
+ * x291. `WorkActivityEntryView` ↔ `WorkActivityEntry` — one entry in a work item's merged activity
+ * timeline (`GET …/work-items/:id/activity`, read-only). `WorkItemActivityFeed` renders exactly
+ * this shape — `id`/`kind`/`action`/`actorId`/`summary`/`occurredAt` — so the projection is held
+ * identical on both sides. `actorId` is a display handle (never an email); `null` is a
+ * system-initiated action.
+ */
+type _workActivityEntry = Assert<Exact<ApiWorkActivityEntryView, WebWorkActivityEntry>>;
 
 /**
  * x233. Work item labels / tags (Work module 7). `WorkLabelView` ↔ `WorkLabel` — one org-scoped label
