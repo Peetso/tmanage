@@ -57,7 +57,8 @@ function fakeDatabase(): TenantDatabase {
   const runner = {} as never;
   return {
     read: <T>(_c: TenantContext, work: (db: never) => Promise<T>): Promise<T> => work(runner),
-    transaction: <T>(_c: TenantContext, work: (db: never) => Promise<T>): Promise<T> => work(runner),
+    transaction: <T>(_c: TenantContext, work: (db: never) => Promise<T>): Promise<T> =>
+      work(runner),
   } as unknown as TenantDatabase;
 }
 
@@ -81,9 +82,7 @@ function row(id: string, issuedAt: string, amountCents: number): InvoiceRow {
 function fakeRepo(rows: readonly InvoiceRow[]): InvoicesRepository {
   return {
     list: (_r: never, _c: TenantContext, _o: ListInvoicesOptions) =>
-      Promise.resolve(
-        [...rows].sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime()),
-      ),
+      Promise.resolve([...rows].sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime())),
     findById: (_r: never, _c: TenantContext, id: string) =>
       Promise.resolve(rows.find((r) => r.id === id) ?? null),
   } as unknown as InvoicesRepository;
@@ -94,7 +93,10 @@ function serviceFor(rows: readonly InvoiceRow[]): InvoicesService {
 }
 
 describe('InvoicesService (x179)', () => {
-  const rows = [row('a', '2026-07-01T00:00:00.000Z', 1000), row('b', '2026-09-01T00:00:00.000Z', 2500)];
+  const rows = [
+    row('a', '2026-07-01T00:00:00.000Z', 1000),
+    row('b', '2026-09-01T00:00:00.000Z', 2500),
+  ];
 
   it('lists the tenant invoices newest issued first, amounts in integer cents', async () => {
     const listed = await serviceFor(rows).list(context, owner());

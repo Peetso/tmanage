@@ -6,10 +6,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { INVOICES_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { InvoiceRow } from '../../common/database/schema.js';
-import {
-  InvoicesRepository,
-  effectivePageSize as invoicePageSize,
-} from './invoices.repository.js';
+import { InvoicesRepository, effectivePageSize as invoicePageSize } from './invoices.repository.js';
 import type { InvoiceStatus } from './invoices.repository.js';
 
 /**
@@ -171,7 +168,13 @@ export class InvoicesService {
       },
     });
     if (!verdict.allowed) {
-      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, `${action}:${verdict.code}`);
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        `${action}:${verdict.code}`,
+      );
     }
   }
 }

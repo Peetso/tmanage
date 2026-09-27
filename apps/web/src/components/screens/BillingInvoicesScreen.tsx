@@ -104,9 +104,7 @@ export function BillingInvoicesScreen({
                   <td>
                     {formatDay(invoice.periodStart)} – {formatDay(invoice.periodEnd)}
                   </td>
-                  <td className="tm-mono">
-                    {formatMoney(invoice.amountCents, invoice.currency)}
-                  </td>
+                  <td className="tm-mono">{formatMoney(invoice.amountCents, invoice.currency)}</td>
                   <td>
                     <StatusDot tone={statusTone(invoice.status)}>{invoice.status}</StatusDot>
                   </td>
@@ -139,12 +137,7 @@ export function BillingInvoicesScreen({
             <h2 id="tm-invoice-detail-heading" className="tm-eyebrow">
               Invoice detail
             </h2>
-            <Button
-              type="button"
-              tone="text"
-              size="compact"
-              onClick={() => setSelectedId(null)}
-            >
+            <Button type="button" tone="text" size="compact" onClick={() => setSelectedId(null)}>
               Close
             </Button>
           </div>
