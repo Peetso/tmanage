@@ -1,10 +1,12 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Optional, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { SEARCH_SERVICE } from '../../common/http/tokens.js';
-import type { TenantContext } from '../../common/database/tenant-context.js';
+import { SEARCH_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { SearchResultView, SearchService } from './search.service.js';
+import { SavedSearchesRepository } from './saved-searches.repository.js';
+import { RECENT_LIMIT } from './saved-searches.service.js';
 
 /**
  * SRCH-01 (x111). Global tenant-scoped search: one read endpoint returning a unified result set
@@ -21,7 +23,17 @@ const MAX_QUERY_LENGTH = 300;
 
 @Controller('v1/organizations/:orgSlug/search')
 export class SearchController {
-  constructor(@Inject(SEARCH_SERVICE) private readonly search: SearchService) {}
+  constructor(
+    @Inject(SEARCH_SERVICE) private readonly search: SearchService,
+    // SRCH saved/recent (x214). A successful global search records a recent query for the acting
+    // user, so `GET …/search/recent` can return them. Optional and best-effort: recording is a
+    // convenience, never the search's contract, so a recording failure must not fail the search.
+    // `TENANT_DATABASE` is `@Global`; the repository is stateless (constructed here as the sibling
+    // repositories are). Both `@Optional()` so a bare construction (the capability-metadata test)
+    // needs no DI.
+    @Optional() @Inject(TENANT_DATABASE) private readonly database?: TenantDatabase,
+    @Optional() private readonly recents: SavedSearchesRepository = new SavedSearchesRepository(),
+  ) {}
 
   @Get()
   @RequireCapability('search.use')
@@ -57,12 +69,31 @@ export class SearchController {
       ]);
     }
 
-    return {
-      results: await this.search.search(context, principal, {
-        q: query,
-        ...(projectId === undefined ? {} : { projectId }),
-        ...(parsedLimit === undefined ? {} : { limit: parsedLimit }),
-      }),
-    };
+    const results = await this.search.search(context, principal, {
+      q: query,
+      ...(projectId === undefined ? {} : { projectId }),
+      ...(parsedLimit === undefined ? {} : { limit: parsedLimit }),
+    });
+
+    await this.recordRecent(context, query);
+
+    return { results };
+  }
+
+  /**
+   * Record the acting user's recent query, best-effort. A failure here (a missing grant in an
+   * environment that has not run 0092, say) is swallowed: the recents list is a convenience and must
+   * never turn a working search into an error. The write is tenant- and owner-scoped in the
+   * repository, so it can only ever touch the acting user's own recents in the acting studio.
+   */
+  private async recordRecent(context: TenantContext, query: string): Promise<void> {
+    if (!this.database) return;
+    try {
+      await this.database.transaction(context, (tx) =>
+        this.recents.recordRecent(tx, context, query, RECENT_LIMIT),
+      );
+    } catch {
+      // Intentionally ignored — recording a recent must not fail the search it accompanies.
+    }
   }
 }

@@ -152,6 +152,8 @@ export const INSIGHTS_SERVICE = Symbol.for('tmanage.InsightsService');
 /** SRCH-01 (x111). Global tenant-scoped search over work items, documents and meetings. */
 export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
 export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
+/** SRCH saved/recent (x214). The per-user, tenant-scoped saved & recent searches service. */
+export const SAVED_SEARCHES_SERVICE = Symbol.for('tmanage.SavedSearchesService');
 
 /** Public & trust site (x159). The public status page's published-only incidents read. */
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');

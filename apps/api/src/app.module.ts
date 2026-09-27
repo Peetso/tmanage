@@ -51,6 +51,7 @@ import { FilesModule } from './modules/files/files.module.js';
 import { ImportModule } from './modules/import/import.module.js';
 import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
+import { SavedSearchesModule } from './modules/search/saved-searches.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
@@ -279,6 +280,10 @@ export class AppModule {
         // every hit is relation-gated with `work.read` so a search never surfaces an item the
         // item's own direct read would deny.
         SearchModule.register(),
+        // SRCH saved/recent searches (x214). A member's own named saved searches (create/list/delete)
+        // and their recent queries (read), private per user, behind the reused `search.use`. A
+        // separate module from `SearchModule` so the search slices stay file-disjoint.
+        SavedSearchesModule.register(),
         // INS-06. The org-wide adoption roll-up (active members, members who created work, meetings
         // held) in a clamped window. A separate module from `InsightsModule` so the insights slices
         // stay file-disjoint; read-only, behind the same reused `work.read`.

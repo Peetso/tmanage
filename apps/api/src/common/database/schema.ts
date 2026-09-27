@@ -581,6 +581,53 @@ export const savedViews = mysqlTable(
   ],
 );
 
+/** SRCH saved/recent (x214). One remembered search filter — a `{ field, value }` of short handles. */
+export interface SavedSearchFilter {
+  readonly field: string;
+  readonly value: string;
+}
+
+/** The `kind` discriminator: a named, kept search or a recorded recent query. */
+export const SAVED_SEARCH_KINDS = ['saved', 'recent'] as const;
+export type SavedSearchKind = (typeof SAVED_SEARCH_KINDS)[number];
+
+/**
+ * SRCH saved/recent searches (x214, migration 0092).
+ *
+ * One table carries both kinds, keyed by `kind`: a `'saved'` row is an explicitly-named search the
+ * owner keeps (`name` set, `query_text`/`filters` what it re-runs); a `'recent'` row is a query the
+ * owner recently ran (`name` NULL, recorded as a side effect of the global search, pruned to the
+ * newest N). Both are **private to one user in one studio**: `organization_id` scopes the tenant and
+ * `user_id` the owner, so every read, the delete and the prune carry both predicates and one member
+ * never sees another's. Created and deleted, never updated — the runtime credential holds INSERT and
+ * DELETE alone, so the withheld UPDATE is the control (no immutability trigger, none needed).
+ * `0092_saved_searches.sql` is the source of truth; this is its typed mirror.
+ */
+export const savedSearches = mysqlTable(
+  'saved_searches',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    kind: mysqlEnum('kind', SAVED_SEARCH_KINDS).notNull(),
+    name: varchar('name', { length: 300 }),
+    queryText: varchar('query_text', { length: 300 }).notNull(),
+    filters: json('filters').$type<readonly SavedSearchFilter[]>().notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_saved_searches_org_id').on(table.organizationId, table.id),
+    index('ix_saved_searches_org_user_kind').on(
+      table.organizationId,
+      table.userId,
+      table.kind,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 /**
  * DOC-02/DOC-03 (x112). The append-only version history behind a `documents` row.
  *
@@ -2875,6 +2922,7 @@ export const TABLES = {
   meeting_attendees: meetingAttendees,
   meeting_series: meetingSeries,
   saved_views: savedViews,
+  saved_searches: savedSearches,
   saved_context: savedContext,
   project_updates: projectUpdates,
   project_milestones: projectMilestones,
@@ -2935,6 +2983,7 @@ export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
 export type MeetingSeriesRow = typeof meetingSeries.$inferSelect;
 export type SavedViewRow = typeof savedViews.$inferSelect;
+export type SavedSearchRow = typeof savedSearches.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DocumentCommentRow = typeof documentComments.$inferSelect;
