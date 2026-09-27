@@ -432,6 +432,12 @@ GRANT INSERT                 ON `tmanage`.`doc_revisions` TO 'tmanage_app'@'%';
 -- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
 -- `home_pinned_items` posture above.
 GRANT INSERT, DELETE         ON `tmanage`.`doc_bookmarks`     TO 'tmanage_app'@'%';
+-- Document tags / labels (0139, x269) one table for tag definitions and their document assignments.
+-- INSERT to define a tag and to assign one, DELETE to unassign, and **no UPDATE**: a definition's
+-- name and a tag's tenant are immutable (the 0139 trigger refuses a tenant move), and there is no
+-- rename path in this slice — the missing privilege is the control. Reading is the database-wide
+-- SELECT above.
+GRANT INSERT, DELETE         ON `tmanage`.`doc_tags`          TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)

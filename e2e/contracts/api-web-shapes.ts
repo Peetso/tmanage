@@ -49,6 +49,10 @@ import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocRevisionView as ApiDocRevisionView } from '../../apps/api/src/modules/docs/revisions.service.js';
 import type { DocBookmarkView as ApiDocBookmarkView } from '../../apps/api/src/modules/docs/bookmarks.service.js';
+import type {
+  DocTagView as ApiDocTagView,
+  DocumentTagView as ApiDocumentTagView,
+} from '../../apps/api/src/modules/docs/doc-tags.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -253,6 +257,8 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
 import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
+import type { DocTag as WebDocTag } from '../../apps/web/src/lib/api/doc-tags';
+import type { DocumentTag as WebDocumentTag } from '../../apps/web/src/lib/api/doc-tags';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -642,6 +648,14 @@ type _docRevision = Assert<Exact<ApiDocRevisionView, WebDocRevisionSummary>>;
  * the bookmark toggle read exactly this response, so the pair is Exact.
  */
 type _docBookmark = Assert<Exact<ApiDocBookmarkView, WebDocBookmarkSummary>>;
+
+/**
+ * x269 document tags. `DocTagView` (`GET`/`POST …/doc-tags`) is a tag definition; `DocumentTagView`
+ * (`GET`/`PUT`/`DELETE …/documents/:id/tags`) is a tag on a document. The `DocTagsScreen` and the
+ * document tag helpers read exactly these responses, so both pairs are Exact.
+ */
+type _docTag = Assert<Exact<ApiDocTagView, WebDocTag>>;
+type _documentTag = Assert<Exact<ApiDocumentTagView, WebDocumentTag>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

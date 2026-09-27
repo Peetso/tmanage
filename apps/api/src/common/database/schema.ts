@@ -3926,6 +3926,35 @@ export type DocBookmarkRow = typeof docBookmarks.$inferSelect;
 export type NewDocBookmarkRow = typeof docBookmarks.$inferInsert;
 
 /**
+ * x269. Document tags / labels (Docs module — DOC-01 hub filtering, findability). One table, two row
+ * kinds distinguished by nullability: a **definition** row carries `name` (with `document_id`/`tag_id`
+ * NULL), an **assignment** row carries `document_id` + `tag_id` (with `name` NULL).
+ * `fk_doc_tags_document` binds `(organization_id, document_id)` to `documents`, and the
+ * self-referential `fk_doc_tags_tag` binds `(organization_id, tag_id)` back to this table, so a
+ * cross-tenant document or tag id is a non-existent pair — migration `0139_doc_tags.sql`.
+ */
+export const docTags = mysqlTable(
+  'doc_tags',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    documentId: char('document_id', { length: 36 }),
+    tagId: char('tag_id', { length: 36 }),
+    name: varchar('name', { length: 120 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_doc_tags_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_doc_tags_org_name').on(table.organizationId, table.name),
+    uniqueIndex('uq_doc_tags_assignment').on(table.organizationId, table.documentId, table.tagId),
+    index('ix_doc_tags_document').on(table.organizationId, table.documentId, table.id),
+  ],
+);
+
+export type DocTagRow = typeof docTags.$inferSelect;
+export type NewDocTagRow = typeof docTags.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -3987,6 +4016,7 @@ export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 export const TABLES = {
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
+  doc_tags: docTags,
   work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   users,
