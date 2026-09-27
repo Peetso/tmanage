@@ -118,7 +118,8 @@
 --     saved_views, meeting_attendees
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items, person_skills
 --   · `INSERT, DELETE` on: work_item_dependencies, work_item_files, saved_context,
---     document_template_variables, home_pinned_items, objective_work_links, decision_work_links
+--     document_template_variables, home_pinned_items, objective_work_links, decision_work_links,
+--     member_admin_notes
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
 --     document_comments, decision_supersessions, document_templates, work_forms, onboarding_progress, marketing_leads
@@ -610,6 +611,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`person_skills`     TO 'tmanage_app'@'
 -- the code that writes it, so the withheld DELETE stays the immutability control against deletion (no
 -- trigger needed). The worker gets nothing here — this table is the API's alone.
 GRANT INSERT, UPDATE         ON `tmanage`.`custom_roles`       TO 'tmanage_app'@'%';
+-- ADM private member notes (0149, x280). INSERT to add a note and DELETE to remove one, and **no
+-- UPDATE**: a note is append-only — its body and attribution are fixed once written, correcting one
+-- is delete-and-re-add — so the missing UPDATE privilege is the control that keeps it so, backed by
+-- the 0149 `BEFORE UPDATE` immutability trigger. Reading is the database-wide SELECT above. The
+-- worker gets nothing here — this table is the API's alone.
+GRANT INSERT, DELETE         ON `tmanage`.`member_admin_notes` TO 'tmanage_app'@'%';
 
 -- Billing subscription (x177, migration 0074). One row per organization, upserted: INSERT to create
 -- the first subscription and UPDATE to change the plan (the change is recorded as `pending_change`;
