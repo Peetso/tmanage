@@ -504,6 +504,13 @@ GRANT INSERT                 ON `tmanage`.`project_milestones` TO 'tmanage_app'@
 -- that writes it, per this file's rule that a grant names a statement that exists (the same treatment
 -- `project_updates`, `project_milestones`, `meetings` and `documents` have above).
 GRANT INSERT                 ON `tmanage`.`project_risks`     TO 'tmanage_app'@'%';
+-- Client portal access log (x237, 0109). **INSERT only** — an access event is recorded (INSERT) by
+-- the internal `record()` helper and read (the database-wide SELECT above); it is append-only, so
+-- there is no UPDATE and no DELETE, and the `0109` triggers refuse both at the engine for every
+-- credential. Internal-only: never projected to a client. When an edit or purge lifecycle lands, the
+-- statement is added with the code that writes it, per this file's rule that a grant names a
+-- statement that exists (the same treatment `project_risks` and `project_milestones` have above).
+GRANT INSERT                 ON `tmanage`.`portal_access_log` TO 'tmanage_app'@'%';
 -- WORK intake forms (x146). **INSERT only** — a work form is created (INSERT) and read (the
 -- database-wide SELECT). This slice ships no editor and no removal path; the 0052 trigger pins
 -- organization_id/created_by immutable for every credential, and an editor is a later slice that

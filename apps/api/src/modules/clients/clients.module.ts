@@ -11,6 +11,7 @@ import {
   INVITATIONS_SERVICE,
   MILESTONE_LIFECYCLE_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
+  PORTAL_ACCESS_LOG_SERVICE,
   PORTAL_SERVICE,
   PROJECT_CLIENTS_REPOSITORY,
   PROJECT_MILESTONES_SERVICE,
@@ -56,6 +57,11 @@ import {
   ProjectRisksService,
 } from './project-risks.controller.js';
 import { ProjectRisksRepository } from './project-risks.repository.js';
+import {
+  PortalAccessLogController,
+  PortalAccessLogService,
+} from './portal-access-log.controller.js';
+import { PortalAccessLogRepository } from './portal-access-log.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ClientProjectionsRepository } from '../approvals/client-projections.repository.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
@@ -129,10 +135,30 @@ export class ClientsModule {
         ),
     };
 
-    const portal: Provider = {
-      provide: PORTAL_SERVICE,
+    /**
+     * SEC / Client portal access log (x237). The record + internal-audit-read service. The
+     * repositories are constructed here, like the `portal` provider below: they are stateless
+     * collections of queries, and reaching for another module's provider would register that
+     * dynamic module twice.
+     */
+    const accessLog: Provider = {
+      provide: PORTAL_ACCESS_LOG_SERVICE,
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) =>
+        new PortalAccessLogService(
+          database,
+          new ProjectsRepository(),
+          new PortalAccessLogRepository(),
+        ),
+    };
+
+    const portal: Provider = {
+      provide: PORTAL_SERVICE,
+      // x237: the access-log service is injected as the recorder, so a successful client read of a
+      // deliverable or update logs one access event (best-effort; a logging failure never denies
+      // the read).
+      inject: [TENANT_DATABASE, PORTAL_ACCESS_LOG_SERVICE],
+      useFactory: (database: TenantDatabase, recorder: PortalAccessLogService) =>
         // Every repository constructed here, for the reason the service above constructs its
         // own `ProjectsRepository`: they are stateless collections of queries, and reaching
         // for another module's provider would register that dynamic module twice. x114 adds the
@@ -144,6 +170,7 @@ export class ClientsModule {
           new ClientProjectionsRepository(),
           new FileAssetsRepository(),
           new ProjectUpdatesRepository(),
+          recorder,
         ),
     };
 
@@ -285,6 +312,7 @@ export class ClientsModule {
         memberships,
         shares,
         service,
+        accessLog,
         portal,
         invitations,
         clientRequests,
@@ -304,6 +332,7 @@ export class ClientsModule {
         MilestoneLifecycleController,
         ProjectRisksController,
         PortalRisksController,
+        PortalAccessLogController,
         ProjectUpdateCommentsController,
         PortalUpdateCommentsController,
       ],
