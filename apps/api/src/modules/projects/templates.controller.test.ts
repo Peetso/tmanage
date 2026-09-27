@@ -1,0 +1,195 @@
+import { describe, expect, it } from 'vitest';
+import type { Principal } from '@tmanage/domain';
+import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
+import { ProjectTemplatesController } from './templates.controller.js';
+import { ProjectTemplatesService } from './templates.service.js';
+import {
+  DuplicateProjectTemplateNameError,
+  type CreateProjectTemplateInput,
+  type ProjectTemplatesRepository,
+} from './templates.repository.js';
+import type { ProjectView, ProjectsService } from './projects.service.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { ProjectTemplateRow } from '../../common/database/schema.js';
+
+/**
+ * PROJ / module 8 (x234). The project-templates controller over the module's fakes with the **real**
+ * `authorize()` evaluator. The migration and the tenant-scoped SQL round-trip are proven in the DB
+ * suites (out of this build's scope); here the subject is the controller + service logic: define →
+ * list; instantiate through the **shared** project-create path (never a divergent create); the
+ * duplicate-name 409; the Known-trap (unknown/cross-tenant `:id` ⇒ 404); the bounded-seed 400; and the
+ * org-level `project.manage` ceiling (a role without it ⇒ 403, no project to hide behind).
+ */
+
+const ORG = 'organization-0000-0000-0000-000000000001';
+const OTHER_ORG = 'organization-0000-0000-0000-000000000002';
+const USER = 'user-0000-0000-0000-0000-000000000001';
+const WORKSPACE = 'workspace-0000-0000-0000-000000000001';
+
+function principal(role: Principal['role'], orgWide = false): Principal {
+  return {
+    userId: USER,
+    organizationId: ORG,
+    kind: 'internal',
+    role,
+    membershipId: 'membership-0000-0000-000000000001',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: orgWide,
+  };
+}
+
+const owner = principal('owner', true);
+/** A member holds `work.read` but not `project.manage`, so it may neither define nor instantiate. */
+const member = principal('member');
+const context = { organizationId: ORG, userId: USER } as unknown as TenantContext;
+
+function build(seed: readonly ProjectTemplateRow[] = []): {
+  controller: ProjectTemplatesController;
+  store: ProjectTemplateRow[];
+  createdProjects: { workspaceId: string; name: string }[];
+} {
+  const store: ProjectTemplateRow[] = [...seed];
+  let seq = store.length;
+  const database = {
+    read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+    transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
+  } as unknown as TenantDatabase;
+
+  const repository = {
+    list: async (_r: unknown, ctx: TenantContext) =>
+      store
+        .filter((row) => row.organizationId === ctx.organizationId)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()),
+    findById: async (_r: unknown, ctx: TenantContext, id: string) =>
+      store.find((row) => row.id === id && row.organizationId === ctx.organizationId) ?? null,
+    create: async (_r: unknown, ctx: TenantContext, input: CreateProjectTemplateInput) => {
+      if (
+        store.some((row) => row.organizationId === ctx.organizationId && row.name === input.name)
+      ) {
+        throw new DuplicateProjectTemplateNameError(input.name);
+      }
+      const row = {
+        id: `template-0000-0000-0000-00000000000${++seq}`,
+        organizationId: ctx.organizationId,
+        name: input.name,
+        description: input.description ?? null,
+        defaultObjectivesJson: input.defaultObjectives ?? null,
+        createdBy: input.createdBy,
+        createdAt: new Date(Date.UTC(2026, 0, seq)),
+      } as ProjectTemplateRow;
+      store.push(row);
+      return row;
+    },
+  } as unknown as ProjectTemplatesRepository;
+
+  const createdProjects: { workspaceId: string; name: string }[] = [];
+  const projects = {
+    create: async (_c: TenantContext, input: { workspaceId: string; name: string }) => {
+      createdProjects.push(input);
+      return {
+        id: `project-from-${input.name}`,
+        workspaceId: input.workspaceId,
+        name: input.name,
+        status: 'active',
+        ownerUserId: USER,
+        committedAt: null,
+        forecastAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        archivedAt: null,
+      } satisfies ProjectView;
+    },
+  } as unknown as ProjectsService;
+
+  const service = new ProjectTemplatesService(database, repository, projects);
+  return { controller: new ProjectTemplatesController(service), store, createdProjects };
+}
+
+describe('ProjectTemplatesController define → list', () => {
+  it('defines a template and lists it, never echoing organizationId', async () => {
+    const { controller } = build();
+    const created = await controller.create(context, owner, {
+      name: 'Kickoff',
+      description: 'Standard kickoff',
+      defaultObjectives: ['Charter signed', 'Team assembled'],
+    });
+    expect(created.name).toBe('Kickoff');
+    expect(created.defaultObjectives).toEqual(['Charter signed', 'Team assembled']);
+    expect((created as unknown as Record<string, unknown>)['organizationId']).toBeUndefined();
+
+    const listed = await controller.list(context, owner);
+    expect(listed.templates.map((t) => t.id)).toEqual([created.id]);
+  });
+});
+
+describe('instantiate reuses the shared project-create path', () => {
+  it('creates a project through ProjectsService.create, seeded from the template name', async () => {
+    const { controller, createdProjects } = build();
+    const template = await controller.create(context, owner, { name: 'Kickoff' });
+    const project = await controller.instantiate(context, owner, template.id, {
+      workspaceId: WORKSPACE,
+    });
+    expect(project.name).toBe('Kickoff');
+    expect(createdProjects).toEqual([{ workspaceId: WORKSPACE, name: 'Kickoff' }]);
+  });
+});
+
+describe('validation', () => {
+  it('rejects a duplicate name with a 409 and writes nothing new', async () => {
+    const { controller, store } = build();
+    await controller.create(context, owner, { name: 'Kickoff' });
+    await expect(controller.create(context, owner, { name: 'Kickoff' })).rejects.toEqual(
+      expect.objectContaining({ status: 409, code: 'conflict' }),
+    );
+    expect(store).toHaveLength(1);
+  });
+
+  it('rejects a malformed seed (non-string default objective) with a 400 and writes nothing', async () => {
+    const { controller, store } = build();
+    await expect(
+      controller.create(context, owner, {
+        name: 'Bad seed',
+        defaultObjectives: [42 as unknown as string],
+      } as never),
+    ).rejects.toEqual(expect.objectContaining({ status: 400, code: 'validation_failed' }));
+    expect(store).toHaveLength(0);
+  });
+});
+
+describe('the Known-trap: an unknown or cross-tenant :id is a 404, never a 500', () => {
+  it('instantiate against a cross-tenant template is a 404 and creates no project', async () => {
+    const foreign = {
+      id: 'template-0000-0000-0000-0000000000aa',
+      organizationId: OTHER_ORG,
+      name: 'Someone else’s',
+      description: null,
+      defaultObjectivesJson: null,
+      createdBy: USER,
+      createdAt: new Date(),
+    } as ProjectTemplateRow;
+    const { controller, createdProjects } = build([foreign]);
+    await expect(
+      controller.instantiate(context, owner, foreign.id, { workspaceId: WORKSPACE }),
+    ).rejects.toEqual(expect.objectContaining({ status: 404, code: 'not_found' }));
+    expect(createdProjects).toHaveLength(0);
+  });
+});
+
+describe('org-level authorization (real authorize)', () => {
+  it('a role without project.manage gets a 403 on define, and nothing is written', async () => {
+    const { controller, store } = build();
+    await expect(controller.create(context, member, { name: 'Not mine' })).rejects.toEqual(
+      expect.objectContaining({ status: 403, code: 'forbidden' }),
+    );
+    expect(store).toHaveLength(0);
+  });
+
+  it('requires project.manage on define, list, and instantiate', () => {
+    const cap = (method: unknown) => Reflect.getMetadata(REQUIRED_CAPABILITY, method as object);
+    expect(cap(ProjectTemplatesController.prototype.create)).toBe('project.manage');
+    expect(cap(ProjectTemplatesController.prototype.list)).toBe('project.manage');
+    expect(cap(ProjectTemplatesController.prototype.instantiate)).toBe('project.manage');
+  });
+});

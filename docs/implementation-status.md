@@ -15714,3 +15714,28 @@ pairs with `apps/web/src/lib/api/saved-searches.ts` via `e2e/contracts/api-web-s
 saved searches and lists recents as links back into the search screen. No DB test / no new e2e in
 slice (the chain owns both); the saved/recent SQL predicates are proven by the chain's isolation and
 migrator DB suites.
+
+## PROJ / module 8 — reusable project templates (x234)
+
+**Status.** Built. The portfolio (x206–x209) can run projects but had no way to stamp out a new one
+from a saved shape. Migration `0106_project_templates.sql` adds one tenant-scoped, org-owned table
+(no `project_id`) carrying a `name`, an optional `description` and a `default_objectives_json`;
+registered in the four places (`schema.ts` def + `TABLES`, `tenant-guard.ts` `TENANT_TABLES`,
+`scripts/db/users.sql` grant of INSERT only — no edit route this slice — and the numbered file the
+directory-driven migrator applies). `(organization_id, name)` is unique: the create path maps a
+collision to 409, and the key is the backstop.
+
+**Surfaces.** `POST/GET …/projects/templates` (define/list) and `POST …/projects/templates/:id/instantiate`,
+all behind the reused `project.manage` capability (no `capabilities.ts` edit), in `templates.controller.ts`
+
+- `.service.ts` + `.repository.ts` (`ProjectTemplatesModule`). Org-scoped authorization re-checked with the
+  real `authorize()` at `projectId: null` (defence in depth). `instantiate` resolves the template
+  tenant-scoped **before** it authorizes (unknown/cross-tenant `:id` ⇒ 404, never a 500) and creates the
+  project through the **shared** `ProjectsService.create` path — no divergent create logic — so a
+  template-made project carries the same audit row and invariants as any other. The seed is bounded and
+  validated (bad seed ⇒ 400). `ProjectTemplateView` is a live `Exact` pair with
+  `apps/web/src/lib/api/project-templates.ts` via `e2e/contracts/api-web-shapes.ts`. `ProjectTemplatesScreen`
+  (`apps/web/src/app/[orgSlug]/projects/templates/page.tsx`) defines a template, lists the tenant's
+  templates and instantiates a new project from one. Unit-proven with real `authorize()` over fakes in
+  `templates.controller.test.ts` (define → list; instantiate via the shared path; duplicate 409;
+  cross-tenant `:id` 404; bad seed 400; no-cap 403). No DB test / no new e2e in slice (the chain owns both).
