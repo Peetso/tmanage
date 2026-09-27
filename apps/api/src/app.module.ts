@@ -45,6 +45,7 @@ import { AutomationSchedulesModule } from './modules/automations/schedules.contr
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links.module.js';
 import { ProjectObjectivesModule } from './modules/projects/project-objectives.module.js';
+import { ProjectTagsModule } from './modules/projects/project-tags.module.js';
 import { PeopleModule } from './modules/people/people.module.js';
 import { ProjectRiskRegisterModule } from './modules/projects/risk-register.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
@@ -339,6 +340,13 @@ export class AppModule {
         // in its path, and the composite foreign key means a caller who names one that is not theirs
         // gets a refusal rather than a foreign-key 500.
         ProjectObjectivesModule.register(),
+        // PROJ / portfolio (x267). The org-defined project tag taxonomy and its per-project
+        // assignments (`…/projects/tags`, `…/projects/:projectId/tags`). After `ProjectsModule` for
+        // the same reason as the objectives register: an assignment names a project in its path, and
+        // the composite foreign key means a caller who names one that is not theirs gets a 404 rather
+        // than a foreign-key 500. A module of its own, file-disjoint from the projects/portfolio
+        // controllers.
+        ProjectTagsModule.register(),
         // PEOPLE / module 14 (x171). A project's people allocations (assign a member a share of their
         // time, list them). After `ProjectsModule` for the same reason as the objectives register: an
         // allocation names a project (and a membership) in its path/body, and the composite foreign

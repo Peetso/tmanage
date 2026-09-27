@@ -175,6 +175,10 @@ import type {
   ItemLabelView as ApiItemLabelView,
   WorkLabelView as ApiWorkLabelView,
 } from '../../apps/api/src/modules/work/work-labels.service.js';
+import type {
+  ProjectTagView as ApiProjectTagView,
+  ProjectTagAssignmentView as ApiProjectTagAssignmentView,
+} from '../../apps/api/src/modules/projects/project-tags.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -403,6 +407,8 @@ import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/w
 import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
 import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
+import type { ProjectTag as WebProjectTag } from '../../apps/web/src/lib/api/project-tags';
+import type { ProjectTagAssignment as WebProjectTagAssignment } from '../../apps/web/src/lib/api/project-tags';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -968,6 +974,17 @@ type _itemWatcher = Assert<Exact<ApiItemWatcherView, WebItemWatcher>>;
  */
 type _workLabel = Assert<Exact<ApiWorkLabelView, WebWorkLabel>>;
 type _itemLabel = Assert<Exact<ApiItemLabelView, WebItemLabel>>;
+
+/**
+ * x267. Project tags / labels (Projects / portfolio module). `ProjectTagView` ↔ `ProjectTag` — one
+ * org-scoped tag definition (`GET`/`POST …/projects/tags`); `ProjectTagAssignmentView` ↔
+ * `ProjectTagAssignment` — one tag assigned to a project (`GET …/projects/:id/tags`,
+ * `PUT`/`DELETE …/projects/:id/tags/:tagId`). `ProjectTagsScreen` reads the definitions; the
+ * assignment helpers in `lib/api/project-tags` consume the assignment shape. `organizationId` is
+ * absent on all four — the wire projection never echoes the tenant id.
+ */
+type _projectTag = Assert<Exact<ApiProjectTagView, WebProjectTag>>;
+type _projectTagAssignment = Assert<Exact<ApiProjectTagAssignmentView, WebProjectTagAssignment>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

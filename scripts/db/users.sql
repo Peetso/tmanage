@@ -324,6 +324,10 @@ GRANT INSERT, DELETE         ON `tmanage`.`work_item_watchers`     TO 'tmanage_a
 -- item). No UPDATE: a label is defined once and a tag is added or removed, never amended in place;
 -- the 0105 trigger pins organization_id immutable, and reading is the database-wide SELECT above.
 GRANT INSERT, DELETE         ON `tmanage`.`work_item_labels`      TO 'tmanage_app'@'%';
+-- x267 project tags. INSERT (define a tag; assign a tag to a project) and DELETE (untag a project).
+-- No UPDATE: a tag is defined once and an assignment is added or removed, never amended in place;
+-- the 0137 trigger pins organization_id immutable, and reading is the database-wide SELECT above.
+GRANT INSERT, DELETE         ON `tmanage`.`project_tags`          TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through
