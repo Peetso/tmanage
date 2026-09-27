@@ -13925,3 +13925,35 @@ form and fills one to create a work item. Proved database-free with the real `au
 (`work-forms.controller.test.ts`): define→list→submit creates a work item, an invalid payload is a
 400 with no work item, a cross-tenant `formId` is a 404 with no write, and a define without
 `work.create` is a 403. Deferred to NEXT-SCOPES-13: a submission-history table and conditional fields.
+
+## SEC / Automations — scheduled triggers (x167, module 17)
+
+**What shipped.** A cron-like schedule for a workflow template — _when_ a template should run on its
+own. This slice adds a tenant-scoped `automation_schedules` table (migration `0067`) keyed to a
+`workflow_templates` row (x162, `0063`) by a composite key that includes `organization_id`, and two
+endpoints behind `org.manage`: `POST …/automations/templates/:templateId/schedule` records a
+schedule, `GET …/automations/schedules` lists a tenant's schedules soonest-due first. The recurrence
+is a bounded spec (`hourly`/`daily`/`weekly`, with an hour and day-of-week where the interval uses
+them); `next_run_at` is computed by a pure, deterministic function (`next-run.ts`, `now` passed in).
+Nothing fires a run: a background dispatcher that wakes on `next_run_at` and enqueues the workflow is
+worker infrastructure (Needs-Peter).
+
+**Security.** The template is resolved tenant-scoped **before** authorize (the Known-trap order): an
+unknown or cross-tenant `templateId` is a 404 with no write, never a foreign-key 500. Only then is
+`org.manage` authorized org-scoped (`projectId: null`, a 403 for a caller without it), and only then
+is the spec validated (an off-enum interval or an out-of-range hour/day is a 400 with no write).
+`AutomationScheduleView` never echoes `organization_id`. The new table is registered in all four
+places — `schema.ts` def + `TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant (INSERT only;
+no editor and no per-schedule toggle endpoint yet), and the on-disk migration the readdir migrator
+applies.
+
+**Surfaces.** `AutomationScheduleView` (`schedules.controller.ts`) is a live `Exact` pair with the
+web's `AutomationScheduleSummary` (`apps/web/src/lib/api/automation-schedules.ts`) in
+`e2e/contracts/api-web-shapes.ts`. `AutomationSchedulesScreen`
+(`apps/web/src/components/screens/AutomationSchedulesScreen.tsx`), routed at
+`/[orgSlug]/automations/schedules`, lists schedules and records one. Proved database-free with the
+real `authorize` (`schedules.controller.test.ts`): a valid spec writes a row with the deterministic
+`next_run_at`, an off-enum/out-of-range spec is a 400 with no write, a cross-tenant `templateId` is a
+404, and a caller without `org.manage` is a 403; `next-run.ts`'s pure computation is proved directly.
+Deferred to worker infrastructure (Needs-Peter): the dispatcher that fires runs, and a per-schedule
+enable/disable toggle endpoint.
