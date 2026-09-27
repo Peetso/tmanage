@@ -632,6 +632,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // and its deletes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what
   // scopes them, and tenant-isolation.db.test.ts enforces the entry.
   focus_blocks: 'organization_id',
+  // Inbox flags (x260, migration 0130). Tenant + membership owned: a row is one member's "important"
+  // star on one inbox bundle, and an unscoped `SELECT ... FROM inbox_flags` would be every member's
+  // stars across every studio. `organization_id` is NOT NULL and carries the `(organization_id, id)`
+  // key every tenant table has, so the guard scopes its reads and its writes; the layer-3 guard fails
+  // OPEN on an unregistered table, so this entry is what scopes them, and tenant-isolation.db.test.ts
+  // enforces the entry.
+  inbox_flags: 'organization_id',
 });
 
 /**

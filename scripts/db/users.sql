@@ -765,6 +765,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`insight_targets` TO 'tmanage_app'@'%'
 -- upsert against `uq_pref_digest_org_membership`. No DELETE: a member changes cadence by saving a new
 -- value, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`pref_digest` TO 'tmanage_app'@'%';
+-- Inbox flags (x260, module 4 Inbox / INBOX-001 IN-01 "Important inbox"). **INSERT, DELETE** — a
+-- member's "important" star on an inbox bundle is created (flag) and removed (unflag), never edited:
+-- there is no UPDATE path in the repository, so the withheld privilege is the control and no
+-- immutability trigger is needed (the doc_bookmarks / home_pinned_items posture). SELECT is the
+-- database-wide grant.
+GRANT INSERT, DELETE         ON `tmanage`.`inbox_flags`      TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
