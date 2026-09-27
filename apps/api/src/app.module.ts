@@ -76,6 +76,7 @@ import { SkillSearchModule } from './modules/people/skill-search.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
+import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -408,6 +409,11 @@ export class AppModule {
         // tenant database, so its position here is by subject. No email is sent and no payment
         // instrument is stored — contacts only.
         BillingContactsModule.register(),
+        // Billing & entitlements module 19 (x200). Configurable usage-alert threshold rules
+        // (create/list/update) and a read that flags which are currently breached, behind `org.manage`,
+        // over the new `billing_usage_alerts` table (0083). Self-contained and file-disjoint; alert
+        // delivery (email/notification) is a later slice (external egress, Needs-Peter).
+        BillingUsageAlertsModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

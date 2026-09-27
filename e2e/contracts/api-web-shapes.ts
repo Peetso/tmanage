@@ -50,6 +50,10 @@ import type { DecisionLockView as ApiDecisionLockView } from '../../apps/api/src
 import type { DocumentTemplateView as ApiDocumentTemplateView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentTemplateVariableView as ApiDocumentTemplateVariableView } from '../../apps/api/src/modules/docs/document-template-variables.controller.js';
 import type { AutomationScheduleView as ApiAutomationScheduleView } from '../../apps/api/src/modules/automations/schedules.controller.js';
+import type {
+  UsageAlertView as ApiUsageAlertView,
+  UsageAlertStatusView as ApiUsageAlertStatusView,
+} from '../../apps/api/src/modules/billing/usage-alerts.service.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -309,6 +313,10 @@ import type {
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { SubscriptionView as WebSubscriptionView } from '../../apps/web/src/lib/api/subscription';
 import type { PlanChangePreviewView as WebPlanChangePreviewView } from '../../apps/web/src/lib/api/plan-preview';
+import type {
+  UsageAlertSummary as WebUsageAlertSummary,
+  UsageAlertStatus as WebUsageAlertStatus,
+} from '../../apps/web/src/lib/api/billing';
 import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
@@ -744,6 +752,17 @@ type _workflowTemplate = Assert<Exact<ApiWorkflowTemplateView, WebWorkflowTempla
  * `organizationId` is absent on both.
  */
 type _workflowRun = Assert<Exact<ApiWorkflowRunView, WebWorkflowRunSummary>>;
+
+/**
+ * Billing & entitlements (x200). `UsageAlertView` (`GET`/`POST`/`PATCH …/billing/usage-alerts`,
+ * response) — one org-scoped usage-alert threshold rule — and `UsageAlertStatusView`
+ * (`GET …/billing/usage-alerts/status`) — one rule's current evaluation. Paired with the live web
+ * consumer `UsageAlertsScreen` (via `lib/api/billing`): `metric` is `string` on both sides (the closed
+ * set is enforced server-side), `breached` is the server's decision, and `organizationId` is absent on
+ * both.
+ */
+type _usageAlert = Assert<Exact<ApiUsageAlertView, WebUsageAlertSummary>>;
+type _usageAlertStatus = Assert<Exact<ApiUsageAlertStatusView, WebUsageAlertStatus>>;
 
 /**
  * Automations app directory (x165). `IntegrationConnectionView` (`GET`/`POST

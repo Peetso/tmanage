@@ -378,6 +378,13 @@ GRANT INSERT                 ON `tmanage`.`document_templates` TO 'tmanage_app'@
 -- posture). The worker gets nothing here: the dispatcher that will read next_run_at is Needs-Peter
 -- infrastructure and gets its grant with the code that runs it.
 GRANT INSERT                 ON `tmanage`.`automation_schedules` TO 'tmanage_app'@'%';
+-- Billing usage alerts (0083, x200). **INSERT and UPDATE** — a usage-alert rule is created (INSERT),
+-- read (the database-wide SELECT above), and tuned (UPDATE of threshold_percent/active). This slice
+-- ships no removal path, so **no DELETE**, and the 0083 trigger pins organization_id/created_by/metric
+-- immutable for every credential besides, so UPDATE can only move the two editable columns. The worker
+-- gets nothing here: threshold-alert *dispatch* (email/notification) is Needs-Peter infrastructure and
+-- gets its grant with the code that runs it.
+GRANT INSERT, UPDATE         ON `tmanage`.`billing_usage_alerts` TO 'tmanage_app'@'%';
 -- CLIENT-003 (x125, 0041). A project update is posted (INSERT) and read (the database-wide
 -- SELECT above); `published` is set at INSERT time, and this slice ships no edit/unpublish
 -- endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0041 trigger pins
