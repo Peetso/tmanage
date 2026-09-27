@@ -2631,6 +2631,33 @@ export const securitySettings = mysqlTable(
   ],
 );
 
+/**
+ * Organization IP allowlist entries (Administration module 18, x277, migration 0146). An itemised,
+ * advisory list of allowed source networks — each an IPv4/IPv6 address or CIDR block with an optional
+ * human label — added and removed on the security settings screen. Distinct from `security_settings`
+ * (0073): that carries one posture blob per org (`ip_allowlist_json` on one row); this is a separate
+ * entry table a screen lists, adds to and removes from. Advisory only — this slice **records** ranges
+ * and does not enforce them at request time (a later slice does). `uq_org_ip_allowlist_org_cidr` makes
+ * a repeated add a 409 rather than a second row. Identity (`organization_id`, `id`) is immutable at the
+ * engine; entries are added and removed, never edited, so the runtime credential holds INSERT and
+ * DELETE and no UPDATE. The application (`cidr.ts`) proves every stored `cidr` is a valid address/range.
+ */
+export const orgIpAllowlist = mysqlTable(
+  'org_ip_allowlist',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    cidr: varchar('cidr', { length: 49 }).notNull(),
+    label: varchar('label', { length: 120 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_ip_allowlist_org_id').on(table.organizationId, table.id),
+    // One row per (organization, cidr): a repeated add is a 409, not a second row.
+    uniqueIndex('uq_org_ip_allowlist_org_cidr').on(table.organizationId, table.cidr),
+  ],
+);
+
 export const INVOICE_STATUSES = ['paid', 'open', 'void'] as const;
 
 /**
@@ -4071,6 +4098,7 @@ export const TABLES = {
   org_settings: orgSettings,
   org_policies: orgPolicies,
   security_settings: securitySettings,
+  org_ip_allowlist: orgIpAllowlist,
   onboarding_progress: onboardingProgress,
   incidents,
   changelog_entries: changelogEntries,
@@ -4192,6 +4220,7 @@ export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type OrgPolicyRow = typeof orgPolicies.$inferSelect;
 export type SecuritySettingsRow = typeof securitySettings.$inferSelect;
+export type OrgIpAllowlistRow = typeof orgIpAllowlist.$inferSelect;
 export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
 export type PersonAllocationRow = typeof personAllocations.$inferSelect;
 export type CustomRoleRow = typeof customRoles.$inferSelect;
