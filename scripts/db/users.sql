@@ -373,6 +373,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`work_item_labels`      TO 'tmanage_ap
 -- the first time, rewrites freq/interval/until in place after) and DELETE (clear the rule). Reading
 -- is the database-wide SELECT above; the 0127 trigger pins organization_id immutable.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_recurrence`  TO 'tmanage_app'@'%';
+-- x308 (0176) work board columns. An org-level board layout: a column is defined (INSERT), edited
+-- in place (UPDATE — a PUT rewrites label/state_key/position) and removed (DELETE). Reading is the
+-- database-wide SELECT above. No dispatch and no work item is written — a column is a display
+-- grouping over existing states. The 0176 trigger pins organization_id immutable, so UPDATE can
+-- move label/state_key/position and nothing that says which tenant the column is.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_board_columns`     TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

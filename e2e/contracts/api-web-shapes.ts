@@ -209,6 +209,7 @@ import type {
   WorkItemRecurrenceView as ApiWorkItemRecurrenceView,
   NextOccurrenceView as ApiNextOccurrenceView,
 } from '../../apps/api/src/modules/work/item-recurrence.service.js';
+import type { BoardColumnView as ApiBoardColumnView } from '../../apps/api/src/modules/work/board-columns.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -492,6 +493,7 @@ import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-
 import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { WorkItemRecurrence as WebWorkItemRecurrence } from '../../apps/web/src/lib/api/work-item-recurrence';
 import type { NextOccurrence as WebNextOccurrence } from '../../apps/web/src/lib/api/work-item-recurrence';
+import type { BoardColumn as WebBoardColumn } from '../../apps/web/src/lib/api/board-columns';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -1195,6 +1197,14 @@ type _itemLabel = Assert<Exact<ApiItemLabelView, WebItemLabel>>;
  */
 type _workItemRecurrence = Assert<Exact<ApiWorkItemRecurrenceView, WebWorkItemRecurrence>>;
 type _nextOccurrence = Assert<Exact<ApiNextOccurrenceView, WebNextOccurrence>>;
+
+/**
+ * x308. Work board columns (Work module 7). `BoardColumnView` ↔ `BoardColumn` — one org-scoped board
+ * column (`GET`/`POST …/work/board-columns`, `PUT`/`DELETE …/work/board-columns/:id`), a display
+ * grouping over the existing work states. `WorkBoardColumnsView` reads the list, so the pair is held
+ * identical on the two sides. `organizationId` is absent on both.
+ */
+type _boardColumn = Assert<Exact<ApiBoardColumnView, WebBoardColumn>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

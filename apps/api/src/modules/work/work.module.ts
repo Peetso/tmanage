@@ -18,6 +18,7 @@ import {
   WORK_WATCHERS_SERVICE,
   WORK_LABELS_SERVICE,
   WORK_ITEM_RECURRENCE_SERVICE,
+  WORK_BOARD_COLUMNS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -61,6 +62,9 @@ import { WorkLabelsController } from './work-labels.controller.js';
 import { WorkItemRecurrenceRepository } from './item-recurrence.repository.js';
 import { WorkItemRecurrenceService } from './item-recurrence.service.js';
 import { WorkItemRecurrenceController } from './item-recurrence.controller.js';
+import { WorkBoardColumnsRepository } from './board-columns.repository.js';
+import { WorkBoardColumnsService } from './board-columns.service.js';
+import { WorkBoardColumnsController } from './board-columns.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -198,6 +202,16 @@ export class WorkModule {
         new WorkItemRecurrenceService(database, workItems, new WorkItemRecurrenceRepository()),
     };
 
+    // x308. An organization's custom work-board columns — an org-level display grouping over the
+    // existing work states, so it needs only the tenant database (no work-item parent). The service
+    // holds the policy (org.manage on writes, resolve-before-authorize, the state-key allowlist).
+    const boardColumnsService: Provider = {
+      provide: WORK_BOARD_COLUMNS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new WorkBoardColumnsService(database, new WorkBoardColumnsRepository()),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -215,6 +229,7 @@ export class WorkModule {
         watchersService,
         labelsService,
         recurrenceService,
+        boardColumnsService,
       ],
       exports: [service],
       controllers: [
@@ -231,6 +246,7 @@ export class WorkModule {
         WorkWatchersController,
         WorkLabelsController,
         WorkItemRecurrenceController,
+        WorkBoardColumnsController,
       ],
     };
   }
