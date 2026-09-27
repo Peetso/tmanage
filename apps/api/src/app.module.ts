@@ -74,6 +74,7 @@ import { InsightsModule } from './modules/insights/insights.module.js';
 import { SearchModule } from './modules/search/search.module.js';
 import { SavedSearchesModule } from './modules/search/saved-searches.module.js';
 import { CommandsModule } from './modules/search/commands.controller.js';
+import { SuggestionsModule } from './modules/search/suggestions.controller.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { SavedInsightViewsModule } from './modules/insights/saved-insight-views.module.js';
@@ -416,6 +417,13 @@ export class AppModule {
         // depends on nothing (the registry is a constant, the matcher is pure), and shares the
         // `search.use` gate global search reads under — no new capability, no database, no migration.
         CommandsModule.register(),
+        // SRCH typeahead / suggestions (x289). `GET …/search/suggest?q=<prefix>&limit=` — a bounded,
+        // recency-ordered list of indexed entity titles predicted from the prefix, powering typeahead.
+        // A module of its own beside `SearchModule` so the search slices stay file-disjoint; read-only
+        // over `search_index` (0054), behind the reused `search.use`, every candidate relation-gated
+        // with `work.read` so a suggestion never surfaces a title the caller's own read would deny.
+        // No new capability, no table, no migration.
+        SuggestionsModule.register(),
         // INS-06. The org-wide adoption roll-up (active members, members who created work, meetings
         // held) in a clamped window. A separate module from `InsightsModule` so the insights slices
         // stay file-disjoint; read-only, behind the same reused `work.read`.
