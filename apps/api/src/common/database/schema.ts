@@ -1659,6 +1659,33 @@ export const orgSettings = mysqlTable(
   ],
 );
 
+/**
+ * Custom roles (Administration module 18, x173, migration 0071). One row per named role per
+ * organization: a role's display name and the capability subset it grants. The capability list is a
+ * subset of the fixed `CAPABILITIES` allowlist (`12-PERMISSION-MATRIX` §2) — no new capability is ever
+ * defined here and nothing is granted beyond the role's author; `roles.controller.ts` refuses any
+ * off-allowlist string (400) and any capability the caller cannot itself exercise (403) before a
+ * write. `capabilities_json` stores the subset as a JSON array of allowlisted strings. A role is
+ * created once — `uq_custom_roles_org_name` makes a duplicate name a 409, not a second row — and the
+ * runtime credential holds INSERT and no UPDATE/DELETE: editing and removing a role are later slices.
+ * The withheld UPDATE/DELETE is the immutability control (no trigger needed).
+ */
+export const customRoles = mysqlTable(
+  'custom_roles',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 128 }).notNull(),
+    capabilitiesJson: text('capabilities_json').notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_custom_roles_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_custom_roles_org_name').on(table.organizationId, table.name),
+  ],
+);
+
 export const usageCounters = mysqlTable(
   'usage_counters',
   {
@@ -2567,6 +2594,7 @@ export const TABLES = {
   notification_kind_prefs: notificationKindPrefs,
   org_settings: orgSettings,
   onboarding_progress: onboardingProgress,
+  custom_roles: customRoles,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -2632,6 +2660,7 @@ export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
+export type CustomRoleRow = typeof customRoles.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;

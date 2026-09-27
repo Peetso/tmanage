@@ -14207,3 +14207,32 @@ renders the step checklist with a done count and marks a step complete. Proved d
 real `authorize` (`onboarding-tour.controller.test.ts`): complete→list is own-scoped, an unknown step
 is a 400 with no write, a re-complete writes no duplicate, another member's progress never shows, and
 the routes sit behind `work.read`. Deferred to NEXT-SCOPES-13: sample-data seeding and coach-marks.
+
+## Custom roles (Administration module 18, x173)
+
+**Status.** Built. Administration was Partial (audit rank #9 — roles/policies absent); this adds custom
+roles: a named role that stores a subset of the fixed capability allowlist, over a new `custom_roles`
+table behind `org.manage`. `GET .../admin/roles` lists the organization's roles; `POST .../admin/roles`
+defines one. No new capability is introduced and `capabilities.ts` is untouched — a role only ever holds
+a subset of the existing `CAPABILITIES`.
+
+**Safety.** The organization is resolved tenant-scoped before authorize/write (a cross-tenant context is
+a 404 with no write, the Known trap). Two guards make the privilege boundary concrete: every requested
+capability must be a string on the fixed `CAPABILITIES` allowlist (anything else is a 400 with no write),
+and every requested capability must be one the caller can actually exercise org-wide right now, decided
+by the real `authorize` (a capability the caller cannot exercise — e.g. reviewer-gated `approval.decide`,
+held only per object — is a 403 with no write), so a role can never widen access past its author. A
+duplicate name is a 409; the runtime credential holds INSERT only (no UPDATE/DELETE — editing and
+deleting a role are later slices). The new table is registered in all four places — `schema.ts` def +
+`TABLES`, tenant-guard `TENANT_TABLES`, `users.sql` grant, and the on-disk migration `0071_custom_roles.sql`
+the readdir migrator applies.
+
+**Surfaces.** `CustomRoleView` (`roles.controller.ts`) is a live `Exact` pair with the web's
+`CustomRoleView` (`apps/web/src/lib/api/admin-roles.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`AdminRolesScreen` (`apps/web/src/components/screens/AdminRolesScreen.tsx`), routed at
+`/[orgSlug]/admin/roles`, lists the roles and offers a name field plus a capability picker over the fixed
+allowlist. Proved database-free with the real `authorize` (`roles.controller.test.ts`): create→list is
+tenant-scoped, an off-allowlist capability is a 400 with no write, a capability the caller cannot exercise
+is a 403 with no write, a blank name or empty list is a 400, a duplicate name is a 409, a cross-tenant
+context is a 404 before authorize, and both routes sit behind `org.manage`. Deferred: role editing,
+deletion, and assigning a custom role to a membership.

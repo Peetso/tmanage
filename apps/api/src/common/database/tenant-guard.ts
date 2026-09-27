@@ -293,6 +293,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // registering it here is what scopes the progress reads and the completion upsert; the
   // tenant-isolation suite enforces the entry.
   onboarding_progress: 'organization_id',
+  // Custom roles (x173, migration 0071). Tenant-owned: a role belongs to one studio, and an unscoped
+  // `SELECT ... FROM custom_roles` would be every studio's role/capability design on the server.
+  // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table has,
+  // so the guard must scope its reads and its insert; the layer-3 guard fails OPEN on an unregistered
+  // table, so registering it here is what scopes them, and tenant-isolation.db.test.ts enforces it.
+  custom_roles: 'organization_id',
 });
 
 /**

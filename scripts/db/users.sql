@@ -109,7 +109,8 @@
 --     home_pinned_items, objective_work_links, decision_work_links
 --   · `INSERT` on: message_work_links, audit_events, session_refresh_tokens,
 --     authentication_events, usage_ledger_entries, meetings, meeting_notes, document_versions,
---     document_comments, decision_supersessions, document_templates, work_forms, onboarding_progress
+--     document_comments, decision_supersessions, document_templates, work_forms, onboarding_progress,
+--     custom_roles
 --   · nothing at all on `schema_migrations` beyond the database-wide SELECT, nothing on
 --     `message_revisions` beyond it, and **no** global privilege, **no** privilege on any
 --     other schema, **no** `GRANT OPTION`, **no** schema-modifying privilege anywhere.
@@ -409,6 +410,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`org_settings`      TO 'tmanage_app'@'
 -- un-complete path, so no DELETE. The withheld UPDATE and DELETE are the immutability control (no
 -- trigger needed). The worker gets nothing here — this table is the API's alone.
 GRANT INSERT                 ON `tmanage`.`onboarding_progress` TO 'tmanage_app'@'%';
+-- Custom roles (x173, 0071). **INSERT only** — a custom role is defined (INSERT) and read (the
+-- database-wide SELECT). No UPDATE and no DELETE: editing a role's name or capabilities and removing a
+-- role are later slices that add those privileges with the code that writes them. The withheld
+-- UPDATE/DELETE is the immutability control (no trigger needed). The worker gets nothing here — this
+-- table is the API's alone.
+GRANT INSERT                 ON `tmanage`.`custom_roles`       TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
