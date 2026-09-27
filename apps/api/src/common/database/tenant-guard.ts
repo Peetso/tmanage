@@ -611,6 +611,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `(organization_id, id)` key every tenant table has, so the guard scopes its reads and its
   // writes; tenant-isolation.db.test.ts enforces the entry.
   pref_digest: 'organization_id',
+  // Calendar focus blocks (x255, migration 0125). Tenant-owned: a row is one membership's protected
+  // time in one studio, and an unscoped `SELECT ... FROM focus_blocks` would be every member's blocks
+  // across every studio on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard scopes its reads, its inserts,
+  // and its deletes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what
+  // scopes them, and tenant-isolation.db.test.ts enforces the entry.
+  focus_blocks: 'organization_id',
 });
 
 /**
