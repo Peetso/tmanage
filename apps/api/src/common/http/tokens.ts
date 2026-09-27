@@ -72,6 +72,8 @@ export const BULK_TRANSITION_SERVICE = Symbol.for('tmanage.BulkTransitionService
 export const WORK_TIME_LOGS_SERVICE = Symbol.for('tmanage.WorkTimeLogsService');
 export const WORK_WATCHERS_SERVICE = Symbol.for('tmanage.WorkWatchersService');
 export const WORK_LABELS_SERVICE = Symbol.for('tmanage.WorkLabelsService');
+/** x274. Read-only adjacency graph of a work item's typed links, behind `work.read`. */
+export const WORK_RELATIONS_GRAPH_SERVICE = Symbol.for('tmanage.WorkRelationsGraphService');
 export const WORKFLOW_TEMPLATES_REPOSITORY = Symbol.for('tmanage.WorkflowTemplatesRepository');
 export const WORKFLOW_RUNS_REPOSITORY = Symbol.for('tmanage.WorkflowRunsRepository');
 export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');
