@@ -56,6 +56,8 @@ export const WORK_CHECKLIST_SERVICE = Symbol.for('tmanage.WorkChecklistService')
 export const WORK_FORMS_REPOSITORY = Symbol.for('tmanage.WorkFormsRepository');
 /** x147. A work item's comments / activity, behind `work.read`/`work.update`. */
 export const WORK_COMMENTS_SERVICE = Symbol.for('tmanage.WorkCommentsService');
+/** x206. Bulk status transition over the single-item path, behind `work.transition`. */
+export const BULK_TRANSITION_SERVICE = Symbol.for('tmanage.BulkTransitionService');
 export const WORKFLOW_TEMPLATES_REPOSITORY = Symbol.for('tmanage.WorkflowTemplatesRepository');
 export const WORKFLOW_RUNS_REPOSITORY = Symbol.for('tmanage.WorkflowRunsRepository');
 export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');

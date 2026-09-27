@@ -124,6 +124,7 @@ import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
+import type { BulkTransitionView as ApiBulkTransitionView } from '../../apps/api/src/modules/work/bulk-transition.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
@@ -269,6 +270,7 @@ import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
+import type { BulkTransitionView as WebBulkTransitionView } from '../../apps/web/src/lib/api/work-bulk-transition';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
@@ -612,6 +614,12 @@ type _requestAging = Assert<Exact<ApiRequestAgingView, WebRequestAgingView>>;
 
 /** `WorkItemView.state` ↔ `WORK_ITEM_STATES` (`@tmanage/domain`). */
 type _workItem = Assert<Exact<ApiWorkItemView, WebWorkItemSummary>>;
+
+/**
+ * x206 — the bulk status transition's per-id response. `targetStatus` and each result's
+ * `outcome` union must line up on both sides; the nested per-id result is compared structurally.
+ */
+type _bulkTransition = Assert<Exact<ApiBulkTransitionView, WebBulkTransitionView>>;
 
 /**
  * x145. `WorkChecklistItemView` ↔ `WorkChecklistItem` — one work-item checklist / sub-item
