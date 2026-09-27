@@ -3984,7 +3984,45 @@ export const homeWidgetPrefs = mysqlTable(
 
 export type HomeWidgetPrefRow = typeof homeWidgetPrefs.$inferSelect;
 
+/**
+ * Inbox flags (x260, migration 0130, module 4 Inbox / INBOX-001 IN-01 "Important inbox").
+ *
+ * One row marks one inbox bundle as important (starred) for one member, keyed
+ * `(organization_id, membership_id, bundle_id)` — self-scoped like `home_widget_prefs` and
+ * `doc_bookmarks`, never the global user, because the star is who the caller is *in this studio* and
+ * never leaves the tenant. `bundle_id` is the inbox's own `objectType:objectId` (e.g.
+ * `work_item:<uuid>`), the same id "mark read" takes; the flag row carries the string whole and never
+ * joins on it, so — like `notifications.object_id` — it carries no foreign key of its own. The write
+ * is find-then-insert idempotent against `uq_inbox_flags_org_membership_bundle`, so flagging twice is
+ * one row; unflagging is a membership-scoped delete, idempotent by construction. Ownership is
+ * re-checked at flag time against the caller's own notification rows (NOTIF-001's recipient-only rule),
+ * so a member can only ever flag a bundle that is theirs to see — the row is never proof of access on
+ * its own.
+ */
+export const inboxFlags = mysqlTable(
+  'inbox_flags',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    bundleId: varchar('bundle_id', { length: 128 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_inbox_flags_org_id').on(table.organizationId, table.id),
+    // The idempotency key: one row per member per bundle.
+    uniqueIndex('uq_inbox_flags_org_membership_bundle').on(
+      table.organizationId,
+      table.membershipId,
+      table.bundleId,
+    ),
+  ],
+);
+
+export type InboxFlagRow = typeof inboxFlags.$inferSelect;
+
 export const TABLES = {
+  inbox_flags: inboxFlags,
   home_widget_prefs: homeWidgetPrefs,
   doc_bookmarks: docBookmarks,
   work_item_labels: workItemLabels,

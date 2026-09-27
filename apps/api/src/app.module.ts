@@ -25,6 +25,7 @@ import { RequestsModule } from './modules/requests/requests.module.js';
 import { RequestAgingModule } from './modules/requests/request-aging.controller.js';
 import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
+import { InboxFlagModule } from './modules/inbox/inbox-flag.module.js';
 import { NotificationPreferencesModule } from './modules/notifications/notification-preferences.module.js';
 import { NotificationsFeedModule } from './modules/notifications/notifications-feed.module.js';
 import { NotificationKindPrefsModule } from './modules/notifications/notification-kind-prefs.module.js';
@@ -249,6 +250,12 @@ export class AppModule {
         // never through a read path of the inbox's own. The module constructs its own
         // instances of both (see its doc), so its position here is by subject, not by need.
         InboxModule.register(),
+        // INBOX-001 IN-01 "Important inbox" (x260). The caller's own flag (star) on an inbox bundle:
+        // PUT/DELETE :bundleId/flag and GET flagged, behind `work.read`. Its own module — file-disjoint
+        // from InboxModule — and it constructs no object services: the flag's ownership gate reads the
+        // caller's own notification rows directly, so a flag is only ever a member's own on a bundle
+        // they may see.
+        InboxFlagModule.register(),
         // NOTIF-001. The caller's own notification settings (GET/PUT). No tenant object to
         // resolve, so unlike the inbox it depends on nothing but the database.
         NotificationPreferencesModule.register(),
