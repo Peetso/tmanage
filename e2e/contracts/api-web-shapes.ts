@@ -145,6 +145,8 @@ import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/l
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/modules/people/skills.controller.js';
 import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
+import type { SkillSearchView as ApiSkillSearchView } from '../../apps/api/src/modules/people/skill-search.controller.js';
+import type { SkillSearchResult as WebSkillSearchResult } from '../../apps/web/src/lib/api/people-skill-search';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DocumentTemplateSummary as WebDocumentTemplateSummary } from '../../apps/web/src/lib/api/document-templates';
 import type { ProjectObjectiveSummary as WebProjectObjectiveSummary } from '../../apps/web/src/lib/api/project-objectives';
@@ -522,6 +524,15 @@ type _workForm = Assert<Exact<ApiWorkFormView, WebWorkFormSummary>>;
  * identical on both sides, and `organizationId` is absent on both — the wire never echoes the tenant.
  */
 type _personSkill = Assert<Exact<ApiPersonSkillView, WebPersonSkillSummary>>;
+
+/**
+ * Skill directory search (x194). `SkillSearchView` (`GET …/people/skills/search?skill=&level=`,
+ * response) — one directory hit: a member and the requested skills they matched. Paired Exact with a
+ * live web consumer: `SkillSearchScreen` reads exactly this response to list matching members. The
+ * `matched` element (`{ label, level }`) and the `level`/`status` unions are identical on both sides,
+ * and `organizationId` is absent on both — the wire never echoes the tenant.
+ */
+type _skillSearch = Assert<Exact<ApiSkillSearchView, WebSkillSearchResult>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

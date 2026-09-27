@@ -55,6 +55,8 @@ export const WORK_CHECKLIST_SERVICE = Symbol.for('tmanage.WorkChecklistService')
 /** WORK intake forms (x146). The org-scoped work-form definition repository. */
 export const WORK_FORMS_REPOSITORY = Symbol.for('tmanage.WorkFormsRepository');
 export const PERSON_SKILLS_REPOSITORY = Symbol.for('tmanage.PersonSkillsRepository');
+/** x194. The read-only skill directory search repository (find members by skill tag). */
+export const PERSON_SKILL_SEARCH_REPOSITORY = Symbol.for('tmanage.PersonSkillSearchRepository');
 export const HOME_SERVICE = Symbol.for('tmanage.HomeService');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */

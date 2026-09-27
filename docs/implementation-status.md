@@ -13954,3 +13954,30 @@ Proved database-free with the real `authorize` (`skills.controller.test.ts`): ad
 duplicate label is a 409, a blank/over-length/bad-level payload is a 400 with no write, a
 cross-tenant member id is a 404 with no write, and an add without `project.manage` is a 403. Deferred
 to a later slice: skill-based member matching and a level edit (UPDATE grant lands with it).
+
+## Skill directory search — find members by skill (x194, module 14)
+
+**What landed.** x172 stored members' skills but nothing read across members; the audit's "People —
+no skill-based search". x194 adds one read endpoint, `GET …/people/skills/search?skill=&level=`
+(`SkillSearchController`, behind the reused `work.read`, no `capabilities.ts` edit, no new table):
+filter the directory by one or more skill tags and an optional minimum level, returning matching
+members with the skills they matched. A distinct literal path from x172's
+`…/people/:membershipId/skills`, so the two controllers never collide, wired by its own
+`SkillSearchModule` in `app.module.ts` (file-disjoint from every other module).
+
+**Read-only safety.** Every query is tenant-scoped — the repository predicates `organization_id =
+context` on both the `person_skills` row and the joined `memberships` row, so a member from another
+tenant can never appear. An org-scoped `authorize('work.read', projectId: null)` runs before any read
+(a suspended membership is a 403). A blank query returns an empty result rather than scanning the
+directory; the requested labels are capped (≤20), the level is validated against the stored level set
+(bad → 400), and the member page size is capped (≤50, default 25) so no input yields an unbounded
+read. A result row never echoes `organization_id`.
+
+**Surfaces.** `SkillSearchView` (`skill-search.controller.ts`) is a live `Exact` pair with the web's
+`SkillSearchResult` (`apps/web/src/lib/api/people-skill-search.ts`) in `e2e/contracts/api-web-shapes.ts`.
+`SkillSearchScreen` (`apps/web/src/components/screens/SkillSearchScreen.tsx`) picks skill tags and a
+minimum level and lists matching members; it stays empty until a tag is added. Proved database-free
+with the real `authorize` (`skill-search.controller.test.ts`): a search returns only matching members
+grouped per member, a minimum level narrows, a blank query returns empty with no read, the member page
+is capped, a bad level/limit is a 400, and a suspended membership is a 403 with no read. The
+tenant-scoped join round-trip is the chain's DB suite, not this slice.

@@ -47,6 +47,7 @@ import { SearchModule } from './modules/search/search.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { PeopleSkillsModule } from './modules/people/people-skills.module.js';
+import { SkillSearchModule } from './modules/people/skill-search.module.js';
 
 /**
  * The request pipeline, assembled in the order `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md`
@@ -252,6 +253,11 @@ export class AppModule {
         // `…/people/:membershipId/skills`. Write behind `project.manage`, read behind `work.read`;
         // it constructs its own repository handle. Position by subject, beside the other People work.
         PeopleSkillsModule.register(),
+        // x194. People module 14: the skill directory search — find members by one or more skill
+        // tags (+ optional minimum level), mounted at `…/people/skills/search`. Read-only behind the
+        // reused `work.read`; it constructs its own repository handle. A distinct literal path from
+        // x172's `…/people/:membershipId/skills`, so no route collision. Position by subject.
+        SkillSearchModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
