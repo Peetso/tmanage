@@ -103,6 +103,7 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // x232. A work item's watchers/subscribers: a self-service watch list tenant-scoped like every
   // sibling — an unscoped read would be every studio's subscriptions (and who watches what) at once.
   work_item_watchers: 'organization_id',
+  work_item_labels: 'organization_id',
   // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
   // NOT NULL, so every row belongs both to a studio and to one of its clients.
   client_requests: 'organization_id',

@@ -167,6 +167,10 @@ import type {
   TimeLogListView as ApiTimeLogListView,
 } from '../../apps/api/src/modules/work/time-logs.service.js';
 import type { ItemWatcherView as ApiItemWatcherView } from '../../apps/api/src/modules/work/watchers.service.js';
+import type {
+  ItemLabelView as ApiItemLabelView,
+  WorkLabelView as ApiWorkLabelView,
+} from '../../apps/api/src/modules/work/work-labels.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -389,6 +393,8 @@ import type { ItemFile as WebItemFile } from '../../apps/web/src/lib/api/work-it
 import type { TimeLog as WebTimeLog } from '../../apps/web/src/lib/api/work-items';
 import type { TimeLogList as WebTimeLogList } from '../../apps/web/src/lib/api/work-items';
 import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
+import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
+import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -915,6 +921,16 @@ type _timeLogList = Assert<Exact<ApiTimeLogListView, WebTimeLogList>>;
  * carries a membership id, never an email: the pair keeps it that way on both sides.
  */
 type _itemWatcher = Assert<Exact<ApiItemWatcherView, WebItemWatcher>>;
+
+/**
+ * x233. Work item labels / tags (Work module 7). `WorkLabelView` ↔ `WorkLabel` — one org-scoped label
+ * definition (`GET`/`POST …/work/labels`); `ItemLabelView` ↔ `ItemLabel` — one label assigned to a
+ * work item (`GET`/`PUT …/work-items/:id/labels`, `DELETE …/labels/:labelId`). `WorkLabelsScreen`
+ * reads the definitions and `WorkItemLabelChips` reads the assignments, so both pairs are held
+ * identical on the two sides. `organizationId` is absent on all four.
+ */
+type _workLabel = Assert<Exact<ApiWorkLabelView, WebWorkLabel>>;
+type _itemLabel = Assert<Exact<ApiItemLabelView, WebItemLabel>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

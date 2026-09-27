@@ -14,6 +14,7 @@ import {
   WORK_ITEM_FILES_SERVICE,
   WORK_TIME_LOGS_SERVICE,
   WORK_WATCHERS_SERVICE,
+  WORK_LABELS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -45,6 +46,9 @@ import { WorkTimeLogsController } from './time-logs.controller.js';
 import { WorkWatchersRepository } from './watchers.repository.js';
 import { WorkWatchersService } from './watchers.service.js';
 import { WorkWatchersController } from './watchers.controller.js';
+import { WorkLabelsRepository } from './work-labels.repository.js';
+import { WorkLabelsService } from './work-labels.service.js';
+import { WorkLabelsController } from './work-labels.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -137,6 +141,12 @@ export class WorkModule {
       inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
       useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
         new WorkWatchersService(database, workItems, new WorkWatchersRepository()),
+    // Work item labels / tags (x233). Definitions are org-scoped; assignments hang off a work item.
+    const labelsService: Provider = {
+      provide: WORK_LABELS_SERVICE,
+      inject: [TENANT_DATABASE, WORK_ITEMS_REPOSITORY],
+      useFactory: (database: TenantDatabase, workItems: WorkItemsRepository) =>
+        new WorkLabelsService(database, workItems, new WorkLabelsRepository()),
     };
 
     return {
@@ -152,6 +162,7 @@ export class WorkModule {
         bulkTransitionService,
         timeLogsService,
         watchersService,
+        labelsService,
       ],
       exports: [service],
       controllers: [
@@ -164,6 +175,7 @@ export class WorkModule {
         BulkTransitionController,
         WorkTimeLogsController,
         WorkWatchersController,
+        WorkLabelsController,
       ],
     };
   }

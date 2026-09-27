@@ -3771,7 +3771,56 @@ export const workItemWatchers = mysqlTable(
 export type WorkItemWatcherRow = typeof workItemWatchers.$inferSelect;
 export type NewWorkItemWatcherRow = typeof workItemWatchers.$inferInsert;
 
+/** The fixed palette a work label's `color` is drawn from â€” x233. A value outside this set is a 400. */
+export const WORK_LABEL_COLORS = [
+  'gray',
+  'red',
+  'amber',
+  'green',
+  'teal',
+  'blue',
+  'violet',
+  'pink',
+] as const;
+
+/**
+ * x233. Work item labels / tags (Work module 7). One table, two row kinds distinguished by
+ * nullability: a **definition** row carries `name` + `color` (with `work_item_id`/`label_id` NULL),
+ * an **assignment** row carries `work_item_id` + `label_id` (with `name`/`color` NULL).
+ * `fk_work_item_labels_work_item` binds `(organization_id, work_item_id)` to `work_items`, and the
+ * self-referential `fk_work_item_labels_label` binds `(organization_id, label_id)` back to this
+ * table, so a cross-tenant item or label id is a non-existent pair â€” migration
+ * `0105_work_item_labels.sql`.
+ */
+export const workItemLabels = mysqlTable(
+  'work_item_labels',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }),
+    labelId: char('label_id', { length: 36 }),
+    name: varchar('name', { length: 120 }),
+    color: varchar('color', { length: 20 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_labels_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_labels_org_name').on(table.organizationId, table.name),
+    uniqueIndex('uq_work_item_labels_assignment').on(
+      table.organizationId,
+      table.workItemId,
+      table.labelId,
+    ),
+    index('ix_work_item_labels_item').on(table.organizationId, table.workItemId, table.id),
+  ],
+);
+
+
+export type WorkItemLabelRow = typeof workItemLabels.$inferSelect;
+export type NewWorkItemLabelRow = typeof workItemLabels.$inferInsert;
+
 export const TABLES = {
+  work_item_labels: workItemLabels,
   work_item_watchers: workItemWatchers,
   users,
   sessions,

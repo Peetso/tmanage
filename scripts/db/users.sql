@@ -319,6 +319,10 @@ GRANT INSERT, DELETE         ON `tmanage`.`work_item_time_logs`    TO 'tmanage_a
 -- SELECT above. There is no immutable trigger, unlike the append-only comments above, because a
 -- watch is meant to be removed.
 GRANT INSERT, DELETE         ON `tmanage`.`work_item_watchers`     TO 'tmanage_app'@'%';
+-- x233 work item labels. INSERT (define a label; assign a label to an item) and DELETE (untag an
+-- item). No UPDATE: a label is defined once and a tag is added or removed, never amended in place;
+-- the 0105 trigger pins organization_id immutable, and reading is the database-wide SELECT above.
+GRANT INSERT, DELETE         ON `tmanage`.`work_item_labels`      TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through
