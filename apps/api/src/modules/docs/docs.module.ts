@@ -13,6 +13,12 @@ import { DocumentsController } from './documents.controller.js';
 import { DocumentExportController } from './document-export.controller.js';
 import { DocumentCommentsService } from './document-comments.service.js';
 import { DocumentCommentsController } from './document-comments.controller.js';
+import { DocReadStateService } from './doc-read-state.service.js';
+import {
+  DOC_READ_STATE_SERVICE,
+  DocumentReadStateController,
+  MyDocReadStateController,
+} from './doc-read-state.controller.js';
 
 /**
  * DOC-01 (x91). The docs module's first vertical slice: document read/write.
@@ -45,14 +51,31 @@ export class DocsModule {
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) => new DocumentCommentsService(database),
     };
+    // DOC read state (x297): a per-membership read cursor over documents. Its service resolves the
+    // document tenant-scoped through its own `DocumentsRepository` (the Known-trap order) and
+    // reads/writes through its `DocReadStateRepository`, both default-constructed, so it needs only
+    // the tenant database injected.
+    const readStateService: Provider = {
+      provide: DOC_READ_STATE_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new DocReadStateService(database),
+    };
 
     return {
       module: DocsModule,
-      providers: [repository, service, commentsService],
+      providers: [repository, service, commentsService, readStateService],
       exports: [service, commentsService],
       // DOC export (x131): a second controller on the same `documents` base path, serving the
       // read-only Markdown download. It resolves the same `DOCUMENTS_SERVICE` this module provides.
-      controllers: [DocumentsController, DocumentExportController, DocumentCommentsController],
+      // DOC read state (x297) adds two controllers: the per-document read/unread toggle and the
+      // caller's batch read-state.
+      controllers: [
+        DocumentsController,
+        DocumentExportController,
+        DocumentCommentsController,
+        DocumentReadStateController,
+        MyDocReadStateController,
+      ],
     };
   }
 }

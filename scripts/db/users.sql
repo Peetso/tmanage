@@ -432,6 +432,11 @@ GRANT INSERT                 ON `tmanage`.`doc_revisions` TO 'tmanage_app'@'%';
 -- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
 -- `home_pinned_items` posture above.
 GRANT INSERT, DELETE         ON `tmanage`.`doc_bookmarks`     TO 'tmanage_app'@'%';
+-- DOC read state (0164, x297) per-membership document read cursors. INSERT to first mark a document
+-- read, UPDATE to refresh `last_read_at` on a repeated mark-read (the upsert path against
+-- `uq_doc_read_state_pin`), and DELETE to mark it unread — but **no other privilege**. Reading is the
+-- database-wide SELECT above. The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`doc_read_state`   TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
