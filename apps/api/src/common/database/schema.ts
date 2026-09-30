@@ -5044,6 +5044,44 @@ export type FileTagRow = typeof fileTags.$inferSelect;
 export type NewFileTagRow = typeof fileTags.$inferInsert;
 
 /**
+ * x332. File folders (Files module). One table, two row kinds distinguished by nullability: a
+ * **folder** row carries `project_id` + `name` + `created_by` (with `file_id`/`folder_id` NULL), a
+ * **membership** row carries `file_id` + `folder_id` (with `name`/`created_by`/`project_id` NULL).
+ * `fk_file_folders_project` binds `(organization_id, project_id)` to `projects`,
+ * `fk_file_folders_file` binds `(organization_id, file_id)` to `file_assets`, and the
+ * self-referential `fk_file_folders_folder` binds `(organization_id, folder_id)` back to this table,
+ * so a cross-tenant project, file or folder id is a non-existent pair — migration
+ * `0198_file_folders.sql`.
+ */
+export const fileFolders = mysqlTable(
+  'file_folders',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }),
+    fileId: char('file_id', { length: 36 }),
+    folderId: char('folder_id', { length: 36 }),
+    name: varchar('name', { length: 120 }),
+    createdBy: char('created_by', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_file_folders_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_file_folders_project_name').on(
+      table.organizationId,
+      table.projectId,
+      table.name,
+    ),
+    uniqueIndex('uq_file_folders_membership').on(table.organizationId, table.fileId),
+    index('ix_file_folders_project').on(table.organizationId, table.projectId, table.id),
+    index('ix_file_folders_folder').on(table.organizationId, table.folderId, table.id),
+  ],
+);
+
+export type FileFolderRow = typeof fileFolders.$inferSelect;
+export type NewFileFolderRow = typeof fileFolders.$inferInsert;
+
+/**
  * DOC bookmarks / favorites (x242). A membership's private favorite of a `documents` row â€” the fact
  * "this membership bookmarked this document". Per-membership and tenant-scoped like `home_pinned_items`
  * (0050): created (INSERT) and removed (DELETE), never edited, so there is no immutability trigger â€”
@@ -5498,6 +5536,7 @@ export const TABLES = {
   doc_tags: docTags,
   work_item_labels: workItemLabels,
   file_tags: fileTags,
+  file_folders: fileFolders,
   work_item_watchers: workItemWatchers,
   conversation_read_state: conversationReadState,
   users,

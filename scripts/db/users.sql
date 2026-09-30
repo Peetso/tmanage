@@ -386,6 +386,11 @@ GRANT INSERT, DELETE         ON `tmanage`.`project_tags`          TO 'tmanage_ap
 -- UPDATE: a tag is defined once and an assignment is added or removed, never amended in place; the
 -- 0140 trigger pins organization_id immutable, and reading is the database-wide SELECT above.
 GRANT INSERT, DELETE         ON `tmanage`.`file_tags`             TO 'tmanage_app'@'%';
+-- x332 file folders. INSERT (create a folder; file a file into a folder), UPDATE (re-file a file:
+-- move its membership row's folder_id in place — idempotent) and DELETE (delete an empty folder;
+-- file a file back to root by removing its membership row). The 0198 trigger pins organization_id
+-- immutable, and reading is the database-wide SELECT above.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`file_folders`          TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

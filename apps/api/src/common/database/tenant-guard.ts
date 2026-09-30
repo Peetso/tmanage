@@ -124,6 +124,7 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   project_tags: 'organization_id',
   // x270. File tags: org-defined tag definitions + their file assignments, one tenant table.
   file_tags: 'organization_id',
+  file_folders: 'organization_id',
   // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
   // NOT NULL, so every row belongs both to a studio and to one of its clients.
   client_requests: 'organization_id',
