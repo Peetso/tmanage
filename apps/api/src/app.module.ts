@@ -112,6 +112,7 @@ import { AdminIpAllowlistModule } from './modules/admin/ip-allowlist.controller.
 import { FeatureFlagsModule } from './modules/admin/feature-flags.controller.js';
 import { AdminAuditRetentionModule } from './modules/admin/audit-retention.controller.js';
 import { OrgBrandingModule } from './modules/admin/org-branding.controller.js';
+import { AdminInvitationManagementModule } from './modules/admin/invitation-management.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -318,6 +319,11 @@ export class AppModule {
         // `work.read`. A module of its own, file-disjoint from the other admin slices; depends only on
         // the global `TENANT_DATABASE`. Text/colour only — no file upload this slice.
         OrgBrandingModule.register(),
+        // ADM invitation management (module 18, x328). Pending-invitation list + idempotent revoke
+        // over the existing `invitations` table, behind `org.manage`. No migration, no new table; a
+        // module of its own, file-disjoint from the tenancy invitation-issuance slices; depends only
+        // on the global `TENANT_DATABASE`. Metadata only — no token or secret is ever returned.
+        AdminInvitationManagementModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),
