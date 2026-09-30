@@ -190,11 +190,8 @@ describe('client-messages controller validation and route capabilities', () => {
     expect(store.created).toHaveLength(0);
   });
 
-  const capabilityOf = (key: string): unknown =>
-    Reflect.getMetadata(
-      REQUIRED_CAPABILITY,
-      (PortalClientMessagesController.prototype as Record<string, unknown>)[key] as object,
-    );
+  const capabilityOf = (key: 'post' | 'list' | 'listForAdmin'): unknown =>
+    Reflect.getMetadata(REQUIRED_CAPABILITY, PortalClientMessagesController.prototype[key]);
 
   it('guards the client post and own-thread read with client_projection.read', () => {
     expect(capabilityOf('post')).toBe('client_projection.read');
