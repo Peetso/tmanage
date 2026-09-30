@@ -200,7 +200,7 @@ export function ApprovalDelegationView({
                   </span>
                   <Button
                     type="button"
-                    tone="ghost"
+                    tone="text"
                     size="accessible"
                     loading={revoke.isPending}
                     loadingLabel="Revoking"
