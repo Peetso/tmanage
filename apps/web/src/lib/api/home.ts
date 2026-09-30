@@ -263,3 +263,58 @@ export async function deleteHomePin(
   });
   return data;
 }
+
+/**
+ * The Home / Recently-viewed endpoints — the My Day recents rail (x324), distinct from the explicit
+ * pins above (x144) and the older saved context (x110).
+ *
+ * Behind `work.read` on the API and taking no membership id: a recent is always the acting member's
+ * own. As the member opens an entity the client `PUT`s a view (an idempotent upsert that refreshes
+ * the time), and the rail reads the member's recents newest first, bounded to a fixed cap. A recent
+ * is a *reference* — its object kind and id — never a copy or a resolved title, so the rail can
+ * disclose nothing about a target the member could not already reach; an `objectType` off the
+ * allowlist is a 400.
+ */
+export type RecentItemObjectType = 'work' | 'project' | 'document' | 'meeting';
+
+/**
+ * The caller's recently-viewed references, newest first. Each item is inlined rather than a second
+ * exported shape, so the API↔web pairing is the one `RecentItemsView` projection.
+ */
+export interface RecentItemsView {
+  readonly items: readonly {
+    readonly id: string;
+    readonly objectType: RecentItemObjectType;
+    readonly objectId: string;
+    readonly viewedAt: string;
+  }[];
+}
+
+/** The body of a record-a-view request. `Input` suffix marks it request-side, not a response shape. */
+export interface RecordRecentItemInput {
+  readonly objectType: RecentItemObjectType;
+  readonly objectId: string;
+}
+
+export async function getRecentItems(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<RecentItemsView> {
+  const { data } = await client.request<RecentItemsView>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/recent-items`,
+  });
+  return data;
+}
+
+export async function recordRecentItem(
+  client: ApiClient,
+  organizationSlug: string,
+  input: RecordRecentItemInput,
+): Promise<RecentItemsView> {
+  const { data } = await client.request<RecentItemsView>({
+    method: 'PUT',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/home/recent-items`,
+    body: input,
+  });
+  return data;
+}

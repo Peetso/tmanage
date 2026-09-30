@@ -3130,6 +3130,59 @@ export const homePinnedItems = mysqlTable(
 );
 
 /**
+ * The fixed allowlist of object kinds the Home "Recently viewed" rail records (x324). Exported so
+ * the controller validates a request against the same source of truth, and an `object_type` off this
+ * list is refused with a 400 and no upsert.
+ */
+export const RECENT_ITEM_OBJECT_TYPES = ['work', 'project', 'document', 'meeting'] as const;
+export type RecentItemObjectType = (typeof RECENT_ITEM_OBJECT_TYPES)[number];
+
+/** The fixed cap on how many recents the rail keeps and returns per member — a bounded read. */
+export const RECENT_ITEMS_CAP = 20;
+
+/**
+ * HOME / My Day — a member's own recently-viewed entities (migration 0192, x324).
+ *
+ * One row per (membership, object) is the fact "this membership last viewed this object at
+ * `viewed_at`". It stores the *reference* only (`object_type` + `object_id`), never a copy of the
+ * target and no resolved title, so a recent can leak nothing about an entity the caller could not
+ * otherwise reach (the `home_pinned_items` target_id posture). `object_id` carries no FK (the target
+ * table depends on `object_type`); tenant safety rests on every read/write being scoped by
+ * `organization_id`, and an `object_type` off {@link RECENT_ITEM_OBJECT_TYPES} is a 400 at the route.
+ * The upsert refreshes `viewed_at` in place against the unique key (idempotent record-a-view), and
+ * the read is bounded to {@link RECENT_ITEMS_CAP} newest-first — never an unbounded scan. Identity is
+ * immutable (the 0192 trigger); only `viewed_at` changes, and the runtime credential holds INSERT,
+ * UPDATE, DELETE and SELECT.
+ */
+export const homeRecentItems = mysqlTable(
+  'home_recent_items',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    objectType: varchar('object_type', { length: 40 }).notNull(),
+    objectId: char('object_id', { length: 36 }).notNull(),
+    viewedAt: datetime('viewed_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_home_recent_items_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_home_recent_items_object').on(
+      table.organizationId,
+      table.membershipId,
+      table.objectType,
+      table.objectId,
+    ),
+    index('ix_home_recent_items_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.viewedAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * INBOX snooze (IN-01/IN-02, x259, migration 0129) — a member's own snoozes of inbox bundles.
  *
  * One row is the fact "this membership snoozed this bundle until `snoozed_until`". `bundle_id` is the
@@ -7750,6 +7803,7 @@ export const TABLES = {
   project_risks: projectRisks,
   portal_access_log: portalAccessLog,
   home_pinned_items: homePinnedItems,
+  home_recent_items: homeRecentItems,
   inbox_snoozes: inboxSnoozes,
   inbox_source_mutes: inboxSourceMutes,
   work_forms: workForms,
@@ -7953,6 +8007,7 @@ export type DigestPreferenceRow = typeof digestPreferences.$inferSelect;
 export type ConversationMuteRow = typeof conversationMutes.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
+export type HomeRecentItemRow = typeof homeRecentItems.$inferSelect;
 export type InboxSnoozeRow = typeof inboxSnoozes.$inferSelect;
 export type InboxSourceMuteRow = typeof inboxSourceMutes.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
