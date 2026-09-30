@@ -76,6 +76,7 @@ import { ProjectTemplatesModule } from './modules/projects/templates.module.js';
 import { ProjectStatusUpdatesModule } from './modules/projects/status-updates.module.js';
 import { ProjectBudgetModule } from './modules/projects/budget.module.js';
 import { ProjectPhasesModule } from './modules/projects/phases.module.js';
+import { ProjectBaselineModule } from './modules/projects/baseline.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ProjectHealthModule } from './modules/projects/health.module.js';
@@ -569,6 +570,12 @@ export class AppModule {
         // assignment is recorded on `project_phases`, never on `project_milestones` — this slice
         // references milestone ids without editing the milestones table.
         ProjectPhasesModule.register(),
+        // PROJ / module 8 (x295). A project's milestone-plan baseline: snapshot the current plan as a
+        // named baseline, list them, and read a variance view (today's dates vs the frozen plan).
+        // After `ProjectsModule` for the same reason as the risk register: a baseline names a project
+        // in its path, and the composite foreign key means a caller who names one that is not theirs
+        // gets a 404 rather than a foreign-key 500. Reads `project_milestones` (0048) read-only.
+        ProjectBaselineModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.

@@ -1097,6 +1097,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`project_budgets` TO 'tmanage_app'@'%';
 -- and `created_at` at the engine, so a row cannot be re-pointed at another project, tenant or
 -- milestone by the runtime credential.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_phases` TO 'tmanage_app'@'%';
+-- `project_baselines` (PROJ / module 8, x295, 0162) gets INSERT and DELETE. A baseline is frozen
+-- (INSERT), read (the database-wide SELECT, line 60), and a superseded one may be discarded (DELETE);
+-- variance is recomputed at read time from the live milestones against the frozen JSON, so the
+-- snapshot itself is never mutated. **No UPDATE** — a baseline is an immutable point-in-time record
+-- (there is no `updated_at` column and no update trigger); a re-baseline is a new INSERT, not an edit.
+GRANT INSERT, DELETE ON `tmanage`.`project_baselines` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes

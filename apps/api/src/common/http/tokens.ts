@@ -179,6 +179,9 @@ export const PROJECT_BUDGET_SERVICE = Symbol.for('tmanage.ProjectBudgetService')
 /** PROJ / module 8 (x294). A project's timeline phases — define/list/delete, assign a milestone. */
 export const PROJECT_PHASES_REPOSITORY = Symbol.for('tmanage.ProjectPhasesRepository');
 export const PROJECT_PHASES_SERVICE = Symbol.for('tmanage.ProjectPhasesService');
+/** PROJ / module 8 (x295). A project's milestone-plan baselines — snapshot/list/variance (read). */
+export const PROJECT_BASELINE_REPOSITORY = Symbol.for('tmanage.ProjectBaselineRepository');
+export const PROJECT_BASELINE_SERVICE = Symbol.for('tmanage.ProjectBaselineService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');
