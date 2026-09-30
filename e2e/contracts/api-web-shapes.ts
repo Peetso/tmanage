@@ -286,6 +286,7 @@ import type { ActiveSessionView as ApiActiveSessionView } from '../../apps/api/s
 import type { OrgPolicyView as ApiOrgPolicyView } from '../../apps/api/src/modules/admin/policies.controller.js';
 import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps/api/src/modules/admin/policy-simulate.service.js';
 import type { SecuritySettingsView as ApiSecuritySettingsView } from '../../apps/api/src/modules/admin/security.controller.js';
+import type { SecurityAlertsView as ApiSecurityAlertsView } from '../../apps/api/src/modules/admin/security-alerts.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -316,6 +317,7 @@ import type { ActiveSessionView as WebActiveSessionView } from '../../apps/web/s
 import type { OrgPolicyView as WebOrgPolicyView } from '../../apps/web/src/lib/api/policies';
 import type { PolicySimulationView as WebPolicySimulationView } from '../../apps/web/src/lib/api/policy-simulate';
 import type { SecuritySettingsView as WebSecuritySettingsView } from '../../apps/web/src/lib/api/admin-security';
+import type { SecurityAlertsView as WebSecurityAlertsView } from '../../apps/web/src/lib/api/admin-security-alerts';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type { UserPreferencesView as WebUserPreferencesView } from '../../apps/web/src/lib/api/preferences';
 import type {
@@ -1777,6 +1779,11 @@ type _policySimulation = Assert<Exact<ApiPolicySimulationView, WebPolicySimulati
  * echoes the tenant id.
  */
 type _securitySettings = Assert<Exact<ApiSecuritySettingsView, WebSecuritySettingsView>>;
+// Admin security-event alerts (x329). `SecurityAlertsView` (`GET/PUT/DELETE …/admin/security-alerts`,
+// response) — the allowlist, the tenant's per-key config, and a read-only preview of recent matching
+// audit events. `AdminSecurityAlertsView` reads exactly this response; dates are ISO strings on both
+// sides and the wire projection never echoes the tenant id.
+type _securityAlerts = Assert<Exact<ApiSecurityAlertsView, WebSecurityAlertsView>>;
 
 /**
  * ON-10 guided-tour progress (x155). `GET .../onboarding/tour` and

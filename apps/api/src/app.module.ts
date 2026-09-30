@@ -89,6 +89,7 @@ import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AdminSecurityModule } from './modules/admin/security.controller.js';
+import { AdminSecurityAlertsModule } from './modules/admin/security-alerts.controller.js';
 import { AdminExportRequestsModule } from './modules/admin/export-requests.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
@@ -260,6 +261,7 @@ export class AppModule {
         // the org-settings and audit slices in the same module; depends only on the global
         // `TENANT_DATABASE`. Config surface only — enforcement in the auth path is a later slice.
         AdminSecurityModule.register(),
+        AdminSecurityAlertsModule.register(),
         AdminExportRequestsModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
