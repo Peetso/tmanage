@@ -173,6 +173,34 @@ const WEB_EXEMPT = new Map([
     'ProjectBaselineVarianceRow',
     'x295 — one variance row. It is the element of `ProjectBaselineVariance`, which is paired Exact, so the row shape is covered transitively (the API names it `ProjectBaselineVarianceRow`, not a …View).',
   ],
+  [
+    'SecurityAlertConfig',
+    'x329 — one alert-source config. The API names it `SecurityAlertConfig` (not a …View), so it is not an enumerated API projection to assert; it is an element of `SecurityAlertsView`, which is paired Exact, so the shape is covered transitively.',
+  ],
+  [
+    'SecurityAlertMatch',
+    'x329 — one matched audit event. The API names it `SecurityAlertMatch` (not a …View), so it is not an enumerated API projection to assert; it is an element of `SecurityAlertsView`, which is paired Exact, so the shape is covered transitively.',
+  ],
+  [
+    'ApplyAgendaTemplateResult',
+    'x314 — the apply outcome (meeting/template ids + seeded/skipped counts). The API names it `ApplyAgendaTemplateResult` (not a …View), so it is not an enumerated API projection to assert; the two shapes are hand-kept identical, and its `AgendaTemplateView` sibling is paired Exact.',
+  ],
+  [
+    'MeetingAgendaTemplateItem',
+    'x314 — one template item (title + position). It is the element of `AgendaTemplateView`, which is paired Exact, so the item shape is covered transitively (the API sources it from schema, not a standalone …View).',
+  ],
+  [
+    'ProjectDependencyGraph',
+    'x309 — the dependencies graph wrapper. The API names it `ProjectDependencyGraph` (not a …View), so it is not an enumerated API projection to assert; its element `ProjectDependency` is paired Exact, so the shape is covered transitively.',
+  ],
+  [
+    'DefineApprovalStep',
+    'x315 — the request body a caller submits to define a step (name ends in `Step`, not a dropped request suffix); a request shape, not a response projection. The response step `ApprovalStepView` is paired Exact.',
+  ],
+  [
+    'PersonTimeOffRange',
+    'x325 — the optional from/to filter passed as query params on the list read (name ends in `Range`, not a dropped request suffix); a request shape, not a response projection. The response `PersonTimeOffView` is paired Exact.',
+  ],
   // class-1-lift (MemberSummary, WorkspaceSummary, AuthenticatedResponse, MfaRequiredResponse)
   // was exempted here while its API interface was unexported. x79 exported each interface
   // (members.controller `MemberView`, workspaces.controller `WorkspaceView`, authentication.controller

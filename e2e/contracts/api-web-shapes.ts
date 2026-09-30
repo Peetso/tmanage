@@ -369,6 +369,28 @@ import type {
   MilestonePhaseAssignmentView as ApiMilestonePhaseAssignmentView,
 } from '../../apps/api/src/modules/projects/phases.service.js';
 import type { SecurityAlertsView as ApiSecurityAlertsView } from '../../apps/api/src/modules/admin/security-alerts.service.js';
+import type {
+  ApprovalStepView as ApiApprovalStepView,
+  ApprovalChainView as ApiApprovalChainView,
+} from '../../apps/api/src/modules/approvals/steps.service.js';
+import type { RecentItemsView as ApiRecentItemsView } from '../../apps/api/src/modules/home/recent-items.service.js';
+import type {
+  PortalBrandingView as ApiPortalBrandingView,
+  PortalBrandingClientView as ApiPortalBrandingClientView,
+} from '../../apps/api/src/modules/portal/branding.controller.js';
+import type {
+  PortalFeedbackClientView as ApiPortalFeedbackClientView,
+  PortalFeedbackStaffView as ApiPortalFeedbackStaffView,
+} from '../../apps/api/src/modules/portal/feedback.service.js';
+import type {
+  ProjectCustomFieldDefinitionView as ApiProjectCustomFieldDefinitionView,
+  ProjectCustomFieldValueView as ApiProjectCustomFieldValueView,
+} from '../../apps/api/src/modules/projects/custom-fields.service.js';
+import type { ProjectDependencyView as ApiProjectDependencyView } from '../../apps/api/src/modules/projects/dependencies.service.js';
+import type {
+  ProjectRetroNoteView as ApiProjectRetroNoteView,
+  ProjectRetroBoardView as ApiProjectRetroBoardView,
+} from '../../apps/api/src/modules/projects/retro-notes.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -746,6 +768,28 @@ import type {
   ProjectPhaseSummary as WebProjectPhaseSummary,
   MilestonePhaseAssignment as WebMilestonePhaseAssignment,
 } from '../../apps/web/src/lib/api/project-phases';
+import type {
+  ApprovalStep as WebApprovalStep,
+  ApprovalChain as WebApprovalChain,
+} from '../../apps/web/src/lib/api/approval-steps';
+import type { RecentItemsView as WebRecentItemsView } from '../../apps/web/src/lib/api/home';
+import type {
+  PortalBranding as WebPortalBranding,
+  PortalBrandingClientView as WebPortalBrandingClientView,
+} from '../../apps/web/src/lib/api/portal-branding';
+import type {
+  PortalDeliverableFeedback as WebPortalDeliverableFeedback,
+  PortalDeliverableFeedbackStaffEntry as WebPortalDeliverableFeedbackStaffEntry,
+} from '../../apps/web/src/lib/api/portal-deliverable-feedback';
+import type {
+  ProjectCustomFieldDefinition as WebProjectCustomFieldDefinition,
+  ProjectCustomFieldValue as WebProjectCustomFieldValue,
+} from '../../apps/web/src/lib/api/project-custom-fields';
+import type { ProjectDependency as WebProjectDependency } from '../../apps/web/src/lib/api/project-dependencies';
+import type {
+  ProjectRetroNoteSummary as WebProjectRetroNoteSummary,
+  ProjectRetroBoard as WebProjectRetroBoard,
+} from '../../apps/web/src/lib/api/project-retro-notes';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -2657,3 +2701,42 @@ type _projectPhase = Assert<Exact<ApiProjectPhaseView, WebProjectPhaseSummary>>;
 type _milestonePhaseAssignment = Assert<
   Exact<ApiMilestonePhaseAssignmentView, WebMilestonePhaseAssignment>
 >;
+
+// ── Pass-26 pairings (x313–x335) ────────────────────────────────────────────
+// SEC admin security-event alerts (x329): the parent `SecurityAlertsView` is paired above; its
+// elements `SecurityAlertConfig`/`SecurityAlertMatch` are WEB_EXEMPT (the API names them without a
+// `…View` suffix, so they are not enumerated API projections to assert).
+// CAL agenda templates (x314): `ApplyAgendaTemplateResult` and the item `MeetingAgendaTemplateItem`
+// are WEB_EXEMPT (the API sources/names them without a `…View` suffix; the item is covered by the
+// paired `AgendaTemplateView`).
+// APPROVAL steps (x315): a step and the chain. `DefineApprovalStep` is the request body and is
+// WEB_EXEMPT.
+type _approvalStep = Assert<Exact<ApiApprovalStepView, WebApprovalStep>>;
+type _approvalChain = Assert<Exact<ApiApprovalChainView, WebApprovalChain>>;
+// HOME recent items (x324): the bounded recent-items read.
+type _recentItems = Assert<Exact<ApiRecentItemsView, WebRecentItemsView>>;
+// PORTAL branding (x323): the staff view and the client projection.
+type _portalBranding = Assert<Exact<ApiPortalBrandingView, WebPortalBranding>>;
+type _portalBrandingClient = Assert<
+  Exact<ApiPortalBrandingClientView, WebPortalBrandingClientView>
+>;
+// PORTAL deliverable feedback (x321): the client's own feedback and the staff-read entry.
+type _portalDeliverableFeedback = Assert<
+  Exact<ApiPortalFeedbackClientView, WebPortalDeliverableFeedback>
+>;
+type _portalDeliverableFeedbackStaff = Assert<
+  Exact<ApiPortalFeedbackStaffView, WebPortalDeliverableFeedbackStaffEntry>
+>;
+// PROJ custom fields (x310): the org-scoped definition and a project's resolved value.
+type _projectCustomFieldDefinition = Assert<
+  Exact<ApiProjectCustomFieldDefinitionView, WebProjectCustomFieldDefinition>
+>;
+type _projectCustomFieldValue = Assert<
+  Exact<ApiProjectCustomFieldValueView, WebProjectCustomFieldValue>
+>;
+// PROJ dependencies (x309): one dependency. The graph wrapper `ProjectDependencyGraph` is
+// WEB_EXEMPT (the API names it without a `…View` suffix; its element is paired Exact here).
+type _projectDependency = Assert<Exact<ApiProjectDependencyView, WebProjectDependency>>;
+// PROJ retro notes (x311): one note and the grouped board.
+type _projectRetroNote = Assert<Exact<ApiProjectRetroNoteView, WebProjectRetroNoteSummary>>;
+type _projectRetroBoard = Assert<Exact<ApiProjectRetroBoardView, WebProjectRetroBoard>>;
