@@ -39,6 +39,7 @@ import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../
 import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { AdminAuditEventView as ApiAdminAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { AdminOverviewView as ApiAdminOverviewView } from '../../apps/api/src/modules/admin/overview.controller.js';
+import type { OrgBrandingView as ApiOrgBrandingView } from '../../apps/api/src/modules/admin/org-branding.controller.js';
 import type { ChallengeResponseView as ApiChallengeResponseView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { ClientDecideView as ApiClientDecideView } from '../../apps/api/src/modules/approvals/approvals.service.js';
 import type { ClientProjectionView as ApiClientProjectionView } from '../../apps/api/src/modules/approvals/approvals.service.js';
@@ -503,6 +504,7 @@ import type {
 import type { UsageExportColumns as WebUsageExportColumns } from '../../apps/web/src/lib/api/billing-usage-export';
 import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
 import type { AdminOverviewView as WebAdminOverviewView } from '../../apps/web/src/lib/api/admin-overview';
+import type { OrgBrandingView as WebOrgBrandingView } from '../../apps/web/src/lib/api/org-branding';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
 import type { DeliveryFlow as WebDeliveryFlow } from '../../apps/web/src/lib/api/delivery-flow';
 import type { InsightsPortfolio as WebInsightsPortfolio } from '../../apps/web/src/lib/api/insights-portfolio';
@@ -1863,6 +1865,9 @@ type _adminAudit = Assert<Exact<ApiAdminAuditEventView, WebAdminAuditEvent>>;
  * `AdminOverviewScreen` reads exactly this shape, so the pair is Exact.
  */
 type _adminOverview = Assert<Exact<ApiAdminOverviewView, WebAdminOverviewView>>;
+// ADM org branding (x327): `GET .../branding` (work.read) and `PUT .../admin/branding` (org.manage) —
+// the org-wide internal chrome branding. Both routes return exactly this shape, so the pair is Exact.
+type _orgBranding = Assert<Exact<ApiOrgBrandingView, WebOrgBrandingView>>;
 
 /**
  * CONTRACT-001 lift (x71). The seven pairs x69 left out. Five named their response type in the
