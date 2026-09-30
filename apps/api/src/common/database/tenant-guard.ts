@@ -456,6 +456,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // thresholds on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
   // key every tenant table has, so the guard must scope its reads and its writes.
   billing_usage_alerts: 'organization_id',
+  // Billing cost centers (x281, migration 0150). Org-owned: a cost-center definition and its project
+  // assignments belong to the acting tenant, and an unscoped `SELECT ... FROM billing_cost_centers`
+  // would be every studio's cost centers on the server. `organization_id` is NOT NULL and carries the
+  // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and writes.
+  billing_cost_centers: 'organization_id',
   // INS saved views (x210, migration 0089). Tenant-owned: a saved insights view belongs to a studio
   // and a person, and an unscoped `SELECT ... FROM insight_saved_views` would be every studio's saved
   // views on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key

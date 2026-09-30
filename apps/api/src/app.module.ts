@@ -94,6 +94,7 @@ import { SkillSearchModule } from './modules/people/skill-search.module.js';
 import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
+import { BillingCostCentersModule } from './modules/billing/cost-centers.controller.js';
 import { PersonProfileModule } from './modules/people/profile.controller.js';
 import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 import { InvoicesModule } from './modules/billing/invoices.module.js';
@@ -521,6 +522,11 @@ export class AppModule {
         // over the new `billing_usage_alerts` table (0083). Self-contained and file-disjoint; alert
         // delivery (email/notification) is a later slice (external egress, Needs-Peter).
         BillingUsageAlertsModule.register(),
+        // Billing & entitlements module 19 (x281). Named cost centers a billing admin defines and the
+        // projects assigned to them (create/list/delete a definition, assign/unassign a project),
+        // behind `org.manage`, over the new `billing_cost_centers` table (0150). Definitions and
+        // assignments only — nothing here stores an amount or charges. Self-contained and file-disjoint.
+        BillingCostCentersModule.register(),
         // x169. People & capacity module 14: one member's profile (role, projects, open-work count),
         // the per-member detail behind x168's directory. A separate module so the people slices stay
         // file-disjoint; read-only over existing rows, behind the same reused `work.read`.
