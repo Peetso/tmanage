@@ -75,6 +75,7 @@ import type { DocReadStateView as ApiDocReadStateView } from '../../apps/api/src
 import type { MetricFavoriteView as ApiMetricFavoriteView } from '../../apps/api/src/modules/insights/metric-favorites.service.js';
 import type { DocSubscriptionView as ApiDocSubscriptionView } from '../../apps/api/src/modules/docs/subscriptions.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
+import type { DocReviewView as ApiDocReviewView } from '../../apps/api/src/modules/docs/reviews.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionLockView as ApiDecisionLockView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -482,6 +483,7 @@ import type { PinnedMessage as WebPinnedMessage } from '../../apps/web/src/lib/a
 import type { MentionSummary as WebMentionSummary } from '../../apps/web/src/lib/api/my-mentions';
 import type { DocumentView as WebDocumentView } from '../../apps/web/src/lib/api/documents';
 import type { DocumentCommentView as WebDocumentCommentView } from '../../apps/web/src/lib/api/document-comments';
+import type { DocReviewView as WebDocReviewView } from '../../apps/web/src/lib/api/doc-reviews';
 import type {
   ThreadReplyView as WebThreadReplyView,
   ThreadView as WebThreadView,
@@ -1081,6 +1083,10 @@ type _metricFavorite = Assert<Exact<ApiMetricFavoriteView, WebMetricFavoriteSumm
  * neither side — the API never echoes the tenant id into a response body.
  */
 type _documentComment = Assert<Exact<ApiDocumentCommentView, WebDocumentCommentView>>;
+// Docs review workflow (x313). `DocReviewView` (`GET`/`POST …/documents/:documentId/reviews`,
+// `PUT …/reviews/:reviewId`) — one review request/decision on a document. The `DocReviewsView` beside
+// the document view reads exactly this response, so the pair is Exact.
+type _docReview = Assert<Exact<ApiDocReviewView, WebDocReviewView>>;
 
 /**
  * DEC-01 (x113). `DecisionView` (`GET`/`POST …/decisions`, request body + response). Paired with a

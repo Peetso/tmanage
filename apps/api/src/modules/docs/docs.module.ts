@@ -4,6 +4,7 @@ import {
   DOCUMENTS_REPOSITORY,
   DOCUMENTS_SERVICE,
   DOCUMENT_COMMENTS_SERVICE,
+  DOC_REVIEWS_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -25,6 +26,8 @@ import {
   DocumentReadStateController,
   MyDocReadStateController,
 } from './doc-read-state.controller.js';
+import { DocReviewsService } from './reviews.service.js';
+import { DocReviewsController } from './reviews.controller.js';
 
 /**
  * DOC-01 (x91). The docs module's first vertical slice: document read/write.
@@ -74,16 +77,31 @@ export class DocsModule {
       inject: [TENANT_DATABASE],
       useFactory: (database: TenantDatabase) => new DocReadStateService(database),
     };
+    // Docs review workflow (x313): a request/decide/list service resolving the document tenant-scoped
+    // through its own `DocumentsRepository` (the Known-trap order), so it needs only the database.
+    const reviewsService: Provider = {
+      provide: DOC_REVIEWS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new DocReviewsService(database),
+    };
 
     return {
       module: DocsModule,
-      providers: [repository, service, commentsService, docLinksService, readStateService],
-      exports: [service, commentsService],
+      providers: [
+        repository,
+        service,
+        commentsService,
+        docLinksService,
+        readStateService,
+        reviewsService,
+      ],
+      exports: [service, commentsService, reviewsService],
       // DOC export (x131): a second controller on the same `documents` base path, serving the
       // read-only Markdown download. It resolves the same `DOCUMENTS_SERVICE` this module provides.
       // DOC links + backlinks (x296): the outgoing-links and backlinks controllers.
       // DOC read state (x297) adds two controllers: the per-document read/unread toggle and the
       // caller's batch read-state.
+      // DOC reviews (x313): the review request/decide/list controller.
       controllers: [
         DocumentsController,
         DocumentExportController,
@@ -92,6 +110,7 @@ export class DocsModule {
         DocBacklinksController,
         DocumentReadStateController,
         MyDocReadStateController,
+        DocReviewsController,
       ],
     };
   }

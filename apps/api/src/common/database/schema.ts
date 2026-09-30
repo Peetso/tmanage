@@ -1228,6 +1228,44 @@ export const documentComments = mysqlTable(
 );
 
 /**
+ * Docs review workflow (x313). The states a review of a document may hold. `pending` at creation; a
+ * decision moves it to `approved` or `changes_requested` once, and it is immutable afterwards.
+ * `0181_doc_reviews.sql` is the source of truth; this mirrors its `ENUM`.
+ */
+export const DOC_REVIEW_STATES = ['pending', 'approved', 'changes_requested'] as const;
+
+/**
+ * Docs review workflow (x313). A request to a named reviewer to sign off on a document, and the
+ * reviewer's decision. In-app record only. Distinct from `document_comments` (0045, free prose) and
+ * `document_versions` (0036, the content trail): this row is the *decision* on a document. It carries
+ * no `project_id`; the relation it is read and written by is the document's, resolved in the service.
+ * `0181_doc_reviews.sql` is the source of truth; this is its typed mirror.
+ */
+export const docReviews = mysqlTable(
+  'doc_reviews',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    documentId: char('document_id', { length: 36 }).notNull(),
+    /** The membership the review was requested under — the service passes `context.membershipId`. */
+    requestedBy: char('requested_by', { length: 36 }).notNull(),
+    /** The user asked to review; a member of this tenant (composite FK in 0181). */
+    reviewerUserId: char('reviewer_user_id', { length: 36 }).notNull(),
+    state: mysqlEnum('state', DOC_REVIEW_STATES).notNull().default('pending'),
+    /** Optional on request/approve; required on a `changes_requested` decision (enforced in code). */
+    note: text('note'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** NULL while pending; stamped once on decision. */
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_doc_reviews_org_id').on(table.organizationId, table.id),
+    index('ix_doc_reviews_org_document').on(table.organizationId, table.documentId, table.id),
+    index('ix_doc_reviews_org_reviewer').on(table.organizationId, table.reviewerUserId),
+  ],
+);
+
+/**
  * DEC-01 (x113). The statuses a decision on the register may hold. Set at creation this slice; the
  * transitions between them are the deferred lifecycle (NEXT-SCOPES-9). `0037_decisions.sql` is the
  * source of truth; this mirrors its `ENUM`.
@@ -7252,6 +7290,7 @@ export const TABLES = {
   document_versions: documentVersions,
   doc_revisions: docRevisions,
   document_comments: documentComments,
+  doc_reviews: docReviews,
   decisions,
   decision_supersessions: decisionSupersessions,
   decision_work_links: decisionWorkLinks,
@@ -7425,6 +7464,8 @@ export type DocRevisionRow = typeof docRevisions.$inferSelect;
 export type NewDocRevisionRow = typeof docRevisions.$inferInsert;
 export type DocumentCommentRow = typeof documentComments.$inferSelect;
 export type NewDocumentCommentRow = typeof documentComments.$inferInsert;
+export type DocReviewRow = typeof docReviews.$inferSelect;
+export type NewDocReviewRow = typeof docReviews.$inferInsert;
 export type DecisionRow = typeof decisions.$inferSelect;
 export type WorkFormRow = typeof workForms.$inferSelect;
 export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
