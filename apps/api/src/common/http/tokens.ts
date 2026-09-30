@@ -104,6 +104,8 @@ export const DISPLAY_PREFERENCES_REPOSITORY = Symbol.for('tmanage.DisplayPrefere
 export const DISPLAY_PREFERENCES_SERVICE = Symbol.for('tmanage.DisplayPreferencesService');
 /** Automation workflow conditions (x190). The org-scoped per-step condition repository. */
 export const WORKFLOW_CONDITIONS_REPOSITORY = Symbol.for('tmanage.WorkflowConditionsRepository');
+/** Automation variables (x305). The org-scoped non-secret variable repository. */
+export const AUTOMATION_VARIABLES_REPOSITORY = Symbol.for('tmanage.AutomationVariablesRepository');
 /** PEOPLE allocations (x171). The project-scoped person-allocation repository. */
 export const PERSON_ALLOCATIONS_REPOSITORY = Symbol.for('tmanage.PersonAllocationsRepository');
 /** People capacity (x170). The tenant-scoped per-member weekly-capacity repository. */

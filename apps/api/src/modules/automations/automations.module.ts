@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  AUTOMATION_VARIABLES_REPOSITORY,
   WORKFLOW_CONDITIONS_REPOSITORY,
   WORKFLOW_RUNS_REPOSITORY,
   WORKFLOW_RUN_HISTORY_REPOSITORY,
@@ -18,6 +19,8 @@ import { WorkflowTemplateEditController } from './template-edit.controller.js';
 import { WorkflowTemplateCloneController } from './template-clone.controller.js';
 import { WorkflowConditionsRepository } from './conditions.repository.js';
 import { WorkflowConditionsController } from './conditions.controller.js';
+import { AutomationVariablesRepository } from './variables.repository.js';
+import { AutomationVariablesController } from './variables.controller.js';
 
 /**
  * Automations & integrations (module 17). Workflow templates — define, list (x162), edit (x189),
@@ -53,6 +56,10 @@ export class AutomationsModule {
       provide: WORKFLOW_CONDITIONS_REPOSITORY,
       useFactory: () => new WorkflowConditionsRepository(),
     };
+    const variablesRepository: Provider = {
+      provide: AUTOMATION_VARIABLES_REPOSITORY,
+      useFactory: () => new AutomationVariablesRepository(),
+    };
 
     return {
       module: AutomationsModule,
@@ -62,6 +69,7 @@ export class AutomationsModule {
         runService,
         runHistoryRepository,
         conditionsRepository,
+        variablesRepository,
       ],
       controllers: [
         WorkflowTemplatesController,
@@ -70,6 +78,7 @@ export class AutomationsModule {
         WorkflowRunController,
         WorkflowRunHistoryController,
         WorkflowConditionsController,
+        AutomationVariablesController,
       ],
     };
   }

@@ -269,6 +269,7 @@ import type { WorkflowRunDetailView as ApiWorkflowRunDetailView } from '../../ap
 import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '../../apps/api/src/modules/automations/template-edit.controller.js';
 import type { TemplateCloneView as ApiTemplateCloneView } from '../../apps/api/src/modules/automations/template-clone.controller.js';
 import type { WorkflowConditionView as ApiWorkflowConditionView } from '../../apps/api/src/modules/automations/conditions.controller.js';
+import type { AutomationVariableView as ApiAutomationVariableView } from '../../apps/api/src/modules/automations/variables.controller.js';
 import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
 import type { ReportingLineView as ApiReportingLineView } from '../../apps/api/src/modules/people/reporting-lines.controller.js';
 import type { AvailabilityView as ApiAvailabilityView } from '../../apps/api/src/modules/people/availability.controller.js';
@@ -390,6 +391,7 @@ import type { WorkflowRunDetail as WebWorkflowRunDetail } from '../../apps/web/s
 import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '../../apps/web/src/lib/api/automations';
 import type { TemplateCloneView as WebTemplateCloneView } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowConditionSummary as WebWorkflowConditionSummary } from '../../apps/web/src/lib/api/automations';
+import type { AutomationVariableSummary as WebAutomationVariableSummary } from '../../apps/web/src/lib/api/automation-variables';
 import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
 import type { ReportingLine as WebReportingLine } from '../../apps/web/src/lib/api/reporting-lines';
 import type { AvailabilityView as WebAvailabilityView } from '../../apps/web/src/lib/api/people-availability';
@@ -1652,6 +1654,15 @@ type _templateClone = Assert<Exact<ApiTemplateCloneView, WebTemplateCloneView>>;
  * enforced server-side), `targetStep` is `number` on both, and `organizationId` is absent on both.
  */
 type _workflowCondition = Assert<Exact<ApiWorkflowConditionView, WebWorkflowConditionSummary>>;
+
+/**
+ * Automations & integrations (x305). `AutomationVariableView` (`GET …/automations/variables`, `PUT
+ * …/automations/variables/:key`, response) — one org-level, non-secret `(key -> value)` variable.
+ * Paired with a live web consumer: `AutomationVariablesView` reads exactly this response to list
+ * variables and drive the add/remove form. Neither side echoes the row id or `organizationId`: a
+ * variable is addressed by its `key` within the acting organization.
+ */
+type _automationVariable = Assert<Exact<ApiAutomationVariableView, WebAutomationVariableSummary>>;
 
 /**
  * People capacity (module 14, x170). `PersonCapacityView` (`GET`/`PUT …/people/:membershipId/capacity`,
