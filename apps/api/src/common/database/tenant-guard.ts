@@ -708,6 +708,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // OPEN on an unregistered table, so this entry is what scopes them, and tenant-isolation.db.test.ts
   // enforces the entry.
   home_quick_links: 'organization_id',
+  // Person time-off (x325, migration 0193). Tenant-owned: a row is one person's dated absence in one
+  // studio, and an unscoped `SELECT ... FROM person_time_off` would be every person's absences across
+  // every studio on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`
+  // key every tenant table has, so the guard scopes its reads, its inserts, and its deletes; the
+  // layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them, and
+  // tenant-isolation.db.test.ts enforces the entry.
+  person_time_off: 'organization_id',
 });
 
 /**

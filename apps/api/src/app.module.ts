@@ -18,6 +18,7 @@ import { WorkModule } from './modules/work/work.module.js';
 import { PersonCapacityModule } from './modules/people/capacity.module.js';
 import { ReportingLinesModule } from './modules/people/reporting-lines.module.js';
 import { MemberAvailabilityModule } from './modules/people/availability.module.js';
+import { PersonTimeOffModule } from './modules/people/time-off.controller.js';
 import { CapacityHeatmapModule } from './modules/people/capacity-heatmap.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { HomePulseModule } from './modules/home/home-pulse.module.js';
@@ -543,6 +544,11 @@ export class AppModule {
         // surface is owner-scoped (the subject is the acting principal's membership), and the team
         // read resolves `:membershipId` tenant-scoped before any read. New table member_availability.
         MemberAvailabilityModule.register(),
+        // People / module 14 (x325). Person time-off: a manager files dated absences against a person
+        // (POST/DELETE behind `org.manage`) and anyone internal reads a person's entries with an
+        // optional ?from&to overlap window (GET behind `work.read`). Resolves `:userId` to a
+        // membership of this tenant before authorize (cross-tenant 404). New table person_time_off.
+        PersonTimeOffModule.register(),
         // People / module 14 (x193). Team capacity heatmap: a read-only org-level roll-up that folds
         // the x170 capacity and x171 allocation facts into a member × week utilisation grid. Behind
         // `work.read`, tenant-scoped, with the window bounded before any read; adds no table.

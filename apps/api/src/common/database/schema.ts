@@ -5257,6 +5257,49 @@ export type DocTagRow = typeof docTags.$inferSelect;
 export type NewDocTagRow = typeof docTags.$inferInsert;
 
 /**
+ * Person time-off (x325, migration 0193, module 14 People & capacity). Dated absences a manager files
+ * against a person for capacity context: one row is the fact "this person is off between `starts_on`
+ * and `ends_on`, of `kind`, in this studio". Keyed by `(organization_id, person_user_id)` — the
+ * `member_profiles` (0094) posture, resolved membership -> (organization_id, user_id) before any
+ * write — so an entry can never be filed for a non-member or a cross-tenant user; the composite FK
+ * `(organization_id, person_user_id)` binds the person to a membership of this same tenant. Distinct
+ * from `member_availability` (0096): that is a member managing their own recurring windows behind
+ * `work.read`; this is a manager filing dated absences for another person behind `org.manage`. Created
+ * (INSERT) and removed (DELETE), never edited, so there is no immutability trigger — the withheld
+ * UPDATE grant is the control (the `focus_blocks` posture). The application enforces `kind` against a
+ * fixed allowlist and `ends_on ≥ starts_on` (400 otherwise), so the store holds only well-formed rows.
+ * `0193_person_time_off.sql` is the source of truth; this is its typed mirror.
+ */
+export const personTimeOff = mysqlTable(
+  'person_time_off',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    personUserId: char('person_user_id', { length: 36 }).notNull(),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }).notNull(),
+    kind: varchar('kind', { length: 20 }).notNull(),
+    note: varchar('note', { length: 500 }),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_person_time_off_org_id').on(table.organizationId, table.id),
+    // The one read: a person's entries in a studio, ordered by start, id breaking ties; the bounded
+    // range GET filters overlap over this same prefix.
+    index('ix_person_time_off_org_person').on(
+      table.organizationId,
+      table.personUserId,
+      table.startsOn,
+      table.id,
+    ),
+  ],
+);
+
+export type PersonTimeOffRow = typeof personTimeOff.$inferSelect;
+export type NewPersonTimeOffRow = typeof personTimeOff.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -5486,6 +5529,7 @@ export const TABLES = {
   inbox_flags: inboxFlags,
   request_triage: requestTriage,
   home_quick_links: homeQuickLinks,
+  person_time_off: personTimeOff,
   home_widget_prefs: homeWidgetPrefs,
   inbox_saved_filters: inboxSavedFilters,
   glossary_terms: glossaryTerms,
