@@ -13,6 +13,9 @@ import {
   APPROVAL_DELEGATION_SERVICE,
   ApprovalDelegationController,
 } from './delegation.controller.js';
+import { ApprovalStepsRepository } from './steps.repository.js';
+import { APPROVAL_STEPS_SERVICE, ApprovalStepsService } from './steps.service.js';
+import { ApprovalStepsController } from './steps.controller.js';
 
 /**
  * FR-05's wiring.
@@ -47,11 +50,25 @@ export class ApprovalsModule {
         new ApprovalDelegationService(database, new ApprovalDelegationRepository()),
     };
 
+    // x315 — sequential approval steps. Its own service and repository, constructed in the factory
+    // like the approvals repositories above, sharing the one tenant database. Its controller mounts
+    // beside the approvals surface under `/approvals/:approvalId/steps`.
+    const stepsService: Provider = {
+      provide: APPROVAL_STEPS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new ApprovalStepsService(
+          database,
+          new ApprovalsRepository(),
+          new ApprovalStepsRepository(),
+        ),
+    };
+
     return {
       module: ApprovalsModule,
-      providers: [service, delegationService],
-      exports: [service],
-      controllers: [ApprovalsController, ApprovalDelegationController],
+      providers: [service, delegationService, stepsService],
+      exports: [service, stepsService],
+      controllers: [ApprovalsController, ApprovalDelegationController, ApprovalStepsController],
     };
   }
 }

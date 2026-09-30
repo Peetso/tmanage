@@ -147,6 +147,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // decisions.
   deliverable_versions: 'organization_id',
   approvals: 'organization_id',
+  // Sequential approval steps (0183, x315). Org-owned: a step is one tenant's ordered chain over one
+  // approval, and an unscoped `SELECT ... FROM approval_steps` would be every studio's approval chains
+  // on the server. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes
+  // the step reads and writes; `organization_id` is NOT NULL and carries the `(organization_id, id)`
+  // key every tenant table has.
+  approval_steps: 'organization_id',
   // FR-05 (0031, x97). Tenant-owned: a client projection is one studio's immutable client-facing
   // view of a governed version, and an unscoped read would leak another studio's — or another
   // client's — published content. The application already scopes its queries, but the guard is the

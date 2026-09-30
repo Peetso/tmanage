@@ -214,6 +214,11 @@ GRANT INSERT                 ON `tmanage`.`deliverable_versions`  TO 'tmanage_ap
 -- for nothing else — the trigger in 0027 refuses the identity columns and refuses any change to a
 -- terminal row, so "append-only" holds for the runtime credential specifically (INT-16).
 GRANT INSERT, UPDATE         ON `tmanage`.`approvals`             TO 'tmanage_app'@'%';
+-- Sequential approval steps (x315, 0183). **INSERT, UPDATE** — define the ordered chain (INSERT) and
+-- record a step's decision (UPDATE: state/decided_by/decided_at). No DELETE: a chain and its
+-- decisions are the record of how an approval advanced, so a runtime credential must not erase them.
+-- SELECT is the database-wide read grant above; the 0183 trigger holds the identity columns immutable.
+GRANT INSERT, UPDATE         ON `tmanage`.`approval_steps`        TO 'tmanage_app'@'%';
 -- FR-05 (x97) client projections. **INSERT only** — a projection is immutable: publishing freezes
 -- one client-safe view of a governed version and there is no edit (25 §7), the trigger in 0031
 -- refuses every UPDATE, and a re-publish is a new version's new projection. No DELETE: the exact

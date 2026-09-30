@@ -2757,6 +2757,51 @@ export const approvals = mysqlTable(
 );
 
 /**
+ * The decision states a single approval step (0183, x315) may hold. A closed application allowlist
+ * mirrored by `approval_steps.state`: an off-list token is a 400 with no write and the column only
+ * ever holds a known value. Kept in the application (not a MySQL `ENUM`) so the set can grow without
+ * an `ALTER TABLE`, the same division `approvals.state` uses. The *active* step is the lowest
+ * `position` still `pending`.
+ */
+export const APPROVAL_STEP_STATES = ['pending', 'approved', 'rejected'] as const;
+export type ApprovalStepState = (typeof APPROVAL_STEP_STATES)[number];
+
+/**
+ * Sequential approval steps (0183, x315). An ordered chain over one {@link approvals} row: each step
+ * is an approver role (and optionally a specific `approver_user_id`) at a fixed `position`, plus the
+ * step's own `state`/`decided_by`/`decided_at`. Keyed to its approval through the composite
+ * `(organization_id, approval_id)` foreign key so a step can never point across a tenant boundary.
+ * `state` is a fixed application allowlist ({@link APPROVAL_STEP_STATES}) validated before any write;
+ * `position` is unique within an approval. Identity (`organization_id`, `approval_id`, `position`,
+ * `approver_role`, `approver_user_id`) is immutable at the engine; the app is granted INSERT (define)
+ * and UPDATE (record a decision). Distinct from `approval_delegations` (x300, who may act) — this is
+ * the ordered chain itself. `0183_approval_steps.sql` is the source of truth; this is its typed mirror.
+ */
+export const approvalSteps = mysqlTable(
+  'approval_steps',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    approvalId: char('approval_id', { length: 36 }).notNull(),
+    position: int('position', { unsigned: true }).notNull(),
+    approverRole: varchar('approver_role', { length: 64 }).notNull(),
+    approverUserId: char('approver_user_id', { length: 36 }),
+    state: varchar('state', { length: 16 }).notNull().default('pending'),
+    decidedBy: char('decided_by', { length: 36 }),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_approval_steps_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_approval_steps_org_approval_position').on(
+      table.organizationId,
+      table.approvalId,
+      table.position,
+    ),
+  ],
+);
+
+/**
  * The client-safe payload of a published projection — 12-PERMISSION-MATRIX §1's allowlist and no
  * more. Held as JSON (`0031`), built from an allowlist at the service so a forbidden internal field
  * (cost, estimates, staff review, private threads, risk rationale, security metadata, other-client
@@ -7288,6 +7333,7 @@ export const TABLES = {
   client_requests: clientRequests,
   deliverable_versions: deliverableVersions,
   approvals,
+  approval_steps: approvalSteps,
   client_projections: clientProjections,
   conversations,
   conversation_memberships: conversationMemberships,
@@ -7454,6 +7500,7 @@ export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
 export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;
 export type ApprovalRow = typeof approvals.$inferSelect;
 export type NewApprovalRow = typeof approvals.$inferInsert;
+export type ApprovalStepRow = typeof approvalSteps.$inferSelect;
 export type ClientProjectionRow = typeof clientProjections.$inferSelect;
 export type NewClientProjectionRow = typeof clientProjections.$inferInsert;
 export type ConversationRow = typeof conversations.$inferSelect;
