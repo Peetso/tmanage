@@ -602,6 +602,12 @@ GRANT INSERT                 ON `tmanage`.`billing_credits`   TO 'tmanage_app'@'
 -- here explicitly (as well as via the database-wide read above) so the grant states the full set the
 -- code uses. The worker gets nothing: allocation reporting is a later slice.
 GRANT SELECT, INSERT, DELETE ON `tmanage`.`billing_cost_centers` TO 'tmanage_app'@'%';
+-- x282 (0151) billing purchase orders. Module 19: the org's finance-issued PO references, recorded
+-- (INSERT), read (the database-wide SELECT above), closed (UPDATE, open → closed) and removed
+-- (DELETE) — this slice ships add/list/close/remove — so INSERT, UPDATE and DELETE. The 0151 trigger
+-- pins organization_id/po_number immutable for every credential besides, so UPDATE can only move the
+-- editable `status`. It is a record, never a payment: nothing here charges or stores an instrument.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`billing_purchase_orders` TO 'tmanage_app'@'%';
 -- CLIENT-003 (x125, 0041). A project update is posted (INSERT) and read (the database-wide
 -- SELECT above); `published` is set at INSERT time, and this slice ships no edit/unpublish
 -- endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0041 trigger pins

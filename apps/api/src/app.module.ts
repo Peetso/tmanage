@@ -135,6 +135,7 @@ import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
 import { BillingCostCentersModule } from './modules/billing/cost-centers.controller.js';
+import { BillingPurchaseOrdersModule } from './modules/billing/purchase-orders.controller.js';
 import { PersonProfileModule } from './modules/people/profile.controller.js';
 import { PeopleTeamsModule } from './modules/people/teams.controller.js';
 import { BillingSeatsModule } from './modules/billing/seats.controller.js';
@@ -748,6 +749,10 @@ export class AppModule {
         // behind `org.manage`, over the new `billing_cost_centers` table (0150). Definitions and
         // assignments only — nothing here stores an amount or charges. Self-contained and file-disjoint.
         BillingCostCentersModule.register(),
+        // Billing & entitlements module 19 (x282). Purchase-order references (record/list/close/remove)
+        // behind `org.manage`, over the new `billing_purchase_orders` table (0151). Self-contained and
+        // file-disjoint; record only — nothing here charges, transfers, or stores a payment instrument.
+        BillingPurchaseOrdersModule.register(),
         // x169. People & capacity module 14: one member's profile (role, projects, open-work count),
         // the per-member detail behind x168's directory. A separate module so the people slices stay
         // file-disjoint; read-only over existing rows, behind the same reused `work.read`.
