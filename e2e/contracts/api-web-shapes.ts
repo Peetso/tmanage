@@ -358,6 +358,7 @@ import type {
   ProjectPhaseView as ApiProjectPhaseView,
   MilestonePhaseAssignmentView as ApiMilestonePhaseAssignmentView,
 } from '../../apps/api/src/modules/projects/phases.service.js';
+import type { SecurityAlertsView as ApiSecurityAlertsView } from '../../apps/api/src/modules/admin/security-alerts.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -399,6 +400,7 @@ import type { PolicySimulationView as WebPolicySimulationView } from '../../apps
 import type { SecuritySettingsView as WebSecuritySettingsView } from '../../apps/web/src/lib/api/admin-security';
 import type { IpAllowlistEntryView as WebIpAllowlistEntryView } from '../../apps/web/src/lib/api/admin-ip-allowlist';
 import type { AuditRetentionView as WebAuditRetentionView } from '../../apps/web/src/lib/api/admin-audit-retention';
+import type { SecurityAlertsView as WebSecurityAlertsView } from '../../apps/web/src/lib/api/admin-security-alerts';
 import type { OnboardingTourView as WebOnboardingTourView } from '../../apps/web/src/lib/api/onboarding-tour';
 import type { UserPreferencesView as WebUserPreferencesView } from '../../apps/web/src/lib/api/preferences';
 import type {
@@ -2172,6 +2174,11 @@ type _policySimulation = Assert<Exact<ApiPolicySimulationView, WebPolicySimulati
  * echoes the tenant id.
  */
 type _securitySettings = Assert<Exact<ApiSecuritySettingsView, WebSecuritySettingsView>>;
+// Admin security-event alerts (x329). `SecurityAlertsView` (`GET/PUT/DELETE …/admin/security-alerts`,
+// response) — the allowlist, the tenant's per-key config, and a read-only preview of recent matching
+// audit events. `AdminSecurityAlertsView` reads exactly this response; dates are ISO strings on both
+// sides and the wire projection never echoes the tenant id.
+type _securityAlerts = Assert<Exact<ApiSecurityAlertsView, WebSecurityAlertsView>>;
 
 /**
  * Organization IP allowlist (x277). `IpAllowlistEntryView` (`GET`/`POST …/admin/ip-allowlist`,

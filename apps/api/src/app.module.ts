@@ -106,6 +106,7 @@ import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AdminSecurityModule } from './modules/admin/security.controller.js';
+import { AdminSecurityAlertsModule } from './modules/admin/security-alerts.controller.js';
 import { AdminExportRequestsModule } from './modules/admin/export-requests.controller.js';
 import { OrgAnnouncementsModule } from './modules/admin/announcements.controller.js';
 import { AdminIpAllowlistModule } from './modules/admin/ip-allowlist.controller.js';
@@ -293,6 +294,7 @@ export class AppModule {
         // the org-settings and audit slices in the same module; depends only on the global
         // `TENANT_DATABASE`. Config surface only — enforcement in the auth path is a later slice.
         AdminSecurityModule.register(),
+        AdminSecurityAlertsModule.register(),
         AdminExportRequestsModule.register(),
         // ADM org announcements (module 18, x276). Org-wide announcement banners: post + delete behind
         // `org.manage`, active-now read behind `work.read`. A module of its own, file-disjoint from the

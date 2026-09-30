@@ -836,6 +836,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`security_settings` TO 'tmanage_app'@'
 -- added and removed, never edited in place, and the 0146 trigger pins organization_id immutable for
 -- every credential besides.
 GRANT INSERT, DELETE         ON `tmanage`.`org_ip_allowlist` TO 'tmanage_app'@'%';
+-- Admin security-event alert configuration (0196, x329) per-(organization, event-type) in-app alert
+-- toggles. INSERT and UPDATE (the PUT upserts `enabled` in place) and DELETE (removing a key's
+-- config). Reading is the database-wide SELECT above. The worker gets nothing here — this table is
+-- the API's alone, the `security_settings` posture above.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`admin_security_alerts` TO 'tmanage_app'@'%';
 -- ON-10 guided-tour progress (x155, 0059). **INSERT only** — a step is marked complete (INSERT) and
 -- read (the database-wide SELECT). Progress is forward-only: re-completing a step is an idempotent
 -- no-op the repository swallows on the unique-key conflict, never an UPDATE, and there is no

@@ -4436,6 +4436,32 @@ export const orgIpAllowlist = mysqlTable(
   ],
 );
 
+/**
+ * Admin security-event alert configuration (Administration, security monitoring, x329, migration
+ * 0196). One row per (organization, `event_type_key`): the tenant's choice to raise an in-app alert
+ * for a security event type. `enabled` is toggled by a repeated PUT (the upsert), the row removed by
+ * DELETE; `uq_admin_security_alerts_org_event` makes the second write a target rather than a second
+ * row. Identity (`organization_id`, `id`, `event_type_key`) is immutable at the engine (the 0196
+ * trigger); only `enabled` moves on an upsert. This table stores config only — the read-side match
+ * against `audit_events` is read-only, and no dispatch exists (Needs-Peter). Keys are validated
+ * against a fixed allowlist in the application before a write reaches here.
+ */
+export const adminSecurityAlerts = mysqlTable(
+  'admin_security_alerts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    eventTypeKey: varchar('event_type_key', { length: 190 }).notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_admin_security_alerts_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_admin_security_alerts_org_event').on(table.organizationId, table.eventTypeKey),
+  ],
+);
+
 export const INVOICE_STATUSES = ['paid', 'open', 'void'] as const;
 
 /**
@@ -7939,6 +7965,7 @@ export const TABLES = {
   org_policies: orgPolicies,
   security_settings: securitySettings,
   org_ip_allowlist: orgIpAllowlist,
+  admin_security_alerts: adminSecurityAlerts,
   onboarding_progress: onboardingProgress,
   incidents,
   changelog_entries: changelogEntries,
@@ -8143,6 +8170,7 @@ export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type OrgPolicyRow = typeof orgPolicies.$inferSelect;
 export type SecuritySettingsRow = typeof securitySettings.$inferSelect;
 export type OrgIpAllowlistRow = typeof orgIpAllowlist.$inferSelect;
+export type AdminSecurityAlertRow = typeof adminSecurityAlerts.$inferSelect;
 export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
 export type PersonAllocationRow = typeof personAllocations.$inferSelect;
 export type CustomRoleRow = typeof customRoles.$inferSelect;
