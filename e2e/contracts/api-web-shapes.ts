@@ -264,6 +264,7 @@ import type {
   ChecklistTemplateView as ApiChecklistTemplateView,
   ApplyTemplateResultView as ApiApplyTemplateResultView,
 } from '../../apps/api/src/modules/work/checklist-templates.service.js';
+import type { BoardColumnView as ApiBoardColumnView } from '../../apps/api/src/modules/work/board-columns.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -629,6 +630,7 @@ import type { FileTag as WebFileTag } from '../../apps/web/src/lib/api/file-tags
 import type { FileTagAssignment as WebFileTagAssignment } from '../../apps/web/src/lib/api/file-tags';
 import type { ChecklistTemplate as WebChecklistTemplate } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { ApplyTemplateResult as WebApplyTemplateResult } from '../../apps/web/src/lib/api/work-checklist-templates';
+import type { BoardColumn as WebBoardColumn } from '../../apps/web/src/lib/api/board-columns';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -1591,6 +1593,14 @@ type _fileTagAssignment = Assert<Exact<ApiFileTagAssignmentView, WebFileTagAssig
  */
 type _checklistTemplate = Assert<Exact<ApiChecklistTemplateView, WebChecklistTemplate>>;
 type _applyTemplateResult = Assert<Exact<ApiApplyTemplateResultView, WebApplyTemplateResult>>;
+
+/**
+ * x308. Work board columns (Work module 7). `BoardColumnView` ↔ `BoardColumn` — one org-scoped board
+ * column (`GET`/`POST …/work/board-columns`, `PUT`/`DELETE …/work/board-columns/:id`), a display
+ * grouping over the existing work states. `WorkBoardColumnsView` reads the list, so the pair is held
+ * identical on the two sides. `organizationId` is absent on both.
+ */
+type _boardColumn = Assert<Exact<ApiBoardColumnView, WebBoardColumn>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

@@ -5889,6 +5889,34 @@ export const workItemCustomFields = mysqlTable(
 export type WorkItemCustomFieldRow = typeof workItemCustomFields.$inferSelect;
 export type NewWorkItemCustomFieldRow = typeof workItemCustomFields.$inferInsert;
 
+/**
+ * An organization's custom work-board columns — x308 (Work module 7; `0176_work_board_columns.sql`).
+ *
+ * An org-scoped, ordered list of board columns, each a `label` and the `state_key` it groups. It is
+ * a display grouping over the existing work-item states — no work item lives here, and the state
+ * machine is untouched. `state_key` names one of the machine's states (the allowlist is enforced in
+ * the service). `position` is the column's slot, unique per studio.
+ */
+export const workBoardColumns = mysqlTable(
+  'work_board_columns',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 120 }).notNull(),
+    stateKey: varchar('state_key', { length: 40 }).notNull(),
+    position: int('position').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_board_columns_org_id').on(table.organizationId, table.id),
+    // One column per board slot per studio: two columns cannot claim the same position.
+    uniqueIndex('uq_work_board_columns_org_position').on(table.organizationId, table.position),
+  ],
+);
+
+export type WorkBoardColumnRow = typeof workBoardColumns.$inferSelect;
+export type NewWorkBoardColumnRow = typeof workBoardColumns.$inferInsert;
+
 /** The cadences a work item recurrence rule may use — x257. A value outside this set is a 400. */
 export const WORK_ITEM_RECURRENCE_FREQS = ['daily', 'weekly', 'monthly'] as const;
 
@@ -6981,6 +7009,7 @@ export const TABLES = {
   doc_links: docLinks,
   doc_read_state: docReadState,
   insight_metric_favorites: insightMetricFavorites,
+  work_board_columns: workBoardColumns,
   work_item_labels: workItemLabels,
   file_tags: fileTags,
   work_item_custom_fields: workItemCustomFields,

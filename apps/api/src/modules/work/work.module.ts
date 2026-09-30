@@ -22,6 +22,7 @@ import {
   WORK_CUSTOM_FIELDS_SERVICE,
   WORK_ITEM_RECURRENCE_SERVICE,
   WORK_ACTIVITY_LOG_SERVICE,
+  WORK_BOARD_COLUMNS_SERVICE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -82,6 +83,9 @@ import {
 import { WorkCustomFieldsRepository } from './custom-fields.repository.js';
 import { WorkCustomFieldsService } from './custom-fields.service.js';
 import { WorkCustomFieldsController } from './custom-fields.controller.js';
+import { WorkBoardColumnsRepository } from './board-columns.repository.js';
+import { WorkBoardColumnsService } from './board-columns.service.js';
+import { WorkBoardColumnsController } from './board-columns.controller.js';
 
 /**
  * WORK-001's wiring.
@@ -273,6 +277,16 @@ export class WorkModule {
         new WorkCustomFieldsService(database, workItems, new WorkCustomFieldsRepository()),
     };
 
+    // x308. An organization's custom work-board columns — an org-level display grouping over the
+    // existing work states, so it needs only the tenant database (no work-item parent). The service
+    // holds the policy (org.manage on writes, resolve-before-authorize, the state-key allowlist).
+    const boardColumnsService: Provider = {
+      provide: WORK_BOARD_COLUMNS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new WorkBoardColumnsService(database, new WorkBoardColumnsRepository()),
+    };
+
     return {
       module: WorkModule,
       providers: [
@@ -295,6 +309,7 @@ export class WorkModule {
         activityLogService,
         checklistTemplatesService,
         customFieldsService,
+        boardColumnsService,
       ],
       exports: [service],
       controllers: [
@@ -316,6 +331,7 @@ export class WorkModule {
         WorkActivityLogController,
         WorkChecklistTemplatesController,
         WorkCustomFieldsController,
+        WorkBoardColumnsController,
       ],
     };
   }

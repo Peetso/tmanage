@@ -98,6 +98,8 @@ export const WORK_ITEM_RECURRENCE_SERVICE = Symbol.for('tmanage.WorkItemRecurren
 export const WORK_RELATIONS_GRAPH_SERVICE = Symbol.for('tmanage.WorkRelationsGraphService');
 /** Work item activity timeline (x291). Read-only merged feed of audit events + comments. */
 export const WORK_ACTIVITY_LOG_SERVICE = Symbol.for('tmanage.WorkActivityLogService');
+/** x308. An organization's custom work-board columns, behind `org.manage` (writes) / `work.read` (list). */
+export const WORK_BOARD_COLUMNS_SERVICE = Symbol.for('tmanage.WorkBoardColumnsService');
 export const WORKFLOW_TEMPLATES_REPOSITORY = Symbol.for('tmanage.WorkflowTemplatesRepository');
 export const WORKFLOW_RUNS_REPOSITORY = Symbol.for('tmanage.WorkflowRunsRepository');
 export const WORKFLOW_RUN_SERVICE = Symbol.for('tmanage.WorkflowRunService');
