@@ -98,6 +98,7 @@ import type {
 } from '../../apps/api/src/modules/billing/usage-alerts.service.js';
 import type { UsageExportView as ApiUsageExportView } from '../../apps/api/src/modules/billing/usage-export.service.js';
 import type { CostCenterView as ApiCostCenterView } from '../../apps/api/src/modules/billing/cost-centers.service.js';
+import type { CostCenterReportRowView as ApiCostCenterReportRowView } from '../../apps/api/src/modules/billing/cost-center-report.service.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -610,6 +611,7 @@ import type {
 } from '../../apps/web/src/lib/api/billing';
 import type { UsageExportColumns as WebUsageExportColumns } from '../../apps/web/src/lib/api/billing-usage-export';
 import type { CostCenterSummary as WebCostCenterSummary } from '../../apps/web/src/lib/api/billing-cost-centers';
+import type { CostCenterReportRow as WebCostCenterReportRow } from '../../apps/web/src/lib/api/cost-center-report';
 import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
 import type { AdminOverviewView as WebAdminOverviewView } from '../../apps/web/src/lib/api/admin-overview';
 import type { OrgBrandingView as WebOrgBrandingView } from '../../apps/web/src/lib/api/org-branding';
@@ -1755,6 +1757,16 @@ type _usageExport = Assert<Exact<ApiUsageExportView, WebUsageExportColumns>>;
  * assign / unassign / delete routes answer `204` with no body, so they need no pairing here.
  */
 type _costCenter = Assert<Exact<ApiCostCenterView, WebCostCenterSummary>>;
+
+/**
+ * Billing & entitlements (x331). `CostCenterReportRowView` (`GET …/billing/cost-center-report`,
+ * response) — one cost centre's read-only roll-up: its id, code, display name, the count of assigned
+ * projects and their summed budget (hours and amount). Paired with the live web consumer
+ * `CostCenterReportView` (via `lib/api/cost-center-report`); `organizationId` is absent on both, the
+ * numeric fields are `number` on both, and `currency` is `string | null` on both (null when no amount
+ * is budgeted or currencies are mixed).
+ */
+type _costCenterReport = Assert<Exact<ApiCostCenterReportRowView, WebCostCenterReportRow>>;
 
 /**
  * Automations app directory (x165). `IntegrationConnectionView` (`GET`/`POST
