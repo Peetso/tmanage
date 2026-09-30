@@ -2782,6 +2782,42 @@ export const personSkills = mysqlTable(
 );
 
 /**
+ * Person certifications (0194, x326). People module 14. A person's dated credentials — a `name`, an
+ * `issuer`, an `issued_on` day and an optional `expires_on` day — hung off a `memberships` row by
+ * `person_user_id` so it names a person *within* one tenant. Distinct from `person_skills` (0070,
+ * proficiency tags): a certification is a dated credential, not a self-assessed skill level.
+ *
+ * Tenant-scoped (`organization_id`) and member-owned (`person_user_id`, composite FK to
+ * `memberships (organization_id, user_id)`, ON DELETE CASCADE). Whether a certification is *expired*
+ * is never stored — it is `expires_on < today` computed read-side against the process clock. The app
+ * holds INSERT and DELETE only (a correction is a delete and re-add), so there is no editable column.
+ * `0194_person_certifications.sql` is the source of truth; this is its typed mirror.
+ */
+export const personCertifications = mysqlTable(
+  'person_certifications',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    personUserId: char('person_user_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 200 }).notNull(),
+    issuer: varchar('issuer', { length: 200 }).notNull(),
+    issuedOn: date('issued_on', { mode: 'string' }).notNull(),
+    expiresOn: date('expires_on', { mode: 'string' }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_person_certifications_org_id').on(table.organizationId, table.id),
+    index('ix_person_certifications_person').on(
+      table.organizationId,
+      table.personUserId,
+      table.issuedOn,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * Per-member weekly capacity (0068, x170). People module 14. Tenant-scoped: one active row per
  * member, keyed by `(organization_id, membership_id)`, holding the available hours a week and the
  * date the figure takes effect. `weekly_hours` is bounded [0,168] at the engine; identity
@@ -5615,6 +5651,7 @@ export const TABLES = {
   member_reporting_lines: memberReportingLines,
   member_availability: memberAvailability,
   person_skills: personSkills,
+  person_certifications: personCertifications,
   custom_roles: customRoles,
   subscriptions,
   billing_profiles: billingProfiles,
@@ -5716,6 +5753,7 @@ export type PersonCapacityRow = typeof personCapacity.$inferSelect;
 export type MemberReportingLineRow = typeof memberReportingLines.$inferSelect;
 export type MemberAvailabilityRow = typeof memberAvailability.$inferSelect;
 export type PersonSkillRow = typeof personSkills.$inferSelect;
+export type PersonCertificationRow = typeof personCertifications.$inferSelect;
 export type SubscriptionRow = typeof subscriptions.$inferSelect;
 export type BillingProfileRow = typeof billingProfiles.$inferSelect;
 export type BillingContactRow = typeof billingContacts.$inferSelect;

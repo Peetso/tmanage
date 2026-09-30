@@ -362,6 +362,8 @@ import type { AvailabilityView as WebAvailabilityView } from '../../apps/web/src
 import type { CapacityHeatmapView as WebCapacityHeatmapView } from '../../apps/web/src/lib/api/team-capacity-heatmap';
 import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/modules/people/skills.controller.js';
 import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
+import type { PersonCertificationView as ApiPersonCertificationView } from '../../apps/api/src/modules/people/certifications.service.js';
+import type { PersonCertificationSummary as WebPersonCertificationSummary } from '../../apps/web/src/lib/api/people-certifications';
 import type { SkillSearchView as ApiSkillSearchView } from '../../apps/api/src/modules/people/skill-search.controller.js';
 import type { FocusBlockView as ApiFocusBlockView } from '../../apps/api/src/modules/calendar/focus-blocks.service.js';
 import type { ConversationMuteView as ApiConversationMuteView } from '../../apps/api/src/modules/conversations/conversation-mute.controller.js';
@@ -1554,6 +1556,17 @@ type _capacityHeatmap = Assert<Exact<ApiCapacityHeatmapView, WebCapacityHeatmapV
  * identical on both sides, and `organizationId` is absent on both — the wire never echoes the tenant.
  */
 type _personSkill = Assert<Exact<ApiPersonSkillView, WebPersonSkillSummary>>;
+
+/**
+ * Person certifications (x326). `PersonCertificationView` (`GET`/`POST …/people/:userId/certifications`,
+ * response) — one dated credential. Paired Exact with a live web consumer: `PersonCertificationsView`
+ * reads exactly this response to list and record certifications. `expired` is computed by the API
+ * read-side (`expires_on < today`) and is identical on both sides; `organizationId` is absent on both
+ * — the wire never echoes the tenant id. Distinct from `PersonSkillView` (proficiency tags).
+ */
+type _personCertification = Assert<
+  Exact<ApiPersonCertificationView, WebPersonCertificationSummary>
+>;
 
 /**
  * Skill directory search (x194). `SkillSearchView` (`GET …/people/skills/search?skill=&level=`,

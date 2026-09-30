@@ -134,6 +134,7 @@ import { PeopleTeamsModule } from './modules/people/teams.controller.js';
 import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 import { InvoicesModule } from './modules/billing/invoices.module.js';
 import { MemberProfileModule } from './modules/people/member-profile.controller.js';
+import { PersonCertificationsModule } from './modules/people/certifications.controller.js';
 import { InvoiceLineItemsModule } from './modules/billing/invoice-line-items.module.js';
 import { BillingCreditsModule } from './modules/billing/credits.controller.js';
 import { BillingUsageExportModule } from './modules/billing/usage-export.controller.js';
@@ -740,6 +741,10 @@ export class AppModule {
         // File-disjoint from x169's read-only profile; writes only member_profiles, never the
         // GLOBAL users.display_name (the leak that blocked x192).
         MemberProfileModule.register(),
+        // People & capacity module 14 (x326). A person's dated credentials/qualifications: record,
+        // list (with an expired badge computed read-side), and idempotent delete, under
+        // `…/people/:userId/certifications` behind org.manage (write) / work.read (read).
+        PersonCertificationsModule.register(),
         InvoiceLineItemsModule.register(),
         // Billing & entitlements module 19 (x226). A manual credit / adjustment ledger (post/list with a
         // running balance) behind `org.manage`, over the new `billing_credits` table (0100). Append-only
