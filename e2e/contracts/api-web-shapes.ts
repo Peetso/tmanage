@@ -303,6 +303,7 @@ import type { TaxDetailsView as ApiTaxDetailsView } from '../../apps/api/src/mod
 import type { BillingContactView as ApiBillingContactView } from '../../apps/api/src/modules/billing/contacts.service.js';
 import type { BillingSeatView as ApiBillingSeatView } from '../../apps/api/src/modules/billing/seats.controller.js';
 import type { BillingCreditView as ApiBillingCreditView } from '../../apps/api/src/modules/billing/credits.service.js';
+import type { BillingDiscountView as ApiBillingDiscountView } from '../../apps/api/src/modules/billing/discounts.service.js';
 import type { WorkTimelineView as ApiWorkTimelineView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkloadView as ApiWorkloadView } from '../../apps/api/src/modules/work-views/work-views.service.js';
 import type { WorkCalendarView as ApiWorkCalendarView } from '../../apps/api/src/modules/work-views/work-views.service.js';
@@ -471,6 +472,7 @@ import type { TaxDetailsView as WebTaxDetailsView } from '../../apps/web/src/lib
 import type { BillingContactView as WebBillingContactView } from '../../apps/web/src/lib/api/billing-contacts';
 import type { BillingSeat as WebBillingSeat } from '../../apps/web/src/lib/api/billing-seats';
 import type { BillingCreditView as WebBillingCreditView } from '../../apps/web/src/lib/api/billing-credits';
+import type { BillingDiscountView as WebBillingDiscountView } from '../../apps/web/src/lib/api/billing-discounts';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionComment as WebDecisionComment } from '../../apps/web/src/lib/api/decision-comments';
@@ -1972,6 +1974,16 @@ type _billingSeat = Assert<Exact<ApiBillingSeatView, WebBillingSeat>>;
  * element shape is paired here; the ledger is append-only and moves no money.
  */
 type _billingCredit = Assert<Exact<ApiBillingCreditView, WebBillingCreditView>>;
+
+/**
+ * Billing discounts (module 19, x330). `BillingDiscountView` (`GET`/`POST`/`DELETE …/billing/discounts`,
+ * response) — one org-scoped discount / adjustment record (`id`, `label`, `kind` percent|fixed, integer
+ * `amount`, optional `expiresOn`, read-side `active`, `createdBy`, `createdAt`). Paired with a live web
+ * consumer: `BillingDiscountsScreen` reads exactly this shape to list the register and record a
+ * discount. `organizationId` is deliberately absent on both sides; `active` is computed by the API
+ * against its process clock. The list envelope wraps this one element shape; the register moves no money.
+ */
+type _billingDiscount = Assert<Exact<ApiBillingDiscountView, WebBillingDiscountView>>;
 
 /**
  * SRCH-01 (x111). `SearchResultView` ↔ `SearchResult` — the unified global-search hit

@@ -732,6 +732,12 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`billing_purchase_orders` TO 'tmanage_
 -- effective_on/note immutable (and forbids leaving cancelled) for every credential besides, so UPDATE
 -- can only move `status`. No provider call or charge happens here — that is Needs-Peter infrastructure.
 GRANT INSERT, UPDATE         ON `tmanage`.`billing_plan_change_requests` TO 'tmanage_app'@'%';
+-- BILLING (x330, 0197). An org discount / adjustment record is created (INSERT), read (the database-
+-- wide SELECT above) and removed (DELETE). It is never edited — a change is a delete-and-recreate —
+-- so **no UPDATE**: the row carries no `updated_at` and there is no update path, and withholding the
+-- grant pins immutability for every credential. No money moves here (applying a discount to a real
+-- charge is Needs-Peter / Stripe), so no worker grant either.
+GRANT INSERT, DELETE         ON `tmanage`.`billing_discounts` TO 'tmanage_app'@'%';
 -- CLIENT-003 (x125, 0041). A project update is posted (INSERT) and read (the database-wide
 -- SELECT above); `published` is set at INSERT time, and this slice ships no edit/unpublish
 -- endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0041 trigger pins

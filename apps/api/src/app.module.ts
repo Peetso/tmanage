@@ -169,6 +169,7 @@ import { MemberProfileModule } from './modules/people/member-profile.controller.
 import { PersonCertificationsModule } from './modules/people/certifications.controller.js';
 import { InvoiceLineItemsModule } from './modules/billing/invoice-line-items.module.js';
 import { BillingCreditsModule } from './modules/billing/credits.controller.js';
+import { BillingDiscountsModule } from './modules/billing/discounts.controller.js';
 import { BillingUsageExportModule } from './modules/billing/usage-export.controller.js';
 
 /**
@@ -949,6 +950,11 @@ export class AppModule {
         // running balance) behind `org.manage`, over the new `billing_credits` table (0100). Append-only
         // and self-contained; no money moves and no gateway is called — real settlement is Needs-Peter.
         BillingCreditsModule.register(),
+        // Billing & plan management module 19 (x330). An org discount / adjustment register (record/
+        // list/remove) behind `org.manage`, over the new `billing_discounts` table (0197). Records only:
+        // each read marks active or expired against the process clock; no money moves and no gateway is
+        // called — applying a discount to a real charge is Needs-Peter / Stripe.
+        BillingDiscountsModule.register(),
         // Billing & entitlements module 19 (x227). A date-windowed CSV export of the org's usage
         // counters behind `org.manage`: window-validated (400 on bad/oversized range), tenant-scoped,
         // row-capped (413), and formula-injection-guarded through the shared `toCsv`. File-disjoint

@@ -1724,6 +1724,32 @@ export const billingPlanChangeRequests = mysqlTable(
 );
 
 /**
+ * BILLING / module 19 (x330). An org-scoped discount / adjustment record — a `label`, a `kind`
+ * (`percent` or `fixed`), an integer `amount` (a whole percentage 0..100, or a non-negative fixed
+ * amount in integer minor units) and an optional `expiresOn`. Tenant-owned and org-scoped like
+ * `billing_credits` (0100) and `billing_usage_alerts` (0083): no `project_id`, the tenant key is
+ * `organization_id` bound to `organizations`. Records only — a discount is created and deleted, never
+ * edited (no `updated_at`; the runtime is granted INSERT and DELETE only). Whether a record is active or
+ * expired is decided on the read side against the process clock, never stored, and nothing here moves
+ * money or settles a charge. `0197_billing_discounts.sql` is the source of truth; this is its typed
+ * mirror.
+ */
+export const billingDiscounts = mysqlTable(
+  'billing_discounts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 200 }).notNull(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    amount: int('amount').notNull(),
+    expiresOn: date('expires_on', { mode: 'string' }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_billing_discounts_org_id').on(table.organizationId, table.id)],
+);
+
+/**
  * The project-objective status set, mirroring the `0040` `ENUM`. An objective is `open` at creation
  * and its lifecycle transitions to `met` or `missed`.
  */
@@ -7996,6 +8022,7 @@ export const TABLES = {
   billing_cost_centers: billingCostCenters,
   billing_purchase_orders: billingPurchaseOrders,
   billing_plan_change_requests: billingPlanChangeRequests,
+  billing_discounts: billingDiscounts,
   work_item_files: workItemFiles,
   work_item_reminders: workItemReminders,
   insight_saved_views: insightSavedViews,
@@ -8132,6 +8159,7 @@ export type BillingCreditRow = typeof billingCredits.$inferSelect;
 export type BillingCostCenterRow = typeof billingCostCenters.$inferSelect;
 export type BillingPurchaseOrderRow = typeof billingPurchaseOrders.$inferSelect;
 export type BillingPlanChangeRequestRow = typeof billingPlanChangeRequests.$inferSelect;
+export type BillingDiscountRow = typeof billingDiscounts.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;
