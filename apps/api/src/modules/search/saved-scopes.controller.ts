@@ -26,9 +26,7 @@ import {
  */
 @Controller('v1/organizations/:orgSlug/search/scopes')
 export class SearchScopesController {
-  constructor(
-    @Inject(SEARCH_SCOPES_SERVICE) private readonly scopes: SearchScopesService,
-  ) {}
+  constructor(@Inject(SEARCH_SCOPES_SERVICE) private readonly scopes: SearchScopesService) {}
 
   /** The acting member's saved scopes, newest first (200). */
   @Get()
@@ -142,7 +140,10 @@ function parseObjectTypes(
     return undefined;
   }
   if (raw.length > MAX_OBJECT_TYPES) {
-    details.push({ field: 'filters.objectTypes', message: `must have ${MAX_OBJECT_TYPES} or fewer` });
+    details.push({
+      field: 'filters.objectTypes',
+      message: `must have ${MAX_OBJECT_TYPES} or fewer`,
+    });
     return undefined;
   }
   const seen = new Set<string>();

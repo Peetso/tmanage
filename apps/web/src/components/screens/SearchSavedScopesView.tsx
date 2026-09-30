@@ -116,7 +116,7 @@ export function SearchSavedScopesView({
               </Button>{' '}
               <Button
                 type="button"
-                tone="ghost"
+                tone="text"
                 size="accessible"
                 aria-label={`Delete scope ${scope.name}`}
                 onClick={() => remove.mutate(scope.id)}
