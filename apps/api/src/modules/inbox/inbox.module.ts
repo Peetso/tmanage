@@ -22,6 +22,9 @@ import { WorkItemsService } from '../work/work-items.service.js';
 import { InboxController } from './inbox.controller.js';
 import { InboxService } from './inbox.service.js';
 import { NotificationsRepository } from './notifications.repository.js';
+import { InboxSourceMutesController } from './source-mutes.controller.js';
+import { InboxSourceMutesRepository } from './source-mutes.repository.js';
+import { InboxSourceMutesService, INBOX_SOURCE_MUTES_SERVICE } from './source-mutes.service.js';
 
 /** Module-local: the shared `ClientRequestsService` both inbox services read through. */
 const INBOX_CLIENT_REQUESTS = Symbol('tmanage.InboxModule.ClientRequestsService');
@@ -135,11 +138,21 @@ export class InboxModule {
         new InboxRulesService(database, new InboxRulesRepository(), notifications),
     };
 
+    // x318 — a member's own inbox source mutes (a self-scoped read-side filter). Wired here rather
+    // than in a module of its own: it depends on nothing but the tenant database and is file-disjoint
+    // from every other inbox slice. `work.read`, `context.userId`-scoped throughout.
+    const sourceMutes: Provider = {
+      provide: INBOX_SOURCE_MUTES_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new InboxSourceMutesService(database, new InboxSourceMutesRepository()),
+    };
+
     return {
       module: InboxModule,
-      providers: [repository, clientRequests, service, portal, rules],
+      providers: [repository, clientRequests, service, portal, rules, sourceMutes],
       exports: [service, portal],
-      controllers: [InboxController, PortalInboxController, InboxRulesController],
+      controllers: [InboxController, PortalInboxController, InboxRulesController, InboxSourceMutesController],
     };
   }
 }

@@ -561,6 +561,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // member, and an unscoped `SELECT ... FROM inbox_snoozes` would be every studio's snoozes; the
   // entry scopes the snooze reads and writes, and tenant-isolation.db.test.ts enforces it.
   inbox_snoozes: 'organization_id',
+  // INBOX source mutes (x318, migration 0186). Org-owned: a mute belongs to the acting tenant and
+  // a member, and an unscoped `SELECT ... FROM inbox_source_mutes` would be every studio's mutes;
+  // the entry scopes the mute reads and writes, and tenant-isolation.db.test.ts enforces it.
+  inbox_source_mutes: 'organization_id',
   // WORK intake forms (x146, migration 0052). Org-owned: a form belongs to the acting tenant, and
   // an unscoped `SELECT ... FROM work_forms` would be every studio's intake definitions on the
   // server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant

@@ -3088,6 +3088,47 @@ export const inboxSnoozes = mysqlTable(
 );
 
 /**
+ * INBOX source mutes (x318, migration 0186) — a member's own muted inbox sources.
+ *
+ * One row is the fact "this member muted this source in this studio". A source is
+ * `(object_type, object_id)` — the inbox's own object-type prefix (`work_item`, `client_request`,
+ * `organization_usage`) and the object's id — not a foreign key, since the object lives in a
+ * different table per prefix (`organization_usage` names the organization itself); the tenant
+ * boundary is the scoped predicate on every read/write, the `home_pinned_items` target_id posture.
+ * Keyed by `member_user_id` (the global user id, the choice `notifications.recipient_user_id`
+ * makes, because the inbox read this filters is recipient-user-scoped). Mutes are private to a
+ * member — the list, the insert and the delete are all scoped by `member_user_id`. Created and
+ * removed, never edited: only INSERT and DELETE, so there is no UPDATE grant and no immutability
+ * trigger (the `home_pinned_items`/`saved_context` posture). `0186_inbox_source_mutes.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const inboxSourceMutes = mysqlTable(
+  'inbox_source_mutes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    memberUserId: char('member_user_id', { length: 36 }).notNull(),
+    objectType: varchar('object_type', { length: 64 }).notNull(),
+    objectId: varchar('object_id', { length: 64 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_inbox_source_mutes_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_inbox_source_mutes_pin').on(
+      table.organizationId,
+      table.memberUserId,
+      table.objectType,
+      table.objectId,
+    ),
+    index('ix_inbox_source_mutes_org_member').on(
+      table.organizationId,
+      table.memberUserId,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * The fixed ON-10 guided-tour steps a member's progress can record. Exported so the controller
  * validates a completion request against the same source of truth the column's ENUM is built from
  * (`onboarding-tour.steps.ts` re-derives the ordered, labelled list from this set).
@@ -7481,6 +7522,7 @@ export const TABLES = {
   portal_access_log: portalAccessLog,
   home_pinned_items: homePinnedItems,
   inbox_snoozes: inboxSnoozes,
+  inbox_source_mutes: inboxSourceMutes,
   work_forms: workForms,
   search_index: searchIndex,
   notification_kind_prefs: notificationKindPrefs,
@@ -7677,6 +7719,7 @@ export type ConversationMuteRow = typeof conversationMutes.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type InboxSnoozeRow = typeof inboxSnoozes.$inferSelect;
+export type InboxSourceMuteRow = typeof inboxSourceMutes.$inferSelect;
 export type OrgSettingRow = typeof orgSettings.$inferSelect;
 export type OrgPolicyRow = typeof orgPolicies.$inferSelect;
 export type SecuritySettingsRow = typeof securitySettings.$inferSelect;

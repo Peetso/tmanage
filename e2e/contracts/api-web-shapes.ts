@@ -443,6 +443,7 @@ import type { MessageDraftView as ApiMessageDraftView } from '../../apps/api/src
 import type { ConversationReadStateView as ApiConversationReadStateView } from '../../apps/api/src/modules/conversations/read-state.service.js';
 import type { ConversationUnreadView as ApiConversationUnreadView } from '../../apps/api/src/modules/conversations/read-state.service.js';
 import type { InboxSnoozeView as ApiInboxSnoozeView } from '../../apps/api/src/modules/inbox/inbox-snooze.service.js';
+import type { InboxSourceMutesView as ApiInboxSourceMutesView } from '../../apps/api/src/modules/inbox/source-mutes.service.js';
 import type { SkillSearchResult as WebSkillSearchResult } from '../../apps/web/src/lib/api/people-skill-search';
 import type { BillingProfileView as WebBillingProfileView } from '../../apps/web/src/lib/api/billing';
 import type { TaxDetailsView as WebTaxDetailsView } from '../../apps/web/src/lib/api/billing-tax-details';
@@ -660,6 +661,7 @@ import type { MessageDraftView as WebMessageDraftView } from '../../apps/web/src
 import type { ConversationReadStateView as WebConversationReadStateView } from '../../apps/web/src/lib/api/conversation-read-state';
 import type { ConversationUnreadView as WebConversationUnreadView } from '../../apps/web/src/lib/api/conversation-read-state';
 import type { InboxSnoozeView as WebInboxSnoozeView } from '../../apps/web/src/lib/api/inbox-snooze';
+import type { InboxSourceMutesView as WebInboxSourceMutesView } from '../../apps/web/src/lib/api/inbox-source-mutes';
 import type {
   PublicIncidentView as WebPublicIncidentView,
   PublicStatusView as WebPublicStatusView,
@@ -2427,6 +2429,10 @@ type _conversationUnread = Assert<Exact<ApiConversationUnreadView, WebConversati
 
 /** x259 - inbox snooze list. Paired Exact (the inlined snooze item matches web InboxSnooze). */
 type _inboxSnooze = Assert<Exact<ApiInboxSnoozeView, WebInboxSnoozeView>>;
+// INBOX source mutes (x318). `InboxSourceMutesView` (PUT/DELETE/GET .../inbox/source-mutes) — the
+// caller's own muted sources. The screen reads exactly this response, so the pair is Exact; the
+// inlined mute item matches web InboxSourceMute (exempt, covered here).
+type _inboxSourceMutes = Assert<Exact<ApiInboxSourceMutesView, WebInboxSourceMutesView>>;
 // INBOX important flags (IN-01, x260). `InboxFlagView` (PUT/DELETE a bundle's flag) and
 // `InboxFlaggedView` (GET the caller's flagged ids). The screen reads exactly these, so both Exact.
 type _inboxFlag = Assert<Exact<ApiInboxFlagView, WebInboxFlagView>>;
