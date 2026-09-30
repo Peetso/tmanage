@@ -5973,6 +5973,60 @@ export const insightTargets = mysqlTable(
 );
 
 /**
+ * The insight-metric-alert vocabulary, mirroring the `0187` `ENUM`. An alert watches one org-wide
+ * workload roll-up figure: `open_items` / `scheduled_items` / `active_projects` / `active_assignees` —
+ * the four totals `InsightsService.orgWorkload` computes and a `workload` snapshot (0090) freezes. An
+ * unknown key is a 400 in the controller, never a stored row.
+ */
+export const INSIGHT_ALERT_METRICS = [
+  'open_items',
+  'scheduled_items',
+  'active_projects',
+  'active_assignees',
+] as const;
+
+/** How a live figure is compared to the threshold — `gte` breaches at or above, `lte` at or below. */
+export const INSIGHT_ALERT_COMPARATORS = ['gte', 'lte'] as const;
+
+/**
+ * Insight metric alerts (x319). A member's own threshold alert on one insights metric, so a member can
+ * say "watch open items and mark it breached when it crosses N" (audit: insights are reported,
+ * snapshotted, compared and given org-wide targets, but a member has no personal threshold alert).
+ * Tenant-owned and self-scoped: keyed by the composite `(organization_id, id)` every tenant-scoped
+ * table carries, plus a `(organization_id, member_user_id, metric_key)` upsert key — one alert per
+ * member per metric, so setting a metric's alert a second time replaces its comparator/threshold in
+ * place (an idempotent PUT).
+ *
+ * `metric_key` and `comparator` are closed vocabularies (the ENUMs above); `threshold` is a bounded
+ * non-negative count the read compares the latest workload snapshot against to mark breached. The row
+ * is set and re-set, never edited by column beyond comparator/threshold: the 0187 trigger pins
+ * `organization_id`, `member_user_id` and `metric_key` immutable and `users.sql` grants INSERT +
+ * UPDATE (the upsert) + DELETE (a member removes their own alert). `0187_insight_metric_alerts.sql` is
+ * the source of truth; this is its typed mirror.
+ */
+export const insightMetricAlerts = mysqlTable(
+  'insight_metric_alerts',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    memberUserId: char('member_user_id', { length: 36 }).notNull(),
+    metricKey: mysqlEnum('metric_key', INSIGHT_ALERT_METRICS).notNull(),
+    comparator: mysqlEnum('comparator', INSIGHT_ALERT_COMPARATORS).notNull(),
+    threshold: int('threshold', { unsigned: true }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_insight_metric_alerts_org_id').on(table.organizationId, table.id),
+    // The upsert key: one alert per member per metric.
+    uniqueIndex('uq_insight_metric_alerts_org_member_metric').on(
+      table.organizationId,
+      table.memberUserId,
+      table.metricKey,
+    ),
+  ],
+);
+
+/**
  * SEC / Client portal (module 13, x238). A project's client-portal settings / branding — one row per
  * project, keyed `(organization_id, project_id)`. Every column is a presentation field (the welcome
  * message, the accent colour, and whether the team and timeline are shown) except `updated_by`, the
@@ -7572,6 +7626,7 @@ export const TABLES = {
   admin_export_requests: adminExportRequests,
   invoice_line_items: invoiceLineItems,
   insight_targets: insightTargets,
+  insight_metric_alerts: insightMetricAlerts,
   portal_settings: portalSettings,
   user_display_preferences: userDisplayPreferences,
 } as const;
@@ -7763,6 +7818,9 @@ export type AdminExportScope = (typeof ADMIN_EXPORT_SCOPES)[number];
 export type AdminExportStatus = (typeof ADMIN_EXPORT_STATUSES)[number];
 export type InsightTargetRow = typeof insightTargets.$inferSelect;
 export type InsightTargetMetric = (typeof INSIGHT_TARGET_METRICS)[number];
+export type InsightMetricAlertRow = typeof insightMetricAlerts.$inferSelect;
+export type InsightAlertMetric = (typeof INSIGHT_ALERT_METRICS)[number];
+export type InsightAlertComparator = (typeof INSIGHT_ALERT_COMPARATORS)[number];
 export type InsightTargetPeriod = (typeof INSIGHT_TARGET_PERIODS)[number];
 export type PortalSettingsRow = typeof portalSettings.$inferSelect;
 export type NewPortalSettingsRow = typeof portalSettings.$inferInsert;

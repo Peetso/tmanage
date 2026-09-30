@@ -209,6 +209,8 @@ import type { PeriodComparisonView as ApiPeriodComparisonView } from '../../apps
 import type { MetricTargetView as ApiMetricTargetView } from '../../apps/api/src/modules/insights/targets.service.js';
 import type { MetricTargetStatusView as ApiMetricTargetStatusView } from '../../apps/api/src/modules/insights/targets.service.js';
 import type { InsightAnnotationView as ApiInsightAnnotationView } from '../../apps/api/src/modules/insights/insight-annotations.service.js';
+import type { MetricAlertView as ApiMetricAlertView } from '../../apps/api/src/modules/insights/metric-alerts.service.js';
+import type { MetricAlertStatusView as ApiMetricAlertStatusView } from '../../apps/api/src/modules/insights/metric-alerts.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { InsightDashboardLayoutView as ApiInsightDashboardLayoutView } from '../../apps/api/src/modules/insights/dashboard-layout.controller.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
@@ -597,6 +599,8 @@ import type { PeriodComparisonView as WebPeriodComparisonView } from '../../apps
 import type { MetricTargetView as WebMetricTargetView } from '../../apps/web/src/lib/api/insights-targets';
 import type { MetricTargetStatusView as WebMetricTargetStatusView } from '../../apps/web/src/lib/api/insights-targets';
 import type { InsightAnnotationView as WebInsightAnnotationView } from '../../apps/web/src/lib/api/insight-annotations';
+import type { MetricAlertView as WebMetricAlertView } from '../../apps/web/src/lib/api/insights-metric-alerts';
+import type { MetricAlertStatusView as WebMetricAlertStatusView } from '../../apps/web/src/lib/api/insights-metric-alerts';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { InsightDashboardLayoutView as WebInsightDashboardLayoutView } from '../../apps/web/src/lib/api/insight-dashboard-layout';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
@@ -1388,6 +1392,16 @@ type _personProfile = Assert<Exact<ApiPersonProfileView, WebPersonProfileView>>;
  */
 type _insightTarget = Assert<Exact<ApiMetricTargetView, WebMetricTargetView>>;
 type _insightTargetStatus = Assert<Exact<ApiMetricTargetStatusView, WebMetricTargetStatusView>>;
+
+/**
+ * x319 — `PUT/GET/DELETE …/insights/metric-alerts`. A member's own threshold alert per metric: the
+ * `metricKey` (a closed vocabulary), the `comparator` (`gte` | `lte`) and the bounded `threshold`. The
+ * `GET` read adds the live `currentValue` (null when no workload snapshot exists yet — no fabricated
+ * number) and `breached`. Both are paired with the real web consumer the `InsightMetricAlertsScreen`
+ * reads, live `Exact` pairs.
+ */
+type _insightMetricAlert = Assert<Exact<ApiMetricAlertView, WebMetricAlertView>>;
+type _insightMetricAlertStatus = Assert<Exact<ApiMetricAlertStatusView, WebMetricAlertStatusView>>;
 
 /**
  * x229 — `GET …/insights/compare?metric&periodA&periodB`. A metric compared across two windows:

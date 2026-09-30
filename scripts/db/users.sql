@@ -987,6 +987,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`member_profiles`   TO 'tmanage_app'@'
 -- `uq_insight_targets_org_metric`. No DELETE: a target is set and re-set this slice, not removed.
 -- SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`insight_targets` TO 'tmanage_app'@'%';
+-- Insight metric alerts (x319, module 15, 0187). **INSERT, UPDATE, DELETE** — a member's own threshold
+-- alert per metric is created and replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE` upsert
+-- against `uq_insight_metric_alerts_org_member_metric` (the idempotent PUT), and DELETE lets a member
+-- remove their own alert (204). SELECT is the database-wide grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`insight_metric_alerts` TO 'tmanage_app'@'%';
 -- PREF-DIGEST notification digest cadence (x245, module 20, 0117). **INSERT, UPDATE** — a member's
 -- digest cadence is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE`
 -- upsert against `uq_pref_digest_org_membership`. No DELETE: a member changes cadence by saving a new
