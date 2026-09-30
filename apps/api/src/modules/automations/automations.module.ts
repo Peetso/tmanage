@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  AUTOMATION_TEMPLATE_TAGS_REPOSITORY,
+  AUTOMATION_TEMPLATE_TAGS_SERVICE,
   WORKFLOW_CONDITIONS_REPOSITORY,
   WORKFLOW_RUNS_REPOSITORY,
   WORKFLOW_RUN_HISTORY_REPOSITORY,
@@ -18,6 +20,9 @@ import { WorkflowTemplateEditController } from './template-edit.controller.js';
 import { WorkflowTemplateCloneController } from './template-clone.controller.js';
 import { WorkflowConditionsRepository } from './conditions.repository.js';
 import { WorkflowConditionsController } from './conditions.controller.js';
+import { AutomationTemplateTagsRepository } from './template-tags.repository.js';
+import { AutomationTemplateTagsService } from './template-tags.service.js';
+import { AutomationTemplateTagsController } from './template-tags.controller.js';
 
 /**
  * Automations & integrations (module 17). Workflow templates — define, list (x162), edit (x189),
@@ -53,6 +58,14 @@ export class AutomationsModule {
       provide: WORKFLOW_CONDITIONS_REPOSITORY,
       useFactory: () => new WorkflowConditionsRepository(),
     };
+    const templateTagsRepository: Provider = {
+      provide: AUTOMATION_TEMPLATE_TAGS_REPOSITORY,
+      useFactory: () => new AutomationTemplateTagsRepository(),
+    };
+    const templateTagsService: Provider = {
+      provide: AUTOMATION_TEMPLATE_TAGS_SERVICE,
+      useClass: AutomationTemplateTagsService,
+    };
 
     return {
       module: AutomationsModule,
@@ -62,6 +75,8 @@ export class AutomationsModule {
         runService,
         runHistoryRepository,
         conditionsRepository,
+        templateTagsRepository,
+        templateTagsService,
       ],
       controllers: [
         WorkflowTemplatesController,
@@ -70,6 +85,7 @@ export class AutomationsModule {
         WorkflowRunController,
         WorkflowRunHistoryController,
         WorkflowConditionsController,
+        AutomationTemplateTagsController,
       ],
     };
   }

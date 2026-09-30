@@ -5750,6 +5750,7 @@ export type WorkflowRunRow = typeof workflowRuns.$inferSelect;
 export type IntegrationConnectionRow = typeof integrationConnections.$inferSelect;
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
+export type AutomationTemplateTagRow = typeof automationTemplateTags.$inferSelect;
 export type PersonCapacityRow = typeof personCapacity.$inferSelect;
 export type MemberReportingLineRow = typeof memberReportingLines.$inferSelect;
 export type MemberAvailabilityRow = typeof memberAvailability.$inferSelect;
