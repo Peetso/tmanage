@@ -1160,6 +1160,12 @@ GRANT INSERT, DELETE ON `tmanage`.`decision_work_links` TO 'tmanage_app'@'%';
 -- re-lock; it is immutable (the 0056 trigger refuses every UPDATE) and never lifted this slice, so
 -- UPDATE and DELETE are withheld the way the append-only edges and ledgers above are.
 GRANT INSERT ON `tmanage`.`decision_locks` TO 'tmanage_app'@'%';
+-- `decision_comments` (x317, 0185) gets INSERT and DELETE. A comment is authored (INSERT), read
+-- (the database-wide SELECT, line 60), and removed by its author (DELETE) — this slice ships
+-- add/list/delete-own — so INSERT and DELETE and **no UPDATE**: a comment is never edited in place,
+-- the 0185 trigger refuses UPDATE for every credential besides, and the delete destroys no history
+-- the audit trail does not keep.
+GRANT INSERT, DELETE ON `tmanage`.`decision_comments` TO 'tmanage_app'@'%';
 -- `project_objectives` (PROJ / module 8, x124) gets INSERT and UPDATE. An objective is created
 -- (INSERT), read (the database-wide SELECT, line 60), and moved through its lifecycle (UPDATE):
 -- `open → met` or `open → missed`. UPDATE writes exactly `status`; the 0040 column-pinning trigger

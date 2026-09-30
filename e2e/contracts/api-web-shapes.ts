@@ -79,6 +79,7 @@ import type { DocReviewView as ApiDocReviewView } from '../../apps/api/src/modul
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionLockView as ApiDecisionLockView } from '../../apps/api/src/modules/decisions/decisions.service.js';
+import type { DecisionCommentView as ApiDecisionCommentView } from '../../apps/api/src/modules/decisions/comments.service.js';
 import type { InvoiceView as ApiInvoiceView } from '../../apps/api/src/modules/billing/invoices.controller.js';
 import type { InvoiceDetailView as ApiInvoiceDetailView } from '../../apps/api/src/modules/billing/invoices.controller.js';
 import type { InvoiceLineItemView as ApiInvoiceLineItemView } from '../../apps/api/src/modules/billing/invoice-line-items.controller.js';
@@ -450,6 +451,7 @@ import type { BillingSeat as WebBillingSeat } from '../../apps/web/src/lib/api/b
 import type { BillingCreditView as WebBillingCreditView } from '../../apps/web/src/lib/api/billing-credits';
 import type { DecisionDetail as WebDecisionDetail } from '../../apps/web/src/lib/api/decisions';
 import type { DecisionLock as WebDecisionLock } from '../../apps/web/src/lib/api/decisions';
+import type { DecisionComment as WebDecisionComment } from '../../apps/web/src/lib/api/decision-comments';
 import type { InvoiceSummary as WebInvoiceSummary } from '../../apps/web/src/lib/api/invoices';
 import type { InvoiceDetail as WebInvoiceDetail } from '../../apps/web/src/lib/api/invoices';
 import type { InvoiceLineItem as WebInvoiceLineItem } from '../../apps/web/src/lib/api/invoice-line-items';
@@ -1115,6 +1117,14 @@ type _decisionDetail = Assert<Exact<ApiDecisionDetailView, WebDecisionDetail>>;
  * Exact. `organizationId` is absent on both sides — the wire projection never echoes the tenant id.
  */
 type _decisionLock = Assert<Exact<ApiDecisionLockView, WebDecisionLock>>;
+
+/**
+ * x317. `DecisionCommentView` (`GET`/`POST …/decisions/:id/comments` response) — one internal
+ * comment on a decision. Paired with a live web consumer: `DecisionCommentsView` reads exactly this
+ * response, so the pair is Exact. `organizationId` is absent on both sides — the wire projection
+ * never echoes the tenant id.
+ */
+type _decisionComment = Assert<Exact<ApiDecisionCommentView, WebDecisionComment>>;
 
 /**
  * FEAT: Billing invoice history (x179). `InvoiceView` (`GET …/billing/invoices`, the list row) and

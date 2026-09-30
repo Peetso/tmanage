@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  DECISION_COMMENTS_SERVICE,
   DECISIONS_REPOSITORY,
   DECISIONS_SERVICE,
   TENANT_DATABASE,
@@ -9,9 +10,12 @@ import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { DecisionsRepository } from './decisions.repository.js';
 import { DecisionSupersessionsRepository } from './decision-supersessions.repository.js';
 import { DecisionLocksRepository } from './decision-lock.repository.js';
+import { DecisionCommentsRepository } from './comments.repository.js';
 import { DecisionsService } from './decisions.service.js';
+import { DecisionCommentsService } from './comments.service.js';
 import { DecisionsController } from './decisions.controller.js';
 import { DecisionLockController } from './decision-lock.controller.js';
+import { DecisionCommentsController } from './comments.controller.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MeetingsRepository } from '../calendar/meetings.repository.js';
 
@@ -46,11 +50,18 @@ export class DecisionsModule {
         ),
     };
 
+    const comments: Provider = {
+      provide: DECISION_COMMENTS_SERVICE,
+      inject: [TENANT_DATABASE, DECISIONS_REPOSITORY],
+      useFactory: (database: TenantDatabase, decisions: DecisionsRepository) =>
+        new DecisionCommentsService(database, decisions, new DecisionCommentsRepository()),
+    };
+
     return {
       module: DecisionsModule,
-      providers: [repository, service],
+      providers: [repository, service, comments],
       exports: [service],
-      controllers: [DecisionsController, DecisionLockController],
+      controllers: [DecisionsController, DecisionLockController, DecisionCommentsController],
     };
   }
 }

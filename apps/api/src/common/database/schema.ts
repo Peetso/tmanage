@@ -1440,6 +1440,35 @@ export const decisionLocks = mysqlTable(
 );
 
 /**
+ * x317. An internal comment on a decision (register discussion) — a body of prose, the membership
+ * that wrote it, and a time, against an existing decision. Listed oldest-first; a member may delete
+ * their own. Decision-owned and tenant-scoped like `decision_supersessions` (0038): the relation it
+ * is read and written by is the decision's project, resolved in the service, so there is no
+ * `project_id` column to drift. Never edited in place (the 0185 trigger refuses UPDATE), deletable
+ * by its author. `0185_decision_comments.sql` is the source of truth; this is its typed mirror.
+ */
+export const decisionComments = mysqlTable(
+  'decision_comments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    decisionId: char('decision_id', { length: 36 }).notNull(),
+    authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_decision_comments_org_id').on(table.organizationId, table.id),
+    index('ix_decision_comments_org_decision').on(
+      table.organizationId,
+      table.decisionId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * DOC-04/ADM-06 (x119). An org-scoped document template — a name, a purpose, and a reusable body a
  * person applies to a project to seed a new `documents` row.
  *
@@ -7411,6 +7440,7 @@ export const TABLES = {
   decision_supersessions: decisionSupersessions,
   decision_work_links: decisionWorkLinks,
   decision_locks: decisionLocks,
+  decision_comments: decisionComments,
   document_templates: documentTemplates,
   project_objectives: projectObjectives,
   project_internal_risks: projectInternalRisks,
@@ -7606,6 +7636,8 @@ export type InvoiceLineItemRow = typeof invoiceLineItems.$inferSelect;
 export type DecisionSupersessionRow = typeof decisionSupersessions.$inferSelect;
 export type DecisionWorkLinkRow = typeof decisionWorkLinks.$inferSelect;
 export type DecisionLockRow = typeof decisionLocks.$inferSelect;
+export type DecisionCommentRow = typeof decisionComments.$inferSelect;
+export type NewDecisionCommentRow = typeof decisionComments.$inferInsert;
 export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type AutomationScheduleRow = typeof automationSchedules.$inferSelect;
 export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
