@@ -1184,6 +1184,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_phases` TO 'tmanage_app'@'%';
 -- snapshot itself is never mutated. **No UPDATE** — a baseline is an immutable point-in-time record
 -- (there is no `updated_at` column and no update trigger); a re-baseline is a new INSERT, not an edit.
 GRANT INSERT, DELETE ON `tmanage`.`project_baselines` TO 'tmanage_app'@'%';
+-- `project_custom_fields` (PROJ / module 8, x310) gets INSERT, UPDATE and DELETE. It holds both the
+-- org's field definitions and each project's values in one table (row_kind discriminator): a definition
+-- is created (INSERT) and removed (DELETE); a value is set idempotently (INSERT ... ON DUPLICATE KEY
+-- UPDATE, hence UPDATE) and cleared (DELETE). Read via the database-wide SELECT (line 60). The 0178
+-- trigger (`trg_project_custom_fields_immutable`) pins organization_id, row_kind, project_id and
+-- field_key at the engine, so only a value's value_text can change for the runtime credential.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_custom_fields` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes

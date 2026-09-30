@@ -197,6 +197,9 @@ export const PROJECT_PHASES_SERVICE = Symbol.for('tmanage.ProjectPhasesService')
 /** PROJ / module 8 (x295). A project's milestone-plan baselines — snapshot/list/variance (read). */
 export const PROJECT_BASELINE_REPOSITORY = Symbol.for('tmanage.ProjectBaselineRepository');
 export const PROJECT_BASELINE_SERVICE = Symbol.for('tmanage.ProjectBaselineService');
+/** PROJ / module 8 (x310). Custom fields for projects — define fields (org) and set values per project. */
+export const PROJECT_CUSTOM_FIELDS_REPOSITORY = Symbol.for('tmanage.ProjectCustomFieldsRepository');
+export const PROJECT_CUSTOM_FIELDS_SERVICE = Symbol.for('tmanage.ProjectCustomFieldsService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');

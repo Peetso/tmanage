@@ -489,6 +489,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // a client. The layer-3 guard fails OPEN on an unregistered table, so registering it here is what
   // scopes the reads and writes; tenant-isolation.db.test.ts enforces the entry.
   project_status_updates: 'organization_id',
+  // PROJ / module 8 project custom fields (x310, 0178). Tenant-owned: a definition belongs to one
+  // organization and a value to one of its projects, and an unscoped `SELECT ... FROM
+  // project_custom_fields` would be every studio's custom project metadata on the server. The layer-3
+  // guard fails OPEN on an unregistered table, so registering it here is what scopes the reads and
+  // writes; tenant-isolation.db.test.ts enforces the entry.
+  project_custom_fields: 'organization_id',
   // SEC / Client portal access log (x237, 0109). Tenant-owned: an access event names a project and a
   // client membership, and an unscoped `SELECT ... FROM portal_access_log` would be every studio's
   // record of what its clients looked at. Internal-only — never projected to a client. The layer-3
