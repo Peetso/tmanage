@@ -1089,6 +1089,14 @@ GRANT INSERT ON `tmanage`.`project_status_updates` TO 'tmanage_app'@'%';
 -- another project or tenant by the runtime credential. **No DELETE**: a manager clears a budget by
 -- saving new figures, not by deleting the row.
 GRANT INSERT, UPDATE ON `tmanage`.`project_budgets` TO 'tmanage_app'@'%';
+-- `project_phases` (PROJ / module 8, x294) gets INSERT, UPDATE and DELETE. A phase is defined
+-- (INSERT), read (the database-wide SELECT, line 60), a milestone is assigned into a phase (INSERT,
+-- or UPDATE of `phase_id` on re-assign — idempotent), and a phase (with its assignment rows) is
+-- removed (DELETE). UPDATE cannot touch the identity columns — the 0161 trigger
+-- (`trg_project_phases_pin_identity`) refuses `id`, `organization_id`, `project_id`, `milestone_id`
+-- and `created_at` at the engine, so a row cannot be re-pointed at another project, tenant or
+-- milestone by the runtime credential.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_phases` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes

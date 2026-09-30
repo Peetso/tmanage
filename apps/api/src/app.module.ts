@@ -75,6 +75,7 @@ import { ProjectRiskRegisterModule } from './modules/projects/risk-register.modu
 import { ProjectTemplatesModule } from './modules/projects/templates.module.js';
 import { ProjectStatusUpdatesModule } from './modules/projects/status-updates.module.js';
 import { ProjectBudgetModule } from './modules/projects/budget.module.js';
+import { ProjectPhasesModule } from './modules/projects/phases.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ProjectHealthModule } from './modules/projects/health.module.js';
@@ -561,6 +562,13 @@ export class AppModule {
         // caller who names one that is not theirs gets a 404 rather than a foreign-key 500. Both
         // routes are gated on `project.manage`; the amount is a planning number, never a payment.
         ProjectBudgetModule.register(),
+        // PROJ / module 8 (x294). A project's timeline phases (define/list/delete a phase, assign a
+        // milestone to a phase). After `ProjectsModule` for the same reason as the risk register: a
+        // phase names a project in its path, and the composite foreign key means a caller who names
+        // one that is not theirs gets a 404 rather than a foreign-key 500. The milestone-to-phase
+        // assignment is recorded on `project_phases`, never on `project_milestones` — this slice
+        // references milestone ids without editing the milestones table.
+        ProjectPhasesModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.

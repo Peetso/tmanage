@@ -176,6 +176,9 @@ export const PROJECT_STATUS_UPDATES_SERVICE = Symbol.for('tmanage.ProjectStatusU
 /** PROJ / project detail (x293). A project's budget — set/read against tracked effort. */
 export const PROJECT_BUDGET_REPOSITORY = Symbol.for('tmanage.ProjectBudgetRepository');
 export const PROJECT_BUDGET_SERVICE = Symbol.for('tmanage.ProjectBudgetService');
+/** PROJ / module 8 (x294). A project's timeline phases — define/list/delete, assign a milestone. */
+export const PROJECT_PHASES_REPOSITORY = Symbol.for('tmanage.ProjectPhasesRepository');
+export const PROJECT_PHASES_SERVICE = Symbol.for('tmanage.ProjectPhasesService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');
