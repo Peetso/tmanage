@@ -39,6 +39,7 @@ import { A11yPreferencesModule } from './modules/preferences/a11y-preferences.mo
 import { DisplayPreferencesModule } from './modules/preferences/display-prefs.module.js';
 import { QuietHoursModule } from './modules/preferences/quiet-hours.module.js';
 import { ShortcutPrefsModule } from './modules/preferences/shortcut-prefs.module.js';
+import { StartupPrefsModule } from './modules/preferences/startup-prefs.module.js';
 import { PreferencesModule } from './modules/preferences/preferences.module.js';
 import { DigestPreferenceModule } from './modules/preferences/digest.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
@@ -379,6 +380,10 @@ export class AppModule {
         // preferences slices it resolves no tenant object and depends on nothing but the database;
         // file-disjoint from x182/x183/x215.
         ShortcutPrefsModule.register(),
+        // PREF-STARTUP (x287, module 20). The caller's own default startup landing view (GET/PUT
+        // /me/startup). Like the sibling preferences slices it resolves no tenant object and depends
+        // on nothing but the database; file-disjoint from x183/x215.
+        StartupPrefsModule.register(),
         PreferencesModule.register(),
         // PREF-DIGEST (x245, module 20). The caller's own notification digest cadence (GET/PUT
         // /preferences/digest). Like the sibling preferences slices it resolves no tenant object and

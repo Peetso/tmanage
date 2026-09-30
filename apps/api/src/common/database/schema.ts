@@ -4490,6 +4490,45 @@ export const userShortcutPrefs = mysqlTable(
   ],
 );
 
+/**
+ * PREF-STARTUP (x287, module 20 Preferences & accessibility). The closed vocabulary of screens the
+ * app may open to after sign-in. The application validates a saved `landingKey` against this set
+ * before storing (the same division `a11y_preferences.a11y_json` takes); a value off the list is a
+ * 400 and nothing is written. `home` is the shipped default an unsaved member routes to.
+ */
+export const LANDING_KEYS = ['home', 'inbox', 'my-work', 'calendar'] as const;
+export type LandingKey = (typeof LANDING_KEYS)[number];
+
+/**
+ * PREF-STARTUP — a member's own default startup landing view (migration 0156, x287, module 20).
+ *
+ * One row per `(organization_id, membership_id)`: the screen the shell routes to on sign-in. Keyed
+ * by membership (like `a11y_preferences` and `pref_quiet_hours`) rather than the global user, because
+ * it is scoped to who the caller is *in this studio* and never leaves the tenant. `landing_key` holds
+ * one value from {@link LANDING_KEYS}, validated by the application. The write is a single upsert
+ * against `uq_user_startup_prefs_org_membership`, so a second save updates in place; `updated_at`
+ * follows the column's `ON UPDATE`. Absence is the shipped default (`home`), not an error — the read
+ * returns `home` when no row exists.
+ */
+export const userStartupPrefs = mysqlTable(
+  'user_startup_prefs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    landingKey: varchar('landing_key', { length: 32 }).$type<LandingKey>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_user_startup_prefs_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member per studio.
+    uniqueIndex('uq_user_startup_prefs_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+    ),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -6231,6 +6270,7 @@ export const TABLES = {
   pref_quiet_hours: quietHours,
   pref_digest: digestPreferences,
   user_shortcut_prefs: userShortcutPrefs,
+  user_startup_prefs: userStartupPrefs,
   usage_counters: usageCounters,
   usage_ledger_entries: usageLedgerEntries,
   file_assets: fileAssets,
@@ -6444,6 +6484,7 @@ export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
 export type A11yPreferenceRow = typeof a11yPreferences.$inferSelect;
 export type QuietHoursRow = typeof quietHours.$inferSelect;
 export type UserShortcutPrefRow = typeof userShortcutPrefs.$inferSelect;
+export type UserStartupPrefRow = typeof userStartupPrefs.$inferSelect;
 export type UserPreferenceRow = typeof userPreferences.$inferSelect;
 export type DigestPreferenceRow = typeof digestPreferences.$inferSelect;
 export type ConversationMuteRow = typeof conversationMutes.$inferSelect;

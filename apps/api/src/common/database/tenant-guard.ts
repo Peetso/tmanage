@@ -676,6 +676,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // carries the `(organization_id, id)` key every tenant table has, so the guard scopes its reads
   // and its writes; tenant-isolation.db.test.ts enforces the entry.
   pref_quiet_hours: 'organization_id',
+  // PREF-STARTUP (x287, migration 0156). Tenant-owned: a row is one membership's default startup
+  // landing view in one studio, and an unscoped `SELECT ... FROM user_startup_prefs` would be every
+  // member's preference across every studio on the server. `organization_id` is NOT NULL and carries
+  // the `(organization_id, id)` key every tenant table has, so the guard scopes its reads and its
+  // writes; tenant-isolation.db.test.ts enforces the entry.
+  user_startup_prefs: 'organization_id',
   // Billing seats (x178, migration 0075). Tenant-owned: a seat belongs to the acting tenant and
   // names one of its memberships, and an unscoped `SELECT ... FROM billing_seats` would be every
   // studio's seat roster on the server. `organization_id` is NOT NULL and carries the
