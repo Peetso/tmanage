@@ -6043,6 +6043,92 @@ export const auditRetentionPolicy = mysqlTable(
 
 export type AuditRetentionPolicyRow = typeof auditRetentionPolicy.$inferSelect;
 
+/**
+ * PREF-DISPLAY (x285, module 20 Preferences & accessibility). The closed vocabularies a member's
+ * display preferences draw from — each a fixed allowlist so a value the shell cannot render is a
+ * validation error (`display-prefs.controller.ts`), never a stored state.
+ *
+ * `theme` is the app's colour mode and `density` the row spacing; `locale`, `timezone` and
+ * `dateFormat` are small allowlists (a BCP-47 locale set, an IANA timezone set, and named date
+ * layouts) rather than free text, so a row can only ever hold a value the UI knows how to apply.
+ */
+export const DISPLAY_THEMES = ['light', 'dark', 'system'] as const;
+export type DisplayTheme = (typeof DISPLAY_THEMES)[number];
+export const DISPLAY_DENSITIES = ['comfortable', 'compact'] as const;
+export type DisplayDensity = (typeof DISPLAY_DENSITIES)[number];
+export const DISPLAY_LOCALES = [
+  'en-US',
+  'en-GB',
+  'fr-FR',
+  'de-DE',
+  'es-ES',
+  'pt-BR',
+  'ja-JP',
+  'zh-CN',
+] as const;
+export type DisplayLocale = (typeof DISPLAY_LOCALES)[number];
+export const DISPLAY_TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Australia/Sydney',
+] as const;
+export type DisplayTimezone = (typeof DISPLAY_TIMEZONES)[number];
+export const DISPLAY_DATE_FORMATS = ['iso', 'us', 'eu', 'long'] as const;
+export type DisplayDateFormat = (typeof DISPLAY_DATE_FORMATS)[number];
+
+/**
+ * The display settings one member keeps in one studio, stored whole in
+ * `user_display_preferences.display_json`. The typed shape of that JSON column; the application
+ * validates a request against the closed vocabularies above before storing (the same division
+ * `a11y_preferences.a11y_json` takes).
+ */
+export interface DisplayPreferences {
+  readonly theme: DisplayTheme;
+  readonly density: DisplayDensity;
+  readonly locale: DisplayLocale;
+  readonly timezone: DisplayTimezone;
+  readonly dateFormat: DisplayDateFormat;
+}
+
+/**
+ * PREF-DISPLAY (x285, migration 0154, module 20 Preferences & accessibility). A member's own
+ * unified display preferences — theme, density, locale, timezone and date format — one row per
+ * `(organization_id, membership_id)`. Keyed by membership (like `a11y_preferences`) rather than the
+ * global user, because it is scoped to who the caller is *in this studio* and never leaves the
+ * tenant. `display_json` holds the whole {@link DisplayPreferences} object, read and written as one,
+ * never queried across rows. The write is a single upsert against
+ * `uq_user_display_preferences_org_membership`, so a second save updates in place; `updated_at`
+ * follows the column's `ON UPDATE`. Distinct from `a11y_preferences` (0079) and the notification
+ * digest (0117). Absence of a row is the shipped defaults, not an error.
+ */
+export const userDisplayPreferences = mysqlTable(
+  'user_display_preferences',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    displayJson: json('display_json').$type<DisplayPreferences>().notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_user_display_preferences_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member per studio.
+    uniqueIndex('uq_user_display_preferences_org_membership').on(
+      table.organizationId,
+      table.membershipId,
+    ),
+  ],
+);
+
+export type UserDisplayPreferenceRow = typeof userDisplayPreferences.$inferSelect;
+
 export const TABLES = {
   focus_blocks: focusBlocks,
   inbox_flags: inboxFlags,
@@ -6206,6 +6292,7 @@ export const TABLES = {
   invoice_line_items: invoiceLineItems,
   insight_targets: insightTargets,
   portal_settings: portalSettings,
+  user_display_preferences: userDisplayPreferences,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;

@@ -30,6 +30,7 @@
 // ── The API's response projections ──────────────────────────────────────────
 import type { AcceptedClientRequestView as ApiAcceptedClientRequestView } from '../../apps/api/src/modules/requests/client-requests.service.js';
 import type { A11yPreferencesView as ApiA11yPreferencesView } from '../../apps/api/src/modules/preferences/a11y.controller.js';
+import type { DisplayPreferencesView as ApiDisplayPreferencesView } from '../../apps/api/src/modules/preferences/display-prefs.service.js';
 import type { InsightSavedViewView as ApiInsightSavedViewView } from '../../apps/api/src/modules/insights/saved-views.controller.js';
 import type { ReportScheduleView as ApiReportScheduleView } from '../../apps/api/src/modules/insights/report-schedules.controller.js';
 import type { QuietHoursView as ApiQuietHoursView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
@@ -298,6 +299,7 @@ import type {
 } from '../../apps/web/src/lib/api/approvals';
 import type { EnrolledFactor as WebEnrolledFactor } from '../../apps/web/src/lib/api/auth';
 import type { A11yPreferencesView as WebA11yPreferencesView } from '../../apps/web/src/lib/api/a11y-preferences';
+import type { DisplayPreferencesView as WebDisplayPreferencesView } from '../../apps/web/src/lib/api/display-preferences';
 import type { InsightSavedViewView as WebInsightSavedViewView } from '../../apps/web/src/lib/api/insight-saved-views';
 import type { ReportScheduleView as WebReportScheduleView } from '../../apps/web/src/lib/api/insight-report-schedules';
 import type { QuietHoursView as WebQuietHoursView } from '../../apps/web/src/lib/api/quiet-hours';
@@ -631,6 +633,9 @@ type Assert<T extends true> = T;
 // Exact pairs — the API projection and the web declaration are the same type.
 // A11Y-183 (x183): the member's own accessibility preferences read/replaced over `/me/accessibility`.
 type _a11yPreferences = Assert<Exact<ApiA11yPreferencesView, WebA11yPreferencesView>>;
+
+// PREF-DISPLAY (x285): the member's own display preferences read/replaced over `/me/display-preferences`.
+type _displayPreferences = Assert<Exact<ApiDisplayPreferencesView, WebDisplayPreferencesView>>;
 // INS saved views (x210): a member's own named insights view, created/listed/deleted over
 // `/insights/saved-views`. The screen reads exactly this response, so the pair is Exact.
 type _insightSavedView = Assert<Exact<ApiInsightSavedViewView, WebInsightSavedViewView>>;
