@@ -4,8 +4,7 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { FILE_COMMENTS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import { FileCommentsService } from './comments.service.js';
-import type { FileCommentView } from './comments.service.js';
+import type { FileCommentsService, FileCommentView } from './comments.service.js';
 
 /**
  * x333's HTTP surface — file comments (Files module).

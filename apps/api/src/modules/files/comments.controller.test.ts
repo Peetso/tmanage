@@ -135,15 +135,19 @@ describe('FileCommentsController', () => {
   it('adds comments and lists them oldest-first', async () => {
     const first = await h.controller.add(context, member(), FILE_ID, { body: 'First' });
     const second = await h.controller.add(context, member(), FILE_ID, { body: 'Second' });
-    expect(first).toMatchObject({ fileId: FILE_ID, body: 'First', createdBy: context.membershipId });
+    expect(first).toMatchObject({
+      fileId: FILE_ID,
+      body: 'First',
+      createdBy: context.membershipId,
+    });
     const listed = await h.controller.list(context, member(), FILE_ID);
     expect(listed.comments.map((c) => c.id)).toEqual([first.id, second.id]);
   });
 
   it('rejects an empty body with 400 and writes nothing', async () => {
-    expect(await statusOf(() => h.controller.add(context, member(), FILE_ID, { body: '   ' }))).toBe(
-      400,
-    );
+    expect(
+      await statusOf(() => h.controller.add(context, member(), FILE_ID, { body: '   ' })),
+    ).toBe(400);
     expect(h.comments.rows).toHaveLength(0);
   });
 
@@ -178,7 +182,9 @@ describe('FileCommentsController', () => {
     const comment = await h.controller.add(context, member(), FILE_ID, { body: 'Mine' });
     // Rewrite authorship so the caller is not the author.
     (h.comments.rows[0] as FileCommentRow).createdBy = OTHER_MEMBERSHIP;
-    const status = await statusOf(() => h.controller.remove(context, member(), FILE_ID, comment.id));
+    const status = await statusOf(() =>
+      h.controller.remove(context, member(), FILE_ID, comment.id),
+    );
     expect(status).toBe(403);
     expect(h.comments.rows).toHaveLength(1);
   });
