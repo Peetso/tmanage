@@ -73,6 +73,7 @@ import type {
 import type { DocLinkView as ApiDocLinkView } from '../../apps/api/src/modules/docs/doc-links.service.js';
 import type { DocReadStateView as ApiDocReadStateView } from '../../apps/api/src/modules/docs/doc-read-state.service.js';
 import type { MetricFavoriteView as ApiMetricFavoriteView } from '../../apps/api/src/modules/insights/metric-favorites.service.js';
+import type { DocSubscriptionView as ApiDocSubscriptionView } from '../../apps/api/src/modules/docs/subscriptions.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -393,6 +394,7 @@ import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
 import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
+import type { DocSubscriptionSummary as WebDocSubscriptionSummary } from '../../apps/web/src/lib/api/doc-subscriptions';
 import type { SavedMessageSummary as WebSavedMessageSummary } from '../../apps/web/src/lib/api/message-bookmarks';
 import type { InboxSavedFilterView as WebInboxSavedFilterView } from '../../apps/web/src/lib/api/inbox-saved-filters';
 import type { GlossaryTermSummary as WebGlossaryTermSummary } from '../../apps/web/src/lib/api/glossary';
@@ -985,6 +987,13 @@ type _docRevision = Assert<Exact<ApiDocRevisionView, WebDocRevisionSummary>>;
  * the bookmark toggle read exactly this response, so the pair is Exact.
  */
 type _docBookmark = Assert<Exact<ApiDocBookmarkView, WebDocBookmarkSummary>>;
+
+/**
+ * DOC subscriptions (x312). `DocSubscriptionView` (`PUT/DELETE …/documents/:id/subscription`,
+ * `GET …/me/doc-subscriptions`) — one of the caller's followed documents. The `DocSubscriptionsView`
+ * list and the follow toggle read exactly this response, so the pair is Exact.
+ */
+type _docSubscription = Assert<Exact<ApiDocSubscriptionView, WebDocSubscriptionSummary>>;
 
 /**
  * CH-07 saved messages / message bookmarks (x248). `SavedMessageView` (`PUT/DELETE

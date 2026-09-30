@@ -65,6 +65,7 @@ import { BookmarksModule } from './modules/docs/bookmarks.controller.js';
 import { GlossaryModule } from './modules/docs/glossary.controller.js';
 import { DocCollectionsModule } from './modules/docs/collections.controller.js';
 import { DocTagsModule } from './modules/docs/doc-tags.controller.js';
+import { SubscriptionsModule } from './modules/docs/subscriptions.controller.js';
 import { AutomationSchedulesModule } from './modules/automations/schedules.controller.js';
 import { DecisionsModule } from './modules/decisions/decisions.module.js';
 import { DecisionWorkLinksModule } from './modules/decisions/decision-work-links.module.js';
@@ -516,6 +517,12 @@ export class AppModule {
         GlossaryModule.register(),
         DocCollectionsModule.register(),
         DocTagsModule.register(),
+        // DOC subscriptions (x312): a member's explicit follow list over documents (follow/unfollow/
+        // status/list) — a read-side flag only, no notification dispatch. Its own module rather than
+        // folded into `DocsModule`, so this slice touches no file another docs slice in the same pass
+        // appends to; it depends only on the global tenant database and reuses the read-only
+        // `DocumentsRepository` to resolve the parent document tenant-scoped.
+        SubscriptionsModule.register(),
         AutomationSchedulesModule.register(),
         // DEC-01 (x113). The cross-meeting decision register. After `ProjectsModule` and
         // `CalendarModule` for the same reason: a decision names a project and, optionally, a
