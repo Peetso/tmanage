@@ -213,6 +213,7 @@ import type { InsightDashboardLayoutView as ApiInsightDashboardLayoutView } from
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { RequestTriageView as ApiRequestTriageView } from '../../apps/api/src/modules/requests/request-triage.controller.js';
 import type { RequestCommentView as ApiRequestCommentView } from '../../apps/api/src/modules/requests/request-comments.service.js';
+import type { RequestTagsView as ApiRequestTagsView } from '../../apps/api/src/modules/requests/request-tags.controller.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
 import type { MemberProfileView as ApiMemberProfileView } from '../../apps/api/src/modules/people/member-profile.controller.js';
@@ -598,6 +599,7 @@ import type { InsightDashboardLayoutView as WebInsightDashboardLayoutView } from
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { RequestTriageView as WebRequestTriageView } from '../../apps/web/src/lib/api/request-triage';
 import type { RequestComment as WebRequestComment } from '../../apps/web/src/lib/api/request-comments';
+import type { RequestTagsView as WebRequestTagsView } from '../../apps/web/src/lib/api/request-tags';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
 import type { MemberProfileView as WebMemberProfileView } from '../../apps/web/src/lib/api/member-profile';
@@ -1444,6 +1446,13 @@ type _requestTriage = Assert<Exact<ApiRequestTriageView, WebRequestTriageView>>;
  * route, so no update shape to pair; `parentId` is `string | null` on both sides (one level of reply).
  */
 type _requestComment = Assert<Exact<ApiRequestCommentView, WebRequestComment>>;
+
+/**
+ * x316 — `GET/POST/DELETE …/client-requests/:id/tags`. The free-text triage labels on a client
+ * request: `clientRequestId` plus `tags` (each an id, its request, the label, who added it and when).
+ * `RequestTagsView` reads exactly this response, so this is a live `Exact` pair, not an exemption.
+ */
+type _requestTags = Assert<Exact<ApiRequestTagsView, WebRequestTagsView>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API

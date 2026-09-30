@@ -27,6 +27,7 @@ import { WorkViewsModule } from './modules/work-views/work-views.module.js';
 import { RequestsModule } from './modules/requests/requests.module.js';
 import { RequestAgingModule } from './modules/requests/request-aging.controller.js';
 import { RequestTriageModule } from './modules/requests/request-triage.controller.js';
+import { RequestTagsModule } from './modules/requests/request-tags.controller.js';
 import { ApprovalsModule } from './modules/approvals/approvals.module.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { InboxSnoozeModule } from './modules/inbox/inbox-snooze.module.js';
@@ -337,6 +338,11 @@ export class AppModule {
         // than an edit to the list/lifecycle controller, so it stays file-disjoint; behind the same
         // reused internal-only `client_request.triage`.
         RequestTriageModule.register(),
+        // module 11 requests, x316. Free-text triage labels on a client request
+        // (`/client-requests/:id/tags`). A module of its own rather than another controller on
+        // `RequestsModule`, so it stays file-disjoint; behind the same reused `client_request.triage`,
+        // resolving the parent request tenant-scoped before it authorizes or writes.
+        RequestTagsModule.register(),
         // FR-05 (x92). After `ProjectsModule`: an approval binds a deliverable version to a
         // project, and a caller naming one that is not theirs should get 404 rather than a
         // foreign-key 500. Authorization is object-layer only (the reviewer relation), so this
