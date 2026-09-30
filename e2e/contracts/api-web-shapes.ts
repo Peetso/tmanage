@@ -221,6 +221,10 @@ import type {
 import type { WorkItemView as ApiWorkItemView } from '../../apps/api/src/modules/work/work-items.service.js';
 import type { BulkTransitionView as ApiBulkTransitionView } from '../../apps/api/src/modules/work/bulk-transition.service.js';
 import type { WorkChecklistItemView as ApiWorkChecklistItemView } from '../../apps/api/src/modules/work/work-checklist.service.js';
+import type {
+  WorkSubtaskView as ApiWorkSubtaskView,
+  WorkSubtaskListView as ApiWorkSubtaskListView,
+} from '../../apps/api/src/modules/work/subtasks.service.js';
 import type { WorkCommentView as ApiWorkCommentView } from '../../apps/api/src/modules/work/work-comments.service.js';
 import type { WorkItemLinkView as ApiWorkItemLinkView } from '../../apps/api/src/modules/work/item-links.service.js';
 import type { WorkRelationsGraphView as ApiWorkRelationsGraphView } from '../../apps/api/src/modules/work/relations-graph.service.js';
@@ -598,6 +602,10 @@ import type {
 import type { WorkItemSummary as WebWorkItemSummary } from '../../apps/web/src/lib/api/work-items';
 import type { BulkTransitionView as WebBulkTransitionView } from '../../apps/web/src/lib/api/work-bulk-transition';
 import type { WorkChecklistItem as WebWorkChecklistItem } from '../../apps/web/src/lib/api/work-items';
+import type {
+  WorkSubtask as WebWorkSubtask,
+  WorkSubtaskList as WebWorkSubtaskList,
+} from '../../apps/web/src/lib/api/work-items';
 import type { WorkComment as WebWorkComment } from '../../apps/web/src/lib/api/work-items';
 import type { WorkItemLink as WebWorkItemLink } from '../../apps/web/src/lib/api/work-items';
 import type { WorkRelationsGraph as WebWorkRelationsGraph } from '../../apps/web/src/lib/api/work-relations-graph';
@@ -1429,6 +1437,16 @@ type _bulkTransition = Assert<Exact<ApiBulkTransitionView, WebBulkTransitionView
  * held identical on both sides.
  */
 type _workChecklistItem = Assert<Exact<ApiWorkChecklistItemView, WebWorkChecklistItem>>;
+
+/**
+ * x307. `WorkSubtaskView` ↔ `WorkSubtask` and `WorkSubtaskListView` ↔ `WorkSubtaskList` — one
+ * work-item subtask and the list-plus-roll-up (`GET`/`POST …/work-items/:id/subtasks`,
+ * `PUT`/`DELETE …/subtasks/:subtaskId`). `WorkSubtasksView` reads exactly these shapes, so the
+ * `id`/`workItemId`/`title`/`done`/`position`/`createdAt` item pair and the `items`/`done`/`total`
+ * list pair are held identical on both sides.
+ */
+type _workSubtask = Assert<Exact<ApiWorkSubtaskView, WebWorkSubtask>>;
+type _workSubtaskList = Assert<Exact<ApiWorkSubtaskListView, WebWorkSubtaskList>>;
 
 /**
  * x147. `WorkCommentView` ↔ `WorkComment` — one work-item comment / activity entry

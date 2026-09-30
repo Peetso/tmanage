@@ -66,6 +66,8 @@ export const PROJECT_MEMBERSHIPS_SERVICE = Symbol.for('tmanage.ProjectMembership
 export const WORK_ITEMS_REPOSITORY = Symbol.for('tmanage.WorkItemsRepository');
 export const WORK_ITEMS_SERVICE = Symbol.for('tmanage.WorkItemsService');
 export const WORK_CHECKLIST_SERVICE = Symbol.for('tmanage.WorkChecklistService');
+/** x307. A work item's ordered subtasks / breakdown, behind `work.read`/`work.update`. */
+export const WORK_SUBTASKS_SERVICE = Symbol.for('tmanage.WorkSubtasksService');
 /** WORK intake forms (x146). The org-scoped work-form definition repository. */
 export const WORK_FORMS_REPOSITORY = Symbol.for('tmanage.WorkFormsRepository');
 /** x147. A work item's comments / activity, behind `work.read`/`work.update`. */

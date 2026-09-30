@@ -2216,6 +2216,38 @@ export const workItemChecklistItems = mysqlTable(
 );
 
 /**
+ * x307 (0175). A work item's ordered subtasks / breakdown (Work module). A titled, ordered list of
+ * done/not-done child rows hanging off one work item, with a `created_by` author and a delete —
+ * distinct from `work_item_checklist_items` (0051), which records neither. The composite foreign key
+ * `fk_work_item_subtasks_parent` binds `(organization_id, parent_work_item_id)` to `work_items`, so a
+ * cross-tenant parent is a non-existent pair rather than a leak. `title`, `is_done` and `position`
+ * are editable; `organization_id` and `parent_work_item_id` are pinned immutable by the migration's
+ * `BEFORE UPDATE` trigger.
+ */
+export const workItemSubtasks = mysqlTable(
+  'work_item_subtasks',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    parentWorkItemId: char('parent_work_item_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    isDone: boolean('is_done').notNull().default(false),
+    position: int('position', { unsigned: true }).notNull().default(0),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_subtasks_org_id').on(table.organizationId, table.id),
+    index('ix_work_item_subtasks_parent').on(
+      table.organizationId,
+      table.parentWorkItemId,
+      table.position,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * x147. A work item's comments / activity (Work module 7). Append-only, internal-only, and
  * distinct from the channel-scoped conversation `messages`: a comment is about *this work item*,
  * authored by a membership of the studio. `fk_work_item_comments_work_item` binds
@@ -6969,6 +7001,7 @@ export const TABLES = {
   work_items: workItems,
   work_item_dependencies: workItemDependencies,
   work_item_checklist_items: workItemChecklistItems,
+  work_item_subtasks: workItemSubtasks,
   work_item_comments: workItemComments,
   work_item_time_logs: workItemTimeLogs,
   work_item_estimates: workItemEstimates,
@@ -7119,6 +7152,8 @@ export type WorkItemRow = typeof workItems.$inferSelect;
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;
+export type WorkItemSubtaskRow = typeof workItemSubtasks.$inferSelect;
+export type NewWorkItemSubtaskRow = typeof workItemSubtasks.$inferInsert;
 export type WorkItemTimeLogRow = typeof workItemTimeLogs.$inferSelect;
 export type NewWorkItemTimeLogRow = typeof workItemTimeLogs.$inferInsert;
 export type WorkItemEstimateRow = typeof workItemEstimates.$inferSelect;

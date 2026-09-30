@@ -86,6 +86,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every
   // tenant table has, so the guard scopes its reads and its writes.
   work_item_checklist_items: 'organization_id',
+  // x307 (0175). A work item's ordered subtasks / breakdown: child rows of one studio's work item,
+  // tenant-owned like the checklist — an unscoped read would be every studio's breakdown at once.
+  // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key, so the guard
+  // scopes its reads and its writes.
+  work_item_subtasks: 'organization_id',
   // x147. A work item's comments: internal prose about a studio's work, tenant-scoped like every
   // sibling — an unscoped read of it would be every studio's activity trail at once.
   work_item_comments: 'organization_id',
