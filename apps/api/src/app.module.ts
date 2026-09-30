@@ -93,6 +93,7 @@ import { AdminExportRequestsModule } from './modules/admin/export-requests.contr
 import { OrgAnnouncementsModule } from './modules/admin/announcements.controller.js';
 import { AdminIpAllowlistModule } from './modules/admin/ip-allowlist.controller.js';
 import { FeatureFlagsModule } from './modules/admin/feature-flags.controller.js';
+import { AdminAuditRetentionModule } from './modules/admin/audit-retention.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -279,6 +280,11 @@ export class AppModule {
         // org is read behind `work.read`. Both org-scoped, file-disjoint from the other admin
         // slices; depends only on the global `TENANT_DATABASE`.
         FeatureFlagsModule.register(),
+        // ADM audit retention (module 18, x279). An org-admin sets an audit-log retention window and
+        // previews how many audit_events fall outside it, behind `org.manage`. A module of its own,
+        // file-disjoint from the other administration slices; depends only on the global
+        // `TENANT_DATABASE`. Preview + policy only — no destructive purge in this slice.
+        AdminAuditRetentionModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

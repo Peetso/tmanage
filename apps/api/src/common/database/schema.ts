@@ -5570,6 +5570,40 @@ export const orgFeatureFlags = mysqlTable(
 
 export type OrgFeatureFlagRow = typeof orgFeatureFlags.$inferSelect;
 
+/**
+ * Audit-log retention policy (x279, migration 0148, Administration module 18).
+ *
+ * One row per organization (`uq_audit_retention_policy_org`): the number of days the org keeps its
+ * `audit_events` before a later, separately-credentialed purge would remove them. This slice stores the
+ * policy and previews how many rows fall outside the window; it never writes to `audit_events` (the
+ * append-only table the runtime credential cannot amend). `retention_days` is bounded 1..3650 by the
+ * application before any write — an out-of-range value is a 400 and nothing is stored. The write is a
+ * single upsert against the per-organization unique key, so a re-save overwrites in place;
+ * `updated_at` follows the column's `ON UPDATE`. `0148_audit_retention_policy.sql` is the source of
+ * truth; this is its typed mirror.
+ */
+export const auditRetentionPolicy = mysqlTable(
+  'audit_retention_policy',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    retentionDays: int('retention_days', { unsigned: true }).notNull(),
+    // The membership's global user id that last set the policy — not tenant-owned, the same shape
+    // `security_settings.updated_by` (0073) and `org_settings.updated_by` (0058) use for their actor.
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_audit_retention_policy_org_id').on(table.organizationId, table.id),
+    // One row per organization. This is the upsert key: the repository writes
+    // `INSERT ... ON DUPLICATE KEY UPDATE` against it, so a second save updates in place.
+    uniqueIndex('uq_audit_retention_policy_org').on(table.organizationId),
+  ],
+);
+
+export type AuditRetentionPolicyRow = typeof auditRetentionPolicy.$inferSelect;
+
 export const TABLES = {
   focus_blocks: focusBlocks,
   inbox_flags: inboxFlags,
@@ -5577,6 +5611,7 @@ export const TABLES = {
   home_quick_links: homeQuickLinks,
   org_announcements: orgAnnouncements,
   org_feature_flags: orgFeatureFlags,
+  audit_retention_policy: auditRetentionPolicy,
   home_widget_prefs: homeWidgetPrefs,
   inbox_saved_filters: inboxSavedFilters,
   glossary_terms: glossaryTerms,

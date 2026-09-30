@@ -856,6 +856,14 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`home_quick_links` TO 'tmanage_app'@'%
 -- upsert against `uq_org_feature_flags_org_key`. No DELETE: a flag is turned off by setting
 -- `enabled = 0`, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`org_feature_flags` TO 'tmanage_app'@'%';
+-- Audit-log retention policy (x279, Administration module 18). **INSERT, UPDATE** — one row per
+-- organization holding the retention window in days, created and then replaced in place by an
+-- `INSERT ... ON DUPLICATE KEY UPDATE` upsert against `uq_audit_retention_policy_org`. No DELETE: a
+-- policy is overwritten, never removed, and its history is the org's own. SELECT is the database-wide
+-- grant, which is what the purge-preview COUNT over `audit_events` reads with. This slice grants no
+-- write on `audit_events` itself (that table keeps its INSERT-only grant above): a preview counts, and
+-- the purge is a later, separately-credentialed procedure.
+GRANT INSERT, UPDATE         ON `tmanage`.`audit_retention_policy` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
