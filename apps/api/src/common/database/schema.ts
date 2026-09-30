@@ -2894,6 +2894,40 @@ export const customRoles = mysqlTable(
 );
 
 /**
+ * Admin private member notes (Administration module 18, x280, migration 0149). An org admin's
+ * private, internal annotation about a member — an HR-style note attached to a membership, added and
+ * removed by `org.manage` holders and **never** surfaced on any member-facing read path. One row per
+ * note: the member it is about (`subject_membership_id`), the note body, the author membership (an
+ * `org.manage` holder, the acting membership — never a body value) and when it was written.
+ *
+ * Tenant-scoped and membership-owned. `member-notes.service.ts` resolves the subject membership
+ * tenant-scoped **before** the `org.manage` authorize, so a cross-tenant or unknown membership id is
+ * a 404 with no write; the composite foreign key on `(organization_id, subject_membership_id)` is the
+ * engine half of that trap. Append-only: the runtime credential holds INSERT and DELETE but no
+ * UPDATE, and the `0149` `BEFORE UPDATE` trigger refuses any amendment — a note's body and
+ * attribution are fixed once written, so correcting one is delete-and-re-add.
+ */
+export const memberAdminNotes = mysqlTable(
+  'member_admin_notes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    subjectMembershipId: char('subject_membership_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_member_admin_notes_org_id').on(table.organizationId, table.id),
+    index('ix_member_admin_notes_subject').on(
+      table.organizationId,
+      table.subjectMembershipId,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * The typed access-policy document stored in `org_policies.policy_json` (Administration module 18,
  * x174). The typed shape of the JSON column below; the application validates a request against the
  * fixed-key allowlist (`policies.allowlist.ts`) before storing, and reads it back through the same
@@ -5743,6 +5777,7 @@ export const TABLES = {
   member_availability: memberAvailability,
   person_skills: personSkills,
   custom_roles: customRoles,
+  member_admin_notes: memberAdminNotes,
   subscriptions,
   billing_profiles: billingProfiles,
   billing_contacts: billingContacts,
@@ -5886,6 +5921,7 @@ export type OnboardingProgressRow = typeof onboardingProgress.$inferSelect;
 export type PersonAllocationRow = typeof personAllocations.$inferSelect;
 export type CustomRoleRow = typeof customRoles.$inferSelect;
 export type MemberProfileRow = typeof memberProfiles.$inferSelect;
+export type MemberAdminNoteRow = typeof memberAdminNotes.$inferSelect;
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;

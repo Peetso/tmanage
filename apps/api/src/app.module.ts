@@ -85,6 +85,7 @@ import { CustomRolesModule } from './modules/admin/roles.controller.js';
 import { RoleEditModule } from './modules/admin/role-edit.controller.js';
 import { MemberBulkRoleModule } from './modules/tenancy/member-bulk-role.controller.js';
 import { AdminSessionsModule } from './modules/identity/admin-sessions.controller.js';
+import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
@@ -247,6 +248,7 @@ export class AppModule {
         // the roles surface it extends.
         MemberBulkRoleModule.register(),
         AdminSessionsModule.register(),
+        MemberNotesModule.register(),
         // Organization access policies (Administration module 18, x174) behind `org.manage`. A module of
         // its own, file-disjoint from x153's org-settings routes; depends only on the global
         // `TENANT_DATABASE`.
