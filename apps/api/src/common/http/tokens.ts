@@ -325,6 +325,7 @@ export const SAVED_SEARCH_SHARES_SERVICE = Symbol.for('tmanage.SavedSearchShares
 export const SEARCH_HISTORY_SERVICE = Symbol.for('tmanage.SearchHistoryService');
 
 export const SEARCH_PINS_SERVICE = Symbol.for('tmanage.SearchPinsService');
+export const SEARCH_SCOPES_SERVICE = Symbol.for('tmanage.SearchScopesService');
 
 /** Public & trust site (x159). The public status page's published-only incidents read. */
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');

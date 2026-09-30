@@ -569,6 +569,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`search_history`   TO 'tmanage_app'@'%
 -- `saved_context` posture, no immutability trigger and none needed). Reading is the database-wide
 -- SELECT above. The worker gets nothing here — this table is the API's alone.
 GRANT INSERT, DELETE         ON `tmanage`.`search_pins`      TO 'tmanage_app'@'%';
+-- SRCH saved scopes (0200, x334) member-scoped named search filter scopes. A scope is created
+-- (INSERT), replaced in place (UPDATE — the idempotent PUT edits name/filters) and removed (DELETE),
+-- so INSERT, UPDATE and DELETE. Reading is the database-wide SELECT above. The 0200 trigger pins
+-- organization_id and member_user_id immutable, so the granted UPDATE can change only the name/filters
+-- and never move a scope between studios or owners. The worker gets nothing here — this table is the
+-- API's alone.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`search_scopes`      TO 'tmanage_app'@'%';
 -- HOME-05 (0035) saved/pinned context. INSERT to pin and DELETE to unpin, and **no UPDATE**: a
 -- pin is created and removed, never edited, so the missing privilege is the control that keeps it
 -- so (there is no immutability trigger and none is needed). Reading is the database-wide SELECT

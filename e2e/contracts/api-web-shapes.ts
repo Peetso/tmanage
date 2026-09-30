@@ -319,6 +319,7 @@ import type { RecentSearchView as ApiRecentSearchView } from '../../apps/api/src
 import type { SharedSavedSearchView as ApiSharedSavedSearchView } from '../../apps/api/src/modules/search/saved-search-shares.service.js';
 import type { SearchHistoryEntryView as ApiSearchHistoryEntryView } from '../../apps/api/src/modules/search/search-history.service.js';
 import type { SearchPinView as ApiSearchPinView } from '../../apps/api/src/modules/search/search-pins.service.js';
+import type { SearchScopeView as ApiSearchScopeView } from '../../apps/api/src/modules/search/saved-scopes.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
@@ -689,6 +690,7 @@ import type { RecentSearch as WebRecentSearch } from '../../apps/web/src/lib/api
 import type { SharedSavedSearch as WebSharedSavedSearch } from '../../apps/web/src/lib/api/saved-search-shares';
 import type { SearchHistoryEntry as WebSearchHistoryEntry } from '../../apps/web/src/lib/api/search-history';
 import type { SearchPin as WebSearchPin } from '../../apps/web/src/lib/api/search-pins';
+import type { SearchScope as WebSearchScope } from '../../apps/web/src/lib/api/saved-scopes';
 import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
 import type { PublicFaqView as WebPublicFaqView } from '../../apps/web/src/lib/api/public-faq';
 import type { PublicLegalView as WebPublicLegalView } from '../../apps/web/src/lib/api/public-legal';
@@ -2062,6 +2064,15 @@ type _searchHistoryEntry = Assert<Exact<ApiSearchHistoryEntryView, WebSearchHist
  * …/search/pins/:id`). Paired Exact — the screen reads exactly this response.
  */
 type _searchPin = Assert<Exact<ApiSearchPinView, WebSearchPin>>;
+
+/**
+ * SRCH saved scopes (x334). `SearchScopeView` ↔ `SearchScope` (`GET/POST …/search/scopes`,
+ * `PUT/DELETE …/search/scopes/:id`). Paired Exact with a live web consumer: `SearchSavedScopesView`
+ * reads the scope list, applies a scope and saves the current one. `filters` is the same
+ * `{ objectTypes[], projectId?, from?, to? }` object on both, `createdAt`/`updatedAt` are ISO strings
+ * on both, and `organizationId` is absent on both.
+ */
+type _searchScope = Assert<Exact<ApiSearchScopeView, WebSearchScope>>;
 
 /**
  * SRCH command palette (x181). `CommandView` ↔ `Command` — one palette command

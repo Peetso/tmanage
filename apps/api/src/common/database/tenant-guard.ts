@@ -378,6 +378,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // unregistered table, so registering it here is what scopes its reads, its delete and its recent
   // prune; tenant-isolation.db.test.ts enforces the entry.
   saved_searches: 'organization_id',
+  // SRCH saved scopes (x334, migration 0200). Tenant-owned: a saved search scope belongs to one member
+  // in one studio, and an unscoped `SELECT ... FROM search_scopes` would be every member's scopes
+  // across every studio on the server. The layer-3 guard fails OPEN on an unregistered table, so
+  // registering it here is what scopes its reads, its create, its update and its delete;
+  // tenant-isolation.db.test.ts enforces the entry.
+  search_scopes: 'organization_id',
   // INBOX saved filters (IN-02, x261, migration 0131). Tenant-owned: a saved inbox filter belongs to
   // one membership in one studio, and an unscoped `SELECT ... FROM inbox_saved_filters` would be
   // every member's saved filters across every studio on the server. The layer-3 guard fails OPEN on
