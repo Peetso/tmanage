@@ -160,6 +160,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // client's — published content. The application already scopes its queries, but the guard is the
   // layer that catches a forgotten predicate, so the table must be registered here.
   client_projections: 'organization_id',
+  // x321 (0189, module 13). Tenant-owned: portal deliverable feedback is one studio's client
+  // contacts rating that studio's published deliverable versions, and an unscoped read would leak
+  // another studio's — or another client's — feedback. The service scopes every query, but the
+  // guard is the layer that catches a forgotten predicate, so the table is registered here.
+  portal_feedback: 'organization_id',
   // CHAT-001. All three are tenant-owned, and `messages` is the table in this system whose
   // content is most obviously somebody else's: an unscoped `SELECT ... FROM messages` is a
   // transcript of every studio on the server.

@@ -2921,6 +2921,54 @@ export const clientProjections = mysqlTable(
   ],
 );
 
+/**
+ * SEC / Portal deliverable feedback (x321, module 13 Client Portal). One client contact's rating
+ * (1–5) and optional comment on a *published* deliverable version — the client-authored counterpart
+ * to the internal `client_projections` (0031) they can see. Distinct from `project_update_comments`
+ * (x203, internal-authored on an update): this is a client write on a deliverable version.
+ *
+ * One feedback per (contact, version): the row is upserted on `(organization_id,
+ * deliverable_version_id, client_contact_user_id)`, so a contact revises their own rating in place
+ * rather than leaving a second row. `fk_portal_feedback_version_tenant` binds `(organization_id,
+ * deliverable_version_id)` to `deliverable_versions (organization_id, id)`, so a cross-tenant
+ * version is a non-existent pair; the service resolves the client-visible version through the x114
+ * projection before it ever writes. Identity — the tenant, the version, and the authoring contact —
+ * is immutable; only `rating`, `comment` and `updated_at` may change. `0189_portal_feedback.sql` is
+ * the source of truth; this is its typed mirror.
+ */
+export const portalFeedback = mysqlTable(
+  'portal_feedback',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    /** The published deliverable version this feedback is about (bound within the tenant). */
+    deliverableVersionId: char('deliverable_version_id', { length: 36 }).notNull(),
+    /** The client contact who authored it — `context.userId`, never a body field. */
+    clientContactUserId: char('client_contact_user_id', { length: 36 }).notNull(),
+    /** 1–5. The service refuses anything outside that range with 400 before the write. */
+    rating: tinyint('rating').notNull(),
+    /** Optional free text; `null` when the contact left a rating only. */
+    comment: text('comment'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_portal_feedback_org_id').on(table.organizationId, table.id),
+    // One feedback per contact per version: the upsert key.
+    uniqueIndex('uq_portal_feedback_org_version_contact').on(
+      table.organizationId,
+      table.deliverableVersionId,
+      table.clientContactUserId,
+    ),
+    // The staff read: a version's feedback, newest-first.
+    index('ix_portal_feedback_org_version').on(
+      table.organizationId,
+      table.deliverableVersionId,
+      table.createdAt,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Files — FILE-001 (0015)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -7550,6 +7598,7 @@ export const TABLES = {
   approvals,
   approval_steps: approvalSteps,
   client_projections: clientProjections,
+  portal_feedback: portalFeedback,
   conversations,
   conversation_memberships: conversationMemberships,
   conversation_pinned_messages: conversationPinnedMessages,
@@ -7722,6 +7771,8 @@ export type NewApprovalRow = typeof approvals.$inferInsert;
 export type ApprovalStepRow = typeof approvalSteps.$inferSelect;
 export type ClientProjectionRow = typeof clientProjections.$inferSelect;
 export type NewClientProjectionRow = typeof clientProjections.$inferInsert;
+export type PortalFeedbackRow = typeof portalFeedback.$inferSelect;
+export type NewPortalFeedbackRow = typeof portalFeedback.$inferInsert;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type ConversationMembershipRow = typeof conversationMemberships.$inferSelect;
 export type ConversationPinnedMessageRow = typeof conversationPinnedMessages.$inferSelect;
