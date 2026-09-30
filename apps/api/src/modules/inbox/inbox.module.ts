@@ -152,7 +152,12 @@ export class InboxModule {
       module: InboxModule,
       providers: [repository, clientRequests, service, portal, rules, sourceMutes],
       exports: [service, portal],
-      controllers: [InboxController, PortalInboxController, InboxRulesController, InboxSourceMutesController],
+      controllers: [
+        InboxController,
+        PortalInboxController,
+        InboxRulesController,
+        InboxSourceMutesController,
+      ],
     };
   }
 }
