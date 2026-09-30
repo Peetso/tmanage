@@ -593,6 +593,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
   // writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
   billing_credits: 'organization_id',
+  // Billing discounts (x330, migration 0197). Org-owned: a discount / adjustment record belongs to the
+  // acting tenant, and an unscoped `SELECT ... FROM billing_discounts` would be every studio's discounts
+  // on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key every
+  // tenant table has, so the guard must scope its reads, its inserts and its deletes; the layer-3 guard
+  // fails OPEN on an unregistered table, so this entry is what scopes them.
+  billing_discounts: 'organization_id',
   // INS saved views (x210, migration 0089). Tenant-owned: a saved insights view belongs to a studio
   // and a person, and an unscoped `SELECT ... FROM insight_saved_views` would be every studio's saved
   // views on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)` key
