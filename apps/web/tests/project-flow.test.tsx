@@ -257,7 +257,10 @@ describe('ON-03 create the first project', () => {
     renderScreen(client);
 
     const user2 = user;
-    await fillAndSubmit(user2, { date: '2026-09-30' });
+    // A date safely in the future: the client's own past-date warning must not pre-empt the
+    // server's field-level rejection this test exercises (the bare literal 2026-09-30 became a
+    // past date once the real clock passed it, hiding the server error behind the client warning).
+    await fillAndSubmit(user2, { date: '2099-09-30' });
 
     expect(await screen.findByText('is not a real date')).toBeInTheDocument();
     expect(screen.queryByText('Could not create the project')).toBeNull();

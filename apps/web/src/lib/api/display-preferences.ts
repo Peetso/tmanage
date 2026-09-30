@@ -3,7 +3,7 @@ import type { ApiClient } from './client';
 /**
  * PREF-DISPLAY display preferences (module 20, x285) — the caller's own theme / density / locale /
  * timezone / date-format settings, read and replaced. Behind `work.read` on the server (the
- * internal-read capability A11Y-183's preferences reuse); a caller without it gets the ordinary 403
+ * internal-read capability the accessibility preferences reuse); a caller without it gets the ordinary 403
  * the shared client turns into an error. The tenant is the slug in the path resolved against the
  * caller's membership, and the *member* is the authenticated principal — never a value this client
  * supplies — so it can only ever read or write the caller's own row.
