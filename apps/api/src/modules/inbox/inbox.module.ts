@@ -27,6 +27,9 @@ import { NotificationsRepository } from './notifications.repository.js';
 const INBOX_CLIENT_REQUESTS = Symbol('tmanage.InboxModule.ClientRequestsService');
 import { PortalInboxController } from './portal-inbox.controller.js';
 import { PortalInboxService } from './portal-inbox.service.js';
+import { InboxRulesController, INBOX_RULES_SERVICE } from './rules.controller.js';
+import { InboxRulesService } from './rules.service.js';
+import { InboxRulesRepository } from './rules.repository.js';
 
 /**
  * INBOX-001's wiring.
@@ -121,11 +124,22 @@ export class InboxModule {
       ) => new PortalInboxService(database, requests, notifications),
     };
 
+    // INBOX-001 per-user routing rules (x301). Self-scoped GET/POST/DELETE plus a read-side resolve
+    // helper over the caller's own rules and notifications. Wired here because it shares this module's
+    // `NOTIFICATIONS_REPOSITORY` for the resolution read; its own rules store is constructed inline,
+    // stateless over the tenant database like the reads this module already performs.
+    const rules: Provider = {
+      provide: INBOX_RULES_SERVICE,
+      inject: [TENANT_DATABASE, NOTIFICATIONS_REPOSITORY],
+      useFactory: (database: TenantDatabase, notifications: NotificationsRepository) =>
+        new InboxRulesService(database, new InboxRulesRepository(), notifications),
+    };
+
     return {
       module: InboxModule,
-      providers: [repository, clientRequests, service, portal],
+      providers: [repository, clientRequests, service, portal, rules],
       exports: [service, portal],
-      controllers: [InboxController, PortalInboxController],
+      controllers: [InboxController, PortalInboxController, InboxRulesController],
     };
   }
 }

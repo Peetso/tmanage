@@ -6631,6 +6631,61 @@ export const workChecklistTemplates = mysqlTable(
 export type WorkChecklistTemplateRow = typeof workChecklistTemplates.$inferSelect;
 export type NewWorkChecklistTemplateRow = typeof workChecklistTemplates.$inferInsert;
 
+/**
+ * INBOX-001 per-user routing rules (x301, migration 0169, module Inbox). The notification field a
+ * rule matches on: `type` is the event type (`notifications.type`, e.g. `client_request.transitioned.v1`),
+ * `object_type` is what the notification is about (`notifications.object_type`, e.g. `work_item`). A
+ * request naming a match type outside this set is a validation error (400, `rules.controller.ts`),
+ * never stored.
+ */
+export const INBOX_RULE_MATCH_TYPES = ['type', 'object_type'] as const;
+export type InboxRuleMatchType = (typeof INBOX_RULE_MATCH_TYPES)[number];
+
+/**
+ * INBOX-001 the closed vocabulary of category labels a rule may apply (x301). Read-side only: the
+ * resolve helper returns the first-matching category for a candidate; nothing is written back to the
+ * notification. A request naming a category outside this set is a validation error (400), never stored.
+ */
+export const INBOX_RULE_CATEGORIES = ['urgent', 'follow_up', 'waiting', 'fyi', 'archive'] as const;
+export type InboxRuleCategory = (typeof INBOX_RULE_CATEGORIES)[number];
+
+/**
+ * INBOX-001 per-user inbox routing rules (x301, migration 0169, module Inbox).
+ *
+ * One row is one member's ordered rule in one studio: when a candidate notification's `match_type`
+ * field equals `match_value`, apply `category`. Keyed by `membership_id` (like `home_widget_prefs`
+ * and `notification_kind_prefs`) rather than the global user, because a rule is scoped to who the
+ * caller is *in this studio* and never leaves the tenant; the composite FK binds the row to a
+ * membership of this same organization. Rules are applied read-side by the resolve helper and never
+ * write to `notifications`. `position` orders a member's rules (lowest first); `match_type` and
+ * `category` are each a closed enum validated in the controller. `0169_inbox_rules.sql` is the
+ * source of truth; this is its typed mirror.
+ */
+export const inboxRules = mysqlTable(
+  'inbox_rules',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    matchType: mysqlEnum('match_type', INBOX_RULE_MATCH_TYPES).notNull(),
+    matchValue: varchar('match_value', { length: 190 }).notNull(),
+    category: mysqlEnum('category', INBOX_RULE_CATEGORIES).notNull(),
+    position: int('position', { unsigned: true }).notNull().default(0),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_inbox_rules_org_id').on(table.organizationId, table.id),
+    // A member's rules are read in one ordered list; this is the index that read is served by.
+    index('ix_inbox_rules_org_membership_position').on(
+      table.organizationId,
+      table.membershipId,
+      table.position,
+    ),
+  ],
+);
+
+export type InboxRuleRow = typeof inboxRules.$inferSelect;
+
 export const TABLES = {
   focus_blocks: focusBlocks,
   inbox_flags: inboxFlags,
@@ -6642,6 +6697,7 @@ export const TABLES = {
   work_checklist_templates: workChecklistTemplates,
   request_comments: requestComments,
   approval_delegations: approvalDelegations,
+  inbox_rules: inboxRules,
   home_widget_prefs: homeWidgetPrefs,
   inbox_saved_filters: inboxSavedFilters,
   glossary_terms: glossaryTerms,
