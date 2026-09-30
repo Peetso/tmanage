@@ -94,6 +94,7 @@ import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
 import { PortalSettingsModule } from './modules/clients/portal-settings.controller.js';
 import { PortalFeedbackModule } from './modules/portal/feedback.module.js';
+import { PortalBrandingModule } from './modules/portal/branding.controller.js';
 import { OrgSettingsModule } from './modules/tenancy/org-settings.controller.js';
 import { CustomRolesModule } from './modules/admin/roles.controller.js';
 import { RoleEditModule } from './modules/admin/role-edit.controller.js';
@@ -438,6 +439,13 @@ export class AppModule {
         // tenant-scoped (the x114 projection) to answer 404 rather than 500 for a cross-tenant id.
         // Over the new `portal_feedback` table.
         PortalFeedbackModule.register(),
+        // SEC / Client portal branding (module 13, x323). Per-client-organization client-facing
+        // branding: a staff write (`PUT …/portal/branding/:clientOrganizationId`, `client_member.manage`)
+        // and a client projection (`GET …/portal/branding/client/:clientOrganizationId`,
+        // `client_projection.read`). A module of its own rather than another controller on `ClientsModule`,
+        // so it stays file-disjoint from the sibling portal slices; over the new `portal_branding` table.
+        // The service resolves the client-org scope tenant-scoped first (404) and only then authorizes.
+        PortalBrandingModule.register(),
         // CHAT-001. After `ProjectsModule` for the same reason: a channel names a project, and
         // a caller who names one that is not theirs should get 404 rather than a foreign-key
         // violation surfacing as 500.
