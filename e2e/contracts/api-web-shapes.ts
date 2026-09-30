@@ -205,6 +205,7 @@ import type { InsightAnnotationView as ApiInsightAnnotationView } from '../../ap
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { RequestTriageView as ApiRequestTriageView } from '../../apps/api/src/modules/requests/request-triage.controller.js';
+import type { RequestCommentView as ApiRequestCommentView } from '../../apps/api/src/modules/requests/request-comments.service.js';
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
 import type { MemberProfileView as ApiMemberProfileView } from '../../apps/api/src/modules/people/member-profile.controller.js';
@@ -545,6 +546,7 @@ import type { InsightAnnotationView as WebInsightAnnotationView } from '../../ap
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { RequestTriageView as WebRequestTriageView } from '../../apps/web/src/lib/api/request-triage';
+import type { RequestComment as WebRequestComment } from '../../apps/web/src/lib/api/request-comments';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
 import type { MemberProfileView as WebMemberProfileView } from '../../apps/web/src/lib/api/member-profile';
@@ -1306,6 +1308,14 @@ type _requestAging = Assert<Exact<ApiRequestAgingView, WebRequestAgingView>>;
  * so this is a live `Exact` pair, not an exemption.
  */
 type _requestTriage = Assert<Exact<ApiRequestTriageView, WebRequestTriageView>>;
+
+/**
+ * x299 — `GET`/`POST`/`DELETE …/client-requests/:id/comments`. One internal comment on a client
+ * request: `id`/`requestId`/`parentId`/`authorMembershipId`/`body`/`createdAt`, held identical on
+ * both sides. `RequestCommentsPanel` reads exactly this shape. Append-with-retract: there is no edit
+ * route, so no update shape to pair; `parentId` is `string | null` on both sides (one level of reply).
+ */
+type _requestComment = Assert<Exact<ApiRequestCommentView, WebRequestComment>>;
 
 // These three were `Narrows` — the API projection typed a lifecycle column as bare `string`
 // while the web declared the union the column is actually constrained to (CONTRACT-001). The API

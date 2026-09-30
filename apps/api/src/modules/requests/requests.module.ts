@@ -5,6 +5,7 @@ import {
   CLIENT_REQUESTS_REPOSITORY,
   CLIENT_REQUESTS_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
+  REQUEST_COMMENTS_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
@@ -16,6 +17,9 @@ import { ClientOrganizationsRepository } from '../clients/client-organizations.r
 import { ClientRequestsRepository } from './client-requests.repository.js';
 import { ClientRequestsService } from './client-requests.service.js';
 import { ClientRequestsController } from './client-requests.controller.js';
+import { RequestCommentsRepository } from './request-comments.repository.js';
+import { RequestCommentsService } from './request-comments.service.js';
+import { RequestCommentsController } from './request-comments.controller.js';
 
 /**
  * REQ-001's wiring — the studio's half.
@@ -64,11 +68,21 @@ export class RequestsModule {
         ),
     };
 
+    // x299 — a client request's internal comment thread. Registered here (the shared append point)
+    // rather than in a module of its own, alongside the request aggregate it hangs off. The service
+    // reuses the request repository to resolve the parent request tenant-scoped before it writes.
+    const commentsService: Provider = {
+      provide: REQUEST_COMMENTS_SERVICE,
+      inject: [TENANT_DATABASE, CLIENT_REQUESTS_REPOSITORY],
+      useFactory: (database: TenantDatabase, requests: ClientRequestsRepository) =>
+        new RequestCommentsService(database, requests, new RequestCommentsRepository()),
+    };
+
     return {
       module: RequestsModule,
-      providers: [repository, service],
+      providers: [repository, service, commentsService],
       exports: [service],
-      controllers: [ClientRequestsController],
+      controllers: [ClientRequestsController, RequestCommentsController],
     };
   }
 }
