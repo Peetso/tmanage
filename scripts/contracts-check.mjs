@@ -142,6 +142,10 @@ const WEB_EXEMPT = new Map([
     'x259 — the single snooze item. The API inlines it inside `InboxSnoozeView` (there is no standalone API item type), and that wrapper is paired Exact, so the item shape is covered there.',
   ],
   [
+    'InboxSourceMute',
+    'x318 — the single muted-source item. The API inlines it inside `InboxSourceMutesView` (there is no standalone API item type), and that wrapper is paired Exact, so the item shape is covered there.',
+  ],
+  [
     'WebhookDeliveryPage',
     'x221 — the keyset page wrapper (deliveries + nextCursor). The API returns the page inline with no named page view; its element `WebhookDeliveryView` is paired Exact.',
   ],
