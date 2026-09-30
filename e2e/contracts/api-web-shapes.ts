@@ -36,6 +36,9 @@ import type { ReportScheduleView as ApiReportScheduleView } from '../../apps/api
 import type { QuietHoursView as ApiQuietHoursView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
 import type { QuietHoursActiveView as ApiQuietHoursActiveView } from '../../apps/api/src/modules/preferences/quiet-hours.controller.js';
 import type { DigestPrefView as ApiDigestPrefView } from '../../apps/api/src/modules/preferences/digest.controller.js';
+import type { ShortcutMapView as ApiShortcutMapView } from '../../apps/api/src/modules/preferences/shortcut-prefs.controller.js';
+import type { ShortcutView as ApiShortcutView } from '../../apps/api/src/modules/preferences/shortcut-prefs.controller.js';
+import type { ResolvedShortcutView as ApiResolvedShortcutView } from '../../apps/api/src/modules/preferences/shortcut-prefs.service.js';
 import type { AcceptedInvitationView as ApiAcceptedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { AuditEventView as ApiAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
 import type { AdminAuditEventView as ApiAdminAuditEventView } from '../../apps/api/src/modules/audit/audit.service.js';
@@ -305,6 +308,9 @@ import type { ReportScheduleView as WebReportScheduleView } from '../../apps/web
 import type { QuietHoursView as WebQuietHoursView } from '../../apps/web/src/lib/api/quiet-hours';
 import type { QuietHoursActiveView as WebQuietHoursActiveView } from '../../apps/web/src/lib/api/quiet-hours';
 import type { DigestPrefView as WebDigestPrefView } from '../../apps/web/src/lib/api/digest';
+import type { ShortcutMapView as WebShortcutMapView } from '../../apps/web/src/lib/api/keyboard-shortcuts';
+import type { ShortcutView as WebShortcutView } from '../../apps/web/src/lib/api/keyboard-shortcuts';
+import type { ResolvedShortcutView as WebResolvedShortcutView } from '../../apps/web/src/lib/api/keyboard-shortcuts';
 import type { MyDay as WebMyDay } from '../../apps/web/src/lib/api/home';
 import type { Waiting as WebWaiting } from '../../apps/web/src/lib/api/home';
 import type { HomeSummary as WebHomeSummary } from '../../apps/web/src/lib/api/home';
@@ -645,6 +651,11 @@ type _insightReportSchedule = Assert<Exact<ApiReportScheduleView, WebReportSched
 // PREF-QUIET (x215): the member's own notification quiet-hours window and active check.
 type _quietHours = Assert<Exact<ApiQuietHoursView, WebQuietHoursView>>;
 type _quietHoursActive = Assert<Exact<ApiQuietHoursActiveView, WebQuietHoursActiveView>>;
+// PRF keyboard shortcuts (x286): the member's own command-palette shortcut overrides — the resolved
+// map, one resolved shortcut, and the rebind result — read/rebound/reset over `/me/shortcuts`.
+type _shortcutMap = Assert<Exact<ApiShortcutMapView, WebShortcutMapView>>;
+type _shortcutView = Assert<Exact<ApiShortcutView, WebShortcutView>>;
+type _resolvedShortcutView = Assert<Exact<ApiResolvedShortcutView, WebResolvedShortcutView>>;
 // Home widget preferences (x243): the member's own Home widget order/hidden set over `/home/widget-prefs`.
 type _homeWidgetPrefs = Assert<Exact<ApiHomeWidgetPrefsView, WebHomeWidgetPrefsView>>;
 type _digestPref = Assert<Exact<ApiDigestPrefView, WebDigestPrefView>>;

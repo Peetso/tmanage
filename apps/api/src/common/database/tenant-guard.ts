@@ -768,6 +768,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them, and
   // tenant-isolation.db.test.ts enforces the entry.
   audit_retention_policy: 'organization_id',
+  // PRF keyboard shortcuts (x286, migration 0155). Tenant-owned: a row is one membership's override
+  // of one command-palette action's chord in one studio, and an unscoped `SELECT ... FROM
+  // user_shortcut_prefs` would be every member's overrides across every studio on the server.
+  // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table has,
+  // so the guard scopes its reads and its writes; the layer-3 guard fails OPEN on an unregistered
+  // table, so this entry is what scopes them, and tenant-isolation.db.test.ts enforces the entry.
+  user_shortcut_prefs: 'organization_id',
 });
 
 /**

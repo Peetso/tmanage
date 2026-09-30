@@ -38,6 +38,7 @@ import { NotificationKindPrefsModule } from './modules/notifications/notificatio
 import { A11yPreferencesModule } from './modules/preferences/a11y-preferences.module.js';
 import { DisplayPreferencesModule } from './modules/preferences/display-prefs.module.js';
 import { QuietHoursModule } from './modules/preferences/quiet-hours.module.js';
+import { ShortcutPrefsModule } from './modules/preferences/shortcut-prefs.module.js';
 import { PreferencesModule } from './modules/preferences/preferences.module.js';
 import { DigestPreferenceModule } from './modules/preferences/digest.module.js';
 import { ConversationsModule } from './modules/conversations/conversations.module.js';
@@ -373,6 +374,11 @@ export class AppModule {
         // resolves no tenant object and depends on nothing but the database; file-disjoint from
         // x182/x183.
         QuietHoursModule.register(),
+        // PRF keyboard shortcuts (x286, module 20). The caller's own command-palette shortcut
+        // overrides (GET /me/shortcuts, PUT/DELETE /me/shortcuts/:actionKey). Like the sibling
+        // preferences slices it resolves no tenant object and depends on nothing but the database;
+        // file-disjoint from x182/x183/x215.
+        ShortcutPrefsModule.register(),
         PreferencesModule.register(),
         // PREF-DIGEST (x245, module 20). The caller's own notification digest cadence (GET/PUT
         // /preferences/digest). Like the sibling preferences slices it resolves no tenant object and

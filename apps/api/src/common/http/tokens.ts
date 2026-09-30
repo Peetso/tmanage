@@ -128,6 +128,8 @@ export const HOME_WIDGET_PREFS_REPOSITORY = Symbol.for('tmanage.HomeWidgetPrefsR
 export const HOME_QUICK_LINKS_REPOSITORY = Symbol.for('tmanage.HomeQuickLinksRepository');
 /** Home quick links (x273, module 4). The member's-own My Day quick-links service. */
 export const HOME_QUICK_LINKS_SERVICE = Symbol.for('tmanage.HomeQuickLinksService');
+/** PRF keyboard shortcuts (x286, module 20). The member's-own keyboard-shortcut override store. */
+export const SHORTCUT_PREFS_REPOSITORY = Symbol.for('tmanage.ShortcutPrefsRepository');
 export const WORK_VIEWS_SERVICE = Symbol.for('tmanage.WorkViewsService');
 /** CAL-01 / MTG-01 (x90). The calendar module's meeting read/write. */
 export const MEETINGS_REPOSITORY = Symbol.for('tmanage.MeetingsRepository');

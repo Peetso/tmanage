@@ -99,6 +99,7 @@
 --     projects, project_memberships, client_organizations, client_memberships,
 --     project_clients, work_items, conversation_memberships, outbox_events,
 --     idempotency_records, search_index, meeting_occurrence_overrides
+--     idempotency_records, search_index, meeting_occurrence_overrides, user_shortcut_prefs
 --   · `INSERT, UPDATE` on: client_requests, invitations, conversations, messages,
 --     notifications, notification_preferences, notification_kind_prefs, work_blockers,
 --     usage_counters, file_assets,
@@ -904,6 +905,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`org_feature_flags` TO 'tmanage_app'@'
 -- write on `audit_events` itself (that table keeps its INSERT-only grant above): a preview counts, and
 -- the purge is a later, separately-credentialed procedure.
 GRANT INSERT, UPDATE         ON `tmanage`.`audit_retention_policy` TO 'tmanage_app'@'%';
+-- PRF keyboard shortcuts (x286, module 20). **INSERT, UPDATE, DELETE** — a member rebinds a
+-- command-palette action's chord with an `INSERT ... ON DUPLICATE KEY UPDATE` upsert against
+-- `uq_user_shortcut_prefs_org_membership_action` (INSERT + UPDATE), and resets an action to its
+-- shipped default by removing their own row (DELETE, idempotent). SELECT is the database-wide grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`user_shortcut_prefs` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every

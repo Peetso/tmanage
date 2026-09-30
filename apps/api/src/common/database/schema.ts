@@ -4455,6 +4455,41 @@ export const conversationMutes = mysqlTable(
   ],
 );
 
+/**
+ * PRF keyboard shortcuts (x286, module 20 Preferences & accessibility). A member's own override of
+ * one command-palette action's keyboard chord (migration 0155).
+ *
+ * One row per `(organization_id, membership_id, action_key)`: the chord the acting member has bound
+ * to a command-palette action. Keyed by membership (like `home_widget_prefs`) rather than the global
+ * user, because it is scoped to who the caller is *in this studio* and never leaves the tenant.
+ * `action_key` is a command id from the palette's fixed registry (the application validates it before
+ * an insert; an unknown key is a 400) and `chord` is validated against a fixed grammar. Absence of a
+ * row means the action resolves to its shipped default, so a read overlays the stored overrides on the
+ * defaults. The rebind is a single upsert against `uq_user_shortcut_prefs_org_membership_action`, so a
+ * repeated rebind updates in place; the reset is a delete of the caller's own row; `updated_at` follows
+ * the column's `ON UPDATE`.
+ */
+export const userShortcutPrefs = mysqlTable(
+  'user_shortcut_prefs',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    actionKey: varchar('action_key', { length: 64 }).notNull(),
+    chord: varchar('chord', { length: 64 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_user_shortcut_prefs_org_id').on(table.organizationId, table.id),
+    // The upsert key: one row per member per action per studio.
+    uniqueIndex('uq_user_shortcut_prefs_org_membership_action').on(
+      table.organizationId,
+      table.membershipId,
+      table.actionKey,
+    ),
+  ],
+);
+
 export const IDEMPOTENCY_STATUS = ['in_progress', 'succeeded', 'failed'] as const;
 
 export const idempotencyRecords = mysqlTable(
@@ -6195,6 +6230,7 @@ export const TABLES = {
   a11y_preferences: a11yPreferences,
   pref_quiet_hours: quietHours,
   pref_digest: digestPreferences,
+  user_shortcut_prefs: userShortcutPrefs,
   usage_counters: usageCounters,
   usage_ledger_entries: usageLedgerEntries,
   file_assets: fileAssets,
@@ -6407,6 +6443,7 @@ export type NotificationPreferenceRow = typeof notificationPreferences.$inferSel
 export type NotificationKindPrefRow = typeof notificationKindPrefs.$inferSelect;
 export type A11yPreferenceRow = typeof a11yPreferences.$inferSelect;
 export type QuietHoursRow = typeof quietHours.$inferSelect;
+export type UserShortcutPrefRow = typeof userShortcutPrefs.$inferSelect;
 export type UserPreferenceRow = typeof userPreferences.$inferSelect;
 export type DigestPreferenceRow = typeof digestPreferences.$inferSelect;
 export type ConversationMuteRow = typeof conversationMutes.$inferSelect;
