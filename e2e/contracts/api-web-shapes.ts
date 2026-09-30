@@ -72,6 +72,7 @@ import type {
 } from '../../apps/api/src/modules/docs/doc-tags.service.js';
 import type { DocLinkView as ApiDocLinkView } from '../../apps/api/src/modules/docs/doc-links.service.js';
 import type { DocReadStateView as ApiDocReadStateView } from '../../apps/api/src/modules/docs/doc-read-state.service.js';
+import type { MetricFavoriteView as ApiMetricFavoriteView } from '../../apps/api/src/modules/insights/metric-favorites.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -372,6 +373,7 @@ import type { MessageAttachmentSummary as WebMessageAttachmentSummary } from '..
 import type { DocLinkSummary as WebDocLinkSummary } from '../../apps/web/src/lib/api/doc-links';
 import type { DocReadStateSummary as WebDocReadStateSummary } from '../../apps/web/src/lib/api/doc-read-state';
 import type { ApprovalDelegationSummary as WebApprovalDelegationSummary } from '../../apps/web/src/lib/api/approval-delegations';
+import type { MetricFavoriteSummary as WebMetricFavoriteSummary } from '../../apps/web/src/lib/api/metric-favorites';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -981,6 +983,13 @@ type _docLink = Assert<Exact<ApiDocLinkView, WebDocLinkSummary>>;
  * are absent on both sides: the wire never echoes the tenant id, and the membership is the caller's own.
  */
 type _docReadState = Assert<Exact<ApiDocReadStateView, WebDocReadStateSummary>>;
+
+/**
+ * INS metric favorites (x303). `MetricFavoriteView` (`PUT/DELETE …/insights/metric-favorites/:metricKey`,
+ * `GET …/insights/metric-favorites`) — one of the caller's starred insight metrics. The
+ * `MetricFavoritesView` screen reads exactly this response, so the pair is Exact.
+ */
+type _metricFavorite = Assert<Exact<ApiMetricFavoriteView, WebMetricFavoriteSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

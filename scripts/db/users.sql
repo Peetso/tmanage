@@ -620,6 +620,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`doc_links`         TO 'tmanage_app'@'
 -- `uq_doc_read_state_pin`), and DELETE to mark it unread — but **no other privilege**. Reading is the
 -- database-wide SELECT above. The worker gets nothing here — this table is the API's alone.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`doc_read_state`   TO 'tmanage_app'@'%';
+-- INS metric favorites (0171, x303) per-membership starred insight metrics. INSERT to star and
+-- DELETE to unstar, and **no UPDATE**: a favorite is created and removed, never edited, so the
+-- missing privilege is the control (no immutability trigger, none needed). Reading is the
+-- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
+-- `doc_bookmarks` posture.
+GRANT INSERT, DELETE         ON `tmanage`.`insight_metric_favorites` TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
