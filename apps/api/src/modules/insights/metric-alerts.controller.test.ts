@@ -4,6 +4,8 @@ import type { ApiError } from '../../common/http/errors.js';
 import { InsightMetricAlertsController } from './metric-alerts.controller.js';
 import { InsightMetricAlertsService } from './metric-alerts.service.js';
 import type { MetricAlertStatusView, MetricAlertView } from './metric-alerts.service.js';
+import type { InsightMetricAlertsRepository } from './metric-alerts.repository.js';
+import type { InsightMetricAlertRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 
 /**
@@ -48,7 +50,9 @@ function client(): Principal {
   };
 }
 
-function serviceWith(overrides: Partial<InsightMetricAlertsService> = {}): InsightMetricAlertsService {
+function serviceWith(
+  overrides: Partial<InsightMetricAlertsService> = {},
+): InsightMetricAlertsService {
   const database = {} as unknown as TenantDatabase;
   const service = new InsightMetricAlertsService(database);
   return Object.assign(service, overrides);
@@ -66,7 +70,11 @@ describe('InsightMetricAlertsController', () => {
       }),
     );
     await expect(
-      controller.set(context, member(), { metricKey: 'open_items', comparator: 'gte', threshold: 5 }),
+      controller.set(context, member(), {
+        metricKey: 'open_items',
+        comparator: 'gte',
+        threshold: 5,
+      }),
     ).resolves.toMatchObject({ metricKey: 'open_items', comparator: 'gte', threshold: 5 });
     expect(written).toHaveLength(1);
   });
@@ -82,7 +90,11 @@ describe('InsightMetricAlertsController', () => {
       }),
     );
     await expect(
-      controller.set(context, client(), { metricKey: 'open_items', comparator: 'gte', threshold: 5 }),
+      controller.set(context, client(), {
+        metricKey: 'open_items',
+        comparator: 'gte',
+        threshold: 5,
+      }),
     ).rejects.toMatchObject({ status: 403 } as Partial<ApiError>);
     expect(touched).toBe(false);
   });
@@ -101,7 +113,11 @@ describe('InsightMetricAlertsController', () => {
       controller.set(context, member(), { metricKey: 'bogus', comparator: 'gte', threshold: 5 }),
     ).rejects.toMatchObject({ status: 400 } as Partial<ApiError>);
     await expect(
-      controller.set(context, member(), { metricKey: 'open_items', comparator: 'eq', threshold: 5 }),
+      controller.set(context, member(), {
+        metricKey: 'open_items',
+        comparator: 'eq',
+        threshold: 5,
+      }),
     ).rejects.toMatchObject({ status: 400 } as Partial<ApiError>);
     await expect(
       controller.set(context, member(), {
@@ -152,7 +168,7 @@ describe('InsightMetricAlertsController', () => {
         comparator,
         threshold,
         createdAt: new Date(),
-      }) as unknown as import('../../common/database/schema.js').InsightMetricAlertRow;
+      }) as unknown as InsightMetricAlertRow;
 
     // A fake database.read that simply invokes the repository callback, and a fake repository that
     // returns fixed rows and a fixed snapshot payload — so the service's own breach evaluation is
@@ -165,7 +181,7 @@ describe('InsightMetricAlertsController', () => {
           row('active_projects', 'gte', 9), // 3 >= 9 → ok
         ],
         latestWorkloadPayload: async () => payload,
-      } as unknown as import('./metric-alerts.repository.js').InsightMetricAlertsRepository;
+      } as unknown as InsightMetricAlertsRepository;
       const database = {
         read: async (_ctx: TenantContext, run: (r: unknown) => unknown) => run(undefined),
       } as unknown as TenantDatabase;
@@ -177,16 +193,46 @@ describe('InsightMetricAlertsController', () => {
     });
     expect(await withSnapshot.list(context, member())).toEqual([
       { metricKey: 'open_items', comparator: 'gte', threshold: 5, currentValue: 8, breached: true },
-      { metricKey: 'scheduled_items', comparator: 'lte', threshold: 5, currentValue: 2, breached: true },
-      { metricKey: 'active_projects', comparator: 'gte', threshold: 9, currentValue: 3, breached: false },
+      {
+        metricKey: 'scheduled_items',
+        comparator: 'lte',
+        threshold: 5,
+        currentValue: 2,
+        breached: true,
+      },
+      {
+        metricKey: 'active_projects',
+        comparator: 'gte',
+        threshold: 9,
+        currentValue: 3,
+        breached: false,
+      },
     ]);
 
     // No snapshot captured yet: current value is null and nothing is breached (no fabricated number).
     const noSnapshot = makeService(undefined);
     expect(await noSnapshot.list(context, member())).toEqual([
-      { metricKey: 'open_items', comparator: 'gte', threshold: 5, currentValue: null, breached: false },
-      { metricKey: 'scheduled_items', comparator: 'lte', threshold: 5, currentValue: null, breached: false },
-      { metricKey: 'active_projects', comparator: 'gte', threshold: 9, currentValue: null, breached: false },
+      {
+        metricKey: 'open_items',
+        comparator: 'gte',
+        threshold: 5,
+        currentValue: null,
+        breached: false,
+      },
+      {
+        metricKey: 'scheduled_items',
+        comparator: 'lte',
+        threshold: 5,
+        currentValue: null,
+        breached: false,
+      },
+      {
+        metricKey: 'active_projects',
+        comparator: 'gte',
+        threshold: 9,
+        currentValue: null,
+        breached: false,
+      },
     ]);
   });
 });

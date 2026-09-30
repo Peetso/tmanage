@@ -182,7 +182,11 @@ export function InsightMetricAlertsScreen({
         ) : null}
 
         {alerts.isSuccess ? (
-          <AlertsTable rows={rows} onDelete={(metric) => remove.mutate(metric)} busy={remove.isPending} />
+          <AlertsTable
+            rows={rows}
+            onDelete={(metric) => remove.mutate(metric)}
+            busy={remove.isPending}
+          />
         ) : null}
       </section>
     </AppShell>
@@ -204,7 +208,9 @@ function AlertsTable({
 
   return (
     <table className="tm-table">
-      <caption className="tm-visually-hidden">Your metric alerts and whether each is breached</caption>
+      <caption className="tm-visually-hidden">
+        Your metric alerts and whether each is breached
+      </caption>
       <thead>
         <tr>
           <th scope="col">Metric</th>
@@ -228,11 +234,7 @@ function AlertsTable({
               <Badge mono>{row.breached ? 'Breached' : 'OK'}</Badge>
             </td>
             <td>
-              <Button
-                tone="text"
-                onClick={() => onDelete(row.metricKey)}
-                disabled={busy}
-              >
+              <Button tone="text" onClick={() => onDelete(row.metricKey)} disabled={busy}>
                 Delete
               </Button>
             </td>

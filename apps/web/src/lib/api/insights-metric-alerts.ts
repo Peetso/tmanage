@@ -18,10 +18,7 @@ import type { ApiClient } from './client';
 
 /** The metrics an alert can watch — mirrors the API's closed vocabulary. */
 export type MetricAlertMetric =
-  | 'open_items'
-  | 'scheduled_items'
-  | 'active_projects'
-  | 'active_assignees';
+  'open_items' | 'scheduled_items' | 'active_projects' | 'active_assignees';
 
 /** How the live figure is compared to the threshold — mirrors the API's closed vocabulary. */
 export type MetricAlertComparator = 'gte' | 'lte';
