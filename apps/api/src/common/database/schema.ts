@@ -6860,6 +6860,37 @@ export type FileFolderRow = typeof fileFolders.$inferSelect;
 export type NewFileFolderRow = typeof fileFolders.$inferInsert;
 
 /**
+ * x333. File comments (Files module). In-app discussion on a file asset: a member comments, the
+ * thread reads oldest-first (`created_at` then `id`), and a member deletes their own comment
+ * (`created_by` vs the acting membership). `fk_file_comments_file` binds `(organization_id,
+ * file_asset_id)` to `file_assets`, so a cross-tenant file id is a non-existent pair — migration
+ * `0199_file_comments.sql`. Distinct from `document_comments` (0045, on documents).
+ */
+export const fileComments = mysqlTable(
+  'file_comments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    body: text('body').notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_file_comments_org_id').on(table.organizationId, table.id),
+    index('ix_file_comments_file').on(
+      table.organizationId,
+      table.fileAssetId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export type FileCommentRow = typeof fileComments.$inferSelect;
+export type NewFileCommentRow = typeof fileComments.$inferInsert;
+
+/**
  * DOC bookmarks / favorites (x242). A membership's private favorite of a `documents` row â€” the fact
  * "this membership bookmarked this document". Per-membership and tenant-scoped like `home_pinned_items`
  * (0050): created (INSERT) and removed (DELETE), never edited, so there is no immutability trigger â€”
@@ -7906,6 +7937,7 @@ export const TABLES = {
   file_tags: fileTags,
   work_item_custom_fields: workItemCustomFields,
   file_folders: fileFolders,
+  file_comments: fileComments,
   work_item_watchers: workItemWatchers,
   conversation_read_state: conversationReadState,
   users,

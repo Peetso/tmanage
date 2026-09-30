@@ -442,6 +442,10 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_board_columns`     TO 'tmanage_a
 -- file a file back to root by removing its membership row). The 0198 trigger pins organization_id
 -- immutable, and reading is the database-wide SELECT above.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`file_folders`          TO 'tmanage_app'@'%';
+-- x333 file comments. INSERT (comment on a file) and DELETE (delete own comment). No UPDATE: a
+-- comment is written once and removed, never amended in place; the 0199 trigger pins
+-- organization_id immutable, and reading is the database-wide SELECT above.
+GRANT INSERT, DELETE         ON `tmanage`.`file_comments`         TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

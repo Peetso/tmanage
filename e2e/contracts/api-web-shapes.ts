@@ -284,6 +284,7 @@ import type {
   FileFolderView as ApiFileFolderView,
   FileFolderPlacementView as ApiFileFolderPlacementView,
 } from '../../apps/api/src/modules/files/folders.service.js';
+import type { FileCommentView as ApiFileCommentView } from '../../apps/api/src/modules/files/comments.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -678,6 +679,7 @@ import type { ApplyTemplateResult as WebApplyTemplateResult } from '../../apps/w
 import type { BoardColumn as WebBoardColumn } from '../../apps/web/src/lib/api/board-columns';
 import type { FileFolder as WebFileFolder } from '../../apps/web/src/lib/api/file-folders';
 import type { FileFolderPlacement as WebFileFolderPlacement } from '../../apps/web/src/lib/api/file-folders';
+import type { FileComment as WebFileComment } from '../../apps/web/src/lib/api/file-comments';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -1719,6 +1721,14 @@ type _boardColumn = Assert<Exact<ApiBoardColumnView, WebBoardColumn>>;
  */
 type _fileFolder = Assert<Exact<ApiFileFolderView, WebFileFolder>>;
 type _fileFolderPlacement = Assert<Exact<ApiFileFolderPlacementView, WebFileFolderPlacement>>;
+
+/**
+ * x333. File comments (Files module). `FileCommentView` ↔ `FileComment` — one comment on a file
+ * asset (`GET`/`POST …/files/:fileId/comments`, `DELETE …/files/:fileId/comments/:commentId`). The
+ * `FileCommentsView` thread reads exactly this response, so the pair is Exact. `organizationId` is
+ * absent, as on every wire projection.
+ */
+type _fileComment = Assert<Exact<ApiFileCommentView, WebFileComment>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped
