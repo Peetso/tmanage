@@ -693,6 +693,12 @@ GRANT INSERT                 ON `tmanage`.`project_updates`  TO 'tmanage_app'@'%
 -- code that writes it, per this file's rule that a grant names a statement that exists (the same
 -- treatment `project_updates`, `work_item_comments` and `meetings` have above).
 GRANT INSERT                 ON `tmanage`.`project_update_comments` TO 'tmanage_app'@'%';
+-- POR client portal (x304, 0172) portal announcement banners. **INSERT and DELETE** — a banner is
+-- posted (INSERT) and retracted (DELETE), read (the database-wide SELECT above), and **never edited**:
+-- this slice ships no editor, so no UPDATE, and the missing privilege is the control (the
+-- `doc_bookmarks`/`home_pinned_items` posture, no immutability trigger). The worker gets nothing here
+-- — this table is the API's alone.
+GRANT INSERT, DELETE         ON `tmanage`.`portal_announcements` TO 'tmanage_app'@'%';
 -- DOC-04 (x130) document template variables. **INSERT and DELETE** — a variable is added (INSERT)
 -- and removed (DELETE), read (the database-wide SELECT), and **never edited**: this slice ships no
 -- editor, so no UPDATE, and the 0044 trigger pins organization_id/template_id immutable for every
