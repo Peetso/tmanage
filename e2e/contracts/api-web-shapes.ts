@@ -82,6 +82,7 @@ import type {
   UsageAlertStatusView as ApiUsageAlertStatusView,
 } from '../../apps/api/src/modules/billing/usage-alerts.service.js';
 import type { UsageExportView as ApiUsageExportView } from '../../apps/api/src/modules/billing/usage-export.service.js';
+import type { CostCenterView as ApiCostCenterView } from '../../apps/api/src/modules/billing/cost-centers.service.js';
 import type { EnrolledFactorView as ApiEnrolledFactorView } from '../../apps/api/src/modules/identity/authentication.service.js';
 import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
@@ -505,6 +506,7 @@ import type {
   UsageAlertStatus as WebUsageAlertStatus,
 } from '../../apps/web/src/lib/api/billing';
 import type { UsageExportColumns as WebUsageExportColumns } from '../../apps/web/src/lib/api/billing-usage-export';
+import type { CostCenterSummary as WebCostCenterSummary } from '../../apps/web/src/lib/api/billing-cost-centers';
 import type { AdminAuditEvent as WebAdminAuditEvent } from '../../apps/web/src/lib/api/admin-audit';
 import type { AdminOverviewView as WebAdminOverviewView } from '../../apps/web/src/lib/api/admin-overview';
 import type { ApprovalCycle as WebApprovalCycle } from '../../apps/web/src/lib/api/approval-cycle';
@@ -1423,6 +1425,15 @@ type _usageAlertStatus = Assert<Exact<ApiUsageAlertStatusView, WebUsageAlertStat
  * documentation in step. `organizationId` and the counter's storage internals are absent on both.
  */
 type _usageExport = Assert<Exact<ApiUsageExportView, WebUsageExportColumns>>;
+
+/**
+ * Billing & entitlements (x281). `CostCenterView` (`GET`/`POST …/billing/cost-centers`, response) — one
+ * org-scoped cost center: its id, code, display name, and the ids of the projects assigned to it.
+ * Paired with the live web consumer `CostCentersView` (via `lib/api/billing-cost-centers`);
+ * `organizationId` is absent on both, and `projectIds` is a readonly string array on both sides. The
+ * assign / unassign / delete routes answer `204` with no body, so they need no pairing here.
+ */
+type _costCenter = Assert<Exact<ApiCostCenterView, WebCostCenterSummary>>;
 
 /**
  * Automations app directory (x165). `IntegrationConnectionView` (`GET`/`POST

@@ -1204,6 +1204,45 @@ export const billingUsageAlerts = mysqlTable(
   ],
 );
 
+/** The two row kinds a `billing_cost_centers` row can be, mirroring the `0150` `ENUM`. */
+export const BILLING_COST_CENTER_ROW_KINDS = ['def', 'assignment'] as const;
+
+/**
+ * Billing & entitlements (module 19, x281). An org-scoped billing cost center and its project
+ * assignments, held in one table discriminated by `row_kind` (0150 is the source of truth): a `def`
+ * row carries the display `name` for a `code` (one per `(organization_id, code)`, enforced through the
+ * stored `def_code` generated column), and an `assignment` row shares that `code` and sets a
+ * `project_id` (one per `(organization_id, code, project_id)`). Org-scoped like `billing_usage_alerts`
+ * (0083): no `project_id` on the tenant key, which is `organization_id` bound to `organizations`. Rows
+ * are only ever inserted or deleted — never updated — so there is no update path and no trigger.
+ */
+export const billingCostCenters = mysqlTable(
+  'billing_cost_centers',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    rowKind: mysqlEnum('row_kind', BILLING_COST_CENTER_ROW_KINDS).notNull(),
+    code: varchar('code', { length: 64 }).notNull(),
+    /** Present on a `def` row; NULL on an `assignment` row. */
+    name: varchar('name', { length: 190 }),
+    /** Present on an `assignment` row; NULL on a `def` row. */
+    projectId: char('project_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** Engine-computed (the code for a `def` row, NULL otherwise); never written by the application. */
+    defCode: varchar('def_code', { length: 64 }),
+  },
+  (table) => [
+    uniqueIndex('uq_billing_cost_centers_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_billing_cost_centers_def').on(table.organizationId, table.defCode),
+    uniqueIndex('uq_billing_cost_centers_assignment').on(
+      table.organizationId,
+      table.code,
+      table.projectId,
+    ),
+    index('ix_billing_cost_centers_org_code').on(table.organizationId, table.code),
+  ],
+);
+
 /**
  * BILLING / module 19 (x226). An org-scoped manual credit / adjustment ledger entry — a signed
  * `amount` in integer minor units (a positive credit or a negative adjustment), a free-text `reason`,
@@ -5783,6 +5822,7 @@ export const TABLES = {
   billing_contacts: billingContacts,
   billing_usage_alerts: billingUsageAlerts,
   billing_credits: billingCredits,
+  billing_cost_centers: billingCostCenters,
   work_item_files: workItemFiles,
   work_item_reminders: workItemReminders,
   insight_saved_views: insightSavedViews,
@@ -5890,6 +5930,7 @@ export type DocumentTemplateRow = typeof documentTemplates.$inferSelect;
 export type AutomationScheduleRow = typeof automationSchedules.$inferSelect;
 export type BillingUsageAlertRow = typeof billingUsageAlerts.$inferSelect;
 export type BillingCreditRow = typeof billingCredits.$inferSelect;
+export type BillingCostCenterRow = typeof billingCostCenters.$inferSelect;
 export type NewDocumentTemplateRow = typeof documentTemplates.$inferInsert;
 export type ProjectObjectiveRow = typeof projectObjectives.$inferSelect;
 export type ProjectInternalRiskRow = typeof projectInternalRisks.$inferSelect;

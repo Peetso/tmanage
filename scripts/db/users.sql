@@ -595,6 +595,13 @@ GRANT INSERT, UPDATE         ON `tmanage`.`billing_usage_alerts` TO 'tmanage_app
 -- this is the `insight_snapshots` (0090) posture. No money moves here — the running balance is summed
 -- in the application, never settled — so no worker grant either.
 GRANT INSERT                 ON `tmanage`.`billing_credits`   TO 'tmanage_app'@'%';
+-- Billing cost centers (0150, x281). **SELECT, INSERT and DELETE** — a cost-center definition and its
+-- project assignments are created (INSERT), listed (SELECT), and removed / unassigned (DELETE). No row
+-- is ever updated in place — the code changes a cost center by inserting and deleting rows, never by an
+-- UPDATE — so **no UPDATE**, which is why the table needs no immutability trigger. SELECT is named
+-- here explicitly (as well as via the database-wide read above) so the grant states the full set the
+-- code uses. The worker gets nothing: allocation reporting is a later slice.
+GRANT SELECT, INSERT, DELETE ON `tmanage`.`billing_cost_centers` TO 'tmanage_app'@'%';
 -- CLIENT-003 (x125, 0041). A project update is posted (INSERT) and read (the database-wide
 -- SELECT above); `published` is set at INSERT time, and this slice ships no edit/unpublish
 -- endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0041 trigger pins
