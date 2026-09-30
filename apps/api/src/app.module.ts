@@ -74,6 +74,7 @@ import { PeopleModule } from './modules/people/people.module.js';
 import { ProjectRiskRegisterModule } from './modules/projects/risk-register.module.js';
 import { ProjectTemplatesModule } from './modules/projects/templates.module.js';
 import { ProjectStatusUpdatesModule } from './modules/projects/status-updates.module.js';
+import { ProjectBudgetModule } from './modules/projects/budget.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ProjectHealthModule } from './modules/projects/health.module.js';
@@ -553,6 +554,13 @@ export class AppModule {
         // x125's portal updates: a different path (`…/projects/:id/status-updates`) and a different
         // table (`project_status_updates`); never projected to a client.
         ProjectStatusUpdatesModule.register(),
+        // PROJ / project detail (x293). A project's budget: set effort and/or an amount, and read a
+        // budget-vs-tracked summary that sums the effort logged on the project's work items
+        // (`work_item_time_logs`, 0103, read-only). After `ProjectsModule` for the same reason as the
+        // risk register: a budget names a project in its path, and the composite foreign key means a
+        // caller who names one that is not theirs gets a 404 rather than a foreign-key 500. Both
+        // routes are gated on `project.manage`; the amount is a planning number, never a payment.
+        ProjectBudgetModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.

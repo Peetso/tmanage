@@ -1080,6 +1080,15 @@ GRANT INSERT ON `tmanage`.`project_templates` TO 'tmanage_app'@'%';
 -- append-only for the runtime credential specifically. **No UPDATE and no DELETE**: an update is the
 -- durable record of what was said and when. Internal-only, never projected to a client.
 GRANT INSERT ON `tmanage`.`project_status_updates` TO 'tmanage_app'@'%';
+-- `project_budgets` (PROJ / project detail, x293, 0160) gets INSERT and UPDATE — the upsert
+-- (`INSERT ... ON DUPLICATE KEY UPDATE` on `uq_project_budgets_org_project`). A budget is set (INSERT
+-- on first save), read (the database-wide SELECT, line 60) to sum it against tracked effort, and
+-- edited in place (UPDATE) as the planned figures change. UPDATE cannot touch the identity columns —
+-- the 0160 trigger (`trg_project_budgets_pin_identity`) refuses `id`, `organization_id`,
+-- `project_id`, `created_by` and `created_at` at the engine, so a budget cannot be re-pointed at
+-- another project or tenant by the runtime credential. **No DELETE**: a manager clears a budget by
+-- saving new figures, not by deleting the row.
+GRANT INSERT, UPDATE ON `tmanage`.`project_budgets` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes

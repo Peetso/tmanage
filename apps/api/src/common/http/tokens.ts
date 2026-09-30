@@ -173,6 +173,9 @@ export const PROJECT_STATUS_UPDATES_REPOSITORY = Symbol.for(
   'tmanage.ProjectStatusUpdatesRepository',
 );
 export const PROJECT_STATUS_UPDATES_SERVICE = Symbol.for('tmanage.ProjectStatusUpdatesService');
+/** PROJ / project detail (x293). A project's budget — set/read against tracked effort. */
+export const PROJECT_BUDGET_REPOSITORY = Symbol.for('tmanage.ProjectBudgetRepository');
+export const PROJECT_BUDGET_SERVICE = Symbol.for('tmanage.ProjectBudgetService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');
