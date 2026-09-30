@@ -6818,7 +6818,7 @@ export type InsightDashboardLayoutRow = typeof insightDashboardLayouts.$inferSel
  * 400, never stored. Adding a starrable metric means adding its id here. Distinct from x302's
  * dashboard layout, which orders the whole tile set: this is the subset a member pins to the top.
  */
-export const INSIGHT_METRIC_KEYS = [
+export const INSIGHT_FAVORITE_METRIC_KEYS = [
   'portfolio.projectCount',
   'portfolio.openItemCount',
   'deliveryFlow.itemCount',
@@ -6828,7 +6828,7 @@ export const INSIGHT_METRIC_KEYS = [
   'workload.scheduledItemCount',
   'adoption.activeMembers',
 ] as const;
-export type InsightMetricKey = (typeof INSIGHT_METRIC_KEYS)[number];
+export type InsightFavoriteMetricKey = (typeof INSIGHT_FAVORITE_METRIC_KEYS)[number];
 
 /**
  * Per-user favorite insight metrics (x303, migration 0171, module 15 Insights).
@@ -6839,7 +6839,7 @@ export type InsightMetricKey = (typeof INSIGHT_METRIC_KEYS)[number];
  * tenant. The only writes are INSERT (star) and DELETE (unstar) — there is no UPDATE path and no
  * UPDATE grant, so the withheld privilege is the control and no immutability trigger is needed.
  * `uq_insight_metric_favorites_star` makes a repeated star a collision the service treats as success,
- * so a repeated PUT is idempotent. `metric_key` is validated against {@link INSIGHT_METRIC_KEYS} by
+ * so a repeated PUT is idempotent. `metric_key` is validated against {@link INSIGHT_FAVORITE_METRIC_KEYS} by
  * the application before the insert; the column stores it whole. `0171_insight_metric_favorites.sql`
  * is the source of truth; this is its typed mirror.
  */
@@ -6849,7 +6849,7 @@ export const insightMetricFavorites = mysqlTable(
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
     membershipId: char('membership_id', { length: 36 }).notNull(),
-    metricKey: varchar('metric_key', { length: 64 }).$type<InsightMetricKey>().notNull(),
+    metricKey: varchar('metric_key', { length: 64 }).$type<InsightFavoriteMetricKey>().notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [

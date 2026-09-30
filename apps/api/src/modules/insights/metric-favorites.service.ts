@@ -1,4 +1,4 @@
-import type { InsightMetricKey } from '../../common/database/schema.js';
+import type { InsightFavoriteMetricKey } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { InsightMetricFavoritesRepository } from './metric-favorites.repository.js';
 
@@ -25,7 +25,7 @@ import { InsightMetricFavoritesRepository } from './metric-favorites.repository.
  */
 export interface MetricFavoriteView {
   readonly id: string;
-  readonly metricKey: InsightMetricKey;
+  readonly metricKey: InsightFavoriteMetricKey;
   /** ISO-8601 instant. */
   readonly createdAt: string;
 }
@@ -40,7 +40,10 @@ export class InsightMetricFavoritesService {
    * Star a metric for the caller, idempotently. A repeated PUT returns the same view, never a second
    * row. `metricKey` is already validated against the allowlist by the controller.
    */
-  async add(context: TenantContext, metricKey: InsightMetricKey): Promise<MetricFavoriteView> {
+  async add(
+    context: TenantContext,
+    metricKey: InsightFavoriteMetricKey,
+  ): Promise<MetricFavoriteView> {
     const row = await this.database.transaction(context, (tx) =>
       this.favorites.add(tx, context, { membershipId: context.membershipId, metricKey }),
     );
@@ -48,7 +51,7 @@ export class InsightMetricFavoritesService {
   }
 
   /** Remove the caller's favorite of a metric, idempotently (no favorite → still success). */
-  async remove(context: TenantContext, metricKey: InsightMetricKey): Promise<void> {
+  async remove(context: TenantContext, metricKey: InsightFavoriteMetricKey): Promise<void> {
     await this.database.transaction(context, (tx) =>
       this.favorites.remove(tx, context, context.membershipId, metricKey),
     );

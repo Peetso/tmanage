@@ -1,8 +1,8 @@
 import { Controller, Delete, Get, HttpCode, Inject, Param, Put } from '@nestjs/common';
 import { Ctx, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { INSIGHT_METRIC_KEYS } from '../../common/database/schema.js';
-import type { InsightMetricKey } from '../../common/database/schema.js';
+import { INSIGHT_FAVORITE_METRIC_KEYS } from '../../common/database/schema.js';
+import type { InsightFavoriteMetricKey } from '../../common/database/schema.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { InsightMetricFavoritesService } from './metric-favorites.service.js';
 import type { MetricFavoriteView } from './metric-favorites.service.js';
@@ -17,7 +17,7 @@ import type { MetricFavoriteView } from './metric-favorites.service.js';
  *
  * The per-metric toggle lives under `insights/metric-favorites/:metricKey`; the caller's list lives at
  * the bare `insights/metric-favorites`. Validation of `metricKey` against the fixed
- * {@link INSIGHT_METRIC_KEYS} allowlist is here — a key off the set is a 400 and nothing is written,
+ * {@link INSIGHT_FAVORITE_METRIC_KEYS} allowlist is here — a key off the set is a 400 and nothing is written,
  * the `home_widget_prefs` posture — so the store never holds a key the app cannot render.
  */
 export const INSIGHT_METRIC_FAVORITES_SERVICE = Symbol.for('tmanage.InsightMetricFavoritesService');
@@ -64,12 +64,12 @@ export class InsightMetricFavoritesController {
  * A path `metricKey` is always required and must be one of the fixed known-metric ids. An unknown key
  * is a 400 (nothing written), never a stored row the app cannot render.
  */
-function requireKnownMetricKey(metricKey: unknown): InsightMetricKey {
+function requireKnownMetricKey(metricKey: unknown): InsightFavoriteMetricKey {
   if (
     typeof metricKey === 'string' &&
-    (INSIGHT_METRIC_KEYS as readonly string[]).includes(metricKey)
+    (INSIGHT_FAVORITE_METRIC_KEYS as readonly string[]).includes(metricKey)
   ) {
-    return metricKey as InsightMetricKey;
+    return metricKey as InsightFavoriteMetricKey;
   }
   throw new ApiError(400, 'validation_failed', 'metricKey is not a known insight metric', [
     { field: 'metricKey', message: 'must be one of the known insight metric keys' },

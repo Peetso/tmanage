@@ -3,7 +3,10 @@ import { ApiError } from '../../common/http/errors.js';
 import { InsightMetricFavoritesController } from './metric-favorites.controller.js';
 import { InsightMetricFavoritesService } from './metric-favorites.service.js';
 import type { InsightMetricFavoritesRepository } from './metric-favorites.repository.js';
-import type { InsightMetricFavoriteRow, InsightMetricKey } from '../../common/database/schema.js';
+import type {
+  InsightMetricFavoriteRow,
+  InsightFavoriteMetricKey,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 
 /**
@@ -15,7 +18,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 
 const ORG = 'organization-0000-0000-0000-000000000001';
 const MEMBERSHIP = 'membership-0000-0000-000000000001';
-const KEY: InsightMetricKey = 'portfolio.projectCount';
+const KEY: InsightFavoriteMetricKey = 'portfolio.projectCount';
 
 function contextFor(membershipId: string): TenantContext {
   return { organizationId: ORG, membershipId } as unknown as TenantContext;
@@ -44,7 +47,7 @@ function controllerWith(): {
     add: async (
       _r: unknown,
       ctx: TenantContext,
-      input: { membershipId: string; metricKey: InsightMetricKey },
+      input: { membershipId: string; metricKey: InsightFavoriteMetricKey },
     ) => {
       const existing = store.find(
         (row) =>

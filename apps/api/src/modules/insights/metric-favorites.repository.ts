@@ -2,7 +2,10 @@ import { and, desc, eq } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { insightMetricFavorites } from '../../common/database/schema.js';
-import type { InsightMetricFavoriteRow, InsightMetricKey } from '../../common/database/schema.js';
+import type {
+  InsightMetricFavoriteRow,
+  InsightFavoriteMetricKey,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -25,7 +28,7 @@ export interface AddFavoriteInput {
   /** The starring membership — the service passes `context.membershipId`. */
   readonly membershipId: string;
   /** A key already validated against the fixed allowlist by the controller. */
-  readonly metricKey: InsightMetricKey;
+  readonly metricKey: InsightFavoriteMetricKey;
 }
 
 /** A membership's favorites list is bounded — the allowlist is small, but the query is capped regardless. */
@@ -37,7 +40,7 @@ export class InsightMetricFavoritesRepository {
     runner: TenantQueryRunner,
     context: TenantContext,
     membershipId: string,
-    metricKey: InsightMetricKey,
+    metricKey: InsightFavoriteMetricKey,
   ): Promise<InsightMetricFavoriteRow | null> {
     const db = tenantDrizzle(runner);
     const rows = await db
@@ -99,7 +102,7 @@ export class InsightMetricFavoritesRepository {
     runner: TenantQueryRunner,
     context: TenantContext,
     membershipId: string,
-    metricKey: InsightMetricKey,
+    metricKey: InsightFavoriteMetricKey,
   ): Promise<void> {
     const db = tenantDrizzle(runner);
     await db
