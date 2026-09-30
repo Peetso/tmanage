@@ -273,6 +273,7 @@ import type { SavedSearchView as ApiSavedSearchView } from '../../apps/api/src/m
 import type { RecentSearchView as ApiRecentSearchView } from '../../apps/api/src/modules/search/saved-searches.service.js';
 import type { SharedSavedSearchView as ApiSharedSavedSearchView } from '../../apps/api/src/modules/search/saved-search-shares.service.js';
 import type { SearchHistoryEntryView as ApiSearchHistoryEntryView } from '../../apps/api/src/modules/search/search-history.service.js';
+import type { SearchPinView as ApiSearchPinView } from '../../apps/api/src/modules/search/search-pins.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
@@ -570,6 +571,7 @@ import type { SavedSearch as WebSavedSearch } from '../../apps/web/src/lib/api/s
 import type { RecentSearch as WebRecentSearch } from '../../apps/web/src/lib/api/saved-searches';
 import type { SharedSavedSearch as WebSharedSavedSearch } from '../../apps/web/src/lib/api/saved-search-shares';
 import type { SearchHistoryEntry as WebSearchHistoryEntry } from '../../apps/web/src/lib/api/search-history';
+import type { SearchPin as WebSearchPin } from '../../apps/web/src/lib/api/search-pins';
 import type { PublicTrustView as WebPublicTrustView } from '../../apps/web/src/lib/api/public-trust';
 import type { PublicFaqView as WebPublicFaqView } from '../../apps/web/src/lib/api/public-faq';
 import type { PublicLegalView as WebPublicLegalView } from '../../apps/web/src/lib/api/public-legal';
@@ -1677,6 +1679,12 @@ type _sharedSavedSearch = Assert<Exact<ApiSharedSavedSearchView, WebSharedSavedS
  * `id`/`organizationId`/`membershipId` on either.
  */
 type _searchHistoryEntry = Assert<Exact<ApiSearchHistoryEntryView, WebSearchHistoryEntry>>;
+
+/**
+ * SRCH quick-access pins (x290). `SearchPinView` ↔ `SearchPin` (`GET/PUT …/search/pins`, `DELETE
+ * …/search/pins/:id`). Paired Exact — the screen reads exactly this response.
+ */
+type _searchPin = Assert<Exact<ApiSearchPinView, WebSearchPin>>;
 
 /**
  * SRCH command palette (x181). `CommandView` ↔ `Command` — one palette command

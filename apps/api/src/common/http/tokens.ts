@@ -278,6 +278,8 @@ export const SAVED_SEARCH_SHARES_SERVICE = Symbol.for('tmanage.SavedSearchShares
 /** Search recent history (x288). The per-member, tenant-scoped recent search history service. */
 export const SEARCH_HISTORY_SERVICE = Symbol.for('tmanage.SearchHistoryService');
 
+export const SEARCH_PINS_SERVICE = Symbol.for('tmanage.SearchPinsService');
+
 /** Public & trust site (x159). The public status page's published-only incidents read. */
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');
 /** x161. The public site's contact / lead intake — the INSERT-only writer over `marketing_leads`. */
