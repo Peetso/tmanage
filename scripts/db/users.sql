@@ -517,6 +517,12 @@ GRANT INSERT                 ON `tmanage`.`meeting_series`   TO 'tmanage_app'@'%
 -- immutable parent series this row is edited and deleted by the endpoints this slice ships, and each
 -- grant names a statement that exists (this file's rule). The worker gets nothing here.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`meeting_occurrence_overrides` TO 'tmanage_app'@'%';
+-- CAL agenda templates (x314). A template is created (INSERT), read (the database-wide SELECT),
+-- edited in place (UPDATE — the idempotent PUT) and removed (DELETE — 204). So INSERT, UPDATE and
+-- DELETE, and the 0182 trigger pins organization_id/created_by/created_at immutable for every
+-- credential besides. Applying a template writes only `meeting_notes` (already granted above), never
+-- this table. The worker gets nothing here. Each grant names a statement that exists (this file's rule).
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`meeting_agenda_templates` TO 'tmanage_app'@'%';
 -- WK-08 (x107). A saved view is created (INSERT), read (the database-wide SELECT) and edited in
 -- place (UPDATE) — this slice ships create/list/update — so INSERT and UPDATE and **no DELETE**:
 -- there is no delete endpoint, least privilege, and the 0034 trigger pins organization_id and
