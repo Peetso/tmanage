@@ -90,7 +90,7 @@ describe('PortalFeedbackController route capabilities (x321)', () => {
   const capabilityOf = (key: string): unknown =>
     Reflect.getMetadata(
       REQUIRED_CAPABILITY,
-      (PortalFeedbackController.prototype as Record<string, unknown>)[key] as object,
+      (PortalFeedbackController.prototype as unknown as Record<string, unknown>)[key] as object,
     );
 
   it('guards the client write with client_projection.read and the staff read with client_member.manage', () => {
