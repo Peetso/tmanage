@@ -241,6 +241,10 @@ import type {
   WorkLabelView as ApiWorkLabelView,
 } from '../../apps/api/src/modules/work/work-labels.service.js';
 import type {
+  WorkCustomFieldDefinitionView as ApiWorkCustomFieldDefinitionView,
+  WorkCustomFieldValueView as ApiWorkCustomFieldValueView,
+} from '../../apps/api/src/modules/work/custom-fields.service.js';
+import type {
   WorkItemRecurrenceView as ApiWorkItemRecurrenceView,
   NextOccurrenceView as ApiNextOccurrenceView,
 } from '../../apps/api/src/modules/work/item-recurrence.service.js';
@@ -607,6 +611,8 @@ import type { DueReminder as WebDueReminder } from '../../apps/web/src/lib/api/w
 import type { WorkActivityEntry as WebWorkActivityEntry } from '../../apps/web/src/lib/api/work-activity';
 import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
+import type { WorkCustomFieldDefinition as WebWorkCustomFieldDefinition } from '../../apps/web/src/lib/api/work-custom-fields';
+import type { WorkCustomFieldValue as WebWorkCustomFieldValue } from '../../apps/web/src/lib/api/work-custom-fields';
 import type { WorkItemRecurrence as WebWorkItemRecurrence } from '../../apps/web/src/lib/api/work-item-recurrence';
 import type { NextOccurrence as WebNextOccurrence } from '../../apps/web/src/lib/api/work-item-recurrence';
 import type { ProjectTag as WebProjectTag } from '../../apps/web/src/lib/api/project-tags';
@@ -1513,6 +1519,19 @@ type _workActivityEntry = Assert<Exact<ApiWorkActivityEntryView, WebWorkActivity
  */
 type _workLabel = Assert<Exact<ApiWorkLabelView, WebWorkLabel>>;
 type _itemLabel = Assert<Exact<ApiItemLabelView, WebItemLabel>>;
+
+/**
+ * x306. Work item custom fields (Work module). `WorkCustomFieldDefinitionView` ↔
+ * `WorkCustomFieldDefinition` — one org-scoped field definition (`GET`/`POST …/work/custom-fields`,
+ * `DELETE …/work/custom-fields/:key`); `WorkCustomFieldValueView` ↔ `WorkCustomFieldValue` — one
+ * field resolved against a work item's value (`GET`/`PUT …/work-items/:id/custom-fields`).
+ * `WorkCustomFieldsView` reads both shapes, so both pairs are held identical on the two sides.
+ * `organizationId` is absent on both.
+ */
+type _workCustomFieldDefinition = Assert<
+  Exact<ApiWorkCustomFieldDefinitionView, WebWorkCustomFieldDefinition>
+>;
+type _workCustomFieldValue = Assert<Exact<ApiWorkCustomFieldValueView, WebWorkCustomFieldValue>>;
 
 /**
  * x257. Work item recurrence (Work module 7). `WorkItemRecurrenceView` ↔ `WorkItemRecurrence` — a

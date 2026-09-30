@@ -386,6 +386,13 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_reminders`    TO 'tmanage_a
 -- item). No UPDATE: a label is defined once and a tag is added or removed, never amended in place;
 -- the 0105 trigger pins organization_id immutable, and reading is the database-wide SELECT above.
 GRANT INSERT, DELETE         ON `tmanage`.`work_item_labels`      TO 'tmanage_app'@'%';
+-- x306 (0174) work item custom fields. INSERT (define a field; set a value the first time), UPDATE
+-- (a value is set or revised in place through `INSERT ... ON DUPLICATE KEY UPDATE` on the value's
+-- unique key, so the upsert's replace path needs UPDATE) and DELETE (remove a field definition). No
+-- edit exists for a definition — it is defined once and removed, never amended — but a value is
+-- genuinely mutable, so UPDATE is granted. Reading is the database-wide SELECT above; the 0174
+-- trigger pins organization_id immutable.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`work_item_custom_fields` TO 'tmanage_app'@'%';
 -- x257 work item recurrence. INSERT and UPDATE (a PUT upserts the single rule per item — inserts it
 -- the first time, rewrites freq/interval/until in place after) and DELETE (clear the rule). Reading
 -- is the database-wide SELECT above; the 0127 trigger pins organization_id immutable.

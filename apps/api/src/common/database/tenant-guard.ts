@@ -116,6 +116,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // sibling — an unscoped read would be every studio's subscriptions (and who watches what) at once.
   work_item_watchers: 'organization_id',
   work_item_labels: 'organization_id',
+  // x306 (0174). Org-defined custom fields and their per-item values, tenant-owned — an unscoped read
+  // would be every studio's custom metadata (and every item's values) at once.
+  work_item_custom_fields: 'organization_id',
   work_item_recurrence: 'organization_id',
   // x262 (0132). Named people teams and their members: tenant-owned, and an unscoped
   // `SELECT ... FROM member_teams` would be every studio's teams and rosters at once.

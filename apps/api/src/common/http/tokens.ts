@@ -85,6 +85,11 @@ export const WORK_WATCHERS_SERVICE = Symbol.for('tmanage.WorkWatchersService');
 /** x256. A work item's personal reminders (set/clear own + own due list), behind `work.read`. */
 export const WORK_ITEM_REMINDERS_SERVICE = Symbol.for('tmanage.WorkItemRemindersService');
 export const WORK_LABELS_SERVICE = Symbol.for('tmanage.WorkLabelsService');
+/**
+ * x306. Org-defined work item custom fields — definitions behind `org.manage`, values behind
+ * `work.update`/`work.read`.
+ */
+export const WORK_CUSTOM_FIELDS_SERVICE = Symbol.for('tmanage.WorkCustomFieldsService');
 /** x257. A work item's recurrence rule + in-app next-occurrence, behind `work.read`/`work.update`. */
 export const WORK_ITEM_RECURRENCE_SERVICE = Symbol.for('tmanage.WorkItemRecurrenceService');
 /** x274. Read-only adjacency graph of a work item's typed links, behind `work.read`. */

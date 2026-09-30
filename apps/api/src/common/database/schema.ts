@@ -5805,6 +5805,58 @@ export const workItemLabels = mysqlTable(
 export type WorkItemLabelRow = typeof workItemLabels.$inferSelect;
 export type NewWorkItemLabelRow = typeof workItemLabels.$inferInsert;
 
+/** The kinds a work item custom-field row may be — x306. One table, two halves. */
+export const WORK_ITEM_CUSTOM_FIELD_KINDS = ['definition', 'value'] as const;
+
+/** The types a work item custom-field definition may declare — x306. `select` uses `options`. */
+export const WORK_ITEM_CUSTOM_FIELD_TYPES = ['text', 'number', 'select'] as const;
+
+/**
+ * x306. Org-defined custom fields on work items (Work module). Two objects, one table (see
+ * `0174_work_item_custom_fields.sql`), distinguished by `row_kind` — the x294 precedent: a
+ * **definition** carries `definition_key` (unique per tenant), `name`, `field_type` and, for a
+ * `select`, `options`; a **value** carries `work_item_id`, `value_key` (the definition's key) and
+ * `value_text`, so a value references a definition without a second table.
+ * `uq_work_item_custom_fields_definition` holds the per-tenant key unique; the value key
+ * `(organization_id, work_item_id, value_key)` makes setting a value an idempotent upsert.
+ * `fk_work_item_custom_fields_work_item` binds `(organization_id, work_item_id)` to `work_items`, so
+ * a cross-tenant `work_item_id` is a non-existent pair rather than a leak; the migration's
+ * `BEFORE UPDATE` trigger pins `organization_id` immutable.
+ */
+export const workItemCustomFields = mysqlTable(
+  'work_item_custom_fields',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    rowKind: mysqlEnum('row_kind', WORK_ITEM_CUSTOM_FIELD_KINDS).notNull(),
+    definitionKey: varchar('definition_key', { length: 80 }),
+    name: varchar('name', { length: 160 }),
+    fieldType: mysqlEnum('field_type', WORK_ITEM_CUSTOM_FIELD_TYPES),
+    options: json('options').$type<readonly string[]>(),
+    workItemId: char('work_item_id', { length: 36 }),
+    valueKey: varchar('value_key', { length: 80 }),
+    valueText: text('value_text'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_item_custom_fields_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_item_custom_fields_definition').on(
+      table.organizationId,
+      table.definitionKey,
+    ),
+    uniqueIndex('uq_work_item_custom_fields_value').on(
+      table.organizationId,
+      table.workItemId,
+      table.valueKey,
+    ),
+    index('ix_work_item_custom_fields_item').on(table.organizationId, table.workItemId, table.id),
+  ],
+);
+
+export type WorkItemCustomFieldRow = typeof workItemCustomFields.$inferSelect;
+export type NewWorkItemCustomFieldRow = typeof workItemCustomFields.$inferInsert;
+
 /** The cadences a work item recurrence rule may use — x257. A value outside this set is a 400. */
 export const WORK_ITEM_RECURRENCE_FREQS = ['daily', 'weekly', 'monthly'] as const;
 
@@ -6899,6 +6951,7 @@ export const TABLES = {
   insight_metric_favorites: insightMetricFavorites,
   work_item_labels: workItemLabels,
   file_tags: fileTags,
+  work_item_custom_fields: workItemCustomFields,
   work_item_watchers: workItemWatchers,
   conversation_read_state: conversationReadState,
   users,
