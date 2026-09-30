@@ -70,6 +70,7 @@ import type {
   DocTagView as ApiDocTagView,
   DocumentTagView as ApiDocumentTagView,
 } from '../../apps/api/src/modules/docs/doc-tags.service.js';
+import type { DocLinkView as ApiDocLinkView } from '../../apps/api/src/modules/docs/doc-links.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -363,6 +364,7 @@ import type { ProjectFavoriteSummary as WebProjectFavoriteSummary } from '../../
 import type { DocTag as WebDocTag } from '../../apps/web/src/lib/api/doc-tags';
 import type { DocumentTag as WebDocumentTag } from '../../apps/web/src/lib/api/doc-tags';
 import type { MessageAttachmentSummary as WebMessageAttachmentSummary } from '../../apps/web/src/lib/api/message-attachments';
+import type { DocLinkSummary as WebDocLinkSummary } from '../../apps/web/src/lib/api/doc-links';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -950,6 +952,14 @@ type _documentTag = Assert<Exact<ApiDocumentTagView, WebDocumentTag>>;
  * `sizeBytes` is `null` before the file's first version; the internal object key is never echoed.
  */
 type _messageAttachment = Assert<Exact<ApiMessageAttachmentView, WebMessageAttachmentSummary>>;
+
+/**
+ * DOC links + backlinks (x296). `DocLinkView` (`GET`/`POST …/documents/:id/links`, `DELETE
+ * …/links/:targetDocId`, `GET …/documents/:id/backlinks`) — one linked document (the target of an
+ * outgoing link or the source of a backlink). The `DocBacklinksPanel` reads exactly this response for
+ * both directions, so the pair is Exact. The tenant id and the author are on neither side.
+ */
+type _docLink = Assert<Exact<ApiDocLinkView, WebDocLinkSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

@@ -259,6 +259,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // would be every studio's banners on the server. `organization_id` is NOT NULL and it carries the
   // `(organization_id, id)` key every tenant table has, so the guard scopes its reads and writes.
   org_announcements: 'organization_id',
+  // DOC links + backlinks (0163, x296). Tenant-owned: a link names two documents, and an unscoped
+  // `SELECT ... FROM doc_links` would be every studio's document graph on the server.
+  // `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every tenant table
+  // has, so the guard scopes its reads and writes.
+  doc_links: 'organization_id',
   // Docs "collaboration later" (0045, x132). Tenant-owned: a comment cites a document, and an
   // unscoped `SELECT ... FROM document_comments` would be every studio's document discussion on the
   // server. `organization_id` is NOT NULL and it carries the `(organization_id, id)` key every

@@ -587,6 +587,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`doc_tags`          TO 'tmanage_app'@'
 -- privilege is the control (no immutability trigger, none needed) — the doc_bookmarks posture above. A
 -- correction is a delete and a re-post. Reading is the database-wide SELECT above.
 GRANT INSERT, DELETE         ON `tmanage`.`org_announcements` TO 'tmanage_app'@'%';
+-- DOC links + backlinks (0163, x296). INSERT to link, DELETE to unlink, and **no UPDATE**: a link is
+-- created and removed, never edited, so the missing privilege is the control (the 0163 BEFORE UPDATE
+-- trigger refuses UPDATE besides). Reading (both the outgoing and backlinks lists) is the
+-- database-wide SELECT above. The worker gets nothing here — this table is the API's alone, the
+-- `doc_bookmarks` posture above.
+GRANT INSERT, DELETE         ON `tmanage`.`doc_links`         TO 'tmanage_app'@'%';
 -- Docs "collaboration later" (0045, x132) document comments. **INSERT only** — a comment is captured
 -- (INSERT) and read (the database-wide SELECT). This slice ships no edit/delete path, and the 0045
 -- trigger refuses UPDATE for every credential besides; edit/delete is a later slice (NEXT-SCOPES-13)
