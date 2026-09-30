@@ -223,6 +223,7 @@ import type {
 } from '../../apps/api/src/modules/work/time-logs.service.js';
 import type { WorkItemEstimateView as ApiWorkItemEstimateView } from '../../apps/api/src/modules/work/item-estimate.service.js';
 import type { ItemWatcherView as ApiItemWatcherView } from '../../apps/api/src/modules/work/watchers.service.js';
+import type { WorkActivityEntryView as ApiWorkActivityEntryView } from '../../apps/api/src/modules/work/activity-log.service.js';
 import type {
   WorkItemReminderView as ApiWorkItemReminderView,
   DueReminderView as ApiDueReminderView,
@@ -555,6 +556,7 @@ import type { WorkItemEstimate as WebWorkItemEstimate } from '../../apps/web/src
 import type { ItemWatcher as WebItemWatcher } from '../../apps/web/src/lib/api/work-items';
 import type { WorkItemReminder as WebWorkItemReminder } from '../../apps/web/src/lib/api/work-items';
 import type { DueReminder as WebDueReminder } from '../../apps/web/src/lib/api/work-items';
+import type { WorkActivityEntry as WebWorkActivityEntry } from '../../apps/web/src/lib/api/work-activity';
 import type { WorkLabel as WebWorkLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { ItemLabel as WebItemLabel } from '../../apps/web/src/lib/api/work-labels';
 import type { WorkItemRecurrence as WebWorkItemRecurrence } from '../../apps/web/src/lib/api/work-item-recurrence';
@@ -1360,6 +1362,15 @@ type _itemWatcher = Assert<Exact<ApiItemWatcherView, WebItemWatcher>>;
  */
 type _workItemReminder = Assert<Exact<ApiWorkItemReminderView, WebWorkItemReminder>>;
 type _dueReminder = Assert<Exact<ApiDueReminderView, WebDueReminder>>;
+
+/**
+ * x291. `WorkActivityEntryView` ↔ `WorkActivityEntry` — one entry in a work item's merged activity
+ * timeline (`GET …/work-items/:id/activity`, read-only). `WorkItemActivityFeed` renders exactly
+ * this shape — `id`/`kind`/`action`/`actorId`/`summary`/`occurredAt` — so the projection is held
+ * identical on both sides. `actorId` is a display handle (never an email); `null` is a
+ * system-initiated action.
+ */
+type _workActivityEntry = Assert<Exact<ApiWorkActivityEntryView, WebWorkActivityEntry>>;
 
 /**
  * x233. Work item labels / tags (Work module 7). `WorkLabelView` ↔ `WorkLabel` — one org-scoped label
