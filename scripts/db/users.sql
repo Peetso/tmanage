@@ -1191,6 +1191,11 @@ GRANT INSERT, DELETE ON `tmanage`.`project_baselines` TO 'tmanage_app'@'%';
 -- trigger (`trg_project_custom_fields_immutable`) pins organization_id, row_kind, project_id and
 -- field_key at the engine, so only a value's value_text can change for the runtime credential.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`project_custom_fields` TO 'tmanage_app'@'%';
+-- `project_retro_notes` (PROJ / module 8, x311) gets INSERT and DELETE. A retro note is captured
+-- (INSERT), read grouped by category (the database-wide SELECT, line 183), and an individual note is
+-- removed (DELETE). **No UPDATE**: a note is a point-in-time reflection; the slice ships create/list/
+-- delete only, with no edit path. Same INSERT+DELETE posture as the typed work-item links (x204).
+GRANT INSERT, DELETE ON `tmanage`.`project_retro_notes` TO 'tmanage_app'@'%';
 -- `org_objectives` (PROJ / module 8, x136) gets INSERT and UPDATE, the same posture as
 -- `project_objectives`. An org objective is created (INSERT), read (the database-wide SELECT, line
 -- 60), and moved through its lifecycle (UPDATE): `open → met` or `open → missed`. UPDATE writes

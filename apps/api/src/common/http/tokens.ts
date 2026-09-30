@@ -200,6 +200,9 @@ export const PROJECT_BASELINE_SERVICE = Symbol.for('tmanage.ProjectBaselineServi
 /** PROJ / module 8 (x310). Custom fields for projects — define fields (org) and set values per project. */
 export const PROJECT_CUSTOM_FIELDS_REPOSITORY = Symbol.for('tmanage.ProjectCustomFieldsRepository');
 export const PROJECT_CUSTOM_FIELDS_SERVICE = Symbol.for('tmanage.ProjectCustomFieldsService');
+/** PROJ / module 8 (x311). A project's retrospective-notes log — create/list-by-category/delete. */
+export const PROJECT_RETRO_NOTES_REPOSITORY = Symbol.for('tmanage.ProjectRetroNotesRepository');
+export const PROJECT_RETRO_NOTES_SERVICE = Symbol.for('tmanage.ProjectRetroNotesService');
 /** PROJ / module 8 (x136). An organization's objectives / OKRs — create/list/transition. */
 export const ORG_OBJECTIVES_REPOSITORY = Symbol.for('tmanage.OrgObjectivesRepository');
 export const ORG_OBJECTIVES_SERVICE = Symbol.for('tmanage.OrgObjectivesService');

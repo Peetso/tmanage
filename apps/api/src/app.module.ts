@@ -79,6 +79,7 @@ import { ProjectBudgetModule } from './modules/projects/budget.module.js';
 import { ProjectPhasesModule } from './modules/projects/phases.module.js';
 import { ProjectBaselineModule } from './modules/projects/baseline.module.js';
 import { ProjectCustomFieldsModule } from './modules/projects/custom-fields.module.js';
+import { ProjectRetroNotesModule } from './modules/projects/retro-notes.module.js';
 import { OrgObjectivesModule } from './modules/projects/org-objectives.module.js';
 import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ProjectHealthModule } from './modules/projects/health.module.js';
@@ -593,6 +594,12 @@ export class AppModule {
         // for the same reason as the status log: a value names a project, and the service resolves it
         // tenant-scoped before it writes so a caller who names one that is not theirs gets a 404.
         ProjectCustomFieldsModule.register(),
+        // PROJ / module 8 (x311). A project's retrospective-notes log (capture/list-by-category/
+        // delete). After `ProjectsModule` for the same reason as the status log: a note names a
+        // project in its path, and the composite foreign key means a caller who names one that is not
+        // theirs gets a 404 rather than a foreign-key 500. An optional milestone reference is resolved
+        // tenant-scoped (unknown ⇒ 400). Mounted at `…/projects/:id/retro-notes`.
+        ProjectRetroNotesModule.register(),
         // PROJ / module 8 (x136). An organization's objectives / OKRs (create/list/transition). The
         // org-level counterpart of `ProjectObjectivesModule`: org-scoped (no project in the path), so
         // it needs no `ProjectsRepository` to resolve one.
