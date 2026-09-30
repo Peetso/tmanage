@@ -149,7 +149,8 @@ function ThreadSection({ providerName, messages, isPending, isError, error }: Th
         </LoadingRegion>
       ) : messages.length === 0 ? (
         <p className="tm-prose">
-          You have not sent {providerName} a message yet. Use the form above to start a conversation.
+          You have not sent {providerName} a message yet. Use the form above to start a
+          conversation.
         </p>
       ) : (
         <ol className="tm-list tm-stack">
