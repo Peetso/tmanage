@@ -149,6 +149,26 @@ const WEB_EXEMPT = new Map([
     'HomeQuickLink',
     'x273 — the single quick link. The API names its element `HomeQuickLinkItem` (not a standalone …View), and the wrapper `HomeQuickLinksView` is paired Exact, so the item shape is covered there.',
   ],
+  [
+    'NewInboxRule',
+    'x301 — the request body POST accepts to add an inbox rule (name ends in `Rule`, not a dropped request suffix); a request shape, not a response projection. The response rule `InboxRuleView` is paired Exact.',
+  ],
+  [
+    'NewMeetingTimePollOption',
+    'x298 — a candidate slot the organiser proposes in the create-poll request body; a request shape, not a response projection. The response slot `MeetingTimePollOptionView` is paired Exact.',
+  ],
+  [
+    'MeetingTimePollTally',
+    'x298 — the per-answer tally. The API inlines it inside `MeetingTimePollOptionView` (there is no standalone …View), and that slot is paired Exact, so the tally shape is covered there.',
+  ],
+  [
+    'ResolvedCategory',
+    'x301 — the resolve-endpoint response for one notification. The API names it `ResolvedCategory` (not a …View), so it is not an enumerated API response projection to assert; the two shapes are hand-kept identical, and its `InboxRuleView` sibling is paired Exact.',
+  ],
+  [
+    'ProjectBaselineVarianceRow',
+    'x295 — one variance row. It is the element of `ProjectBaselineVariance`, which is paired Exact, so the row shape is covered transitively (the API names it `ProjectBaselineVarianceRow`, not a …View).',
+  ],
   // class-1-lift (MemberSummary, WorkspaceSummary, AuthenticatedResponse, MfaRequiredResponse)
   // was exempted here while its API interface was unexported. x79 exported each interface
   // (members.controller `MemberView`, workspaces.controller `WorkspaceView`, authentication.controller

@@ -311,6 +311,28 @@ import type { SecuritySettingsView as ApiSecuritySettingsView } from '../../apps
 import type { IpAllowlistEntryView as ApiIpAllowlistEntryView } from '../../apps/api/src/modules/admin/ip-allowlist.service.js';
 import type { AuditRetentionView as ApiAuditRetentionView } from '../../apps/api/src/modules/admin/audit-retention.service.js';
 import type { ApprovalDelegationView as ApiApprovalDelegationView } from '../../apps/api/src/modules/approvals/delegation.service.js';
+// pass25 pairings (x276–x301) — these APPROVED slices shipped without a contract pairing; added by integrator 25.
+import type { AnnouncementView as ApiAnnouncementView } from '../../apps/api/src/modules/admin/announcements.service.js';
+import type {
+  FeatureFlagAdminView as ApiFeatureFlagAdminView,
+  FeatureFlagsAdminView as ApiFeatureFlagsAdminView,
+  FeatureFlagsResolvedView as ApiFeatureFlagsResolvedView,
+} from '../../apps/api/src/modules/admin/feature-flags.controller.js';
+import type { MemberAdminNoteView as ApiMemberAdminNoteView } from '../../apps/api/src/modules/admin/member-notes.service.js';
+import type { PlanChangeRequestView as ApiPlanChangeRequestView } from '../../apps/api/src/modules/billing/plan-change-requests.service.js';
+import type { PurchaseOrderView as ApiPurchaseOrderView } from '../../apps/api/src/modules/billing/purchase-orders.service.js';
+import type { MeetingTimePollOptionView as ApiMeetingTimePollOptionView } from '../../apps/api/src/modules/calendar/time-poll.service.js';
+import type { InboxRuleView as ApiInboxRuleView } from '../../apps/api/src/modules/inbox/rules.service.js';
+import type { StartupPrefView as ApiStartupPrefView } from '../../apps/api/src/modules/preferences/startup-prefs.controller.js';
+import type {
+  ProjectBaselineView as ApiProjectBaselineView,
+  ProjectBaselineVarianceView as ApiProjectBaselineVarianceView,
+} from '../../apps/api/src/modules/projects/baseline.service.js';
+import type { ProjectBudgetView as ApiProjectBudgetView } from '../../apps/api/src/modules/projects/budget.service.js';
+import type {
+  ProjectPhaseView as ApiProjectPhaseView,
+  MilestonePhaseAssignmentView as ApiMilestonePhaseAssignmentView,
+} from '../../apps/api/src/modules/projects/phases.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -630,6 +652,28 @@ import type {
   InboxFlaggedView as WebInboxFlaggedView,
 } from '../../apps/web/src/lib/api/inbox-flags';
 import type { HomeQuickLinksView as WebHomeQuickLinksView } from '../../apps/web/src/lib/api/home-quick-links';
+// pass25 pairings (x276–x301), added by integrator 25.
+import type { AnnouncementSummary as WebAnnouncementSummary } from '../../apps/web/src/lib/api/admin-announcements';
+import type {
+  FeatureFlagAdminView as WebFeatureFlagAdminView,
+  FeatureFlagsAdminView as WebFeatureFlagsAdminView,
+  FeatureFlagsResolvedView as WebFeatureFlagsResolvedView,
+} from '../../apps/web/src/lib/api/admin-feature-flags';
+import type { MemberAdminNoteView as WebMemberAdminNoteView } from '../../apps/web/src/lib/api/member-admin-notes';
+import type { PlanChangeRequestView as WebPlanChangeRequestView } from '../../apps/web/src/lib/api/plan-change-requests';
+import type { PurchaseOrderSummary as WebPurchaseOrderSummary } from '../../apps/web/src/lib/api/purchase-orders';
+import type { MeetingTimePollOptionView as WebMeetingTimePollOptionView } from '../../apps/web/src/lib/api/meeting-time-poll';
+import type { InboxRuleView as WebInboxRuleView } from '../../apps/web/src/lib/api/inbox-rules';
+import type { StartupPrefView as WebStartupPrefView } from '../../apps/web/src/lib/api/startup-prefs';
+import type {
+  ProjectBaselineSummary as WebProjectBaselineSummary,
+  ProjectBaselineVariance as WebProjectBaselineVariance,
+} from '../../apps/web/src/lib/api/project-baseline';
+import type { ProjectBudgetSummary as WebProjectBudgetSummary } from '../../apps/web/src/lib/api/project-budget';
+import type {
+  ProjectPhaseSummary as WebProjectPhaseSummary,
+  MilestonePhaseAssignment as WebMilestonePhaseAssignment,
+} from '../../apps/web/src/lib/api/project-phases';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -2297,3 +2341,46 @@ type _inboxFlagged = Assert<Exact<ApiInboxFlaggedView, WebInboxFlaggedView>>;
 // the screen reads exactly this response, so the pair is Exact. Its element (web `HomeQuickLink`,
 // API `HomeQuickLinkItem`) is covered transitively through this pair — see WEB_EXEMPT.
 type _homeQuickLinks = Assert<Exact<ApiHomeQuickLinksView, WebHomeQuickLinksView>>;
+
+// ── pass25 pairings (x276–x301), added by integrator 25 ─────────────────────
+// These APPROVED slices shipped without their contract pairing; each web shape mirrors the API view
+// it reads, so every pair is Exact. The request-body web shapes (NewInboxRule, NewMeetingTimePollOption)
+// are WEB_EXEMPT in scripts/contracts-check.mjs.
+// Admin announcements (module 18, x276). `AnnouncementView` ↔ web `AnnouncementSummary`.
+type _orgAnnouncement = Assert<Exact<ApiAnnouncementView, WebAnnouncementSummary>>;
+// Admin optional-module feature flags (x278): one flag, the admin list, and the resolved map.
+type _featureFlagAdmin = Assert<Exact<ApiFeatureFlagAdminView, WebFeatureFlagAdminView>>;
+type _featureFlagsAdmin = Assert<Exact<ApiFeatureFlagsAdminView, WebFeatureFlagsAdminView>>;
+type _featureFlagsResolved = Assert<
+  Exact<ApiFeatureFlagsResolvedView, WebFeatureFlagsResolvedView>
+>;
+// Admin private member notes (x280).
+type _memberAdminNote = Assert<Exact<ApiMemberAdminNoteView, WebMemberAdminNoteView>>;
+// Billing plan-change requests (x284).
+type _planChangeRequest = Assert<Exact<ApiPlanChangeRequestView, WebPlanChangeRequestView>>;
+// Billing purchase-order references (x282). API `PurchaseOrderView` ↔ web `PurchaseOrderSummary`.
+type _purchaseOrder = Assert<Exact<ApiPurchaseOrderView, WebPurchaseOrderSummary>>;
+// CAL meeting time-option poll (x298): one candidate slot (its inlined tally is covered here, and the
+// web `MeetingTimePollTally` element is WEB_EXEMPT since the API has no standalone …View for it).
+type _meetingTimePollOption = Assert<
+  Exact<ApiMeetingTimePollOptionView, WebMeetingTimePollOptionView>
+>;
+// INBOX routing rules (x301): one rule. The resolve response (`ResolvedCategory`) is WEB_EXEMPT — the
+// API names it `ResolvedCategory`, not a `…View`, so it is not an enumerated API projection to assert.
+type _inboxRule = Assert<Exact<ApiInboxRuleView, WebInboxRuleView>>;
+// PREF startup landing (x287).
+type _startupPref = Assert<Exact<ApiStartupPrefView, WebStartupPrefView>>;
+// PROJ milestone-plan baseline (x295): the snapshot and the variance. The variance row
+// (`ProjectBaselineVarianceRow`) is WEB_EXEMPT — it is the element of `ProjectBaselineVariance`, which
+// is paired Exact here, so the row shape is covered transitively.
+type _projectBaseline = Assert<Exact<ApiProjectBaselineView, WebProjectBaselineSummary>>;
+type _projectBaselineVariance = Assert<
+  Exact<ApiProjectBaselineVarianceView, WebProjectBaselineVariance>
+>;
+// PROJ budget vs tracked effort (x293).
+type _projectBudget = Assert<Exact<ApiProjectBudgetView, WebProjectBudgetSummary>>;
+// PROJ timeline phases (x294): a phase and a milestone→phase assignment.
+type _projectPhase = Assert<Exact<ApiProjectPhaseView, WebProjectPhaseSummary>>;
+type _milestonePhaseAssignment = Assert<
+  Exact<ApiMilestonePhaseAssignmentView, WebMilestonePhaseAssignment>
+>;
