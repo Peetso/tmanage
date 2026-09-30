@@ -57,6 +57,7 @@ import { CalendarGridModule } from './modules/calendar/grid.controller.js';
 import { OccurrenceOverrideModule } from './modules/calendar/occurrence-override.module.js';
 import { MeetingActionItemsModule } from './modules/calendar/meeting-action-items.module.js';
 import { MeetingRsvpModule } from './modules/calendar/rsvp.module.js';
+import { MeetingTimePollModule } from './modules/calendar/time-poll.module.js';
 import { DocsModule } from './modules/docs/docs.module.js';
 import { DocumentTemplateVariablesModule } from './modules/docs/document-template-variables.controller.js';
 import { RevisionsModule } from './modules/docs/revisions.controller.js';
@@ -478,6 +479,12 @@ export class AppModule {
         // rather than all editing `calendar.module.ts`); it resolves the path meeting tenant-scoped
         // before authorize, so a cross-tenant meeting is a 404 with no write.
         MeetingActionItemsModule.register(),
+        // CAL meeting time-option poll (x298). An organiser proposes candidate time slots, invitees
+        // vote yes/maybe/no on each, and the tally picks the time — over its own `meeting_time_polls`
+        // and `meeting_time_poll_votes` tables. In its own module beside `CalendarModule` so the
+        // sibling calendar slices stay file-disjoint (each registers here rather than all editing
+        // `calendar.module.ts`); it resolves the path meeting tenant-scoped before authorize.
+        MeetingTimePollModule.register(),
         // DOC-01 (x91). After `ProjectsModule` for the same reason as conversations and meetings:
         // a document names a project, and the composite foreign key means a caller who names one
         // that is not theirs gets a refusal rather than a foreign-key 500.
