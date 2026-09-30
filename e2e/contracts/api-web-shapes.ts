@@ -257,6 +257,7 @@ import type { ReportingLineView as ApiReportingLineView } from '../../apps/api/s
 import type { AvailabilityView as ApiAvailabilityView } from '../../apps/api/src/modules/people/availability.controller.js';
 import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/api/src/modules/people/capacity-heatmap.service.js';
 import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
+import type { TaxDetailsView as ApiTaxDetailsView } from '../../apps/api/src/modules/billing/tax-details.service.js';
 import type { BillingContactView as ApiBillingContactView } from '../../apps/api/src/modules/billing/contacts.service.js';
 import type { BillingSeatView as ApiBillingSeatView } from '../../apps/api/src/modules/billing/seats.controller.js';
 import type { BillingCreditView as ApiBillingCreditView } from '../../apps/api/src/modules/billing/credits.service.js';
@@ -377,6 +378,7 @@ import type { ConversationUnreadView as ApiConversationUnreadView } from '../../
 import type { InboxSnoozeView as ApiInboxSnoozeView } from '../../apps/api/src/modules/inbox/inbox-snooze.service.js';
 import type { SkillSearchResult as WebSkillSearchResult } from '../../apps/web/src/lib/api/people-skill-search';
 import type { BillingProfileView as WebBillingProfileView } from '../../apps/web/src/lib/api/billing';
+import type { TaxDetailsView as WebTaxDetailsView } from '../../apps/web/src/lib/api/billing-tax-details';
 import type { BillingContactView as WebBillingContactView } from '../../apps/web/src/lib/api/billing-contacts';
 import type { BillingSeat as WebBillingSeat } from '../../apps/web/src/lib/api/billing-seats';
 import type { BillingCreditView as WebBillingCreditView } from '../../apps/web/src/lib/api/billing-credits';
@@ -1587,6 +1589,16 @@ type _skillSearch = Assert<Exact<ApiSkillSearchView, WebSkillSearchResult>>;
  * sides; there is deliberately no card or bank field on either side.
  */
 type _billingProfile = Assert<Exact<ApiBillingProfileView, WebBillingProfileView>>;
+
+/**
+ * Billing tax / legal-entity details (module 19, x283). `TaxDetailsView`
+ * (`GET`/`PUT …/billing/tax-details`, response) — one org-scoped tax/legal-entity row (`legalName`,
+ * `taxId`, `registrationNo`, `taxCountry`, each `string | null`, plus `updatedAt: string | null`).
+ * Paired with a live web consumer: `TaxDetailsView` (the screen) reads exactly this shape to seed and
+ * save the form. `organizationId` is deliberately absent on both sides, and there is no card or bank
+ * field on either — legal/tax metadata only.
+ */
+type _billingTaxDetails = Assert<Exact<ApiTaxDetailsView, WebTaxDetailsView>>;
 
 /**
  * Billing contacts (module 19, x199). `BillingContactView` (`GET`/`POST`/`DELETE …/billing/contacts`,
