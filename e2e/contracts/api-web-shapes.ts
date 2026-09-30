@@ -295,6 +295,7 @@ import type { AutomationVariableView as ApiAutomationVariableView } from '../../
 import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
 import type { ReportingLineView as ApiReportingLineView } from '../../apps/api/src/modules/people/reporting-lines.controller.js';
 import type { AvailabilityView as ApiAvailabilityView } from '../../apps/api/src/modules/people/availability.controller.js';
+import type { PersonTimeOffView as ApiPersonTimeOffView } from '../../apps/api/src/modules/people/time-off.controller.js';
 import type { CapacityHeatmapView as ApiCapacityHeatmapView } from '../../apps/api/src/modules/people/capacity-heatmap.service.js';
 import type { BillingProfileView as ApiBillingProfileView } from '../../apps/api/src/modules/billing/profile.controller.js';
 import type { TaxDetailsView as ApiTaxDetailsView } from '../../apps/api/src/modules/billing/tax-details.service.js';
@@ -444,6 +445,7 @@ import type { AutomationVariableSummary as WebAutomationVariableSummary } from '
 import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
 import type { ReportingLine as WebReportingLine } from '../../apps/web/src/lib/api/reporting-lines';
 import type { AvailabilityView as WebAvailabilityView } from '../../apps/web/src/lib/api/people-availability';
+import type { PersonTimeOffView as WebPersonTimeOffView } from '../../apps/web/src/lib/api/person-time-off';
 import type { CapacityHeatmapView as WebCapacityHeatmapView } from '../../apps/web/src/lib/api/team-capacity-heatmap';
 import type { PersonSkillView as ApiPersonSkillView } from '../../apps/api/src/modules/people/skills.controller.js';
 import type { PersonSkillSummary as WebPersonSkillSummary } from '../../apps/web/src/lib/api/people-skills';
@@ -1870,6 +1872,15 @@ type _reportingLine = Assert<Exact<ApiReportingLineView, WebReportingLine>>;
  * or retype on either side fails the gate.
  */
 type _availability = Assert<Exact<ApiAvailabilityView, WebAvailabilityView>>;
+/**
+ * Person time-off (module 14, x325). `PersonTimeOffView` (POST/GET/DELETE `…/people/:userId/time-off`,
+ * response element) — one dated absence a manager filed against a person. Paired Exact with its live
+ * web consumer: `PersonTimeOffView` (the person-detail panel) reads exactly this shape to list and
+ * remove entries. `organizationId` is absent on both sides;
+ * `id`/`personUserId`/`startsOn`/`endsOn`/`kind`/`note`/`createdByUserId`/`createdAt` are held
+ * identical, so a rename or retype on either side fails the gate.
+ */
+type _personTimeOff = Assert<Exact<ApiPersonTimeOffView, WebPersonTimeOffView>>;
 
 /**
  * Team capacity heatmap (module 14, x193). `CapacityHeatmapView` (`GET …/people/capacity/heatmap`,

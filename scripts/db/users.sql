@@ -927,6 +927,12 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`member_reporting_lines` TO 'tmanage_a
 -- besides, so a re-date slice adds UPDATE with the code that writes it. A removed window leaves no
 -- history to protect, so DELETE is the right grant here (the person_skills posture).
 GRANT INSERT, DELETE         ON `tmanage`.`member_availability` TO 'tmanage_app'@'%';
+-- Person time-off (x325, migration 0193). **INSERT, DELETE** — a manager files a dated absence
+-- (INSERT) and removes it (DELETE), and reads a person's entries through the database-wide SELECT
+-- above. No UPDATE: an entry is created and removed, never edited, so the withheld privilege is the
+-- control (no immutability trigger, none needed — the focus_blocks posture). A removed entry leaves
+-- no history to protect, so DELETE is the right grant here.
+GRANT INSERT, DELETE         ON `tmanage`.`person_time_off` TO 'tmanage_app'@'%';
 -- People member skills (x172, migration 0070). **INSERT, DELETE** — a skill is added (INSERT) and
 -- removed (DELETE), and read through the database-wide SELECT. No UPDATE: a re-label is a delete and
 -- re-add, and the 0070 trigger pins organization_id/membership_id/label immutable for every
