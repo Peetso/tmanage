@@ -504,6 +504,11 @@ GRANT INSERT, UPDATE, DELETE ON `tmanage`.`inbox_snoozes` TO 'tmanage_app'@'%';
 -- SELECT above. The worker gets nothing here — this table is the API's alone, the `home_pinned_items`
 -- posture above.
 GRANT INSERT, DELETE         ON `tmanage`.`message_attachments` TO 'tmanage_app'@'%';
+-- INBOX source mutes (0186, x318) a member's own muted inbox sources. INSERT (mute) and DELETE
+-- (un-mute) only — a mute is created and removed, never edited, so no UPDATE (the `home_pinned_items`
+-- posture) and re-muting is an idempotent no-op the service resolves. Reading is the database-wide
+-- SELECT above. The worker gets nothing here — this table is the API's alone.
+GRANT INSERT, DELETE         ON `tmanage`.`inbox_source_mutes` TO 'tmanage_app'@'%';
 -- DOC-02/DOC-03 (x112) document versions. **INSERT only** — a version is an immutable snapshot of
 -- the body at a save: DOC-03's restore is a new row (forward-append), never an edit, and the 0036
 -- trigger refuses UPDATE for every credential. No DELETE: a document's history is the record of how
