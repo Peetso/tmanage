@@ -896,6 +896,66 @@ export const savedSearchShares = mysqlTable(
 );
 
 /**
+ * SRCH saved scopes (x334, migration 0200). The validated filter set a scope remembers — which object
+ * types to search, an optional project and an optional date window. Stored as one JSON object on each
+ * `search_scopes` row; the application validates and bounds it before the write.
+ */
+export interface SearchScopeFilters {
+  /** The search-index object kinds this scope narrows to (a subset of `work_item` | `document`). */
+  readonly objectTypes: readonly string[];
+  /** Optional project filter, already resolved tenant-scoped by the service before the write. */
+  readonly projectId?: string;
+  /** Optional ISO-date window start (inclusive). */
+  readonly from?: string;
+  /** Optional ISO-date window end (inclusive). */
+  readonly to?: string;
+}
+
+/**
+ * SRCH saved scopes (x334, migration 0200).
+ *
+ * A member's named, reusable search **filter scopes** — a scope is a label plus a filter set
+ * (`{ objectTypes[], projectId?, from?, to? }`) that pre-filters a search before it runs. Distinct
+ * from `saved_searches` (a saved query string, 0092) and `saved_search_shares` (team sharing, 0142):
+ * this is a filter scope, not a query, applied by returning its filters to the search read (no new
+ * query engine, no new ranking).
+ *
+ * Every row is **private to one member in one studio**: `organization_id` scopes the tenant and
+ * `member_user_id` the owner, so every read, the create, the update and the delete carry both
+ * predicates and one member never sees or changes another's scopes. `unique (organization_id,
+ * member_user_id, name)` makes a scope name unique per owner (a repeat is a 409). Created, edited in
+ * place (idempotent PUT) and deleted; the 0200 trigger pins the tenant and owner immutable so the
+ * granted UPDATE can change only the name/filters. `0200_search_scopes.sql` is the source of truth;
+ * this is its typed mirror.
+ */
+export const searchScopes = mysqlTable(
+  'search_scopes',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    memberUserId: char('member_user_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 300 }).notNull(),
+    filters: json('filters').$type<SearchScopeFilters>().notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_search_scopes_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_search_scopes_org_member_name').on(
+      table.organizationId,
+      table.memberUserId,
+      table.name,
+    ),
+    index('ix_search_scopes_org_member').on(
+      table.organizationId,
+      table.memberUserId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * DOC-02/DOC-03 (x112). The append-only version history behind a `documents` row.
  *
  * Each save appends one immutable snapshot (the body as it stood, and who saved it) and bumps the
@@ -5583,6 +5643,7 @@ export const TABLES = {
   saved_views: savedViews,
   saved_searches: savedSearches,
   saved_search_shares: savedSearchShares,
+  search_scopes: searchScopes,
   saved_context: savedContext,
   project_updates: projectUpdates,
   project_update_comments: projectUpdateComments,
@@ -5699,6 +5760,7 @@ export type MeetingOccurrenceOverrideRow = typeof meetingOccurrenceOverrides.$in
 export type SavedViewRow = typeof savedViews.$inferSelect;
 export type SavedSearchRow = typeof savedSearches.$inferSelect;
 export type SavedSearchShareRow = typeof savedSearchShares.$inferSelect;
+export type SearchScopeRow = typeof searchScopes.$inferSelect;
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersionRow = typeof documentVersions.$inferInsert;
 export type DocRevisionRow = typeof docRevisions.$inferSelect;

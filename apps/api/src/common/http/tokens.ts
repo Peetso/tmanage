@@ -263,6 +263,7 @@ export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
 export const SAVED_SEARCHES_SERVICE = Symbol.for('tmanage.SavedSearchesService');
 /** SRCH saved-search sharing (x272). Share/unshare a saved search with the studio; the shared list. */
 export const SAVED_SEARCH_SHARES_SERVICE = Symbol.for('tmanage.SavedSearchSharesService');
+export const SEARCH_SCOPES_SERVICE = Symbol.for('tmanage.SearchScopesService');
 
 /** Public & trust site (x159). The public status page's published-only incidents read. */
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');
