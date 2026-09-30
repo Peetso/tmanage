@@ -135,6 +135,7 @@ import { InsightTargetsModule } from './modules/insights/targets.controller.js';
 import { InsightAnnotationsModule } from './modules/insights/insight-annotations.controller.js';
 import { InsightDashboardLayoutModule } from './modules/insights/dashboard-layout.module.js';
 import { InsightMetricAlertsModule } from './modules/insights/metric-alerts.controller.js';
+import { InsightCustomReportsModule } from './modules/insights/custom-reports.module.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { PublicResourcesModule } from './modules/public-site/resources.controller.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
@@ -772,6 +773,12 @@ export class AppModule {
         // latest workload snapshot (0090, read-only) and writes to the tenant-scoped
         // `insight_metric_alerts`. Config + read-side evaluation only — no dispatch this slice.
         InsightMetricAlertsModule.register(),
+        // x320. Insight custom reports — a member composes an arbitrary ordered selection of existing
+        // metric keys into a named report and reads it back rendered against current metrics
+        // (`work.read`, self-scoped). A separate module from `InsightsModule` so the insights slices
+        // stay file-disjoint; it reuses `InsightsService` to render and writes to the tenant-scoped
+        // `insight_custom_reports`.
+        InsightCustomReportsModule.register(),
         // Public & trust site (module 1, x156). The unauthenticated marketing home — a single
         // `@Public()` read serving deterministic, code-defined content. Depends on nothing (no
         // database, no tenant, no mailer), so its position here is free; registered last, beside

@@ -935,6 +935,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // reads and its writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is
   // what scopes them, and tenant-isolation.db.test.ts enforces the entry.
   insight_dashboard_layouts: 'organization_id',
+  // Insight custom reports (x320, migration 0188). Tenant-owned: a row is one member's own custom
+  // insight report in one studio, and an unscoped `SELECT ... FROM insight_custom_reports` would be
+  // every member's reports across every studio on the server. `organization_id` is NOT NULL and
+  // carries the `(organization_id, id)` key every tenant table has, so the guard must scope its
+  // reads, its inserts, its update and its deletes; the layer-3 guard fails OPEN on an unregistered
+  // table, so this entry is what scopes them.
+  insight_custom_reports: 'organization_id',
 });
 
 /**

@@ -992,6 +992,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`insight_targets` TO 'tmanage_app'@'%'
 -- against `uq_insight_metric_alerts_org_member_metric` (the idempotent PUT), and DELETE lets a member
 -- remove their own alert (204). SELECT is the database-wide grant.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`insight_metric_alerts` TO 'tmanage_app'@'%';
+-- Insight custom reports (x320, module 15, 0188). **INSERT, UPDATE, DELETE** — a member's own custom
+-- insight report is created (POST), replaced in place by an idempotent PUT (UPDATE), and removed
+-- (DELETE). The 0188 BEFORE UPDATE trigger pins organization_id/owner_user_id immutable at the engine,
+-- so an UPDATE can never move a row across a tenant or owner. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`insight_custom_reports` TO 'tmanage_app'@'%';
 -- PREF-DIGEST notification digest cadence (x245, module 20, 0117). **INSERT, UPDATE** — a member's
 -- digest cadence is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY UPDATE`
 -- upsert against `uq_pref_digest_org_membership`. No DELETE: a member changes cadence by saving a new

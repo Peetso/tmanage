@@ -307,6 +307,8 @@ export const INSIGHT_REPORT_SCHEDULES_SERVICE = Symbol.for('tmanage.InsightRepor
 export const INSIGHT_TARGETS_SERVICE = Symbol.for('tmanage.InsightTargetsService');
 /** x302. The per-user insight-dashboard-layout service — reads/upserts the caller's own tile layout. */
 export const INSIGHT_DASHBOARD_LAYOUT_SERVICE = Symbol.for('tmanage.InsightDashboardLayoutService');
+/** x320. The insight custom-reports service — a member's own composed insight reports, rendered live. */
+export const INSIGHT_CUSTOM_REPORTS_SERVICE = Symbol.for('tmanage.InsightCustomReportsService');
 /** SRCH-01 (x111). Global tenant-scoped search over work items, documents and meetings. */
 export const SEARCH_REPOSITORY = Symbol.for('tmanage.SearchRepository');
 export const SEARCH_SERVICE = Symbol.for('tmanage.SearchService');
