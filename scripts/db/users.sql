@@ -396,6 +396,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`project_tags`          TO 'tmanage_ap
 -- UPDATE: a tag is defined once and an assignment is added or removed, never amended in place; the
 -- 0140 trigger pins organization_id immutable, and reading is the database-wide SELECT above.
 GRANT INSERT, DELETE         ON `tmanage`.`file_tags`             TO 'tmanage_app'@'%';
+-- x292 (0159) work checklist templates. A template is defined (INSERT), read (the database-wide
+-- SELECT) and removed (DELETE) — this slice ships define/list/delete/apply — so INSERT and DELETE
+-- and **no UPDATE**: a template is defined once and removed to change it, never amended in place;
+-- the 0159 trigger pins `organization_id` immutable for every credential besides. Applying a
+-- template inserts into `work_item_checklist_items`, which carries its own INSERT grant above.
+GRANT INSERT, DELETE         ON `tmanage`.`work_checklist_templates` TO 'tmanage_app'@'%';
 -- FILE-001. The counter is reserved, committed and released in place (UPDATE) and seeded
 -- once per organization (INSERT); DELETE withheld because a counter that can vanish is a
 -- bill that can. A session moves through its lifecycle (UPDATE) and a file asset through

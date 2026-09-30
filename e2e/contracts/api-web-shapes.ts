@@ -244,6 +244,10 @@ import type {
   FileTagView as ApiFileTagView,
   FileTagAssignmentView as ApiFileTagAssignmentView,
 } from '../../apps/api/src/modules/files/file-tags.service.js';
+import type {
+  ChecklistTemplateView as ApiChecklistTemplateView,
+  ApplyTemplateResultView as ApiApplyTemplateResultView,
+} from '../../apps/api/src/modules/work/checklist-templates.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -565,6 +569,8 @@ import type { ProjectTag as WebProjectTag } from '../../apps/web/src/lib/api/pro
 import type { ProjectTagAssignment as WebProjectTagAssignment } from '../../apps/web/src/lib/api/project-tags';
 import type { FileTag as WebFileTag } from '../../apps/web/src/lib/api/file-tags';
 import type { FileTagAssignment as WebFileTagAssignment } from '../../apps/web/src/lib/api/file-tags';
+import type { ChecklistTemplate as WebChecklistTemplate } from '../../apps/web/src/lib/api/work-checklist-templates';
+import type { ApplyTemplateResult as WebApplyTemplateResult } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -1412,6 +1418,16 @@ type _projectTagAssignment = Assert<Exact<ApiProjectTagAssignmentView, WebProjec
  */
 type _fileTag = Assert<Exact<ApiFileTagView, WebFileTag>>;
 type _fileTagAssignment = Assert<Exact<ApiFileTagAssignmentView, WebFileTagAssignment>>;
+
+/**
+ * x292. Reusable work-item checklist templates (Work module 7). `ChecklistTemplateView` ↔
+ * `ChecklistTemplate` — one org-scoped template (`GET`/`POST …/work/checklist-templates`,
+ * `DELETE …/:templateId`); `ApplyTemplateResultView` ↔ `ApplyTemplateResult` — the result of applying
+ * one to a work item (`POST …/work-items/:id/apply-checklist-template/:templateId`).
+ * `ChecklistTemplatesView` reads the definitions. `organizationId` is absent on both.
+ */
+type _checklistTemplate = Assert<Exact<ApiChecklistTemplateView, WebChecklistTemplate>>;
+type _applyTemplateResult = Assert<Exact<ApiApplyTemplateResultView, WebApplyTemplateResult>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped

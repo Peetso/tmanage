@@ -6283,6 +6283,35 @@ export const userDisplayPreferences = mysqlTable(
 
 export type UserDisplayPreferenceRow = typeof userDisplayPreferences.$inferSelect;
 
+/**
+ * x292. Reusable work-item checklist templates (Work module 7). An org-scoped definition: a name
+ * and an ordered list of checklist item labels a member defines once, then applies to a work item
+ * to seed that item's checklist (`work_item_checklist_items`, 0051). `name` is unique per tenant
+ * (`uq_work_checklist_templates_org_name`) so a duplicate define is a 409; `labels_json` holds the
+ * ordered label array whole, validated and bounded by the application before the write (the same
+ * division `saved_searches.filters` takes). `organization_id` is pinned immutable by the migration's
+ * `BEFORE UPDATE` trigger — migration `0159_work_checklist_templates.sql`.
+ */
+export const workChecklistTemplates = mysqlTable(
+  'work_checklist_templates',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    labelsJson: json('labels_json').$type<string[]>().notNull(),
+    createdBy: char('created_by', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_work_checklist_templates_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_work_checklist_templates_org_name').on(table.organizationId, table.name),
+    index('ix_work_checklist_templates_org').on(table.organizationId, table.name, table.id),
+  ],
+);
+
+export type WorkChecklistTemplateRow = typeof workChecklistTemplates.$inferSelect;
+export type NewWorkChecklistTemplateRow = typeof workChecklistTemplates.$inferInsert;
+
 export const TABLES = {
   focus_blocks: focusBlocks,
   inbox_flags: inboxFlags,
@@ -6291,6 +6320,7 @@ export const TABLES = {
   org_announcements: orgAnnouncements,
   org_feature_flags: orgFeatureFlags,
   audit_retention_policy: auditRetentionPolicy,
+  work_checklist_templates: workChecklistTemplates,
   home_widget_prefs: homeWidgetPrefs,
   inbox_saved_filters: inboxSavedFilters,
   glossary_terms: glossaryTerms,

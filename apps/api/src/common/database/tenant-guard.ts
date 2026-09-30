@@ -124,6 +124,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   project_tags: 'organization_id',
   // x270. File tags: org-defined tag definitions + their file assignments, one tenant table.
   file_tags: 'organization_id',
+  // x292. Reusable checklist templates: an org-scoped definition list tenant-scoped like every
+  // sibling — an unscoped read would be every studio's templates at once.
+  work_checklist_templates: 'organization_id',
   // REQ-001. Tenant-owned and, unusually, also client-owned: `client_organization_id` is
   // NOT NULL, so every row belongs both to a studio and to one of its clients.
   client_requests: 'organization_id',
