@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   AUTOMATION_VARIABLES_REPOSITORY,
+  AUTOMATION_TEMPLATE_TAGS_REPOSITORY,
+  AUTOMATION_TEMPLATE_TAGS_SERVICE,
   WORKFLOW_CONDITIONS_REPOSITORY,
   WORKFLOW_RUNS_REPOSITORY,
   WORKFLOW_RUN_HISTORY_REPOSITORY,
@@ -21,6 +23,9 @@ import { WorkflowConditionsRepository } from './conditions.repository.js';
 import { WorkflowConditionsController } from './conditions.controller.js';
 import { AutomationVariablesRepository } from './variables.repository.js';
 import { AutomationVariablesController } from './variables.controller.js';
+import { AutomationTemplateTagsRepository } from './template-tags.repository.js';
+import { AutomationTemplateTagsService } from './template-tags.service.js';
+import { AutomationTemplateTagsController } from './template-tags.controller.js';
 
 /**
  * Automations & integrations (module 17). Workflow templates — define, list (x162), edit (x189),
@@ -60,6 +65,14 @@ export class AutomationsModule {
       provide: AUTOMATION_VARIABLES_REPOSITORY,
       useFactory: () => new AutomationVariablesRepository(),
     };
+    const templateTagsRepository: Provider = {
+      provide: AUTOMATION_TEMPLATE_TAGS_REPOSITORY,
+      useFactory: () => new AutomationTemplateTagsRepository(),
+    };
+    const templateTagsService: Provider = {
+      provide: AUTOMATION_TEMPLATE_TAGS_SERVICE,
+      useClass: AutomationTemplateTagsService,
+    };
 
     return {
       module: AutomationsModule,
@@ -70,6 +83,8 @@ export class AutomationsModule {
         runHistoryRepository,
         conditionsRepository,
         variablesRepository,
+        templateTagsRepository,
+        templateTagsService,
       ],
       controllers: [
         WorkflowTemplatesController,
@@ -79,6 +94,7 @@ export class AutomationsModule {
         WorkflowRunHistoryController,
         WorkflowConditionsController,
         AutomationVariablesController,
+        AutomationTemplateTagsController,
       ],
     };
   }

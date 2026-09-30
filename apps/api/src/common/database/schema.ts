@@ -3784,6 +3784,43 @@ export const automationVariables = mysqlTable(
 );
 
 /**
+ * Automation template tags (0201, x335). Org-scoped free-text labels attached to a {@link
+ * workflowTemplates} row so a studio can categorise its automation templates and filter them by tag.
+ * Keyed to its template through the composite `(organization_id, workflow_template_id)` foreign key so
+ * a tag can never point across a tenant boundary. One tag per `(organization_id, workflow_template_id,
+ * label)`, case-insensitively (the `utf8mb4_unicode_ci` collation folds case, the `person_skills`
+ * posture); the application normalises the label before insert and turns a duplicate into a 409. A tag
+ * is a label at rest — created and deleted, never edited — so identity (`organization_id`,
+ * `workflow_template_id`, `label`, `created_by`) is immutable at the engine and the app is granted
+ * INSERT + DELETE only. `0201_automation_template_tags.sql` is the source of truth; this is its typed
+ * mirror.
+ */
+export const automationTemplateTags = mysqlTable(
+  'automation_template_tags',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workflowTemplateId: char('workflow_template_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 80 }).notNull(),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_automation_template_tags_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_automation_template_tags_label').on(
+      table.organizationId,
+      table.workflowTemplateId,
+      table.label,
+    ),
+    index('ix_automation_template_tags_template').on(
+      table.organizationId,
+      table.workflowTemplateId,
+      table.label,
+    ),
+  ],
+);
+
+/**
  * PEOPLE / module 14 (x171). A person's allocation to a project — which membership, which project,
  * what share of their time (`percent`, 1..100), an optional `start_date`/`end_date` window, and when
  * the row was created. Tenant-scoped and project-owned like `project_objectives` (0040), plus a second
@@ -8137,6 +8174,7 @@ export const TABLES = {
   maintenance_windows: maintenanceWindows,
   workflow_conditions: workflowConditions,
   automation_variables: automationVariables,
+  automation_template_tags: automationTemplateTags,
   person_allocations: personAllocations,
   person_capacity: personCapacity,
   member_reporting_lines: memberReportingLines,
@@ -8269,6 +8307,7 @@ export type IntegrationConnectionRow = typeof integrationConnections.$inferSelec
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WorkflowConditionRow = typeof workflowConditions.$inferSelect;
 export type AutomationVariableRow = typeof automationVariables.$inferSelect;
+export type AutomationTemplateTagRow = typeof automationTemplateTags.$inferSelect;
 export type PersonCapacityRow = typeof personCapacity.$inferSelect;
 export type MemberReportingLineRow = typeof memberReportingLines.$inferSelect;
 export type MemberAvailabilityRow = typeof memberAvailability.$inferSelect;

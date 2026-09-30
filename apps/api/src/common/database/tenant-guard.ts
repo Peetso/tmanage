@@ -701,6 +701,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // table, so this entry is what scopes the reads, the upsert and the delete; `organization_id` is NOT
   // NULL and carries the `(organization_id, id)` key every tenant table has.
   automation_variables: 'organization_id',
+  // Automation template tags (x335, migration 0201). Org-owned: a tag is one studio's free-text label
+  // on one of its workflow templates, and an unscoped `SELECT ... FROM automation_template_tags` would
+  // be every studio's template taxonomy on the server. The layer-3 guard fails OPEN on an unregistered
+  // table, so this entry is what scopes the tag reads and writes; `organization_id` is NOT NULL and
+  // carries the `(organization_id, id)` key every tenant table has.
+  automation_template_tags: 'organization_id',
   // PEOPLE allocations (x171, migration 0069). Tenant-owned and project-owned: an allocation belongs
   // to the acting tenant, and an unscoped `SELECT ... FROM person_allocations` would be every studio's
   // capacity plan on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`

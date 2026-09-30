@@ -299,6 +299,8 @@ import type { WorkflowTemplateEditView as ApiWorkflowTemplateEditView } from '..
 import type { TemplateCloneView as ApiTemplateCloneView } from '../../apps/api/src/modules/automations/template-clone.controller.js';
 import type { WorkflowConditionView as ApiWorkflowConditionView } from '../../apps/api/src/modules/automations/conditions.controller.js';
 import type { AutomationVariableView as ApiAutomationVariableView } from '../../apps/api/src/modules/automations/variables.controller.js';
+import type { AutomationTemplateTagView as ApiAutomationTemplateTagView } from '../../apps/api/src/modules/automations/template-tags.controller.js';
+import type { AutomationTaggedTemplateView as ApiAutomationTaggedTemplateView } from '../../apps/api/src/modules/automations/template-tags.controller.js';
 import type { PersonCapacityView as ApiPersonCapacityView } from '../../apps/api/src/modules/people/capacity.controller.js';
 import type { ReportingLineView as ApiReportingLineView } from '../../apps/api/src/modules/people/reporting-lines.controller.js';
 import type { AvailabilityView as ApiAvailabilityView } from '../../apps/api/src/modules/people/availability.controller.js';
@@ -455,6 +457,8 @@ import type { WorkflowTemplateEditView as WebWorkflowTemplateEditView } from '..
 import type { TemplateCloneView as WebTemplateCloneView } from '../../apps/web/src/lib/api/automations';
 import type { WorkflowConditionSummary as WebWorkflowConditionSummary } from '../../apps/web/src/lib/api/automations';
 import type { AutomationVariableSummary as WebAutomationVariableSummary } from '../../apps/web/src/lib/api/automation-variables';
+import type { AutomationTemplateTagSummary as WebAutomationTemplateTagSummary } from '../../apps/web/src/lib/api/automation-template-tags';
+import type { AutomationTaggedTemplateSummary as WebAutomationTaggedTemplateSummary } from '../../apps/web/src/lib/api/automation-template-tags';
 import type { PersonCapacity as WebPersonCapacity } from '../../apps/web/src/lib/api/person-capacity';
 import type { ReportingLine as WebReportingLine } from '../../apps/web/src/lib/api/reporting-lines';
 import type { AvailabilityView as WebAvailabilityView } from '../../apps/web/src/lib/api/people-availability';
@@ -1894,6 +1898,27 @@ type _workflowCondition = Assert<Exact<ApiWorkflowConditionView, WebWorkflowCond
  * variable is addressed by its `key` within the acting organization.
  */
 type _automationVariable = Assert<Exact<ApiAutomationVariableView, WebAutomationVariableSummary>>;
+
+/**
+ * Automations & integrations (x335). `AutomationTemplateTagView` (`GET`/`POST
+ * …/automations/templates/:id/tags`, response) — one free-text tag on a workflow template. Paired with
+ * a live web consumer: `AutomationTemplateTagsView` reads exactly this response to list tags and drive
+ * the add form. `label`/`templateId`/`createdBy`/`createdAt` are held identical and `organizationId` is
+ * absent on both, so a rename or retype on either side fails the gate.
+ */
+type _automationTemplateTag = Assert<
+  Exact<ApiAutomationTemplateTagView, WebAutomationTemplateTagSummary>
+>;
+
+/**
+ * Automations & integrations (x335). `AutomationTaggedTemplateView` (`GET …/automations/template-tags`,
+ * list element) — one template in the tag-filter result. Paired with a live web consumer:
+ * `AutomationTemplateTagsView` reads exactly this response to render the filtered template list. Just
+ * `id` and `name`; `organizationId` is absent on both sides.
+ */
+type _automationTaggedTemplate = Assert<
+  Exact<ApiAutomationTaggedTemplateView, WebAutomationTaggedTemplateSummary>
+>;
 
 /**
  * People capacity (module 14, x170). `PersonCapacityView` (`GET`/`PUT …/people/:membershipId/capacity`,

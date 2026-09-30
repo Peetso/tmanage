@@ -117,6 +117,12 @@ export const DISPLAY_PREFERENCES_SERVICE = Symbol.for('tmanage.DisplayPreference
 export const WORKFLOW_CONDITIONS_REPOSITORY = Symbol.for('tmanage.WorkflowConditionsRepository');
 /** Automation variables (x305). The org-scoped non-secret variable repository. */
 export const AUTOMATION_VARIABLES_REPOSITORY = Symbol.for('tmanage.AutomationVariablesRepository');
+/** Automation template tags (x335). The org-scoped free-text template-tag repository. */
+export const AUTOMATION_TEMPLATE_TAGS_REPOSITORY = Symbol.for(
+  'tmanage.AutomationTemplateTagsRepository',
+);
+/** Automation template tags (x335). The tag orchestration service (normalise, dedupe, filter). */
+export const AUTOMATION_TEMPLATE_TAGS_SERVICE = Symbol.for('tmanage.AutomationTemplateTagsService');
 /** PEOPLE allocations (x171). The project-scoped person-allocation repository. */
 export const PERSON_ALLOCATIONS_REPOSITORY = Symbol.for('tmanage.PersonAllocationsRepository');
 /** People capacity (x170). The tenant-scoped per-member weekly-capacity repository. */

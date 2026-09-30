@@ -931,6 +931,12 @@ GRANT INSERT                 ON `tmanage`.`workflow_conditions` TO 'tmanage_app'
 -- trigger pins organization_id/var_key immutable for every credential, so the upsert can only move the
 -- value; the app writes no other tenant table here.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`automation_variables` TO 'tmanage_app'@'%';
+-- Automation template tags (x335, 0201). **INSERT + DELETE** — a tag is created (INSERT), read (the
+-- database-wide SELECT), and removed (DELETE); a re-label is a delete and a re-add, the person_skills
+-- posture, so there is no UPDATE. The 0201 immutability trigger pins
+-- organization_id/workflow_template_id/label/created_by for every credential, so no privilege can
+-- mutate a tag in place. The app writes no other tenant table here.
+GRANT INSERT, DELETE         ON `tmanage`.`automation_template_tags` TO 'tmanage_app'@'%';
 -- PEOPLE allocations (x171). **INSERT only** — an allocation is created (INSERT) and read (the
 -- database-wide SELECT). This slice ships no edit and no removal path; there is no allocation-column
 -- lifecycle yet, so no UPDATE, and no DELETE. Reassignment or an end-date edit is a later slice that
