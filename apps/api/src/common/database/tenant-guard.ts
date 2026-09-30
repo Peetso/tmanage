@@ -718,6 +718,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table
   // has, so the guard must scope its reads and its writes.
   person_skills: 'organization_id',
+  // Person certifications (x326, migration 0194). Member-owned within a tenant: a certification
+  // belongs to a person in one studio, and an unscoped `SELECT ... FROM person_certifications` would
+  // be every studio's members' credentials on the server. `organization_id` is NOT NULL and carries
+  // the `(organization_id, id)` key every tenant table has, so the guard must scope its reads and its
+  // (insert/delete) writes; the layer-3 guard fails OPEN on an unregistered table, so registering it
+  // here is what scopes them, and tenant-isolation.db.test.ts enforces the entry.
+  person_certifications: 'organization_id',
   // Custom roles (x173, migration 0071). Tenant-owned: a role belongs to one studio, and an unscoped
   // `SELECT ... FROM custom_roles` would be every studio's role/capability design on the server.
   // `organization_id` is NOT NULL and carries the `(organization_id, id)` key every tenant table has,

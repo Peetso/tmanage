@@ -119,7 +119,7 @@
 --     documents, decisions, work_item_checklist_items, billing_profiles
 --     documents, decisions, billing_seats
 --     saved_views, meeting_attendees
---   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items, person_skills
+--   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables, home_pinned_items, person_skills, person_certifications
 --   · `INSERT, DELETE` on: work_item_dependencies, work_item_files, saved_context,
 --     document_template_variables, home_pinned_items, objective_work_links, decision_work_links
 --     saved_views, meeting_attendees, member_profiles
@@ -938,6 +938,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`person_time_off` TO 'tmanage_app'@'%'
 -- re-add, and the 0070 trigger pins organization_id/membership_id/label immutable for every
 -- credential, so a level-edit slice adds UPDATE with the code that writes it. A removed skill leaves
 -- no history to protect (unlike a message or a notification), so DELETE is the right grant here.
+GRANT INSERT, DELETE         ON `tmanage`.`person_certifications` TO 'tmanage_app'@'%';
+-- Person certifications (x326, migration 0194). **INSERT, DELETE** — a dated credential is recorded
+-- (INSERT) and removed (DELETE), and read through the database-wide SELECT above. No UPDATE: a
+-- certification is never amended, a correction is a delete and re-add, so the withheld UPDATE is the
+-- immutability control (there is no editable column). A removed credential leaves no history to
+-- protect, so DELETE is the right grant here (the person_skills posture).
 GRANT INSERT, DELETE         ON `tmanage`.`person_skills`     TO 'tmanage_app'@'%';
 -- Custom roles (x173, 0071; edit + clone x195). **INSERT, UPDATE** — a custom role is defined and
 -- cloned (INSERT), edited in place (UPDATE, added by x195 for the name/capabilities edit path), and read
