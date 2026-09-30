@@ -615,6 +615,12 @@ GRANT SELECT, INSERT, DELETE ON `tmanage`.`billing_cost_centers` TO 'tmanage_app
 -- pins organization_id/po_number immutable for every credential besides, so UPDATE can only move the
 -- editable `status`. It is a record, never a payment: nothing here charges or stores an instrument.
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`billing_purchase_orders` TO 'tmanage_app'@'%';
+-- Billing plan-change requests (x284, 0153). A request is created (INSERT) and read (the database-wide
+-- SELECT above); the cancel path moves `status` pending → cancelled (UPDATE). This slice ships no
+-- removal path, so **no DELETE**, and the 0153 trigger pins organization_id/created_by/target_plan_code/
+-- effective_on/note immutable (and forbids leaving cancelled) for every credential besides, so UPDATE
+-- can only move `status`. No provider call or charge happens here — that is Needs-Peter infrastructure.
+GRANT INSERT, UPDATE         ON `tmanage`.`billing_plan_change_requests` TO 'tmanage_app'@'%';
 -- CLIENT-003 (x125, 0041). A project update is posted (INSERT) and read (the database-wide
 -- SELECT above); `published` is set at INSERT time, and this slice ships no edit/unpublish
 -- endpoint, so **no UPDATE and no DELETE** — least privilege, and the 0041 trigger pins

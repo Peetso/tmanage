@@ -20,6 +20,12 @@ import { BillingProfileController } from './profile.controller.js';
 import { BillingTaxDetailsRepository } from './tax-details.repository.js';
 import { BillingTaxDetailsService } from './tax-details.service.js';
 import { BillingTaxDetailsController } from './tax-details.controller.js';
+import { PlanChangeRequestsRepository } from './plan-change-requests.repository.js';
+import { PlanChangeRequestsService } from './plan-change-requests.service.js';
+import {
+  PLAN_CHANGE_REQUESTS_SERVICE,
+  PlanChangeRequestsController,
+} from './plan-change-requests.controller.js';
 
 /**
  * Billing / module 19 (x177). The subscription module — an organization's current plan (view, and
@@ -72,6 +78,15 @@ export class BillingModule {
       useFactory: (database: TenantDatabase, repository: BillingTaxDetailsRepository) =>
         new BillingTaxDetailsService(database, repository),
     };
+    // Billing / module 19 (x284). Plan-change requests — a recorded intent to move plans. A stateless
+    // repository folded into the service under a slice-private token (no `tokens.ts` edit), the same
+    // shape the other billing wiring here takes. Reuses `org.manage`; adds nothing to the caps files.
+    const planChangeRequests: Provider = {
+      provide: PLAN_CHANGE_REQUESTS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new PlanChangeRequestsService(database, new PlanChangeRequestsRepository()),
+    };
 
     return {
       module: BillingModule,
@@ -82,6 +97,7 @@ export class BillingModule {
         profileRepository,
         taxDetailsRepository,
         taxDetailsService,
+        planChangeRequests,
       ],
       exports: [service, planPreview],
       controllers: [
@@ -89,6 +105,7 @@ export class BillingModule {
         PlanPreviewController,
         BillingProfileController,
         BillingTaxDetailsController,
+        PlanChangeRequestsController,
       ],
     };
   }
