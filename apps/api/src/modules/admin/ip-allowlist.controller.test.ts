@@ -1,0 +1,148 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { Principal } from '@tmanage/domain';
+import { AdminIpAllowlistController } from './ip-allowlist.controller.js';
+import { AdminIpAllowlistService } from './ip-allowlist.service.js';
+import type { IpAllowlistInput, IpAllowlistStore } from './ip-allowlist.service.js';
+import { ApiError } from '../../common/http/errors.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { OrgIpAllowlistRow } from '../../common/database/schema.js';
+
+/**
+ * x277 — the fast, database-free proof of the organization IP allowlist (Administration module 18). It
+ * runs the controller over an in-memory store with the **real** `authorize`: the resolve-then-authorize
+ * order, the cross-tenant 404 (no write), the malformed-cidr 400 (no write), the duplicate 409 and the
+ * `org.security.manage` gate are the behaviours a wiring bug would break, and none needs MySQL. The
+ * composite key, the unique (org, cidr) and the immutability trigger are proved against the real engine
+ * by the chain's DB suite (Peter's rule: no DB tests here).
+ */
+
+const ORG = '01890000-0000-7000-8000-00000000000a';
+const MEMBERSHIP = '01890000-0000-7000-8000-000000000011';
+const context = { organizationId: ORG } as unknown as TenantContext;
+
+/** An owner — holds `org.security.manage`. */
+function owner(): Principal {
+  return {
+    userId: '01890000-0000-7000-8000-000000000001',
+    organizationId: ORG,
+    kind: 'internal',
+    role: 'owner',
+    membershipId: MEMBERSHIP,
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: true,
+  } as unknown as Principal;
+}
+
+/** An in-memory store standing in for the drizzle store, counting its writes. */
+class FakeStore implements IpAllowlistStore {
+  readonly rows: OrgIpAllowlistRow[] = [];
+  inserts = 0;
+  deletes = 0;
+
+  async listAll() {
+    return [...this.rows];
+  }
+  async findById(_r: unknown, _c: TenantContext, id: string) {
+    return this.rows.find((row) => row.id === id) ?? null;
+  }
+  async findByCidr(_r: unknown, _c: TenantContext, cidr: string) {
+    return this.rows.find((row) => row.cidr === cidr) ?? null;
+  }
+  async insert(_r: unknown, _c: TenantContext, input: IpAllowlistInput) {
+    this.inserts += 1;
+    const row = {
+      id: `entry-${this.rows.length + 1}`,
+      organizationId: ORG,
+      cidr: input.cidr,
+      label: input.label,
+      createdAt: new Date(),
+    } as OrgIpAllowlistRow;
+    this.rows.push(row);
+    return row;
+  }
+  async remove(_r: unknown, _c: TenantContext, id: string) {
+    this.deletes += 1;
+    const index = this.rows.findIndex((row) => row.id === id);
+    if (index >= 0) this.rows.splice(index, 1);
+  }
+}
+
+function harness() {
+  const database = {
+    read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+    transaction: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+  } as unknown as TenantDatabase;
+  const store = new FakeStore();
+  const service = new AdminIpAllowlistService(database, store);
+  return { controller: new AdminIpAllowlistController(service), store };
+}
+
+async function statusOf(work: () => Promise<unknown>): Promise<number> {
+  try {
+    await work();
+  } catch (error) {
+    if (error instanceof ApiError) return error.status;
+    throw error;
+  }
+  throw new Error('expected the call to throw');
+}
+
+describe('AdminIpAllowlistController', () => {
+  let harnessed: ReturnType<typeof harness>;
+
+  beforeEach(() => {
+    harnessed = harness();
+  });
+
+  it('adds, lists and removes an entry for a security admin', async () => {
+    const { controller } = harnessed;
+
+    const added = await controller.add(context, owner(), {
+      cidr: '203.0.113.0/24',
+      label: 'Head office',
+    });
+    expect(added).toMatchObject({ cidr: '203.0.113.0/24', label: 'Head office' });
+
+    const listed = await controller.list(context, owner());
+    expect(listed.entries).toHaveLength(1);
+    expect(listed.entries[0]).toMatchObject({ id: added.id });
+
+    await controller.remove(context, owner(), added.id);
+    const after = await controller.list(context, owner());
+    expect(after.entries).toHaveLength(0);
+  });
+
+  it('refuses a malformed cidr with 400 and writes nothing', async () => {
+    const { controller, store } = harnessed;
+    const status = await statusOf(() => controller.add(context, owner(), { cidr: '10.0.0.0/99' }));
+    expect(status).toBe(400);
+    expect(store.inserts).toBe(0);
+  });
+
+  it('refuses a duplicate cidr with 409 and writes only once', async () => {
+    const { controller, store } = harnessed;
+    await controller.add(context, owner(), { cidr: '198.51.100.4' });
+    const status = await statusOf(() => controller.add(context, owner(), { cidr: '198.51.100.4' }));
+    expect(status).toBe(409);
+    expect(store.inserts).toBe(1);
+  });
+
+  it('answers 404 and writes nothing when the entry is cross-tenant or absent', async () => {
+    const { controller, store } = harnessed;
+    const status = await statusOf(() => controller.remove(context, owner(), 'entry-missing'));
+    expect(status).toBe(404);
+    expect(store.deletes).toBe(0);
+  });
+
+  it('refuses a principal without org.security.manage with 403 and writes nothing', async () => {
+    const { controller, store } = harnessed;
+    const notSecurityAdmin: Principal = { ...owner(), role: 'workspace_admin' } as Principal;
+    const status = await statusOf(() =>
+      controller.add(context, notSecurityAdmin, { cidr: '203.0.113.0/24' }),
+    );
+    expect(status).toBe(403);
+    expect(store.inserts).toBe(0);
+  });
+});

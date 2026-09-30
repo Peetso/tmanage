@@ -480,6 +480,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // upsert; the layer-3 guard fails OPEN on an unregistered table, so registering it here is what
   // scopes them, and tenant-isolation.db.test.ts enforces the entry.
   security_settings: 'organization_id',
+  // Organization IP allowlist entries (x277, migration 0146). Tenant-owned: each advisory allowed
+  // range belongs to one organization. The layer-3 guard fails OPEN on an unregistered table, so this
+  // entry is what scopes its list/insert/delete; tenant-isolation.db.test.ts enforces it.
+  org_ip_allowlist: 'organization_id',
   // ON-10 guided-tour progress (x155, migration 0059). Tenant-owned: a progress row belongs to one
   // membership in one studio, and an unscoped read would be a map of how far every member in every
   // studio has got through the tour. The layer-3 guard fails OPEN on an unregistered table, so

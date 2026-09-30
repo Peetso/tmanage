@@ -678,6 +678,11 @@ GRANT INSERT, UPDATE         ON `tmanage`.`org_policies`      TO 'tmanage_app'@'
 -- a runtime credential. The 0073 trigger pins organization_id immutable for every credential besides,
 -- so UPDATE can move only enforce_2fa/ip_allowlist_json (and who set it, and when).
 GRANT INSERT, UPDATE         ON `tmanage`.`security_settings` TO 'tmanage_app'@'%';
+-- Organization IP allowlist entries (x277, 0146). **INSERT and DELETE** — an advisory allowed range is
+-- added (INSERT) and removed (DELETE) and read (the database-wide SELECT). **No UPDATE** — an entry is
+-- added and removed, never edited in place, and the 0146 trigger pins organization_id immutable for
+-- every credential besides.
+GRANT INSERT, DELETE         ON `tmanage`.`org_ip_allowlist` TO 'tmanage_app'@'%';
 -- ON-10 guided-tour progress (x155, 0059). **INSERT only** — a step is marked complete (INSERT) and
 -- read (the database-wide SELECT). Progress is forward-only: re-completing a step is an idempotent
 -- no-op the repository swallows on the unique-key conflict, never an UPDATE, and there is no

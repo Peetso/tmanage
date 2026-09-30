@@ -91,6 +91,7 @@ import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AdminSecurityModule } from './modules/admin/security.controller.js';
 import { AdminExportRequestsModule } from './modules/admin/export-requests.controller.js';
 import { OrgAnnouncementsModule } from './modules/admin/announcements.controller.js';
+import { AdminIpAllowlistModule } from './modules/admin/ip-allowlist.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -267,6 +268,11 @@ export class AppModule {
         // other administration slices; depends only on the global `TENANT_DATABASE`. Per-member
         // dismissal is client-remembered, so there is no second table.
         OrgAnnouncementsModule.register(),
+        // ADM security (module 18, x277). Organization IP allowlist — a security admin's advisory list
+        // of allowed IP/CIDR ranges (list/add/remove) behind `org.security.manage`. A module of its
+        // own, file-disjoint from the security-settings and audit slices in the same module; depends
+        // only on the global `TENANT_DATABASE`. Advisory record only — no request-time enforcement.
+        AdminIpAllowlistModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),
