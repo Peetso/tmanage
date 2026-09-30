@@ -112,6 +112,7 @@ import { InsightReportSchedulesModule } from './modules/insights/report-schedule
 import { InsightComparisonModule } from './modules/insights/comparison.controller.js';
 import { InsightTargetsModule } from './modules/insights/targets.controller.js';
 import { InsightAnnotationsModule } from './modules/insights/insight-annotations.controller.js';
+import { InsightMetricAlertsModule } from './modules/insights/metric-alerts.controller.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { PublicResourcesModule } from './modules/public-site/resources.controller.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
@@ -626,6 +627,12 @@ export class AppModule {
         // `work.read`, it soft-reads x211's `insight_snapshots` (resolve tenant-scoped before authorize
         // → 404 on an unknown snapshot) and owns its own tenant-scoped `insight_annotations` table.
         InsightAnnotationsModule.register(),
+        // x319. Insight metric alerts — a member's own threshold alert per metric (set/list/delete over
+        // `/insights/metric-alerts`, `work.read` + self scope). A separate module from `InsightsModule`
+        // so the insights slices stay file-disjoint; the read marks each alert breached/ok against the
+        // latest workload snapshot (0090, read-only) and writes to the tenant-scoped
+        // `insight_metric_alerts`. Config + read-side evaluation only — no dispatch this slice.
+        InsightMetricAlertsModule.register(),
         // Public & trust site (module 1, x156). The unauthenticated marketing home — a single
         // `@Public()` read serving deterministic, code-defined content. Depends on nothing (no
         // database, no tenant, no mailer), so its position here is free; registered last, beside

@@ -624,6 +624,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // every tenant table has, so the guard must scope its reads, its inserts, and its deletes; the
   // layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them.
   insight_annotations: 'organization_id',
+  // Insight metric alerts (x319, migration 0187). Tenant-owned and self-scoped: a row is one member's
+  // own threshold alert on one metric, and an unscoped `SELECT ... FROM insight_metric_alerts` would be
+  // every member's alerts across every studio on the server. `organization_id` is NOT NULL and carries
+  // the `(organization_id, id)` key every tenant table has, so the guard must scope its reads, its
+  // upsert and its delete; the layer-3 guard fails OPEN on an unregistered table, so this entry is what
+  // scopes them.
+  insight_metric_alerts: 'organization_id',
   // PREF-QUIET (x215, migration 0093). Tenant-owned: a row is one membership's notification
   // quiet-hours window in one studio, and an unscoped `SELECT ... FROM pref_quiet_hours` would be
   // every member's window across every studio on the server. `organization_id` is NOT NULL and
