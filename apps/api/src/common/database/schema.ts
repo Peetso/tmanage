@@ -6189,6 +6189,44 @@ export type DocReadStateRow = typeof docReadState.$inferSelect;
 export type NewDocReadStateRow = typeof docReadState.$inferInsert;
 
 /**
+ * Approval delegations (x300, migration 0168, module Approvals).
+ *
+ * One row per delegation: the fact that a delegator (the acting approver) has named a delegate to act
+ * on approvals on their behalf between `starts_at` and `ends_at`. Keyed by `(organization_id, id)`
+ * like every tenant table; the delegator is always the acting member (the route reads
+ * `context.membershipId`, never a body field), so a member records only their own delegations. Created
+ * and revoked, never edited — the only writes are INSERT and DELETE, no UPDATE grant — so a window is
+ * changed by revoking and re-creating. Both membership columns are bound to a membership of this same
+ * organization by composite foreign keys, the engine-level backstop behind the application's
+ * resolve-before-write 404.
+ */
+export const approvalDelegations = mysqlTable(
+  'approval_delegations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    delegatorMembershipId: char('delegator_membership_id', { length: 36 }).notNull(),
+    delegateMembershipId: char('delegate_membership_id', { length: 36 }).notNull(),
+    startsAt: datetime('starts_at', { mode: 'date', fsp: 3 }).notNull(),
+    endsAt: datetime('ends_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_approval_delegations_org_id').on(table.organizationId, table.id),
+    // 07-DATA-MODEL §9: the one read — a delegator's delegations, newest first, id breaking ties.
+    index('ix_approval_delegations_org_delegator').on(
+      table.organizationId,
+      table.delegatorMembershipId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export type ApprovalDelegationRow = typeof approvalDelegations.$inferSelect;
+export type NewApprovalDelegationRow = typeof approvalDelegations.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -6603,6 +6641,7 @@ export const TABLES = {
   audit_retention_policy: auditRetentionPolicy,
   work_checklist_templates: workChecklistTemplates,
   request_comments: requestComments,
+  approval_delegations: approvalDelegations,
   home_widget_prefs: homeWidgetPrefs,
   inbox_saved_filters: inboxSavedFilters,
   glossary_terms: glossaryTerms,

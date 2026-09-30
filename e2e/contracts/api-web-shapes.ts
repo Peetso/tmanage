@@ -305,6 +305,7 @@ import type { PolicySimulationView as ApiPolicySimulationView } from '../../apps
 import type { SecuritySettingsView as ApiSecuritySettingsView } from '../../apps/api/src/modules/admin/security.controller.js';
 import type { IpAllowlistEntryView as ApiIpAllowlistEntryView } from '../../apps/api/src/modules/admin/ip-allowlist.service.js';
 import type { AuditRetentionView as ApiAuditRetentionView } from '../../apps/api/src/modules/admin/audit-retention.service.js';
+import type { ApprovalDelegationView as ApiApprovalDelegationView } from '../../apps/api/src/modules/approvals/delegation.service.js';
 
 // ── The shapes `apps/web` declares for them ─────────────────────────────────
 import type {
@@ -369,6 +370,7 @@ import type { DocumentTag as WebDocumentTag } from '../../apps/web/src/lib/api/d
 import type { MessageAttachmentSummary as WebMessageAttachmentSummary } from '../../apps/web/src/lib/api/message-attachments';
 import type { DocLinkSummary as WebDocLinkSummary } from '../../apps/web/src/lib/api/doc-links';
 import type { DocReadStateSummary as WebDocReadStateSummary } from '../../apps/web/src/lib/api/doc-read-state';
+import type { ApprovalDelegationSummary as WebApprovalDelegationSummary } from '../../apps/web/src/lib/api/approval-delegations';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -679,6 +681,9 @@ type _resolvedShortcutView = Assert<Exact<ApiResolvedShortcutView, WebResolvedSh
 // Home widget preferences (x243): the member's own Home widget order/hidden set over `/home/widget-prefs`.
 type _homeWidgetPrefs = Assert<Exact<ApiHomeWidgetPrefsView, WebHomeWidgetPrefsView>>;
 type _digestPref = Assert<Exact<ApiDigestPrefView, WebDigestPrefView>>;
+// Approval delegation (x300): a delegator's own delegation over `/approvals/delegations`. The screen
+// reads exactly this response, so the pair is Exact.
+type _approvalDelegation = Assert<Exact<ApiApprovalDelegationView, WebApprovalDelegationSummary>>;
 type _conversation = Assert<Exact<ApiConversationView, WebConversationSummary>>;
 type _message = Assert<Exact<ApiMessageView, WebMessageSummary>>;
 // CHAT my-mentions (x254): the caller's own recent mentions across their channels, read over

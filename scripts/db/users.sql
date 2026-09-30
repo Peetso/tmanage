@@ -1170,6 +1170,12 @@ GRANT INSERT, UPDATE ON `tmanage`.`objective_key_results` TO 'tmanage_app'@'%';
 -- database-wide SELECT (line 60).
 GRANT INSERT, UPDATE ON `tmanage`.`portal_settings` TO 'tmanage_app'@'%';
 
+-- x300 (0168): approval delegations. A delegator records a delegation (INSERT) and revokes it
+-- (DELETE); a delegation is never edited — there is no UPDATE path in the repository, so **no
+-- UPDATE** here, and the withheld privilege is the immutability control (the doc_bookmarks posture).
+-- Reading is the database-wide SELECT above.
+GRANT INSERT, DELETE ON `tmanage`.`approval_delegations` TO 'tmanage_app'@'%';
+
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it
 -- applied, which is the property `pnpm db:status` depends on to be trustworthy.

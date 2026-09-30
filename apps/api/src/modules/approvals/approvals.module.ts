@@ -7,6 +7,12 @@ import { DeliverableVersionsRepository } from './deliverable-versions.repository
 import { ClientProjectionsRepository } from './client-projections.repository.js';
 import { ApprovalsService } from './approvals.service.js';
 import { ApprovalsController } from './approvals.controller.js';
+import { ApprovalDelegationRepository } from './delegation.repository.js';
+import { ApprovalDelegationService } from './delegation.service.js';
+import {
+  APPROVAL_DELEGATION_SERVICE,
+  ApprovalDelegationController,
+} from './delegation.controller.js';
 
 /**
  * FR-05's wiring.
@@ -31,11 +37,21 @@ export class ApprovalsModule {
         ),
     };
 
+    // x300 approval delegation — its own service, controllers registered here so the slice touches no
+    // file another approvals slice appends to beyond this module. The delegator is the acting
+    // membership; the delegate is resolved tenant-scoped in the service.
+    const delegationService: Provider = {
+      provide: APPROVAL_DELEGATION_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new ApprovalDelegationService(database, new ApprovalDelegationRepository()),
+    };
+
     return {
       module: ApprovalsModule,
-      providers: [service],
+      providers: [service, delegationService],
       exports: [service],
-      controllers: [ApprovalsController],
+      controllers: [ApprovalsController, ApprovalDelegationController],
     };
   }
 }
