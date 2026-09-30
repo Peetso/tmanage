@@ -15,6 +15,7 @@ import {
   PORTAL_FILE_LIST_SERVICE,
   QUARANTINE_CLEANUP_JOB,
   FILE_TAGS_SERVICE,
+  FILE_COMMENTS_SERVICE,
   TENANT_DATABASE,
   UPLOAD_SESSIONS_REPOSITORY,
   UPLOAD_SESSION_SWEEPER,
@@ -43,6 +44,9 @@ import { FileDownloadsController } from './file-downloads.controller.js';
 import { FileTagsRepository } from './file-tags.repository.js';
 import { FileTagsService } from './file-tags.service.js';
 import { FileTagsController } from './file-tags.controller.js';
+import { FileCommentsRepository } from './comments.repository.js';
+import { FileCommentsService } from './comments.service.js';
+import { FileCommentsController } from './comments.controller.js';
 import { PortalFileDownloadsController } from './portal-file-downloads.controller.js';
 import { PortalFileListService } from './portal-file-list.service.js';
 import { PortalFileListController } from './portal-file-list.controller.js';
@@ -294,12 +298,29 @@ export class FilesModule {
         new FileTagsService(database, assets, new ProjectsRepository(), new FileTagsRepository()),
     };
 
+    // x333. File comments: comment on a file asset, list oldest-first, delete own. Read-only over the
+    // tenant database and the file-assets repository (it moves no bytes, no counter, no outbox); it
+    // constructs its own ProjectsRepository handle for the file's lifecycle, the way file tags do,
+    // and its own FileCommentsRepository — a stateless collection of queries.
+    const fileComments: Provider = {
+      provide: FILE_COMMENTS_SERVICE,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY],
+      useFactory: (database: TenantDatabase, assets: FileAssetsRepository) =>
+        new FileCommentsService(
+          database,
+          assets,
+          new ProjectsRepository(),
+          new FileCommentsRepository(),
+        ),
+    };
+
     return {
       module: FilesModule,
       providers: [
         ...repositories,
         service,
         fileTags,
+        fileComments,
         usage,
         sweeper,
         reconciler,
@@ -312,6 +333,7 @@ export class FilesModule {
       exports: [
         service,
         fileTags,
+        fileComments,
         usage,
         sweeper,
         reconciler,
@@ -330,6 +352,7 @@ export class FilesModule {
         PortalFileListController,
         UsageController,
         FileTagsController,
+        FileCommentsController,
       ],
     };
   }
