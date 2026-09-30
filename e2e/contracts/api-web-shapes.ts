@@ -280,6 +280,7 @@ import type {
 } from '../../apps/api/src/modules/platform/maintenance.controller.js';
 import type { CustomRoleView as ApiCustomRoleView } from '../../apps/api/src/modules/admin/roles.controller.js';
 import type { DataExportRequestView as ApiDataExportRequestView } from '../../apps/api/src/modules/admin/export-requests.controller.js';
+import type { AdminInvitationsView as ApiAdminInvitationsView } from '../../apps/api/src/modules/admin/invitation-management.controller.js';
 import type { RoleEditView as ApiRoleEditView } from '../../apps/api/src/modules/admin/role-edit.controller.js';
 import type { MemberBulkRoleView as ApiMemberBulkRoleView } from '../../apps/api/src/modules/tenancy/member-bulk-role.controller.js';
 import type { ActiveSessionView as ApiActiveSessionView } from '../../apps/api/src/modules/identity/admin-sessions.controller.js';
@@ -310,6 +311,7 @@ import type { NotificationKindPrefView as WebNotificationKindPrefView } from '..
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
 import type { DataExportRequestView as WebDataExportRequestView } from '../../apps/web/src/lib/api/admin-export-requests';
+import type { AdminInvitationsView as WebAdminInvitationsView } from '../../apps/web/src/lib/api/admin-invitations';
 import type { RoleEditView as WebRoleEditView } from '../../apps/web/src/lib/api/admin-role-edit';
 import type { MemberBulkRoleView as WebMemberBulkRoleView } from '../../apps/web/src/lib/api/admin-member-bulk-role';
 import type { ActiveSessionView as WebActiveSessionView } from '../../apps/web/src/lib/api/admin-sessions';
@@ -1712,6 +1714,16 @@ type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
  * structurally. The wire projection never echoes the tenant id.
  */
 type _customRoles = Assert<Exact<ApiCustomRoleView, WebCustomRoleView>>;
+
+/**
+ * Admin pending-invitation management (x328). `AdminInvitationsView` (`GET …/admin/invitations`,
+ * response) — the tenant's pending invitations, metadata only. Paired with a live web consumer:
+ * `AdminInvitationsView` reads exactly this response to render the list and the per-row Revoke action.
+ * The per-invitation item (`{ id, email, role, invitedByUserId, invitedByName, invitedByEmail,
+ * expiresAt, createdAt, isExpired }`) is inlined on both sides, so this pair covers it structurally. The
+ * token hash is never on the wire.
+ */
+type _adminInvitations = Assert<Exact<ApiAdminInvitationsView, WebAdminInvitationsView>>;
 
 /**
  * Admin data-export requests (x224). `DataExportRequestView` (`GET/POST …/admin/export-requests`,
