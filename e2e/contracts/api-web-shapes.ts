@@ -203,6 +203,7 @@ import type { MetricTargetView as ApiMetricTargetView } from '../../apps/api/src
 import type { MetricTargetStatusView as ApiMetricTargetStatusView } from '../../apps/api/src/modules/insights/targets.service.js';
 import type { InsightAnnotationView as ApiInsightAnnotationView } from '../../apps/api/src/modules/insights/insight-annotations.service.js';
 import type { WorkloadForecastView as ApiWorkloadForecastView } from '../../apps/api/src/modules/insights/workload-forecast.service.js';
+import type { InsightDashboardLayoutView as ApiInsightDashboardLayoutView } from '../../apps/api/src/modules/insights/dashboard-layout.controller.js';
 import type { RequestAgingView as ApiRequestAgingView } from '../../apps/api/src/modules/requests/request-aging.controller.js';
 import type { RequestTriageView as ApiRequestTriageView } from '../../apps/api/src/modules/requests/request-triage.controller.js';
 import type { RequestCommentView as ApiRequestCommentView } from '../../apps/api/src/modules/requests/request-comments.service.js';
@@ -546,6 +547,7 @@ import type { MetricTargetView as WebMetricTargetView } from '../../apps/web/src
 import type { MetricTargetStatusView as WebMetricTargetStatusView } from '../../apps/web/src/lib/api/insights-targets';
 import type { InsightAnnotationView as WebInsightAnnotationView } from '../../apps/web/src/lib/api/insight-annotations';
 import type { WorkloadForecastView as WebWorkloadForecastView } from '../../apps/web/src/lib/api/workload-forecast';
+import type { InsightDashboardLayoutView as WebInsightDashboardLayoutView } from '../../apps/web/src/lib/api/insight-dashboard-layout';
 import type { RequestAgingView as WebRequestAgingView } from '../../apps/web/src/lib/api/request-aging';
 import type { RequestTriageView as WebRequestTriageView } from '../../apps/web/src/lib/api/request-triage';
 import type { RequestComment as WebRequestComment } from '../../apps/web/src/lib/api/request-comments';
@@ -1297,6 +1299,16 @@ type _teamDetailView = Assert<Exact<ApiTeamDetailView, WebTeamDetailView>>;
  * exactly this response, so this is a live `Exact` pair, not an exemption.
  */
 type _workloadForecast = Assert<Exact<ApiWorkloadForecastView, WebWorkloadForecastView>>;
+
+/**
+ * x302 — `GET`/`PUT …/insights/dashboard-layout`. The member's own arrangement of the insights-
+ * dashboard metric tiles: `tiles` is an array of `{ key, position, visible }` over the fixed
+ * known-metric allowlist. The `InsightDashboardLayoutScreen` reads and writes exactly this response,
+ * so this is a live `Exact` pair, not an exemption.
+ */
+type _insightDashboardLayout = Assert<
+  Exact<ApiInsightDashboardLayoutView, WebInsightDashboardLayoutView>
+>;
 
 /**
  * x154 — `GET …/client-requests/aging`. The request-aging roll-up: `thresholds` (the fixed day

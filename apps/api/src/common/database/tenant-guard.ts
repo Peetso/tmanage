@@ -846,6 +846,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them, and
   // tenant-isolation.db.test.ts enforces the entry.
   inbox_rules: 'organization_id',
+  // Insight dashboard layouts (x302, migration 0170). Tenant-owned: a row is one membership's
+  // insights-dashboard tile layout, and an unscoped `SELECT ... FROM insight_dashboard_layouts`
+  // would be every member's layout across every studio on the server. `organization_id` is NOT NULL
+  // and carries the `(organization_id, id)` key every tenant table has, so the guard scopes its
+  // reads and its writes; the layer-3 guard fails OPEN on an unregistered table, so this entry is
+  // what scopes them, and tenant-isolation.db.test.ts enforces the entry.
+  insight_dashboard_layouts: 'organization_id',
 });
 
 /**

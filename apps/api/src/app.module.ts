@@ -127,6 +127,7 @@ import { InsightReportSchedulesModule } from './modules/insights/report-schedule
 import { InsightComparisonModule } from './modules/insights/comparison.controller.js';
 import { InsightTargetsModule } from './modules/insights/targets.controller.js';
 import { InsightAnnotationsModule } from './modules/insights/insight-annotations.controller.js';
+import { InsightDashboardLayoutModule } from './modules/insights/dashboard-layout.module.js';
 import { PublicSiteModule } from './modules/public-site/public-site.module.js';
 import { PublicResourcesModule } from './modules/public-site/resources.controller.js';
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
@@ -719,6 +720,11 @@ export class AppModule {
         // `work.read`, it soft-reads x211's `insight_snapshots` (resolve tenant-scoped before authorize
         // → 404 on an unknown snapshot) and owns its own tenant-scoped `insight_annotations` table.
         InsightAnnotationsModule.register(),
+        // x302. Per-user insight dashboard layout — a member arranges which insights metric tiles are
+        // shown and in what order, read back as their own. A separate module from `InsightsModule` so
+        // the insights slices stay file-disjoint; behind the reused `work.read`, self-scoped by the
+        // caller's membership in the tenant-scoped `insight_dashboard_layouts`.
+        InsightDashboardLayoutModule.register(),
         // Public & trust site (module 1, x156). The unauthenticated marketing home — a single
         // `@Public()` read serving deterministic, code-defined content. Depends on nothing (no
         // database, no tenant, no mailer), so its position here is free; registered last, beside

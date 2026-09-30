@@ -113,6 +113,7 @@
 --     saved_views, meeting_attendees, org_settings, security_settings
 --     saved_views, meeting_attendees, a11y_preferences, home_widget_prefs
 --     saved_views, meeting_attendees, a11y_preferences, pref_quiet_hours, pref_digest
+--     saved_views, meeting_attendees, a11y_preferences, home_widget_prefs, insight_dashboard_layouts
 --   · `INSERT, DELETE` on: work_item_dependencies, saved_context, document_template_variables,
 --     home_pinned_items, objective_work_links, decision_work_links
 --     documents, decisions, work_item_checklist_items, billing_profiles
@@ -968,6 +969,12 @@ GRANT INSERT, UPDATE         ON `tmanage`.`user_startup_prefs` TO 'tmanage_app'@
 -- UPDATE grant. No immutability trigger: identity is the row, and a rule carries nothing an update
 -- would need to protect. SELECT is the database-wide grant.
 GRANT INSERT, DELETE         ON `tmanage`.`inbox_rules`      TO 'tmanage_app'@'%';
+
+-- Insight dashboard layouts (x302, module 16 Insights). **INSERT, UPDATE** — a member's insights-
+-- dashboard tile layout is created and then replaced in place by an `INSERT ... ON DUPLICATE KEY
+-- UPDATE` upsert against `uq_insight_dashboard_layouts_org_membership`. No DELETE: a member clears
+-- their layout by saving the default, not by removing the row. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`insight_dashboard_layouts` TO 'tmanage_app'@'%';
 
 -- ID-002 credentials. `user_passwords` and `user_mfa_factors` need UPDATE — a password is
 -- changed in place, and a factor records the counter of the last code it accepted on every
