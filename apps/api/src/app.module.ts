@@ -111,6 +111,7 @@ import { OrgAnnouncementsModule } from './modules/admin/announcements.controller
 import { AdminIpAllowlistModule } from './modules/admin/ip-allowlist.controller.js';
 import { FeatureFlagsModule } from './modules/admin/feature-flags.controller.js';
 import { AdminAuditRetentionModule } from './modules/admin/audit-retention.controller.js';
+import { OrgBrandingModule } from './modules/admin/org-branding.controller.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuditExportModule } from './modules/audit/audit-export.controller.js';
 import { MailerModule } from './common/email/mailer.module.js';
@@ -312,6 +313,11 @@ export class AppModule {
         // file-disjoint from the other administration slices; depends only on the global
         // `TENANT_DATABASE`. Preview + policy only — no destructive purge in this slice.
         AdminAuditRetentionModule.register(),
+        // ADM / org identity (module 18, x327). Org-wide branding for the internal app chrome —
+        // product name, accent colour, logo text — set behind `org.manage`, read by any member behind
+        // `work.read`. A module of its own, file-disjoint from the other admin slices; depends only on
+        // the global `TENANT_DATABASE`. Text/colour only — no file upload this slice.
+        OrgBrandingModule.register(),
         options.config.allowDevelopmentSignIn
           ? IdentityModule.registerWithDevelopmentSignIn()
           : IdentityModule.register(),

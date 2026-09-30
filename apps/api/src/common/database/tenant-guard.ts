@@ -979,6 +979,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes them, and
   // tenant-isolation.db.test.ts enforces the entry.
   person_time_off: 'organization_id',
+  // ADM / org identity (x327, migration 0195). Tenant-owned: a row is one studio's org-wide internal
+  // chrome branding, keyed `(organization_id, id)` with a `(organization_id)` upsert key, and an
+  // unscoped `SELECT ... FROM org_branding` would be every studio's branding on the server.
+  // `organization_id` is NOT NULL, so the guard scopes its reads and its writes (the layer-3 guard
+  // fails OPEN on an unregistered table, so this entry is what scopes them); tenant-isolation.db.test.ts
+  // enforces the entry.
+  org_branding: 'organization_id',
 });
 
 /**

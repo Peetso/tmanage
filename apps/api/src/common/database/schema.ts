@@ -6322,6 +6322,52 @@ export const portalBranding = mysqlTable(
 );
 
 /**
+ * The upper bounds the org-branding controller validates a save against, mirroring the `0195` column
+ * widths. `product_name` is the display product name shown in the internal app chrome; `logo_text` is
+ * a short logo label or set of initials. Over-length input is a 400 in the controller before the
+ * engine, never a truncated store.
+ */
+export const ORG_BRANDING_PRODUCT_NAME_MAX_LENGTH = 120;
+export const ORG_BRANDING_LOGO_TEXT_MAX_LENGTH = 48;
+
+/**
+ * ADM / org identity (Administration, module 18, x327, migration 0195). One row per organization: the
+ * org-wide branding an admin sets for the *internal* app chrome — the display product name, an accent
+ * colour, and a short logo text / initials. Any member reads it (via `work.read`) to render the shell;
+ * only an admin (`org.manage`) sets it.
+ *
+ * Distinct from `portal_settings` (x238, per-project, client-facing) and from `org_settings`
+ * (behaviour flags): this is org-wide *internal* chrome, text and colour only — no file upload this
+ * slice. Tenant-owned and keyed by the composite `(organization_id, id)` every tenant-scoped table
+ * carries, plus a `(organization_id)` upsert key — one branding row per studio, so setting it a second
+ * time replaces it in place. `accent_color` is a hex token validated by an allowlist regex
+ * (`#RGB`/`#RRGGBB`) in the controller (400, no upsert, for anything else) — not an ENUM, so the
+ * palette is open, but no arbitrary string reaches the engine. `product_name`/`logo_text` are bounded
+ * at the application layer to the widths above. The row is set and re-set, never edited by column: the
+ * 0195 trigger pins `id`, `organization_id` and `created_at` immutable and `users.sql` grants
+ * INSERT + UPDATE (the upsert), no DELETE. `0195_org_branding.sql` is the source of truth; this is its
+ * typed mirror.
+ */
+export const orgBranding = mysqlTable(
+  'org_branding',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    productName: varchar('product_name', { length: ORG_BRANDING_PRODUCT_NAME_MAX_LENGTH }),
+    accentColor: varchar('accent_color', { length: 7 }).notNull().default('#2563eb'),
+    logoText: varchar('logo_text', { length: ORG_BRANDING_LOGO_TEXT_MAX_LENGTH }),
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_org_branding_org_id').on(table.organizationId, table.id),
+    // The upsert key: one branding row per studio.
+    uniqueIndex('uq_org_branding_org').on(table.organizationId),
+  ],
+);
+
+/**
  * Conversation read-state (x250, migration 0122, module CHAT / conversations).
  *
  * One row per `(organization_id, conversation_id, membership_id)`: the last message the acting member
@@ -7941,6 +7987,7 @@ export const TABLES = {
   portal_settings: portalSettings,
   user_display_preferences: userDisplayPreferences,
   portal_branding: portalBranding,
+  org_branding: orgBranding,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -8144,3 +8191,4 @@ export type NewPortalSettingsRow = typeof portalSettings.$inferInsert;
 export type InsightCustomReportRow = typeof insightCustomReports.$inferSelect;
 export type PortalBrandingRow = typeof portalBranding.$inferSelect;
 export type NewPortalBrandingRow = typeof portalBranding.$inferInsert;
+export type OrgBrandingRow = typeof orgBranding.$inferSelect;
