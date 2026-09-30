@@ -526,6 +526,49 @@ export const milestoneLinks = mysqlTable(
   ],
 );
 
+/**
+ * PROJ / cross-project dependencies (x309). A directed edge: `blocker_project_id` blocks
+ * `blocked_project_id` (the blocked project depends on the blocker), with an optional human `note`.
+ * Tenant-scoped and project-owned; the composite foreign keys bind both ends to `projects` of the
+ * same tenant, so an edge can only ever name this studio's projects. An edge is created (link) and
+ * removed (unlink), never edited, so the runtime credential holds INSERT and DELETE only. The
+ * `(organization_id, blocker_project_id, blocked_project_id)` unique key makes a duplicate a 409
+ * rather than a second row; a self-dependency (blocker == blocked) is rejected in the service (400),
+ * an invariant the composite keys cannot express. Distinct from `work_dependencies_blockers`
+ * (item-level) and `milestone_links` (milestone-level). `0177_project_dependencies.sql` is the source
+ * of truth; this is its typed mirror.
+ */
+export const projectDependencies = mysqlTable(
+  'project_dependencies',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    blockerProjectId: char('blocker_project_id', { length: 36 }).notNull(),
+    blockedProjectId: char('blocked_project_id', { length: 36 }).notNull(),
+    note: varchar('note', { length: 500 }),
+    createdBy: char('created_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_project_dependencies_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_project_dependencies_pair').on(
+      table.organizationId,
+      table.blockerProjectId,
+      table.blockedProjectId,
+    ),
+    index('ix_project_dependencies_org_blocker').on(
+      table.organizationId,
+      table.blockerProjectId,
+      table.createdAt,
+    ),
+    index('ix_project_dependencies_org_blocked').on(
+      table.organizationId,
+      table.blockedProjectId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const PROJECT_RISK_SEVERITIES = ['low', 'medium', 'high'] as const;
 export const PROJECT_RISK_STATUSES = ['open', 'mitigated', 'closed'] as const;
 
@@ -7114,6 +7157,7 @@ export const TABLES = {
   portal_announcements: portalAnnouncements,
   project_milestones: projectMilestones,
   milestone_links: milestoneLinks,
+  project_dependencies: projectDependencies,
   project_risks: projectRisks,
   portal_access_log: portalAccessLog,
   home_pinned_items: homePinnedItems,
@@ -7289,6 +7333,7 @@ export type NewDocumentTemplateVariableRow = typeof documentTemplateVariables.$i
 export type OrgObjectiveRow = typeof orgObjectives.$inferSelect;
 export type ObjectiveWorkLinkRow = typeof objectiveWorkLinks.$inferSelect;
 export type MilestoneLinkRow = typeof milestoneLinks.$inferSelect;
+export type ProjectDependencyRow = typeof projectDependencies.$inferSelect;
 export type ObjectiveKeyResultRow = typeof objectiveKeyResults.$inferSelect;
 export type AuditEventRow = typeof auditEvents.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;

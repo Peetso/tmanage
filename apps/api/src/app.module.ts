@@ -83,6 +83,7 @@ import { ProjectPortfolioModule } from './modules/projects/portfolio.module.js';
 import { ProjectHealthModule } from './modules/projects/health.module.js';
 import { ObjectiveWorkLinksModule } from './modules/projects/objective-work-links.module.js';
 import { MilestoneLinksModule } from './modules/projects/milestone-links.module.js';
+import { ProjectDependenciesModule } from './modules/projects/dependencies.module.js';
 import { KeyResultsModule } from './modules/projects/key-results.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { PortalPeopleModule } from './modules/clients/portal-people.module.js';
@@ -608,6 +609,12 @@ export class AppModule {
         // table exists (x139, 0048): an edge names two milestones, and the composite foreign keys mean
         // a caller who names one that is not theirs gets a refusal rather than a foreign-key 500.
         MilestoneLinksModule.register(),
+        // PROJ / cross-project dependencies (x309). The directed dependency edges between whole
+        // projects (record/list/remove). After the projects table exists: an edge names two
+        // projects, and the composite foreign keys mean a caller who names one that is not theirs
+        // gets a refusal rather than a foreign-key 500. Distinct from `MilestoneLinksModule`
+        // (milestone-level) and the work-item blockers (item-level).
+        ProjectDependenciesModule.register(),
         // People / module 14 (x170). Per-member weekly capacity (set/read). After `TenancyModule`:
         // the controller resolves `:membershipId` tenant-scoped via a `MembershipsRepository` (provided
         // in the module's own scope) before any write, so a cross-tenant member is a 404, not a 500.
