@@ -488,6 +488,9 @@ GRANT INSERT, DELETE         ON `tmanage`.`saved_searches`   TO 'tmanage_app'@'%
 -- present/absent toggle (the `saved_searches`/`saved_context` posture, no immutability trigger and
 -- none needed). Reading is the database-wide SELECT above. The worker gets nothing here.
 GRANT INSERT, DELETE         ON `tmanage`.`saved_search_shares` TO 'tmanage_app'@'%';
+-- search_history (x288): INSERT + the dedupe `created_at` refresh (UPDATE) record a query; DELETE
+-- clears the list and prunes to the retention cap. Identity is held immutable by the 0157 trigger.
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`search_history`   TO 'tmanage_app'@'%';
 -- HOME-05 (0035) saved/pinned context. INSERT to pin and DELETE to unpin, and **no UPDATE**: a
 -- pin is created and removed, never edited, so the missing privilege is the control that keeps it
 -- so (there is no immutability trigger and none is needed). Reading is the database-wide SELECT

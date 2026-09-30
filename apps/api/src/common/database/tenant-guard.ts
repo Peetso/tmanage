@@ -322,6 +322,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // table, so registering it here is what scopes the share reads, the idempotent share and the
   // unshare; tenant-isolation.db.test.ts enforces the entry.
   saved_search_shares: 'organization_id',
+  // Search recent history (x288, migration 0157). Tenant-owned: a recent query belongs to one member
+  // in one studio, and an unscoped `SELECT ... FROM search_history` would be every member's recent
+  // queries across every studio on the server. The layer-3 guard fails OPEN on an unregistered
+  // table, so registering it here is what scopes its reads, its clear and its retention prune;
+  // tenant-isolation.db.test.ts enforces the entry.
+  search_history: 'organization_id',
   // HOME-05 (0035). Tenant-owned: a pin names a tenant entity and belongs to one user in one
   // studio, and an unscoped read would be a map of what every person in every studio keeps at
   // hand. The layer-3 guard fails OPEN on an unregistered table, so registering it here is what
