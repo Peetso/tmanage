@@ -95,6 +95,7 @@ import { BillingModule } from './modules/billing/billing.module.js';
 import { BillingContactsModule } from './modules/billing/contacts.controller.js';
 import { BillingUsageAlertsModule } from './modules/billing/usage-alerts.controller.js';
 import { BillingCostCentersModule } from './modules/billing/cost-centers.controller.js';
+import { CostCenterReportModule } from './modules/billing/cost-center-report.controller.js';
 import { PersonProfileModule } from './modules/people/profile.controller.js';
 import { BillingSeatsModule } from './modules/billing/seats.controller.js';
 import { InvoicesModule } from './modules/billing/invoices.module.js';
@@ -527,6 +528,10 @@ export class AppModule {
         // behind `org.manage`, over the new `billing_cost_centers` table (0150). Definitions and
         // assignments only — nothing here stores an amount or charges. Self-contained and file-disjoint.
         BillingCostCentersModule.register(),
+        // Billing & entitlements module 19 (x331). The read-only spend-by-cost-centre report: for each
+        // cost centre (x281) the count of assigned projects and their summed budget (x293), behind
+        // `org.manage`. Pure aggregate read over the two existing tables — no new table, no write.
+        CostCenterReportModule.register(),
         // x169. People & capacity module 14: one member's profile (role, projects, open-work count),
         // the per-member detail behind x168's directory. A separate module so the people slices stay
         // file-disjoint; read-only over existing rows, behind the same reused `work.read`.
