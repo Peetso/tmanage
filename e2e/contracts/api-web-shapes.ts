@@ -164,6 +164,8 @@ import type { UpdateCommentView as ApiUpdateCommentView } from '../../apps/api/s
 import type { ClientUpdateCommentView as ApiClientUpdateCommentView } from '../../apps/api/src/modules/clients/update-comments.service.js';
 import type { PortalAnnouncementView as ApiPortalAnnouncementView } from '../../apps/api/src/modules/clients/portal-announcements.service.js';
 import type { ClientPortalAnnouncementView as ApiClientPortalAnnouncementView } from '../../apps/api/src/modules/clients/portal-announcements.service.js';
+import type { ClientMessageView as ApiClientMessageView } from '../../apps/api/src/modules/clients/client-messages.service.js';
+import type { AdminClientMessageView as ApiAdminClientMessageView } from '../../apps/api/src/modules/clients/client-messages.service.js';
 import type { ProjectMilestoneView as ApiProjectMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { ClientMilestoneView as ApiClientMilestoneView } from '../../apps/api/src/modules/clients/project-milestones.projection.js';
 import type { MilestoneEditView as ApiMilestoneEditView } from '../../apps/api/src/modules/clients/milestone-lifecycle.controller.js';
@@ -553,6 +555,8 @@ import type {
   UpdateEdit as WebUpdateEdit,
   UpdateComment as WebUpdateComment,
   ClientUpdateComment as WebClientUpdateComment,
+  ClientMessage as WebClientMessage,
+  AdminClientMessage as WebAdminClientMessage,
   PortalWorkItem as WebPortalWorkItem,
   ProjectMilestone as WebProjectMilestone,
   ClientMilestone as WebClientMilestone,
@@ -820,6 +824,11 @@ type _portalAnnouncement = Assert<Exact<ApiPortalAnnouncementView, WebPortalAnno
 type _clientPortalAnnouncement = Assert<
   Exact<ApiClientPortalAnnouncementView, WebClientPortalAnnouncement>
 >;
+// SEC / Client portal messages (x322): the client posts and reads their own thread (the projection,
+// no author/scope/tenant), and staff read the studio's inbound list (the full record). The screen
+// reads exactly these responses, so both pairs are Exact.
+type _clientMessage = Assert<Exact<ApiClientMessageView, WebClientMessage>>;
+type _adminClientMessage = Assert<Exact<ApiAdminClientMessageView, WebAdminClientMessage>>;
 type _projectRisk = Assert<Exact<ApiProjectRiskView, WebProjectRisk>>;
 type _clientRisk = Assert<Exact<ApiClientRiskView, WebClientRisk>>;
 // SEC / Client portal access log (x237): the internal audit read of what a client accessed. The

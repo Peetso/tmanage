@@ -445,6 +445,38 @@ export const portalAnnouncements = mysqlTable(
   ],
 );
 
+/**
+ * SEC / Client portal messages (x322, module "Client portal"). A message a client contact posts to
+ * the studio from the portal — a `subject` and a `body` — scoped to the client organization
+ * (`client_org_scope_id`) rather than a project. In-app relay only; no email dispatch. Append-only
+ * and client-authored, distinct from `projectUpdateComments` (internal-authored, on one update) and
+ * from chat conversations (internal membership threads). `fk_portal_client_messages_scope` binds
+ * `(organization_id, client_org_scope_id)` to `client_organizations (organization_id, id)`, so a
+ * cross-tenant scope id is a non-existent pair — migration `0190_portal_client_messages.sql` is the
+ * source of truth.
+ */
+export const portalClientMessages = mysqlTable(
+  'portal_client_messages',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientOrgScopeId: char('client_org_scope_id', { length: 36 }).notNull(),
+    authorUserId: char('author_user_id', { length: 36 }).notNull(),
+    subject: varchar('subject', { length: 190 }).notNull(),
+    body: text('body').notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_portal_client_messages_org_id').on(table.organizationId, table.id),
+    index('ix_portal_client_messages_scope').on(
+      table.organizationId,
+      table.clientOrgScopeId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 export const PROJECT_MILESTONE_STATUSES = ['planned', 'met', 'missed'] as const;
 
 /**
@@ -7676,6 +7708,7 @@ export const TABLES = {
   project_updates: projectUpdates,
   project_update_comments: projectUpdateComments,
   portal_announcements: portalAnnouncements,
+  portal_client_messages: portalClientMessages,
   project_milestones: projectMilestones,
   milestone_links: milestoneLinks,
   project_dependencies: projectDependencies,
@@ -7797,6 +7830,7 @@ export type DocumentRow = typeof documents.$inferSelect;
 export type ProjectUpdateRow = typeof projectUpdates.$inferSelect;
 export type ProjectUpdateCommentRow = typeof projectUpdateComments.$inferSelect;
 export type PortalAnnouncementRow = typeof portalAnnouncements.$inferSelect;
+export type PortalClientMessageRow = typeof portalClientMessages.$inferSelect;
 export type ProjectMilestoneRow = typeof projectMilestones.$inferSelect;
 export type ProjectRiskRow = typeof projectRisks.$inferSelect;
 export type PortalAccessLogRow = typeof portalAccessLog.$inferSelect;
