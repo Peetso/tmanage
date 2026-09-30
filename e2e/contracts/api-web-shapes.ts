@@ -280,6 +280,10 @@ import type {
   ApplyTemplateResultView as ApiApplyTemplateResultView,
 } from '../../apps/api/src/modules/work/checklist-templates.service.js';
 import type { BoardColumnView as ApiBoardColumnView } from '../../apps/api/src/modules/work/board-columns.service.js';
+import type {
+  FileFolderView as ApiFileFolderView,
+  FileFolderPlacementView as ApiFileFolderPlacementView,
+} from '../../apps/api/src/modules/files/folders.service.js';
 import type { WorkFormView as ApiWorkFormView } from '../../apps/api/src/modules/work/work-forms.controller.js';
 import type { WorkflowTemplateView as ApiWorkflowTemplateView } from '../../apps/api/src/modules/automations/templates.controller.js';
 import type { WorkflowRunView as ApiWorkflowRunView } from '../../apps/api/src/modules/automations/run.controller.js';
@@ -672,6 +676,8 @@ import type { FileTagAssignment as WebFileTagAssignment } from '../../apps/web/s
 import type { ChecklistTemplate as WebChecklistTemplate } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { ApplyTemplateResult as WebApplyTemplateResult } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { BoardColumn as WebBoardColumn } from '../../apps/web/src/lib/api/board-columns';
+import type { FileFolder as WebFileFolder } from '../../apps/web/src/lib/api/file-folders';
+import type { FileFolderPlacement as WebFileFolderPlacement } from '../../apps/web/src/lib/api/file-folders';
 import type { WorkTimelineView as WebWorkTimelineView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkloadView as WebWorkloadView } from '../../apps/web/src/lib/api/work-views';
 import type { WorkCalendarView as WebWorkCalendarView } from '../../apps/web/src/lib/api/work-views';
@@ -1702,6 +1708,17 @@ type _applyTemplateResult = Assert<Exact<ApiApplyTemplateResultView, WebApplyTem
  * identical on the two sides. `organizationId` is absent on both.
  */
 type _boardColumn = Assert<Exact<ApiBoardColumnView, WebBoardColumn>>;
+
+/**
+ * x332. File folders (Files module). `FileFolderView` ↔ `FileFolder` — one project-scoped folder
+ * (`GET`/`POST …/projects/:id/folders`, `DELETE …/projects/:id/folders/:folderId`);
+ * `FileFolderPlacementView` ↔ `FileFolderPlacement` — a file's folder or root
+ * (`PUT …/files/:fileId/folder`, `GET …/projects/:id/folders/:folderId/files`). `FileFoldersView`
+ * reads the folders and the move / contents helpers in `lib/api/file-folders` consume the placement,
+ * so both pairs are held identical on the two sides. `organizationId` is absent on both.
+ */
+type _fileFolder = Assert<Exact<ApiFileFolderView, WebFileFolder>>;
+type _fileFolderPlacement = Assert<Exact<ApiFileFolderPlacementView, WebFileFolderPlacement>>;
 
 /**
  * WORK intake forms (x146). `WorkFormView` (`GET`/`POST …/work-forms`, response) — an org-scoped
