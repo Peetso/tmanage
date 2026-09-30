@@ -71,6 +71,7 @@ import type {
   DocumentTagView as ApiDocumentTagView,
 } from '../../apps/api/src/modules/docs/doc-tags.service.js';
 import type { DocLinkView as ApiDocLinkView } from '../../apps/api/src/modules/docs/doc-links.service.js';
+import type { DocReadStateView as ApiDocReadStateView } from '../../apps/api/src/modules/docs/doc-read-state.service.js';
 import type { DocumentCommentView as ApiDocumentCommentView } from '../../apps/api/src/modules/docs/document-comments.service.js';
 import type { DecisionView as ApiDecisionView } from '../../apps/api/src/modules/decisions/decisions.service.js';
 import type { DecisionDetailView as ApiDecisionDetailView } from '../../apps/api/src/modules/decisions/decisions.service.js';
@@ -365,6 +366,7 @@ import type { DocTag as WebDocTag } from '../../apps/web/src/lib/api/doc-tags';
 import type { DocumentTag as WebDocumentTag } from '../../apps/web/src/lib/api/doc-tags';
 import type { MessageAttachmentSummary as WebMessageAttachmentSummary } from '../../apps/web/src/lib/api/message-attachments';
 import type { DocLinkSummary as WebDocLinkSummary } from '../../apps/web/src/lib/api/doc-links';
+import type { DocReadStateSummary as WebDocReadStateSummary } from '../../apps/web/src/lib/api/doc-read-state';
 import type { DecisionSummary as WebDecisionSummary } from '../../apps/web/src/lib/api/decisions';
 import type { WorkFormSummary as WebWorkFormSummary } from '../../apps/web/src/lib/api/work-forms';
 import type { WorkflowTemplateSummary as WebWorkflowTemplateSummary } from '../../apps/web/src/lib/api/automations';
@@ -960,6 +962,14 @@ type _messageAttachment = Assert<Exact<ApiMessageAttachmentView, WebMessageAttac
  * both directions, so the pair is Exact. The tenant id and the author are on neither side.
  */
 type _docLink = Assert<Exact<ApiDocLinkView, WebDocLinkSummary>>;
+
+/**
+ * DOC read state (x297). `DocReadStateView` (`PUT …/documents/:id/read`, `GET
+ * …/document-read-state?docIds=`) — the caller's read cursor for one document. The `DocReadStateScreen`
+ * and the row badges read exactly this response, so the pair is Exact. `organizationId`/`membershipId`
+ * are absent on both sides: the wire never echoes the tenant id, and the membership is the caller's own.
+ */
+type _docReadState = Assert<Exact<ApiDocReadStateView, WebDocReadStateSummary>>;
 
 /**
  * Docs "collaboration later" (x132). `DocumentCommentView` (`GET`/`POST

@@ -6072,6 +6072,33 @@ export type DocLinkRow = typeof docLinks.$inferSelect;
 export type NewDocLinkRow = typeof docLinks.$inferInsert;
 
 /**
+ * DOC read state (x297). A membership's read cursor over a `documents` row — the fact "this membership
+ * last read this document at this instant", powering a "new since you last looked" badge and a "mark all
+ * read" affordance. Per-membership and tenant-scoped. Set (INSERT), refreshed (UPDATE via the upsert on
+ * `uq_doc_read_state_pin`), and cleared (DELETE, mark-unread). Distinct from `conversation_read_state`
+ * (0122) and `doc_bookmarks` (0114). Two composite FKs bind the row within one tenant.
+ * `0164_doc_read_state.sql` is the source of truth; this is its typed mirror.
+ */
+export const docReadState = mysqlTable(
+  'doc_read_state',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    docId: char('doc_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    lastReadAt: datetime('last_read_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_doc_read_state_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_doc_read_state_pin').on(table.organizationId, table.membershipId, table.docId),
+    index('ix_doc_read_state_org_membership').on(table.organizationId, table.membershipId),
+  ],
+);
+
+export type DocReadStateRow = typeof docReadState.$inferSelect;
+export type NewDocReadStateRow = typeof docReadState.$inferInsert;
+
+/**
  * The fixed set of Home-widget ids a member may order or hide (module 4 Home / My Day, x243). A
  * small, closed vocabulary â€” the widgets the Home screen actually renders. Every id in a saved
  * order or hidden list is validated against this set (`widget-prefs.controller.ts`); an id outside
@@ -6496,6 +6523,7 @@ export const TABLES = {
   project_favorites: projectFavorites,
   doc_tags: docTags,
   doc_links: docLinks,
+  doc_read_state: docReadState,
   work_item_labels: workItemLabels,
   file_tags: fileTags,
   work_item_watchers: workItemWatchers,
