@@ -72,11 +72,21 @@ function isBlockedIpv4(octets: readonly number[]): boolean {
 function isBlockedIpv6(inner: string): boolean {
   const host = inner.toLowerCase();
   if (host === '::' || host === '::1') return true;
-  // IPv4-mapped / IPv4-compatible: defer to the IPv4 rule on the trailing dotted-quad.
+  // IPv4-mapped / IPv4-compatible, dotted form: defer to the IPv4 rule on the trailing dotted-quad.
   const mapped = /(?:::ffff:|::)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(host);
   if (mapped) {
     const v4 = parseIpv4(mapped[1] as string);
     if (v4 && isBlockedIpv4(v4)) return true;
+  }
+  // IPv4-mapped, hextet form (`::ffff:7f00:1`) — how the WHATWG URL parser *normalises*
+  // `::ffff:127.0.0.1`, so this, not the dotted branch above, is what reaches us from a URL. Rebuild
+  // the four octets from the two trailing hextets and defer to the same IPv4 rule.
+  const hexMapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+  if (hexMapped) {
+    const hi = Number.parseInt(hexMapped[1] as string, 16);
+    const lo = Number.parseInt(hexMapped[2] as string, 16);
+    const v4 = [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff];
+    if (isBlockedIpv4(v4)) return true;
   }
   const head = host.split(':', 1)[0] ?? '';
   if (
@@ -111,9 +121,13 @@ export function checkWebhookUrl(raw: string): UrlCheck {
     return deny('must not embed credentials');
   }
 
-  // `URL.hostname` strips the brackets from an IPv6 literal; detect the bracket form from the href.
-  const isBracketedV6 = url.href.includes(`[${url.hostname}]`) || raw.includes('[');
-  const hostname = url.hostname.toLowerCase();
+  // Node's WHATWG `URL.hostname` KEEPS the brackets on an IPv6 literal (`[::1]`) and compresses the
+  // address (`[::ffff:127.0.0.1]` → `[::ffff:7f00:1]`). Strip the brackets so the host text judged
+  // below is the bare address `isBlockedIpv6` expects — without this, every bracketed IPv6 literal
+  // (loopback, ULA, link-local, IPv4-mapped, metadata) slips through as if it were a public host.
+  const rawHostname = url.hostname.toLowerCase();
+  const isBracketedV6 = rawHostname.startsWith('[') && rawHostname.endsWith(']');
+  const hostname = isBracketedV6 ? rawHostname.slice(1, -1) : rawHostname;
   if (hostname === '') {
     return deny('must name a host');
   }
