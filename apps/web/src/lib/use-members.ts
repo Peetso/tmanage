@@ -77,8 +77,28 @@ export function useMembers(api: ApiClient, organizationSlug: string, search = ''
     // Never carry one organization's names into another's picker.
     known.current = { slug: organizationSlug, byId: new Map() };
   }
-  for (const member of query.data?.members ?? []) {
-    known.current.byId.set(member.userId, member);
+  // The server's answer is authoritative for members matching the current search: it searches
+  // this tenant's active roster by name fragment (`LIKE %q%`). So anyone already known who
+  // *would* have matched this search — same name fragment — yet is absent from the fresh answer
+  // is no longer an active member and must drop out of the directory. That is how an offboarded
+  // member leaves the picker once the list is refetched, which `OffboardingScreen` relies on.
+  //
+  // Members who simply do not match the current search are left untouched: a narrow search is a
+  // smaller question, not news that the people it omits have gone. That is what lets an owner
+  // line rendered from this same list keep its name while a picker below it is searched for
+  // somebody else — the reason the union accumulates in the first place.
+  const fresh = query.data?.members;
+  if (fresh !== undefined) {
+    const freshIds = new Set(fresh.map((member) => member.userId));
+    const needle = q.toLowerCase();
+    for (const [userId, member] of [...known.current.byId]) {
+      if (!freshIds.has(userId) && member.displayName.toLowerCase().includes(needle)) {
+        known.current.byId.delete(userId);
+      }
+    }
+    for (const member of fresh) {
+      known.current.byId.set(member.userId, member);
+    }
   }
 
   const members = [...known.current.byId.values()].sort((left, right) =>
