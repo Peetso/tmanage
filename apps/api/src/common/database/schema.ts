@@ -1762,8 +1762,9 @@ export const PLAN_CHANGE_REQUEST_STATUSES = ['pending', 'cancelled'] as const;
  * carries a UNIQUE key so the engine refuses a second pending row under a race. Identity is immutable;
  * only `status` is editable (`pending → cancelled`), pinned by the `0153` trigger.
  * `0153_billing_plan_change_requests.sql` is the source of truth; this is its typed mirror. The
- * engine-internal `pending_guard` generated column is deliberately absent — the app never reads or
- * writes it.
+ * engine-internal `pending_guard` generated column is mirrored here (as `active_item` on
+ * `work_blockers` and `def_code` on `billing_cost_centers` are) so the schema names exactly the
+ * columns the migrated database has — the app never reads or writes it.
  */
 export const billingPlanChangeRequests = mysqlTable(
   'billing_plan_change_requests',
@@ -1776,9 +1777,12 @@ export const billingPlanChangeRequests = mysqlTable(
     status: mysqlEnum('status', PLAN_CHANGE_REQUEST_STATUSES).notNull().default('pending'),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** Engine-computed; never written by the application. See the migration. */
+    pendingGuard: char('pending_guard', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_billing_plan_change_requests_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_billing_plan_change_requests_pending').on(table.pendingGuard),
     index('ix_billing_plan_change_requests_org_created').on(table.organizationId, table.createdAt),
   ],
 );
