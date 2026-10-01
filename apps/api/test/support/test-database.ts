@@ -301,6 +301,10 @@ export async function truncateAll(admin: Pool): Promise<void> {
       'work_item_dependencies',
       'work_blockers',
       'work_items',
+      // CLIENT-003 (x125). Before `projects`: an update names a project (and organization).
+      // FK checks are off here, so order is cosmetic — but the row must be cleared between tests
+      // so a refused internal write can be proven to have written nothing.
+      'project_updates',
       'invitations',
       'project_clients',
       'project_memberships',

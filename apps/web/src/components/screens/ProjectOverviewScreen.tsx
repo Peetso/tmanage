@@ -591,12 +591,8 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
   const [publishNow, setPublishNow] = useState(true);
 
   const post = useMutation({
-    mutationFn: () =>
-      postProjectUpdate(api, organizationSlug, projectId, {
-        title: title.trim(),
-        body: body.trim(),
-        published: publishNow,
-      }),
+    mutationFn: (vars: { title: string; body: string; published: boolean }) =>
+      postProjectUpdate(api, organizationSlug, projectId, vars),
     onSuccess: () => {
       void queries.invalidateQueries({ queryKey: ['portal-updates', organizationSlug, projectId] });
       setTitle('');
@@ -617,7 +613,8 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
         className="tm-stack"
         onSubmit={(event) => {
           event.preventDefault();
-          if (canPost) post.mutate();
+          if (canPost)
+            post.mutate({ title: title.trim(), body: body.trim(), published: publishNow });
         }}
       >
         <div className="tm-field">
@@ -670,7 +667,11 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
         ) : null}
         {post.isSuccess ? (
           <InlineAlert tone="success" title="Update posted" live>
-            {publishNow
+            {/* The banner must report what was actually posted, not the live form state: the form
+                (including `publishNow`) resets to its defaults on success, so deriving the copy from
+                `publishNow` here would always say "live" — even for a draft. `post.variables` holds
+                the values the last `mutate` carried and persists through the success state. */}
+            {post.variables.published
               ? 'Your update is live in the client portal.'
               : 'Your draft is saved. It is not visible to the client.'}
           </InlineAlert>

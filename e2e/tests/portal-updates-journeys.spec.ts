@@ -66,21 +66,26 @@ test.describe.serial('the project-updates journeys', () => {
     try {
       await page.goto(`/northstar-studio/projects/${world().northstar.projectId}`);
 
+      // Scope to the composer region: the project overview now also carries a "Milestones" panel
+      // with its own "Title" field and "Publish to the client now" checkbox, so the page-global
+      // labels are no longer unique. The region name is the composer's "Post an update" heading.
+      const composer = page.getByRole('region', { name: 'Post an update' });
+
       // Hydration barrier: wait for the compose field before filling, so the first fill does not
       // land before React has attached its handlers (the reason request-journeys waits too).
-      await expect(page.getByRole('heading', { name: 'Post an update' })).toBeVisible();
+      await expect(composer.getByRole('heading', { name: 'Post an update' })).toBeVisible();
 
       // The published update — the checkbox defaults to "Publish to the client now".
-      await page.getByLabel('Title').fill(PUBLISHED_TITLE);
-      await page.getByLabel('Update').fill(PUBLISHED_BODY);
-      await page.getByRole('button', { name: 'Post update' }).click();
+      await composer.getByLabel('Title').fill(PUBLISHED_TITLE);
+      await composer.getByLabel('Update').fill(PUBLISHED_BODY);
+      await composer.getByRole('button', { name: 'Post update' }).click();
       await expect(page.getByText('Your update is live in the client portal.')).toBeVisible();
 
       // A draft — unchecked, so the client must never see it.
-      await page.getByLabel('Title').fill(DRAFT_TITLE);
-      await page.getByLabel('Update').fill(DRAFT_BODY);
-      await page.getByLabel('Publish to the client now').uncheck();
-      await page.getByRole('button', { name: 'Post update' }).click();
+      await composer.getByLabel('Title').fill(DRAFT_TITLE);
+      await composer.getByLabel('Update').fill(DRAFT_BODY);
+      await composer.getByLabel('Publish to the client now').uncheck();
+      await composer.getByRole('button', { name: 'Post update' }).click();
       await expect(
         page.getByText('Your draft is saved. It is not visible to the client.'),
       ).toBeVisible();
