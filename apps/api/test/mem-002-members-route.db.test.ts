@@ -133,7 +133,10 @@ describe('the member directory over HTTP', () => {
 
     // D16's point: a person, not a UUID to paste.
     const names = members.map((member) => member.displayName).sort();
-    expect(names).toEqual(['Lina Samir', 'Maya Hassan', 'Omar Adel']);
+    // Rania Farouk is the seed's disposable subject for the member-admin and offboarding journeys
+    // (see seed-two-tenants.ts); she is an active member of this organization, so the directory
+    // names her alongside the three principals.
+    expect(names).toEqual(['Lina Samir', 'Maya Hassan', 'Omar Adel', 'Rania Farouk']);
     expect(members.every((member) => member.status === 'active')).toBe(true);
 
     // The adversarial twin's owner is called "Maya Hasan" and her organization id differs from
