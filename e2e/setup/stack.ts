@@ -309,6 +309,64 @@ export async function ageUploadSession(
   if (aged !== 1) throw new Error(`ageUploadSession: ${aged} rows aged for ${uploadSessionId}`);
 }
 
+/** The two governed version ids E2E-05's deep-link decide journey opens against. */
+export interface ApprovalFixture {
+  readonly deliverableVersionId: string;
+  readonly secondDeliverableVersionId: string;
+}
+
+/**
+ * Seed E2E-05's approval fixture into the running stack — a governed `deliverable_versions` row,
+ * an opened `approvals` row, and a published `client_projections` row, twice (one per serial case),
+ * naming the Atlas contact. Through the API package's own CLI (`test/approval-fixture-cli.ts`), the
+ * way the seed and the upload-ageing are: this package holds no database client. The stack has no
+ * HTTP route that mints a deliverable version (x101's skip note), so the journey's fixture is built
+ * here, before the journey, and exposed on `world.atlas.approval`.
+ */
+export async function seedApprovalFixture(
+  databaseUrl: string,
+  config: {
+    readonly organizationId: string;
+    readonly projectId: string;
+    readonly publisherUserId: string;
+    readonly publisherMembershipId: string;
+    readonly approvedContactEmail: string;
+  },
+): Promise<ApprovalFixture> {
+  const { stdout } = await run(
+    'pnpm',
+    [
+      '--filter',
+      '@tmanage/api',
+      'exec',
+      'tsx',
+      'test/approval-fixture-cli.ts',
+      config.organizationId,
+      config.projectId,
+      config.publisherUserId,
+      config.publisherMembershipId,
+      config.approvedContactEmail,
+    ],
+    { cwd: REPO_ROOT, env: { ...process.env, TMANAGE_SEED_DATABASE_URL: databaseUrl } },
+  );
+  const line = stdout.trim().split('\n').pop() as string;
+  const fixture = JSON.parse(line) as ApprovalFixture;
+  if (!fixture.deliverableVersionId || !fixture.secondDeliverableVersionId) {
+    throw new Error(`seedApprovalFixture: incomplete fixture from the CLI — ${line}`);
+  }
+  return fixture;
+}
+
+/** The slices of the seed world this harness reads to build the approval fixture. */
+interface SeedWorldForApproval {
+  readonly northstar: {
+    readonly organizationId: string;
+    readonly projectId: string;
+    readonly manager: { readonly id: string; readonly membershipId: string };
+  };
+  readonly atlas: { readonly admin: { readonly email: string } };
+}
+
 export async function bootStack(): Promise<StackState & { stop: () => Promise<void> }> {
   // 1. A real MySQL, private to this run.
   const server = await createDB({
@@ -333,6 +391,19 @@ export async function bootStack(): Promise<StackState & { stop: () => Promise<vo
     string,
     unknown
   >;
+
+  // 3b. E2E-05's approval fixture (T001). The seed world carries no deliverable version to open the
+  // client deep link against and the stack mints none at runtime, so seed one here and hang the two
+  // governed version ids off `world.atlas.approval`, where the journey reads them.
+  const seedWorld = world as unknown as SeedWorldForApproval;
+  const approval = await seedApprovalFixture(databaseUrl, {
+    organizationId: seedWorld.northstar.organizationId,
+    projectId: seedWorld.northstar.projectId,
+    publisherUserId: seedWorld.northstar.manager.id,
+    publisherMembershipId: seedWorld.northstar.manager.membershipId,
+    approvedContactEmail: seedWorld.atlas.admin.email,
+  });
+  (world['atlas'] as Record<string, unknown>)['approval'] = approval;
 
   // 4. The API and the web app, as they actually run. The web build cache goes first:
   // NEXT_PUBLIC_* values are inlined at compile time, and a `.next` warmed under a
