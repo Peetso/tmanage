@@ -7,11 +7,10 @@ import { API_URL } from '../setup/stack.js';
  * projection → decides** (approve, case A; request changes with a note, case B), and the
  * `approvals` row transitions and persists exactly as the reviewer decide does (FR-05, x101).
  *
- * ## Why this describe is skipped (x101 — UNEXECUTED, deferred)
+ * ## How the fixture is wired (T001)
  *
- * The journey below is complete and reads its fixture from the seeded world, but the world does
- * not yet carry an approval fixture to open the deep link against, and **nothing in the running
- * stack can create one**:
+ * The journey reads its fixture from the seeded world, but **nothing in the running stack can
+ * create one at runtime**:
  *   - There is no HTTP route that creates a `deliverable_versions` row. `POST …/approvals`
  *     (open) and `POST …/approvals/projections` (publish) both require a version id that already
  *     exists, and no controller mints one — a deliverable version is an internal content-identity
@@ -20,16 +19,13 @@ import { API_URL } from '../setup/stack.js';
  *   - `seed-two-tenants.ts` seeds no `deliverable_versions` / `approvals` / `client_projections`
  *     rows (the x92/x97 DB suites build them per-test through the repositories).
  *
- * So E2E-05 needs a seed fixture that the harness spawns before the journey — the shape of
- * `ageUploadSession` in `e2e/setup/stack.ts`: a new `apps/api/test`-side CLI that, given the
- * Northstar tenant and the Atlas client's shared project, inserts one governed
- * `deliverable_versions` row, opens an `approvals` row over it, and publishes a
- * `client_projections` row whose `approvedContacts` names the Atlas contact — then exposes the
- * version id on the world as `atlas.approval.deliverableVersionId`. Authoring and, above all,
- * *verifying* that fixture needs the shared `db-e2e.lock` (held by another job during this slice)
- * and a full stack boot; x101 could not take the lock, so this is deferred rather than shipped
- * unverified and left to red the chain. **Chain 15 (or a fixture slice) wires the fixture, drops
- * the `.skip`, and proves E2E-05.**
+ * So the harness spawns a fixture before the journey — the shape of `ageUploadSession` in
+ * `e2e/setup/stack.ts`: `apps/api/test/approval-fixture-cli.ts`, given the Northstar tenant and the
+ * Atlas client's shared project, inserts a governed `deliverable_versions` row through the real
+ * scoped repositories, opens an `approvals` row over it, and publishes a `client_projections` row
+ * whose `approvedContacts` names the Atlas contact — twice, so the two serial cases decide on
+ * different versions. `stack.ts` exposes the two version ids on the world as
+ * `atlas.approval.{deliverableVersionId, secondDeliverableVersionId}`, which the cases read below.
  *
  * The API decision itself is already proven: `approvals.service.test.ts` covers the client decide
  * end to end with the real `authorize()` and state machine (approve, request-changes-with-note,
@@ -73,7 +69,7 @@ async function signIn(context: BrowserContext, userId: string): Promise<void> {
   expect(response.ok()).toBe(true);
 }
 
-test.describe.skip('E2E-05 — the client deep-link decide journeys', () => {
+test.describe('E2E-05 — the client deep-link decide journeys', () => {
   async function openAs(
     browser: Browser,
     userId: string,
