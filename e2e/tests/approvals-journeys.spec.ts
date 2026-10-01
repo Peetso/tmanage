@@ -61,23 +61,32 @@ function world(): World {
   return JSON.parse(process.env['TMANAGE_E2E_WORLD'] as string) as World;
 }
 
-/** The dev sign-in route the API registers outside production — a session, not a mock. */
-async function signIn(context: BrowserContext, userId: string): Promise<void> {
+/**
+ * The dev sign-in route the API registers outside production — a session, not a mock.
+ *
+ * Returns the CSRF token the route issues. A cookie-authenticated mutation made directly through
+ * `context.request` (not the browser app) must echo this token in `X-CSRF-Token`, exactly as the
+ * web client does from the readable cookie — without it `CsrfGuard` refuses the write with 403
+ * before it reaches the service (04 §3, SEC-03).
+ */
+async function signIn(context: BrowserContext, userId: string): Promise<string> {
   const response = await context.request.post(`${API_URL}/v1/dev/sessions`, {
     data: { userId },
   });
   expect(response.ok()).toBe(true);
+  const { csrfToken } = (await response.json()) as { csrfToken: string };
+  return csrfToken;
 }
 
 test.describe('E2E-05 — the client deep-link decide journeys', () => {
   async function openAs(
     browser: Browser,
     userId: string,
-  ): Promise<{ context: BrowserContext; page: Page }> {
+  ): Promise<{ context: BrowserContext; page: Page; csrfToken: string }> {
     const context = await browser.newContext();
-    await signIn(context, userId);
+    const csrfToken = await signIn(context, userId);
     const page = await context.newPage();
-    return { context, page };
+    return { context, page, csrfToken };
   }
 
   function deepLink(deliverableVersionId: string): string {
@@ -105,9 +114,11 @@ test.describe('E2E-05 — the client deep-link decide journeys', () => {
 
     // The persisted outcome: the client decide route now reads the approval as decided. A second
     // decide on the same version is refused as append-only (409), which the screen never re-offers.
+    // The direct call must carry the CSRF token the browser app echoes from its readable cookie,
+    // or `CsrfGuard` refuses the mutation with 403 before the append-only check is ever reached.
     const reread = await client.context.request.post(
       `${API_URL}/v1/organizations/northstar-studio/approvals/projections/${versionId}/decision`,
-      { data: { decision: 'approve' } },
+      { data: { decision: 'approve' }, headers: { 'X-CSRF-Token': client.csrfToken } },
     );
     expect(reread.status()).toBe(409);
 
@@ -123,9 +134,13 @@ test.describe('E2E-05 — the client deep-link decide journeys', () => {
     const client = await openAs(browser, world().atlas.admin.id);
     await client.page.goto(deepLink(versionId));
 
-    // Requesting changes needs a note; the screen asks for it before sending.
+    // Requesting changes needs a note; the screen asks for it before sending. Scope to the alert
+    // carrying the message: Next renders a second, always-empty `role="alert"` route announcer, so
+    // an unfiltered `getByRole('alert')` is a strict-mode collision rather than the field error.
     await client.page.getByRole('button', { name: 'Request changes' }).click();
-    await expect(client.page.getByRole('alert')).toContainText('Add a note');
+    await expect(client.page.getByRole('alert').filter({ hasText: 'Add a note' })).toContainText(
+      'Add a note',
+    );
 
     await client.page
       .getByLabel(/A note for/)
