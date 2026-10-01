@@ -25,7 +25,13 @@ interface World {
     readonly projectId: string;
     readonly owner: SeededUser;
     readonly manager: SeededUser;
-    readonly designer: SeededUser;
+    /**
+     * A disposable project member seeded for the mutating journeys. The loop re-roles and
+     * removes its subject and does not restore the roster, so it cannot use the designer — the
+     * work-delivery journeys sign in as the designer and need her project membership to still
+     * resolve. (The offboarding journey later revokes this same member's org membership.)
+     */
+    readonly offboardee: SeededUser;
   };
 }
 
@@ -63,17 +69,17 @@ test.describe.serial('the project member-admin journeys', () => {
       admin.page.getByText(world().northstar.manager.displayName, { exact: true }),
     ).toBeVisible();
     await expect(
-      admin.page.getByText(world().northstar.designer.displayName, { exact: true }),
+      admin.page.getByText(world().northstar.offboardee.displayName, { exact: true }),
     ).toBeVisible();
 
-    // Re-role the designer, a compare-and-swap on their current role.
+    // Re-role the disposable subject, a compare-and-swap on their current role.
     await admin.page
-      .getByLabel(`Role for ${world().northstar.designer.displayName}`)
+      .getByLabel(`Role for ${world().northstar.offboardee.displayName}`)
       .selectOption({ label: 'Manager' });
-    const designerRow = admin.page
+    const subjectRow = admin.page
       .getByRole('listitem')
-      .filter({ hasText: world().northstar.designer.displayName });
-    await expect(designerRow).toContainText('Manager');
+      .filter({ hasText: world().northstar.offboardee.displayName });
+    await expect(subjectRow).toContainText('Manager');
 
     // Add the owner (org-wide, but not yet a member of this project) to the project.
     await admin.page
@@ -85,11 +91,15 @@ test.describe.serial('the project member-admin journeys', () => {
       admin.page.getByRole('listitem').filter({ hasText: world().northstar.owner.displayName }),
     ).toBeVisible();
 
-    // Remove the designer again; the loop leaves the roster changed on purpose.
-    await designerRow.getByRole('button', { name: 'Remove' }).click();
+    // Remove the subject again; the loop leaves the roster changed on purpose.
+    await subjectRow.getByRole('button', { name: 'Remove' }).click();
     await expect(
-      admin.page.getByRole('listitem').filter({ hasText: world().northstar.designer.displayName }),
+      admin.page
+        .getByRole('listitem')
+        .filter({ hasText: world().northstar.offboardee.displayName }),
     ).toHaveCount(0);
+
+    await admin.context.close();
   });
 
   test('E2E-ADM-02b: a manager changing their own role is refused, with a message', async ({
@@ -107,5 +117,7 @@ test.describe.serial('the project member-admin journeys', () => {
 
     // The API refuses a self role change (403); the screen surfaces it rather than swallowing it.
     await expect(manager.page.getByText('That change was refused')).toBeVisible();
+
+    await manager.context.close();
   });
 });

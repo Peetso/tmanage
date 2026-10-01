@@ -69,6 +69,15 @@ export interface SeedWorld {
     readonly owner: SeededUser;
     readonly manager: SeededUser;
     readonly designer: SeededUser;
+    /**
+     * A disposable member the member-admin and offboarding journeys act on so that neither
+     * disturbs a principal the other journeys rely on. She is a member of `projectId`: the
+     * member-admin journey re-roles and removes that project membership (keeping her org
+     * membership), and the offboarding journey then revokes her org membership. Nothing else
+     * signs in as her. The designer is deliberately not reused for either, because the
+     * work-delivery journeys sign in as the designer and need her access intact.
+     */
+    readonly offboardee: SeededUser;
     /** A second Northstar project the designer is *not* a member of. */
     readonly otherProjectId: string;
   };
@@ -249,8 +258,19 @@ export async function seedTwoTenants(admin: Pool): Promise<SeedWorld> {
   const omarMembership = await membership(northstarOrg, omarId, 'manager', false);
   const linaMembership = await membership(northstarOrg, linaId, 'member', false);
 
+  // The single disposable member the two mutating journeys act on, so that neither has to touch
+  // a principal the other journeys depend on. A plain member (never the last administrator), so
+  // offboarding her removes no administrator. The member-admin journey re-roles her and removes
+  // her atlas-project membership (leaving her org membership); the offboarding journey then
+  // revokes that org membership. The designer is left out of both — the work-delivery journeys
+  // sign in as her and need her org and project access to still resolve. See
+  // `SeedWorld.northstar.offboardee`.
+  const ranaId = await user('rania.farouk@northstar.example', 'Rania Farouk');
+  const ranaMembership = await membership(northstarOrg, ranaId, 'member', false);
+
   await projectMembership(northstarOrg, atlasProject, omarId);
   await projectMembership(northstarOrg, atlasProject, linaId);
+  await projectMembership(northstarOrg, atlasProject, ranaId);
   // Deliberately: Lina is NOT a member of the Brand Refresh project. Same tenant,
   // different project — one of the grid cases in 25-AUTH-AND-TENANT-ISOLATION §11.
   await projectMembership(northstarOrg, internalProject, omarId);
@@ -369,6 +389,13 @@ export async function seedTwoTenants(admin: Pool): Promise<SeedWorld> {
         email: 'lina.samir@northstar.example',
         displayName: 'Lina Samir',
         membershipId: linaMembership,
+        role: 'member',
+      },
+      offboardee: {
+        id: ranaId,
+        email: 'rania.farouk@northstar.example',
+        displayName: 'Rania Farouk',
+        membershipId: ranaMembership,
         role: 'member',
       },
     },

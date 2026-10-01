@@ -10,9 +10,12 @@ import { API_URL } from '../setup/stack.js';
  * unit tests prove over fakes, proven here through the real capability guard and the real
  * transaction — a caller cannot offboard themselves, and cannot offboard the last administrator.
  *
- * Northstar's seed world: Maya (owner), Omar (manager), Lina (member/designer). Lina is the safe
- * subject — offboarding her removes no administrator — and Maya is both the caller and the last
- * `org.manage` holder, so an attempt on herself must be refused twice over.
+ * Northstar's seed world: Maya (owner), Omar (manager), Lina (member/designer), and Rania — the
+ * disposable member the mutating journeys act on (the member-admin journey also re-roles and
+ * removes her atlas-project membership first). Rania is the safe subject: offboarding her removes
+ * no administrator, and — unlike Lina — nothing else in the suite signs in as her, so terminating
+ * her for real poisons no later journey. Maya is both the caller and the last `org.manage`
+ * holder, so an attempt on herself must be refused twice over.
  */
 
 interface SeededUser {
@@ -26,6 +29,7 @@ interface World {
     readonly owner: SeededUser;
     readonly manager: SeededUser;
     readonly designer: SeededUser;
+    readonly offboardee: SeededUser;
   };
 }
 
@@ -49,14 +53,14 @@ test.describe('the member offboarding journeys', () => {
     await signIn(context, world().northstar.owner.id);
     const page = await context.newPage();
 
-    const designer = world().northstar.designer;
+    const member = world().northstar.offboardee;
 
     await page.goto(`/${SLUG}/people/offboarding`);
 
     // Pick the member by name — the directory offers names, the API is driven by the user id.
     const picker = page.getByRole('combobox', { name: 'Member to offboard' });
-    await picker.fill(designer.displayName.slice(0, 4));
-    await page.getByRole('option', { name: new RegExp(designer.displayName) }).click();
+    await picker.fill(member.displayName.slice(0, 4));
+    await page.getByRole('option', { name: new RegExp(member.displayName) }).click();
 
     // The impact preview loads the access this member holds.
     const impact = page.getByRole('region', { name: new RegExp('Offboarding impact') });
@@ -65,17 +69,15 @@ test.describe('the member offboarding journeys', () => {
 
     // Offboarding is behind an explicit acknowledgement that it cannot be undone.
     await page.getByRole('checkbox', { name: /cannot be undone/i }).check();
-    await page
-      .getByRole('button', { name: new RegExp(`Offboard ${designer.displayName}`) })
-      .click();
+    await page.getByRole('button', { name: new RegExp(`Offboard ${member.displayName}`) }).click();
 
     await expect(page.getByText('Member offboarded')).toBeVisible();
 
     // The member is gone from the active directory: the picker no longer offers them.
-    await picker.fill(designer.displayName.slice(0, 4));
-    await expect(page.getByRole('option', { name: new RegExp(designer.displayName) })).toHaveCount(
-      0,
-    );
+    await picker.fill(member.displayName.slice(0, 4));
+    await expect(page.getByRole('option', { name: new RegExp(member.displayName) })).toHaveCount(0);
+
+    await context.close();
   });
 
   test('the owner cannot offboard themselves — the last administrator is protected', async ({
@@ -99,5 +101,7 @@ test.describe('the member offboarding journeys', () => {
     // The API refuses (self, and last administrator), and the screen renders the refusal rather
     // than a blank page or a success. The member is still there.
     await expect(page.getByText('Offboarding failed')).toBeVisible();
+
+    await context.close();
   });
 });
