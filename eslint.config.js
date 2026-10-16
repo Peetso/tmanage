@@ -270,6 +270,21 @@ export default tseslint.config(
     },
   },
 
+  // The app-shell service worker runs in the ServiceWorkerGlobalScope, not the window or
+  // Node, so `self`, `caches`, `fetch`, `Response` and `URL` are its legitimate globals.
+  {
+    files: ['apps/web/public/sw.js'],
+    languageOptions: {
+      globals: {
+        self: 'readonly',
+        caches: 'readonly',
+        fetch: 'readonly',
+        Response: 'readonly',
+        URL: 'readonly',
+      },
+    },
+  },
+
   // Test files relax a few rules that exist to protect production code paths.
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/test/**/*.ts'],

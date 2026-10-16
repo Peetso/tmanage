@@ -5,6 +5,7 @@ import '@tmanage/ui/styles.css';
 import './globals.css';
 import { AuthBoundaryProvider } from '../components/providers/AuthBoundaryProvider';
 import { QueryProvider } from '../components/providers/QueryProvider';
+import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 
 /**
  * Manrope, self-hosted.
@@ -68,6 +69,10 @@ export const viewport: Viewport = {
   // caps `maximum-scale` or sets `user-scalable=no`.
   width: 'device-width',
   initialScale: 1,
+  // Paints the standalone window's title bar / window-controls overlay for the installed
+  // PWA (modules 22/23). `--ink-950`, the brand mark's own fill. Next renders this as the
+  // `<meta name="theme-color">`; the `<link rel="manifest">` is injected from `manifest.ts`.
+  themeColor: '#090a09',
 };
 
 /**
@@ -98,6 +103,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <QueryProvider>
           <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
         </QueryProvider>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
