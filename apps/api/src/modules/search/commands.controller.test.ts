@@ -89,4 +89,16 @@ describe('CommandsController', () => {
     const capability = new Reflector().get(REQUIRED_CAPABILITY, CommandsController.prototype.run);
     expect(capability).toBe('search.use');
   });
+
+  it('offers the capture-new command as a navigate to the capture route (modules 22/23)', () => {
+    const capture = COMMAND_REGISTRY.find((command) => command.id === 'capture-new');
+    expect(capture).toBeDefined();
+    expect(capture?.kind).toBe('navigate');
+    expect(capture?.href).toBe('/capture');
+    expect(capture?.action).toBeNull();
+    // And it is reachable from a natural query through the same matcher the palette uses.
+    expect(controller.run('capture').commands.some((command) => command.id === 'capture-new')).toBe(
+      true,
+    );
+  });
 });

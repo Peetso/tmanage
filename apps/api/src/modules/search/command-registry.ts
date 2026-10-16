@@ -66,6 +66,10 @@ export const COMMAND_REGISTRY: readonly CommandDefinition[] = [
   navigate('nav-docs', 'Go to Docs', '/docs', ['documents', 'files', 'notes']),
   navigate('nav-people', 'Go to People', '/people', ['members', 'team', 'capacity']),
   navigate('nav-insights', 'Go to Insights', '/insights', ['analytics', 'reports', 'metrics']),
+  // Quick capture (modules 22/23). A `navigate` to the capture screen rather than an `action`:
+  // filing a note belongs on the capture screen (which also prefills from a share), so the palette
+  // only needs to take the caller there. The id the module map names is `capture-new`.
+  navigate('capture-new', 'Quick capture', '/capture', ['new', 'note', 'task', 'jot', 'add']),
   action('act-search', 'Search the workspace', 'open-search', ['find', 'lookup', 'query']),
   action('act-clear-recent', 'Clear recent search', 'clear-recent-search', ['forget', 'reset']),
 ];

@@ -42,6 +42,25 @@ export default function manifest(): MetadataRoute.Manifest {
     display_override: ['window-controls-overlay'],
     theme_color: '#090a09',
     background_color: '#ffffff',
+    // Quick capture (modules 22/23). The installed shell is the OS share target for text and links:
+    // a GET share hands `title`/`text`/`url` to the capture route, which prefills the form from them
+    // (see `buildCaptureDraft`). A `shortcut` puts the same capture one long-press away from the app
+    // icon. Both point at `/capture`; the route is slug-scoped at `/{orgSlug}/capture`, and resolving
+    // the slug-less landing to the caller's organization is deferred with the other "current org by
+    // slug" gaps the app documents (no endpoint returns one organization by slug yet).
+    share_target: {
+      action: '/capture',
+      method: 'GET',
+      params: { title: 'title', text: 'text', url: 'url' },
+    },
+    shortcuts: [
+      {
+        name: 'Quick capture',
+        short_name: 'Capture',
+        description: 'File a note or task without leaving what you are doing.',
+        url: '/capture',
+      },
+    ],
     icons: [
       {
         src: '/brand/tmanage-icon.svg',
