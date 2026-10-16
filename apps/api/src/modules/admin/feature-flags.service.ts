@@ -23,6 +23,10 @@ export const OPTIONAL_MODULE_FLAGS = [
   'automations',
   'client_portal',
   'billing',
+  // Module 16 (Search, command & AI) — the AI copilot shell (x-copilot). Default off; gates the
+  // provider-agnostic copilot `ask` route, whose only provider today is the deterministic local
+  // stub. Turning it on exposes no paid model; a real provider is Needs-Peter (NS-13).
+  'copilot',
 ] as const;
 
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];

@@ -24,6 +24,7 @@ export const OPTIONAL_MODULE_FLAGS = [
   'automations',
   'client_portal',
   'billing',
+  'copilot',
 ] as const;
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
 

@@ -33,6 +33,7 @@ const FLAG_LABELS: Record<OptionalModuleFlag, string> = {
   automations: 'Automations and integrations',
   client_portal: 'Client Portal',
   billing: 'Billing and plan management',
+  copilot: 'AI copilot',
 };
 
 /**

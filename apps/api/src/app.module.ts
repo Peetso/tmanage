@@ -132,6 +132,7 @@ import { SearchPinsModule } from './modules/search/search-pins.module.js';
 import { SearchScopesModule } from './modules/search/saved-scopes.module.js';
 import { CommandsModule } from './modules/search/commands.controller.js';
 import { SuggestionsModule } from './modules/search/suggestions.controller.js';
+import { CopilotModule } from './modules/copilot/copilot.module.js';
 import { InsightsAdoptionModule } from './modules/insights/adoption.controller.js';
 import { WorkloadForecastModule } from './modules/insights/workload-forecast.module.js';
 import { SavedInsightViewsModule } from './modules/insights/saved-insight-views.module.js';
@@ -762,6 +763,12 @@ export class AppModule {
         // depends on nothing (the registry is a constant, the matcher is pure), and shares the
         // `search.use` gate global search reads under — no new capability, no database, no migration.
         CommandsModule.register(),
+        // AI copilot shell (Module 16). `POST …/copilot/ask` returns an answer view (answer,
+        // evidence, permission boundary, next safe action) from a provider-agnostic seam whose only
+        // provider today is a deterministic offline stub — no network, no key. Gated by the new
+        // `copilot` per-org feature flag (off → 404) and the reused `search.use` capability. A module
+        // of its own beside `SearchModule` so the search slices stay file-disjoint.
+        CopilotModule.register(),
         // SRCH typeahead / suggestions (x289). `GET …/search/suggest?q=<prefix>&limit=` — a bounded,
         // recency-ordered list of indexed entity titles predicted from the prefix, powering typeahead.
         // A module of its own beside `SearchModule` so the search slices stay file-disjoint; read-only
