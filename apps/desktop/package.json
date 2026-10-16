@@ -1,0 +1,23 @@
+{
+  "name": "@tmanage/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "TManage desktop companion — an allowlisted Electron shell around the hosted web app (module 22).",
+  "author": "TManage",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "pnpm run build && electron .",
+    "dist": "pnpm run build && electron-builder --win nsis --publish never",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

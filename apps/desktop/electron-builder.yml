@@ -1,0 +1,41 @@
+# electron-builder configuration for the TManage desktop companion.
+#
+# Scope (per the build brief): a Windows NSIS installer, UNSIGNED and NEVER published.
+# No code-signing certificate is referenced and no `publish` provider is configured, so
+# `electron-builder --publish never` only ever writes a local artifact.
+appId: com.tmanage.desktop
+productName: TManage
+copyright: © TManage
+
+directories:
+  output: release
+  # `assets/` holds both the runtime icons (packaged via `files`) and the installer
+  # icon. The repo's root .gitignore excludes `build/` and `dist/`, so build resources
+  # live under `assets/` to stay version-controlled and keep the build reproducible.
+  buildResources: assets
+
+# The app has no runtime dependencies — it is only the compiled shell plus its icons —
+# so packaging copies these globs and nothing from the pnpm store.
+files:
+  - dist/**/*
+  - assets/**/*
+  - package.json
+
+# Register the tmanage:// deep-link scheme at install time (reinforced at runtime by
+# app.setAsDefaultProtocolClient).
+protocols:
+  - name: TManage
+    schemes:
+      - tmanage
+
+win:
+  target:
+    - nsis
+  icon: assets/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true

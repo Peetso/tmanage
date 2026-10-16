@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // Electron's main process and (critically) its *sandboxed* preload load CommonJS, not
+    // ESM, so this package emits CJS even though the rest of the workspace is ESM. That
+    // means overriding the ESM-oriented defaults from tsconfig.base: classic Node module
+    // resolution, `require`-style emit, and no verbatim-syntax constraint (which only
+    // makes sense when the source format already matches the output format).
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "verbatimModuleSyntax": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "test", "dist", "node_modules"]
+}

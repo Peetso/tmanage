@@ -1,0 +1,15 @@
+{
+  // Typecheck covers the unit tests too: a guard test that references a policy the
+  // module no longer exposes should fail here, not at `vitest run`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}
