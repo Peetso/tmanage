@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { InsightsPortfolioMobileSummary } from './InsightsPortfolioMobileSummary';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchInsightsPortfolio } from '../../lib/api/insights-portfolio';
 import type { InsightsPortfolio, InsightsPortfolioProject } from '../../lib/api/insights-portfolio';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useIsMobile } from '../../lib/hooks/useIsMobile';
 
 export interface InsightsPortfolioScreenProps {
   organizationSlug: string;
@@ -44,6 +46,7 @@ export function InsightsPortfolioScreen({
   children,
 }: InsightsPortfolioScreenProps) {
   const api = client ?? browserApiClient();
+  const isMobile = useIsMobile();
 
   const portfolio = useQuery({
     queryKey: ['insights-portfolio', organizationSlug],
@@ -77,7 +80,14 @@ export function InsightsPortfolioScreen({
         ) : null}
 
         {portfolio.isSuccess ? (
-          <PortfolioTable portfolio={portfolio.data} organizationSlug={organizationSlug} />
+          isMobile ? (
+            <InsightsPortfolioMobileSummary
+              portfolio={portfolio.data}
+              organizationSlug={organizationSlug}
+            />
+          ) : (
+            <PortfolioTable portfolio={portfolio.data} organizationSlug={organizationSlug} />
+          )
         ) : null}
       </section>
 
