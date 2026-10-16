@@ -69,9 +69,12 @@ describe('AppShell', () => {
 
   it('marks the current destination for assistive technology, not only with colour', () => {
     renderShell();
-    const current = screen.getByRole('link', { name: 'Work' });
+    // Scoped to the rail: the mobile dock (Module 23) also renders Work and Home, so the two
+    // navigations each carry the state and an unscoped query would match both.
+    const rail = screen.getByRole('navigation', { name: 'Primary' });
+    const current = within(rail).getByRole('link', { name: 'Work' });
     expect(current).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
+    expect(within(rail).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
   });
 
   it('renders the context rail and the lens only when they are given', () => {

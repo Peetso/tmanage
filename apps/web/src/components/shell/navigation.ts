@@ -39,6 +39,35 @@ export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
   { id: 'insights', label: 'Insights', href: '/insights', glyph: '◈' },
 ];
 
+/**
+ * The mobile primary navigation — Module 23's "five-item primary navigation", the bottom
+ * dock shown below ~768px in place of the orbital rail.
+ *
+ * It is not a new navigation: every id here is an `INTERNAL_NAVIGATION` id, so the dock
+ * invents no route the rail does not already own and the slug-prefixing is identical.
+ * Exactly five, because `22-SCREEN-BY-SCREEN` §1 asks for a five-item bottom bar and the
+ * eight-wide rail does not reduce to a phone without either shrinking every target below the
+ * comfortable minimum or hiding destinations behind a "More" disclosure the existing dock
+ * deliberately refused (see the reflow note in `globals.css`).
+ *
+ * The first four — Home, Inbox, Chat, Work — are the ones `02-mobile-primary-nav` names. The
+ * fifth is the single swappable slot: it is `calendar` today (the next rail destination), and
+ * is the slot a later slice would reassign (e.g. to a Quick Capture destination) the day such
+ * a destination joins `INTERNAL_NAVIGATION`. It is listed by id rather than sliced so the
+ * choice is explicit and the "each id is a real rail destination" test has something to read.
+ */
+export const MOBILE_PRIMARY_NAVIGATION_IDS = ['home', 'inbox', 'chat', 'work', 'calendar'] as const;
+
+export const MOBILE_PRIMARY_NAVIGATION: readonly NavigationItem[] =
+  MOBILE_PRIMARY_NAVIGATION_IDS.map((id) => {
+    const item = INTERNAL_NAVIGATION.find((candidate) => candidate.id === id);
+    if (!item) {
+      // A build-time guarantee: the dock can only ever point where the rail already does.
+      throw new Error(`MOBILE_PRIMARY_NAVIGATION references unknown internal destination "${id}"`);
+    }
+    return item;
+  });
+
 /** The client portal. A separate space, not a filtered view of the one above. */
 export const CLIENT_NAVIGATION: readonly NavigationItem[] = [
   { id: 'overview', label: 'Overview', href: '/portal', glyph: '◉' },

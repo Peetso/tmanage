@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Badge, LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { INTERNAL_NAVIGATION } from './navigation';
+import { MobilePrimaryNav } from './MobilePrimaryNav';
 import { MaintenanceBanner } from '../screens/MaintenanceBanner';
 import { CommandPalette } from '../screens/CommandPalette';
 
@@ -135,6 +136,15 @@ export function AppShell({
             ) : null}
           </div>
         </div>
+
+        {/* Mobile companion (Module 23): the five-item primary dock. Rendered after the body so
+            it is last in the document and, as a sticky bottom bar, sits after the canvas in
+            reading order. `globals.css` reveals it only below ~768px and hides the rail there, so
+            exactly one primary navigation is ever on screen. */}
+        <MobilePrimaryNav
+          organizationSlug={organizationSlug}
+          {...(activeNavigationId ? { activeNavigationId } : {})}
+        />
       </div>
     </LiveAnnouncer>
   );

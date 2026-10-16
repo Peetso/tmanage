@@ -1107,6 +1107,101 @@ body {
   }
 }
 
+/* ── Mobile primary navigation (Module 23) ───────────────────────────────── */
+
+/*
+ * The five-item bottom dock. It is in the document on every internal screen but shows only
+ * below ~768px; above that the orbital rail (as a column ≥60rem, as a reflowed row between)
+ * is the primary navigation and this is `display: none`. The 60rem rail-dock rules above are
+ * untouched — this adds a narrower band beneath them and, within it, stands the rail down so
+ * the two never paint together. Source order matters: these follow the 60rem block so the
+ * `display: none` on `.tm-rail` wins over the dock rules at phone width.
+ */
+.tm-mobile-nav {
+  display: none;
+}
+
+@media (max-width: 47.99rem) {
+  .tm-rail {
+    display: none;
+  }
+
+  .tm-mobile-nav {
+    display: block;
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 1;
+    background: var(--tm-inverted-ground);
+    color: var(--tm-inverted-ink);
+    padding-block: var(--s2);
+    border-block-start: var(--b-quiet) solid var(--tm-inverted-line);
+  }
+
+  .tm-mobile-nav__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    justify-content: space-around;
+    gap: var(--s1);
+  }
+
+  /*
+   * Five equal, shrinkable items, the same recipe the rail-dock uses for the same reason:
+   * `flex: 1 1 0` with `min-inline-size: 0` releases the min-content floor so the row fits
+   * 320px (1.4.10 Reflow) without capping the destination list.
+   */
+  .tm-mobile-nav__list > li {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  .tm-mobile-nav__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s1);
+    inline-size: 100%;
+    min-inline-size: 0;
+    padding-block: var(--s1);
+    color: var(--tm-inverted-muted);
+    text-decoration: none;
+  }
+
+  .tm-mobile-nav__item:hover,
+  .tm-mobile-nav__item[aria-current='page'] {
+    color: var(--tm-inverted-ink);
+  }
+
+  .tm-mobile-nav__orb {
+    display: grid;
+    place-items: center;
+    inline-size: var(--orb-compact);
+    block-size: var(--orb-compact);
+    border-radius: var(--r-capsule);
+    border: var(--b-structural) solid transparent;
+    font-family: var(--font-mono);
+  }
+
+  .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__orb {
+    border-color: var(--lime-500);
+    background: var(--tm-inverted-line);
+  }
+
+  /*
+   * The label truncates rather than wraps, and `text-overflow` never touches the text node,
+   * so the accessible name stays the full word (2.5.3 Label in Name) exactly as the rail does.
+   */
+  .tm-mobile-nav__label {
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 /*
  * A11Y-183 (x183): accessibility preferences applied to the app shell through data attributes the
  * AccessibilityScreen writes onto the document root. Every rule is guarded by an attribute that is
