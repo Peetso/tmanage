@@ -259,6 +259,13 @@ const INVERTED_FOREGROUNDS: ReadonlyArray<readonly [selector: string, ground: st
   [".tm-rail__item[aria-current='page']", '.tm-rail'],
   ['.tm-portal__header', '.tm-portal__header'],
   ['.tm-portal__provider', '.tm-portal__header'],
+  // The mobile primary-nav dock (Module 23), the inverted twin of the orbital rail: the dock
+  // paints `--tm-inverted-ground` on `.tm-mobile-nav` and its items read against it exactly as
+  // the rail's do. The ground is declared on the unconditional `.tm-mobile-nav` rule, not the
+  // `max-width` override that only toggles `display`, so it is the ground in every theme.
+  ['.tm-mobile-nav', '.tm-mobile-nav'],
+  ['.tm-mobile-nav__item', '.tm-mobile-nav'],
+  [".tm-mobile-nav__item[aria-current='page']", '.tm-mobile-nav'],
 ];
 
 describe('inverted foregrounds in globals.css', () => {

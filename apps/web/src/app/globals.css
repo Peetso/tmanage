@@ -1119,6 +1119,8 @@ body {
  */
 .tm-mobile-nav {
   display: none;
+  background: var(--tm-inverted-ground);
+  color: var(--tm-inverted-ink);
 }
 
 @media (max-width: 47.99rem) {
@@ -1131,8 +1133,6 @@ body {
     position: sticky;
     inset-block-end: 0;
     z-index: 1;
-    background: var(--tm-inverted-ground);
-    color: var(--tm-inverted-ink);
     padding-block: var(--s2);
     border-block-start: var(--b-quiet) solid var(--tm-inverted-line);
   }
