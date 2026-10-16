@@ -48,11 +48,19 @@ export interface CopilotProviderAnswer {
 /**
  * The seam. A provider is asked a question in the caller's resolved scope and returns an answer
  * view's content. Implementations must not perform a write, and the stub must not touch the network.
+ *
+ * `ask` may answer synchronously (the offline {@link LocalStubProvider}) or asynchronously (a real
+ * model reached over `fetch`, in `copilot.remote.provider.ts`). The service always `await`s it, so a
+ * plain value and a `Promise` are both accepted; a remote adapter must still never crash — it falls
+ * back to the stub's answer on any failure.
  */
 export interface CopilotProvider {
   /** Stable id of the provider, echoed on the answer view so a consumer knows what produced it. */
   readonly id: string;
-  ask(question: string, context: CopilotContext): CopilotProviderAnswer;
+  ask(
+    question: string,
+    context: CopilotContext,
+  ): CopilotProviderAnswer | Promise<CopilotProviderAnswer>;
 }
 
 /** Trim and bound a question so a canned answer never echoes an unbounded string back verbatim. */

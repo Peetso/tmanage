@@ -4,7 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { FeatureFlagsRepository } from '../admin/feature-flags.repository.js';
 import { resolveFlags } from '../admin/feature-flags.service.js';
-import { LocalStubProvider } from './copilot.provider.js';
+import { selectCopilotProvider } from './copilot.remote.provider.js';
 import type { CopilotEvidence, CopilotProvider } from './copilot.provider.js';
 
 /**
@@ -12,9 +12,11 @@ import type { CopilotEvidence, CopilotProvider } from './copilot.provider.js';
  *
  * It composes the three things the module map asks of the copilot into one "answer view": the
  * provider's answer and evidence, the **permission boundary** describing what the caller may and may
- * not see, and the next safe (read-only) action. The provider seam is injected, so the deterministic
- * {@link LocalStubProvider} here can be replaced by a real model later without any change to this
- * service's contract (the paid provider is Needs-Peter / NS-13).
+ * not see, and the next safe (read-only) action. The provider seam is injected and chosen by
+ * `COPILOT_PROVIDER` (`selectCopilotProvider`): the offline stub by default, or a real `fetch`
+ * adapter (Anthropic / OpenAI, in `copilot.remote.provider.ts`) when a key and model are configured.
+ * The paid path is coded but OFF unless the environment selects it (Needs-Peter / NS-13); either way
+ * this service's contract is unchanged, and a remote adapter fails closed to the stub.
  *
  * ## The two refusals are the whole of this slice's safety
  *
@@ -87,7 +89,10 @@ export class CopilotService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly flags: FeatureFlagsRepository = new FeatureFlagsRepository(),
-    private readonly provider: CopilotProvider = new LocalStubProvider(),
+    // `COPILOT_PROVIDER` decides this: `stub` (the default, offline, keyless) or a real `fetch`
+    // adapter when a key and model are also set. Nothing configured → the offline stub, so the
+    // shipped build makes no network call. Resolved once at construction, not per request.
+    private readonly provider: CopilotProvider = selectCopilotProvider(),
   ) {}
 
   /**
@@ -112,7 +117,7 @@ export class CopilotService {
       ]);
     }
 
-    const produced = this.provider.ask(question, {
+    const produced = await this.provider.ask(question, {
       principalKind: principal.kind,
       role: principal.role,
       hasOrgWideScope: principal.hasOrgWideScope,
