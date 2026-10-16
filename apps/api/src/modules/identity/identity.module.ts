@@ -4,9 +4,11 @@ import {
   API_CONFIG,
   AUTHENTICATION_EVENT_RECORDER,
   AUTHENTICATION_SERVICE,
+  PERSONAL_ACCESS_TOKEN_AUTHENTICATOR,
   SESSION_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
+import { PersonalAccessTokensService } from '../personal-access-tokens/personal-access-tokens.service.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { DatabaseAuthenticationEventRecorder } from '../../common/http/authentication-event-recorder.js';
@@ -97,10 +99,31 @@ export class IdentityModule {
         ),
     };
 
+    // 0202. The Bearer personal-access-token authenticator the global `SessionAuthGuard` falls
+    // back to when a request carries no session cookie. Bound here (this module holds the tenant
+    // database and is where authentication lives) and exported so the guard in `AppModule` can
+    // inject it. A token resolves to its own member and tenant with no elevation; the ordinary
+    // membership-resolver and permission checks run afterwards exactly as for a cookie session.
+    const personalAccessTokenAuthenticator: Provider = {
+      provide: PERSONAL_ACCESS_TOKEN_AUTHENTICATOR,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new PersonalAccessTokensService(database),
+    };
+
     return {
       module: IdentityModule,
-      providers: [sessionService, authenticationService, authenticationEventRecorder],
-      exports: [sessionService, authenticationService, authenticationEventRecorder],
+      providers: [
+        sessionService,
+        authenticationService,
+        authenticationEventRecorder,
+        personalAccessTokenAuthenticator,
+      ],
+      exports: [
+        sessionService,
+        authenticationService,
+        authenticationEventRecorder,
+        personalAccessTokenAuthenticator,
+      ],
       controllers: [SessionController, AuthenticationController, CredentialsController],
     };
   }

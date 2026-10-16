@@ -4,13 +4,20 @@ import { Reflector } from '@nestjs/core';
 import { ApiError, MESSAGES } from '../errors.js';
 import { IS_PUBLIC } from '../decorators.js';
 import { requireRequestState } from '../request-state.js';
-import { API_CONFIG, AUTHENTICATION_EVENT_RECORDER, SESSION_SERVICE } from '../tokens.js';
+import {
+  API_CONFIG,
+  AUTHENTICATION_EVENT_RECORDER,
+  PERSONAL_ACCESS_TOKEN_AUTHENTICATOR,
+  SESSION_SERVICE,
+} from '../tokens.js';
 import type { ApiConfig } from '../api-config.js';
 import { GUARD_REFUSAL_ACTIONS, GUARD_REFUSAL_REASONS } from '../authentication-event-recorder.js';
 import type { AuthenticationEventRecorder } from '../authentication-event-recorder.js';
 import { SessionNotAuthenticatedError } from '../../../modules/identity/session.service.js';
 import type { SessionService } from '../../../modules/identity/session.service.js';
 import { readCookie } from '../../../modules/identity/session-token.js';
+import { PersonalAccessTokenNotAuthenticatedError } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
+import type { PersonalAccessTokensService } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
 
 /**
  * Spec §3 step 1 — "authenticate the current session and validate revocation/cutoff".
@@ -42,6 +49,8 @@ export class SessionAuthGuard implements CanActivate {
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     @Inject(AUTHENTICATION_EVENT_RECORDER)
     private readonly events: AuthenticationEventRecorder,
+    @Inject(PERSONAL_ACCESS_TOKEN_AUTHENTICATOR)
+    private readonly personalAccessTokens: PersonalAccessTokensService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -63,29 +72,47 @@ export class SessionAuthGuard implements CanActivate {
       this.config.cookieName,
     );
 
+    // No session cookie — a Bearer personal access token may authenticate instead (0202). This
+    // runs ONLY when there is no cookie, so a request that carries a cookie always takes the
+    // cookie path below and stays subject to CSRF. A token acts as its own member with no
+    // elevation; the membership resolver and permission checks run afterwards as for a cookie.
+    if (accessToken === undefined) {
+      const bearer = readBearerToken(request.headers['authorization']);
+      if (bearer !== undefined) {
+        try {
+          const authed = await this.personalAccessTokens.authenticate(bearer, state.correlationId);
+          state.session = { sessionId: `pat:${authed.tokenId}`, userId: authed.userId };
+          state.authScheme = 'personal_access_token';
+          return true;
+        } catch (error) {
+          if (error instanceof PersonalAccessTokenNotAuthenticatedError) {
+            this.recordRefusal(request, state.correlationId);
+            throw new ApiError(
+              401,
+              'unauthenticated',
+              MESSAGES.unauthenticated,
+              undefined,
+              error.code,
+            );
+          }
+          throw error;
+        }
+      }
+    }
+
     try {
       state.session = await this.sessions.authenticate({
         accessToken,
         correlationId: state.correlationId,
       });
+      state.authScheme = 'cookie';
     } catch (error) {
       if (error instanceof SessionNotAuthenticatedError) {
         // Record the denied attempt before refusing. Best-effort by the seam's contract — it
         // returns immediately and never throws — so the 401 below is untouched in status, body
         // and timing whether or not the row is written. The `try` is defence in depth: the
         // refusal is the control and no recorder, however it misbehaves, may take its place.
-        try {
-          const userAgent = request.headers['user-agent'];
-          this.events.recordGuardRefusal({
-            action: GUARD_REFUSAL_ACTIONS.session,
-            reason: GUARD_REFUSAL_REASONS.missingSession,
-            ip: request.ip ?? null,
-            userAgent: typeof userAgent === 'string' ? userAgent : null,
-            correlationId: state.correlationId,
-          });
-        } catch {
-          // A recording failure is never the caller's problem; the 401 stands.
-        }
+        this.recordRefusal(request, state.correlationId);
         throw new ApiError(401, 'unauthenticated', MESSAGES.unauthenticated, undefined, error.code);
       }
       throw error;
@@ -93,4 +120,38 @@ export class SessionAuthGuard implements CanActivate {
 
     return true;
   }
+
+  /**
+   * Record a denied authentication attempt — the same best-effort seam for a bad cookie and a
+   * bad Bearer token. It returns immediately and never throws, so the 401 the caller sees is
+   * untouched in status, body and timing whether or not the row is written. The precise cause
+   * travels to the log on `auditCode`; the table carries only the fixed `missing_session` reason.
+   */
+  private recordRefusal(
+    request: {
+      readonly ip?: string;
+      readonly headers: Record<string, string | string[] | undefined>;
+    },
+    correlationId: string,
+  ): void {
+    try {
+      const userAgent = request.headers['user-agent'];
+      this.events.recordGuardRefusal({
+        action: GUARD_REFUSAL_ACTIONS.session,
+        reason: GUARD_REFUSAL_REASONS.missingSession,
+        ip: request.ip ?? null,
+        userAgent: typeof userAgent === 'string' ? userAgent : null,
+        correlationId,
+      });
+    } catch {
+      // A recording failure is never the caller's problem; the 401 stands.
+    }
+  }
+}
+
+/** Parse a `Authorization: Bearer <token>` header, returning the token or undefined. */
+function readBearerToken(header: string | string[] | undefined): string | undefined {
+  if (typeof header !== 'string') return undefined;
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  return match ? (match[1] as string).trim() : undefined;
 }

@@ -17,6 +17,10 @@
 export const TENANT_DATABASE = Symbol.for('tmanage.TenantDatabase');
 export const API_CONFIG = Symbol.for('tmanage.ApiConfig');
 export const SESSION_SERVICE = Symbol.for('tmanage.SessionService');
+/** The Bearer personal-access-token authenticator the session guard falls back to (0202). */
+export const PERSONAL_ACCESS_TOKEN_AUTHENTICATOR = Symbol.for(
+  'tmanage.PersonalAccessTokenAuthenticator',
+);
 export const AUTHENTICATION_SERVICE = Symbol.for('tmanage.AuthenticationService');
 export const MEMBERSHIP_RESOLVER = Symbol.for('tmanage.MembershipResolver');
 /**

@@ -1,0 +1,132 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Module,
+  Param,
+  Post,
+} from '@nestjs/common';
+import type { DynamicModule, Provider } from '@nestjs/common';
+import type { Principal } from '@tmanage/domain';
+import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
+import { ApiError } from '../../common/http/errors.js';
+import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { PersonalAccessTokensService } from './personal-access-tokens.service.js';
+import type {
+  CreatedPersonalAccessTokenView,
+  PersonalAccessTokenView,
+} from './personal-access-tokens.service.js';
+
+/**
+ * The member's own personal access tokens — the Preferences → Security screen's backend.
+ *
+ * Own tokens only: there is no membership in the path, so the subject is always the
+ * authenticated `principal`'s membership and no caller can name another. The capability is
+ * `work.read` for the same reason the accessibility and notification preferences use it — it is
+ * the one every internal role holds and no client role does, and `12-PERMISSION-MATRIX` names no
+ * preferences capability. The real control is here: a member reaches their own tokens and nothing
+ * else.
+ *
+ * Create returns the plaintext token exactly once (`201`); it is never retrievable again. Revoke
+ * is a soft revocation (the row survives for the audit trail) and returns `204`.
+ *
+ * Its own module (registered from `app.module.ts`) so the slice touches no file another slice in
+ * the same pass appends to.
+ */
+
+const PERSONAL_ACCESS_TOKENS_SERVICE = Symbol.for('tmanage.PersonalAccessTokensService');
+
+interface CreateTokenBody {
+  readonly name?: unknown;
+  readonly expiresInDays?: unknown;
+}
+
+@Controller('v1/organizations/:orgSlug/me/personal-access-tokens')
+export class PersonalAccessTokensController {
+  constructor(
+    @Inject(PERSONAL_ACCESS_TOKENS_SERVICE)
+    private readonly tokens: PersonalAccessTokensService,
+  ) {}
+
+  /** List the member's own tokens, newest first. No hash, no plaintext. */
+  @Get()
+  @RequireCapability('work.read')
+  async list(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<{ readonly tokens: readonly PersonalAccessTokenView[] }> {
+    return { tokens: await this.tokens.list(context, principal) };
+  }
+
+  /** Create a token. The response carries the plaintext once; the client must save it then. */
+  @Post()
+  @RequireCapability('work.read')
+  @HttpCode(201)
+  async create(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: CreateTokenBody,
+  ): Promise<CreatedPersonalAccessTokenView> {
+    const name = typeof body?.name === 'string' ? body.name : undefined;
+    if (name === undefined) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'name', message: 'must be a string' },
+      ]);
+    }
+    const expiresInDays = parseExpiry(body?.expiresInDays);
+    return this.tokens.create(context, principal, { name, expiresInDays });
+  }
+
+  /** Revoke one of the member's own tokens. Unknown, foreign, or already-revoked is a 404. */
+  @Delete(':tokenId')
+  @RequireCapability('work.read')
+  @HttpCode(204)
+  async revoke(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('tokenId') tokenId: string,
+  ): Promise<void> {
+    if (typeof tokenId !== 'string' || tokenId === '') {
+      throw new ApiError(400, 'validation_failed', 'tokenId is required', [
+        { field: 'tokenId', message: 'must be a non-empty string' },
+      ]);
+    }
+    await this.tokens.revoke(context, principal, tokenId);
+  }
+}
+
+/** `expiresInDays` is optional; absent or null means "never expires". Anything else must be a number. */
+function parseExpiry(raw: unknown): number | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'number') {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      { field: 'expiresInDays', message: 'must be a number of days, or null' },
+    ]);
+  }
+  return raw;
+}
+
+/**
+ * The module's wiring — a self-contained module registered from `app.module.ts`, file-disjoint
+ * from the other slices in the pass. The service needs only the tenant database injected; it
+ * resolves the acting membership from the context and never from the body.
+ */
+@Module({})
+export class PersonalAccessTokensModule {
+  static register(): DynamicModule {
+    const service: Provider = {
+      provide: PERSONAL_ACCESS_TOKENS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new PersonalAccessTokensService(database),
+    };
+    return {
+      module: PersonalAccessTokensModule,
+      providers: [service],
+      controllers: [PersonalAccessTokensController],
+    };
+  }
+}

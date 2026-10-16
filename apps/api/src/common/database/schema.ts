@@ -117,6 +117,43 @@ export const sessionRefreshTokens = mysqlTable(
   ],
 );
 
+/**
+ * Personal access tokens — per-member API credentials for the MCP server (0202).
+ *
+ * Tenant-owned (`organization_id`) and bound to one membership, but looked up tenant-free on the
+ * unique `token_hash` by the Bearer authentication path — the member is what that read establishes.
+ * Only the hash is stored; the plaintext is shown once at creation and never again, the posture
+ * `session_refresh_tokens` takes. Registered in the guard's `TENANT_TABLES`; `scripts/db/users.sql`
+ * grants the app SELECT/INSERT/UPDATE (never DELETE — revoke is the soft `revoked_at`).
+ */
+export const personalAccessTokens = mysqlTable(
+  'personal_access_tokens',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    name: varchar('name', { length: 190 }).notNull(),
+    /** SHA-256 hex of the plaintext — the only form of the secret that reaches the database. */
+    tokenHash: char('token_hash', { length: 64 }).notNull(),
+    /** The safe display hint, e.g. `tmanage_pat_a1b2c3…`; not enough to reconstruct the token. */
+    tokenPrefix: varchar('token_prefix', { length: 32 }).notNull(),
+    lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_personal_access_tokens_hash').on(table.tokenHash),
+    uniqueIndex('uq_personal_access_tokens_org_id').on(table.organizationId, table.id),
+    index('ix_personal_access_tokens_membership').on(
+      table.organizationId,
+      table.membershipId,
+      table.id,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tenant root
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8044,6 +8081,7 @@ export const TABLES = {
   users,
   sessions,
   session_refresh_tokens: sessionRefreshTokens,
+  personal_access_tokens: personalAccessTokens,
   organizations,
   memberships,
   workspaces,
@@ -8220,6 +8258,7 @@ export const TABLES = {
 
 export type SessionRow = typeof sessions.$inferSelect;
 export type SessionRefreshTokenRow = typeof sessionRefreshTokens.$inferSelect;
+export type PersonalAccessTokenRow = typeof personalAccessTokens.$inferSelect;
 export type OrganizationRow = typeof organizations.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;

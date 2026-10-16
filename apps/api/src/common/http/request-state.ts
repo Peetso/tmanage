@@ -38,6 +38,13 @@ export interface RequestState {
   readonly correlationId: string;
   /** Set by `SessionAuthGuard` (spec §3 step 1). Absent on `@Public()` routes. */
   session?: AuthenticatedSession;
+  /**
+   * How `SessionAuthGuard` authenticated this request (0202). `'cookie'` for the session cookie,
+   * `'personal_access_token'` only for the successful Bearer path, which runs exclusively when
+   * there is no cookie. `CsrfGuard` reads it to skip CSRF for bearer tokens — which are not
+   * ambient credentials — and must trust it only because a guard, not the request, sets it.
+   */
+  authScheme?: 'cookie' | 'personal_access_token';
   /** Set by `TenantContextGuard` (steps 2–3). */
   tenant?: TenantContext;
   /** Set by `TenantContextGuard` alongside the context; carries role and client organization. */

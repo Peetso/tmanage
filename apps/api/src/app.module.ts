@@ -102,6 +102,7 @@ import { RoleEditModule } from './modules/admin/role-edit.controller.js';
 import { MemberBulkRoleModule } from './modules/tenancy/member-bulk-role.controller.js';
 import { AdminSessionsModule } from './modules/identity/admin-sessions.controller.js';
 import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
+import { PersonalAccessTokensModule } from './modules/personal-access-tokens/personal-access-tokens.controller.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
@@ -978,6 +979,12 @@ export class AppModule {
         // row-capped (413), and formula-injection-guarded through the shared `toCsv`. File-disjoint
         // from the usage-alerts slice; reads `usage_counters` and adds no table.
         BillingUsageExportModule.register(),
+        // 0202. Personal access tokens — the Preferences → Security screen's backend: a member
+        // lists, creates (plaintext shown once) and revokes their own API tokens for the MCP
+        // server, behind `work.read`, scoped to their own membership. The Bearer authentication
+        // path is wired separately in `IdentityModule` + `SessionAuthGuard`. Self-contained and
+        // file-disjoint.
+        PersonalAccessTokensModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

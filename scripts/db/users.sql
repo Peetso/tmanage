@@ -189,6 +189,10 @@ GRANT SELECT ON `tmanage`.* TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`organizations`        TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`users`                TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`sessions`             TO 'tmanage_app'@'%';
+-- 0202 personal access tokens. INSERT (create), UPDATE (record last use, soft-revoke), SELECT
+-- (via the database-wide read). **No DELETE**: a token is retired by setting `revoked_at`, so
+-- the row — and its audit value — survives, the same posture the credential tables take.
+GRANT INSERT, UPDATE ON `tmanage`.`personal_access_tokens`       TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`memberships`          TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`workspaces`           TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`projects`             TO 'tmanage_app'@'%';

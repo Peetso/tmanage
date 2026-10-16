@@ -61,6 +61,16 @@ export class CsrfGuard implements CanActivate {
     if (isPublic) return true;
 
     const state = requireRequestState(request);
+
+    // A personal access token is not an ambient credential — a browser never attaches it to a
+    // cross-site request the way it attaches a cookie — so CSRF does not apply (0202). The skip
+    // keys strictly off the server-set `authScheme`, which `SessionAuthGuard` sets to
+    // `personal_access_token` only on the successful Bearer path, and that path runs only when
+    // there is no session cookie. A request carrying a cookie therefore never reaches this skip,
+    // even if it also carries a Bearer header. The marker is produced by a guard, never read off
+    // the request, which is why it is safe to trust here.
+    if (state.authScheme === 'personal_access_token') return true;
+
     const session = state.session;
     if (!session) {
       // Unreachable through the registered pipeline — a non-public route has already been

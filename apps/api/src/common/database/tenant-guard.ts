@@ -67,6 +67,11 @@ import { createHash } from 'node:crypto';
 export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> = Object.freeze({
   organizations: 'id',
   memberships: 'organization_id',
+  // 0202. Per-member API credentials for the MCP server. Tenant-owned: a token names one
+  // organization and one membership, and an unscoped read would be every studio's tokens at
+  // once. The Bearer authentication read by `token_hash` is the one unscoped path, and it goes
+  // through `bootstrapRead` with a mandatory reason, not through the guard.
+  personal_access_tokens: 'organization_id',
   workspaces: 'organization_id',
   projects: 'organization_id',
   project_memberships: 'organization_id',

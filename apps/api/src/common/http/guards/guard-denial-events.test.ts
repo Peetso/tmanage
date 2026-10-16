@@ -52,6 +52,9 @@ describe('SessionAuthGuard records the missing-session refusal', () => {
       { authenticate } as unknown as SessionService,
       config,
       recorder,
+      // The Bearer path is never reached here — these requests carry no Authorization header —
+      // so a stub authenticator that is never called satisfies the constructor (0202).
+      { authenticate: () => Promise.reject(new Error('unused')) } as never,
     );
 
   it('writes exactly one missing_session event and still refuses 401', async () => {
