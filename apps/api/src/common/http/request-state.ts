@@ -45,6 +45,15 @@ export interface RequestState {
    * ambient credentials — and must trust it only because a guard, not the request, sets it.
    */
   authScheme?: 'cookie' | 'personal_access_token';
+  /**
+   * The organization and membership a personal access token is bound to (0202). Set by
+   * `SessionAuthGuard` only on the successful Bearer path, from the token row itself — never read
+   * off the request. `TenantContextGuard` enforces it: a PAT may act only in its own organization,
+   * so a resolved org that is not this one is refused with the same 404 as any other cross-tenant
+   * attempt. A token names one membership of one org; it is not a key to every org its member
+   * belongs to.
+   */
+  personalAccessToken?: { readonly organizationId: string; readonly membershipId: string };
   /** Set by `TenantContextGuard` (steps 2–3). */
   tenant?: TenantContext;
   /** Set by `TenantContextGuard` alongside the context; carries role and client organization. */

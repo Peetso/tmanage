@@ -8,11 +8,13 @@ import {
   Module,
   Param,
   Post,
+  createParamDecorator,
 } from '@nestjs/common';
-import type { DynamicModule, Provider } from '@nestjs/common';
+import type { DynamicModule, ExecutionContext, Provider } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
-import { ApiError } from '../../common/http/errors.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { requestState } from '../../common/http/request-state.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { PersonalAccessTokensService } from './personal-access-tokens.service.js';
@@ -39,6 +41,36 @@ import type {
  */
 
 const PERSONAL_ACCESS_TOKENS_SERVICE = Symbol.for('tmanage.PersonalAccessTokensService');
+
+/**
+ * How `SessionAuthGuard` authenticated this request. Read from the server-set request state (not
+ * from the request), so a controller can require a true interactive session for an action that a
+ * token must not perform.
+ */
+const AuthScheme = createParamDecorator(
+  (_data: unknown, context: ExecutionContext): string | undefined =>
+    requestState(context.switchToHttp().getRequest())?.authScheme,
+);
+
+/**
+ * Managing tokens is a session-only action (0202). A personal access token must not create or
+ * revoke tokens: that would let a single leaked token mint fresh long-lived credentials, so
+ * revoking the leaked one no longer ends the access — a privilege-persistence escalation beyond
+ * the member's own interactive reach. The member manages their tokens from the Security screen,
+ * behind a real cookie session (and therefore behind CSRF and the full re-auth posture); a token
+ * presented on this route is refused with the generic `forbidden`.
+ */
+function requireInteractiveSession(authScheme: string | undefined): void {
+  if (authScheme !== 'cookie') {
+    throw new ApiError(
+      403,
+      'forbidden',
+      MESSAGES.forbidden,
+      undefined,
+      'session_required_for_token_management',
+    );
+  }
+}
 
 interface CreateTokenBody {
   readonly name?: unknown;
@@ -70,7 +102,9 @@ export class PersonalAccessTokensController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Body() body: CreateTokenBody,
+    @AuthScheme() authScheme: string | undefined,
   ): Promise<CreatedPersonalAccessTokenView> {
+    requireInteractiveSession(authScheme);
     const name = typeof body?.name === 'string' ? body.name : undefined;
     if (name === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -89,7 +123,9 @@ export class PersonalAccessTokensController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Param('tokenId') tokenId: string,
+    @AuthScheme() authScheme: string | undefined,
   ): Promise<void> {
+    requireInteractiveSession(authScheme);
     if (typeof tokenId !== 'string' || tokenId === '') {
       throw new ApiError(400, 'validation_failed', 'tokenId is required', [
         { field: 'tokenId', message: 'must be a non-empty string' },

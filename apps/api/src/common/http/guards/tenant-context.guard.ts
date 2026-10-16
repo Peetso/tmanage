@@ -98,6 +98,28 @@ export class TenantContextGuard implements CanActivate {
       throw error;
     }
 
+    // A personal access token may act only in the organization it was created in (0202). The
+    // resolver has just proved the member belongs to the requested org, but a token is bound to
+    // ONE org, not to every org its member is in — so a resolved org that is not the token's is
+    // refused here, before any principal is loaded. The refusal is the same 404 (and the same
+    // fixed `organizationNotFound` body) a non-member or unknown-slug attempt gets, so a token
+    // cannot distinguish "that org is not yours" from "that org does not exist"; the specific
+    // cause travels to the log on the audit code, exactly as `MembershipNotResolvedError` does.
+    const patBinding = state.personalAccessToken;
+    if (
+      state.authScheme === 'personal_access_token' &&
+      patBinding !== undefined &&
+      resolved.context.organizationId !== patBinding.organizationId
+    ) {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.organizationNotFound,
+        undefined,
+        'token_organization_mismatch',
+      );
+    }
+
     state.membership = resolved;
     state.tenant = resolved.context;
     state.principal = await this.database.read(resolved.context, (runner) =>

@@ -39,13 +39,14 @@ function fail(error: unknown): ToolResult {
   return { content: [{ type: 'text', text: message }], isError: true };
 }
 
-const orgArg = {
-  org: z
-    .string()
-    .optional()
-    .describe('Organization slug. Omit to use the token’s first (or pinned) organization.'),
-};
-
+/**
+ * There is deliberately no per-call organization argument. A personal access token is bound to
+ * exactly one organization (TManage 0202), so the working org is the token's own — resolved once
+ * from `list_organizations`, which the API now scopes to that single org. Letting a caller name an
+ * organization would only invite 404s (the API refuses the token against any other org) and give
+ * the misleading impression a token reaches more than it does. `TMANAGE_ORG_SLUG` can still pin
+ * the slug for the operator who runs the server.
+ */
 export function registerTools(server: McpServer, client: TManageApiClient): void {
   server.registerTool(
     'list_organizations',
@@ -76,12 +77,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
         query: z.string().min(1).max(300).describe('The search text.'),
         project_id: z.string().optional().describe('Restrict to one project.'),
         limit: z.number().int().min(1).max(50).optional().describe('Max results (default 20).'),
-        ...orgArg,
       },
     },
     async (args) => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const results = await client.search(orgSlug, args.query, {
           ...(args.project_id !== undefined ? { projectId: args.project_id } : {}),
           ...(args.limit !== undefined ? { limit: args.limit } : {}),
@@ -99,11 +99,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
       title: 'List my work for today',
       description:
         'Work items that need the token’s member today — overdue, due soon, or assigned.',
-      inputSchema: { ...orgArg },
+      inputSchema: {},
     },
-    async (args) => {
+    async () => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const items = await client.listMyWork(orgSlug);
         return ok(`${items.length} item(s) for today in "${orgSlug}".`, { orgSlug, items });
       } catch (error) {
@@ -120,12 +120,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
       inputSchema: {
         mode: z.string().optional().describe('Inbox mode filter.'),
         limit: z.number().int().min(1).max(100).optional().describe('Max bundles.'),
-        ...orgArg,
       },
     },
     async (args) => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const items = await client.listInbox(orgSlug, {
           ...(args.mode !== undefined ? { mode: args.mode } : {}),
           ...(args.limit !== undefined ? { limit: args.limit } : {}),
@@ -144,12 +143,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
       description: 'Fetch one work item by id.',
       inputSchema: {
         work_item_id: z.string().min(1).describe('The work item id.'),
-        ...orgArg,
       },
     },
     async (args) => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const workItem = await client.getWorkItem(orgSlug, args.work_item_id);
         return ok(`Work item "${workItem.title}" (${workItem.state}).`, { orgSlug, workItem });
       } catch (error) {
@@ -165,12 +163,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
       description: 'Fetch one project by id, including its status.',
       inputSchema: {
         project_id: z.string().min(1).describe('The project id.'),
-        ...orgArg,
       },
     },
     async (args) => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const project = await client.getProject(orgSlug, args.project_id);
         return ok(`Project "${project.name}" (${project.status}).`, { orgSlug, project });
       } catch (error) {
@@ -186,12 +183,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
       description: 'Fetch one document by id, including its body.',
       inputSchema: {
         document_id: z.string().min(1).describe('The document id.'),
-        ...orgArg,
       },
     },
     async (args) => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const document = await client.getDocument(orgSlug, args.document_id);
         return ok(`Document "${document.title}".`, { orgSlug, document });
       } catch (error) {
@@ -205,11 +201,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
     {
       title: 'List projects',
       description: 'List the projects in a TManage organization with their status.',
-      inputSchema: { ...orgArg },
+      inputSchema: {},
     },
-    async (args) => {
+    async () => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const projects = await client.listProjects(orgSlug);
         return ok(`${projects.length} project(s) in "${orgSlug}".`, { orgSlug, projects });
       } catch (error) {
@@ -234,12 +230,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
           .describe('Who can see the item.'),
         start_at: z.string().nullish().describe('ISO-8601 start instant, or null.'),
         due_at: z.string().nullish().describe('ISO-8601 due instant, or null.'),
-        ...orgArg,
       },
     },
     async (args) => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const workItem = await client.createWorkItem(orgSlug, {
           projectId: args.project_id,
           title: args.title,
@@ -264,12 +259,11 @@ export function registerTools(server: McpServer, client: TManageApiClient): void
       inputSchema: {
         work_item_id: z.string().min(1).describe('The work item to comment on.'),
         body: z.string().min(1).max(5000).describe('The comment text.'),
-        ...orgArg,
       },
     },
     async (args) => {
       try {
-        const orgSlug = await client.resolveOrgSlug(args.org);
+        const orgSlug = await client.resolveOrgSlug();
         const comment = await client.addComment(orgSlug, args.work_item_id, args.body);
         return ok(`Added comment ${comment.id}.`, { orgSlug, comment });
       } catch (error) {

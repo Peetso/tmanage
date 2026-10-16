@@ -122,6 +122,19 @@ describe('TManage MCP tools', () => {
     );
   });
 
+  it('exposes no org argument — the token’s own organization is always used', () => {
+    const defs = new Map<string, { inputSchema?: Record<string, unknown> }>();
+    const fake = {
+      registerTool(name: string, def: { inputSchema?: Record<string, unknown> }) {
+        defs.set(name, def);
+      },
+    } as unknown as McpServer;
+    registerTools(fake, stubClient());
+    for (const [, def] of defs) {
+      expect(Object.keys(def.inputSchema ?? {})).not.toContain('org');
+    }
+  });
+
   it('search returns results and threads the resolved org through', async () => {
     const tools = collectTools(stubClient());
     const result = await tools.get('search_workspace')!({ query: 'fix' });

@@ -83,6 +83,14 @@ export class SessionAuthGuard implements CanActivate {
           const authed = await this.personalAccessTokens.authenticate(bearer, state.correlationId);
           state.session = { sessionId: `pat:${authed.tokenId}`, userId: authed.userId };
           state.authScheme = 'personal_access_token';
+          // The token is bound to ONE organization and membership (0202). Carry that binding so
+          // `TenantContextGuard` can refuse the token against any other org the member belongs to —
+          // a token is not a key to every tenant its member is in. Produced from the token row,
+          // never read off the request, which is why it is trusted downstream.
+          state.personalAccessToken = {
+            organizationId: authed.organizationId,
+            membershipId: authed.membershipId,
+          };
           return true;
         } catch (error) {
           if (error instanceof PersonalAccessTokenNotAuthenticatedError) {

@@ -8,8 +8,9 @@
  * or a tenant: whatever the member may do, the token may do, and nothing more.
  *
  * Routes are tenant-scoped under `v1/organizations/:orgSlug/...`. The one exception is
- * `GET /v1/organizations`, which lists the memberships the token belongs to; the client uses it
- * to resolve the working `orgSlug` when the caller does not name one.
+ * `GET /v1/organizations`, which under a personal access token returns the single organization the
+ * token is bound to (TManage 0202); the client uses it to resolve the working `orgSlug`. A token is
+ * bound to one org, so there is no org to choose — the API refuses the token against any other.
  */
 
 export interface OrganizationSummary {
