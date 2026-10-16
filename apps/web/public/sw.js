@@ -7,6 +7,12 @@
  * a push subscription.
  *
  * Served from `/sw.js`, so its scope is the whole origin and it controls every navigation.
+ *
+ * A new build does **not** skip waiting on its own (slice 08, the updater intent): when a worker
+ * is already in control, a freshly installed worker parks in the waiting state until a window
+ * posts `SKIP_WAITING`, so the "update available" toast can offer the reload on the user's terms.
+ * On the very first install there is no controller to wait behind, so the worker still activates
+ * immediately and the shell is live at once.
  */
 
 const CACHE = 'tmanage-shell-v1';
@@ -17,12 +23,15 @@ const OFFLINE_URL = '/offline';
 const PRECACHE = [OFFLINE_URL, '/brand/tmanage-icon.svg'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
+});
+
+// The window's opt-in to the new build: take over now, which fires `controllerchange` in the
+// page so the update toast can reload into the new worker.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {

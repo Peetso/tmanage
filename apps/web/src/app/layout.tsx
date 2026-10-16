@@ -6,6 +6,7 @@ import './globals.css';
 import { AuthBoundaryProvider } from '../components/providers/AuthBoundaryProvider';
 import { QueryProvider } from '../components/providers/QueryProvider';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
+import { UpdateToast } from '../components/pwa/UpdateToast';
 
 /**
  * Manrope, self-hosted.
@@ -104,6 +105,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
         </QueryProvider>
         <ServiceWorkerRegister />
+        {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
+            region that offers a reload when a new build is waiting to take over. */}
+        <UpdateToast />
       </body>
     </html>
   );

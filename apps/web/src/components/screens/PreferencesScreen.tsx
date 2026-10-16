@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { NotificationOptIn } from '../pwa/NotificationOptIn';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getPreferences, updatePreferences } from '../../lib/api/preferences';
 import type {
@@ -191,6 +192,13 @@ export function PreferencesScreen({
             </div>
           </form>
         ) : null}
+      </section>
+
+      {/* Module 22's desktop companion: a user-initiated local-notifications opt-in. It stands
+          apart from the server-backed appearance form above because the permission is a per-browser
+          fact the server never holds — the switch requests it only on an explicit gesture. */}
+      <section className="tm-panel">
+        <NotificationOptIn />
       </section>
     </AppShell>
   );
