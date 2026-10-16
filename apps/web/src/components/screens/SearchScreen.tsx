@@ -9,6 +9,7 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { search } from '../../lib/api/search';
 import type { SearchResultKind } from '../../lib/api/search';
+import { getResolvedFeatureFlags } from '../../lib/api/admin-feature-flags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -66,8 +67,18 @@ export function SearchScreen({
     enabled: query !== '',
   });
 
+  // The copilot is an optional module: its "Ask" affordance appears only when the `copilot` feature
+  // flag is resolved on for this org. While the flag read is pending or fails, the affordance stays
+  // hidden — no dead button — and the copilot route's own 404 (flag off) is the belt to this braces.
+  const flags = useQuery({
+    queryKey: ['resolved-feature-flags', organizationSlug],
+    queryFn: () => getResolvedFeatureFlags(api, organizationSlug),
+  });
+  const copilotEnabled = flags.data?.flags.copilot === true;
+
   const hits = results.data ?? [];
   const total = hits.length;
+  const askQuery = (query !== '' ? query : draft).trim();
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -102,10 +113,22 @@ export function SearchScreen({
               Matches titles across work items, documents and meetings you can see.
             </span>
           </div>
-          <div>
+          <div className="tm-row">
             <button type="submit" className="tm-button" disabled={draft.trim() === ''}>
               Search
             </button>
+            {copilotEnabled ? (
+              <Link
+                href={
+                  askQuery === ''
+                    ? `/${encodeURIComponent(organizationSlug)}/copilot`
+                    : `/${encodeURIComponent(organizationSlug)}/copilot?q=${encodeURIComponent(askQuery)}`
+                }
+                className="tm-button tm-button--outline"
+              >
+                Ask copilot
+              </Link>
+            ) : null}
           </div>
         </form>
       </section>

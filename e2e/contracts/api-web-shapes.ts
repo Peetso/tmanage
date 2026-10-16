@@ -202,6 +202,7 @@ import type { DecisionWorkLinkView as ApiDecisionWorkLinkView } from '../../apps
 import type { PersonAllocationView as ApiPersonAllocationView } from '../../apps/api/src/modules/people/allocations.controller.js';
 import type { SearchResultView as ApiSearchResultView } from '../../apps/api/src/modules/search/search.service.js';
 import type { CommandView as ApiCommandView } from '../../apps/api/src/modules/search/commands.controller.js';
+import type { CopilotAnswerView as ApiCopilotAnswerView } from '../../apps/api/src/modules/copilot/copilot.service.js';
 import type { RealtimeTicketView as ApiRealtimeTicketView } from '../../apps/api/src/modules/realtime/realtime.controller.js';
 import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api/src/modules/identity/session.service.js';
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
@@ -630,6 +631,7 @@ import type { RealtimeTicket as WebRealtimeTicket } from '../../apps/web/src/lib
 import type { SearchResult as WebSearchResult } from '../../apps/web/src/lib/api/search';
 import type { ContactSubmitView as WebContactSubmitView } from '../../apps/web/src/lib/api/contact';
 import type { Command as WebCommand } from '../../apps/web/src/lib/api/commands';
+import type { CopilotAnswerView as WebCopilotAnswerView } from '../../apps/web/src/lib/api/copilot';
 import type {
   EstablishedSession as WebEstablishedSession,
   SessionSummary as WebSessionSummary,
@@ -2151,6 +2153,15 @@ type _searchScope = Assert<Exact<ApiSearchScopeView, WebSearchScope>>;
  * a fixed navigation or allowlisted quick action, never a row.
  */
 type _command = Assert<Exact<ApiCommandView, WebCommand>>;
+
+/**
+ * Module 16 AI copilot (slice 05). `CopilotAnswerView` ↔ `CopilotAnswerView` — the answer view
+ * `POST …/copilot/ask` returns. Paired Exact, not exempt: slice 05 ships `CopilotAnswerView`, a real
+ * web consumer, so the `answer`/`evidence`/`permissionBoundary`/`nextSafeAction`/`provider` shape,
+ * the nested evidence `{source, link}`, and the permission-boundary `scope` union
+ * (`organization | assigned-projects | client-projection`) are held identical on both sides.
+ */
+type _copilotAnswer = Assert<Exact<ApiCopilotAnswerView, WebCopilotAnswerView>>;
 
 /**
  * HOME-03 My Day. The response is one projection — its per-row entry is inlined on both sides
