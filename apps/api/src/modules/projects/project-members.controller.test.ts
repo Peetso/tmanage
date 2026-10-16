@@ -19,6 +19,7 @@ import {
   AUTHENTICATION_EVENT_RECORDER,
   MEMBERSHIPS_REPOSITORY,
   PROJECTS_REPOSITORY,
+  PERSONAL_ACCESS_TOKEN_AUTHENTICATOR,
   PROJECT_MEMBERSHIPS_REPOSITORY,
   PROJECT_MEMBERSHIPS_SERVICE,
   SESSION_SERVICE,
@@ -142,6 +143,9 @@ const audit = { recordDenial: vi.fn(async () => false) };
     { provide: SESSION_SERVICE, useValue: sessions },
     { provide: API_CONFIG, useValue: config },
     { provide: AUTHENTICATION_EVENT_RECORDER, useValue: eventRecorder },
+    // SessionAuthGuard reaches for a Bearer personal access token only when no cookie is present
+    // (0202); these cases are cookie/anonymous, so it is never called, but DI still needs it bound.
+    { provide: PERSONAL_ACCESS_TOKEN_AUTHENTICATOR, useValue: { authenticate: vi.fn() } },
     { provide: AUDIT_SERVICE, useValue: audit },
     { provide: Reflector, useClass: Reflector },
     { provide: APP_GUARD, useClass: SessionAuthGuard },

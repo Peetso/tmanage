@@ -16,6 +16,7 @@ import {
   API_CONFIG,
   AUTHENTICATION_EVENT_RECORDER,
   NOTIFICATION_PREFERENCES_SERVICE,
+  PERSONAL_ACCESS_TOKEN_AUTHENTICATOR,
   SESSION_SERVICE,
 } from '../../common/http/tokens.js';
 import type { AuthenticationEventRecorder } from '../../common/http/authentication-event-recorder.js';
@@ -103,6 +104,10 @@ const eventRecorder: AuthenticationEventRecorder = { recordGuardRefusal: () => {
     { provide: SESSION_SERVICE, useValue: sessions },
     { provide: API_CONFIG, useValue: config },
     { provide: AUTHENTICATION_EVENT_RECORDER, useValue: eventRecorder },
+    // SessionAuthGuard falls back to a Bearer personal access token only when no cookie is
+    // present (0202); this file exercises the cookie/anonymous paths, so the authenticator is
+    // never called, but the DI graph still needs it bound.
+    { provide: PERSONAL_ACCESS_TOKEN_AUTHENTICATOR, useValue: { authenticate: vi.fn() } },
     { provide: APP_GUARD, useClass: SessionAuthGuard },
     { provide: APP_GUARD, useClass: TestContextGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

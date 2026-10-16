@@ -13,6 +13,7 @@ import {
   API_CONFIG,
   AUDIT_SERVICE,
   AUTHENTICATION_EVENT_RECORDER,
+  PERSONAL_ACCESS_TOKEN_AUTHENTICATOR,
   SESSION_SERVICE,
 } from '../../common/http/tokens.js';
 import type { AuthenticationEventRecorder } from '../../common/http/authentication-event-recorder.js';
@@ -59,6 +60,9 @@ const audit = {} as unknown;
     { provide: API_CONFIG, useValue: config },
     { provide: AUTHENTICATION_EVENT_RECORDER, useValue: eventRecorder },
     { provide: AUDIT_SERVICE, useValue: audit },
+    // SessionAuthGuard reaches for a Bearer personal access token only when no cookie is present
+    // (0202); this route is anonymous, so it is never called, but DI still needs it bound.
+    { provide: PERSONAL_ACCESS_TOKEN_AUTHENTICATOR, useValue: { authenticate: vi.fn() } },
     { provide: APP_GUARD, useClass: SessionAuthGuard },
     { provide: APP_GUARD, useClass: CapabilityGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
