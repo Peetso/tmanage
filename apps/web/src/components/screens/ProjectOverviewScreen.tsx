@@ -405,13 +405,12 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
   });
 
   const create = useMutation({
-    mutationFn: () =>
-      createProjectMilestone(api, organizationSlug, projectId, {
-        title: title.trim(),
-        dueOn: dueOn === '' ? null : dueOn,
-        status,
-        published: publishNow,
-      }),
+    mutationFn: (vars: {
+      title: string;
+      dueOn: string | null;
+      status: MilestoneStatus;
+      published: boolean;
+    }) => createProjectMilestone(api, organizationSlug, projectId, vars),
     onSuccess: () => {
       void queries.invalidateQueries({
         queryKey: ['project-milestones', organizationSlug, projectId],
@@ -469,7 +468,13 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
         className="tm-stack"
         onSubmit={(event) => {
           event.preventDefault();
-          if (canCreate) create.mutate();
+          if (canCreate)
+            create.mutate({
+              title: title.trim(),
+              dueOn: dueOn === '' ? null : dueOn,
+              status,
+              published: publishNow,
+            });
         }}
       >
         <div className="tm-field">
@@ -539,7 +544,9 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
         ) : null}
         {create.isSuccess ? (
           <InlineAlert tone="success" title="Milestone added" live>
-            {publishNow
+            {/* Report what was actually added, not the live form state: `onSuccess` resets
+                `publishNow` to true, so reading it here would call a draft "live". */}
+            {create.variables.published
               ? 'Your milestone is live in the client portal.'
               : 'Your draft is saved. It is not visible to the client.'}
           </InlineAlert>

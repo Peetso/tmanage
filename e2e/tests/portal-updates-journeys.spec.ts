@@ -94,6 +94,37 @@ test.describe.serial('the project-updates journeys', () => {
     }
   });
 
+  test('the milestone banner reports a draft as a draft', async ({ browser }) => {
+    const { context, page } = await openAs(browser, world().northstar.owner.id);
+    try {
+      await page.goto(`/northstar-studio/projects/${world().northstar.projectId}`);
+
+      // The milestone composer resets "Publish to the client now" to checked on success, so a
+      // banner derived from the live checkbox would call a draft "live". Scope to the panel: the
+      // update composer above carries the same draft copy.
+      const milestones = page.getByRole('region', { name: 'Milestones' });
+      await expect(milestones.getByRole('heading', { name: 'Milestones' })).toBeVisible();
+
+      await milestones.getByLabel('Title').fill('Launch review');
+      await milestones.getByRole('button', { name: 'Add milestone' }).click();
+      await expect(
+        milestones.getByText('Your milestone is live in the client portal.'),
+      ).toBeVisible();
+
+      await milestones.getByLabel('Title').fill('Internal milestone draft');
+      await milestones.getByLabel('Publish to the client now').uncheck();
+      await milestones.getByRole('button', { name: 'Add milestone' }).click();
+      await expect(
+        milestones.getByText('Your draft is saved. It is not visible to the client.'),
+      ).toBeVisible();
+      await expect(
+        milestones.getByText('Your milestone is live in the client portal.'),
+      ).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+
   test('the client sees the published update and not the draft', async ({ browser }) => {
     const { context, page } = await openAs(browser, world().atlas.reviewer.id);
     try {
