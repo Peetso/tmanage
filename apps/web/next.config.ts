@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next';
 import { validatePublicConfigForBuild } from './src/lib/public-config';
+import { staticAssetHeaderRules } from './src/lib/static-headers';
 
 /**
  * Next.js configuration.
@@ -64,6 +65,11 @@ const config: NextConfig = {
           },
         ],
       },
+      // Long-lived caching for the content-hashed build assets (and the self-hosted font). The
+      // catch-all rule above still matches these paths, so a static asset keeps the security
+      // headers and gains `Cache-Control`. See `src/lib/static-headers.ts` for why `public/`,
+      // HTML and `/v1/*` are deliberately excluded.
+      ...staticAssetHeaderRules(),
     ];
   },
 };
