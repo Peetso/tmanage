@@ -5,6 +5,17 @@ import type {
   PersonalAccessTokenView,
 } from '../../src/lib/api/personal-access-tokens';
 import type { InsightsPortfolio } from '../../src/lib/api/insights-portfolio';
+import type { BillingSeat } from '../../src/lib/api/billing-seats';
+import type { InvoiceSummary } from '../../src/lib/api/invoices';
+import type { OrgPolicyView } from '../../src/lib/api/policies';
+import type { PolicySimulationView } from '../../src/lib/api/policy-simulate';
+import type { WorkflowTemplateSummary } from '../../src/lib/api/automations';
+import type { AutomationScheduleSummary } from '../../src/lib/api/automation-schedules';
+import type { PersonSummary } from '../../src/lib/api/people';
+import type { UserPreferencesView } from '../../src/lib/api/preferences';
+import type { QuietHoursView } from '../../src/lib/api/quiet-hours';
+import type { ClientMilestone, PortalProject } from '../../src/lib/api/portal';
+import type { MaintenanceWindowView } from '../../src/lib/api/maintenance';
 
 /**
  * Fixtures and decorators shared by the visual-regression stories (the `[vr]`-tagged ones under
@@ -213,6 +224,315 @@ export const INSIGHTS_PORTFOLIO = {
   projectCount: 3,
   computedAt: '2026-09-20T10:00:00.000Z',
 } as unknown as InsightsPortfolio;
+
+/* ------------------------------------------------------------------ Billing */
+
+const BILLING_SEATS: readonly BillingSeat[] = [
+  {
+    id: 'seat-1',
+    membershipId: 'mem-ava',
+    assignedAt: '2026-09-01T09:00:00.000Z',
+    releasedAt: null,
+  },
+  {
+    id: 'seat-2',
+    membershipId: 'mem-liam',
+    assignedAt: '2026-09-18T14:30:00.000Z',
+    releasedAt: null,
+  },
+];
+
+/** The seats list: two active seats against the plan. */
+export function billingSeatsClient(): ApiClient {
+  return clientOver(({ url }) =>
+    url.includes('/billing/seats')
+      ? json({ seats: BILLING_SEATS, activeCount: BILLING_SEATS.length })
+      : json({ status: 404 }, 404),
+  );
+}
+
+const INVOICES: readonly InvoiceSummary[] = [
+  {
+    id: 'inv-3',
+    number: 'TM-2026-0003',
+    periodStart: '2026-09-01',
+    periodEnd: '2026-09-30',
+    amountCents: 24900,
+    currency: 'USD',
+    status: 'open',
+    issuedAt: '2026-10-01',
+  },
+  {
+    id: 'inv-2',
+    number: 'TM-2026-0002',
+    periodStart: '2026-08-01',
+    periodEnd: '2026-08-31',
+    amountCents: 24900,
+    currency: 'USD',
+    status: 'paid',
+    issuedAt: '2026-09-01',
+  },
+  {
+    id: 'inv-1',
+    number: 'TM-2026-0001',
+    periodStart: '2026-07-01',
+    periodEnd: '2026-07-31',
+    amountCents: 9900,
+    currency: 'USD',
+    status: 'paid',
+    issuedAt: '2026-08-01',
+  },
+];
+
+/** The invoice history, newest first; no invoice selected, so the detail stays closed. */
+export function invoicesClient(): ApiClient {
+  return clientOver(({ url }) =>
+    url.includes('/billing/invoices') ? json({ invoices: INVOICES }) : json({ status: 404 }, 404),
+  );
+}
+
+/* ------------------------------------------------------------------ Admin policies */
+
+const ORG_POLICY: OrgPolicyView = {
+  policy: {
+    session_max_hours: 72,
+    invite_domain_allowlist: ['northstar.example', 'contractors.northstar.example'],
+    guest_access_enabled: false,
+  },
+};
+
+/** The stored access policy the admin form seeds from. */
+export function orgPolicyClient(): ApiClient {
+  return clientOver(({ url }) =>
+    url.includes('/policies') ? json(ORG_POLICY) : json({ status: 404 }, 404),
+  );
+}
+
+const POLICY_DECISION: PolicySimulationView = {
+  result: {
+    memberId: 'mem-ava',
+    role: 'manager',
+    capability: 'project.manage',
+    allowed: true,
+    decidingRule: 'role:manager grants project.manage',
+    detail: 'Managers may manage the projects they are assigned to.',
+    denialCode: null,
+  },
+};
+
+/** Answers the read-only "can this member do this?" POST with an allow decision. */
+export function policySimulateClient(): ApiClient {
+  return clientOver(({ url, method }) =>
+    method === 'POST' && url.includes('/policies/simulate')
+      ? json(POLICY_DECISION)
+      : json({ status: 404 }, 404),
+  );
+}
+
+/* ------------------------------------------------------------------ Automations */
+
+const AUTOMATION_TEMPLATES: readonly WorkflowTemplateSummary[] = [
+  {
+    id: 'tpl-1',
+    name: 'Notify owner on new request',
+    triggerKind: 'request_submitted',
+    actionKind: 'notify_owner',
+    config: {},
+    enabled: true,
+    createdBy: 'mem-ava',
+    createdAt: '2026-09-10T09:00:00.000Z',
+  },
+  {
+    id: 'tpl-2',
+    name: 'Weekly digest email',
+    triggerKind: 'meeting_scheduled',
+    actionKind: 'send_email_digest',
+    config: {},
+    enabled: false,
+    createdBy: 'mem-liam',
+    createdAt: '2026-09-12T09:00:00.000Z',
+  },
+];
+
+/** The organization's workflow templates — one enabled, one disabled. */
+export function automationTemplatesClient(): ApiClient {
+  return clientOver(({ url }) =>
+    url.includes('/automations/templates')
+      ? json({ templates: AUTOMATION_TEMPLATES })
+      : json({ status: 404 }, 404),
+  );
+}
+
+const AUTOMATION_SCHEDULES: readonly AutomationScheduleSummary[] = [
+  {
+    id: 'sch-1',
+    templateId: 'tpl-1',
+    spec: { interval: 'daily', hour: 9 },
+    nextRunAt: '2026-10-18T09:00:00.000Z',
+    enabled: true,
+    createdAt: '2026-09-20T09:00:00.000Z',
+  },
+  {
+    id: 'sch-2',
+    templateId: 'tpl-2',
+    spec: { interval: 'weekly', hour: 8, dayOfWeek: 1 },
+    nextRunAt: '2026-10-20T08:00:00.000Z',
+    enabled: false,
+    createdAt: '2026-09-21T09:00:00.000Z',
+  },
+];
+
+/** The scheduled triggers list — a daily and a weekly schedule. */
+export function automationSchedulesClient(): ApiClient {
+  return clientOver(({ url }) =>
+    url.includes('/automations/schedules')
+      ? json({ schedules: AUTOMATION_SCHEDULES })
+      : json({ status: 404 }, 404),
+  );
+}
+
+/* ------------------------------------------------------------------ People directory */
+
+const PEOPLE: readonly PersonSummary[] = [
+  { userId: 'u-ava', displayName: 'Ava Romero', role: 'owner', status: 'active', projectCount: 4 },
+  {
+    userId: 'u-liam',
+    displayName: 'Liam Osei',
+    role: 'manager',
+    status: 'active',
+    projectCount: 2,
+  },
+  {
+    userId: 'u-noa',
+    displayName: 'Noa Feldman',
+    role: 'member',
+    status: 'active',
+    projectCount: 1,
+  },
+  {
+    userId: 'u-sana',
+    displayName: 'Sana Qureshi',
+    role: 'member',
+    status: 'active',
+    projectCount: 0,
+  },
+];
+
+/** The organization roster the directory lists; the search starts empty, so all rows show. */
+export function peopleClient(): ApiClient {
+  return clientOver(({ url }) =>
+    url.includes('/people')
+      ? json({ people: PEOPLE, nextAfter: null })
+      : json({ status: 404 }, 404),
+  );
+}
+
+/* ------------------------------------------------------------------ Preferences */
+
+const PREFERENCES: UserPreferencesView = {
+  theme: 'system',
+  locale: 'en-GB',
+  density: 'comfortable',
+};
+
+/** The stored appearance / language row the preferences form seeds from. */
+export function preferencesClient(): ApiClient {
+  return clientOver(({ url }) =>
+    url.includes('/me/preferences') ? json(PREFERENCES) : json({ status: 404 }, 404),
+  );
+}
+
+const QUIET_HOURS: QuietHoursView = {
+  enabled: true,
+  startTime: '21:00',
+  endTime: '07:30',
+  timezone: 'Europe/London',
+  days: [1, 2, 3, 4, 5],
+};
+
+/** The stored do-not-disturb window the quiet-hours form seeds from. */
+export function quietHoursClient(): ApiClient {
+  return clientOver(({ url }) =>
+    url.includes('/preferences/quiet-hours') ? json(QUIET_HOURS) : json({ status: 404 }, 404),
+  );
+}
+
+/* ------------------------------------------------------------------ Client portal */
+
+const PORTAL_PROJECTS: readonly PortalProject[] = [
+  {
+    id: 'proj-rebrand',
+    name: 'Rebrand',
+    status: 'active',
+    committedAt: '2026-12-15T00:00:00.000Z',
+    forecastAt: '2026-12-20T00:00:00.000Z',
+  },
+];
+
+const PORTAL_MILESTONES: readonly ClientMilestone[] = [
+  {
+    id: 'ms-1',
+    projectId: 'proj-rebrand',
+    title: 'Discovery complete',
+    dueOn: '2026-10-10',
+    status: 'met',
+    createdAt: '2026-09-01T09:00:00.000Z',
+  },
+  {
+    id: 'ms-2',
+    projectId: 'proj-rebrand',
+    title: 'Design system approved',
+    dueOn: '2026-11-05',
+    status: 'planned',
+    createdAt: '2026-09-01T09:00:00.000Z',
+  },
+  {
+    id: 'ms-3',
+    projectId: 'proj-rebrand',
+    title: 'Beta launch',
+    dueOn: '2026-12-01',
+    status: 'planned',
+    createdAt: '2026-09-01T09:00:00.000Z',
+  },
+];
+
+/**
+ * The client portal's first shared project and its published milestones. The milestones endpoint
+ * names the project in its path, so it is matched before the bare projects list.
+ */
+export function portalMilestonesClient(): ApiClient {
+  return clientOver(({ url }) => {
+    if (url.includes('/portal/projects/') && url.includes('/milestones')) {
+      return json({ milestones: PORTAL_MILESTONES });
+    }
+    if (url.includes('/portal/projects')) return json({ projects: PORTAL_PROJECTS });
+    return json({ status: 404 }, 404);
+  });
+}
+
+/* ------------------------------------------------------------------ Platform states */
+
+/** A degraded-service window the maintenance banner renders from, without a fetch. */
+export const MAINTENANCE_DEGRADED: MaintenanceWindowView = {
+  id: 'mw-degraded',
+  message:
+    'Search and exports are running slowly while we migrate a database. Everything else is working normally.',
+  severity: 'degraded',
+  startsAt: '2026-10-17T08:00:00.000Z',
+  endsAt: '2026-10-17T12:00:00.000Z',
+  active: true,
+};
+
+/** A full maintenance (down) window — the banner's most severe surface. */
+export const MAINTENANCE_DOWN: MaintenanceWindowView = {
+  id: 'mw-down',
+  message:
+    'TManage is briefly offline for scheduled maintenance. We expect to be back by 02:00 UTC.',
+  severity: 'down',
+  startsAt: '2026-10-18T01:00:00.000Z',
+  endsAt: '2026-10-18T02:00:00.000Z',
+  active: true,
+};
 
 /* ------------------------------------------------------------------ decorators */
 
