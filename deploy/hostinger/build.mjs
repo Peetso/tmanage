@@ -9,7 +9,15 @@
 //
 // Usage: pnpm deploy:hostinger   (from the repo root)
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -255,11 +263,12 @@ function pkgDir(pkg) {
 function zip() {
   rmSync(ZIP, { force: true });
   if (process.platform === 'win32') {
-    run('powershell', [
-      '-NoProfile',
-      '-Command',
-      `Compress-Archive -Path '${STAGE}\\*' -DestinationPath '${ZIP}' -Force`,
-    ]);
+    // Windows PowerShell 5.1's Compress-Archive stores entry names with backslashes
+    // (`web\src\lib\...`), which a Linux unzip need not treat as folders. The bsdtar that ships
+    // with Windows 10+ writes a standard zip with forward-slash names.
+    // By full path: under Git Bash a bare `tar` is GNU tar, which cannot write zip.
+    const bsdtar = join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'tar.exe');
+    run(bsdtar, ['-a', '-c', '-f', ZIP, '-C', STAGE, ...readdirSync(STAGE)]);
   } else {
     run('bash', ['-c', `cd '${STAGE}' && zip -qr '${ZIP}' .`]);
   }
