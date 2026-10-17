@@ -8,6 +8,7 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { simulatePolicy, type PolicySimulationView } from '../../lib/api/policy-simulate';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface PolicySimulationScreenProps {
@@ -38,6 +39,11 @@ export function PolicySimulationScreen({
   client,
 }: PolicySimulationScreenProps) {
   const api = client ?? browserApiClient();
+  // The standing barrier `useHydrated` documents: these are controlled inputs with no query to
+  // gate on, so the fieldset below ships disabled in the server render and enables only once React
+  // is live. Without it, on a cold compile the Simulate click can land before the submit handler is
+  // attached and is then lost, leaving the screen with neither a result nor an error.
+  const hydrated = useHydrated();
 
   const [memberId, setMemberId] = useState('');
   const [capability, setCapability] = useState<string>(CAPABILITIES[0]);
@@ -79,52 +85,54 @@ export function PolicySimulationScreen({
             if (!simulate.isPending && memberId.trim().length > 0) simulate.mutate();
           }}
         >
-          <Field
-            label="Member id"
-            name="memberId"
-            value={memberId}
-            onChange={(event) => setMemberId(event.target.value)}
-            hint="The membership id of the person to evaluate."
-            required
-          />
-          <Select
-            label="Capability"
-            name="capability"
-            value={capability}
-            onChange={(event) => setCapability(event.target.value)}
-            hint="The action to test."
-          >
-            {CAPABILITIES.map((cap) => (
-              <option key={cap} value={cap}>
-                {cap}
-              </option>
-            ))}
-          </Select>
-          <Field
-            label="Project id (optional)"
-            name="projectId"
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            hint="Leave empty to evaluate an organization-level action."
-          />
-
-          {simulate.isError ? (
-            <InlineAlert tone="danger" title="Could not run the simulation" live>
-              {describeError(simulate.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={simulate.isPending}
-              loadingLabel="Simulating"
+          <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+            <Field
+              label="Member id"
+              name="memberId"
+              value={memberId}
+              onChange={(event) => setMemberId(event.target.value)}
+              hint="The membership id of the person to evaluate."
+              required
+            />
+            <Select
+              label="Capability"
+              name="capability"
+              value={capability}
+              onChange={(event) => setCapability(event.target.value)}
+              hint="The action to test."
             >
-              Simulate
-            </Button>
-          </div>
+              {CAPABILITIES.map((cap) => (
+                <option key={cap} value={cap}>
+                  {cap}
+                </option>
+              ))}
+            </Select>
+            <Field
+              label="Project id (optional)"
+              name="projectId"
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+              hint="Leave empty to evaluate an organization-level action."
+            />
+
+            {simulate.isError ? (
+              <InlineAlert tone="danger" title="Could not run the simulation" live>
+                {describeError(simulate.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={simulate.isPending}
+                loadingLabel="Simulating"
+              >
+                Simulate
+              </Button>
+            </div>
+          </fieldset>
         </form>
 
         {result ? (

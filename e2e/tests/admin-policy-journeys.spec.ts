@@ -131,6 +131,12 @@ test.describe.serial('the admin access-policy and simulation journeys', () => {
     const admin = await openAs(browser, world().northstar.owner.id);
     await admin.page.goto(simulateUrl);
 
+    // The screen's own readiness signal, not a sleep: the form ships disabled and enables only once
+    // React has hydrated (the standing barrier `useHydrated` documents). Without it, on a cold
+    // compile the Simulate click below can land before the submit handler exists and be lost,
+    // leaving the screen with neither a result nor an error.
+    await expect(admin.page.getByLabel('Member id')).toBeEnabled();
+
     await admin.page.getByLabel('Member id').fill(world().northstar.owner.membershipId);
     await admin.page.getByLabel('Capability').selectOption('org.manage');
     await admin.page.getByRole('button', { name: 'Simulate' }).click();
@@ -146,6 +152,9 @@ test.describe.serial('the admin access-policy and simulation journeys', () => {
   test('E2E-ADM-SIM-02b: simulating a member for org.manage is Denied', async ({ browser }) => {
     const admin = await openAs(browser, world().northstar.owner.id);
     await admin.page.goto(simulateUrl);
+
+    // Wait for the form to hydrate before interacting (see SIM-02a).
+    await expect(admin.page.getByLabel('Member id')).toBeEnabled();
 
     await admin.page.getByLabel('Member id').fill(world().northstar.designer.membershipId);
     await admin.page.getByLabel('Capability').selectOption('org.manage');
@@ -166,6 +175,9 @@ test.describe.serial('the admin access-policy and simulation journeys', () => {
   }) => {
     const admin = await openAs(browser, world().northstar.owner.id);
     await admin.page.goto(simulateUrl);
+
+    // Wait for the form to hydrate before interacting (see SIM-02a).
+    await expect(admin.page.getByLabel('Member id')).toBeEnabled();
 
     // The designer is a member of this project, so at project scope the relation check passes and her
     // `member` role carries `work.read`. The same capability at the org level would not resolve — the
