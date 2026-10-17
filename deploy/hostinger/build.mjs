@@ -162,7 +162,7 @@ function assemble() {
   mkdirSync(join(web, 'src/lib'), { recursive: true });
   const configModules = [
     ...readFileSync(join(REPO, 'apps/web/next.config.ts'), 'utf8').matchAll(
-      /^import\s+(?!type)[^;]*?from\s+'\.\/src\/lib\/([\w-]+)';/gm,
+      /^import\s+(?!type\b)[^;]*?from\s+'\.\/src\/lib\/([\w-]+)';/gm,
     ),
   ].map((match) => join(REPO, 'apps/web/src/lib', `${match[1]}.ts`));
   if (configModules.length === 0) throw new Error('next.config.ts imports no ./src/lib module');
