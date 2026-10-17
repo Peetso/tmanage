@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createPool, createConnection } from 'mysql2/promise';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
-import { createDB } from 'mysql-memory-server';
+import { startMariaDb } from '../../../../scripts/db/mariadb-server.mjs';
 import {
   createMigrationConnection,
   createTenantPool,
@@ -12,22 +12,27 @@ import { migrate } from '../../src/common/database/migrator.js';
 /**
  * The server the database suite runs against — ADR-0002, and the CI half of PLAT-003.
  *
- * ## Two paths, and why both exist
+ * ## One engine: MariaDB 11.8
  *
- * **Local (default).** `mysql-memory-server` downloads and runs a genuine MySQL server
- * binary as a child process. That choice is load-bearing rather than convenient:
- * everything the isolation corpus proves depends on real InnoDB behaviour — composite
- * foreign keys actually rejecting cross-tenant rows, `SIGNAL` actually aborting an update,
- * strict mode actually refusing a truncated `CHAR(36)`. An in-memory SQL emulator would
- * accept the DDL without enforcing it and the suite would pass while proving nothing,
- * which ADR-0002 calls out as worse than not running it at all.
+ * Production is MariaDB 11.8 (Hostinger reports `11.8.9-MariaDB-log`), so that is the only
+ * engine this suite accepts. Every path checks `VERSION()` as soon as it connects and
+ * refuses to run against anything else, rather than labelling an unexpected server and
+ * carrying on: a green run on the wrong engine proves nothing about the one we deploy to.
  *
- * **CI.** `TMANAGE_TEST_DATABASE_URL` points at the MySQL server from `compose.yaml`. Both
- * paths are MySQL — there is no second engine anywhere in this project — so what the
- * containerised run adds is not fidelity of engine but the server start-up flags and the
- * provisioned least-privilege users, neither of which the embedded server has. `engine`
- * below is reported by every suite so no result is ambiguous about which server produced
- * it, and the corpus asserts it really is MySQL rather than trusting the label.
+ * **Local (default).** `scripts/db/mariadb-server.mjs` starts a genuine MariaDB 11.8 server
+ * as a child process, one private server per test file. The first run extracts the bundled
+ * runtime into `.local/mariadb`; later runs reuse it. A real server is load-bearing rather
+ * than convenient: everything the isolation corpus proves depends on real InnoDB behaviour —
+ * composite foreign keys actually rejecting cross-tenant rows, `SIGNAL` actually aborting
+ * an update, strict mode actually refusing a truncated `CHAR(36)`. An in-memory SQL
+ * emulator would accept the DDL without enforcing it and the suite would pass while proving
+ * nothing, which ADR-0002 calls out as worse than not running it at all.
+ *
+ * **External.** `TMANAGE_TEST_DATABASE_URL` points at an already-running MariaDB 11.8
+ * server — the one from `compose.yaml` in CI. What that adds is not a different engine but
+ * the server start-up flags and the provisioned least-privilege users, neither of which the
+ * embedded server has. `engine` below is reported by every suite so no result is ambiguous
+ * about which server produced it.
  *
  * ## The runtime credential
  *
@@ -44,9 +49,10 @@ const MIGRATIONS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../m
  * The statement timeout the guarded pool is built with, in milliseconds.
  *
  * Exported so a suite can assert the value the connection actually carries rather than
- * repeating the number: `max_execution_time` is now the only statement-timeout mechanism
- * in this project, so nothing else would notice if the SET stopped happening. Matches the
- * product default for `DATABASE_STATEMENT_TIMEOUT_MS` (`packages/config/src/env.ts`).
+ * repeating the number: the session's `max_statement_time` (MariaDB's cap, in seconds, so
+ * this is 15) is the only statement-timeout mechanism in this project, and nothing else
+ * would notice if the SET stopped happening. Matches the product default for
+ * `DATABASE_STATEMENT_TIMEOUT_MS` (`packages/config/src/env.ts`).
  */
 export const RUNTIME_STATEMENT_TIMEOUT_MS = 15_000;
 
@@ -55,13 +61,11 @@ const APP_URL = process.env['TMANAGE_TEST_APP_DATABASE_URL'];
 
 export interface DatabaseEngine {
   /**
-   * What the server says it is, decided by its own version string.
-   *
-   * Only `mysql` is expected — that is the engine this project uses everywhere — and the
-   * isolation corpus asserts it. `mariadb` remains a reachable value so an unexpected
-   * server is *reported* rather than quietly relabelled.
+   * Always `mariadb`: `startTestDatabase` refuses any server whose `VERSION()` is not
+   * MariaDB 11.8, so a `TestDatabase` cannot exist on another engine.
    */
-  readonly name: 'mariadb' | 'mysql';
+  readonly name: 'mariadb';
+  /** The server's own `VERSION()`, e.g. `11.8.9-MariaDB` or `11.8.9-MariaDB-log`. */
   readonly version: string;
 }
 
@@ -123,11 +127,30 @@ export function leastPrivilegeDatabaseUrl(): string {
   return APP_URL;
 }
 
-/** MySQL reports e.g. `8.4.3`; anything spelling itself MariaDB is not what we run on. */
-async function readEngine(pool: Pool): Promise<DatabaseEngine> {
-  const [rows] = await pool.query<RowDataPacket[]>('select version() as v');
-  const version = String(rows[0]?.['v'] ?? 'unknown');
-  return { name: /mariadb/i.test(version) ? 'mariadb' : 'mysql', version };
+/** The only `VERSION()` this project runs on: MariaDB 11.8, any patch, any suffix. */
+const SUPPORTED_VERSION = /^11\.8\.\d+-MariaDB/i;
+
+/**
+ * Accept a server's `VERSION()` or refuse it.
+ *
+ * Exported so the refusal itself can be exercised without a second engine to hand.
+ * `host` names the server in the message, so a CI failure says which URL was wrong.
+ */
+export function assertSupportedEngine(version: string, host: string): DatabaseEngine {
+  if (!SUPPORTED_VERSION.test(version)) {
+    throw new Error(`TManage runs on MariaDB 11.8 only; ${host} reports ${version}`);
+  }
+  return { name: 'mariadb', version };
+}
+
+async function readEngine(url: string): Promise<DatabaseEngine> {
+  const connection = await createConnection({ uri: url, multipleStatements: false });
+  try {
+    const [rows] = await connection.query<RowDataPacket[]>('select version() as v');
+    return assertSupportedEngine(String(rows[0]?.['v'] ?? 'unknown'), new URL(url).host);
+  } finally {
+    await connection.end();
+  }
 }
 
 /**
@@ -195,13 +218,21 @@ export async function startTestDatabase(options: StartOptions = {}): Promise<Tes
       stopServer = async () => {};
     }
   } else {
-    const server = await createDB({
-      dbName: 'tmanage_test',
-      logLevel: 'ERROR',
-      downloadBinaryOnce: true,
-    });
-    url = `mysql://${server.username}@127.0.0.1:${server.port}/${server.dbName}`;
+    // One private server per test file: suites truncate, reseed and (the migrator's) drop
+    // tables freely, which a shared server would turn into cross-file interference.
+    const server = await startMariaDb({ dbName: 'tmanage_test', logLevel: 'ERROR' });
+    url = server.url;
     stopServer = () => server.stop();
+  }
+
+  // Before migrating anything: a wrong engine must fail here, by name, not halfway through
+  // a migration with an error that looks like a schema bug.
+  let engine: DatabaseEngine;
+  try {
+    engine = await readEngine(url);
+  } catch (error) {
+    await stopServer();
+    throw error;
   }
 
   if (applyMigrations) {
@@ -243,8 +274,6 @@ export async function startTestDatabase(options: StartOptions = {}): Promise<Tes
     statementTimeoutMs: RUNTIME_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => connectionErrors.push(error),
   });
-
-  const engine = await readEngine(admin);
 
   return {
     admin,

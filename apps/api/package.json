@@ -45,7 +45,6 @@
     "@tmanage/test-kit": "workspace:*",
     "@tmanage/worker": "workspace:*",
     "@types/ws": "^8.5.12",
-    "mysql-memory-server": "^1.15.0",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
     "vitest": "^4.1.11",

@@ -26,9 +26,24 @@ import type { Connection, Pool, PoolConnection, PoolOptions } from 'mysql2/promi
  *
  * The same settings as the API's pool, for the same reasons: `STRICT_ALL_TABLES` so a
  * truncated CHAR(36) is an error rather than a different UUID, UTC so `DATETIME(3)`
- * comparisons agree with the application clock, and MySQL's `max_execution_time` as the
- * statement timeout — which caps reads only, so a runaway write must be bounded by the
- * query itself. See `connection.ts` for the full note.
+ * comparisons agree with the application clock, and MariaDB's `max_statement_time` (in
+ * seconds) as the statement timeout. See `connection.ts` for the full note.
+ *
+ * **MariaDB caps every statement, writes included** — not only SELECTs. A statement on this
+ * pool that runs past the cap is killed with `ER_STATEMENT_TIMEOUT` (1969), and because the
+ * dispatcher's whole batch is one transaction, that kill rolls the batch back; the dispatcher
+ * classifies 1969 as recoverable (`isRecoverableBatchError` in `outbox-store.ts`) and refunds
+ * the reservation's attempts. The cap is per statement, not per transaction, and every
+ * statement the relay issues is far below the configured `DATABASE_STATEMENT_TIMEOUT_MS`
+ * (15 s by default): the reservation and the claim are an index-ordered `LIMIT batchSize
+ * … FOR UPDATE SKIP LOCKED` (skipping, never waiting on, a locked row) and a primary-key
+ * `UPDATE … IN (ids)`; `markPublished` / `recordFailure` and the consumers' statements are
+ * single-row primary-key or tenant-scoped indexed writes; and the backlog aggregate — the one
+ * full scan of the unpublished tail — runs on `read`, outside the batch transaction, so its
+ * kill cannot abort a batch. The only statement that can approach the cap is one *waiting on
+ * a row lock* held by an API transaction (InnoDB's own `innodb_lock_wait_timeout` is longer);
+ * MariaDB then kills it at the cap with 1969 rather than letting it wait for 1205, and both are
+ * recoverable, so the outcome is the same retried batch.
  */
 
 const SESSION_SQL_MODE =
@@ -65,12 +80,12 @@ async function applySessionState(
   // Awaiting the sql_mode set before issuing the timeout set would enqueue the timeout a
   // microtask later, after the borrower's query, leaving that first statement uncapped. The
   // timeout set is still tolerated failing (see `connection.ts`), so its rejection is
-  // swallowed here rather than destroying the connection.
+  // swallowed here rather than destroying the connection. `max_statement_time` is in seconds.
   const applied = connection.query(`SET SESSION sql_mode = ?, time_zone = '+00:00'`, [
     SESSION_SQL_MODE,
   ]);
   const capped = connection
-    .query('SET SESSION max_execution_time = ?', [statementTimeoutMs])
+    .query('SET SESSION max_statement_time = ?', [statementTimeoutMs / 1000])
     .catch(() => {
       // A server that refuses the variable still serves queries; see `connection.ts`.
     });
@@ -102,7 +117,7 @@ export type WorkerMode = 'loop' | 'batch';
 /**
  * How many connections the relay's pool may open, by mode.
  *
- * The cap exists because the relay shares one MySQL server with the API on a host that has
+ * The cap exists because the relay shares one MariaDB server with the API on a host that has
  * far fewer connections to give than `DATABASE_POOL_MAX` suggests, so the worker takes the
  * smaller of the two rather than the configured maximum.
  *

@@ -96,7 +96,7 @@ async function heldPrivileges(admin: Connection, grantee: string): Promise<strin
     [grantee],
   );
   for (const row of globals) {
-    // USAGE is MySQL's spelling of "no privileges"; every account has it and it grants
+    // USAGE is MariaDB's spelling of "no privileges"; every account has it and it grants
     // nothing, so counting it would make every principal permanently in excess.
     if (String(row['p']).toUpperCase() === 'USAGE') continue;
     held.push(`*.*:${String(row['p']).toUpperCase()}`);
@@ -342,8 +342,10 @@ withAdmin('§2 · applying the script to an installation that holds the old wide
     ]) {
       expect(held.filter((p) => p.startsWith(`${DATABASE}.${table}`))).toEqual([]);
     }
-    // Fourteen named reads, which is the claim the status record makes.
-    expect(held.filter((p) => p.endsWith(':SELECT'))).toHaveLength(14);
+    // Sixteen named reads, which is the claim `users.sql` makes ("exactly sixteen tables":
+    // TEN-003/ON-04 added `invitations` and x31 `credential_change_notices` to the
+    // fourteen this line still counted until 2026-10-17).
+    expect(held.filter((p) => p.endsWith(':SELECT'))).toHaveLength(16);
   });
 
   it('the server enforces it — the upgraded worker is refused the password table', async () => {

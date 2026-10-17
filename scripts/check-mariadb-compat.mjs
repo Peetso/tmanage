@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 /**
- * Static guard: every migration must run on BOTH MySQL 8 and MariaDB 10.6+.
+ * Static guard: keeps SQL that MariaDB 11.8 does not accept out of `apps/api/migrations`.
  *
- * Local development and the test corpus run MySQL 8, but the production host (Hostinger shared
- * hosting) is MariaDB. The first live deploy failed on migration 0011, whose generated column
- * `if(resolved_at is null, work_item_id, NULL)` backed a unique index — fine on MySQL 8, refused
- * by MariaDB. Nothing local could notice, because nothing local runs MariaDB. This script is the
- * cheap, offline check that keeps MySQL-8-only syntax out of `apps/api/migrations`.
+ * MariaDB 11.8 is the project's only database engine: production (Hostinger shared hosting),
+ * local development, docker compose, CI and the DB test suite all run it. The DB suite would
+ * refuse a bad migration too, but it takes about 30 minutes; this check is a fast, offline
+ * pre-check that answers in seconds. It targets constructs that MariaDB rejects or treats
+ * differently - historically MySQL-8-only syntax such as functional indexes, generated-column
+ * index forms, MEMBER OF and ALTER TABLE ... DROP CHECK. The first live deploy failed on
+ * migration 0011, whose generated column `if(resolved_at is null, work_item_id, NULL)` backed a
+ * unique index - accepted by MySQL 8, refused by MariaDB.
  *
  * Usage: node scripts/check-mariadb-compat.mjs [dir]   (default: apps/api/migrations)
  *
@@ -15,7 +18,7 @@
  * Exit 1 on any hit, 0 when clean. `apps/api/src/common/database/mariadb-compat.test.ts` keeps
  * the behaviour honest.
  *
- * Deliberately NOT flagged (portable to both): JSON column type, CHECK constraints, triggers /
+ * Deliberately NOT flagged (accepted by MariaDB): JSON column type, CHECK constraints, triggers /
  * SIGNAL / DELIMITER, FULLTEXT, UUID(), ON UPDATE CURRENT_TIMESTAMP(3).
  */
 import { readFileSync, readdirSync } from 'node:fs';
@@ -30,7 +33,7 @@ const RULES = [
   {
     name: 'GENERATED ALWAYS AS',
     re: /\bGENERATED\s+ALWAYS\s+AS\b/gi,
-    reason: `generated columns differ between MySQL 8 and MariaDB (functions, indexes) - ${TRIGGER_FIX}`,
+    reason: `generated columns are restricted on MariaDB (allowed functions, indexes) - ${TRIGGER_FIX}`,
   },
   {
     name: 'AS (...) STORED|VIRTUAL',
@@ -47,13 +50,13 @@ const RULES = [
     name: 'functional key part',
     re: /\b(KEY|INDEX)\b[^;(]*\(\s*\(/gi,
     reason:
-      'functional indexes ((expr)) are MySQL 8 only - index a plain column kept by triggers instead',
+      'MariaDB has no functional indexes ((expr)) - index a plain column kept by triggers instead',
   },
   {
     name: 'DEFAULT (expr)',
     re: /\bDEFAULT\s*\(/gi,
     reason:
-      'expression defaults differ between servers - use a literal default or set it in a BEFORE INSERT trigger',
+      'expression defaults behave differently on MariaDB - use a literal default or set it in a BEFORE INSERT trigger',
   },
   {
     name: 'RENAME COLUMN',
@@ -64,7 +67,7 @@ const RULES = [
     name: 'INVISIBLE / VISIBLE',
     re: /\b(IN)?VISIBLE\b/gi,
     reason:
-      'invisible indexes/columns use different keywords (MariaDB: IGNORED / INVISIBLE semantics differ) - drop the attribute',
+      'MariaDB uses different keywords for invisible indexes/columns (IGNORED / INVISIBLE semantics differ) - drop the attribute',
   },
   {
     name: '->> / -> JSON path operator',
@@ -74,12 +77,12 @@ const RULES = [
   {
     name: 'JSON_TABLE',
     re: /\bJSON_TABLE\b/gi,
-    reason: 'JSON_TABLE needs MariaDB 10.6+ with different semantics - avoid in migrations',
+    reason: 'JSON_TABLE semantics differ on MariaDB - avoid in migrations',
   },
   {
     name: 'MEMBER OF',
     re: /\bMEMBER\s+OF\b/gi,
-    reason: 'MySQL 8 only - use JSON_CONTAINS(doc, JSON_QUOTE(value))',
+    reason: 'MariaDB has no MEMBER OF - use JSON_CONTAINS(doc, JSON_QUOTE(value))',
   },
   {
     name: 'CAST(... AS JSON)',
@@ -89,12 +92,12 @@ const RULES = [
   {
     name: 'DROP CHECK',
     re: /\bDROP\s+CHECK\b/gi,
-    reason: 'MySQL 8 syntax - use DROP CONSTRAINT <name> (supported by both)',
+    reason: 'MariaDB has no DROP CHECK - use DROP CONSTRAINT <name> (supported by MariaDB)',
   },
   {
     name: 'ALGORITHM=INSTANT',
     re: /\bALGORITHM\s*=\s*INSTANT\b/gi,
-    reason: 'support differs by server and operation - omit the ALGORITHM clause',
+    reason: 'MariaDB support for INSTANT differs by operation - omit the ALGORITHM clause',
   },
   {
     name: 'SRID',
@@ -168,7 +171,7 @@ function blankCommentsAndStrings(text) {
 }
 
 /**
- * Scan one migration's SQL for MySQL-8-only constructs.
+ * Scan one migration's SQL for constructs MariaDB does not accept.
  * @param {string} text
  * @param {string} filename
  * @returns {{ file: string, line: number, pattern: string, reason: string }[]}
@@ -225,7 +228,7 @@ function main() {
     for (const hit of hits)
       console.error(`${hit.file}:${hit.line}: ${hit.pattern} - ${hit.reason}`);
     console.error(
-      `mariadb-compat: ${hits.length} MySQL-8-only construct(s) in ${files.length} files`,
+      `mariadb-compat: ${hits.length} MariaDB-incompatible construct(s) in ${files.length} files`,
     );
     process.exit(1);
   }

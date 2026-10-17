@@ -71,7 +71,7 @@ import { backoffDelayMs } from './backoff.js';
  * tenant column removed: a credential is not tenant-owned and is written on the identity
  * path, which physically cannot touch `outbox_events`. Rather than hand-roll a second loop
  * — re-proving claim, attempts, backoff and parking for a security-adjacent queue — the
- * batch below takes a {@link QueueStore}: the *statements* are per table, because MySQL
+ * batch below takes a {@link QueueStore}: the *statements* are per table, because MariaDB
  * cannot bind a table name, and everything above them (the two-phase claim, the savepoint,
  * the refund, the parking arithmetic, the after-commit seam) is this one function. The
  * outbox keeps its own reviewed statements untouched, bound to the port by
@@ -428,7 +428,7 @@ export async function runQueueBatch<TItem extends QueueItem>(
   // IMPORTANT-D: the backlog aggregate is read here, on `database.read` and outside the batch
   // transaction, rather than inside it. The aggregate is a full scan of the unpublished tail
   // whose `CASE` defeats the claim index; taken inside the batch it held the batch's own
-  // `FOR UPDATE` row locks for its whole duration and, worse, a `max_execution_time` kill on it
+  // `FOR UPDATE` row locks for its whole duration and, worse, a MariaDB `max_statement_time` kill on it
   // aborted the entire batch — feeding CRITICAL-B exactly when a backlog made the scan slowest.
   // A plain `SELECT` is a consistent non-locking read, so `--status` already reads it this way.
   const backlog = await database.read((tx) => store.readBacklog(tx, options.maxAttempts));

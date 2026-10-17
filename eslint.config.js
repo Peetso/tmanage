@@ -192,7 +192,7 @@ export default tseslint.config(
   //   "Ban direct `db` imports outside repository/migration modules with lint boundaries.
   //    Ban raw SQL except reviewed, parameterized helpers in an allowlisted directory."
   //
-  // This is a lint rule rather than a review convention because MySQL has no row-level
+  // This is a lint rule rather than a review convention because MariaDB has no row-level
   // security. On PostgreSQL a controller that reaches past the repository layer still gets
   // RLS underneath it; here it gets nothing. The rule removes the possibility instead of
   // relying on every reviewer catching it every time.
@@ -216,7 +216,14 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['mysql2', 'mysql2/*', 'drizzle-orm', 'drizzle-orm/*', 'mysql-memory-server'],
+              // The MariaDB test-server launcher is test-only: only the test harnesses import it.
+              group: [
+                'mysql2',
+                'mysql2/*',
+                'drizzle-orm',
+                'drizzle-orm/*',
+                '**/scripts/db/mariadb-server*',
+              ],
               message:
                 'Only repository and database modules may hold a driver handle (25-AUTH-AND-TENANT-ISOLATION §6). Feature code takes a TenantQueryRunner from TenantDatabase.transaction().',
             },

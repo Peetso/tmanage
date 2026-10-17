@@ -396,11 +396,29 @@ describe('whole-batch failure compensation (CRITICAL-B)', () => {
     const queue = new FakeQueue();
     queue.add('a', 'plain.v1', 60);
 
-    const timeout = Object.assign(new Error('query execution was interrupted'), { errno: 3024 });
+    // MariaDB's ER_STATEMENT_TIMEOUT, as mysql2 surfaces a `max_statement_time` kill.
+    const timeout = Object.assign(
+      new Error('Query execution was interrupted (max_statement_time exceeded)'),
+      { errno: 1969, code: 'ER_STATEMENT_TIMEOUT' },
+    );
     await expect(runOutboxBatch(queue.rejectedBatch(timeout), {}, OPTIONS)).rejects.toThrow(
       'interrupted',
     );
     expect(queue.row('a').attempts).toBe(0);
+  });
+
+  it('does NOT refund an unrelated server errno — only the enumerated faults are recoverable', async () => {
+    // 3024 is MySQL's ER_QUERY_TIMEOUT; MariaDB never raises it, so it is no longer special.
+    // 1062 (duplicate key) is a real failure a retry would not fix. Both keep their attempt.
+    for (const errno of [3024, 1062]) {
+      const queue = new FakeQueue();
+      queue.add('a', 'plain.v1', 60);
+      const failure = Object.assign(new Error(`server errno ${errno}`), { errno });
+      await expect(runOutboxBatch(queue.rejectedBatch(failure), {}, OPTIONS)).rejects.toThrow(
+        `errno ${errno}`,
+      );
+      expect(queue.row('a').attempts).toBe(1);
+    }
   });
 
   it('does NOT refund an unrecognised failure — a process kill keeps its attempt (CRITICAL-1)', async () => {

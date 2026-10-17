@@ -14,7 +14,7 @@ import type { Connection, Pool, PoolConnection, PoolOptions } from 'mysql2/promi
  * Session settings applied to every connection.
  *
  * - `STRICT_ALL_TABLES` turns silent truncation and out-of-range coercion into errors.
- *   Without it MySQL will happily store a truncated `CHAR(36)` and a UUID becomes a
+ *   Without it the server will happily store a truncated `CHAR(36)` and a UUID becomes a
  *   different UUID.
  * - `NO_ZERO_DATE` / `NO_ZERO_IN_DATE` reject `'0000-00-00'`, which is not a timestamp.
  * - `ERROR_FOR_DIVISION_BY_ZERO` makes `x / 0` an error rather than NULL.
@@ -81,51 +81,43 @@ function promisify(connection: PoolConnection): Connection {
 /**
  * Apply per-connection session state.
  *
- * The statement timeout is engine-specific. Development runs MySQL 8 and production on
- * Hostinger runs MariaDB, and neither accepts the other's variable:
+ * MariaDB 11.8 is the one engine TManage runs on — development, the test suites and
+ * production on Hostinger alike. Its statement timeout is `max_statement_time`, in seconds,
+ * and MariaDB applies it to **every** statement, writes and DDL included: a statement past
+ * the cap is killed with `ER_STATEMENT_TIMEOUT` (1969). It is therefore only set when
+ * `capEveryStatementOnMariaDb` says the connection's work may be killed part way — never on
+ * the migration connection, whose ALTERs must not be stopped half applied.
  *
- * - MySQL: `max_execution_time`, in milliseconds. MySQL applies it to read-only SELECT
- *   statements only, so a runaway write is not capped there and must be bounded by the
- *   query itself.
- * - MariaDB: `max_statement_time`, in seconds. MariaDB applies it to every statement,
- *   writes and DDL included, so it is only set when `capEveryStatementOnMariaDb` says the
- *   connection's work may be killed part way — never on the migration connection.
- *
- * Both SETs are issued and each is tolerated failing: the one the server does not know is
- * refused, and a managed or shared server may refuse the other too. A connection that
- * cannot set a timeout is still a usable connection.
+ * The SET is tolerated failing: a managed or shared server may refuse it, and a connection
+ * that cannot set a timeout is still a usable connection.
  */
 async function applySessionState(
   connection: Connection,
   statementTimeoutMs: number,
   capEveryStatementOnMariaDb: boolean,
 ): Promise<void> {
-  // Every statement is issued in the *same synchronous tick*, before the first `await`
+  // Both statements are issued in the *same synchronous tick*, before the first `await`
   // yields. mysql2 enqueues a command onto the per-connection queue synchronously when
   // `query()` is called, and the pool emits `'connection'` — running this function — before
-  // it hands the connection to the borrower. Enqueuing them all here therefore orders them
+  // it hands the connection to the borrower. Enqueuing both here therefore orders them
   // ahead of the borrower's first query. Awaiting the sql_mode set *before* issuing the
-  // timeout sets would enqueue those a microtask later, after the borrower's query had
-  // already been queued, leaving that first statement — and, on a fresh connection, any
-  // inspection of the variable — uncapped. The timeout sets are tolerated failing (see
-  // above), so their rejections are swallowed here rather than destroying the connection.
+  // timeout set would enqueue it a microtask later, after the borrower's query had already
+  // been queued, leaving that first statement — and, on a fresh connection, any inspection
+  // of the variable — uncapped. The timeout set is tolerated failing (see above), so its
+  // rejection is swallowed here rather than destroying the connection.
   const applied = connection.query(`SET SESSION sql_mode = ?, time_zone = '+00:00'`, [
     SESSION_SQL_MODE,
   ]);
   const tolerated = () => {
     // A server that refuses the variable still serves queries; see the note above.
   };
-  const cappedOnMySql = connection
-    .query('SET SESSION max_execution_time = ?', [statementTimeoutMs])
-    .catch(tolerated);
-  const cappedOnMariaDb = capEveryStatementOnMariaDb
+  const capped = capEveryStatementOnMariaDb
     ? connection
         .query('SET SESSION max_statement_time = ?', [statementTimeoutMs / 1000])
         .catch(tolerated)
     : Promise.resolve();
   await applied;
-  await cappedOnMySql;
-  await cappedOnMariaDb;
+  await capped;
 }
 
 /**
@@ -163,15 +155,15 @@ export function createTenantPool(options: TenantPoolOptions): Pool {
 /**
  * A single migration connection.
  *
- * Not a pool: `GET_LOCK()` is scoped to a MySQL session, so the migrator's advisory lock
+ * Not a pool: `GET_LOCK()` is scoped to a database session, so the migrator's advisory lock
  * would be released the instant a pool handed out a different connection.
  */
 export async function createMigrationConnection(url: string): Promise<Connection> {
   const connection = await createConnection({ ...BASE_OPTIONS, uri: url });
-  // 10 minutes: an ALTER on a large table is legitimately slow, and killing it half way
-  // through is exactly the partial-application failure the migrator works to avoid. That
-  // is also why MariaDB's `max_statement_time`, which would cap the ALTER itself, is not
-  // set here: MySQL's `max_execution_time` only ever caps the migrator's SELECTs.
+  // No statement timeout at all (`false`; the 10 minutes is not applied): an ALTER on a
+  // large table is legitimately slow, and MariaDB's `max_statement_time` would cap the ALTER
+  // itself — killing it half way through is exactly the partial-application failure the
+  // migrator works to avoid.
   await applySessionState(connection, 600_000, false);
   return connection;
 }

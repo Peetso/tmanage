@@ -4,13 +4,14 @@
 # into evidence. Both were, until it ran, load-bearing and unverified:
 #
 #   1. "compose.yaml is the canonical stack, and it works."
-#      The `database` job runs that committed stack — MySQL 8.4 from compose.yaml — rather
-#      than the `mysql-memory-server` substitute the local suite uses. Both are MySQL, so
-#      this is not about engine fidelity; it is about the server flags, the provisioned
-#      least-privilege users, and Valkey/MinIO beside them, none of which the substitute
-#      has. The isolation corpus fails outright if it finds itself on the substitute while
-#      CI is set (see test/tenant-isolation.db.test.ts, "records which engine and which
-#      credential").
+#      The `database` job runs that committed stack — MariaDB 11.8 from compose.yaml, the
+#      engine and series production runs on Hostinger — rather than the private server the
+#      local suite starts for itself. Both are MariaDB 11.8, so this is not about engine
+#      fidelity; it is about the server flags, the provisioned least-privilege users, and
+#      Valkey/MinIO beside them, none of which the local server has. The job fails unless
+#      the server reports 11.8, and the isolation corpus fails outright if it finds itself
+#      on the local server while CI is set (see test/tenant-isolation.db.test.ts, "records
+#      which engine and which credential").
 #
 #   2. "scripts/db/users.sql has no environment to be applied and verified in."
 #      That file had never executed anywhere. It is applied here after the migrations —
@@ -99,14 +100,14 @@ jobs:
   # The containerised stack. This job is the only place compose.yaml is exercised.
   # ───────────────────────────────────────────────────────────────────────────
   database:
-    name: test:db on containerised MySQL 8.4
+    name: test:db on containerised MariaDB 11.8
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       # These are compose.yaml's local-development placeholders, committed on purpose and
       # excluded in .gitleaks.toml by exact value. They are not secrets and must never
       # appear in a deployed environment — packages/config refuses production boot on them.
-      MYSQL_ROOT_URL: mysql://root:local_dev_only_root@127.0.0.1:3306/tmanage
+      MARIADB_ROOT_URL: mysql://root:local_dev_only_root@127.0.0.1:3306/tmanage
       DATABASE_MIGRATION_URL: mysql://tmanage_migrator:local_dev_only_migrator@127.0.0.1:3306/tmanage
       TMANAGE_TEST_DATABASE_URL: mysql://root:local_dev_only_root@127.0.0.1:3306/tmanage
       TMANAGE_TEST_APP_DATABASE_URL: mysql://tmanage_app:local_dev_only_app@127.0.0.1:3306/tmanage
@@ -114,7 +115,7 @@ jobs:
       # information_schema for *other* accounts and creates renamed probe users, so it needs
       # CREATE USER + GRANT OPTION + SELECT on `mysql` — root, not TMANAGE_TEST_DATABASE_URL,
       # which may legitimately own one database and nothing else. Spelled out rather than
-      # reusing MYSQL_ROOT_URL because an `env:` entry cannot reference another in its own
+      # reusing MARIADB_ROOT_URL because an `env:` entry cannot reference another in its own
       # block. Without this variable every case in that file skips, and the file's own CI
       # guard fails deliberately rather than letting R10 go unverified behind a green suite.
       TMANAGE_TEST_GRANT_ADMIN_DATABASE_URL: mysql://root:local_dev_only_root@127.0.0.1:3306/tmanage
@@ -137,7 +138,7 @@ jobs:
       # copy of the stack would drift from the file developers run, and the point of this
       # job is that the committed stack works.
       - name: Start the canonical stack
-        run: docker compose up -d --wait mysql valkey minio
+        run: docker compose up -d --wait mariadb valkey minio
 
       # PLAT-002 claims "one-command local stack". The bucket bootstrap is part of that
       # claim, so its exit status is checked rather than assumed.
@@ -149,11 +150,28 @@ jobs:
           docker compose logs --no-color minio-init
           test "$status" = "0"
 
+      # The 11.x images ship the `mariadb` client only; there is no `mysql` binary in them.
       - name: Record the engine under test
         run: |
           set -euo pipefail
-          docker compose exec -T mysql \
-            mysql -uroot -plocal_dev_only_root -e "SELECT VERSION(); SELECT @@sql_mode; SELECT @@character_set_server, @@collation_server, @@time_zone;"
+          docker compose exec -T mariadb \
+            mariadb -uroot -plocal_dev_only_root -e "SELECT VERSION(); SELECT @@sql_mode; SELECT @@character_set_server, @@collation_server, @@character_set_collations, @@time_zone; SELECT @@log_bin, @@log_bin_trust_function_creators;"
+
+      # MariaDB 11.8 is the only supported engine because it is what production runs. A
+      # stack that silently started anything else (a re-tagged image, another series)
+      # would make every result below evidence about the wrong server.
+      - name: Require MariaDB 11.8
+        run: |
+          set -euo pipefail
+          version="$(docker compose exec -T mariadb mariadb -uroot -plocal_dev_only_root -N -B -e 'SELECT VERSION();')"
+          echo "server version: $version"
+          case "$version" in
+            11.8.*-MariaDB*) ;;
+            *)
+              echo "::error::expected MariaDB 11.8, the server reports '$version'"
+              exit 1
+              ;;
+          esac
 
       # The migration credential owns the schema and nothing else.
       - name: Apply migrations
@@ -169,13 +187,13 @@ jobs:
       - name: Apply least-privilege users
         run: pnpm db:grants
         env:
-          DATABASE_MIGRATION_URL: ${{ env.MYSQL_ROOT_URL }}
+          DATABASE_MIGRATION_URL: ${{ env.MARIADB_ROOT_URL }}
 
       - name: Show the granted privileges
         run: |
           set -euo pipefail
-          docker compose exec -T mysql \
-            mysql -uroot -plocal_dev_only_root -e "SHOW GRANTS FOR 'tmanage_app'@'%'; SHOW GRANTS FOR 'tmanage_worker'@'%';"
+          docker compose exec -T mariadb \
+            mariadb -uroot -plocal_dev_only_root -e "SHOW GRANTS FOR 'tmanage_app'@'%'; SHOW GRANTS FOR 'tmanage_worker'@'%';"
 
       # Runs the isolation corpus as tmanage_app, the migrator suite on scratch databases,
       # and the least-privilege suite that proves what tmanage_app cannot do.

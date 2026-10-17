@@ -44,8 +44,8 @@ const ER_DBACCESS_DENIED = 'ER_DBACCESS_DENIED_ERROR';
 /** ER_SPECIFIC_ACCESS_DENIED_ERROR — a global privilege (CREATE USER, RELOAD) is missing. */
 const ER_SPECIFIC_ACCESS_DENIED = 'ER_SPECIFIC_ACCESS_DENIED_ERROR';
 /**
- * ER_BINLOG_CREATE_ROUTINE_NEED_SUPER — creating a stored program needs SUPER (or
- * SET_USER_ID) while binary logging is on. Still the privilege system refusing, checked
+ * ER_BINLOG_CREATE_ROUTINE_NEED_SUPER — creating a stored program needs SUPER while binary
+ * logging is on and `log_bin_trust_function_creators` is off. Still the privilege system refusing, checked
  * ahead of the object privilege; see the CREATE TRIGGER case for why both are accepted.
  */
 const ER_BINLOG_CREATE_ROUTINE_NEED_SUPER = 'ER_BINLOG_CREATE_ROUTINE_NEED_SUPER';
@@ -99,7 +99,7 @@ function workerDatabaseUrl(): string {
 // Skipped where there is no least-privilege credential to test. That is not necessarily a
 // containerised run: any long-lived server which has had `scripts/db/users.sql` applied to
 // the database named by `TMANAGE_TEST_APP_DATABASE_URL` will do, including a single
-// embedded MySQL started outside the per-file lifecycle. `guards CI against a silent skip`
+// bundled MariaDB started outside the per-file lifecycle. `guards CI against a silent skip`
 // below is NOT skipped, and fails the build if CI ever reaches this file without the
 // credential configured.
 const withCredential = describe.skipIf(!usingLeastPrivilegeCredential);
@@ -136,7 +136,7 @@ withCredential('the runtime user (tmanage_app)', () => {
   beforeAll(async () => {
     db = await startTestDatabase();
     // Every other seeding suite truncates first; this one did not, and against the
-    // per-file embedded server that omission was invisible because each file received an
+    // per-file bundled server that omission was invisible because each file received an
     // empty database of its own. On a shared long-lived server — the configuration this
     // file exists to exercise — the previous suite's rows are still present and
     // `seedTwoTenants`' fixed slugs collide with `uq_organizations_slug`.
@@ -363,12 +363,14 @@ withCredential('the runtime user (tmanage_app)', () => {
     // Two codes, both the privilege system and neither the append-only trigger, which is
     // the distinction this file exists to keep. `tmanage_app` holds no TRIGGER privilege on
     // any table — `SHOW GRANTS` confirms it — so the statement is refused either way. Which
-    // refusal is reported depends on whether binary logging is on: with `log_bin = 1`
-    // (the default for MySQL 8 and for the embedded server) MySQL evaluates the
-    // SUPER/binlog requirement for stored programs *before* the TRIGGER privilege and
-    // reports ER_BINLOG_CREATE_ROUTINE_NEED_SUPER; with binary logging off it reaches the
-    // privilege check and reports ER_TABLEACCESS_DENIED_ERROR. Accepting only the latter
-    // asserted a server configuration rather than a credential.
+    // refusal is reported depends on the server's binary-logging settings, observed on
+    // MariaDB 11.8.9: with `log_bin` on and `log_bin_trust_function_creators` off, the
+    // SUPER/binlog requirement for stored programs is evaluated *before* the TRIGGER
+    // privilege and the answer is ER_BINLOG_CREATE_ROUTINE_NEED_SUPER (1419); with binary
+    // logging off, or on with that variable on (the bundled test server), it reaches the
+    // privilege check and reports ER_TABLEACCESS_DENIED_ERROR (1142). Production
+    // (11.8.9-MariaDB-log) has binary logging on. Accepting only one code would assert a
+    // server configuration rather than a credential.
     expect([ER_TABLEACCESS_DENIED, ER_BINLOG_CREATE_ROUTINE_NEED_SUPER]).toContain(error.code);
   });
 
@@ -420,6 +422,25 @@ withCredential('the runtime user (tmanage_app)', () => {
     }
   });
 
+  it('holds nothing on this schema through MariaDB’s PUBLIC role', async () => {
+    // Since MariaDB 10.11 every account holds whatever is granted to the built-in `PUBLIC`
+    // role. `users.sql`'s `REVOKE ALL PRIVILEGES, GRANT OPTION` strips what is granted to
+    // the account and cannot reach this, and `SHOW GRANTS FOR 'tmanage_app'@'%'` does not
+    // list it either — so a `GRANT UPDATE ON tmanage.audit_events TO PUBLIC` would arm the
+    // runtime credential while every check of the account itself still read clean. A
+    // default `mariadb-install-db` grants `PUBLIC` the `test` and `test\_%` schemas; that is
+    // the server owner's concern. A grant on the schema this credential serves is ours.
+    const [current] = await app.query<RowDataPacket[]>('select database() as d');
+    const schema = String(current[0]?.['d']);
+    expect(schema).not.toBe('');
+    const [grants] = await db.admin.query<RowDataPacket[]>('SHOW GRANTS FOR PUBLIC');
+    const lines = grants.map((row) => String(Object.values(row)[0]));
+    const reaching = lines.filter(
+      (line) => / ON \*\.\* /.test(line) || line.includes(` ON \`${schema}\`.`),
+    );
+    expect(reaching, 'PUBLIC holds privileges that every account inherits').toEqual([]);
+  });
+
   // ── What it must still be able to do ───────────────────────────────────────
 
   it('can still do the DML the application needs', async () => {
@@ -458,8 +479,8 @@ withCredential('the runtime user (tmanage_app)', () => {
     // present already. That only ever held because `compose.yaml` launches its server with
     // `--sql-mode=STRICT_ALL_TABLES,...`; it was an assertion about a server's start-up
     // flags wearing a credential's clothing, and it fails on any server those flags cannot
-    // be passed to — the embedded MySQL here, and Hostinger's shared MySQL in production,
-    // which is the environment 50-BOOTSTRAP actually targets.
+    // be passed to — Hostinger's shared MariaDB in production, which is the environment
+    // 50-BOOTSTRAP actually targets.
     //
     // One pinned connection rather than the pool: `SET SESSION` and the read that verifies
     // it must land on the same connection.

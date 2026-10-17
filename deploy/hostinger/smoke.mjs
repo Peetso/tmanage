@@ -1,11 +1,11 @@
 // Local proof that the Hostinger bundle actually runs: unzip it OUTSIDE the repo, npm install
-// it, point it at a MySQL started by the repo's own test runtime (mysql-memory-server, the same
-// one the e2e stack uses), start it EXACTLY as Hostinger would — `node server.mjs` with PORT and
+// it, point it at a private MariaDB 11.8 (the engine Hostinger runs: 11.8.9-MariaDB-log, binary
+// logging on) started by the repo's own scripts/db/mariadb-server.mjs, start it EXACTLY as Hostinger would — `node server.mjs` with PORT and
 // the panel environment — and exercise the real paths end to end.
 //
 // Run from the repo root:  node deploy/hostinger/smoke.mjs
 //
-// It provisions ONE MySQL user for the database (what Hostinger gives a Node.js web app) and
+// It provisions ONE MariaDB user for the database (what Hostinger gives a Node.js web app) and
 // hands the bundle only DATABASE_URL — with a `localhost` host and a percent-encoded password, as
 // Hostinger writes it — so single-user mode and the 127.0.0.1 rewrite are exercised. It applies
 // the schema once up front, seeds the two-tenant world plus a password, then lets the bundle's
@@ -33,7 +33,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPool } from 'mysql2/promise';
 import { hash as argonHash } from '@node-rs/argon2';
-import { createDB } from 'mysql-memory-server';
+import { startMariaDb } from '../../scripts/db/mariadb-server.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../..');
@@ -57,7 +57,7 @@ const DB = 'tmanage';
 const DB_USER = 'u123456789_tmanage';
 const DB_PASSWORD = 'Smoke p@ss:w/rd#1';
 // Real, distinct, non-placeholder secrets (no 'local_dev_only'/'example'/... markers that
-// production rejects). base64url of fixed bytes — fine for a throwaway local MySQL.
+// production rejects). base64url of fixed bytes — fine for a throwaway local MariaDB.
 const SECRET = (tag) => Buffer.from(`smoke-${tag}-${'x'.repeat(40)}`).toString('base64url');
 
 const results = [];
@@ -171,8 +171,8 @@ async function main() {
       linked.length ? `linked: ${linked.join(', ')}` : 'vendored packages copied, no .bin',
     );
 
-    // 3. A real MySQL, private to this run.
-    db = await createDB({ dbName: DB, logLevel: 'ERROR', downloadBinaryOnce: true });
+    // 3. A real MariaDB 11.8 (Hostinger's engine and major version), private to this run.
+    db = await startMariaDb({ dbName: DB, logLevel: 'ERROR' });
     const rootUrl = `mysql://${db.username}@127.0.0.1:${db.port}/${DB}`;
     const auth = `${encodeURIComponent(DB_USER)}:${encodeURIComponent(DB_PASSWORD)}`;
     const url = (host) => `mysql://${auth}@${host}:${db.port}/${DB}`;
@@ -180,11 +180,25 @@ async function main() {
     // 4. Provision the one user, with all privileges on this one database — the shape Hostinger
     //    produces for a web app's database.
     const admin = createPool({ uri: rootUrl, connectionLimit: 2, multipleStatements: true });
-    // The schema creates triggers/functions; with binary logging on and a non-SUPER migration
-    // user, MySQL refuses those unless log_bin_trust_function_creators is set. A DBA (or the
-    // host) sets it once. The embedded server here has binlog on, so set it as root. On
-    // Hostinger this is already on for most shared MySQL; DEPLOY-HOSTINGER.md notes the symptom.
-    await admin.query('SET GLOBAL log_bin_trust_function_creators = 1').catch(() => {});
+    const [[engine]] = await admin.query(
+      'SELECT VERSION() AS version, @@log_bin AS logBin, @@version_comment AS comment',
+    );
+    process.stdout.write(
+      `engine: ${engine.version} (${engine.comment}), log_bin=${engine.logBin}\n`,
+    );
+    check(
+      'engine is MariaDB 11.8.x with binary logging on (as Hostinger)',
+      /^11\.8\.\d+-MariaDB/.test(engine.version) && Number(engine.logBin) === 1,
+      `${engine.version}, log_bin=${engine.logBin}`,
+    );
+    // The schema creates triggers. MariaDB 11.8 with binary logging on refuses CREATE TRIGGER /
+    // CREATE FUNCTION from a user without SUPER (ERROR 1419) unless log_bin_trust_function_creators
+    // is ON — proved here 2026-10-17 on 11.8.9-MariaDB-log, under MIXED and ROW binlog formats.
+    // Hostinger's one database user has no SUPER, yet its first live deploy created the triggers
+    // of migrations 0001-0010, so the host runs with this ON. Mirror that: the host's setting,
+    // made once by the server owner (root here), never by the app's user. Fail loudly if it
+    // cannot be set rather than letting migrations fail later with a confusing error.
+    await admin.query('SET GLOBAL log_bin_trust_function_creators = 1');
     await admin.query(`CREATE USER IF NOT EXISTS ?@'%' IDENTIFIED BY ?`, [DB_USER, DB_PASSWORD]);
     await admin.query(`GRANT ALL PRIVILEGES ON \`${DB}\`.* TO ?@'%'`, [DB_USER]);
     await admin.query('FLUSH PRIVILEGES');
@@ -499,7 +513,7 @@ function writeReport(passed, summary) {
     'Security review fixes covered above: NODE_ENV forced/asserted production + dev sign-in',
     'needs ALLOW_DEV_SIGN_IN (refused in production); /public/site/* routed + contact limiter;',
     'HSTS + report-only CSP; no *.map, no db/users.sql in the zip.',
-    'Run: unpacked outside the repo, `node server.mjs`, private mysql-memory-server, every',
+    'Run: unpacked outside the repo, `node server.mjs`, private MariaDB 11.8 (log-bin on), every',
     'process stopped afterwards. Not proven: the real hPanel, SMTP delivery, S3 uploads.',
     '',
   ];

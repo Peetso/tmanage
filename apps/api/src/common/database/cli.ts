@@ -72,8 +72,8 @@ async function main(): Promise<number> {
 
       case 'grants': {
         // Applied through the migrator's own statement splitter rather than piped into a
-        // `mysql` client, so the one code path that parses this project's SQL is the tested
-        // one, and so the command works identically on a machine with no MySQL client
+        // `mariadb` client, so the one code path that parses this project's SQL is the tested
+        // one, and so the command works identically on a machine with no database client
         // installed.
         //
         // Deliberately *not* wrapped in the migration ledger: grants are environment state,

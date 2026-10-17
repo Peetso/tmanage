@@ -22,7 +22,7 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * The isolation corpus — `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC.md` §11, ADR-0001
  * layer 5.
  *
- * Runs against a real MySQL server (ADR-0002), against two organizations with
+ * Runs against a real MariaDB 11.8 server (ADR-0002), against two organizations with
  * **intentionally similar names and adjacent identifiers**, because a corpus seeded with
  * obviously distinct tenants passes even when the tenant predicate is missing.
  *
@@ -98,14 +98,17 @@ afterAll(async () => {
 
 describe('the harness itself', () => {
   it('records which engine and which credential produced this run', () => {
-    // Not decoration. Development runs MySQL 8 (ADR-0002) and production on Hostinger runs
-    // MariaDB, and a corpus that does not say which server produced it cannot show that it
-    // ran on an engine the product uses. Likewise ADR-0001 layer 2: a corpus green under a
-    // root credential proves nothing about the privileges the application holds.
-    expect(
-      ['mysql', 'mariadb'],
-      'the engine is one the product runs on: MySQL 8 or MariaDB',
-    ).toContain(db.engine.name);
+    // Not decoration. Production on Hostinger runs MariaDB 11.8, and development, CI and
+    // this harness run the same MariaDB 11.8 — it is the project's only engine. A corpus
+    // that does not say which server produced it cannot show that it ran on the engine the
+    // product uses. Likewise ADR-0001 layer 2: a corpus green under a root credential
+    // proves nothing about the privileges the application holds.
+    expect(db.engine.name, 'the engine is the one the product runs on, MariaDB 11.8').toBe(
+      'mariadb',
+    );
+    expect(db.engine.version, 'the engine is the one the product runs on, MariaDB 11.8').toMatch(
+      /^11\.8\./,
+    );
     console.warn(
       `[isolation corpus] engine=${db.engine.name} ${db.engine.version} · ` +
         // `external` means only that TMANAGE_TEST_DATABASE_URL was supplied. It does not
@@ -122,7 +125,7 @@ describe('the harness itself', () => {
       // PLAT-003 exists to convert from promise into evidence. If either is missing in CI,
       // the corpus is still green while proving less than the status document claims — so
       // it fails here instead, loudly, rather than passing quietly. The engine is already
-      // asserted above and does not differ here: CI and local run the same MySQL.
+      // asserted above and does not differ here: CI and local run the same MariaDB 11.8.
       expect(db.external, 'CI must run the containerised stack, not the embedded server').toBe(
         true,
       );
@@ -134,17 +137,12 @@ describe('the harness itself', () => {
   });
 
   it('hands out connections with the session state applied', async () => {
-    // Each engine knows only its own statement-timeout variable, and selecting the other
-    // one is an error: MySQL's `max_execution_time` is in milliseconds, MariaDB's
-    // `max_statement_time` in seconds.
-    const timeoutColumn =
-      db.engine.name === 'mariadb'
-        ? '@@session.max_statement_time * 1000'
-        : '@@session.max_execution_time';
+    // MariaDB's statement timeout is `max_statement_time`, in seconds; scaled here to the
+    // milliseconds the runtime constant is written in.
     const rows = await tenant.read(northstar, (tx) =>
       tx.query<RowDataPacket[]>(
         'select @@session.sql_mode as m, @@session.time_zone as tz, ' +
-          `${timeoutColumn} as timeout_ms, ? as bound`,
+          '@@session.max_statement_time * 1000 as timeout_ms, ? as bound',
         [northstar.organizationId],
       ),
     );
@@ -155,8 +153,7 @@ describe('the harness itself', () => {
     // its SET is deliberately tolerated failing in `applySessionState` — a server that
     // refuses the variable still serves queries — which means a silent regression would
     // leave every connection uncapped and nothing else would notice. Asserted here, on
-    // whichever engine produced the run, where a real connection is already being
-    // inspected.
+    // the engine the product runs on, where a real connection is already being inspected.
     expect(Number(rows[0]?.['timeout_ms'])).toBe(RUNTIME_STATEMENT_TIMEOUT_MS);
   });
 

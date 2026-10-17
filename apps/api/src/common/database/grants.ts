@@ -12,8 +12,10 @@ import { splitStatements } from './migrator.js';
  *
  * `users.sql` revokes every privilege from each account before rebuilding it (R10). On an
  * account that holds nothing yet — the fresh-database case, which must stay supported —
- * servers disagree about what to say. MySQL 8 accepts the statement silently. MariaDB
- * answers `ER_REVOKE_GRANTS` (1269, "Can't revoke all privileges for one or more of the
+ * servers disagree about what to say. MariaDB 11.8 — the one supported engine — accepts the
+ * statement silently (no error, no warning: observed on 11.8.9, where a first
+ * `pnpm db:grants` reports zero no-op revokes). Other MariaDB releases and configurations
+ * answer `ER_REVOKE_GRANTS` (1269, "Can't revoke all privileges for one or more of the
  * requested users"), and `ER_NONEXISTING_GRANT` (1141) is the other shape the same
  * nothing-to-do can take. Both mean the account ended the statement holding no privileges,
  * which is exactly what the `REVOKE` was for.
@@ -28,7 +30,7 @@ import { splitStatements } from './migrator.js';
 
 /** ER_NONEXISTING_GRANT — there was no such grant to take away. */
 export const ER_NONEXISTING_GRANT = 1141;
-/** ER_REVOKE_GRANTS — "can't revoke all privileges"; MariaDB's answer for an empty account. */
+/** ER_REVOKE_GRANTS — "can't revoke all privileges"; how some servers answer for an empty account. */
 export const ER_REVOKE_GRANTS = 1269;
 
 /** The subset of a mysql2 connection this module needs, so a test can supply a fake. */
@@ -134,7 +136,7 @@ export interface PrincipalIntent {
 /**
  * The characters an identifier may contain, here.
  *
- * Deliberately not `[a-z_]`. A MySQL account name legitimately carries digits — and the
+ * Deliberately not `[a-z_]`. A MariaDB account name legitimately carries digits — and the
  * verification in `apps/api/test/grant-reconciliation.db.test.ts` relies on that, because it
  * applies this script to *renamed probe accounts* whose suffix is the process id, so that
  * revoking and rebuilding does not disarm a live `tmanage_app`. With a letters-only class
@@ -145,7 +147,7 @@ export interface PrincipalIntent {
  * upgrade proof was therefore unreachable, and `pnpm test:db` could redden on it.
  *
  * The class is widened rather than the probe names narrowed because the narrow one was simply
- * wrong about MySQL: `$`, `.` and `-` are also ordinary in account names, and this function's
+ * wrong about MariaDB: `$`, `.` and `-` are also ordinary in account names, and this function's
  * answer is the *expected* side of a security assertion — it must not fail to describe a
  * principal that really exists.
  */

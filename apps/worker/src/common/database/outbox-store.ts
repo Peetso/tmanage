@@ -47,9 +47,9 @@ interface OutboxRow {
 }
 
 /**
- * MySQL's JSON type hands mysql2 a parsed object, which is what this column returns. The
- * string branch is a tolerance for a driver or a column that hands back raw text — not an
- * engine difference, since MySQL is the only engine this runs against.
+ * MariaDB's `JSON` is an alias for `LONGTEXT` with a `JSON_VALID` check, so mysql2 hands this
+ * column back as the raw JSON text and the string branch is the ordinary path; a driver or
+ * column that hands back an already-parsed object is passed through unchanged.
  */
 function parsePayload(value: unknown): unknown {
   if (typeof value !== 'string') return value;
@@ -508,14 +508,17 @@ function isDeadlock(error: unknown): boolean {
 }
 
 /**
- * MySQL error numbers that mean "this batch failed for an infrastructure reason, not because a
+ * Server error numbers that mean "this batch failed for an infrastructure reason, not because a
  * handler decided to fail one event" — and, crucially, that the *process is still alive* to do
  * something about it. See {@link isRecoverableBatchError}.
  */
 const RECOVERABLE_ERRNOS = new Set<number>([
   1205, // ER_LOCK_WAIT_TIMEOUT — the statement's lock wait was exceeded
   ER_LOCK_DEADLOCK, // 1213 — whole-transaction rollback (also arrives wrapped, below)
-  3024, // ER_QUERY_TIMEOUT — a `max_execution_time` kill, the statement-timeout case
+  // ER_STATEMENT_TIMEOUT — "Query execution was interrupted (max_statement_time exceeded)":
+  // MariaDB's statement-timeout kill. The pool caps every statement, writes included (see
+  // `worker-database.ts`), so this is also how a lock wait that outlives the cap arrives.
+  1969,
 ]);
 
 /** mysql2 connection-level failures: the transaction is gone with the socket. */

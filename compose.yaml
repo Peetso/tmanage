@@ -1,49 +1,55 @@
 # TManage — one-command local stack.
 #
-#   docker compose up -d          start MySQL, Valkey, MinIO
+#   docker compose up -d          start MariaDB, Valkey, MinIO
 #   pnpm db:migrate               create the schema (migration credential)
 #   pnpm db:grants                apply scripts/db/users.sql — least-privilege users
 #   pnpm dev                      run api + web + worker
 #
 # The migrate-then-grant order is mandatory, not stylistic: every grant in users.sql is
-# table-level, and MySQL rejects a table-level GRANT for a table that does not exist. See
-# the note on the mysql service below.
+# table-level, and MariaDB rejects a table-level GRANT for a table that does not exist. See
+# the note on the mariadb service below.
 #
-# This mirrors the BOOTSTRAP deployment profile (50-BOOTSTRAP-DEPLOYMENT §4): MySQL stands
-# in for the Hostinger-included database, Valkey for Upstash Redis, MinIO for Cloudflare
-# R2. Local development never contacts those free-tier accounts (§9).
+# This mirrors the BOOTSTRAP deployment profile (50-BOOTSTRAP-DEPLOYMENT §4): MariaDB is the
+# Hostinger-included database itself (the live server reports `11.8.9-MariaDB-log`), Valkey
+# stands in for Upstash Redis, MinIO for Cloudflare R2. Local development never contacts
+# those free-tier accounts (§9).
 #
-# If no container runtime is available, `pnpm test:db` falls back to an embedded MySQL
-# server and the filesystem/in-memory drivers — see ADR-0002. That fallback is the same
-# engine as this service, so what the container adds is the least-privilege users, the
-# server start-up flags below, and Valkey/MinIO alongside — not a second engine.
+# If no container runtime is available, `pnpm test:db` starts its own MariaDB 11.8 server
+# and the filesystem/in-memory drivers — see ADR-0002 and apps/api/test/support/
+# test-database.ts. That is the same engine and series as this service, so what the
+# container adds is the least-privilege users, the server start-up flags below, and
+# Valkey/MinIO alongside — not a second engine.
 #
 # Credentials below are local-development placeholders and must never appear deployed.
 
 name: tmanage
 
 services:
-  mysql:
-    # MySQL is the engine everywhere in this project — development, test, and deployment.
-    # The driver is `mysql2` and the test suites run a real MySQL server (ADR-0002). 8.4 is
-    # the LTS series, and the one the planning pack's reference manual cites.
-    image: mysql:8.4.11
+  mariadb:
+    # MariaDB 11.8 is the project's only database engine: production on Hostinger runs
+    # 11.8.9, and development, the test harness and CI run the same series. MySQL is not a
+    # supported target. The driver stays `mysql2`, which speaks MariaDB's wire protocol.
+    # Pinned to the exact patch production runs, so an engine upgrade is a visible commit.
+    image: mariadb:11.8.9
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: local_dev_only_root
-      MYSQL_DATABASE: tmanage
-      # The MIGRATION user. Owns the schema. scripts/db/users.sql then creates the
-      # runtime user with DML privileges only (25-AUTH-AND-TENANT-ISOLATION §5).
-      MYSQL_USER: tmanage_migrator
-      MYSQL_PASSWORD: local_dev_only_migrator
+      MARIADB_ROOT_PASSWORD: local_dev_only_root
+      MARIADB_DATABASE: tmanage
+      # The MIGRATION user. Owns the schema (the image grants it ALL on `tmanage`.* and
+      # nothing global). scripts/db/users.sql then creates the runtime user with DML
+      # privileges only (25-AUTH-AND-TENANT-ISOLATION §5).
+      MARIADB_USER: tmanage_migrator
+      MARIADB_PASSWORD: local_dev_only_migrator
     command:
       - --character-set-server=utf8mb4
-      # Spelled out rather than left to the server: MySQL 8's own default is
-      # `utf8mb4_0900_ai_ci`, and the schema is created and compared against
-      # `utf8mb4_unicode_ci` (migration 0001).
+      # Both spelled out rather than left to the server: MariaDB 11.x maps utf8mb4 to
+      # `utf8mb4_uca1400_ai_ci` through character_set_collations, which overrides
+      # --collation-server for any CREATE DATABASE/TABLE that names only the character set.
+      # The schema is created and compared against `utf8mb4_unicode_ci` (migration 0001).
       - --collation-server=utf8mb4_unicode_ci
-      # Strict mode is required by §5. Without it MySQL silently truncates and coerces,
-      # which would turn a constraint violation into corrupted tenant data.
+      - --character-set-collations=utf8mb4=utf8mb4_unicode_ci
+      # Strict mode is required by §5. Without it the server silently truncates and
+      # coerces, which would turn a constraint violation into corrupted tenant data.
       - --sql-mode=STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION,ERROR_FOR_DIVISION_BY_ZERO
       - --default-storage-engine=InnoDB
       # UTC everywhere; IANA timezones are stored per-record where wall-clock meaning
@@ -51,35 +57,46 @@ services:
       - --default-time-zone=+00:00
       - --innodb-flush-log-at-trx-commit=1
       - --max-connections=100
+      # Binary logging on, as on production (the `-log` suffix in its VERSION()). With the
+      # binlog on, MariaDB refuses CREATE TRIGGER from an account without SUPER — which the
+      # migration user is not, here or on Hostinger's shared hosting — unless
+      # log_bin_trust_function_creators is set. The migrations create triggers (0001
+      # onwards), and production has applied them as its non-SUPER panel user, so the
+      # flag is set there too; it is set here so this stack fails where production would
+      # and passes where production does. Proven on a MariaDB 11.8.9 server started with
+      # these flags: without the last one, 0001 fails at its first trigger.
+      - --log-bin
+      - --server-id=1
+      - --log-bin-trust-function-creators=1
     ports:
       - '3306:3306'
     volumes:
-      - mysql-data:/var/lib/mysql
+      # A new volume name, not `mysql-data`: a data directory written by MySQL 8 must never
+      # be handed to MariaDB, which cannot read it. Developers with the old volume can
+      # remove it with `docker volume rm tmanage_mysql-data`.
+      - mariadb-data:/var/lib/mysql
       # scripts/db/users.sql is deliberately NOT mounted into /docker-entrypoint-initdb.d/.
       # That directory runs on the server's first boot, before any migration has run, and
-      # every grant in that file is table-level — MySQL would abort with ER_NO_SUCH_TABLE
+      # every grant in that file is table-level — MariaDB would abort with ER_NO_SUCH_TABLE
       # (1146) on the first `GRANT ... ON tmanage.organizations`. The file is applied by
       # `pnpm db:grants` after `pnpm db:migrate` instead, which is also how CI applies it
       # and how a deployed environment must.
     healthcheck:
-      # The mysql image ships no healthcheck script — that is a MariaDB-image feature — but
-      # it does ship `mysqladmin`, which its own entrypoint uses to stop the temporary
-      # server. `-h 127.0.0.1` forces TCP on purpose: the entrypoint's initialisation
-      # server is reachable only over the socket, so the service is reported healthy only
-      # once it is listening on the port the API will actually connect to.
-      # The password travels in MYSQL_PWD rather than as `-p...`, which needs CMD-SHELL to
-      # set it. On the command line every probe — one every 5 seconds, for the life of the
-      # container — logs "Using a password on the command line interface can be insecure".
-      # Exit status is the same either way; this only keeps the log readable.
-      test: ['CMD-SHELL', 'MYSQL_PWD=local_dev_only_root mysqladmin ping -h 127.0.0.1 -uroot']
+      # The image's own script. `--connect` succeeds only once the server accepts network
+      # connections — the entrypoint's initialisation server runs with networking off — so
+      # the service is reported healthy only when it is listening on the port the API will
+      # actually connect to. `--innodb_initialized` additionally waits for InnoDB. The
+      # script authenticates as the image's own `healthcheck` user from a file in the data
+      # directory, so no password appears on a command line or in the probe log.
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
       interval: 5s
       timeout: 5s
       retries: 20
       # First boot on an empty volume initialises the data directory before the server
-      # listens on 3306, and mysql:8.4 is slower at it than the image this replaced. Without
-      # a grace window every probe during initialisation counts against `retries`, and
-      # 5s × 20 = 100s is the whole budget `docker compose up -d --wait mysql` has in CI.
-      # During start_period a failing probe does not count; the first success ends it.
+      # listens on 3306. Without a grace window every probe during initialisation counts
+      # against `retries`, and 5s × 20 = 100s is the whole budget `docker compose up -d
+      # --wait mariadb` has in CI. During start_period a failing probe does not count; the
+      # first success ends it.
       start_period: 30s
 
   valkey:
@@ -136,6 +153,6 @@ services:
     restart: 'no'
 
 volumes:
-  mysql-data:
+  mariadb-data:
   valkey-data:
   minio-data:

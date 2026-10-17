@@ -31,8 +31,8 @@ import type { SeedWorld } from './seed-two-tenants.js';
 /**
  * PLAT-004 against a real server — the producers, the relay, and the lifecycle rule.
  *
- * The dispatcher is imported from `@tmanage/worker` and driven against the same embedded
- * MySQL the rest of the corpus runs on, so what is proved is the relay itself, not a
+ * The dispatcher is imported from `@tmanage/worker` and driven against the same MariaDB
+ * server the rest of the corpus runs on, so what is proved is the relay itself, not a
  * restatement of it. Seven properties only this suite can hold:
  *
  * 1. **Producers write atomically.** Every state-changing command writes its catalog event

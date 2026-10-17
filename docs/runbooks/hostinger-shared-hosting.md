@@ -265,7 +265,7 @@ So **19 in practice**.
 - `SMTP_SECURE` — env.ts:374-377. Leave `false` for port 587 STARTTLS; set `true` only with
   `SMTP_PORT=465`.
 - `DATABASE_POOL_MAX` — env.ts:178, default 5 **per process**. Two app slots plus each cron tick
-  each open a pool against the shared MySQL connection allowance; the worker caps itself at 2
+  each open a pool against the shared MariaDB connection allowance; the worker caps itself at 2
   (`apps/worker/src/main.ts:83`). Count them against the plan's connection limit before deploying
   and lower this if needed.
 - `RATE_LIMIT_AUTH_MAX_PER_SOURCE` — env.ts:346, default 30 (~15 complete MFA sign-ins per
@@ -290,7 +290,7 @@ With it set the API registers `GET /public/setup` and `POST /public/setup`, and 
 `/setup` page offers the form; without it the routes are not registered at all (an ordinary 404)
 and `/setup` says setup is not available. The web slot does not read the variable.
 
-The route needs no new table or migration and works on Hostinger's MariaDB. It creates the
+The route needs no new table or migration and works on Hostinger's MariaDB 11.8. It creates the
 owner, the organisation, its default workspace and the owner membership in one transaction,
 under the advisory lock `GET_LOCK('tmanage.first_owner_setup', 5)` with the "no organisation, no
 owner" check inside it, so it can succeed once only (a concurrent loser gets 404, or 409 if the

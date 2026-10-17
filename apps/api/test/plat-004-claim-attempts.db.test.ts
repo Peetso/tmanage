@@ -3,6 +3,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import { uuidv7 } from '@tmanage/domain';
 import {
   createWorkerDatabase,
+  isRecoverableBatchError,
   readOutboxBacklog,
   releaseReservedAttempts,
   reserveDueEvents,
@@ -40,22 +41,16 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * What only this file can prove is the part that matters most and a fake cannot reach:
  * **that the reservation's `attempts` increment is committed and therefore survives a
  * transaction that never commits** — which is exactly what a killed process leaves behind —
- * and that the backlog aggregate reads what MySQL actually stores, `TIMESTAMPDIFF`,
- * `NOW(3)`, NULL-on-empty and all.
+ * and that the backlog aggregate reads what MariaDB actually stores, `TIMESTAMPDIFF`,
+ * `NOW(3)`, NULL-on-empty and all. It also proves the relay pool's statement timeout is
+ * really in force on MariaDB (`max_statement_time`), and that its kill is classified as a
+ * recoverable batch failure.
  *
- * ── UNEXECUTED ────────────────────────────────────────────────────────────────
- * Written but **not run**: the database lock was held by another job for the whole session
- * this landed in, and the slice rules forbid starting mysqld. Run it with
- *
- *     pnpm test:db
- *
- * from the repository root, or just this file:
+ * Run it with `pnpm test:db` from the repository root, or just this file:
  *
  *     pnpm build:packages && pnpm build:worker && \
  *       pnpm --filter @tmanage/api exec vitest run --project database \
  *       test/plat-004-claim-attempts.db.test.ts
- *
- * Nothing below has been observed to pass. Treat a first green run as the proof, not this note.
  */
 
 let db: TestDatabase;
@@ -298,5 +293,37 @@ describe('CRITICAL-2 — the backlog aggregate', () => {
     await expect(
       workerDb.read((tx) => readOutboxBacklog(tx, OPTIONS.maxAttempts)),
     ).resolves.toBeDefined();
+  });
+});
+
+describe('the relay pool statement timeout — MariaDB max_statement_time', () => {
+  it('reports the configured timeout, in seconds, on a worker pool connection', async () => {
+    // The pool sets `max_statement_time` in the same tick as `sql_mode`, so the very first
+    // statement a borrower issues on a fresh connection already sees it. A pool that only set
+    // MySQL's `max_execution_time` reported 0 here: on MariaDB the relay ran uncapped.
+    const rows = await workerDb.read((tx) =>
+      tx.query<readonly { readonly cap: unknown }[]>('select @@session.max_statement_time as cap'),
+    );
+    expect(Number(rows[0]?.cap)).toBe(15);
+  });
+
+  it('kills a statement past the cap with ER_STATEMENT_TIMEOUT, which is recoverable', async () => {
+    const capped = createWorkerDatabase({
+      url: db.url,
+      connectionLimit: 1,
+      statementTimeoutMs: 1_000,
+    });
+    try {
+      const failure: unknown = await capped
+        .read((tx) => tx.query('select sleep(5)'))
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+      expect(failure).toMatchObject({ errno: 1969 });
+      expect(isRecoverableBatchError(failure)).toBe(true);
+    } finally {
+      await capped.end();
+    }
   });
 });

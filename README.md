@@ -5,7 +5,7 @@ loop from client request through triage, execution, internal review, client revi
 approval, to final delivery — with internal discussion staying internal.
 
 **Status:** early implementation. Foundations and the authorization/domain core are built
-and tested; the MySQL data layer is the next task. See
+and tested; the MariaDB data layer is the next task. See
 [`docs/implementation-status.md`](docs/implementation-status.md) for what is actually
 verified, and never assume a check passed unless it is recorded there.
 
@@ -41,8 +41,10 @@ With a container runtime:
 docker compose up -d --wait
 ```
 
-This starts MySQL 8.4, Valkey 8.1, and MinIO — mirroring the bootstrap deployment
-profile (Hostinger MySQL, Upstash Redis, Cloudflare R2). Then, in order:
+This starts MariaDB 11.8, Valkey 8.1, and MinIO — mirroring the bootstrap deployment
+profile (Hostinger MariaDB, Upstash Redis, Cloudflare R2). MariaDB 11.8 is the only
+supported database engine, in every environment; the driver is `mysql2`, which is why the
+connection URLs still read `mysql://`. Then, in order:
 
 ```bash
 pnpm db:migrate
@@ -53,14 +55,16 @@ pnpm db:grants
 ```
 
 The order is not stylistic. `scripts/db/users.sql` creates the least-privilege runtime and
-worker users (ADR-0001 layer 2) with table-level grants, and MySQL rejects a table-level
+worker users (ADR-0001 layer 2) with table-level grants, and MariaDB rejects a table-level
 `GRANT` naming a table that does not exist. `db:grants` also needs an
 administrative credential — it issues `CREATE USER` and `GRANT`, which the migration user
 deliberately cannot do — so point `DATABASE_MIGRATION_URL` at an admin user for that command
 only.
 
-Without a container runtime, the database tests fall back to an embedded MySQL server and
-the filesystem/in-memory drivers. See
+Without a container runtime, the database tests start a private MariaDB 11.8 server per test
+file from the bundled portable runtime (`scripts/db/mariadb-server.mjs`; the first run
+extracts it under `.local/mariadb`, and `TMANAGE_MARIADB_HOME` points at an existing copy
+instead), and use the filesystem/in-memory drivers. See
 [`ADR-0002`](docs/adr/ADR-0002-local-development-substitutes.md) for the fidelity limits —
 they are real and are recorded per driver. The least-privilege suite skips in that mode and
 says so; CI is where it runs.
@@ -68,7 +72,7 @@ says so; CI is where it runs.
 ## Architecture
 
 pnpm TypeScript monorepo. Next.js App Router for the team app and the dedicated client
-portal; NestJS + Fastify as a modular-monolith API; MySQL as the system of record, on
+portal; NestJS + Fastify as a modular-monolith API; MariaDB 11.8 as the system of record, on
 Hostinger; Drizzle ORM with `mysql2` and explicit SQL migrations; a
 Redis-compatible service for cache, rate limits, presence, and BullMQ; S3-compatible
 private object storage.
@@ -88,7 +92,7 @@ a framework, a driver, or another workspace package.
 
 The single property this product cannot get wrong.
 
-MySQL has no row-level security, so isolation rests on five independent layers described
+MariaDB has no row-level security, so isolation rests on five independent layers described
 in [`ADR-0001`](docs/adr/ADR-0001-tenant-isolation-without-rls.md):
 
 1. **Structural** — composite `(organization_id, id)` foreign keys make a cross-tenant row

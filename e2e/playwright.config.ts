@@ -5,7 +5,7 @@ import { WEB_URL } from './setup/stack.js';
  * TEST-003's runner — deliberately OUTSIDE the verification chain.
  *
  * The chain's seven gates are deterministic and finish in ~25 minutes; a full-stack boot
- * (embedded MySQL, migrations, seed, API, Next dev server, a browser) is a different kind
+ * (MariaDB 11.8, migrations, seed, API, Next dev server, a browser) is a different kind
  * of animal, and welding it into the chain on the day it is born would put every future
  * ticket behind its worst day. It runs as `pnpm test:e2e`, alone, and earns its way into
  * anything mandatory by a track record — the judgement is recorded in

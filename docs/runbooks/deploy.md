@@ -18,8 +18,8 @@ never from the passwords in that file, which exist for local development only.
 
 **Read this before the first sign-in on any new environment.** There is no public sign-up, so a
 fresh production database has no way in until the first organisation owner exists. The one-time
-setup route makes that owner. It needs no new table and no migration, and works on MySQL and
-MariaDB alike. Click-by-click steps for the Hostinger panel are in
+setup route makes that owner. It needs no new table and no migration, and runs on MariaDB 11.8, the
+project's only database engine. Click-by-click steps for the Hostinger panel are in
 `deploy/hostinger/DEPLOY-HOSTINGER.md` (step 10).
 
 ### The variable
@@ -89,7 +89,7 @@ and the grants that rebuild it. During that window:
   a dropped connection, a `Ctrl-C`, a failed statement partway down — after a principal's revoke
   but before its rebuild finishes, that principal can do nothing until the command is run again to
   completion. For `tmanage_app` that is a hard API outage that did not exist before this change.
-- **Live connections are refused _during_ the window, not merely on reconnect.** MySQL applies a
+- **Live connections are refused _during_ the window, not merely on reconnect.** MariaDB applies a
   table-level revoke to an already-pooled connection at its next request, so an API or worker
   process holding a connection on that credential starts getting access-denied errors the moment
   the revoke lands, without reconnecting.

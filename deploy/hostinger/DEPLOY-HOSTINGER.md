@@ -32,8 +32,10 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    menu next to `tmanage.peetrix.com` and look for _Delete website_ / _Remove_.
    **This cannot be undone** — that is why you made the backup in step 1. Your domain
    `peetrix.com` and its own Web app are not touched by this.
-4. **The database.** Hostinger gives the Web app **one** MySQL database with **one** user, and
-   when the database is created as part of the Web app's setup, Hostinger **writes the connection
+4. **The database.** Hostinger gives the Web app **one** database with **one** user. The
+   database server is **MariaDB 11.8** (it reports `11.8.9-MariaDB-log`), which is the only
+   database TManage supports; Hostinger's panel still labels these screens "MySQL". When
+   the database is created as part of the Web app's setup, Hostinger **writes the connection
    settings into the app for you** (`DATABASE_URL` and `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`,
    `DB_PASSWORD`). You never type or see that password. So:
    - **Best:** create the database from the Web app's own screen (Part 2, step 6 — look for
@@ -136,8 +138,8 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    - If something fails, open the app's **Logs** (look for _Runtime logs_ / _Deployments_). The
      app writes plain messages such as the name of a missing or mistyped setting. Fix it in
      **Environment variables** and **Restart**.
-   - If the log mentions **"SUPER privilege" and "binary logging"** on the first start, the MySQL
-     server needs `log_bin_trust_function_creators` enabled. Ask Hostinger support to enable it for
+   - If the log mentions **"SUPER privilege" and "binary logging"** on the first start, the
+     MariaDB server needs `log_bin_trust_function_creators` enabled. Ask Hostinger support to enable it for
      your database, then **Restart**.
 10. **Create the first owner account.** There is **no public sign-up**: nobody can create an
     account from the sign-in page. The very first owner is made once, with a one-time setup page;

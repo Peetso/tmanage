@@ -1,4 +1,4 @@
-# ADR-0001 — Tenant isolation on MySQL, where row-level security does not exist
+# ADR-0001 — Tenant isolation on MariaDB, where row-level security does not exist
 
 - **Status:** Accepted
 - **Date:** 2026-08-16
@@ -9,10 +9,11 @@
 
 ## Context
 
-The database and access layer are **fixed**, not open decisions: MySQL (InnoDB, strict
-mode, `utf8mb4`) with Drizzle ORM, the `mysql2` driver, and explicit SQL migrations. This
-is driven by `50-BOOTSTRAP` — the funded environment is the owner's Hostinger plan, whose
-included database is MySQL. PostgreSQL is not available on it.
+The database and access layer are **fixed**, not open decisions: MariaDB 11.8 (InnoDB,
+strict mode, `utf8mb4`) with Drizzle ORM, the `mysql2` driver, and explicit SQL migrations.
+This is driven by `50-BOOTSTRAP` — the funded environment is the owner's Hostinger plan,
+whose included database is MariaDB (`11.8.9-MariaDB-log`). PostgreSQL is not available on
+it.
 
 > **Correction, 2026-09-12.** Earlier revisions of this ADR named the engine "Hostinger's
 > MySQL-compatible MariaDB", following the planning pack. The owner has confirmed the
@@ -21,12 +22,21 @@ included database is MySQL. PostgreSQL is not available on it.
 > deployment. The planning pack still says otherwise and is immutable; the discrepancy is
 > the pack's, not the implementation's.
 
+> **Correction, 2026-10-17 (supersedes the note above).** The 2026-09-12 note was wrong
+> about production: the owner's Hostinger shared hosting reports `11.8.9-MariaDB-log`, and
+> the owner has decided that MariaDB 11.8 is the project's single database engine in every
+> environment — `compose.yaml`, the database and end-to-end test harnesses, CI, and
+> production. MySQL is no longer a supported target. The driver stays `mysql2` and the
+> connection URLs stay `mysql://`. Nothing in the decision below changes: MariaDB, like
+> MySQL, has no row-level security, so the five layers stand as written.
+
 This ADR therefore does **not** decide the engine. It decides the thing the pack names as
 a requirement but leaves to implementation: **what concretely replaces row-level security.**
 
-MySQL has no RLS. `04-SECURITY-PRIVACY.md` §4 is blunt about the consequence:
-"no control may assume it exists." On PostgreSQL, a forgotten `WHERE organization_id = ?`
-returns zero rows. On MySQL, the same omission returns **every tenant's rows**. The failure
+MariaDB has no RLS (nor does MySQL). `04-SECURITY-PRIVACY.md` §4 is blunt about the
+consequence: "no control may assume it exists." On PostgreSQL, a forgotten
+`WHERE organization_id = ?` returns zero rows. On MariaDB, the same omission returns **every
+tenant's rows**. The failure
 mode inverts from safe to catastrophic, and it is silent — the endpoint works, the tests
 that only check the happy path pass, and the leak is invisible until someone notices data
 from another customer.
@@ -136,9 +146,9 @@ limits the blast radius.
 
 ## Revisit trigger
 
-- Move from Hostinger's included database to a funded managed MySQL service when the
+- Move from Hostinger's included database to a funded managed MariaDB service when the
   capacity, backup, recovery, regional, availability, or support gate in `50-BOOTSTRAP` §8
   is passed. The five isolation layers remain mandatory after that move.
 - Revisit the guard's SQL parsing if false positives require more than a handful of
   documented escapes.
-- If MySQL ships a usable RLS-equivalent, adopt it as a sixth layer, not a substitute.
+- If MariaDB ships a usable RLS-equivalent, adopt it as a sixth layer, not a substitute.

@@ -5,7 +5,7 @@
 --    privileges the application needs and cannot alter schema, grant privileges, create
 --    users, or access other databases."
 --
--- MySQL has no row-level security, so the credential boundary is one of the few controls
+-- MariaDB has no row-level security, so the credential boundary is one of the few controls
 -- that still holds if application code is bypassed entirely. Layers 3 (query guard) and 4
 -- (lint boundary) live inside the application and do nothing for a direct SQL session.
 --
@@ -18,15 +18,15 @@
 -- migrating a schema, and the two are separate for the same reason the users are.
 --
 -- **After `pnpm db:migrate`** — `pnpm db:grants` does exactly that. Every grant
--- below is table-level, and MySQL rejects a table-level GRANT naming a table that does
--- not exist (`ER_NO_SUCH_TABLE`, 1146). An earlier revision of
+-- below is table-level, and MariaDB rejects a table-level GRANT naming a table that does
+-- not exist (`ER_NO_SUCH_TABLE`, 1146 — observed on 11.8.9). An earlier revision of
 -- `compose.yaml` mounted this file into `/docker-entrypoint-initdb.d/`, which runs on the
 -- server's *first boot* — necessarily before any migration. That mount could never have
 -- succeeded, and has been removed rather than worked around by loosening the grants.
 --
 -- ## Why every grant is table-level
 --
--- MySQL privileges are additive and cannot be revoked for a single table once granted
+-- MariaDB privileges are additive and cannot be revoked for a single table once granted
 -- database-wide. Withholding UPDATE and DELETE on `audit_events`, and INSERT on
 -- `schema_migrations`, therefore requires never granting them database-wide in the first
 -- place. `SELECT` is the one exception, and only for the application: `tmanage_app` is
@@ -48,7 +48,7 @@
 --
 -- Until 2026-09-12 this file contained no `REVOKE` at all and created every account with
 -- `CREATE USER IF NOT EXISTS`. Both halves are deliberate and both are kept. What was
--- missing is the consequence: MySQL privileges are **additive**, so on a server that had
+-- missing is the consequence: MariaDB privileges are **additive**, so on a server that had
 -- been provisioned by an earlier revision of this file, re-applying it *added* the narrow
 -- grants and *left the old wide ones exactly where they were*. The worker's former
 -- database-wide `SELECT` survived every re-run, and with it the relay's read of
@@ -69,12 +69,24 @@
 -- privileges enumerated below, and no others** — whether the account was created by this
 -- run, by an older revision of this file, or by a hosting panel.
 --
+-- One MariaDB qualification. The `REVOKE` takes away what is granted *to the account*; it
+-- does not take away what the account holds through a role, and since MariaDB 10.11 every
+-- account holds whatever is granted to the built-in `PUBLIC` role. A default
+-- `mariadb-install-db` grants `PUBLIC` full rights on the `test` and `test\_%` schemas
+-- (observed on 11.8.9), and a `GRANT … TO PUBLIC` on `tmanage` would hand every principal
+-- here that privilege behind this file's back. This file does not touch `PUBLIC` — it is
+-- server-wide state, owned by whoever administers the server — so
+-- `apps/api/test/least-privilege.db.test.ts` asserts that `PUBLIC` holds nothing on the
+-- `tmanage` schema, and a server's `test` grants are a provisioning matter for its owner.
+--
 -- Three consequences, stated rather than discovered:
 --
--- 1. **On a fresh account there is nothing to revoke.** MySQL accepts that silently;
---    MariaDB can answer `ER_REVOKE_GRANTS` (1269) and some servers `ER_NONEXISTING_GRANT`
---    (1141). `apps/api/src/common/database/grants.ts` treats those two errors on a `REVOKE`
---    as the no-op they are and reports them, and fails on anything else. A `REVOKE` here
+-- 1. **On a fresh account there is nothing to revoke.** MariaDB 11.8 accepts that
+--    silently — no error and no warning on 11.8.9, so `pnpm db:grants` reports no no-op
+--    revokes even on a first run. Other MariaDB releases and configurations can answer
+--    `ER_REVOKE_GRANTS` (1269) or `ER_NONEXISTING_GRANT` (1141), and
+--    `apps/api/src/common/database/grants.ts` treats those two errors on a `REVOKE` as the
+--    no-op they are and reports them, and fails on anything else. A `REVOKE` here
 --    can only address a user the statement directly above it has just created, so neither
 --    error can mean "unknown user".
 -- 2. **There is a window.** Between the `REVOKE` and the `GRANT`s that follow it, a running
@@ -1445,7 +1457,7 @@ GRANT SELECT ON `tmanage`.`project_clients`          TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`conversations`            TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`conversation_memberships` TO 'tmanage_worker'@'%';
 
--- Read where it writes. MySQL reads to write: an `UPDATE … WHERE` needs SELECT on the
+-- Read where it writes. MariaDB reads to write: an `UPDATE … WHERE` needs SELECT on the
 -- columns it filters by, and the notification insert's `ON DUPLICATE KEY UPDATE id = id`
 -- — the dedupe that absorbs an at-least-once replay — reads the row it collided with. A
 -- write grant below without the matching read here would be a grant that cannot be used,
@@ -1488,10 +1500,11 @@ GRANT INSERT         ON `tmanage`.`notifications`       TO 'tmanage_worker'@'%';
 -- collapsing the two into one credential is a validation error rather than a code review
 -- someone might skip.
 --
--- Created here as well as by `compose.yaml`'s MYSQL_USER, because this file must also
--- work against a server that was not provisioned by that compose file — a CI service
--- container, or a Hostinger database created through the panel. MySQL refuses `GRANT` to
--- a user that does not exist, so the create cannot be skipped.
+-- Created here as well as by `compose.yaml`'s database-user variable, because this file
+-- must also work against a server that was not provisioned by that compose file — a CI
+-- service container, or a Hostinger database created through the panel. MariaDB refuses
+-- `GRANT` to a user that does not exist (`NO_AUTO_CREATE_USER`, on by default: 1133), so
+-- the create cannot be skipped.
 -- `IF NOT EXISTS` leaves an existing user's password untouched.
 CREATE USER IF NOT EXISTS 'tmanage_migrator'@'%' IDENTIFIED BY 'local_dev_only_migrator';
 

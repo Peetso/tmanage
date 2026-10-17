@@ -34,48 +34,46 @@ interface ColumnRow extends RowDataPacket {
 let columnsByTable: Map<string, Map<string, ColumnRow>>;
 
 /**
- * Reduce a Drizzle SQL type and a MySQL `COLUMN_TYPE` to a comparable form.
+ * Reduce a Drizzle SQL type and a MariaDB `COLUMN_TYPE` to a comparable form.
  *
  * The equivalences below are real facts, each one deliberate rather than a way to make a
  * comparison pass:
  *
- * - Drizzle's `boolean()` emits `boolean`, which MySQL stores as `tinyint(1)`. There is no
- *   separate boolean type. The `(1)` is kept, because for `tinyint` the width is how a
+ * - Drizzle's `boolean()` emits `boolean`, which MariaDB stores as `tinyint(1)`. There is
+ *   no separate boolean type. The `(1)` is kept, because for `tinyint` the width is how a
  *   boolean is spelled rather than noise.
  * - `bigint unsigned` and `bigint(20) unsigned` differ only by the display width, which
- *   MySQL 8.0.19 deprecated and stopped reporting. The same holds for `int(10)`,
- *   `mediumint(8)` and `smallint(5)`. MariaDB (Hostinger runs 11.8) still reports every
- *   width, including `tinyint(4)` and `tinyint(3) unsigned`; those reduce to `tinyint`.
- *   A plain Drizzle `tinyint()` is a number, not a boolean, so it is no longer equated
- *   with `tinyint(1)` (before 2026-10-17 it was, which only passed because MySQL 8 reports
- *   a plain `tinyint` without a width).
- * - `longtext` reduces to `json`. On MySQL a `json` column reports `json`, so this does not
- *   fire; it is kept as a tolerance for a server that stores JSON as text. What makes it
- *   safe is a rule, not a list: **every `json` column in this schema holds genuine JSON,
- *   and no column anywhere is declared `longtext`.** So the tolerance can only ever equate
- *   a `json` column with itself, and it stays safe as columns are added. Stated as a rule
- *   deliberately — until 2026-09-12 this named three columns by hand and there were
- *   already six, `messages.body_rich` and `message_revisions.body_rich` (migration
- *   `0008_message_rich_text.sql`) and `upload_sessions.upload_targets_json`
+ *   MariaDB 11.8 reports on every integer column: `int(10)`, `mediumint(8)`,
+ *   `smallint(5)`, `tinyint(4)` and `tinyint(3) unsigned` all reduce to the bare type.
+ *   A plain Drizzle `tinyint()` is a number, not a boolean, so it is not equated with
+ *   `tinyint(1)` (before 2026-10-17 it was, which only passed because the engine the
+ *   harness ran then reported a plain `tinyint` without a width).
+ * - `longtext` reduces to `json`. MariaDB's `JSON` is an alias for `LONGTEXT` guarded by
+ *   an automatic `json_valid` CHECK, so every `json` column reports `longtext`. What
+ *   makes the reduction safe is a rule, not a list: **every `json` column in this schema
+ *   holds genuine JSON, and no column anywhere is declared `longtext`.** So it can only
+ *   ever equate a `json` column with itself, and it stays safe as columns are added.
+ *   Stated as a rule deliberately — until 2026-09-12 this named three columns by hand and
+ *   there were already six, `messages.body_rich` and `message_revisions.body_rich`
+ *   (migration `0008_message_rich_text.sql`) and `upload_sessions.upload_targets_json`
  *   (`0015_file_uploads.sql`) having landed after the list was written.
  *
  * The width branch was wrong until 2026-08-25: it dropped the space as well as the width,
  * turning `bigint(20) unsigned` into `bigintunsigned`, and it tested `startsWith('int')` so
- * `smallint` and `mediumint` were missed entirely. MySQL never reports a display width, so
- * on the engine this project actually runs the branch does not execute at all.
+ * `smallint` and `mediumint` were missed entirely.
  */
 function normaliseType(type: string): string {
   const lowered = type.toLowerCase().replace(/\s+/g, ' ').trim();
   if (lowered === 'boolean') return 'tinyint(1)';
   if (lowered === 'longtext') return 'json';
-  // MariaDB keeps the display width MySQL 8 dropped: `tinyint(4)`, `tinyint(3) unsigned`.
+  // MariaDB reports the display width: `tinyint(4)`, `tinyint(3) unsigned`, `int(10)`.
   // `tinyint(1)` is the one width that carries meaning (a boolean), so it alone is kept.
   return lowered
     .replace(/^(bigint|mediumint|smallint|int)\(\d+\)/, '$1')
     .replace(/^tinyint\((?!1\))\d+\)/, 'tinyint');
 }
 
-/** Types where MySQL and Drizzle genuinely agree once width noise is removed. */
+/** Types where MariaDB and Drizzle genuinely agree once width noise is removed. */
 function typesAgree(drizzleType: string, columnType: string): boolean {
   // No width-stripping fallback. An earlier revision compared the two forms again with
   // every `(N)` removed, which made `smallint(5) unsigned` agree with `smallint unsigned`

@@ -20,7 +20,7 @@ the option requires a full type checker, and esbuild deliberately does not have 
 
 That matters here because of where the application is actually exercised. The one suite that
 proves the request pipeline is correct — `apps/api/test/http-pipeline.db.test.ts` — boots the
-real `AppModule` over a real MySQL server (ADR-0002) and drives real HTTP through Fastify.
+real `AppModule` over a real MariaDB server (ADR-0002) and drives real HTTP through Fastify.
 It runs under vitest, and **vitest transforms TypeScript with esbuild**. So the environment in
 which the security-critical wiring is verified is precisely the environment that cannot supply
 `design:paramtypes`.

@@ -20,7 +20,7 @@ import { INTERNAL_ROLES } from '@tmanage/domain';
 /**
  * Migrator behaviour against a real server.
  *
- * The partial-failure case is the reason this file exists. MySQL commits each DDL
+ * The partial-failure case is the reason this file exists. MariaDB commits each DDL
  * statement as it runs, so a migration that dies half way through leaves a schema that is
  * neither the old one nor the new one. The migrator's contract is that it *records* that
  * state precisely and then refuses to run again until a human resolves it â€” asserted here
@@ -70,16 +70,14 @@ const realMigrations: readonly string[] = readdirSync(migrationsDirectory)
   .sort();
 
 /**
- * A CHECK violation naming `constraint`, in either engine's wording.
+ * A CHECK violation naming `constraint`, in MariaDB's wording.
  *
- * MySQL 8 says "Check constraint 'name' is violated."; MariaDB (Hostinger's engine) says
- * "CONSTRAINT `name` failed for `db`.`table`". Both are the engine refusing the row on that
- * constraint, so the match names the constraint rather than loosening to any error.
+ * MariaDB 11.8 (the project's only engine, and Hostinger's) says
+ * "CONSTRAINT `name` failed for `db`.`table`". The match names the constraint rather than
+ * loosening to any error, so it is the engine refusing the row on that constraint.
  */
 function checkViolation(constraint: string): RegExp {
-  return new RegExp(
-    `[Cc]heck constraint '${constraint}' is violated|CONSTRAINT \`${constraint}\` failed`,
-  );
+  return new RegExp(`CONSTRAINT \`${constraint}\` failed`);
 }
 
 /** Copy the real migration set into a temporary directory, optionally adding files. */
@@ -182,7 +180,7 @@ describe('the advisory lock', () => {
   });
 });
 
-describe('partial failure, because MySQL DDL is not transactional', () => {
+describe('partial failure, because MariaDB DDL is not transactional', () => {
   beforeAll(freshDatabase);
 
   const partial = {
@@ -935,21 +933,17 @@ describe('0034: saved_views is a tenant- and owner-scoped, forward-only table', 
       ].sort(),
     );
     // config is JSON; project_id is NULL-able (an org-wide view names no project); owner and org are not.
-    // MySQL reports a native `json` type. MariaDB's JSON is an alias for LONGTEXT that the engine
-    // guards with an automatic CHECK (json_valid(config)), so there the guard is what is asserted.
-    if (db.engine.name === 'mariadb') {
-      expect(String(byName.get('config')?.['type'])).toBe('longtext');
-      const [checks] = await connection.query<RowDataPacket[]>(
-        `SELECT check_clause AS clause
-           FROM information_schema.check_constraints
-          WHERE constraint_schema = DATABASE() AND table_name = 'saved_views'`,
-      );
-      expect(checks.map((row) => String(row['clause']))).toContainEqual(
-        expect.stringMatching(/json_valid\(`config`\)/i),
-      );
-    } else {
-      expect(String(byName.get('config')?.['type'])).toBe('json');
-    }
+    // MariaDB's JSON is an alias for LONGTEXT that the engine guards with an automatic CHECK
+    // (json_valid(config)), so the guard is what is asserted.
+    expect(String(byName.get('config')?.['type'])).toBe('longtext');
+    const [checks] = await connection.query<RowDataPacket[]>(
+      `SELECT check_clause AS clause
+         FROM information_schema.check_constraints
+        WHERE constraint_schema = DATABASE() AND table_name = 'saved_views'`,
+    );
+    expect(checks.map((row) => String(row['clause']))).toContainEqual(
+      expect.stringMatching(/json_valid\(`config`\)/i),
+    );
     expect(String(byName.get('project_id')?.['nullable'])).toBe('YES');
     expect(String(byName.get('owner_user_id')?.['nullable'])).toBe('NO');
     expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');

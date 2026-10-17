@@ -6,11 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /**
- * `scripts/check-mariadb-compat.mjs` — the static guard that keeps every migration valid on
- * BOTH MySQL 8 (local, tests) and MariaDB 10.6+ (Hostinger, production).
- *
- * The first live deploy failed on migration 0011's generated column; nothing local runs
- * MariaDB, so this guard is the only thing that can notice before a deploy does. The script is
+ * `scripts/check-mariadb-compat.mjs` — the fast, offline guard that keeps SQL MariaDB 11.8 does
+ * not accept out of the migrations. MariaDB 11.8 is the only engine (production, local, CI and
+ * the DB suite); this guard answers in seconds, before the 30-minute DB suite would. The script is
  * plain Node ESM and is run here as a child process (the api tsconfig does not import .mjs).
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -43,7 +41,7 @@ afterEach(() => {
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe('check-mariadb-compat guards migrations against MySQL-8-only SQL', () => {
+describe('check-mariadb-compat keeps MariaDB-incompatible SQL out of migrations', () => {
   it('passes a portable migration', () => {
     const dir = fixture(
       '0001_clean.sql',

@@ -24,7 +24,7 @@ import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
 
 /**
- * PEOPLE-001 against a real MySQL server — the People & capacity module (module 14; x170–x172,
+ * PEOPLE-001 against a real MariaDB 11.8 server — the People & capacity module (module 14; x170–x172,
  * x193, x216–x218) built in pass 21/23 but never proven by a DB suite. This slice is the proof.
  *
  * What only this suite can prove, against genuine InnoDB rather than a mock:
@@ -124,9 +124,14 @@ afterAll(async () => {
   await db?.stop();
 });
 
-describe('the server really is MySQL or MariaDB', () => {
-  it('reports a MySQL 8 or MariaDB engine, so composite FKs and CHECKs are actually enforced', () => {
-    expect(['mysql', 'mariadb']).toContain(db.engine.name);
+describe('the server really is MariaDB 11.8', () => {
+  it('reports MariaDB 11.8, so composite FKs and CHECKs are actually enforced', () => {
+    expect(db.engine.name, 'the engine is the one the product runs on, MariaDB 11.8').toBe(
+      'mariadb',
+    );
+    expect(db.engine.version, 'the engine is the one the product runs on, MariaDB 11.8').toMatch(
+      /^11\.8\./,
+    );
   });
 });
 

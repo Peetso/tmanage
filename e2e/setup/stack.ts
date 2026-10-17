@@ -3,10 +3,11 @@ import type { ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { createDB } from 'mysql-memory-server';
+import { startMariaDb } from '../../scripts/db/mariadb-server.mjs';
 
 /**
- * The e2e stack — TEST-003's fixture: a real embedded MySQL, the real migrations, the
+ * The e2e stack — TEST-003's fixture: a real MariaDB 11.8 (the production engine), the
+ * real migrations, the
  * real two-tenant seed, the real API, the real web app, torn down whole.
  *
  * Everything is spawned through the repository's own commands (`db:migrate`, the seed CLI,
@@ -373,76 +374,17 @@ interface SeedWorldForApproval {
 }
 
 export async function bootStack(): Promise<StackState & { stop: () => Promise<void> }> {
-  // 1. A real MySQL, private to this run.
-  const server = await createDB({
-    dbName: 'tmanage_e2e',
-    logLevel: 'ERROR',
-    downloadBinaryOnce: true,
-  });
-  const databaseUrl = `mysql://${server.username}@127.0.0.1:${server.port}/${server.dbName}`;
+  // 1. A real MariaDB 11.8 — the engine production runs — private to this run.
+  const server = await startMariaDb({ dbName: 'tmanage_e2e', logLevel: 'ERROR' });
+  process.stdout.write(`[e2e stack] database ${server.version} on 127.0.0.1:${server.port}\n`);
+  const databaseUrl = server.url;
   const storageRoot = mkdtempSync(join(tmpdir(), 'tmanage-e2e-storage-'));
   const env = apiEnv(databaseUrl, storageRoot);
+  const pids: number[] = [];
 
-  // 2. The real migrations, through the repository's own command.
-  await run('pnpm', ['--filter', '@tmanage/api', 'db:migrate'], { cwd: REPO_ROOT, env });
-
-  // 3. The exact seed world every database suite runs on.
-  const seeded = await run(
-    'pnpm',
-    ['--filter', '@tmanage/api', 'exec', 'tsx', 'test/seed-cli.ts'],
-    { cwd: REPO_ROOT, env: { ...env, TMANAGE_SEED_DATABASE_URL: databaseUrl } },
-  );
-  const world = JSON.parse(seeded.stdout.trim().split('\n').pop() as string) as Record<
-    string,
-    unknown
-  >;
-
-  // 3b. E2E-05's approval fixture (T001). The seed world carries no deliverable version to open the
-  // client deep link against and the stack mints none at runtime, so seed one here and hang the two
-  // governed version ids off `world.atlas.approval`, where the journey reads them.
-  const seedWorld = world as unknown as SeedWorldForApproval;
-  const approval = await seedApprovalFixture(databaseUrl, {
-    organizationId: seedWorld.northstar.organizationId,
-    projectId: seedWorld.northstar.projectId,
-    publisherUserId: seedWorld.northstar.manager.id,
-    publisherMembershipId: seedWorld.northstar.manager.membershipId,
-    approvedContactEmail: seedWorld.atlas.admin.email,
-  });
-  (world['atlas'] as Record<string, unknown>)['approval'] = approval;
-
-  // 4. The API and the web app, as they actually run. The web build cache goes first:
-  // NEXT_PUBLIC_* values are inlined at compile time, and a `.next` warmed under a
-  // developer's own environment would serve chunks that dial the developer's API — the
-  // exact stale-inline failure this harness's first run produced.
-  rmSync(join(REPO_ROOT, 'apps/web/.next'), { recursive: true, force: true });
-  const api = spawnServer('pnpm', ['--filter', '@tmanage/api', 'exec', 'tsx', 'src/main.ts'], {
-    cwd: REPO_ROOT,
-    env,
-    logName: 'api',
-  });
-  const web = spawnServer(
-    'pnpm',
-    ['--filter', '@tmanage/web', 'exec', 'next', 'dev', '--port', String(WEB_PORT)],
-    {
-      cwd: REPO_ROOT,
-      env: {
-        ...process.env,
-        NEXT_PUBLIC_API_BASE_URL: API_URL,
-        // Deliberately NOT setting NEXT_PUBLIC_SESSION_COOKIE_NAME. The API above runs on the
-        // documented default cookie name, and the browser must find the CSRF cookie by *its*
-        // default too: review finding D02 was a browser default (`tm_session_csrf`) that
-        // disagreed with the server's, and this override is what hid it from the suite.
-        PORT: String(WEB_PORT),
-      },
-      logName: 'web',
-    },
-  );
-
-  await waitForHttp(API_URL, 120_000);
-  await waitForHttp(WEB_URL, 240_000);
-
-  const pids = [api.pid, web.pid].filter((pid): pid is number => typeof pid === 'number');
-
+  // One teardown for every path: Playwright's returned teardown on success, and the catch
+  // below when any boot step throws (a failed globalSetup never gets a teardown called, so
+  // without it a half-booted run would leave mariadbd and ports 3100/3101 behind).
   const stop = async (): Promise<void> => {
     for (const pid of pids) {
       if (process.platform === 'win32') {
@@ -459,9 +401,78 @@ export async function bootStack(): Promise<StackState & { stop: () => Promise<vo
         }
       }
     }
-    await server.stop();
-    rmSync(storageRoot, { recursive: true, force: true, maxRetries: 3 });
+    try {
+      await server.stop();
+    } finally {
+      rmSync(storageRoot, { recursive: true, force: true, maxRetries: 3 });
+    }
   };
 
-  return { databaseUrl, storageRoot, world, pids, stop };
+  try {
+    // 2. The real migrations, through the repository's own command.
+    await run('pnpm', ['--filter', '@tmanage/api', 'db:migrate'], { cwd: REPO_ROOT, env });
+
+    // 3. The exact seed world every database suite runs on.
+    const seeded = await run(
+      'pnpm',
+      ['--filter', '@tmanage/api', 'exec', 'tsx', 'test/seed-cli.ts'],
+      { cwd: REPO_ROOT, env: { ...env, TMANAGE_SEED_DATABASE_URL: databaseUrl } },
+    );
+    const world = JSON.parse(seeded.stdout.trim().split('\n').pop() as string) as Record<
+      string,
+      unknown
+    >;
+
+    // 3b. E2E-05's approval fixture (T001). The seed world carries no deliverable version to open the
+    // client deep link against and the stack mints none at runtime, so seed one here and hang the two
+    // governed version ids off `world.atlas.approval`, where the journey reads them.
+    const seedWorld = world as unknown as SeedWorldForApproval;
+    const approval = await seedApprovalFixture(databaseUrl, {
+      organizationId: seedWorld.northstar.organizationId,
+      projectId: seedWorld.northstar.projectId,
+      publisherUserId: seedWorld.northstar.manager.id,
+      publisherMembershipId: seedWorld.northstar.manager.membershipId,
+      approvedContactEmail: seedWorld.atlas.admin.email,
+    });
+    (world['atlas'] as Record<string, unknown>)['approval'] = approval;
+
+    // 4. The API and the web app, as they actually run. The web build cache goes first:
+    // NEXT_PUBLIC_* values are inlined at compile time, and a `.next` warmed under a
+    // developer's own environment would serve chunks that dial the developer's API — the
+    // exact stale-inline failure this harness's first run produced.
+    rmSync(join(REPO_ROOT, 'apps/web/.next'), { recursive: true, force: true });
+    const api = spawnServer('pnpm', ['--filter', '@tmanage/api', 'exec', 'tsx', 'src/main.ts'], {
+      cwd: REPO_ROOT,
+      env,
+      logName: 'api',
+    });
+    const web = spawnServer(
+      'pnpm',
+      ['--filter', '@tmanage/web', 'exec', 'next', 'dev', '--port', String(WEB_PORT)],
+      {
+        cwd: REPO_ROOT,
+        env: {
+          ...process.env,
+          NEXT_PUBLIC_API_BASE_URL: API_URL,
+          // Deliberately NOT setting NEXT_PUBLIC_SESSION_COOKIE_NAME. The API above runs on the
+          // documented default cookie name, and the browser must find the CSRF cookie by *its*
+          // default too: review finding D02 was a browser default (`tm_session_csrf`) that
+          // disagreed with the server's, and this override is what hid it from the suite.
+          PORT: String(WEB_PORT),
+        },
+        logName: 'web',
+      },
+    );
+    for (const child of [api, web]) {
+      if (typeof child.pid === 'number') pids.push(child.pid);
+    }
+
+    await waitForHttp(API_URL, 120_000);
+    await waitForHttp(WEB_URL, 240_000);
+
+    return { databaseUrl, storageRoot, world, pids, stop };
+  } catch (error) {
+    await stop().catch(() => undefined);
+    throw error;
+  }
 }
