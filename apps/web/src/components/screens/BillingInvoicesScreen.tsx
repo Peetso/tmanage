@@ -10,6 +10,7 @@ import { getInvoice, listInvoices, MAX_INVOICES_PAGE } from '../../lib/api/invoi
 import type { InvoiceStatus, InvoiceSummary } from '../../lib/api/invoices';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 
 export interface BillingInvoicesScreenProps {
   organizationSlug: string;
@@ -31,7 +32,8 @@ export interface BillingInvoicesScreenProps {
  * 2. **Read-only.** There is no invoice mutation surface this slice — the list and the detail drawer
  *    are all there is. Generating invoices from a payment provider is Needs-Peter.
  * 3. **Money is integer cents.** Amounts arrive as integer cents and are formatted for display with
- *    `Intl.NumberFormat`; the screen never does float arithmetic on them.
+ *    `Intl.NumberFormat` through the active-locale formatters; the screen never does float
+ *    arithmetic on them.
  */
 export function BillingInvoicesScreen({
   organizationSlug,
@@ -40,6 +42,7 @@ export function BillingInvoicesScreen({
 }: BillingInvoicesScreenProps) {
   const api = client ?? browserApiClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { money, day } = useDisplayFormatters();
 
   const invoices = useQuery({
     queryKey: ['billing-invoices', organizationSlug],
@@ -102,13 +105,13 @@ export function BillingInvoicesScreen({
                 <tr key={invoice.id}>
                   <td className="tm-mono">{invoice.number}</td>
                   <td>
-                    {formatDay(invoice.periodStart)} – {formatDay(invoice.periodEnd)}
+                    {day(invoice.periodStart)} – {day(invoice.periodEnd)}
                   </td>
-                  <td className="tm-mono">{formatMoney(invoice.amountCents, invoice.currency)}</td>
+                  <td className="tm-mono">{money(invoice.amountCents, invoice.currency)}</td>
                   <td>
                     <StatusDot tone={statusTone(invoice.status)}>{invoice.status}</StatusDot>
                   </td>
-                  <td className="tm-mono">{formatDay(invoice.issuedAt)}</td>
+                  <td className="tm-mono">{day(invoice.issuedAt)}</td>
                   <td>
                     <Button
                       type="button"
@@ -165,13 +168,13 @@ export function BillingInvoicesScreen({
                 <div>
                   <dt>Period</dt>
                   <dd>
-                    {formatDay(detail.data.periodStart)} – {formatDay(detail.data.periodEnd)}
+                    {day(detail.data.periodStart)} – {day(detail.data.periodEnd)}
                   </dd>
                 </div>
                 <div>
                   <dt>Amount</dt>
                   <dd className="tm-mono">
-                    {formatMoney(detail.data.amountCents, detail.data.currency)}
+                    {money(detail.data.amountCents, detail.data.currency)}
                   </dd>
                 </div>
                 <div>
@@ -184,7 +187,7 @@ export function BillingInvoicesScreen({
                 </div>
                 <div>
                   <dt>Issued</dt>
-                  <dd className="tm-mono">{formatDay(detail.data.issuedAt)}</dd>
+                  <dd className="tm-mono">{day(detail.data.issuedAt)}</dd>
                 </div>
               </dl>
 
@@ -204,11 +207,9 @@ export function BillingInvoicesScreen({
                         <td>{item.description}</td>
                         <td className="tm-mono">{item.quantity}</td>
                         <td className="tm-mono">
-                          {formatMoney(item.unitAmountCents, detail.data.currency)}
+                          {money(item.unitAmountCents, detail.data.currency)}
                         </td>
-                        <td className="tm-mono">
-                          {formatMoney(item.amountCents, detail.data.currency)}
-                        </td>
+                        <td className="tm-mono">{money(item.amountCents, detail.data.currency)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -229,23 +230,6 @@ function statusTone(status: InvoiceStatus): StatusTone {
   if (status === 'paid') return 'success';
   if (status === 'void') return 'neutral';
   return 'warning';
-}
-
-/** Format integer cents as a currency amount. Never does float arithmetic beyond the /100 divide. */
-function formatMoney(cents: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(cents / 100);
-  } catch {
-    // An unknown currency code — show the raw major units with the code appended.
-    return `${(cents / 100).toFixed(2)} ${currency}`;
-  }
-}
-
-/** Format an ISO instant as a calendar day. An unparseable value is shown verbatim. */
-function formatDay(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(at);
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
