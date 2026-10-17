@@ -21,7 +21,12 @@ export type DisplayTheme = (typeof DISPLAY_THEMES)[number];
 export const DISPLAY_DENSITIES = ['comfortable', 'compact'] as const;
 export type DisplayDensity = (typeof DISPLAY_DENSITIES)[number];
 
-/** BCP-47 locale allowlist; `en-US` is the default. */
+/**
+ * BCP-47 locale allowlist; `en-US` is the default. `ar-EG` is the one right-to-left locale
+ * (02-UX-UI §Localization), so adding it is what makes Arabic reachable at all. This list is the
+ * exact mirror of the server's `DISPLAY_LOCALES` (`schema.ts`): a locale the UI offers that the
+ * API would reject on save is a broken option, so the two must move together.
+ */
 export const DISPLAY_LOCALES = [
   'en-US',
   'en-GB',
@@ -31,6 +36,7 @@ export const DISPLAY_LOCALES = [
   'pt-BR',
   'ja-JP',
   'zh-CN',
+  'ar-EG',
 ] as const;
 export type DisplayLocale = (typeof DISPLAY_LOCALES)[number];
 

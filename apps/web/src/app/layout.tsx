@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import '@tmanage/ui/styles.css';
 import './globals.css';
 import { AuthBoundaryProvider } from '../components/providers/AuthBoundaryProvider';
+import { LocaleDirectionProvider } from '../components/providers/LocaleDirectionProvider';
 import { QueryProvider } from '../components/providers/QueryProvider';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 import { UpdateToast } from '../components/pwa/UpdateToast';
@@ -85,11 +86,12 @@ export const viewport: Viewport = {
  * *nested* case — a client-portal preview rendered inside the internal app — and is
  * deliberately not used here.
  *
- * Arabic is not yet reachable: `42-INTERACTION-MOTION-RESPONSIVE-AND-RTL` requires a locale
- * negotiation this app does not have, and the Arabic face the tokens name (Alexandria) is
- * not packaged. `dir` is therefore `ltr` and the CSS throughout uses logical properties, so
- * the switch is a value change rather than a rewrite. Recorded as open in
- * `docs/implementation-status.md`.
+ * `lang="en" dir="ltr"` is the server-rendered baseline: correct with no JavaScript and for
+ * every Latin-script member. `LocaleDirectionProvider` (mounted just inside `<body>`) moves
+ * `lang`/`dir` to the active locale once it is known and whenever a member changes it, so
+ * `ar-EG` reads right-to-left without a reload. The CSS throughout uses logical properties, so
+ * that switch is a value change rather than a rewrite. The Arabic face the tokens name
+ * (Alexandria) is still not packaged — recorded as open in `docs/implementation-status.md`.
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -102,7 +104,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <body>
         <QueryProvider>
-          <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
+          <LocaleDirectionProvider>
+            <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
+          </LocaleDirectionProvider>
         </QueryProvider>
         <ServiceWorkerRegister />
         {/* The service worker's "update available" affordance (slice 08): an always-mounted toast

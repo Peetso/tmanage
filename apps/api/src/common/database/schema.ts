@@ -7770,6 +7770,10 @@ export const DISPLAY_LOCALES = [
   'pt-BR',
   'ja-JP',
   'zh-CN',
+  // The one right-to-left locale (02-UX-UI §Localization, 42-...-AND-RTL). The web allowlist in
+  // `apps/web/src/lib/api/display-preferences.ts` mirrors this set exactly; the `locale` column
+  // is `varchar(35)`, so no stored value or migration constrains it beyond this allowlist.
+  'ar-EG',
 ] as const;
 export type DisplayLocale = (typeof DISPLAY_LOCALES)[number];
 export const DISPLAY_TIMEZONES = [
