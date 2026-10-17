@@ -519,6 +519,46 @@ function makeIdentityRunner(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// First-owner setup — creating the first organization on a fresh install
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FirstOwnerTransactionOptions {
+  /** Correlates the guard events this unit of work emits with the request that caused it. */
+  readonly correlationId: string;
+  /** The advisory lock name; every setup attempt must use the same one to serialize. */
+  readonly lockName: string;
+  /** How long to wait for a concurrent setup to finish before giving up. */
+  readonly lockTimeoutSeconds: number;
+}
+
+/**
+ * The three runners a first-owner setup needs, all on ONE connection inside ONE transaction.
+ */
+export interface FirstOwnerScope {
+  /** Bootstrap runner declared over `organizations` and `memberships`, with a fixed reason. */
+  readonly bootstrap: BootstrapQueryRunner;
+  /** Identity runner declared over `users` and `user_passwords`. */
+  readonly identity: IdentityQueryRunner;
+  /** A tenant runner on the same connection for a context the caller builds. */
+  tenant(context: TenantContext): TenantQueryRunner;
+}
+
+/**
+ * Raised when the first-owner advisory lock could not be taken — another setup holds it past
+ * the timeout, or the server returned NULL. No transaction was begun.
+ */
+export class FirstOwnerLockUnavailableError extends Error {
+  override name = 'FirstOwnerLockUnavailableError';
+  constructor(message = 'Another first-owner setup is in progress; try again shortly.') {
+    super(message);
+  }
+}
+
+const FIRST_OWNER_BOOTSTRAP_REASON =
+  'first-owner setup: proving no organization or owner exists before creating the first ' +
+  'one; nothing exists yet, so no tenant context can scope this read';
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TenantDatabase
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -660,6 +700,78 @@ export class TenantDatabase {
         throw unwrapQueryError(error);
       }
     } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * Create the first organization owner on a fresh install, atomically and exactly once.
+   *
+   * The setup route must prove "no organization or owner exists" and then create one, and
+   * those two steps have to be indivisible: two concurrent setup requests that both read an
+   * empty database would otherwise both create an owner. A row lock cannot help, because the
+   * rows being guarded do not exist yet. So the guard is a named advisory lock
+   * (`GET_LOCK`, the same primitive the migrator uses, available on MySQL and on the MariaDB
+   * production runs), held for the whole unit of work.
+   *
+   * The lock is taken BEFORE `BEGIN`, not inside the transaction. Under REPEATABLE READ the
+   * snapshot is fixed at the first read; acquiring the lock first means that read happens
+   * after the previous holder has committed and released, so the second of two concurrent
+   * setups sees the first one's organization and refuses. If the lock cannot be had in time,
+   * {@link FirstOwnerLockUnavailableError} is thrown and no transaction is ever begun.
+   *
+   * Everything — the existence check, the `users` and `user_passwords` inserts, and the
+   * organization/workspace/membership/audit provisioning under a tenant context — runs on
+   * one connection in one transaction, so a failure part way leaves nothing behind. The lock
+   * is released after commit or rollback and before the connection returns to the pool,
+   * because an advisory lock belongs to the session, not to the transaction.
+   */
+  async firstOwnerTransaction<T>(
+    options: FirstOwnerTransactionOptions,
+    work: (scope: FirstOwnerScope) => Promise<T>,
+  ): Promise<T> {
+    const connection = await this.pool.getConnection();
+    let locked = false;
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>('SELECT GET_LOCK(?, ?) AS acquired', [
+        options.lockName,
+        options.lockTimeoutSeconds,
+      ]);
+      const acquired = rows[0]?.['acquired'] as unknown;
+      if (acquired === null || acquired === undefined || Number(acquired) !== 1) {
+        throw new FirstOwnerLockUnavailableError();
+      }
+      locked = true;
+
+      await connection.beginTransaction();
+      try {
+        const scope: FirstOwnerScope = {
+          bootstrap: makeBootstrapRunner(connection, this.options, {
+            correlationId: options.correlationId,
+            reason: FIRST_OWNER_BOOTSTRAP_REASON,
+            tables: ['organizations', 'memberships'],
+          }),
+          identity: makeIdentityRunner(connection, this.options, {
+            correlationId: options.correlationId,
+            tables: ['users', 'user_passwords'],
+          }),
+          tenant: (context) => makeRunner(connection, context, this.options),
+        };
+        const result = await work(scope);
+        await connection.commit();
+        return result;
+      } catch (error) {
+        await connection.rollback();
+        throw unwrapQueryError(error);
+      }
+    } finally {
+      if (locked) {
+        try {
+          await connection.query('SELECT RELEASE_LOCK(?)', [options.lockName]);
+        } catch {
+          // The lock dies with the session anyway; a failed release must not mask the result.
+        }
+      }
       connection.release();
     }
   }

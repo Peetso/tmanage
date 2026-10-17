@@ -41,6 +41,12 @@ export interface ApiConfig extends SessionServiceOptions {
   /** `POST /public/site/contact` submissions admitted per address per window; absent = module default. */
   readonly contactMaxPerWindow?: number;
   readonly contactWindowMs?: number;
+  /**
+   * The one-time install secret that unlocks `/setup` (first-owner creation on an empty install).
+   * `null` or absent = the setup routes are not registered at all. Never log or expose it.
+   * Optional so the suites' hand-built `ApiConfig` literals keep compiling.
+   */
+  readonly setupToken?: string | null;
   /** ID-002. The lockout window, counted from `authentication_events` because there is no Redis. */
   readonly maxFailuresInWindow: number;
   readonly failureWindowSeconds: number;
@@ -117,6 +123,8 @@ export interface ApiConfigSource {
   readonly ALLOW_DEV_SIGN_IN?: boolean;
   readonly RATE_LIMIT_CONTACT_MAX_REQUESTS?: number;
   readonly RATE_LIMIT_CONTACT_WINDOW_SECONDS?: number;
+  /** First-owner setup secret; absent or empty = setup routes off. `| undefined` for EOPT. */
+  readonly SETUP_TOKEN?: string | undefined;
   readonly SESSION_COOKIE_NAME: string;
   readonly SESSION_SECRET: string;
   readonly SESSION_TTL_SECONDS: number;
@@ -185,6 +193,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     ...(env.RATE_LIMIT_CONTACT_WINDOW_SECONDS === undefined
       ? {}
       : { contactWindowMs: env.RATE_LIMIT_CONTACT_WINDOW_SECONDS * 1_000 }),
+    setupToken: env.SETUP_TOKEN && env.SETUP_TOKEN.length > 0 ? env.SETUP_TOKEN : null,
     maxFailuresInWindow: env.AUTH_MAX_FAILURES_IN_WINDOW,
     failureWindowSeconds: env.AUTH_FAILURE_WINDOW_SECONDS,
     totpIssuer: env.AUTH_TOTP_ISSUER,

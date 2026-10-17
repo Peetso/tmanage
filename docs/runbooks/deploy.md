@@ -14,6 +14,53 @@ never from the passwords in that file, which exist for local development only.
 
 ---
 
+## First-owner setup (fresh install)
+
+**Read this before the first sign-in on any new environment.** There is no public sign-up, so a
+fresh production database has no way in until the first organisation owner exists. The one-time
+setup route makes that owner. It needs no new table and no migration, and works on MySQL and
+MariaDB alike. Click-by-click steps for the Hostinger panel are in
+`deploy/hostinger/DEPLOY-HOSTINGER.md` (step 10).
+
+### The variable
+
+`SETUP_TOKEN` — a one-time secret, at least 32 characters (`node generate-secret.mjs` prints
+one). Set it only for the first setup.
+
+- **Set:** the API registers `GET /public/setup` (`{available: true}` while setup is possible,
+  else 404) and `POST /public/setup`, and the web app's `/setup` page offers the form.
+- **Unset:** the routes are never registered. They 404 like any unknown path, and `/setup`
+  says setup is not available. The web app itself does not read the variable.
+
+`POST /public/setup` takes `setupToken`, `email`, `displayName`, `password`,
+`organizationName`, `slug`, `timezone`, `defaultLocale`.
+
+### What it guarantees
+
+- The token is compared in constant time (sha256 of both sides, then `timingSafeEqual`).
+- The "zero organisations and zero owners" check runs in the same database transaction as the
+  inserts, under the advisory lock `GET_LOCK('tmanage.first_owner_setup', 5)`. Two concurrent
+  requests cannot both succeed: the loser gets 404, or 409 if the lock wait times out. Once any
+  organisation exists, both routes answer 404 even with the token still set.
+- One request creates the user (email marked verified), the password (the existing argon2
+  hashing), the organisation, its default workspace and the owner membership, and an audit row
+  (`organization.provisioned`, origin `first_owner_setup`). It then issues an ordinary session.
+- Rate-limited per IP on the contact form's budget: `RATE_LIMIT_CONTACT_MAX_REQUESTS` /
+  `RATE_LIMIT_CONTACT_WINDOW_SECONDS` (default 5 per 10 minutes).
+
+### The deploy, in order
+
+1. Generate a token and set `SETUP_TOKEN` on the API process. Restart.
+2. Open `<WEB_PUBLIC_URL>/setup`, paste the token, fill in the owner and organisation, submit.
+   You are signed in.
+3. **Remove `SETUP_TOKEN` and restart.** The route is closed already by the guard, but an unset
+   token removes it from the router entirely and leaves no secret lying in the environment.
+
+If the page says setup is not available: the token is unset, the process was not restarted
+after setting it, or an organisation already exists.
+
+---
+
 ## D10 — `pnpm db:grants` now narrows, so it has a window
 
 **Read this before re-running `pnpm db:grants` against any environment from 2026-09-12 onwards.**

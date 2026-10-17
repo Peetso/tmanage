@@ -281,6 +281,28 @@ outside `env.ts` and the e2e stack reads them. Their defaults satisfy production
 check, so **no action is needed** — but do not provision Redis for them; the system does not use
 it.
 
+### 5f. First-owner setup (fresh install)
+
+There is no public sign-up, so a fresh install has no way in until the first owner exists. Set
+`SETUP_TOKEN` (a one-time secret of at least 32 characters, from `node generate-secret.mjs`) on
+the **API** app slot only — the cron env file (§4) does not need it — then restart that slot.
+With it set the API registers `GET /public/setup` and `POST /public/setup`, and the web app's
+`/setup` page offers the form; without it the routes are not registered at all (an ordinary 404)
+and `/setup` says setup is not available. The web slot does not read the variable.
+
+The route needs no new table or migration and works on Hostinger's MariaDB. It creates the
+owner, the organisation, its default workspace and the owner membership in one transaction,
+under the advisory lock `GET_LOCK('tmanage.first_owner_setup', 5)` with the "no organisation, no
+owner" check inside it, so it can succeed once only (a concurrent loser gets 404, or 409 if the
+lock wait times out). The token is compared in constant time. Requests are rate-limited per IP
+on the contact form's budget (`RATE_LIMIT_CONTACT_MAX_REQUESTS` /
+`RATE_LIMIT_CONTACT_WINDOW_SECONDS`, default 5 per 10 minutes). Behind the same-origin topology
+(§3) the per-IP count depends on the D09 trusted-proxy setting in `deploy.md`.
+
+**After setup, delete `SETUP_TOKEN` from the API slot and restart.** Full rationale and the
+request body are in `deploy.md` ("First-owner setup"); the click-by-click hPanel steps are step 10
+of `deploy/hostinger/DEPLOY-HOSTINGER.md`.
+
 ---
 
 ## 6. What is impossible on this plan, and needs a decision

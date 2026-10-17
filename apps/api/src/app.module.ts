@@ -150,6 +150,7 @@ import { PublicResourcesModule } from './modules/public-site/resources.controlle
 import { TrustContentModule } from './modules/public-site/trust-content.module.js';
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
 import { ContactModule } from './modules/public-site/contact.module.js';
+import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 import { ConnectionHealthModule } from './modules/automations/connection-health.controller.js';
@@ -872,6 +873,13 @@ export class AppModule {
             ? {}
             : { max: options.config.contactMaxPerWindow }),
         }),
+        // First-owner setup (`GET/POST /public/setup`) for a fresh production install, which has no
+        // public sign-up. Registered ONLY when `SETUP_TOKEN` is set, so with no token the routes do
+        // not exist and return the router's ordinary 404 (same reasoning as
+        // `IdentityModule.registerWithDevelopmentSignIn`); the controller additionally 404s once any
+        // organization exists. Depends only on the global `TENANT_DATABASE` / `AUDIT_SERVICE` /
+        // `API_CONFIG`, so it couples to no feature module.
+        ...(options.config.setupToken ? [FirstOwnerModule.register()] : []),
         // AUTO-01 / module 17 (x162). Org-scoped automation workflow templates (define/list), behind
         // `org.manage`. Depends only on the global tenant database — an org-admin definition with no
         // project to resolve — so its position here is by subject, not by need. Execution/runs are x163.

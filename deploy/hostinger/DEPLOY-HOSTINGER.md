@@ -88,6 +88,7 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    | `SESSION_SECRET`                                                          | Protects sign-ins                           | a fresh secret (see below) — you enter it                                                                |
    | `CSRF_SECRET`                                                             | Protects forms — must differ from the above | another fresh secret — you enter it                                                                      |
    | `AUTH_MFA_SEED_KEYS`                                                      | Protects two-step sign-in codes             | a fresh `--mfa` secret (see below) — you enter it                                                        |
+   | `SETUP_TOKEN`                                                             | Creates the first owner account, once       | a fresh secret from `node generate-secret.mjs` — add it only for the first setup, then delete it         |
    | `AUTH_TOTP_ISSUER`                                                        | Name shown in authenticator apps            | `TManage`                                                                                                |
    | `EMAIL_DRIVER`                                                            | How email is sent                           | `smtp`                                                                                                   |
    | `EMAIL_FROM_ADDRESS`                                                      | The sender address                          | a mailbox you own, e.g. `no-reply@peetrix.com`                                                           |
@@ -117,8 +118,9 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    computer with Node.js, open a terminal in the unzipped folder and run `node generate-secret.mjs`
    (once for `SESSION_SECRET`, again for `CSRF_SECRET`, and a third time for
    `STORAGE_LOCAL_SIGNING_SECRET` — three different values) and `node generate-secret.mjs --mfa`
-   (for `AUTH_MFA_SEED_KEYS`). If you do not have Node.js, ask the team to run it and send you the
-   values privately. Paste them only into hPanel; keep no copy in the project.
+   (for `AUTH_MFA_SEED_KEYS`). `SETUP_TOKEN` is only needed once, for step 10 below; you can add it
+   now or then. If you do not have Node.js, ask the team to run it and send you the values
+   privately. Paste them only into hPanel; keep no copy in the project.
 
 7. **Deploy / Start.** Click **Deploy** (or **Save** then **Start**). Hostinger installs the
    libraries (a few minutes), then starts the app. On its first start the app creates its own
@@ -137,6 +139,26 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    - If the log mentions **"SUPER privilege" and "binary logging"** on the first start, the MySQL
      server needs `log_bin_trust_function_creators` enabled. Ask Hostinger support to enable it for
      your database, then **Restart**.
+10. **Create the first owner account.** There is **no public sign-up**: nobody can create an
+    account from the sign-in page. The very first owner is made once, with a one-time setup page;
+    everyone else joins later by invitation from inside the app.
+    1. On your computer, in the unzipped folder, run `node generate-secret.mjs` once more. The line
+       it prints is your setup token.
+    2. In hPanel, open the app's **Environment variables**, add `SETUP_TOKEN` with that value, and
+       **Restart** the app.
+    3. Open `https://tmanage.peetrix.com/setup`. Paste the token, then fill in your name, email,
+       password, organization name and workspace address, and press **Create owner account**. You
+       are signed in straight away.
+    4. Back in **Environment variables**, **delete `SETUP_TOKEN`** and **Restart**. The setup page
+       then says setup is not available. It also closes by itself as soon as an organization
+       exists, so it can never be used a second time.
+
+    If something goes wrong on the setup page:
+    - **"Setup is not available"**: `SETUP_TOKEN` is not set (or the app was not restarted after
+      adding it), or an organization already exists.
+    - **"That setup token is not correct"**: copy and paste the token again, without spaces before
+      or after it.
+    - **"Too many attempts"**: wait 10 minutes, then try again.
 
 ---
 

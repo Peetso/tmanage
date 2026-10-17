@@ -442,6 +442,17 @@ export const envSchema = z
     RATE_LIMIT_CONTACT_MAX_REQUESTS: positiveInt.default(5),
     RATE_LIMIT_CONTACT_WINDOW_SECONDS: positiveInt.default(600),
     /**
+     * One-time install secret for the first-owner setup (no public sign-up exists). Set it in
+     * hPanel, open /setup, create the first owner, then delete the variable and restart. With
+     * it unset the setup routes are not registered at all. Empty (hPanel's blank field) means
+     * unset, the same "absent means off" shape `OUTBOX_HEARTBEAT_FILE` uses.
+     */
+    SETUP_TOKEN: z
+      .string()
+      .transform((value) => (value === '' ? undefined : value))
+      .pipe(secret('SETUP_TOKEN').optional())
+      .optional(),
+    /**
      * D08. The sign-in abuse control's budgets, one shared window, one number per key:
      * `RATE_LIMIT_AUTH_MAX_REQUESTS` bounds source+account (one address grinding one
      * account), `RATE_LIMIT_AUTH_MAX_PER_SOURCE` bounds the address across every account it
@@ -732,6 +743,9 @@ export const envSchema = z
       // development would not start — so nothing else would stop it encrypting production
       // seeds. `local_dev_only` is spelled inside its base64url text for exactly this check.
       ['AUTH_MFA_SEED_KEYS', env.AUTH_MFA_SEED_KEYS],
+      // The install token is a credential too while it is set: a copied placeholder or a reused
+      // session secret would let anyone who knows one of them create the first owner.
+      ['SETUP_TOKEN', env.SETUP_TOKEN],
     ];
     for (const [key, value] of secrets) {
       if (value === undefined) continue;

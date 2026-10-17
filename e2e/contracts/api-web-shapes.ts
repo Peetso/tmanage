@@ -104,6 +104,10 @@ import type { EstablishedSessionView as ApiEstablishedSessionView } from '../../
 import type { EstablishedView as ApiEstablishedView } from '../../apps/api/src/modules/identity/authentication.controller.js';
 import type { ContactSubmitView as ApiContactSubmitView } from '../../apps/api/src/modules/public-site/contact.controller.js';
 import type {
+  FirstOwnerAvailabilityView as ApiFirstOwnerAvailabilityView,
+  FirstOwnerSetupView as ApiFirstOwnerSetupView,
+} from '../../apps/api/src/modules/setup/first-owner.service.js';
+import type {
   ImportCommitRowView as ApiImportCommitRowView,
   ImportCommitView as ApiImportCommitView,
 } from '../../apps/api/src/modules/import/import.service.js';
@@ -630,6 +634,10 @@ import type {
 import type { RealtimeTicket as WebRealtimeTicket } from '../../apps/web/src/lib/api/realtime';
 import type { SearchResult as WebSearchResult } from '../../apps/web/src/lib/api/search';
 import type { ContactSubmitView as WebContactSubmitView } from '../../apps/web/src/lib/api/contact';
+import type {
+  FirstOwnerAvailabilityView as WebFirstOwnerAvailabilityView,
+  FirstOwnerSetupView as WebFirstOwnerSetupView,
+} from '../../apps/web/src/lib/api/setup';
 import type { Command as WebCommand } from '../../apps/web/src/lib/api/commands';
 import type { CopilotAnswerView as WebCopilotAnswerView } from '../../apps/web/src/lib/api/copilot';
 import type {
@@ -2636,6 +2644,15 @@ type _publicLegal = Assert<Exact<ApiPublicLegalView, WebPublicLegalView>>;
  * dropped by `contracts-check`'s `Input` suffix rule.
  */
 type _contactSubmit = Assert<Exact<ApiContactSubmitView, WebContactSubmitView>>;
+/**
+ * `GET/POST /public/setup` — first-owner setup on an empty install (registered only while
+ * `SETUP_TOKEN` is set). The availability probe and the issued-session view pair Exact; the
+ * request body (`FirstOwnerSetupInput`) is request-side.
+ */
+type _firstOwnerAvailability = Assert<
+  Exact<ApiFirstOwnerAvailabilityView, WebFirstOwnerAvailabilityView>
+>;
+type _firstOwnerSetup = Assert<Exact<ApiFirstOwnerSetupView, WebFirstOwnerSetupView>>;
 
 /** x255 - calendar focus blocks (personal protected time). Paired Exact. */
 type _focusBlock = Assert<Exact<ApiFocusBlockView, WebFocusBlockView>>;

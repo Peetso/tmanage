@@ -1,7 +1,11 @@
 import { capabilitiesFor, isInternalRole, uuidv7 } from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import { MembershipsRepository } from './memberships.repository.js';
 import { OrganizationsRepository, OrganizationSlugTakenError } from './organizations.repository.js';
 import { WorkspacesRepository } from './workspaces.repository.js';
@@ -59,6 +63,14 @@ import type { AuditService } from '../audit/audit.service.js';
  * It does not check a capability. There is no organization to hold one in, and any
  * authenticated person may create an organization — that is what signup is. What it does
  * require is a **verified session**, and that is the controller's job, not this one's.
+ *
+ * ## The first-owner caller
+ *
+ * `provisionFounderWithin` is the one exception to "from the verified session": the first-owner
+ * setup route has no session, because no user exists yet. Its `userId` is the user that route
+ * has just created in the same transaction, under the setup lock, so the organization, the
+ * user and the owner membership commit together or not at all. The audit row carries
+ * `origin: 'first_owner_setup'` so a setup-created organization is distinguishable from ON-01.
  */
 
 /** The role the founder gets. `12-PERMISSION-MATRIX` §1's most privileged internal role. */
@@ -165,51 +177,84 @@ export class ProvisioningService {
       correlationId: input.correlationId,
     });
 
-    return this.database.transaction(context, async (tx) => {
-      const organization = await this.organizations.create(tx, context, {
-        id: organizationId,
-        slug: input.slug,
-        name: input.name,
-        defaultLocale: input.defaultLocale,
-        timezone: input.timezone,
-      });
+    return this.database.transaction(context, async (tx) =>
+      this.provisionSteps(tx, context, input),
+    );
+  }
 
-      const workspace = await this.workspaces.create(tx, context, {
-        name: defaultWorkspaceName(organization.name),
-      });
-
-      const membership = await this.memberships.createFounder(tx, context, {
-        id: membershipId,
-        userId: input.userId,
-        role: FOUNDER_ROLE,
-      });
-
-      // Same transaction, same reason AUD-001 gives: the record must not outlive a change
-      // that rolled back, and the change must not outlive a missing record.
-      await this.audit.record(tx, context, {
-        action: 'organization.provisioned',
-        objectId: organization.id,
-        result: 'allowed',
-        // snake_case keys. `isSafeAuditMetadata` enforces it, and the reason is that
-        // `audit_events.metadata_json` is queried with JSON path expressions written by hand
-        // — two spellings of one key make a query that silently misses half the rows.
-        metadata: {
-          slug: organization.slug,
-          workspace_id: workspace.id,
-          membership_id: membership.id,
-          role: membership.role,
-        },
-      });
-
-      return {
-        organizationId: organization.id,
-        slug: organization.slug,
-        name: organization.name,
-        workspaceId: workspace.id,
-        membershipId: membership.id,
-        role: membership.role,
-      };
+  /**
+   * The same provisioning, inside a transaction the caller already owns.
+   *
+   * For first-owner setup: the caller has opened one transaction (holding the "no owner exists
+   * yet" lock) and created the user in it, so the organization must join that transaction
+   * rather than open a second one that could commit without the user, or after another setup
+   * request won the race. `runnerFor` hands out the caller's connection under the context
+   * built here; `database.transaction` is never called.
+   */
+  async provisionFounderWithin(
+    runnerFor: (context: TenantContext) => TenantQueryRunner,
+    input: ProvisionOrganizationInput & { readonly origin?: 'first_owner_setup' },
+  ): Promise<ProvisionedOrganization> {
+    const context = this.contextFor({
+      organizationId: uuidv7(),
+      membershipId: uuidv7(),
+      userId: input.userId,
+      correlationId: input.correlationId,
     });
+
+    return this.provisionSteps(runnerFor(context), context, input);
+  }
+
+  /** The one code path both entry points run: organization, workspace, founder, audit row. */
+  private async provisionSteps(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    input: ProvisionOrganizationInput & { readonly origin?: 'first_owner_setup' },
+  ): Promise<ProvisionedOrganization> {
+    const organization = await this.organizations.create(tx, context, {
+      id: context.organizationId,
+      slug: input.slug,
+      name: input.name,
+      defaultLocale: input.defaultLocale,
+      timezone: input.timezone,
+    });
+
+    const workspace = await this.workspaces.create(tx, context, {
+      name: defaultWorkspaceName(organization.name),
+    });
+
+    const membership = await this.memberships.createFounder(tx, context, {
+      id: context.membershipId,
+      userId: input.userId,
+      role: FOUNDER_ROLE,
+    });
+
+    // Same transaction, same reason AUD-001 gives: the record must not outlive a change
+    // that rolled back, and the change must not outlive a missing record.
+    await this.audit.record(tx, context, {
+      action: 'organization.provisioned',
+      objectId: organization.id,
+      result: 'allowed',
+      // snake_case keys. `isSafeAuditMetadata` enforces it, and the reason is that
+      // `audit_events.metadata_json` is queried with JSON path expressions written by hand
+      // — two spellings of one key make a query that silently misses half the rows.
+      metadata: {
+        slug: organization.slug,
+        workspace_id: workspace.id,
+        membership_id: membership.id,
+        role: membership.role,
+        ...(input.origin === undefined ? {} : { origin: input.origin }),
+      },
+    });
+
+    return {
+      organizationId: organization.id,
+      slug: organization.slug,
+      name: organization.name,
+      workspaceId: workspace.id,
+      membershipId: membership.id,
+      role: membership.role,
+    };
   }
 
   /**
