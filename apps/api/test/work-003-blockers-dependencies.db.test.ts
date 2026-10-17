@@ -30,7 +30,9 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *    trigger refuses every other change. Before this ticket the machine's required facts
  *    were checked and then discarded.
  * 2. **One active blocker per item is the engine's promise**, not the service's: the
- *    generated column's unique key refuses a second open entry under any credential.
+ *    trigger-maintained `active_item` column's unique key (kept by
+ *    `trg_work_blockers_active_item` / `trg_work_blockers_resolve_once`) refuses a second
+ *    open entry under any credential.
  * 3. **Edges are acyclic**, self-edges refused by trigger, longer cycles by the recursive
  *    walk — including the transitive case a single-row check cannot see.
  * 4. **The health signal is computed and explainable** — `09-MVP-PRD` §63: an active

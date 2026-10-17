@@ -22,7 +22,8 @@ import type { PlanId } from './plan-catalog.js';
  * `targetPlanCode` is allowlist-validated and `effectiveOn` bounded (today-or-later) by the service's
  * controller before any method here is called. One pending request per organization is enforced by
  * the service's create transaction ({@link findPending}) and, at the engine, by the `0153`
- * `pending_guard` UNIQUE key.
+ * `pending_guard` UNIQUE key (`pending_guard` is trigger-maintained by
+ * `trg_billing_plan_change_requests_pending_guard`).
  */
 
 /**

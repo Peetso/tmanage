@@ -34,12 +34,15 @@
 -- The `role` column inherits the table collation `utf8mb4_unicode_ci` (0001_tenancy.sql), which
 -- is case-, accent- and pad-insensitive: an unqualified `role IN ('owner', …)` would admit
 -- 'OWNER', 'Owner' and 'owner ' (trailing pad), contradicting the brief's "reject any other
--- string." The comparison is therefore forced to a binary collation. Note `utf8mb4_bin` alone
--- is not enough: like every pre-UCA-9.0 collation it is PAD SPACE, so 'owner ' would still
--- compare equal to 'owner' and slip through. `utf8mb4_0900_bin` is byte-exact (_bin) AND NO PAD
--- (the UCA 9.0.0 family), so case, accent and trailing-space variants are all rejected and only
--- the seven exact lowercase literals pass. It is available on the target engine — 0001 notes the
--- server default is MySQL 8's `utf8mb4_0900_ai_ci`.
+-- string." The comparison is therefore made on the raw bytes. Note `COLLATE utf8mb4_bin` is
+-- not enough: like every pre-UCA-9.0 collation it is PAD SPACE, so 'owner ' would still
+-- compare equal to 'owner' and slip through. The NO PAD binary collations are engine-specific
+-- (MySQL 8 has the UCA 9.0 `_bin`, MariaDB has `utf8mb4_nopad_bin`, neither has the other),
+-- and the production host runs MariaDB. `CAST(role AS BINARY)` is portable instead: it turns
+-- the value into a binary string, and a binary-string comparison is byte-exact and
+-- pad-significant (the `binary` character set is NO PAD) on both MySQL 8.0.16+ and MariaDB
+-- 10.6+. So case, accent and trailing-space variants are all rejected and only the seven
+-- exact lowercase literals pass.
 --
 -- ## Existing data and re-runnability
 --
@@ -51,7 +54,7 @@
 
 ALTER TABLE project_memberships
   ADD CONSTRAINT chk_project_memberships_role
-  CHECK (role COLLATE utf8mb4_0900_bin IN (
+  CHECK (CAST(role AS BINARY) IN (
     'owner',
     'org_admin',
     'workspace_admin',

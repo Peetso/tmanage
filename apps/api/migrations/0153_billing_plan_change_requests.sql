@@ -42,7 +42,7 @@
 --
 -- A studio may have at most one open request at a time: a second POST while one is pending is a 409,
 -- not a second row. The application checks for an existing pending row inside the create transaction,
--- and `pending_guard` (a stored generated column that is `organization_id` while pending and NULL once
+-- and `pending_guard` (a trigger-maintained column that is `organization_id` while pending and NULL once
 -- cancelled) carries a UNIQUE key so the engine refuses a second pending row even under a race — NULLs
 -- do not collide, so any number of cancelled rows coexist.
 --
@@ -68,10 +68,11 @@ CREATE TABLE billing_plan_change_requests (
   status            ENUM('pending', 'cancelled') NOT NULL DEFAULT 'pending',
   created_by        CHAR(36)      NOT NULL,
   created_at        DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  -- `organization_id` while the request is pending, NULL once cancelled — the one-pending-per-org guard
-  -- below keys on it so the engine refuses a second pending row while NULLs (cancelled) never collide.
-  pending_guard     CHAR(36) GENERATED ALWAYS AS
-    (IF(status = 'pending', organization_id, NULL)) STORED,
+  -- Engine-maintained by the triggers below: `organization_id` while the request is pending, NULL once
+  -- cancelled — the one-pending-per-org guard below keys on it so the engine refuses a second pending
+  -- row while NULLs (cancelled) never collide. A plain column set by triggers rather than a generated
+  -- column so this file runs on both MySQL 8 and MariaDB 10.6+; the application never writes it.
+  pending_guard     CHAR(36)      NULL,
   PRIMARY KEY (id),
   -- The (organization_id, id) key every tenant-scoped table carries, so a future child can reference
   -- this row without a cross-tenant path (and the isolation corpus requires it).
@@ -120,6 +121,14 @@ BEGIN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'billing_plan_change_requests.status cannot leave cancelled';
   END IF;
+  SET NEW.pending_guard = CASE WHEN NEW.status = 'pending' THEN NEW.organization_id ELSE NULL END;
+END$$
+
+-- Seeds `pending_guard` on insert: `organization_id` while pending, NULL otherwise.
+CREATE TRIGGER trg_billing_plan_change_requests_pending_guard
+BEFORE INSERT ON billing_plan_change_requests FOR EACH ROW
+BEGIN
+  SET NEW.pending_guard = CASE WHEN NEW.status = 'pending' THEN NEW.organization_id ELSE NULL END;
 END$$
 
 DELIMITER ;

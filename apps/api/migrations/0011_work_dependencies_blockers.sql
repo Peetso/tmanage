@@ -83,9 +83,11 @@ CREATE TABLE work_blockers (
   resolved_at         DATETIME(3)   NULL,
   resolution          VARCHAR(1000) NULL,
   resolved_by_user_id CHAR(36)      NULL,
-  -- The engine's "one open entry": the item id while unresolved, NULL once resolved.
-  active_item         CHAR(36) GENERATED ALWAYS AS
-    (IF(resolved_at IS NULL, work_item_id, NULL)) STORED,
+  -- Engine-maintained by trg_work_blockers_active_item (insert) and
+  -- trg_work_blockers_resolve_once (update): the item id while unresolved, NULL
+  -- once resolved. A plain column kept by triggers, not a generated column, so
+  -- the file runs on MySQL 8 and MariaDB 10.6+ alike.
+  active_item         CHAR(36)      NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_work_blockers_org_id (organization_id, id),
   UNIQUE KEY uq_work_blockers_one_active (organization_id, active_item),
@@ -119,6 +121,12 @@ BEGIN
     SET MESSAGE_TEXT = 'work_item_dependencies rows are immutable: correct an edge by delete and add';
 END$$
 
+CREATE TRIGGER trg_work_blockers_active_item
+BEFORE INSERT ON work_blockers FOR EACH ROW
+BEGIN
+  SET NEW.active_item = CASE WHEN NEW.resolved_at IS NULL THEN NEW.work_item_id ELSE NULL END;
+END$$
+
 CREATE TRIGGER trg_work_blockers_resolve_once
 BEFORE UPDATE ON work_blockers FOR EACH ROW
 BEGIN
@@ -140,6 +148,7 @@ BEGIN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'work_blockers: resolving requires resolved_at, resolution and resolved_by_user_id together';
   END IF;
+  SET NEW.active_item = CASE WHEN NEW.resolved_at IS NULL THEN NEW.work_item_id ELSE NULL END;
 END$$
 
 DELIMITER ;

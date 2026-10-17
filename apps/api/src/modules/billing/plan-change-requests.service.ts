@@ -28,7 +28,8 @@ import type { PlanId } from './plan-catalog.js';
  * foreign-key surprise. Validation (off-catalog plan, past effective date) is the controller's, done
  * before this service is called; nothing here writes on an invalid input. One pending request per
  * organization is enforced inside the create transaction (a second is a 409), and by the engine's
- * `pending_guard` UNIQUE key besides.
+ * `pending_guard` UNIQUE key besides (a trigger-maintained column, kept by
+ * `trg_billing_plan_change_requests_pending_guard`).
  *
  * ## What it does, and what it cannot
  *

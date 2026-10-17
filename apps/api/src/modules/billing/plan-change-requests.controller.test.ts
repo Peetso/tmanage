@@ -74,7 +74,8 @@ function controllerWith(seed: readonly BillingPlanChangeRequestRow[] = []) {
         status: 'pending',
         createdBy: input.createdBy,
         createdAt: new Date('2026-09-27T10:00:00.000Z'),
-        // Engine-computed: organization_id while pending, NULL once cancelled.
+        // Trigger-maintained (trg_billing_plan_change_requests_pending_guard): organization_id while
+        // pending, NULL once cancelled.
         pendingGuard: ctx.organizationId,
       };
       store.push(row);
@@ -85,7 +86,8 @@ function controllerWith(seed: readonly BillingPlanChangeRequestRow[] = []) {
       if (!row) throw new Error('vanished');
       if (row.status === 'pending') {
         row.status = 'cancelled';
-        // Engine-computed: pending_guard becomes NULL once the request leaves pending.
+        // Trigger-maintained (trg_billing_plan_change_requests_pending_guard): pending_guard becomes
+        // NULL once the request leaves pending.
         row.pendingGuard = null;
       }
       return row;
@@ -167,7 +169,8 @@ describe('PlanChangeRequestsController', () => {
       status: 'pending',
       createdBy: USER,
       createdAt: new Date('2026-09-27T10:00:00.000Z'),
-      // Engine-computed: organization_id while pending, NULL once cancelled.
+      // Trigger-maintained (trg_billing_plan_change_requests_pending_guard): organization_id while
+      // pending, NULL once cancelled.
       pendingGuard: OTHER_ORG,
     };
     const { controller } = controllerWith([other]);

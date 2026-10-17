@@ -1693,10 +1693,12 @@ export const BILLING_COST_CENTER_ROW_KINDS = ['def', 'assignment'] as const;
  * Billing & entitlements (module 19, x281). An org-scoped billing cost center and its project
  * assignments, held in one table discriminated by `row_kind` (0150 is the source of truth): a `def`
  * row carries the display `name` for a `code` (one per `(organization_id, code)`, enforced through the
- * stored `def_code` generated column), and an `assignment` row shares that `code` and sets a
+ * `def_code` column, trigger-maintained by `trg_billing_cost_centers_def_code_ins`/`_upd`), and an
+ * `assignment` row shares that `code` and sets a
  * `project_id` (one per `(organization_id, code, project_id)`). Org-scoped like `billing_usage_alerts`
  * (0083): no `project_id` on the tenant key, which is `organization_id` bound to `organizations`. Rows
- * are only ever inserted or deleted — never updated — so there is no update path and no trigger.
+ * are only ever inserted or deleted — never updated — so there is no application update path; the
+ * only triggers are the two that keep `def_code`.
  */
 export const billingCostCenters = mysqlTable(
   'billing_cost_centers',
@@ -1710,7 +1712,10 @@ export const billingCostCenters = mysqlTable(
     /** Present on an `assignment` row; NULL on a `def` row. */
     projectId: char('project_id', { length: 36 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
-    /** Engine-computed (the code for a `def` row, NULL otherwise); never written by the application. */
+    /**
+     * Trigger-maintained by `trg_billing_cost_centers_def_code_ins`/`_upd` (the code for a `def` row,
+     * NULL otherwise); never written by the application.
+     */
     defCode: varchar('def_code', { length: 64 }),
   },
   (table) => [
@@ -1795,11 +1800,12 @@ export const PLAN_CHANGE_REQUEST_STATUSES = ['pending', 'cancelled'] as const;
  *
  * Org-scoped like `billing_usage_alerts` (0083): the tenant key is `organization_id` alone (no
  * project). At most one `pending` request per organization — the app checks inside the create
- * transaction (a second POST while pending is a 409) and the `0153` `pending_guard` generated column
+ * transaction (a second POST while pending is a 409) and the `0153` `pending_guard` column (kept by
+ * the `trg_billing_plan_change_requests_pending_guard` trigger)
  * carries a UNIQUE key so the engine refuses a second pending row under a race. Identity is immutable;
  * only `status` is editable (`pending → cancelled`), pinned by the `0153` trigger.
  * `0153_billing_plan_change_requests.sql` is the source of truth; this is its typed mirror. The
- * engine-internal `pending_guard` generated column is mirrored here (as `active_item` on
+ * engine-internal, trigger-maintained `pending_guard` column is mirrored here (as `active_item` on
  * `work_blockers` and `def_code` on `billing_cost_centers` are) so the schema names exactly the
  * columns the migrated database has — the app never reads or writes it.
  */
@@ -1814,7 +1820,10 @@ export const billingPlanChangeRequests = mysqlTable(
     status: mysqlEnum('status', PLAN_CHANGE_REQUEST_STATUSES).notNull().default('pending'),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
-    /** Engine-computed; never written by the application. See the migration. */
+    /**
+     * Trigger-maintained by `trg_billing_plan_change_requests_pending_guard`; never written by the
+     * application. See the migration.
+     */
     pendingGuard: char('pending_guard', { length: 36 }),
   },
   (table) => [
@@ -2553,8 +2562,9 @@ export const workItemDependencies = mysqlTable(
 /**
  * WORK-003. US-B04's blocker as a ledger: raised (reason, ask, optional owner, since) and
  * resolved (outcome, when, by whom), never deleted, never rewritten — the one legal update
- * is resolving an open entry, exactly once (0011's trigger). `active_item` is a stored
- * generated column — the work item id while unresolved, NULL after — so
+ * is resolving an open entry, exactly once (0011's trigger). `active_item` is a
+ * trigger-maintained column (`trg_work_blockers_active_item` on insert,
+ * `trg_work_blockers_resolve_once` on update) — the work item id while unresolved, NULL after — so
  * `uq_work_blockers_one_active` is the engine enforcing "one active blocker per item",
  * which the state machine's own note assumes when leaving `blocked` resolves *the* active
  * blocker, singular.
@@ -2573,7 +2583,10 @@ export const workBlockers = mysqlTable(
     resolvedAt: datetime('resolved_at', { mode: 'date', fsp: 3 }),
     resolution: varchar('resolution', { length: 1000 }),
     resolvedByUserId: char('resolved_by_user_id', { length: 36 }),
-    /** Engine-computed; never written by the application. See the migration. */
+    /**
+     * Trigger-maintained by `trg_work_blockers_active_item` / `trg_work_blockers_resolve_once`; never
+     * written by the application. See the migration.
+     */
     activeItem: char('active_item', { length: 36 }),
   },
   (table) => [

@@ -339,7 +339,7 @@ describe('0026: project_memberships.role is constrained to the internal role set
       join(migrationsDirectory, '0026_project_membership_role_check.sql'),
       'utf8',
     );
-    const check = sql.slice(sql.indexOf('CHECK (role'));
+    const check = sql.slice(sql.indexOf('chk_project_memberships_role'));
     const roles = [...check.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
     expect(roles.sort()).toEqual([...INTERNAL_ROLES].sort());
 
@@ -384,7 +384,7 @@ describe('0026: project_memberships.role is constrained to the internal role set
       ),
     ).rejects.toThrow(/[Cc]heck constraint/);
 
-    // The comparison is byte-exact and NO PAD (COLLATE utf8mb4_0900_bin): a case variant...
+    // The comparison is byte-exact and NO PAD (CAST(role AS BINARY)): a case variant...
     await expect(
       connection.query(
         `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'OWNER')`,

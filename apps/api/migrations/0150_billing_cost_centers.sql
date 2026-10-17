@@ -30,11 +30,11 @@
 --     most one `assignment` per `(organization_id, code, project_id)` — so re-assigning the same
 --     project is idempotent, not a second row.
 --
--- MySQL has no partial unique index, so "one def per (org, code)" is enforced through a stored
--- generated column `def_code` that is the `code` for a `def` row and `NULL` otherwise, unique with
+-- MySQL has no partial unique index, so "one def per (org, code)" is enforced through a
+-- trigger-maintained column `def_code` that is the `code` for a `def` row and `NULL` otherwise, unique with
 -- `organization_id`. Assignment rows contribute `NULL` there (distinct under a unique index, so they
 -- never collide) and are constrained instead by `uq_billing_cost_centers_assignment`. This is the same
--- generated-column technique `work_blockers.active_item` (0011) uses for a one-active-per-tenant rule.
+-- technique `work_blockers.active_item` (0011) uses for a one-active-per-tenant rule.
 --
 -- ## Org-scoped, insert/delete only
 --
@@ -60,10 +60,11 @@ CREATE TABLE billing_cost_centers (
   -- The assigned project. Present on an `assignment` row; NULL on a `def` row.
   project_id        CHAR(36)                      NULL,
   created_at        DATETIME(3)               NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  -- Engine-computed: the code for a `def` row, NULL otherwise. Makes "one def per (org, code)"
-  -- expressible as an ordinary unique index (MySQL has no partial index). Never written by the app.
-  def_code          VARCHAR(64) GENERATED ALWAYS AS
-                      (IF(row_kind = 'def', code, NULL)) STORED,
+  -- Engine-maintained by triggers trg_billing_cost_centers_def_code_ins/_upd: the code for a `def`
+  -- row, NULL otherwise. Makes "one def per (org, code)" expressible as an ordinary unique index
+  -- (MySQL has no partial index). A plain column rather than a generated one so the file runs on
+  -- MySQL 8 and MariaDB 10.6+. Never written by the app.
+  def_code          VARCHAR(64)                   NULL,
   PRIMARY KEY (id),
   -- The (organization_id, id) key every tenant-scoped table carries.
   UNIQUE KEY uq_billing_cost_centers_org_id (organization_id, id),
@@ -81,3 +82,20 @@ CREATE TABLE billing_cost_centers (
   CONSTRAINT fk_billing_cost_centers_project
     FOREIGN KEY (organization_id, project_id) REFERENCES projects (organization_id, id)
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Keep `def_code` in step with `row_kind`/`code` on every write (see the column comment above).
+DELIMITER $$
+
+CREATE TRIGGER trg_billing_cost_centers_def_code_ins
+BEFORE INSERT ON billing_cost_centers FOR EACH ROW
+BEGIN
+  SET NEW.def_code = CASE WHEN NEW.row_kind = 'def' THEN NEW.code ELSE NULL END;
+END$$
+
+CREATE TRIGGER trg_billing_cost_centers_def_code_upd
+BEFORE UPDATE ON billing_cost_centers FOR EACH ROW
+BEGIN
+  SET NEW.def_code = CASE WHEN NEW.row_kind = 'def' THEN NEW.code ELSE NULL END;
+END$$
+
+DELIMITER ;

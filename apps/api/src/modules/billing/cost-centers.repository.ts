@@ -138,7 +138,8 @@ export class CostCentersRepository {
   /**
    * Create a cost-center definition. The id is generated here (UUIDv7); `organization_id` comes from
    * the context, never from `input`. The row is read back so the server-generated timestamp is
-   * returned. The `(organization_id, def_code)` unique index is the backstop against a duplicate code
+   * returned. The `(organization_id, def_code)` unique index (`def_code` trigger-maintained by
+   * `trg_billing_cost_centers_def_code_ins`) is the backstop against a duplicate code
    * the service also guards.
    */
   async createDef(
