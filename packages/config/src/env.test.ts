@@ -255,6 +255,58 @@ describe('loadEnv', () => {
       ).not.toThrow();
     });
 
+    describe('local driver (single-host production storage)', () => {
+      const localProd = (overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv =>
+        prodEnv({
+          STORAGE_DRIVER: 'local',
+          STORAGE_LOCAL_ROOT: '/home/u1/tmanage-storage',
+          STORAGE_LOCAL_SIGNING_SECRET: 'z'.repeat(48),
+          ...overrides,
+        });
+
+      it('is permitted in production with an absolute root outside the web root and a secret', () => {
+        const env = loadEnv(localProd());
+
+        expect(env.STORAGE_DRIVER).toBe('local');
+        expect(env.STORAGE_LOCAL_ROOT).toBe('/home/u1/tmanage-storage');
+      });
+
+      it('requires STORAGE_LOCAL_ROOT', () => {
+        const env = localProd();
+        delete env['STORAGE_LOCAL_ROOT'];
+
+        expect(issuePaths(() => loadEnv(env))).toContain('STORAGE_LOCAL_ROOT');
+      });
+
+      it('refuses a relative root', () => {
+        expect(
+          issuePaths(() => loadEnv(localProd({ STORAGE_LOCAL_ROOT: 'storage/uploads' }))),
+        ).toContain('STORAGE_LOCAL_ROOT');
+      });
+
+      it('refuses a root inside public_html', () => {
+        expect(
+          issuePaths(() =>
+            loadEnv(localProd({ STORAGE_LOCAL_ROOT: '/home/u1/domains/x/public_html/uploads' })),
+          ),
+        ).toContain('STORAGE_LOCAL_ROOT');
+      });
+
+      it('requires the signing secret', () => {
+        const env = localProd();
+        delete env['STORAGE_LOCAL_SIGNING_SECRET'];
+
+        expect(issuePaths(() => loadEnv(env))).toContain('STORAGE_LOCAL_SIGNING_SECRET');
+      });
+
+      it('leaves the default driver at s3', () => {
+        const env = prodEnv();
+        delete env['STORAGE_DRIVER'];
+
+        expect(loadEnv(env).STORAGE_DRIVER).toBe('s3');
+      });
+    });
+
     it('does not require credentials for the filesystem substitute', () => {
       expect(() => loadEnv({ ...devEnv(), STORAGE_DRIVER: 'filesystem' })).not.toThrow();
     });

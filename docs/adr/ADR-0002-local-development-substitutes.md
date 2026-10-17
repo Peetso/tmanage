@@ -125,3 +125,32 @@ is materially faster than a container round-trip and it is the same engine as th
 database, so what is traded away by preferring it is the release series, not the engine.
 Pin its version to the one `compose.yaml` runs when a full database-suite run is available
 to prove the pin, and that last gap closes too.
+
+## Amendment 2026-10-17 — a `local` storage driver for single-host production
+
+The bootstrap deployment target is Hostinger shared hosting: one Node process per
+subdomain, no object store on the plan, and Cloudflare R2 not yet provisioned. Customer
+files still need somewhere to live.
+
+**The `filesystem` substitute stays development-only.** Guardrail 1 is unchanged: it is
+refused when `NODE_ENV=production`.
+
+A **distinct driver name, `local`**, reuses the same `FilesystemObjectStore` for production
+on a single host. A separate name keeps the development substitute and the production path
+apart in configuration, logs, and review, so the refusal above never needs an exception.
+It is accepted in production only under these guards:
+
+1. **Root outside any web root.** `STORAGE_LOCAL_ROOT` must be absolute and must not lie
+   inside `public_html`, `public`, `www`, or `htdocs`. Checked at config load and again on
+   disk at boot, after resolving symlinks; either failure refuses to start.
+2. **Traversal-safe key → path.** Keys containing `..`, an absolute path, NUL, or a
+   backslash are rejected; the resolved path is realpath-checked to sit under the root.
+3. **Tenant-bound, short-lived upload tokens.** Part-upload links are HMAC-signed `pu2`
+   tokens bound to the tenant, signed with `STORAGE_LOCAL_SIGNING_SECRET`, within the
+   existing TTL and size/type limits.
+4. **No direct file serving.** Downloads go only through the authenticated, proxied
+   download routes, which apply the existing permission checks.
+
+S3/R2 remains the target driver and the default (`STORAGE_DRIVER=s3`). The fidelity limits
+recorded above for `filesystem` apply equally to `local`; moving to R2 is a configuration
+change plus a one-time copy of the root, not a code change.

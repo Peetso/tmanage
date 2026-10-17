@@ -76,31 +76,33 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    the database rows of the table below by itself. Then open **Environment variables** (on the
    same screen or under the app's settings). Add each row below. **Do not add `PORT`** — Hostinger sets it for you.
 
-   | Name                                                                                     | What it is                                  | Where to get it / what to type                                                                           |
-   | ---------------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-   | `DATABASE_URL`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`                | The database connection                     | **Set automatically** by Hostinger's database setup — do not type or change them                         |
-   | `NODE_ENV`                                                                               | Tells the app it is live                    | `production` (if you leave it out the app uses production anyway; any other word stops it from starting) |
-   | `API_PUBLIC_URL`                                                                         | The site address                            | `https://tmanage.peetrix.com`                                                                            |
-   | `WEB_PUBLIC_URL`                                                                         | The same address                            | `https://tmanage.peetrix.com`                                                                            |
-   | `CORS_ALLOWED_ORIGINS`                                                                   | Which site may use the app                  | `https://tmanage.peetrix.com`                                                                            |
-   | `TRUSTED_PROXY_ADDRESSES`                                                                | Hostinger's one proxy in front of the app   | `127.0.0.1,::1`                                                                                          |
-   | `DATABASE_POOL_MAX`                                                                      | How many database connections at once       | `5`                                                                                                      |
-   | `SESSION_SECRET`                                                                         | Protects sign-ins                           | a fresh secret (see below) — you enter it                                                                |
-   | `CSRF_SECRET`                                                                            | Protects forms — must differ from the above | another fresh secret — you enter it                                                                      |
-   | `AUTH_MFA_SEED_KEYS`                                                                     | Protects two-step sign-in codes             | a fresh `--mfa` secret (see below) — you enter it                                                        |
-   | `AUTH_TOTP_ISSUER`                                                                       | Name shown in authenticator apps            | `TManage`                                                                                                |
-   | `EMAIL_DRIVER`                                                                           | How email is sent                           | `smtp`                                                                                                   |
-   | `EMAIL_FROM_ADDRESS`                                                                     | The sender address                          | a mailbox you own, e.g. `no-reply@peetrix.com`                                                           |
-   | `EMAIL_FROM_NAME`                                                                        | The sender name                             | `TManage`                                                                                                |
-   | `SMTP_HOST`                                                                              | Mail server                                 | hPanel **Emails** → your mailbox → look for _SMTP_ (often `smtp.hostinger.com`)                          |
-   | `SMTP_PORT` / `SMTP_SECURE`                                                              | Mail port and encryption                    | `465` and `true` (or `587` and `false`)                                                                  |
-   | `SMTP_USERNAME`                                                                          | Mail login                                  | the full mailbox address                                                                                 |
-   | `SMTP_PASSWORD`                                                                          | Mail password                               | the mailbox password — type it yourself                                                                  |
-   | `STORAGE_DRIVER`                                                                         | Where uploaded files go                     | `s3`                                                                                                     |
-   | `STORAGE_BUCKET`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` | File storage account                        | an S3-compatible bucket if you have one; otherwise any placeholder words (see limits)                    |
-   | `MALWARE_SCAN_DRIVER`                                                                    | Virus scanning of uploads                   | `none`                                                                                                   |
-   | `WORKER_INPROCESS`                                                                       | Run background jobs (emails) inside the app | `1`                                                                                                      |
-   | `QUEUE_DRIVER`, `CACHE_DRIVER`                                                           | Internal settings                           | `redis` for both (nothing is installed or contacted; they just must not be `memory`)                     |
+   | Name                                                                      | What it is                                  | Where to get it / what to type                                                                           |
+   | ------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+   | `DATABASE_URL`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | The database connection                     | **Set automatically** by Hostinger's database setup — do not type or change them                         |
+   | `NODE_ENV`                                                                | Tells the app it is live                    | `production` (if you leave it out the app uses production anyway; any other word stops it from starting) |
+   | `API_PUBLIC_URL`                                                          | The site address                            | `https://tmanage.peetrix.com`                                                                            |
+   | `WEB_PUBLIC_URL`                                                          | The same address                            | `https://tmanage.peetrix.com`                                                                            |
+   | `CORS_ALLOWED_ORIGINS`                                                    | Which site may use the app                  | `https://tmanage.peetrix.com`                                                                            |
+   | `TRUSTED_PROXY_ADDRESSES`                                                 | Hostinger's one proxy in front of the app   | `127.0.0.1,::1`                                                                                          |
+   | `DATABASE_POOL_MAX`                                                       | How many database connections at once       | `5`                                                                                                      |
+   | `SESSION_SECRET`                                                          | Protects sign-ins                           | a fresh secret (see below) — you enter it                                                                |
+   | `CSRF_SECRET`                                                             | Protects forms — must differ from the above | another fresh secret — you enter it                                                                      |
+   | `AUTH_MFA_SEED_KEYS`                                                      | Protects two-step sign-in codes             | a fresh `--mfa` secret (see below) — you enter it                                                        |
+   | `AUTH_TOTP_ISSUER`                                                        | Name shown in authenticator apps            | `TManage`                                                                                                |
+   | `EMAIL_DRIVER`                                                            | How email is sent                           | `smtp`                                                                                                   |
+   | `EMAIL_FROM_ADDRESS`                                                      | The sender address                          | a mailbox you own, e.g. `no-reply@peetrix.com`                                                           |
+   | `EMAIL_FROM_NAME`                                                         | The sender name                             | `TManage`                                                                                                |
+   | `SMTP_HOST`                                                               | Mail server                                 | hPanel **Emails** → your mailbox → look for _SMTP_ (often `smtp.hostinger.com`)                          |
+   | `SMTP_PORT` / `SMTP_SECURE`                                               | Mail port and encryption                    | `465` and `true` (or `587` and `false`)                                                                  |
+   | `SMTP_USERNAME`                                                           | Mail login                                  | the full mailbox address                                                                                 |
+   | `SMTP_PASSWORD`                                                           | Mail password                               | the mailbox password — type it yourself                                                                  |
+   | `STORAGE_DRIVER`                                                          | Where uploaded files go                     | `local` (files on the server's own disk, in a private folder; see limits)                                |
+   | `STORAGE_LOCAL_ROOT`                                                      | The private folder for uploaded files       | the full path of the folder you created, e.g. `/home/<your-user>/tmanage-storage`                        |
+   | `STORAGE_LOCAL_SIGNING_SECRET`                                            | Protects file upload and download links     | a fresh secret of its own (see below) — not the same as the other two                                    |
+   | `STORAGE_BUCKET`                                                          | Not used with `local`, but required         | `unused-local`                                                                                           |
+   | `MALWARE_SCAN_DRIVER`                                                     | Virus scanning of uploads                   | `none`                                                                                                   |
+   | `WORKER_INPROCESS`                                                        | Run background jobs (emails) inside the app | `1`                                                                                                      |
+   | `QUEUE_DRIVER`, `CACHE_DRIVER`                                            | Internal settings                           | `redis` for both (nothing is installed or contacted; they just must not be `memory`)                     |
 
    **Only if you created the database by hand** (Part 1, step 4, second case) and Hostinger did not
    add the database rows: add `DATABASE_URL` yourself as
@@ -111,10 +113,11 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
    There are **no `NEXT_PUBLIC_…` settings** to add: they are fixed inside the ZIP when the team
    builds it. Changing any setting here simply restarts the app; nothing needs rebuilding.
 
-   **Fresh secrets:** the three secret rows need long random values that only you hold. On any
+   **Fresh secrets:** the four secret rows need long random values that only you hold. On any
    computer with Node.js, open a terminal in the unzipped folder and run `node generate-secret.mjs`
-   (once for `SESSION_SECRET`, again for `CSRF_SECRET`) and `node generate-secret.mjs --mfa` (for
-   `AUTH_MFA_SEED_KEYS`). If you do not have Node.js, ask the team to run it and send you the
+   (once for `SESSION_SECRET`, again for `CSRF_SECRET`, and a third time for
+   `STORAGE_LOCAL_SIGNING_SECRET` — three different values) and `node generate-secret.mjs --mfa`
+   (for `AUTH_MFA_SEED_KEYS`). If you do not have Node.js, ask the team to run it and send you the
    values privately. Paste them only into hPanel; keep no copy in the project.
 
 7. **Deploy / Start.** Click **Deploy** (or **Save** then **Start**). Hostinger installs the
@@ -169,9 +172,25 @@ an update the team said changed the database, ask the team first.
   this plan. On a host with separate users, set `DATABASE_MIGRATION_URL` and `WORKER_DATABASE_URL`
   and the app keeps them apart again.
 
-- **File uploads need an S3-compatible bucket.** Shared hosting has no file-storage service, and
-  the app refuses to keep uploads on the server's disk in production. With placeholder `STORAGE_*`
-  values everything works except uploading and downloading files.
+- **Uploaded files live on the server's own disk, in a private folder.** Shared hosting has no
+  file-storage service, so with `STORAGE_DRIVER=local` the app keeps files in a folder of your
+  account that is outside `public_html`. Nobody can open these files by typing a web address: they
+  can only be downloaded through the signed-in app, with the same permission checks as everything
+  else, and every upload or download link expires after a short time. The app refuses to start
+  if `STORAGE_LOCAL_ROOT` is not a full path (starting with `/`) or points inside `public_html` or
+  any other web folder.
+  - **Create the folder once, before the first start.** In hPanel open **Files → File Manager**,
+    go one level **above** `public_html` (your home folder, e.g. `/home/<your-user>`), create a
+    folder named `tmanage-storage`, and put its full path in `STORAGE_LOCAL_ROOT`.
+  - **Back it up.** These files exist only in that folder. Hostinger's backups of your home folder
+    include it; check that they are switched on, and download a copy of the folder from time to
+    time as well.
+  - **It uses your plan's disk space.** Every uploaded file counts against the hosting plan's disk
+    quota. Each organization is also capped by `STORAGE_ORG_BYTES_LIMIT_BYTES` (500 MB unless you
+    change it).
+  - **Switching to a bucket later is possible.** An S3-compatible bucket (AWS S3, Cloudflare R2)
+    can replace the folder later by changing the `STORAGE_*` settings (see `.env.example`). Files
+    already in the folder are not moved by that switch; moving them is a separate later step.
 - **Background jobs pause while the app sleeps.** With `WORKER_INPROCESS=1` the app sends emails
   and notifications itself, on a timer. If Hostinger pauses the app when nobody visits, the timer
   pauses too, and waiting emails go out on the next visit.

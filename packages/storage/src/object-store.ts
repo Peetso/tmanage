@@ -3,9 +3,9 @@
  *
  * Modelled on `@tmanage/mail`'s `Mailer`: a small interface whose concrete driver is chosen
  * by configuration, so the service that reserves quota and records a file never learns
- * whether the bytes crossed a network. `packages/config` already names the two production
- * drivers — `STORAGE_DRIVER` is `s3` or `filesystem` — and this file is the type both will
- * implement. Today only the fake exists (FILE-001); the filesystem driver and the R2
+ * whether the bytes crossed a network. `packages/config` names the drivers — `STORAGE_DRIVER`
+ * is `s3`, `filesystem` (development and e2e) or `local` (production on single-host shared
+ * hosting; the same `FilesystemObjectStore`) — and this file is the type they implement. Today only the fake exists (FILE-001); the filesystem driver and the R2
  * signature semantics are later tickets, as ADR-0002 already records.
  *
  * ## Six methods, and what is deliberately absent

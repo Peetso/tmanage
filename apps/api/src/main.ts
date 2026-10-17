@@ -43,10 +43,12 @@ async function bootstrap(): Promise<void> {
       // address the limiter below and both sign-in budgets count against.
       trustProxy: env.TRUSTED_PROXY_ADDRESSES,
       uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES,
-      // The same secret the filesystem driver signs with; with no local transport there is
-      // no admission and the part route reads no body at all.
+      // The same secret the filesystem and local drivers sign parts with (both use the
+      // signed part transport); with no local transport there is no admission and the part
+      // route reads no body at all.
       admitPart:
-        env.STORAGE_DRIVER === 'filesystem' && env.STORAGE_LOCAL_SIGNING_SECRET
+        (env.STORAGE_DRIVER === 'filesystem' || env.STORAGE_DRIVER === 'local') &&
+        env.STORAGE_LOCAL_SIGNING_SECRET
           ? createPartAdmission(env.STORAGE_LOCAL_SIGNING_SECRET)
           : undefined,
       // The one anonymous route's limit, per client address per window (security review

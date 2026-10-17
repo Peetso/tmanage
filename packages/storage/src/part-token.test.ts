@@ -1,15 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-token.js';
+import {
+  derivePartSigningKey,
+  mintPartToken,
+  partTokenOrganization,
+  verifyPartToken,
+} from './part-token.js';
 
 const KEY = derivePartSigningKey('a_signing_secret_that_is_long_enough_for_the_suite');
 const OTHER_KEY = derivePartSigningKey('another_signing_secret_of_the_same_length_here');
 const UPLOAD = 'a3f1c2d4e5f60718293a4b5c6d7e8f90';
 const OTHER_UPLOAD = 'b3f1c2d4e5f60718293a4b5c6d7e8f90';
+const ORG = '0b9c8d7e-6f5a-4b3c-8d2e-1f0a9b8c7d6e';
+const OTHER_ORG = '1c0d9e8f-7a6b-4c5d-9e3f-2a1b0c9d8e7f';
 const NOW = 1_800_000_000_000;
 const EXPIRES = NOW + 900_000;
 
-const mint = (partNumber = 1, expiresAtMs = EXPIRES, uploadId = UPLOAD, key = KEY) =>
-  mintPartToken(key, { providerUploadId: uploadId, partNumber, expiresAtMs });
+const mint = (
+  partNumber = 1,
+  expiresAtMs = EXPIRES,
+  uploadId = UPLOAD,
+  key = KEY,
+  organizationId = ORG,
+) => mintPartToken(key, { organizationId, providerUploadId: uploadId, partNumber, expiresAtMs });
 
 describe('the part token', () => {
   it('is deterministic for the same claims and verifies for exactly those claims', () => {
@@ -17,9 +29,10 @@ describe('the part token', () => {
     expect(verifyPartToken(KEY, mint(), UPLOAD, 1, NOW)).toBe(true);
   });
 
-  it('carries the version and the expiry in the clear, and nothing else', () => {
-    const [version, expiry, signature, ...rest] = mint().split('.');
-    expect(version).toBe('pu1');
+  it('carries the version, the organization and the expiry in the clear, and nothing else', () => {
+    const [version, organization, expiry, signature, ...rest] = mint().split('.');
+    expect(version).toBe('pu2');
+    expect(organization).toBe(ORG);
     expect(expiry).toBe(String(EXPIRES));
     expect(signature).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(rest).toEqual([]);
@@ -35,10 +48,12 @@ describe('the part token', () => {
   });
 
   it('refuses a re-labelled version and a tampered expiry, because both are inside the signature', () => {
-    const [, expiry, signature] = mint().split('.');
-    // Reversal: leave the version out of the signed input and `pu2` verifies.
-    expect(verifyPartToken(KEY, `pu2.${expiry}.${signature}`, UPLOAD, 1, NOW)).toBe(false);
-    expect(verifyPartToken(KEY, `pu1.${EXPIRES + 1}.${signature}`, UPLOAD, 1, NOW)).toBe(false);
+    const [, org, expiry, signature] = mint().split('.');
+    // Reversal: leave the version out of the signed input and `pu3` verifies.
+    expect(verifyPartToken(KEY, `pu3.${org}.${expiry}.${signature}`, UPLOAD, 1, NOW)).toBe(false);
+    expect(verifyPartToken(KEY, `pu2.${org}.${EXPIRES + 1}.${signature}`, UPLOAD, 1, NOW)).toBe(
+      false,
+    );
   });
 
   it('refuses an expired token, indistinguishably from a forged one', () => {
@@ -52,7 +67,7 @@ describe('the part token', () => {
   });
 
   it('parses the expiry as digits only, never as a JavaScript number', () => {
-    const [, , signature] = mint().split('.');
+    const [, org, , signature] = mint().split('.');
     // Reversal: `Number()` accepts every one of these; `^\d+$` accepts none. The last three
     // are the ones that matter: they parse to the *signed* expiry, so a `Number()` verifier
     // would accept them and a token would have more than one spelling.
@@ -67,12 +82,20 @@ describe('the part token', () => {
       `+${EXPIRES}`,
       `${EXPIRES}.0`,
     ]) {
-      expect(verifyPartToken(KEY, `pu1.${expiry}.${signature}`, UPLOAD, 1, NOW)).toBe(false);
+      expect(verifyPartToken(KEY, `pu2.${org}.${expiry}.${signature}`, UPLOAD, 1, NOW)).toBe(false);
     }
   });
 
-  it('refuses anything that is not a three-segment token, without throwing', () => {
-    for (const token of [undefined, '', 'pu1', 'pu1.1', 'pu1.1.x.y', 'x'.repeat(300)]) {
+  it('refuses anything that is not a four-segment token, without throwing', () => {
+    for (const token of [
+      undefined,
+      '',
+      'pu2',
+      'pu2.1',
+      'pu2.1.x',
+      'pu2.1.x.y.z',
+      'x'.repeat(300),
+    ]) {
       expect(verifyPartToken(KEY, token, UPLOAD, 1, NOW)).toBe(false);
     }
     expect(verifyPartToken(KEY, mint(), 'not-a-handle', 1, NOW)).toBe(false);
@@ -83,5 +106,19 @@ describe('the part token', () => {
   it('will not mint for a handle or part that is not one', () => {
     expect(() => mint(1, EXPIRES, 'nope')).toThrow(/handle/);
     expect(() => mint(0)).toThrow(/partNumber/);
+    expect(() => mint(1, EXPIRES, UPLOAD, KEY, ORG.toUpperCase())).toThrow(/organizationId/);
+  });
+
+  it('is bound to the tenant it was minted for', () => {
+    const token = mint();
+    expect(verifyPartToken(KEY, token, UPLOAD, 1, NOW)).toBe(true);
+    expect(partTokenOrganization(token)).toBe(ORG);
+    // Reversal: leave the organization out of the signed input and the swapped token verifies.
+    const swapped = token.replace(ORG, OTHER_ORG);
+    expect(verifyPartToken(KEY, swapped, UPLOAD, 1, NOW)).toBe(false);
+    // A `pu1` token, which named no tenant, is refused even with a genuine pu1 signature shape.
+    const [, , expiry, signature] = token.split('.');
+    expect(verifyPartToken(KEY, `pu1.${expiry}.${signature}`, UPLOAD, 1, NOW)).toBe(false);
+    expect(partTokenOrganization(`pu1.${expiry}.${signature}`)).toBeNull();
   });
 });

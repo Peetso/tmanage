@@ -59,12 +59,20 @@ export function composeAppModule(env: Env): DynamicModule {
       smtpUsername: env.SMTP_USERNAME,
       smtpPassword: env.SMTP_PASSWORD,
     }),
-    // FILE-001b. `filesystem` is ADR-0002's local substitute and serves its own part
-    // URLs under `API_PUBLIC_URL` — from configuration, never from a `Host` header, for
-    // the reason the mail link is. `s3` still refuses at the first provider call (FILE-003).
+    // FILE-001b. `local` is the production single-host driver (Hostinger shared hosting):
+    // it stores under `STORAGE_LOCAL_ROOT`, which the module checks at boot is absolute and
+    // outside every web root — the app's own directory, where the bundle and its served
+    // static files live — and refuses to start otherwise. `filesystem` stays ADR-0002's
+    // dev/e2e substitute under `STORAGE_FILESYSTEM_ROOT`. Both serve their part URLs under
+    // `API_PUBLIC_URL` — from configuration, never from a `Host` header, for the reason the
+    // mail link is. `s3` is unchanged.
     storage: StorageModule.forConfig({
       driver: env.STORAGE_DRIVER,
-      root: env.STORAGE_FILESYSTEM_ROOT,
+      root:
+        env.STORAGE_DRIVER === 'local'
+          ? (env.STORAGE_LOCAL_ROOT ?? '')
+          : env.STORAGE_FILESYSTEM_ROOT,
+      webRoots: [process.cwd()],
       signingSecret: env.STORAGE_LOCAL_SIGNING_SECRET,
       publicUrl: env.API_PUBLIC_URL,
       partSizeBytes: env.UPLOAD_PART_SIZE_BYTES,

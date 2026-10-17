@@ -517,6 +517,7 @@ describe('what the PUT refuses', () => {
     for (const secret of [CONFIG.sessionSecret, CONFIG.csrfSecret]) {
       const forged = mintPartToken(derivePartSigningKey(secret), {
         providerUploadId: handle,
+        organizationId: world.northstar.organizationId,
         partNumber: 1,
         expiresAtMs: Date.now() + TTL_SECONDS * 1_000,
       });

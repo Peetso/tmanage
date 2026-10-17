@@ -91,8 +91,11 @@ async function createApi(env) {
     createFastifyAdapter({
       trustProxy: env.TRUSTED_PROXY_ADDRESSES,
       uploadPartSizeBytes: env.UPLOAD_PART_SIZE_BYTES,
+      // Pre-body part admission for the signed part transport, which both the filesystem
+      // and the local (production) drivers use; on s3 there is none and no body is read.
       admitPart:
-        env.STORAGE_DRIVER === 'filesystem' && env.STORAGE_LOCAL_SIGNING_SECRET
+        (env.STORAGE_DRIVER === 'filesystem' || env.STORAGE_DRIVER === 'local') &&
+        env.STORAGE_LOCAL_SIGNING_SECRET
           ? createPartAdmission(env.STORAGE_LOCAL_SIGNING_SECRET)
           : undefined,
       admitClient: createFixedWindowLimiter({

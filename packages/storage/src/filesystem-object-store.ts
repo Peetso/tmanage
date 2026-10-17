@@ -32,14 +32,31 @@ import type {
   TrustZone,
   WithdrawObjectInput,
 } from './object-store.js';
-import { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-token.js';
+import {
+  assertRealPathUnder,
+  assertSafeObjectKey,
+  resolveUnder,
+  tenantOfObjectKey,
+} from './local-path.js';
+import {
+  derivePartSigningKey,
+  mintPartToken,
+  partTokenOrganization,
+  verifyPartToken,
+} from './part-token.js';
 
 /**
- * The local substitute for a bucket — ADR-0002's `filesystem` driver (FILE-001b).
+ * The local substitute for a bucket — ADR-0002's `filesystem` driver (FILE-001b), and the
+ * `local` driver production runs on.
  *
- * It runs where `STORAGE_DRIVER=filesystem` is legal: development and the e2e stack.
- * `packages/config` refuses the driver in production, where `s3` is named and the part
- * route is bound to no sink.
+ * It runs for two `STORAGE_DRIVER` values. `filesystem` is development and the e2e stack,
+ * and `packages/config` refuses it in production. `local` is production on single-host
+ * shared hosting (Hostinger): the root is `STORAGE_LOCAL_ROOT`, absolute and outside the web
+ * root, validated at boot by `prepareLocalStorageRoot` (`local-root.ts`) — a process whose
+ * root fails that check does not start. `s3` stays the default and is untouched by either.
+ * The signed part URLs this driver mints are HMAC (`part-token.ts`), short-lived
+ * (`STORAGE_UPLOAD_URL_TTL_SECONDS`) and tenant-bound: the token names the organization, and
+ * `putPart` refuses one whose organization is not the tenant prefix of the upload's key.
  *
  * ## On disk
  *
@@ -60,8 +77,9 @@ import { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-tok
  * ## What the PUT verifies without a database
  *
  * The handle in the path must be a handle, the token must verify for exactly that handle
- * and part, the manifest must exist and not have expired, the part must be within range and
- * within the part size. Everything else — whose upload this is, which project, which quota —
+ * and part, the manifest must exist and not have expired, the token's organization must be
+ * the tenant the manifest's key belongs to, the part must be within range and within the
+ * part size. Everything else — whose upload this is, which project, which quota —
  * was decided when the session was created, and is not re-decided by a byte sink. Every
  * refusal is one `null`; the route turns it into one 404.
  *
@@ -105,16 +123,19 @@ import { derivePartSigningKey, mintPartToken, verifyPartToken } from './part-tok
  *
  * ## Paths never escape the root
  *
- * `object-key.ts` builds keys from checked UUIDs, and this driver checks again: each key
- * segment is restricted to a safe alphabet, `.` and `..` are refused, and the resolved path is
- * asserted to lie under the zone's directory. A driver that trusted its caller's key would be
- * a second place the tenant prefix could be escaped from. `abort` reads the manifest before
+ * `object-key.ts` builds keys from checked UUIDs, and this driver checks again through
+ * `local-path.ts`: each key segment is restricted to a safe alphabet, `.`, `..`, NUL,
+ * backslashes and absolute forms are refused, and the resolved path is asserted to lie under
+ * the zone's directory. Before a read, a promotion, a completion or a delete touches a path,
+ * its real path is asserted to lie under the root too, so a symlinked directory planted
+ * under the root cannot carry the operation outside it. `beginMultipart` only opens uploads
+ * for keys under `tenant/{uuid}/`. A driver that trusted its caller's key would be a second
+ * place the tenant prefix could be escaped from. `abort` reads the manifest before
  * it deletes anything, and refuses a zone or key that is not the one the upload was opened
  * under: the one path whose failure mode is silent deletion does not act on a handle alone.
  */
 
 const HANDLE = /^[0-9a-f]{32}$/;
-const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const ZONES: readonly TrustZone[] = ['quarantine', 'private', 'derived'];
 /** Bumped when the manifest gains a field; an older manifest reads as "unknown upload". */
 const MANIFEST_VERSION = 3;
@@ -219,6 +240,9 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
   async beginMultipart(input: BeginMultipartInput): Promise<MultipartUpload> {
     // Checked before anything is written, so a bad key never leaves a directory behind.
     this.objectPath(input.zone, input.objectKey);
+    // Only a tenant's key opens an upload: the part tokens are bound to its organization.
+    const organizationId = tenantOfObjectKey(input.objectKey);
+    if (!organizationId) throw new UnsafeObjectPathError('objectKey');
     const providerUploadId = randomBytes(16).toString('hex');
     const expiresAtMs = this.now() + input.expiresInSeconds * 1_000;
     const manifest: Manifest = {
@@ -237,7 +261,12 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
 
     const parts = Array.from({ length: input.partCount }, (_, index) => {
       const partNumber = index + 1;
-      const token = mintPartToken(this.key, { providerUploadId, partNumber, expiresAtMs });
+      const token = mintPartToken(this.key, {
+        organizationId,
+        providerUploadId,
+        partNumber,
+        expiresAtMs,
+      });
       return {
         partNumber,
         url: `${this.publicUrl}/v1/uploads/${providerUploadId}/parts/${partNumber}?t=${token}`,
@@ -256,6 +285,8 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
     }
     const manifest = await this.readManifest(input.providerUploadId);
     if (!manifest) return null;
+    // Tenant-bound: a token signed for another organization's upload is one more refusal.
+    if (partTokenOrganization(input.token) !== tenantOfObjectKey(manifest.objectKey)) return null;
     // Both checks below are also made by the token, which carries the same expiry and was
     // minted for a part the upload has. They stand for the manifest's own authority — a
     // token minted by hand for a part the upload lacks, or outliving the manifest, is
@@ -289,6 +320,7 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
     const presented = new Map(input.parts.map((p) => [p.partNumber, normalizeEtag(p.etag)]));
 
     const destination = this.objectPath(manifest.zone, manifest.objectKey);
+    await this.assertContained(destination);
     await mkdir(dirname(destination), { recursive: true });
     const staging = `${directory}${sep}object.${randomBytes(8).toString('hex')}.tmp`;
     const sink = createWriteStream(staging);
@@ -351,6 +383,7 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
 
   async promote(input: PromoteObjectInput): Promise<Promotion> {
     const destination = this.objectPath('private', input.objectKey);
+    await this.assertContained(destination);
     await mkdir(dirname(destination), { recursive: true });
     const staging = temporaryBeside(destination);
     const file = createWriteStream(staging);
@@ -405,6 +438,7 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
 
   async withdraw(input: WithdrawObjectInput): Promise<void> {
     const path = this.objectPath('private', input.objectKey);
+    await this.assertContained(path);
     let info: Awaited<ReturnType<typeof lstat>>;
     try {
       info = await lstat(path);
@@ -425,6 +459,7 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
    */
   async remove(input: RemoveObjectInput): Promise<void> {
     const path = this.objectPath(input.zone, input.objectKey);
+    await this.assertContained(path);
     let info: Awaited<ReturnType<typeof lstat>>;
     try {
       info = await lstat(path);
@@ -438,6 +473,7 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
 
   async openObject(input: OpenObjectInput): Promise<OpenedObject> {
     const path = this.objectPath(input.zone, input.objectKey);
+    await this.assertContained(path);
     let info: Awaited<ReturnType<typeof lstat>>;
     try {
       info = await lstat(path);
@@ -472,16 +508,21 @@ export class FilesystemObjectStore implements ObjectStore, PartSink {
   /** Where a completed object lives — exposed for a suite that checks the bytes landed. */
   objectPath(zone: TrustZone, objectKey: string): string {
     if (!ZONES.includes(zone)) throw new UnsafeObjectPathError('zone');
-    const segments = objectKey.split('/');
-    for (const segment of segments) {
-      if (!SAFE_SEGMENT.test(segment) || segment === '.' || segment === '..') {
-        throw new UnsafeObjectPathError('objectKey');
-      }
+    return resolveUnder(resolve(this.root, 'objects', zone), assertSafeObjectKey(objectKey));
+  }
+
+  /**
+   * The real path of `path` (its deepest existing ancestor) must lie under the root: a
+   * symlinked directory under the root cannot redirect a read, a write or a delete. A root
+   * that does not exist yet holds no link to follow, so its absence is not a refusal.
+   */
+  private async assertContained(path: string): Promise<void> {
+    try {
+      await assertRealPathUnder(this.root, path);
+    } catch (error) {
+      if (isNotFound(error)) return;
+      throw error;
     }
-    const zoneRoot = resolve(this.root, 'objects', zone);
-    const path = resolve(zoneRoot, ...segments);
-    if (!path.startsWith(`${zoneRoot}${sep}`)) throw new UnsafeObjectPathError('objectKey');
-    return path;
   }
 
   private uploadDirectory(providerUploadId: string): string {

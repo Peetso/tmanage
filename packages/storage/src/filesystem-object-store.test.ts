@@ -237,7 +237,7 @@ describe('FilesystemObjectStore — the whole upload', () => {
     // Reversal: skip the `rm` of the staging directory and `uploads/<handle>/…` is still here.
   });
 
-  it('mints URLs that carry the handle and a token, and never the key, the tenant or the project', async () => {
+  it('mints URLs that carry the handle and a tenant-bound token, and never the key or the project', async () => {
     const upload = await begin(3);
     expect(upload.providerUploadId).toMatch(/^[0-9a-f]{32}$/);
     expect(upload.parts.map((p) => p.partNumber)).toEqual([1, 2, 3]);
@@ -245,7 +245,8 @@ describe('FilesystemObjectStore — the whole upload', () => {
       expect(
         part.url.startsWith(`${PUBLIC_URL}/v1/uploads/${upload.providerUploadId}/parts/`),
       ).toBe(true);
-      expect(part.url).not.toContain(ORG);
+      // The token names the organization it is bound to; the path never does.
+      expect(new URL(part.url).pathname).not.toContain(ORG);
       expect(part.url).not.toContain(PROJECT);
       expect(part.url).not.toContain('tenant');
     }
@@ -461,6 +462,20 @@ describe('FilesystemObjectStore — paths', () => {
     expect(walk(root)).toEqual([]);
   });
 
+  it('opens an upload only for a key under tenant/{uuid}/', async () => {
+    // Reversal: drop the tenant check in beginMultipart and this opens an upload.
+    await expect(
+      store.beginMultipart({
+        zone: 'quarantine',
+        objectKey: 'other/x/object',
+        partCount: 1,
+        declaredBytes: PART_SIZE,
+        expiresInSeconds: 60,
+      }),
+    ).rejects.toBeInstanceOf(UnsafeObjectPathError);
+    expect(walk(root)).toEqual([]);
+  });
+
   it('keeps the zones apart', async () => {
     const upload = await begin(1, 'private');
     const [one] = targets(upload);
@@ -485,6 +500,7 @@ describe('FilesystemObjectStore — the fleet’s findings (FILE-001b review)', 
     // manifest is what refuses it. Reversal: drop the range check and part-0003 is written.
     const upload = await begin(2);
     const token = mintPartToken(key(), {
+      organizationId: ORG,
       providerUploadId: upload.providerUploadId,
       partNumber: 3,
       expiresAtMs: clock + 900_000,
@@ -500,12 +516,34 @@ describe('FilesystemObjectStore — the fleet’s findings (FILE-001b review)', 
     expect(walk(root)).toEqual([`uploads/${upload.providerUploadId}/manifest.json`]);
   });
 
+  it('refuses a validly signed token minted for another organization', async () => {
+    // Same handle, same part, real key, live expiry — only the organization differs.
+    // Reversal: drop the tenant comparison in putPart and part-0001 is written.
+    const upload = await begin(1);
+    const token = mintPartToken(key(), {
+      organizationId: '019203a4-5b6c-7d8e-9f01-23456789ffff',
+      providerUploadId: upload.providerUploadId,
+      partNumber: 1,
+      expiresAtMs: clock + 900_000,
+    });
+    expect(
+      await store.putPart({
+        providerUploadId: upload.providerUploadId,
+        partNumber: 1,
+        token,
+        body: bytes('a'),
+      }),
+    ).toBeNull();
+    expect(walk(root)).toEqual([`uploads/${upload.providerUploadId}/manifest.json`]);
+  });
+
   it('refuses, by the manifest alone, a hand-minted token that outlives the manifest', async () => {
     // The token carries the manifest's expiry, so the minted URLs cannot reach this branch
     // either. One signed for a later expiry still verifies once the manifest has lapsed;
     // the manifest refuses it. Reversal: drop the manifest expiry check and the PUT lands.
     const upload = await begin(1);
     const token = mintPartToken(key(), {
+      organizationId: ORG,
       providerUploadId: upload.providerUploadId,
       partNumber: 1,
       expiresAtMs: clock + 2_000_000,

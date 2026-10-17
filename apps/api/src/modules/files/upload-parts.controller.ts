@@ -20,8 +20,9 @@ import { LOCAL_PART_SINK } from '../../common/http/tokens.js';
 /**
  * FILE-001b's transport — the one route in this API that a browser reaches with no session.
  *
- * `PUT /v1/uploads/:providerUploadId/parts/:n?t=…` is what `FilesystemObjectStore` mints as
- * an upload target, the local stand-in for a presigned S3 URL. A presigned URL is honoured by
+ * `PUT /v1/uploads/:providerUploadId/parts/:n?t=…` is what `FilesystemObjectStore` (the
+ * `filesystem` driver, and the production `local` driver) mints as an upload target, the
+ * local stand-in for a presigned S3 URL. A presigned URL is honoured by
  * the bucket, not by the API; here the API is the bucket, so this controller is `@Public()`
  * — no session, no CSRF (the token is bound to nothing a cookie carries) — and `@NoTenant()`
  * — the path names no organization and the request resolves none. It does no authorization
@@ -43,8 +44,8 @@ import { LOCAL_PART_SINK } from '../../common/http/tokens.js';
  * echo the object key or the handle in a response (the `ETag` is the only thing it says),
  * or sit under `/portal` or `/v1/organizations` where an interceptor would walk a `Buffer`.
  *
- * The sink is injected `@Optional()`: only `StorageModule.forConfig` with the filesystem
- * driver provides it. A suite holding the fake, or a deployment on `s3`, leaves it unbound
+ * The sink is injected `@Optional()`: only `StorageModule.forConfig` with the filesystem or
+ * local driver provides it. A suite holding the fake, or a deployment on `s3`, leaves it unbound
  * and this route answers 404 to everything — the same body an unknown handle gets.
  */
 

@@ -18,12 +18,14 @@ import { createFixedWindowLimiter } from './rate-limiter.js';
 
 const SECRET = 'a_signing_secret_that_is_long_enough_for_the_suite';
 const HANDLE = '0123456789abcdef0123456789abcdef';
+const ORGANIZATION_ID = '11111111-2222-4333-8444-555555555555';
 const PART_SIZE = 64;
 const NOW = 1_800_000_000_000;
 
 function tokenFor(partNumber: number, expiresAtMs = NOW + 60_000): string {
   return mintPartToken(derivePartSigningKey(SECRET), {
     providerUploadId: HANDLE,
+    organizationId: ORGANIZATION_ID,
     partNumber,
     expiresAtMs,
   });

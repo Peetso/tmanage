@@ -15,7 +15,9 @@ import { parseTrustedProxies } from './trusted-proxies.js';
  * 2. **Development substitutes cannot reach production.** The `memory`, `filesystem`,
  *    `stub`, and `console` drivers exist for local work only (ADR-0002). When
  *    `NODE_ENV=production` they are rejected here, so the guarantee is a validation
- *    error rather than a code review that someone might skip.
+ *    error rather than a code review that someone might skip. The `local` storage driver
+ *    is not a substitute: it is the production driver for a single host (Hostinger
+ *    shared hosting), with its root checked to sit outside any web root.
  */
 
 const nonEmpty = (label: string) => z.string().trim().min(1, `${label} must not be empty`);
@@ -122,6 +124,23 @@ const mysqlUrl = z
  * Placeholder secrets ship in `.env.example` so local setup is one copy command.
  * They must never authenticate anything real, so production rejects them by shape.
  */
+/**
+ * Path segments that name a web root on common hosts. `STORAGE_LOCAL_ROOT` may contain none
+ * of them, so a stored object can never be served directly by the web server.
+ */
+const WEB_ROOT_SEGMENTS: ReadonlySet<string> = new Set([
+  'public_html',
+  'public',
+  'www',
+  'wwwroot',
+  'htdocs',
+  'httpdocs',
+  'html',
+  'static',
+  '.next',
+  'out',
+]);
+
 const PLACEHOLDER_MARKERS = ['local_dev_only', 'change_me', 'changeme', 'example', 'placeholder'];
 
 const secret = (label: string) =>
@@ -256,7 +275,7 @@ export const envSchema = z
     CACHE_DRIVER: z.enum(['redis', 'memory']).default('redis'),
 
     // Object storage
-    STORAGE_DRIVER: z.enum(['s3', 'filesystem']).default('s3'),
+    STORAGE_DRIVER: z.enum(['s3', 'filesystem', 'local']).default('s3'),
     STORAGE_ENDPOINT: z.string().url().optional(),
     STORAGE_REGION: nonEmpty('STORAGE_REGION').default('us-east-1'),
     STORAGE_BUCKET: nonEmpty('STORAGE_BUCKET'),
@@ -268,11 +287,20 @@ export const envSchema = z
     STORAGE_UPLOAD_URL_TTL_SECONDS: positiveInt.max(3_600).default(900),
     STORAGE_FILESYSTEM_ROOT: z.string().default('.local/storage'),
     /**
+     * The production root for `STORAGE_DRIVER=local` (one host, no object store). Required
+     * when that driver is named; must be absolute and outside `public_html` and any other
+     * web root, so a stored object is never served by the web server without the API's
+     * permission checks. Checked by shape here and again on disk at API boot by
+     * `prepareLocalStorageRoot`.
+     */
+    STORAGE_LOCAL_ROOT: z.string().optional(),
+    /**
      * FILE-001b. Signs the part URLs the API serves itself when `STORAGE_DRIVER=filesystem`
-     * (ADR-0002's local substitute). Its own secret, never `SESSION_SECRET` or `CSRF_SECRET`:
+     * (ADR-0002's local substitute) or `STORAGE_DRIVER=local` (the single-host production
+     * driver). Its own secret, never `SESSION_SECRET` or `CSRF_SECRET`:
      * the URL authorizes an anonymous byte sink, and a key shared with a session credential
      * would make one leak two. Required by the `superRefine` below exactly when the
-     * filesystem driver is named — the s3 credentials pattern.
+     * filesystem or local driver is named — the s3 credentials pattern.
      */
     STORAGE_LOCAL_SIGNING_SECRET: secret('STORAGE_LOCAL_SIGNING_SECRET').optional(),
     /**
@@ -555,9 +583,34 @@ export const envSchema = z
       if (!env.STORAGE_SECRET_ACCESS_KEY)
         fail('STORAGE_SECRET_ACCESS_KEY', 'required when STORAGE_DRIVER=s3');
     }
-    // The filesystem substitute signs its own upload URLs, so it needs a key of its own.
-    if (env.STORAGE_DRIVER === 'filesystem' && !env.STORAGE_LOCAL_SIGNING_SECRET) {
-      fail('STORAGE_LOCAL_SIGNING_SECRET', 'required when STORAGE_DRIVER=filesystem');
+    // The filesystem and local drivers sign their own URLs, so they need a key of their own.
+    if (
+      (env.STORAGE_DRIVER === 'filesystem' || env.STORAGE_DRIVER === 'local') &&
+      !env.STORAGE_LOCAL_SIGNING_SECRET
+    ) {
+      fail('STORAGE_LOCAL_SIGNING_SECRET', `required when STORAGE_DRIVER=${env.STORAGE_DRIVER}`);
+    }
+    // The local driver's root must be absolute and outside any web root. This is the shape
+    // check; `prepareLocalStorageRoot` re-checks the resolved directory on disk at API boot.
+    if (env.STORAGE_DRIVER === 'local') {
+      const root = env.STORAGE_LOCAL_ROOT;
+      if (root === undefined || root.trim() === '') {
+        fail('STORAGE_LOCAL_ROOT', 'required when STORAGE_DRIVER=local');
+      } else {
+        const segments = root.split(/[\\/]/);
+        if (!/^\//.test(root) && !/^[A-Za-z]:[\\/]/.test(root)) {
+          fail('STORAGE_LOCAL_ROOT', 'must be an absolute path');
+        }
+        if (root.includes('\0')) {
+          fail('STORAGE_LOCAL_ROOT', 'must not contain a NUL byte');
+        }
+        if (segments.includes('..')) {
+          fail('STORAGE_LOCAL_ROOT', "must not contain a '..' segment");
+        }
+        if (segments.some((segment) => WEB_ROOT_SEGMENTS.has(segment.toLowerCase()))) {
+          fail('STORAGE_LOCAL_ROOT', 'must be outside public_html and any web root');
+        }
+      }
     }
     // A file at the upload ceiling must fit in the part numbers the part route accepts.
     if (Math.ceil(env.UPLOAD_MAX_BYTES / env.UPLOAD_PART_SIZE_BYTES) > UPLOAD_MAX_PART_NUMBER) {
@@ -668,9 +721,9 @@ export const envSchema = z
       }
     }
 
-    // The signing secret is in both loops although production refuses the filesystem
-    // driver above: an operator who leaves it in a production `.env` copied from staging
-    // is told, and the check is one line. Checked only when present.
+    // The signing secret is in both loops: production refuses the filesystem driver above,
+    // but the `local` driver uses this secret in production, and an operator who leaves it
+    // in a production `.env` copied from staging is told either way. Checked only when present.
     const secrets: ReadonlyArray<readonly [string, string | undefined]> = [
       ['SESSION_SECRET', env.SESSION_SECRET],
       ['CSRF_SECRET', env.CSRF_SECRET],

@@ -7,9 +7,11 @@
  * another's `src/`. Like `mail`, this package is not in `18`'s tree; the divergence is
  * recorded in `docs/implementation-status.md`.
  *
- * **Two drivers.** `FakeObjectStore` for suites, `FilesystemObjectStore` for a deployment
+ * **Drivers.** `FakeObjectStore` for suites; `FilesystemObjectStore` for a deployment
  * without a bucket — ADR-0002's local substitute, with HMAC-signed part URLs the API serves
- * itself (FILE-001b). The `s3` driver with real R2 signature semantics is FILE-003's, and the
+ * itself (FILE-001b). It runs as `filesystem` (development) and as `local` (production on a
+ * single host, e.g. shared hosting): the same store behind `local-path.ts`'s traversal-safe
+ * key-to-path checks and `local-root.ts`'s refusal of a root inside the web root. The `s3` driver with real R2 signature semantics is FILE-003's, and the
  * configuration that names it still refuses to wire until it exists. FILE-002 gave the port
  * its first read, `openObject`, for the verification pass; slice B gave it `promote`, the
  * one write into the private zone, fed from that same read, and `withdraw`, its undo — see
@@ -47,9 +49,24 @@ export {
   createPartAdmission,
   derivePartSigningKey,
   mintPartToken,
+  partTokenOrganization,
   verifyPartToken,
 } from './part-token.js';
 export type { PartAdmission, PartTokenClaims } from './part-token.js';
+export {
+  SAFE_SEGMENT,
+  assertSafeObjectKey,
+  resolveUnder,
+  assertRealPathUnder,
+  tenantOfObjectKey,
+  assertTenantKey,
+} from './local-path.js';
+export {
+  prepareLocalStorageRoot,
+  UnsafeStorageRootError,
+  FORBIDDEN_ROOT_SEGMENTS,
+} from './local-root.js';
+export type { PrepareLocalStorageRootOptions } from './local-root.js';
 export {
   MissingPartError,
   MultipartUploadMismatchError,

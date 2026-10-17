@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
-import { FilesystemObjectStore } from '@tmanage/storage';
+import { FilesystemObjectStore, prepareLocalStorageRoot } from '@tmanage/storage';
 import type {
   AbortMultipartInput,
   BeginMultipartInput,
@@ -25,13 +25,18 @@ import { LOCAL_PART_SINK, OBJECT_STORE } from '../http/tokens.js';
  * what a suite calls with the fake it holds; `none()` is what `AppModule` falls back to when
  * the composition root passes nothing.
  *
- * Of `STORAGE_DRIVER`'s two names, one exists: `filesystem` is ADR-0002's local substitute
- * (FILE-001b) — the driver keeps objects under `STORAGE_FILESYSTEM_ROOT` and serves its own
- * HMAC-signed part URLs, which the public PUT route accepts through the driver's `PartSink`
- * half. `s3` — R2's real signature semantics — is FILE-003's, and naming it still wires the
- * store that refuses at the first provider call rather than at boot, so every route that is
- * not an upload keeps working in a deployment whose bucket is a later ticket. Claiming a
- * driver that does not exist would be worse than refusing honestly.
+ * `STORAGE_DRIVER` has three names. `local` is the production driver for a single host
+ * (Hostinger shared hosting): the same `FilesystemObjectStore`, but its root is checked here,
+ * at wiring time, by `prepareLocalStorageRoot` — it must be absolute and may not sit inside
+ * any directory a web server serves (`webRoots`), or boot fails with
+ * `UnsafeStorageRootError`. Its files only leave through the authenticated download routes;
+ * part PUTs arrive through tenant-bound, short-lived HMAC-signed URLs the API serves itself.
+ * `filesystem` is ADR-0002's development substitute (FILE-001b) — the same driver under
+ * `STORAGE_FILESYSTEM_ROOT`, without the root check. `s3` — R2's real signature semantics —
+ * is FILE-003's, and naming it still wires the store that refuses at the first provider call
+ * rather than at boot, so every route that is not an upload keeps working in a deployment
+ * whose bucket is a later ticket. Claiming a driver that does not exist would be worse than
+ * refusing honestly.
  *
  * `LOCAL_PART_SINK` is provided by `forConfig` alone. A suite holding a fake, or a deployment
  * with no driver, leaves it unbound; the route injects it `@Optional()` and answers 404 to
@@ -42,10 +47,18 @@ import { LOCAL_PART_SINK, OBJECT_STORE } from '../http/tokens.js';
  */
 
 export interface StorageModuleConfig {
-  readonly driver: 's3' | 'filesystem';
-  /** `STORAGE_FILESYSTEM_ROOT`. Relative paths resolve against the process's cwd. */
+  readonly driver: 's3' | 'filesystem' | 'local';
+  /**
+   * The driver's root. For `filesystem`, relative paths resolve against the process's cwd;
+   * for `local` it must be absolute and outside every `webRoots` entry.
+   */
   readonly root: string;
-  /** `STORAGE_LOCAL_SIGNING_SECRET`. `packages/config` requires it for `filesystem`. */
+  /**
+   * Directories a web server serves (e.g. `public_html`). The `local` root may not be inside
+   * any of them. Ignored by the other drivers.
+   */
+  readonly webRoots?: readonly string[] | undefined;
+  /** `STORAGE_LOCAL_SIGNING_SECRET`. `packages/config` requires it for `filesystem` and `local`. */
   readonly signingSecret?: string | undefined;
   /** `API_PUBLIC_URL` — from configuration, never from a request header. */
   readonly publicUrl: string;
@@ -101,10 +114,16 @@ export class StorageModule {
     if (config.signingSecret === undefined || config.signingSecret === '') {
       // `packages/config` already refuses this combination at boot; repeated here so a
       // caller that bypassed `loadEnv` fails at wiring time rather than at the first upload.
-      throw new Error('STORAGE_DRIVER=filesystem requires STORAGE_LOCAL_SIGNING_SECRET');
+      throw new Error(`STORAGE_DRIVER=${config.driver} requires STORAGE_LOCAL_SIGNING_SECRET`);
     }
+    // `local` only: throws `UnsafeStorageRootError` for a relative root or one inside a web
+    // root, so boot fails rather than serving uploads from a public directory.
+    const root =
+      config.driver === 'local'
+        ? prepareLocalStorageRoot(config.root, { webRoots: config.webRoots ?? [] })
+        : config.root;
     const store = new FilesystemObjectStore({
-      root: config.root,
+      root,
       signingSecret: config.signingSecret,
       publicUrl: config.publicUrl,
       partSizeBytes: config.partSizeBytes,
