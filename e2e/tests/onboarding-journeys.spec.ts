@@ -19,6 +19,13 @@ import { API_URL } from '../setup/stack.js';
  *   swaps another organization's slug into the path and gets the one refusal that does
  *   not distinguish "not yours" from "not real", for both a stranger organization and
  *   the adversarial near-twin.
+ * - **ON-10, "Guided tour progress"** — a seeded member of the studio opens their own guided
+ *   tour (module 3), marks two steps done, reloads the whole page and finds the same two still
+ *   done with no control to redo them — the proof the progress is the server's memory of what the
+ *   member finished, not the tab's. A second member of the SAME studio opens their own tour and
+ *   sees it untouched, because the API takes no membership id and answers only the acting member's
+ *   own (own-principal, read end to end). The checklist is ON-10's progress surface; its
+ *   sample-data seeding and dismissable coach-marks are deferred (NS-13) and are not asserted.
  */
 
 interface SeededUser {
@@ -28,6 +35,7 @@ interface SeededUser {
 interface World {
   readonly northstar: {
     readonly owner: SeededUser;
+    readonly manager: SeededUser;
     readonly designer: SeededUser;
   };
 }
@@ -147,5 +155,61 @@ test.describe.serial('the onboarding journeys', () => {
     ).toBeVisible();
 
     await member.context.close();
+  });
+});
+
+/** The seeded studio the guided-tour members belong to. */
+const TOUR_SLUG = 'northstar-studio';
+
+test.describe('the guided tour journey', () => {
+  test('ON-10: a member walks the guided tour, progress survives a reload, and a second member is untouched', async ({
+    browser,
+  }) => {
+    // A member of the seeded studio opens their own guided tour — fresh, nothing finished yet.
+    const designer = await openAs(browser, world().northstar.designer.id);
+    await designer.page.goto(`/${TOUR_SLUG}/onboarding/tour`);
+
+    const panel = designer.page.getByRole('region', { name: 'Your progress' });
+    await expect(designer.page.getByText('0 of 5 steps done.')).toBeVisible();
+
+    // Each row carries exactly one "Mark done" control while the step is outstanding.
+    const welcomeRow = panel.getByRole('listitem').filter({ hasText: 'Take a look around' });
+    const projectRow = panel.getByRole('listitem').filter({ hasText: 'Create your first project' });
+    await expect(welcomeRow.getByRole('button')).toBeVisible();
+
+    // Advance the first step. The count line and that row both flip, and the write is the
+    // server's — the mutation returns the new progress the checklist re-renders from.
+    await welcomeRow.getByRole('button').click();
+    await expect(designer.page.getByText('1 of 5 steps done.')).toBeVisible();
+    await expect(welcomeRow.getByText('Completed')).toBeVisible();
+    await expect(welcomeRow.getByRole('button')).toHaveCount(0);
+
+    // Advance a second step.
+    await projectRow.getByRole('button').click();
+    await expect(designer.page.getByText('2 of 5 steps done.')).toBeVisible();
+
+    // The proof the state is the server's, not the tab's: a full reload shows the same two steps
+    // done and offers no control to redo them — a fresh browser would read the same.
+    await designer.page.reload();
+    await expect(designer.page.getByText('2 of 5 steps done.')).toBeVisible();
+    await expect(welcomeRow.getByText('Completed')).toBeVisible();
+    await expect(projectRow.getByText('Completed')).toBeVisible();
+    await expect(welcomeRow.getByRole('button')).toHaveCount(0);
+
+    // A second member of the SAME studio opens their own tour — untouched by the first member's
+    // progress, because the API takes no membership id and answers only the acting member's own.
+    const manager = await openAs(browser, world().northstar.manager.id);
+    await manager.page.goto(`/${TOUR_SLUG}/onboarding/tour`);
+    const managerPanel = manager.page.getByRole('region', { name: 'Your progress' });
+    await expect(manager.page.getByText('0 of 5 steps done.')).toBeVisible();
+    await expect(
+      managerPanel
+        .getByRole('listitem')
+        .filter({ hasText: 'Take a look around' })
+        .getByRole('button'),
+    ).toBeVisible();
+
+    await designer.context.close();
+    await manager.context.close();
   });
 });
