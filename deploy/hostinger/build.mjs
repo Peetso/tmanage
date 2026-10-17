@@ -21,6 +21,8 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { npmOverridesFromRoot } from './bundle-overrides.mjs';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../..');
 const OUT = join(HERE, 'out');
@@ -227,6 +229,18 @@ function assemble() {
       '@tmanage/worker': 'file:./vendor/@tmanage/worker',
     },
   };
+  // npm ignores the root `pnpm.overrides`, so the transitive security pins are carried over as npm
+  // `overrides` — runtime packages only; dev-only pins never reach the bundle's install.
+  const rootPkg = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'));
+  const overrides = npmOverridesFromRoot(rootPkg, [
+    'fastify',
+    'fast-uri',
+    'sharp',
+    'source-map-js',
+    'nodemailer',
+    '@nestjs/platform-fastify',
+  ]);
+  if (Object.keys(overrides).length > 0) manifest.overrides = overrides;
   writeFileSync(join(STAGE, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
   // Hostinger's build sandbox refuses symlinks (npm install failed with EACCES on

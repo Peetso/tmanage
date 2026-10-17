@@ -27,9 +27,9 @@
     "mfa:seeds-status": "tsx src/common/database/cli.ts mfa-seeds status"
   },
   "dependencies": {
-    "@nestjs/common": "^11.2.1",
-    "@nestjs/core": "^11.2.1",
-    "@nestjs/platform-fastify": "^11.2.1",
+    "@nestjs/common": "^11.2.7",
+    "@nestjs/core": "^11.2.7",
+    "@nestjs/platform-fastify": "^11.2.7",
     "@node-rs/argon2": "^2.1.0",
     "@tmanage/config": "workspace:*",
     "@tmanage/domain": "workspace:*",
@@ -41,15 +41,14 @@
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
-    "@nestjs/testing": "^11.2.1",
+    "@nestjs/testing": "^11.2.7",
     "@tmanage/test-kit": "workspace:*",
     "@tmanage/worker": "workspace:*",
     "@types/ws": "^8.5.12",
-    "drizzle-kit": "^0.31.5",
     "mysql-memory-server": "^1.15.0",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4",
+    "vitest": "^4.1.11",
     "ws": "^8.18.0"
   }
 }

@@ -82,8 +82,9 @@ export class SmtpMailer implements Mailer {
     // `sendMail` resolves once the server accepts the message; a recipient the server
     // refused is in `rejected` without the promise rejecting, and swallowing that would
     // report `'sent'` for a mail nobody will receive.
-    if (result.rejected.length > 0) {
-      throw new Error(`the SMTP server refused ${result.rejected.length} recipient(s)`);
+    const rejected = result.rejected ?? [];
+    if (rejected.length > 0) {
+      throw new Error(`the SMTP server refused ${rejected.length} recipient(s)`);
     }
     return 'sent';
   }
