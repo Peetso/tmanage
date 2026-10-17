@@ -135,6 +135,8 @@ test.describe.serial('the automations create-and-run journey', () => {
 
     // The define form, with its defaults: the first trigger and the first action, which is the
     // in-app `notify_owner` the run leg below will execute. Only the name has to be supplied.
+    // The form ships disabled until React hydrates (useHydrated); wait for that readiness signal.
+    await expect(owner.page.getByLabel('Name')).toBeEnabled();
     await owner.page.getByLabel('Name').fill(IN_APP_NAME);
     await expect(owner.page.getByLabel('Trigger')).toHaveValue('work_item_created');
     await expect(owner.page.getByLabel('Action')).toHaveValue('notify_owner');
@@ -167,6 +169,8 @@ test.describe.serial('the automations create-and-run journey', () => {
 
     // Whitespace is not a name — the screen trims before it decides, so a space-only field stays
     // unavailable rather than letting a blank template through to the API's 400.
+    // The form ships disabled until React hydrates (useHydrated); wait for that readiness signal.
+    await expect(owner.page.getByLabel('Name')).toBeEnabled();
     await owner.page.getByLabel('Name').fill('   ');
     await expect(createButton).toBeDisabled();
 
@@ -186,6 +190,8 @@ test.describe.serial('the automations create-and-run journey', () => {
     // A document-published trigger paired with the external `send_email_digest` action — the kind
     // the run service refuses to execute in-app. The screen offers it; the run leg proves it fails
     // closed rather than reaching the network.
+    // The form ships disabled until React hydrates (useHydrated); wait for that readiness signal.
+    await expect(owner.page.getByLabel('Name')).toBeEnabled();
     await owner.page.getByLabel('Name').fill(EXTERNAL_NAME);
     await owner.page.getByLabel('Trigger').selectOption('document_published');
     await owner.page.getByLabel('Action').selectOption('send_email_digest');
@@ -258,6 +264,8 @@ test.describe.serial('the automations create-and-run journey', () => {
     // The status filter offers only the allowlisted outcomes. Under "Failed" the external run is
     // present and the earlier succeeded run is gone; under "Succeeded" the two swap. The claim is
     // about each template's own row, so another journey's runs — there are none — would not confuse it.
+    // The filter ships disabled until React hydrates (useHydrated); wait for that readiness signal.
+    await expect(owner.page.getByLabel('Status')).toBeEnabled();
     await owner.page.getByLabel('Status').selectOption('failed');
     await expect(owner.page.getByRole('row').filter({ hasText: externalTemplateId })).toBeVisible();
     await expect(owner.page.getByRole('row').filter({ hasText: inAppTemplateId })).toHaveCount(0);

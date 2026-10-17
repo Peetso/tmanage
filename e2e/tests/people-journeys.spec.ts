@@ -115,6 +115,7 @@ test.describe('the People & capacity directory journeys', () => {
     // Everyone is present first, so the narrowing below is a change and not the initial state.
     await expect(personRow(member.page, world().northstar.manager.displayName)).toBeVisible();
 
+    await expect(member.page.getByLabel('Search people by name')).toBeEnabled();
     await member.page
       .getByLabel('Search people by name')
       .fill(world().northstar.manager.displayName);
@@ -131,6 +132,7 @@ test.describe('the People & capacity directory journeys', () => {
     const member = await openAs(browser, world().northstar.owner.id);
     await member.page.goto(PEOPLE_URL);
 
+    await expect(member.page.getByLabel('Search people by name')).toBeEnabled();
     await member.page.getByLabel('Search people by name').fill('Nobody By That Name');
 
     await expect(member.page.getByText(/No active member matches/)).toBeVisible();
@@ -147,6 +149,7 @@ test.describe('the People & capacity directory journeys', () => {
 
     // "del" is the middle of "Omar Adel", lower-cased: a match proves the LIKE is both
     // case-insensitive and a contains rather than a prefix the browser could have faked.
+    await expect(member.page.getByLabel('Search people by name')).toBeEnabled();
     await member.page.getByLabel('Search people by name').fill('del');
 
     await expect(personRow(member.page, world().northstar.manager.displayName)).toBeVisible();

@@ -12,6 +12,7 @@ import {
   type WorkflowTriggerKind,
 } from '../../lib/api/automations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface AutomationTemplatesScreenProps {
@@ -69,6 +70,10 @@ export function AutomationTemplatesScreen({
     queryFn: () => listWorkflowTemplates(api, organizationSlug),
   });
 
+  // The standing `useHydrated` barrier (see PolicySimulationScreen): these controlled inputs ship
+  // disabled in the server render and enable once React is live, so text typed before hydration
+  // cannot sit in the DOM while state stays empty and leaves Create template disabled for good.
+  const hydrated = useHydrated();
   const [name, setName] = useState('');
   const [triggerKind, setTriggerKind] = useState<WorkflowTriggerKind>(TRIGGER_KINDS[0]);
   const [actionKind, setActionKind] = useState<WorkflowActionKind>(ACTION_KINDS[0]);
@@ -112,69 +117,71 @@ export function AutomationTemplatesScreen({
             if (canCreate) create.mutate();
           }}
         >
-          <Field
-            label="Name"
-            name="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Notify owner on new work."
-            required
-          />
+          <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+            <Field
+              label="Name"
+              name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              hint="A short handle, such as Notify owner on new work."
+              required
+            />
 
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-automation-trigger">
-              Trigger
-            </label>
-            <select
-              id="tm-automation-trigger"
-              className="tm-field__control"
-              value={triggerKind}
-              onChange={(event) => setTriggerKind(event.target.value as WorkflowTriggerKind)}
-            >
-              {TRIGGER_KINDS.map((kind) => (
-                <option key={kind} value={kind}>
-                  {humanize(kind)}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-automation-trigger">
+                Trigger
+              </label>
+              <select
+                id="tm-automation-trigger"
+                className="tm-field__control"
+                value={triggerKind}
+                onChange={(event) => setTriggerKind(event.target.value as WorkflowTriggerKind)}
+              >
+                {TRIGGER_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {humanize(kind)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-automation-action">
-              Action
-            </label>
-            <select
-              id="tm-automation-action"
-              className="tm-field__control"
-              value={actionKind}
-              onChange={(event) => setActionKind(event.target.value as WorkflowActionKind)}
-            >
-              {ACTION_KINDS.map((kind) => (
-                <option key={kind} value={kind}>
-                  {humanize(kind)}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-automation-action">
+                Action
+              </label>
+              <select
+                id="tm-automation-action"
+                className="tm-field__control"
+                value={actionKind}
+                onChange={(event) => setActionKind(event.target.value as WorkflowActionKind)}
+              >
+                {ACTION_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {humanize(kind)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not create the template" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
+            {create.isError ? (
+              <InlineAlert tone="danger" title="Could not create the template" live>
+                {describeError(create.error)}
+              </InlineAlert>
+            ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Creating"
-              disabled={!canCreate}
-            >
-              Create template
-            </Button>
-          </div>
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={create.isPending}
+                loadingLabel="Creating"
+                disabled={!canCreate}
+              >
+                Create template
+              </Button>
+            </div>
+          </fieldset>
         </form>
       </section>
 

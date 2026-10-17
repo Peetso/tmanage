@@ -11,6 +11,7 @@ import {
   type WorkflowRunStatus,
 } from '../../lib/api/automations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface AutomationRunHistoryScreenProps {
@@ -62,6 +63,9 @@ export function AutomationRunHistoryScreen({
 }: AutomationRunHistoryScreenProps) {
   const api = client ?? browserApiClient();
 
+  // The standing `useHydrated` barrier: the filter ships disabled in the server render, so a choice
+  // made before hydration cannot change the DOM while the query keeps listing every status.
+  const hydrated = useHydrated();
   const [status, setStatus] = useState<StatusFilter>('all');
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
@@ -94,19 +98,21 @@ export function AutomationRunHistoryScreen({
         <h2 id="tm-run-filter-heading" className="tm-eyebrow">
           Filter
         </h2>
-        <Select
-          label="Status"
-          name="status"
-          value={status}
-          onChange={(event) => setStatus(event.target.value as StatusFilter)}
-          hint="Show all runs, or only those with a given outcome."
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
+        <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+          <Select
+            label="Status"
+            name="status"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as StatusFilter)}
+            hint="Show all runs, or only those with a given outcome."
+          >
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </fieldset>
       </section>
 
       <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-run-list-heading">

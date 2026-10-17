@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/document-templates';
 import { listProjects } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface DocumentTemplatesScreenProps {
@@ -59,6 +60,10 @@ export function DocumentTemplatesScreen({
     queryFn: () => listProjects(api, organizationSlug),
   });
 
+  // The standing `useHydrated` barrier (see PolicySimulationScreen): these controlled inputs ship
+  // disabled in the server render and enable once React is live, so text typed before hydration
+  // cannot sit in the DOM while state stays empty and leaves Create template disabled for good.
+  const hydrated = useHydrated();
   const [name, setName] = useState('');
   const [purpose, setPurpose] = useState('');
   const [body, setBody] = useState('');
@@ -118,63 +123,65 @@ export function DocumentTemplatesScreen({
             if (canCreate) create.mutate();
           }}
         >
-          <Field
-            label="Name"
-            name="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Project kickoff brief."
-            required
-          />
-          <Field
-            label="Purpose"
-            name="purpose"
-            value={purpose}
-            onChange={(event) => setPurpose(event.target.value)}
-            hint="One line saying what this template is for. Shown in the gallery."
-            required
-          />
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-tpl-body">
-              Template body
-              <span className="tm-field__required" aria-hidden="true">
-                *
-              </span>
-            </label>
-            <textarea
-              id="tm-tpl-body"
-              name="body"
-              className="tm-field__control tm-field__control--multiline"
-              rows={10}
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              aria-describedby="tm-tpl-body-hint"
+          <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+            <Field
+              label="Name"
+              name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              hint="A short handle, such as Project kickoff brief."
               required
             />
-            <span className="tm-field__hint" id="tm-tpl-body-hint">
-              The text a new document starts from. Applying a template copies this into a fresh
-              document; the template itself is never changed.
-            </span>
-          </div>
+            <Field
+              label="Purpose"
+              name="purpose"
+              value={purpose}
+              onChange={(event) => setPurpose(event.target.value)}
+              hint="One line saying what this template is for. Shown in the gallery."
+              required
+            />
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-tpl-body">
+                Template body
+                <span className="tm-field__required" aria-hidden="true">
+                  *
+                </span>
+              </label>
+              <textarea
+                id="tm-tpl-body"
+                name="body"
+                className="tm-field__control tm-field__control--multiline"
+                rows={10}
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
+                aria-describedby="tm-tpl-body-hint"
+                required
+              />
+              <span className="tm-field__hint" id="tm-tpl-body-hint">
+                The text a new document starts from. Applying a template copies this into a fresh
+                document; the template itself is never changed.
+              </span>
+            </div>
 
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not create the template" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
+            {create.isError ? (
+              <InlineAlert tone="danger" title="Could not create the template" live>
+                {describeError(create.error)}
+              </InlineAlert>
+            ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Creating"
-              disabled={!canCreate}
-            >
-              Create template
-            </Button>
-          </div>
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={create.isPending}
+                loadingLabel="Creating"
+                disabled={!canCreate}
+              >
+                Create template
+              </Button>
+            </div>
+          </fieldset>
         </form>
       </section>
 

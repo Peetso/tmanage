@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listPeople } from '../../lib/api/people';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { describeInternalRole } from '../../lib/roles';
+import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface PeopleDirectoryScreenProps {
@@ -35,6 +36,9 @@ export function PeopleDirectoryScreen({
   client,
 }: PeopleDirectoryScreenProps) {
   const api = client ?? browserApiClient();
+  // The standing `useHydrated` barrier: the search ships disabled in the server render, so a name
+  // typed before hydration cannot sit in the DOM while the roster query still searches for nothing.
+  const hydrated = useHydrated();
   const [search, setSearch] = useState('');
   const term = search.trim();
 
@@ -56,13 +60,15 @@ export function PeopleDirectoryScreen({
           Find someone
         </h2>
         <form className="tm-stack" role="search" onSubmit={(event) => event.preventDefault()}>
-          <SearchField
-            label="Search people by name"
-            labelVisible
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Type a name"
-          />
+          <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+            <SearchField
+              label="Search people by name"
+              labelVisible
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Type a name"
+            />
+          </fieldset>
         </form>
       </section>
 

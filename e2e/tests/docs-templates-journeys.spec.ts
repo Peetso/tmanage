@@ -50,6 +50,8 @@ test('DOC-04: create a template, apply it, and edit the seeded document', async 
   const form = page
     .locator('section')
     .filter({ has: page.getByRole('heading', { name: 'New template' }) });
+  // The form ships disabled until React hydrates (useHydrated); wait for that readiness signal.
+  await expect(form.getByLabel('Name')).toBeEnabled();
   await form.getByLabel('Name').fill(TEMPLATE_NAME);
   await form.getByLabel('Purpose').fill('Start a project kickoff brief');
   await form.getByLabel('Template body').fill(TEMPLATE_BODY);
