@@ -156,12 +156,20 @@ function assemble() {
   // compiles the config against but does NOT transpile — so ship that one module precompiled to
   // JS beside a src/lib it can `require`. (The config re-runs its NEXT_PUBLIC_* validation at
   // startup, so server.mjs sets those variables for the web child.)
+  // Every ./src/lib module the config imports ships this way, read from the config itself, so a
+  // new import (static-headers.ts arrived with the perf slice) cannot silently break `next start`.
   cpSync(join(REPO, 'apps/web/next.config.ts'), join(web, 'next.config.ts'));
   mkdirSync(join(web, 'src/lib'), { recursive: true });
+  const configModules = [
+    ...readFileSync(join(REPO, 'apps/web/next.config.ts'), 'utf8').matchAll(
+      /^import\s+(?!type)[^;]*?from\s+'\.\/src\/lib\/([\w-]+)';/gm,
+    ),
+  ].map((match) => join(REPO, 'apps/web/src/lib', `${match[1]}.ts`));
+  if (configModules.length === 0) throw new Error('next.config.ts imports no ./src/lib module');
   run('pnpm', [
     'exec',
     'tsc',
-    join(REPO, 'apps/web/src/lib/public-config.ts'),
+    ...configModules,
     '--outDir',
     join(web, 'src/lib'),
     '--target',
@@ -212,6 +220,12 @@ function assemble() {
     },
   };
   writeFileSync(join(STAGE, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+
+  // Hostinger's build sandbox refuses symlinks (npm install failed with EACCES on
+  // `symlink ../../vendor/@tmanage/worker`). `install-links` makes npm COPY the file: packages
+  // into node_modules instead of linking them, and `bin-links=false` skips the node_modules/.bin
+  // links (server.mjs starts Next via require.resolve('next/dist/bin/next'), not .bin/next).
+  writeFileSync(join(STAGE, '.npmrc'), 'install-links=true\nbin-links=false\n');
 
   // The owner's guide, the settings template and the secret generator travel with the bundle,
   // so the ZIP alone is enough to follow DEPLOY-HOSTINGER.md. None of them holds a secret.

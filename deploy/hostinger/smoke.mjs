@@ -20,7 +20,15 @@ import { createServer as createHttpsServer } from 'node:https';
 import { createRequire } from 'node:module';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
-import { mkdirSync, readdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+  existsSync,
+  readFileSync,
+  lstatSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPool } from 'mysql2/promise';
@@ -151,6 +159,17 @@ async function main() {
       (npm.stderr || '').split('\n').filter(Boolean).slice(-2).join(' | ').slice(0, 300),
     );
     if (npm.status !== 0) throw new Error('npm install failed');
+
+    // Hostinger's build sandbox refuses symlinks (EACCES), so the install must copy the vendored
+    // file: packages and create no node_modules/.bin links (the bundle's .npmrc asks for both).
+    const linked = readdirSync(join(BUNDLE, 'node_modules/@tmanage')).filter((name) =>
+      lstatSync(join(BUNDLE, 'node_modules/@tmanage', name)).isSymbolicLink(),
+    );
+    check(
+      'install creates no symlinks (Hostinger refuses them)',
+      linked.length === 0 && !existsSync(join(BUNDLE, 'node_modules/.bin')),
+      linked.length ? `linked: ${linked.join(', ')}` : 'vendored packages copied, no .bin',
+    );
 
     // 3. A real MySQL, private to this run.
     db = await createDB({ dbName: DB, logLevel: 'ERROR', downloadBinaryOnce: true });
