@@ -37,6 +37,23 @@ const config: StorybookConfig = {
   },
   viteFinal: (viteConfig) => ({
     ...viteConfig,
+    /*
+     * `NEXT_PUBLIC_API_BASE_URL`, baked into the preview build.
+     *
+     * A story that mounts `AppShell` reaches the always-mounted `MaintenanceBanner` (and its
+     * siblings), which build the process-wide browser client at render; `resolveApiBaseUrl` reads
+     * `process.env.NEXT_PUBLIC_API_BASE_URL` and throws in a *production* Storybook (`storybook
+     * build` sets `NODE_ENV=production`) when it is absent, so the whole screen fails to render.
+     * The builder otherwise inlines `process.env` to `{}`, so the value is supplied here as a
+     * `define`. Choosing the same-origin topology lets the client construct; no request leaves the
+     * page because those screens' stories stub `fetch` (see `stories/support/vr-fixtures.tsx`). It
+     * is inert for every pre-existing story — they inject a refusing client and never build the
+     * browser one — and `next build` never reads `.storybook`.
+     */
+    define: {
+      ...viteConfig.define,
+      'process.env.NEXT_PUBLIC_API_BASE_URL': JSON.stringify('same-origin'),
+    },
     resolve: {
       ...viteConfig.resolve,
       alias: {

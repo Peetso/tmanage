@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "storybook": "storybook dev -p 6008 --no-open",
-    "build:storybook": "storybook build -o storybook-static"
+    "build:storybook": "storybook build -o storybook-static",
+    "vr": "pnpm build:storybook && node vr/run.mjs",
+    "vr:update": "pnpm build:storybook && node vr/run.mjs --update-snapshots"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.4",

@@ -255,7 +255,15 @@ export default tseslint.config(
   // Node-runtime scripts: real CLI tools, so `process` and `console` are legitimate.
   {
     // `packages/ui/vr/serve.mjs` is the visual-regression harness's static server -- same category.
-    files: ['scripts/**/*.mjs', 'packages/ui/vr/serve.mjs', '**/*.config.{js,ts,mjs}'],
+    // `apps/web/vr/serve.mjs` is its twin, and `apps/web/vr/run.mjs` is the launcher that runs the
+    // workspace Playwright against that harness (see its header for why it is a script, not a dep).
+    files: [
+      'scripts/**/*.mjs',
+      'packages/ui/vr/serve.mjs',
+      'apps/web/vr/serve.mjs',
+      'apps/web/vr/run.mjs',
+      '**/*.config.{js,ts,mjs}',
+    ],
     languageOptions: {
       globals: {
         process: 'readonly',
