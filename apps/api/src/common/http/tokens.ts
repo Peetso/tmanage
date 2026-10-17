@@ -341,6 +341,8 @@ export const SEARCH_SCOPES_SERVICE = Symbol.for('tmanage.SearchScopesService');
 export const PUBLIC_SITE_STATUS_REPOSITORY = Symbol.for('tmanage.PublicSiteStatusRepository');
 /** x161. The public site's contact / lead intake — the INSERT-only writer over `marketing_leads`. */
 export const MARKETING_LEADS_REPOSITORY = Symbol.for('tmanage.MarketingLeadsRepository');
+/** The per-address admission for `POST /public/site/contact` (pre-launch security review §3). */
+export const CONTACT_ADMISSION = Symbol.for('tmanage.ContactAdmission');
 /** Platform states (x185). The GLOBAL maintenance-window read (public) and schedule (admin). */
 export const MAINTENANCE_WINDOWS_REPOSITORY = Symbol.for('tmanage.MaintenanceWindowsRepository');
 /** Billing / module 19 (x177). The subscription read + plan-change service. */

@@ -1,6 +1,7 @@
 pnpm-lock.yaml
 dist/
 .next/
+out/
 coverage/
 storybook-static/
 # Immutable source material copied from the planning pack and design export.

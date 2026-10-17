@@ -55,6 +55,7 @@ export function cookieHeader(cookies: readonly string[]): string {
 export function testApiConfig(secretTag: string): ApiConfig {
   return apiConfigFrom({
     NODE_ENV: 'test',
+    ALLOW_DEV_SIGN_IN: true,
     SESSION_COOKIE_NAME: 'tmanage_session',
     SESSION_SECRET: `local_dev_only_session_secret_for_${secretTag}`.padEnd(48, 'x'),
     SESSION_TTL_SECONDS: 900,

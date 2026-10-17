@@ -159,6 +159,16 @@ export const SESSION_COOKIE_NAME_DEFAULT = 'tmanage_session';
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    /**
+     * The development sign-in route (`POST /v1/dev/sessions`, a session for any user id with no
+     * password) needs this positive opt-in. Default `false`, so a deployment whose NODE_ENV is
+     * missing or mistyped does NOT expose it (pre-launch security review 2026-10-17, HIGH); and
+     * `true` is refused outright in production. Local development and the e2e stack set it.
+     */
+    ALLOW_DEV_SIGN_IN: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
     /**
@@ -215,6 +225,19 @@ export const envSchema = z
      * worker's job. Security review 2026-09-04.
      */
     WORKER_DATABASE_URL: mysqlUrl.optional(),
+    /**
+     * Single-database-user hosting. Hostinger's shared plans give a database exactly ONE user,
+     * so the three-credential split above cannot be provisioned there. `true` is the explicit
+     * acknowledgement that the runtime, migration and worker connections are the same user —
+     * which removes ADR-0001 layer 2 (the credential boundary) and nothing else: every other
+     * guardrail, production ones included, still applies. Default `false`, under which the
+     * distinct-user checks stand exactly as before. The Hostinger bundle sets it, and says so
+     * at boot, only when it was given a single credential.
+     */
+    DATABASE_SINGLE_USER: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     // Hostinger's smallest Cloud plan has a tight connection allowance
     // (50-BOOTSTRAP §4: "a small bounded pool ... strict connection budgets matched to
     // the plan"), so this defaults low rather than to a typical server default.
@@ -386,6 +409,10 @@ export const envSchema = z
     // Rate limiting
     RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
     RATE_LIMIT_MAX_REQUESTS: positiveInt.default(300),
+    // The public contact form's per-address budget (pre-launch security review 2026-10-17, §3):
+    // a person sends one or two; the ceiling only has to stop a script filling marketing_leads.
+    RATE_LIMIT_CONTACT_MAX_REQUESTS: positiveInt.default(5),
+    RATE_LIMIT_CONTACT_WINDOW_SECONDS: positiveInt.default(600),
     /**
      * D08. The sign-in abuse control's budgets, one shared window, one number per key:
      * `RATE_LIMIT_AUTH_MAX_REQUESTS` bounds source+account (one address grinding one
@@ -587,7 +614,7 @@ export const envSchema = z
     // The runtime and migration users must be distinct. MySQL has no row-level security,
     // so the credential boundary is one of the few controls that survives a bypass of
     // application code (ADR-0001 layer 2). A shared credential removes it entirely.
-    if (env.DATABASE_URL === env.DATABASE_MIGRATION_URL) {
+    if (!env.DATABASE_SINGLE_USER && env.DATABASE_URL === env.DATABASE_MIGRATION_URL) {
       fail(
         'DATABASE_MIGRATION_URL',
         'must differ from DATABASE_URL: the runtime user must not hold schema privileges',
@@ -596,29 +623,36 @@ export const envSchema = z
 
     if (env.NODE_ENV !== 'production') return;
 
+    // The password-less development sign-in can never be switched on in production.
+    if (env.ALLOW_DEV_SIGN_IN) {
+      fail('ALLOW_DEV_SIGN_IN', 'must not be true in production: it mints a session for any user');
+    }
+
     // ── Production guardrails ────────────────────────────────────────────────
     // Two URLs differing is not two users differing. The string check above is what the
     // e2e stack relies on (one embedded root credential, a driver parameter appended —
     // `e2e/setup/stack.ts`), so the user comparison is a production guardrail: there the
     // boundary is real, and `?x=1` must not be how it is passed.
-    if (databaseUser(env.DATABASE_URL) === databaseUser(env.DATABASE_MIGRATION_URL)) {
-      fail(
-        'DATABASE_MIGRATION_URL',
-        'must name a different database user from DATABASE_URL, not the same user twice',
-      );
-    }
-    if (env.WORKER_DATABASE_URL === undefined) {
-      fail(
-        'WORKER_DATABASE_URL',
-        'is required in production: the relay runs as its own least-privilege user (25 §10)',
-      );
-    } else {
-      const worker = databaseUser(env.WORKER_DATABASE_URL);
-      if (worker === databaseUser(env.DATABASE_URL)) {
-        fail('WORKER_DATABASE_URL', 'must name a different database user from DATABASE_URL');
+    if (!env.DATABASE_SINGLE_USER) {
+      if (databaseUser(env.DATABASE_URL) === databaseUser(env.DATABASE_MIGRATION_URL)) {
+        fail(
+          'DATABASE_MIGRATION_URL',
+          'must name a different database user from DATABASE_URL, not the same user twice',
+        );
       }
-      if (worker === databaseUser(env.DATABASE_MIGRATION_URL)) {
-        fail('WORKER_DATABASE_URL', 'must not name the migration user');
+      if (env.WORKER_DATABASE_URL === undefined) {
+        fail(
+          'WORKER_DATABASE_URL',
+          'is required in production: the relay runs as its own least-privilege user (25 §10)',
+        );
+      } else {
+        const worker = databaseUser(env.WORKER_DATABASE_URL);
+        if (worker === databaseUser(env.DATABASE_URL)) {
+          fail('WORKER_DATABASE_URL', 'must name a different database user from DATABASE_URL');
+        }
+        if (worker === databaseUser(env.DATABASE_MIGRATION_URL)) {
+          fail('WORKER_DATABASE_URL', 'must not name the migration user');
+        }
       }
     }
     const substitutes: ReadonlyArray<readonly [string, string, string]> = [

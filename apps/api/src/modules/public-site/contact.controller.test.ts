@@ -4,6 +4,8 @@ import { ApiError } from '../../common/http/errors.js';
 import { ensureRequestState } from '../../common/http/request-state.js';
 import { ContactController } from './contact.controller.js';
 import type { MarketingLeadsRepository } from './contact.repository.js';
+import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
+import { CONTACT_MAX_PER_WINDOW, CONTACT_WINDOW_MS } from './contact.module.js';
 
 /**
  * x161 — the public contact / lead intake, proved without a database.
@@ -14,11 +16,14 @@ import type { MarketingLeadsRepository } from './contact.repository.js';
  * repository is a spy so "no write on a rejected input" is a fact about the call, not a mock of one.
  */
 
-function harness() {
+function harness(admit: (key: string) => boolean = () => true) {
   const insert = vi.fn(async () => ({ id: '0199aa00-0000-7000-8000-0000000000f0' }));
   const repository = { insert } as unknown as MarketingLeadsRepository;
-  const controller = new ContactController(repository);
-  const request = { headers: {} as Record<string, string | string[] | undefined> };
+  const controller = new ContactController(repository, admit);
+  const request = {
+    headers: {} as Record<string, string | string[] | undefined>,
+    ip: '203.0.113.7',
+  };
   ensureRequestState(request);
   return { controller, insert, request };
 }
@@ -28,6 +33,42 @@ const VALID = {
   email: 'ada@example.com',
   message: 'We would like a demo for our studio of six.',
 };
+
+describe('ContactController.submit rate limit (pre-launch security review §3)', () => {
+  it('admits the window, then refuses the next submission from that address with a 429 and no write', async () => {
+    let clock = 0;
+    const limiter = createFixedWindowLimiter({
+      windowMs: CONTACT_WINDOW_MS,
+      max: CONTACT_MAX_PER_WINDOW,
+      now: () => clock,
+    });
+    const { controller, insert, request } = harness(limiter);
+
+    for (let i = 0; i < CONTACT_MAX_PER_WINDOW; i += 1) {
+      await controller.submit({ ...VALID }, request);
+    }
+    expect(insert).toHaveBeenCalledTimes(CONTACT_MAX_PER_WINDOW);
+
+    const refused = await controller.submit({ ...VALID }, request).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(ApiError);
+    expect((refused as ApiError).status).toBe(429);
+    expect((refused as ApiError).code).toBe('rate_limited');
+    expect(insert).toHaveBeenCalledTimes(CONTACT_MAX_PER_WINDOW);
+
+    // Another address has its own window; the same address is admitted again once it ends.
+    await controller.submit({ ...VALID }, { ...request, ip: '198.51.100.9' });
+    clock += CONTACT_WINDOW_MS;
+    await controller.submit({ ...VALID }, request);
+    expect(insert).toHaveBeenCalledTimes(CONTACT_MAX_PER_WINDOW + 2);
+  });
+
+  it('counts a malformed submission too, so invalid floods are refused before validation', async () => {
+    const { controller, insert, request } = harness(() => false);
+    const refused = await controller.submit({}, request).catch((error: unknown) => error);
+    expect((refused as ApiError).status).toBe(429);
+    expect(insert).not.toHaveBeenCalled();
+  });
+});
 
 describe('ContactController.submit', () => {
   it('writes exactly one lead for a valid submission and reflects nothing stored', async () => {

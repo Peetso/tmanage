@@ -26,6 +26,7 @@ import type { SeedWorld } from './seed-two-tenants.js';
 
 const ENV: ApiConfigSource = {
   NODE_ENV: 'test',
+  ALLOW_DEV_SIGN_IN: true,
   SESSION_COOKIE_NAME: 'tmanage_session',
   SESSION_SECRET: 'local_dev_only_session_secret_for_the_pat_isolation_suite',
   SESSION_TTL_SECONDS: 900,

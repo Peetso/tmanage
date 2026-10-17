@@ -864,7 +864,14 @@ export class AppModule {
         // it carries no session, CSRF, tenant or capability. It depends only on `TENANT_DATABASE`
         // (the repository writes on the identity/no-tenant path over the global `marketing_leads`),
         // so it couples to no feature module; position here is by subject (public surface, last).
-        ContactModule.register(),
+        ContactModule.register({
+          ...(options.config.contactWindowMs === undefined
+            ? {}
+            : { windowMs: options.config.contactWindowMs }),
+          ...(options.config.contactMaxPerWindow === undefined
+            ? {}
+            : { max: options.config.contactMaxPerWindow }),
+        }),
         // AUTO-01 / module 17 (x162). Org-scoped automation workflow templates (define/list), behind
         // `org.manage`. Depends only on the global tenant database — an org-admin definition with no
         // project to resolve — so its position here is by subject, not by need. Execution/runs are x163.

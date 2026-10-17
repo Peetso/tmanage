@@ -52,6 +52,7 @@ const CSRF_SECRET = 'local_dev_only_csrf_secret_for_the_http_suite_xxxxx';
 
 const CONFIG: ApiConfig = apiConfigFrom({
   NODE_ENV: 'test',
+  ALLOW_DEV_SIGN_IN: true,
   SESSION_COOKIE_NAME: 'tmanage_session',
   SESSION_SECRET,
   SESSION_TTL_SECONDS: 900,

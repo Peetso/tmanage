@@ -76,6 +76,7 @@ const OOXML = 'application/vnd.openxmlformats-officedocument';
 const CONFIG: ApiConfig = {
   ...apiConfigFrom({
     NODE_ENV: 'test',
+    ALLOW_DEV_SIGN_IN: true,
     SESSION_COOKIE_NAME: 'tmanage_session',
     SESSION_SECRET: 'local_dev_only_session_secret_for_the_verify_suite_xxxx',
     SESSION_TTL_SECONDS: 900,

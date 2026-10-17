@@ -2,7 +2,8 @@ import { Body, Controller, HttpCode, Inject, Post, Req } from '@nestjs/common';
 import { ApiError } from '../../common/http/errors.js';
 import { Public } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
-import { MARKETING_LEADS_REPOSITORY } from '../../common/http/tokens.js';
+import { CONTACT_ADMISSION, MARKETING_LEADS_REPOSITORY } from '../../common/http/tokens.js';
+import type { RequestAdmission } from '../../common/http/rate-limiter.js';
 import type { MarketingLeadsRepository } from './contact.repository.js';
 
 /** Column bounds, mirrored from `0062_marketing_leads.sql`. Over-length is a 400, never a truncation. */
@@ -49,6 +50,9 @@ export interface ContactSubmitView {
  *    `contact.controller.test.ts`.
  *  - **No PII in the URL.** Everything is in the POST body; there is no query string and nothing
  *    is logged into one.
+ *  - **Rate-limited per address.** Each `request.ip` (what `trustProxy` resolves it to) gets a
+ *    small fixed window of submissions; the one over it is a 429 before validation or any write,
+ *    so a flood cannot fill `marketing_leads` (pre-launch security review 2026-10-17, §3).
  *  - **Write-only.** There is no GET/list/read handler here and no read method on the repository:
  *    a lead is written and, in this slice, never read back over HTTP.
  *
@@ -58,6 +62,7 @@ export interface ContactSubmitView {
 export class ContactController {
   constructor(
     @Inject(MARKETING_LEADS_REPOSITORY) private readonly leads: MarketingLeadsRepository,
+    @Inject(CONTACT_ADMISSION) private readonly admit: RequestAdmission,
   ) {}
 
   @Post('contact')
@@ -65,9 +70,13 @@ export class ContactController {
   @HttpCode(201)
   async submit(
     @Body() body: ContactSubmitBody,
-    @Req() request: { headers: Record<string, string | string[] | undefined> },
+    @Req() request: { headers: Record<string, string | string[] | undefined>; ip?: string },
   ): Promise<ContactSubmitView> {
     const state = requireRequestState(request);
+    if (!this.admit(request.ip ?? 'unknown')) {
+      // Before validation and before the repository: a refused caller costs one map lookup.
+      throw new ApiError(429, 'rate_limited', 'too many submissions; try again later');
+    }
 
     const name = boundedText(body?.name, MAX_NAME);
     const email = boundedText(body?.email, MAX_EMAIL);

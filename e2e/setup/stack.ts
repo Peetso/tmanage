@@ -57,6 +57,11 @@ function apiEnv(databaseUrl: string, storageRoot?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     NODE_ENV: 'development',
+    // The journeys sign in through the development route; it now needs this explicit opt-in.
+    ALLOW_DEV_SIGN_IN: 'true',
+    // The lead journeys post many contact submissions from one address; the production
+    // budget (5 per 10 minutes) is proved by the API unit suite and the Hostinger smoke.
+    RATE_LIMIT_CONTACT_MAX_REQUESTS: '1000',
     API_PORT: String(API_PORT),
     API_PUBLIC_URL: API_URL,
     WEB_PUBLIC_URL: WEB_URL,

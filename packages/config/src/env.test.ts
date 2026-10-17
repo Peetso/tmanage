@@ -571,6 +571,58 @@ describe('loadEnv', () => {
     });
   });
 
+  describe('development sign-in opt-in (ALLOW_DEV_SIGN_IN, pre-launch review 2026-10-17)', () => {
+    it('defaults to off, including when NODE_ENV is missing', () => {
+      expect(loadEnv({ ...devEnv(), NODE_ENV: undefined }).ALLOW_DEV_SIGN_IN).toBe(false);
+      expect(loadEnv({ ...devEnv(), ALLOW_DEV_SIGN_IN: 'true' }).ALLOW_DEV_SIGN_IN).toBe(true);
+    });
+
+    it('is refused in production', () => {
+      expect(issuePaths(() => loadEnv(prodEnv({ ALLOW_DEV_SIGN_IN: 'true' })))).toEqual([
+        'ALLOW_DEV_SIGN_IN',
+      ]);
+      expect(() => loadEnv(prodEnv({ ALLOW_DEV_SIGN_IN: 'false' }))).not.toThrow();
+    });
+  });
+
+  describe('single-database-user hosting (DATABASE_SINGLE_USER)', () => {
+    const one = 'mysql://u123_tmanage:pw@127.0.0.1:3306/u123_tmanage';
+
+    it('accepts one credential for all three connections only when acknowledged', () => {
+      const shared = prodEnv({
+        DATABASE_URL: one,
+        DATABASE_MIGRATION_URL: one,
+        WORKER_DATABASE_URL: undefined,
+      });
+      expect(issuePaths(() => loadEnv(shared))).toContain('DATABASE_MIGRATION_URL');
+      const env = loadEnv({ ...shared, DATABASE_SINGLE_USER: 'true' });
+      expect(env.DATABASE_SINGLE_USER).toBe(true);
+      expect(env.DATABASE_MIGRATION_URL).toBe(one);
+    });
+
+    it('defaults to off, and relaxes nothing but the user split', () => {
+      expect(loadEnv(prodEnv()).DATABASE_SINGLE_USER).toBe(false);
+      expect(
+        issuePaths(() =>
+          loadEnv(
+            prodEnv({
+              DATABASE_URL: one,
+              DATABASE_MIGRATION_URL: one,
+              DATABASE_SINGLE_USER: 'true',
+              QUEUE_DRIVER: 'memory',
+            }),
+          ),
+        ),
+      ).toEqual(['QUEUE_DRIVER']);
+    });
+
+    it('refuses a value that is not true or false', () => {
+      expect(issuePaths(() => loadEnv(prodEnv({ DATABASE_SINGLE_USER: 'yes' })))).toContain(
+        'DATABASE_SINGLE_USER',
+      );
+    });
+  });
+
   describe('production guardrails (ADR-0002)', () => {
     it('accepts a fully provisioned production environment', () => {
       expect(() => loadEnv(prodEnv())).not.toThrow();

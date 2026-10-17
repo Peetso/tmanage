@@ -18,7 +18,7 @@ import { apiConfigFrom } from './api-config.js';
  * `id-002-credentials.db.test.ts:677` asserts this same inequality of literals it declared
  * itself, so it passed while the product shipped 10 against 5.
  */
-const shippedEnv = () =>
+const shippedEnv = (overrides: NodeJS.ProcessEnv = {}) =>
   loadEnv({
     NODE_ENV: 'development',
     API_PUBLIC_URL: 'http://localhost:4000',
@@ -33,7 +33,50 @@ const shippedEnv = () =>
     STORAGE_LOCAL_SIGNING_SECRET: 'd'.repeat(48),
     AUTH_MFA_SEED_KEYS: `1:${'k'.repeat(43)}`,
     EMAIL_FROM_ADDRESS: 'no-reply@tmanage.example',
+    ...overrides,
   });
+
+/**
+ * Pre-launch security review 2026-10-17, HIGH — the fail-open NODE_ENV. The password-less
+ * `POST /v1/dev/sessions` used to be registered whenever NODE_ENV was not `production`, so a
+ * deployment that left NODE_ENV out booted with it. It now needs ALLOW_DEV_SIGN_IN=true.
+ * `allowDevelopmentSignIn` is the one value `app.module.ts` reads to choose
+ * `IdentityModule.registerWithDevelopmentSignIn()` over `IdentityModule.register()`, so a false
+ * here means the route is not registered at all.
+ */
+describe('apiConfigFrom — the contact form budget (pre-launch review §3)', () => {
+  it('ships 5 submissions per address per 10 minutes, and an operator may change it', () => {
+    const shipped = apiConfigFrom(shippedEnv());
+    expect(shipped.contactMaxPerWindow).toBe(5);
+    expect(shipped.contactWindowMs).toBe(600_000);
+    expect(
+      apiConfigFrom(shippedEnv({ RATE_LIMIT_CONTACT_MAX_REQUESTS: '20' })).contactMaxPerWindow,
+    ).toBe(20);
+  });
+});
+
+describe('apiConfigFrom — the development sign-in needs an explicit opt-in', () => {
+  it('is off when NODE_ENV is missing entirely (the schema defaults it to development)', () => {
+    const env = shippedEnv({ NODE_ENV: undefined });
+    expect(env.NODE_ENV).toBe('development');
+    expect(apiConfigFrom(env).allowDevelopmentSignIn).toBe(false);
+  });
+
+  it('is off in development unless ALLOW_DEV_SIGN_IN=true', () => {
+    expect(apiConfigFrom(shippedEnv()).allowDevelopmentSignIn).toBe(false);
+    expect(apiConfigFrom(shippedEnv({ ALLOW_DEV_SIGN_IN: 'false' })).allowDevelopmentSignIn).toBe(
+      false,
+    );
+    expect(apiConfigFrom(shippedEnv({ ALLOW_DEV_SIGN_IN: 'true' })).allowDevelopmentSignIn).toBe(
+      true,
+    );
+  });
+
+  it('stays off in production even for a bag that skipped the schema and opted in', () => {
+    const env = { ...shippedEnv({ ALLOW_DEV_SIGN_IN: 'true' }), NODE_ENV: 'production' as const };
+    expect(apiConfigFrom(env).allowDevelopmentSignIn).toBe(false);
+  });
+});
 
 describe('apiConfigFrom — lockout denial of service (audit C-1)', () => {
   it('resolves a per-source-account budget strictly below the lockout threshold', () => {

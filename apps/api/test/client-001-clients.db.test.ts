@@ -43,6 +43,7 @@ const DEFAULT_EXPIRY_DAYS = 30;
 
 const CONFIG: ApiConfig = apiConfigFrom({
   NODE_ENV: 'test',
+  ALLOW_DEV_SIGN_IN: true,
   SESSION_COOKIE_NAME: 'tmanage_session',
   SESSION_SECRET,
   SESSION_TTL_SECONDS: 900,

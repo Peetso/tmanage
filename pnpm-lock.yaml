@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: ^9.36.0
         version: 9.39.5
+      '@node-rs/argon2':
+        specifier: ^2.1.0
+        version: 2.1.0
       '@types/node':
         specifier: ^22.15.3
         version: 22.20.1
@@ -29,6 +32,12 @@ importers:
       eslint-plugin-react-hooks:
         specifier: ^7.1.1
         version: 7.1.1(eslint@9.39.5)
+      mysql-memory-server:
+        specifier: ^1.15.0
+        version: 1.15.0
+      mysql2:
+        specifier: ^3.15.1
+        version: 3.23.3(@types/node@22.20.1)
       prettier:
         specifier: ^3.6.2
         version: 3.9.6
@@ -148,6 +157,45 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jsdom@30.0.1)(tsx@4.23.12)
+
+  apps/server:
+    dependencies:
+      '@tanstack/react-query':
+        specifier: ^5.102.4
+        version: 5.102.4(react@19.2.8)
+      '@tmanage/api':
+        specifier: workspace:*
+        version: link:../api
+      '@tmanage/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@tmanage/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@tmanage/mail':
+        specifier: workspace:*
+        version: link:../../packages/mail
+      '@tmanage/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      '@tmanage/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tmanage/worker':
+        specifier: workspace:*
+        version: link:../worker
+      next:
+        specifier: ^16.3.3
+        version: 16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.2.8(react@19.2.8)
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
 
   apps/web:
     dependencies:

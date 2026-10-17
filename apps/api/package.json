@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./hostinger": {
+      "types": "./dist/hostinger-exports.d.ts",
+      "default": "./dist/hostinger-exports.js"
+    }
+  },
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",

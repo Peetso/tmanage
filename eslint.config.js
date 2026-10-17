@@ -21,6 +21,9 @@ export default tseslint.config(
       '**/coverage/**',
       '**/storybook-static/**',
       '**/node_modules/**',
+      // Build output (e.g. the Hostinger bundle under deploy/hostinger/out/); gitignored, and a
+      // copy of already-linted source plus third-party assets.
+      '**/out/**',
       // Immutable source material — never linted, never rewritten.
       'docs/planning/**',
       'docs/design/source/**',
@@ -262,6 +265,10 @@ export default tseslint.config(
       'packages/ui/vr/serve.mjs',
       'apps/web/vr/serve.mjs',
       'apps/web/vr/run.mjs',
+      // The single-process Hostinger server and its build/smoke/branch tooling are Node CLI
+      // scripts of exactly this category (50-BOOTSTRAP §3 deployment fallback).
+      'apps/server/**/*.mjs',
+      'deploy/**/*.mjs',
       '**/*.config.{js,ts,mjs}',
     ],
     languageOptions: {
@@ -271,6 +278,10 @@ export default tseslint.config(
         URL: 'readonly',
         Buffer: 'readonly',
         __dirname: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
       },
     },
     rules: {

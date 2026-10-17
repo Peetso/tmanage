@@ -116,6 +116,7 @@ const SIGNING_SECRET = 'a_storage_signing_secret_for_the_scanning_suite_xxxx';
 const CONFIG: ApiConfig = {
   ...apiConfigFrom({
     NODE_ENV: 'test',
+    ALLOW_DEV_SIGN_IN: true,
     SESSION_COOKIE_NAME: 'tmanage_session',
     SESSION_SECRET: 'local_dev_only_session_secret_for_the_scan_suite_xxxxxx',
     SESSION_TTL_SECONDS: 900,

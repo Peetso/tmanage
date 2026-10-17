@@ -75,6 +75,7 @@ const SIGNING_SECRET = 'a_storage_signing_secret_for_the_download_suite_xxxx';
 const CONFIG: ApiConfig = {
   ...apiConfigFrom({
     NODE_ENV: 'test',
+    ALLOW_DEV_SIGN_IN: true,
     SESSION_COOKIE_NAME: 'tmanage_session',
     SESSION_SECRET: 'local_dev_only_session_secret_for_the_dl_suite_xxxxxxxx',
     SESSION_TTL_SECONDS: 900,

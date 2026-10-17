@@ -38,6 +38,9 @@ export interface ApiConfig extends SessionServiceOptions {
    * refusing — see `identity.module.ts`.
    */
   readonly allowDevelopmentSignIn: boolean;
+  /** `POST /public/site/contact` submissions admitted per address per window; absent = module default. */
+  readonly contactMaxPerWindow?: number;
+  readonly contactWindowMs?: number;
   /** ID-002. The lockout window, counted from `authentication_events` because there is no Redis. */
   readonly maxFailuresInWindow: number;
   readonly failureWindowSeconds: number;
@@ -110,6 +113,10 @@ export interface ApiConfig extends SessionServiceOptions {
 
 export interface ApiConfigSource {
   readonly NODE_ENV: 'development' | 'test' | 'production';
+  /** The explicit opt-in for the development sign-in route; absent means off. */
+  readonly ALLOW_DEV_SIGN_IN?: boolean;
+  readonly RATE_LIMIT_CONTACT_MAX_REQUESTS?: number;
+  readonly RATE_LIMIT_CONTACT_WINDOW_SECONDS?: number;
   readonly SESSION_COOKIE_NAME: string;
   readonly SESSION_SECRET: string;
   readonly SESSION_TTL_SECONDS: number;
@@ -169,7 +176,15 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     // here means a caller that built its own bag — which is a boot failure worth having.
     mfaSeedKeys: parseSeedKeys(env.AUTH_MFA_SEED_KEYS),
     csrfCookieName: `${env.SESSION_COOKIE_NAME}_csrf`,
-    allowDevelopmentSignIn: env.NODE_ENV !== 'production',
+    // A positive opt-in AND not production — never merely "NODE_ENV is not production", which
+    // a missing or mistyped NODE_ENV satisfies (pre-launch security review 2026-10-17, HIGH).
+    allowDevelopmentSignIn: env.ALLOW_DEV_SIGN_IN === true && env.NODE_ENV !== 'production',
+    ...(env.RATE_LIMIT_CONTACT_MAX_REQUESTS === undefined
+      ? {}
+      : { contactMaxPerWindow: env.RATE_LIMIT_CONTACT_MAX_REQUESTS }),
+    ...(env.RATE_LIMIT_CONTACT_WINDOW_SECONDS === undefined
+      ? {}
+      : { contactWindowMs: env.RATE_LIMIT_CONTACT_WINDOW_SECONDS * 1_000 }),
     maxFailuresInWindow: env.AUTH_MAX_FAILURES_IN_WINDOW,
     failureWindowSeconds: env.AUTH_FAILURE_WINDOW_SECONDS,
     totpIssuer: env.AUTH_TOTP_ISSUER,

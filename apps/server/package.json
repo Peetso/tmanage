@@ -1,0 +1,26 @@
+{
+  "name": "@tmanage/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Single-process entry that serves the Next.js web app and the NestJS API on one port — the Hostinger shared-hosting deployment shape (50-BOOTSTRAP §3 fallback).",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test database-env.test.mjs boot-guards.test.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.102.4",
+    "@tmanage/api": "workspace:*",
+    "@tmanage/config": "workspace:*",
+    "@tmanage/domain": "workspace:*",
+    "@tmanage/mail": "workspace:*",
+    "@tmanage/storage": "workspace:*",
+    "@tmanage/ui": "workspace:*",
+    "@tmanage/worker": "workspace:*",
+    "next": "^16.3.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "reflect-metadata": "^0.2.2"
+  }
+}
