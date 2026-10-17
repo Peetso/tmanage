@@ -1,0 +1,13 @@
+{
+  "displayPreferences.title": "تفضيلات العرض",
+  "displayPreferences.description": "السمة والكثافة واللغة والمنطقة الزمنية وتنسيق التاريخ — محفوظة في حسابك لهذا الاستوديو.",
+  "displayPreferences.sectionDisplay": "العرض",
+  "displayPreferences.theme": "السمة",
+  "displayPreferences.density": "الكثافة",
+  "displayPreferences.languageRegion": "اللغة والمنطقة",
+  "displayPreferences.timezone": "المنطقة الزمنية",
+  "displayPreferences.dateFormat": "تنسيق التاريخ",
+  "displayPreferences.save": "حفظ التفضيلات",
+  "displayPreferences.saving": "جارٍ الحفظ…",
+  "displayPreferences.sectionOther": "تفضيلات أخرى"
+}

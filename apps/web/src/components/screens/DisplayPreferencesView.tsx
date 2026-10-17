@@ -25,6 +25,7 @@ import type {
 } from '../../lib/api/display-preferences';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DisplayPreferencesViewProps {
   organizationSlug: string;
@@ -75,6 +76,7 @@ export function DisplayPreferencesView({
 }: DisplayPreferencesViewProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const preferences = useQuery({
     queryKey: ['display-preferences', organizationSlug],
@@ -117,8 +119,8 @@ export function DisplayPreferencesView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Display preferences"
-      description="Theme, density, locale, timezone and date format — saved to your account for this studio."
+      title={t('displayPreferences.title')}
+      description={t('displayPreferences.description')}
     >
       {preferences.isPending ? (
         <LoadingRegion label="Loading your display preferences">
@@ -139,12 +141,12 @@ export function DisplayPreferencesView({
           }}
         >
           <h2 id="tm-display-heading" className="tm-eyebrow">
-            Display
+            {t('displayPreferences.sectionDisplay')}
           </h2>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-display-theme">
-              Theme
+              {t('displayPreferences.theme')}
             </label>
             <select
               id="tm-display-theme"
@@ -162,7 +164,7 @@ export function DisplayPreferencesView({
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-display-density">
-              Density
+              {t('displayPreferences.density')}
             </label>
             <select
               id="tm-display-density"
@@ -180,7 +182,7 @@ export function DisplayPreferencesView({
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-display-locale">
-              Language & region
+              {t('displayPreferences.languageRegion')}
             </label>
             <select
               id="tm-display-locale"
@@ -198,7 +200,7 @@ export function DisplayPreferencesView({
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-display-timezone">
-              Timezone
+              {t('displayPreferences.timezone')}
             </label>
             <select
               id="tm-display-timezone"
@@ -216,7 +218,7 @@ export function DisplayPreferencesView({
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-display-date-format">
-              Date format
+              {t('displayPreferences.dateFormat')}
             </label>
             <select
               id="tm-display-date-format"
@@ -246,7 +248,7 @@ export function DisplayPreferencesView({
 
           <div>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save preferences'}
+              {save.isPending ? t('displayPreferences.saving') : t('displayPreferences.save')}
             </Button>
           </div>
         </form>
@@ -254,7 +256,7 @@ export function DisplayPreferencesView({
 
       <nav className="tm-panel tm-stack" aria-labelledby="tm-display-related-heading">
         <h2 id="tm-display-related-heading" className="tm-eyebrow">
-          Other preferences
+          {t('displayPreferences.sectionOther')}
         </h2>
         <ul>
           <li>

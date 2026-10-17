@@ -1,0 +1,13 @@
+{
+  "displayPreferences.title": "Display preferences",
+  "displayPreferences.description": "Theme, density, locale, timezone and date format — saved to your account for this studio.",
+  "displayPreferences.sectionDisplay": "Display",
+  "displayPreferences.theme": "Theme",
+  "displayPreferences.density": "Density",
+  "displayPreferences.languageRegion": "Language & region",
+  "displayPreferences.timezone": "Timezone",
+  "displayPreferences.dateFormat": "Date format",
+  "displayPreferences.save": "Save preferences",
+  "displayPreferences.saving": "Saving…",
+  "displayPreferences.sectionOther": "Other preferences"
+}
