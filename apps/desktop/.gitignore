@@ -1,3 +1,6 @@
 # electron-builder output (installer, unpacked app, block map). `dist/` is already
 # ignored by the repo-root .gitignore; `release/` is desktop-specific.
 release/
+
+# Compiled output of the Electron smoke harness (test:smoke). Generated, never committed.
+test/smoke/dist/

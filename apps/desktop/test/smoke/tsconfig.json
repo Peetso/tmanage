@@ -1,0 +1,18 @@
+{
+  // Compiles ONLY the Electron smoke harness to CommonJS so the real `electron` binary can
+  // run it. Output lands in `test/smoke/dist/` (repo-ignored, lint-ignored); it is never the
+  // product build. The `test:smoke` script runs this after `tsc -b` has produced `dist/`.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist",
+    "noEmit": false,
+    "composite": false,
+    "incremental": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["harness.ts"],
+  "exclude": ["dist"]
+}
