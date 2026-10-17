@@ -124,9 +124,9 @@ afterAll(async () => {
   await db?.stop();
 });
 
-describe('the server really is MySQL', () => {
-  it('reports a MySQL engine, so composite FKs and CHECKs are actually enforced', () => {
-    expect(db.engine.name).toBe('mysql');
+describe('the server really is MySQL or MariaDB', () => {
+  it('reports a MySQL 8 or MariaDB engine, so composite FKs and CHECKs are actually enforced', () => {
+    expect(['mysql', 'mariadb']).toContain(db.engine.name);
   });
 });
 

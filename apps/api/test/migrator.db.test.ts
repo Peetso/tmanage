@@ -69,6 +69,19 @@ const realMigrations: readonly string[] = readdirSync(migrationsDirectory)
   .filter((file) => file.endsWith('.sql'))
   .sort();
 
+/**
+ * A CHECK violation naming `constraint`, in either engine's wording.
+ *
+ * MySQL 8 says "Check constraint 'name' is violated."; MariaDB (Hostinger's engine) says
+ * "CONSTRAINT `name` failed for `db`.`table`". Both are the engine refusing the row on that
+ * constraint, so the match names the constraint rather than loosening to any error.
+ */
+function checkViolation(constraint: string): RegExp {
+  return new RegExp(
+    `[Cc]heck constraint '${constraint}' is violated|CONSTRAINT \`${constraint}\` failed`,
+  );
+}
+
 /** Copy the real migration set into a temporary directory, optionally adding files. */
 async function copyRealMigrations(extra: Record<string, string> = {}): Promise<string> {
   const files: Record<string, string> = {};
@@ -382,7 +395,7 @@ describe('0026: project_memberships.role is constrained to the internal role set
         `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'client_admin')`,
         [id('ff'), id('a1'), id('a3'), id('c0')],
       ),
-    ).rejects.toThrow(/[Cc]heck constraint/);
+    ).rejects.toThrow(checkViolation('chk_project_memberships_role'));
 
     // The comparison is byte-exact and NO PAD (CAST(role AS BINARY)): a case variant...
     await expect(
@@ -390,14 +403,14 @@ describe('0026: project_memberships.role is constrained to the internal role set
         `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'OWNER')`,
         [id('fe'), id('a1'), id('a3'), id('c0')],
       ),
-    ).rejects.toThrow(/[Cc]heck constraint/);
+    ).rejects.toThrow(checkViolation('chk_project_memberships_role'));
     // ...and a trailing-pad variant are both rejected, not silently admitted by _unicode_ci.
     await expect(
       connection.query(
         `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'owner ')`,
         [id('fd'), id('a1'), id('a3'), id('c0')],
       ),
-    ).rejects.toThrow(/[Cc]heck constraint/);
+    ).rejects.toThrow(checkViolation('chk_project_memberships_role'));
     // The exact lowercase literal still passes, so the binary comparison did not over-tighten.
     await connection.query(
       `INSERT INTO project_memberships (id, organization_id, project_id, user_id, role) VALUES (?, ?, ?, ?, 'owner')`,
@@ -922,7 +935,21 @@ describe('0034: saved_views is a tenant- and owner-scoped, forward-only table', 
       ].sort(),
     );
     // config is JSON; project_id is NULL-able (an org-wide view names no project); owner and org are not.
-    expect(String(byName.get('config')?.['type'])).toBe('json');
+    // MySQL reports a native `json` type. MariaDB's JSON is an alias for LONGTEXT that the engine
+    // guards with an automatic CHECK (json_valid(config)), so there the guard is what is asserted.
+    if (db.engine.name === 'mariadb') {
+      expect(String(byName.get('config')?.['type'])).toBe('longtext');
+      const [checks] = await connection.query<RowDataPacket[]>(
+        `SELECT check_clause AS clause
+           FROM information_schema.check_constraints
+          WHERE constraint_schema = DATABASE() AND table_name = 'saved_views'`,
+      );
+      expect(checks.map((row) => String(row['clause']))).toContainEqual(
+        expect.stringMatching(/json_valid\(`config`\)/i),
+      );
+    } else {
+      expect(String(byName.get('config')?.['type'])).toBe('json');
+    }
     expect(String(byName.get('project_id')?.['nullable'])).toBe('YES');
     expect(String(byName.get('owner_user_id')?.['nullable'])).toBe('NO');
     expect(String(byName.get('organization_id')?.['nullable'])).toBe('NO');
@@ -1365,7 +1392,7 @@ describe('0038: decision_supersessions is the tenant-scoped supersede-chain edge
          VALUES (?, ?, ?, ?, ?)`,
         [id('09'), id('01'), id('06'), id('06'), id('04')],
       ),
-    ).rejects.toThrow(/check constraint/i);
+    ).rejects.toThrow(checkViolation('chk_decision_supersessions_not_self'));
 
     // The composite foreign key refuses an edge naming a decision id from outside this tenant.
     await expect(
@@ -1719,7 +1746,7 @@ describe('0043: meeting_series is a tenant-scoped, org-owned, forward-only table
          VALUES (?, ?, 'Bad', 'daily', 0, ?)`,
         [id('d4'), id('d1'), id('d2')],
       ),
-    ).rejects.toThrow(/[Cc]heck constraint/);
+    ).rejects.toThrow(checkViolation('ck_meeting_series_interval_positive'));
   });
 });
 

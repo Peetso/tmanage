@@ -333,7 +333,14 @@ describe('the whole upload', () => {
     expect(upload.uploadUrls.map((u) => u.partNumber)).toEqual([1, 2, 3, 4]);
     for (const target of upload.uploadUrls) {
       expect(target.url.startsWith(`${PUBLIC_URL}/v1/uploads/`)).toBe(true);
-      expect(target.url).not.toContain(world.northstar.organizationId);
+      // The path names no tenant; the pu2 token deliberately carries the uploader's
+      // organization, signed (ADR-0002 amendment), so it must be exactly that one.
+      const minted = new URL(target.url);
+      expect(minted.pathname).not.toContain(world.northstar.organizationId);
+      expect(minted.searchParams.get('t')?.split('.').slice(0, 2)).toEqual([
+        'pu2',
+        world.northstar.organizationId,
+      ]);
       expect(target.url).not.toContain(upload.id);
     }
     const handle = handleOf(upload);

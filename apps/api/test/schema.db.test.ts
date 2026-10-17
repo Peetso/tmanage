@@ -44,7 +44,11 @@ let columnsByTable: Map<string, Map<string, ColumnRow>>;
  *   boolean is spelled rather than noise.
  * - `bigint unsigned` and `bigint(20) unsigned` differ only by the display width, which
  *   MySQL 8.0.19 deprecated and stopped reporting. The same holds for `int(10)`,
- *   `mediumint(8)` and `smallint(5)`.
+ *   `mediumint(8)` and `smallint(5)`. MariaDB (Hostinger runs 11.8) still reports every
+ *   width, including `tinyint(4)` and `tinyint(3) unsigned`; those reduce to `tinyint`.
+ *   A plain Drizzle `tinyint()` is a number, not a boolean, so it is no longer equated
+ *   with `tinyint(1)` (before 2026-10-17 it was, which only passed because MySQL 8 reports
+ *   a plain `tinyint` without a width).
  * - `longtext` reduces to `json`. On MySQL a `json` column reports `json`, so this does not
  *   fire; it is kept as a tolerance for a server that stores JSON as text. What makes it
  *   safe is a rule, not a list: **every `json` column in this schema holds genuine JSON,
@@ -62,9 +66,13 @@ let columnsByTable: Map<string, Map<string, ColumnRow>>;
  */
 function normaliseType(type: string): string {
   const lowered = type.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (lowered === 'boolean' || lowered === 'tinyint') return 'tinyint(1)';
+  if (lowered === 'boolean') return 'tinyint(1)';
   if (lowered === 'longtext') return 'json';
-  return lowered.replace(/^(bigint|mediumint|smallint|int)\(\d+\)/, '$1');
+  // MariaDB keeps the display width MySQL 8 dropped: `tinyint(4)`, `tinyint(3) unsigned`.
+  // `tinyint(1)` is the one width that carries meaning (a boolean), so it alone is kept.
+  return lowered
+    .replace(/^(bigint|mediumint|smallint|int)\(\d+\)/, '$1')
+    .replace(/^tinyint\((?!1\))\d+\)/, 'tinyint');
 }
 
 /** Types where MySQL and Drizzle genuinely agree once width noise is removed. */

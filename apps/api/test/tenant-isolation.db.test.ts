@@ -98,11 +98,14 @@ afterAll(async () => {
 
 describe('the harness itself', () => {
   it('records which engine and which credential produced this run', () => {
-    // Not decoration. MySQL is the engine everywhere (ADR-0002), and a corpus that does
-    // not say which server produced it cannot show that it ran on the engine the product
-    // uses. Likewise ADR-0001 layer 2: a corpus green under a root credential proves
-    // nothing about the privileges the application holds.
-    expect(db.engine.name, 'the engine is MySQL, everywhere').toBe('mysql');
+    // Not decoration. Development runs MySQL 8 (ADR-0002) and production on Hostinger runs
+    // MariaDB, and a corpus that does not say which server produced it cannot show that it
+    // ran on an engine the product uses. Likewise ADR-0001 layer 2: a corpus green under a
+    // root credential proves nothing about the privileges the application holds.
+    expect(
+      ['mysql', 'mariadb'],
+      'the engine is one the product runs on: MySQL 8 or MariaDB',
+    ).toContain(db.engine.name);
     console.warn(
       `[isolation corpus] engine=${db.engine.name} ${db.engine.version} · ` +
         // `external` means only that TMANAGE_TEST_DATABASE_URL was supplied. It does not
@@ -131,22 +134,29 @@ describe('the harness itself', () => {
   });
 
   it('hands out connections with the session state applied', async () => {
+    // Each engine knows only its own statement-timeout variable, and selecting the other
+    // one is an error: MySQL's `max_execution_time` is in milliseconds, MariaDB's
+    // `max_statement_time` in seconds.
+    const timeoutColumn =
+      db.engine.name === 'mariadb'
+        ? '@@session.max_statement_time * 1000'
+        : '@@session.max_execution_time';
     const rows = await tenant.read(northstar, (tx) =>
       tx.query<RowDataPacket[]>(
         'select @@session.sql_mode as m, @@session.time_zone as tz, ' +
-          '@@session.max_execution_time as timeout_ms, ? as bound',
+          `${timeoutColumn} as timeout_ms, ? as bound`,
         [northstar.organizationId],
       ),
     );
     expect(db.connectionErrors).toEqual([]);
     expect(String(rows[0]?.['m'])).toContain('STRICT_ALL_TABLES');
     expect(String(rows[0]?.['tz'])).toBe('+00:00');
-    // `max_execution_time` is now the only statement-timeout mechanism in this project:
-    // MariaDB's `max_statement_time` was removed from `applySessionState` because MySQL
-    // has never accepted it. The SET is deliberately tolerated failing there — a server
-    // that refuses the variable still serves queries — which means a silent regression
-    // would leave every connection uncapped and nothing else would notice. Asserted here,
-    // where a real connection is already being inspected.
+    // The session variable is the only statement-timeout mechanism in this project, and
+    // its SET is deliberately tolerated failing in `applySessionState` — a server that
+    // refuses the variable still serves queries — which means a silent regression would
+    // leave every connection uncapped and nothing else would notice. Asserted here, on
+    // whichever engine produced the run, where a real connection is already being
+    // inspected.
     expect(Number(rows[0]?.['timeout_ms'])).toBe(RUNTIME_STATEMENT_TIMEOUT_MS);
   });
 
