@@ -48,7 +48,9 @@ export class AdminSecurityAlertsController {
 
   constructor(
     @Inject(TENANT_DATABASE) database: TenantDatabase,
-    @Optional() repository: AdminSecurityAlertsRepository = new AdminSecurityAlertsRepository(),
+    @Optional()
+    @Inject(AdminSecurityAlertsRepository)
+    repository: AdminSecurityAlertsRepository = new AdminSecurityAlertsRepository(),
   ) {
     this.service = new AdminSecurityAlertsService(database, repository);
   }

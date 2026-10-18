@@ -54,7 +54,9 @@ export interface OrgPolicyView {
 export class PoliciesController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly policies: PoliciesRepository = new PoliciesRepository(),
+    @Optional()
+    @Inject(PoliciesRepository)
+    private readonly policies: PoliciesRepository = new PoliciesRepository(),
   ) {}
 
   /** Read the organization's access policy — its stored document, or the defaults if none (200). */

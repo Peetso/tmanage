@@ -83,6 +83,7 @@ const TIME_FACET: Readonly<Record<SearchTimeWindow, string>> = {
  *   `audience=` / `since=`, so the page is filled from the narrowed set rather than thinned on the
  *   client. They only narrow: the server still relation-gates every hit. With every audience ticked
  *   no `audience` is sent; with none ticked nothing is fetched (an empty audience set is no search).
+ *   The TIME facet opens on "30 days", as SR-02 draws it; "All time" sends no `since`.
  *
  * A query must be entered and submitted before anything is fetched: an empty search is not a
  * search, and the API rejects one.
@@ -98,7 +99,8 @@ export function SearchScreen({
   const [query, setQuery] = useState<string>(initialQuery?.trim() ?? '');
   const [kind, setKind] = useState<'all' | SearchResultKind>('all');
   const [audiences, setAudiences] = useState<readonly SearchAudience[]>(AUDIENCE_ORDER);
-  const [since, setSince] = useState<SearchTimeWindow>('all');
+  // SR-02 opens on the "30 days" capsule, so the first search is already narrowed to the last 30 days.
+  const [since, setSince] = useState<SearchTimeWindow>('30d');
 
   const selectedAudiences = AUDIENCE_ORDER.filter((value) => audiences.includes(value));
   const audienceFilter =

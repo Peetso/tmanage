@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ApiError } from '../../common/http/errors.js';
+import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js';
+import { WebhookDeliveriesRepository } from './webhook-deliveries.repository.js';
 
 /**
  * Automations webhook deliveries (module 17, x221) — the guarded internal record helper.
@@ -52,8 +53,8 @@ export interface RecordDeliveryOutcome {
 @Injectable()
 export class WebhookDeliveriesService {
   constructor(
-    private readonly database: TenantDatabase,
-    private readonly deliveries: WebhookDeliveriesRepository,
+    @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
+    @Inject(WebhookDeliveriesRepository) private readonly deliveries: WebhookDeliveriesRepository,
   ) {}
 
   /**

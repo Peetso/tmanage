@@ -63,6 +63,7 @@ export class AdminExportRequestsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Optional()
+    @Inject(AdminExportRequestsRepository)
     private readonly requests: AdminExportRequestsRepository = new AdminExportRequestsRepository(),
   ) {}
 

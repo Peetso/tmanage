@@ -50,6 +50,7 @@ export class OnboardingTourController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Optional()
+    @Inject(OnboardingTourRepository)
     private readonly progress: OnboardingTourRepository = new OnboardingTourRepository(),
   ) {}
 

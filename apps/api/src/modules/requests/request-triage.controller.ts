@@ -56,7 +56,10 @@ const KNOWN_CATEGORIES: ReadonlySet<string> = new Set(REQUEST_TRIAGE_CATEGORIES)
 export class RequestTriageController {
   private readonly service: RequestTriageService;
 
-  constructor(@Inject(TENANT_DATABASE) database: TenantDatabase, triage: RequestTriageRepository) {
+  constructor(
+    @Inject(TENANT_DATABASE) database: TenantDatabase,
+    @Inject(RequestTriageRepository) triage: RequestTriageRepository,
+  ) {
     this.service = new RequestTriageService(database, triage);
   }
 

@@ -70,7 +70,9 @@ export class SearchController {
     // repositories are). Both `@Optional()` so a bare construction (the capability-metadata test)
     // needs no DI.
     @Optional() @Inject(TENANT_DATABASE) private readonly database?: TenantDatabase,
-    @Optional() private readonly recents: SavedSearchesRepository = new SavedSearchesRepository(),
+    @Optional()
+    @Inject(SavedSearchesRepository)
+    private readonly recents: SavedSearchesRepository = new SavedSearchesRepository(),
   ) {}
 
   @Get()

@@ -102,6 +102,13 @@ function workUrl(organizationSlug: string, workItemId: string): string {
   return `/${organizationSlug}/work/${workItemId}`;
 }
 
+/**
+ * The item's own facts panel. The redesign titles it "This item · {type}" and states the state
+ * and audience in a sentence ("Currently in progress, internal."), so the state is matched
+ * case-insensitively; the sibling panel "Move this item" never matches this anchored name.
+ */
+const THIS_ITEM = /^This item · /;
+
 const BLOCKER_REASON = 'The booking provider has not sent the sandbox credentials';
 const BLOCKER_ASK = 'Ahmed at Atlas to forward the sandbox key from the provider';
 const BLOCKER_RESOLUTION = 'Atlas forwarded the sandbox key and it authenticates';
@@ -113,12 +120,10 @@ test.describe.serial('the work-delivery journeys', () => {
     const maker = await openAs(browser, world().northstar.designer.id);
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
 
-    // Where it starts. Scoped to the header panel and asserted by containment rather than
-    // exact text: `StateCapsule` prefixes an `aria-hidden` glyph, so the capsule's whole text
-    // is never the bare word. The region name is `exact` because the sibling panel is called
-    // "Move this item", and `getByRole`'s name option is a substring match by default.
-    const header = maker.page.getByRole('region', { name: 'This item', exact: true });
-    await expect(header).toContainText('In progress');
+    // Where it starts. Scoped to the item's facts panel (see THIS_ITEM) and asserted by
+    // containment, because the panel states the state inside a sentence.
+    const header = maker.page.getByRole('region', { name: THIS_ITEM });
+    await expect(header).toContainText(/in progress/i);
 
     // `23-ERD-AND-STATE-MACHINES` §5 requires two facts to enter `blocked`, and the form asks
     // for exactly those two because it asks the machine rather than carrying its own copy.
@@ -131,7 +136,7 @@ test.describe.serial('the work-delivery journeys', () => {
     await maker.page.getByLabel('What you need, and from whom').fill(BLOCKER_ASK);
     await maker.page.getByRole('button', { name: 'Move to Blocked' }).click();
 
-    await expect(header).toContainText('Blocked');
+    await expect(header).toContainText(/blocked/i);
 
     // A different person, a different screen, the same fact. The manager reads the project.
     const manager = await openAs(browser, world().northstar.manager.id);
@@ -174,8 +179,8 @@ test.describe.serial('the work-delivery journeys', () => {
   }) => {
     const maker = await openAs(browser, world().northstar.designer.id);
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
-    const header = maker.page.getByRole('region', { name: 'This item', exact: true });
-    await expect(header).toContainText('Blocked');
+    const header = maker.page.getByRole('region', { name: THIS_ITEM });
+    await expect(header).toContainText(/blocked/i);
 
     // Leaving `blocked` costs the outcome — §5 will not take "unblocked" as an answer, and the
     // form asks for the one fact that move requires and no other.
@@ -184,14 +189,14 @@ test.describe.serial('the work-delivery journeys', () => {
     await expect(maker.page.getByLabel('What is blocking this')).toHaveCount(0);
     await maker.page.getByLabel('How it was resolved').fill(BLOCKER_RESOLUTION);
     await maker.page.getByRole('button', { name: 'Move to In progress' }).click();
-    await expect(header).toContainText('In progress');
+    await expect(header).toContainText(/in progress/i);
 
     // Into review. This move requires nothing, and the screen says so rather than showing an
     // empty form a person would search for the missing field in.
     await maker.page.getByLabel('Move to').selectOption({ label: 'Internal review' });
     await expect(maker.page.getByText('This move needs nothing else from you')).toBeVisible();
     await maker.page.getByRole('button', { name: 'Move to Internal review' }).click();
-    await expect(header).toContainText('Internal review');
+    await expect(header).toContainText(/internal review/i);
 
     // The manager's two screens follow, and the blockers panel is empty again.
     const manager = await openAs(browser, world().northstar.manager.id);
@@ -230,8 +235,8 @@ test.describe.serial('the work-delivery journeys', () => {
     // and the item's own page and the manager's list both read the stored fact back.
     const maker = await openAs(browser, world().northstar.designer.id);
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
-    const header = maker.page.getByRole('region', { name: 'This item', exact: true });
-    await expect(header).toContainText('Internal review');
+    const header = maker.page.getByRole('region', { name: THIS_ITEM });
+    await expect(header).toContainText(/internal review/i);
     await expect(header).not.toContainText('Completed');
 
     await maker.page.getByLabel('Move to').selectOption({ label: 'Done' });
@@ -257,7 +262,7 @@ test.describe.serial('the work-delivery journeys', () => {
     const finishedAt = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 60 * 60_000);
     await completedField.fill(finishedAt.toISOString().slice(0, 16));
     await maker.page.getByRole('button', { name: 'Move to Done', exact: true }).click();
-    await expect(header).toContainText('Done');
+    await expect(header).toContainText(/done/i);
     await expect(header).toContainText('Completed');
 
     // The stored fact, read from the API rather than inferred from the screen. The browser is
@@ -309,9 +314,7 @@ test.describe('the cross-tenant object-id journey', () => {
     await expect(member.page.getByText('The requested resource was not found')).toBeVisible();
     await expect(member.page.getByText(world().brightops.workItemTitle)).toHaveCount(0);
     // Not a word of the record: no state, no audience, no version.
-    await expect(member.page.getByRole('region', { name: 'This item', exact: true })).toHaveCount(
-      0,
-    );
+    await expect(member.page.getByRole('region', { name: THIS_ITEM })).toHaveCount(0);
 
     // The adversarial twin, whose work item carries the *same title* as Northstar's own. The
     // absence of a title proves nothing here, so the claim is that the page is the refusal.
@@ -319,9 +322,7 @@ test.describe('the cross-tenant object-id journey', () => {
     await member.page.goto(workUrl('northstar-studio', world().twin.workItemId));
     await expect(member.page.getByText('Could not load this work item')).toBeVisible();
     await expect(member.page.getByText('The requested resource was not found')).toBeVisible();
-    await expect(member.page.getByRole('region', { name: 'This item', exact: true })).toHaveCount(
-      0,
-    );
+    await expect(member.page.getByRole('region', { name: THIS_ITEM })).toHaveCount(0);
 
     // The write, which no screen can reach because no screen renders. A route guard answers
     // the read; only the organization-scoped lookup inside the write path answers this, and
@@ -355,9 +356,9 @@ test.describe('the cross-tenant object-id journey', () => {
     // satisfied by `v12`, which is precisely the outcome this line exists to rule out.
     const tarek = await openAs(browser, world().brightops.owner.id);
     await tarek.page.goto(workUrl('brightops-consulting', world().brightops.workItemId));
-    const header = tarek.page.getByRole('region', { name: 'This item', exact: true });
-    await expect(header).toContainText('In progress');
-    await expect(header).toContainText('Internal');
+    const header = tarek.page.getByRole('region', { name: THIS_ITEM });
+    await expect(header).toContainText(/in progress/i);
+    await expect(header).toContainText(/internal/i);
     await expect(header.getByText('v1', { exact: true })).toBeVisible();
 
     await tarek.context.close();

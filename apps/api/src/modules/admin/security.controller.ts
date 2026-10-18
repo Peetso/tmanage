@@ -52,6 +52,7 @@ export class SecuritySettingsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Optional()
+    @Inject(SecuritySettingsRepository)
     private readonly settings: SecuritySettingsRepository = new SecuritySettingsRepository(),
   ) {}
 

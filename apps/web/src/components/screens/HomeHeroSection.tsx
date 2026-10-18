@@ -43,7 +43,7 @@ export function HomeHeroSection({ organizationSlug, client }: HomeHeroSectionPro
       ) : null}
 
       {pulse.isPending ? (
-        <div className="tm-metric" aria-busy="true" aria-label="Loading your focus.">
+        <div className="tm-metric" role="status" aria-busy="true" aria-label="Loading your focus.">
           <Skeleton width="160px" height="56px" />
         </div>
       ) : null}

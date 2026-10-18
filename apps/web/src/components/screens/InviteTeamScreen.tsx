@@ -341,7 +341,9 @@ export function InviteTeamScreen({
                     </div>
                     {result.link ? (
                       <>
-                        <p className="tm-ob-team__link">{result.link}</p>
+                        <p className="tm-ob-team__link" data-testid="tm-invitation-link">
+                          {result.link}
+                        </p>
                         <p className="tm-ob-team__problem">
                           {result.delivery === 'sent'
                             ? `Also emailed to ${result.email}.`

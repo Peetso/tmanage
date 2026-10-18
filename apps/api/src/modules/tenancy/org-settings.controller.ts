@@ -51,7 +51,9 @@ interface PutSettingBody {
 export class OrgSettingsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
+    @Optional()
+    @Inject(OrgSettingsRepository)
+    private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
   ) {}
 
   /** Read the organization's settings — every allowlisted key with its stored value or its default (200). */

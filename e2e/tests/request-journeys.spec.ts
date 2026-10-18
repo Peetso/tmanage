@@ -79,14 +79,16 @@ test.describe.serial('the client-request journeys', () => {
     // field is the app saying it will keep what is typed next. Without this barrier `goto`
     // returns on `load`, and on a cold compile the first two fills landed before hydration and
     // were wiped by it.
-    await expect(client.page.getByLabel('What do you need?')).toBeEnabled();
-    await client.page.getByLabel('What do you need?').fill(TITLE);
+    await expect(client.page.getByLabel('The request')).toBeEnabled();
+    await client.page.getByLabel('The request').fill(TITLE);
     await client.page
       .getByLabel('Why it matters')
       .fill('The current hero still shows the spring offer.');
     await client.page.getByLabel('When you would like it').fill('2026-09-03');
     await client.page.getByRole('button', { name: 'Send request' }).click();
-    await expect(client.page.getByText('Your request is with the studio')).toBeVisible();
+    await expect(
+      client.page.getByRole('heading', { name: 'Your request is with the studio' }),
+    ).toBeVisible();
 
     const detailLink = client.page.getByRole('link', { name: 'See this request' });
     const href = await detailLink.getAttribute('href');
@@ -153,12 +155,11 @@ test.describe.serial('the client-request journeys', () => {
     // The client's page: the promise, both dates, and none of the internals.
     const client = await openAs(browser, world().atlas.admin.id);
     await client.page.goto(requestUrl);
-    // Scoped to the status panel rather than asserted as exact text: `StateCapsule` prefixes an
-    // `aria-hidden` glyph, and Playwright counts it — the capsule's text is "✓Accepted", so
-    // `getByText('Accepted', { exact: true })` matches nothing. The first run of this suite
-    // proved that on the invitation screen's identical capsule.
+    // The redesigned page names the status in the header tag and explains it in the status
+    // panel, in the client's words.
+    await expect(client.page.getByText('Accepted', { exact: true })).toBeVisible();
     await expect(client.page.getByRole('region', { name: 'Where this request is' })).toContainText(
-      'Accepted',
+      'The studio has taken this on.',
     );
     await expect(client.page.getByText(SCOPE)).toBeVisible();
     // The date they asked for, by its label: on the day this journey runs on 2026-09-03 the

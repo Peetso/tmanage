@@ -81,6 +81,7 @@ export class MemberBulkRoleController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Optional()
+    @Inject(MemberBulkRoleRepository)
     private readonly repository: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
   ) {}
 

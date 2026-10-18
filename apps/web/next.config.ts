@@ -42,6 +42,9 @@ const publicConfig = validatePublicConfigForBuild({
 });
 
 const config: NextConfig = {
+  // The e2e harness boots its own `next dev` beside a developer's running one; two dev servers
+  // cannot share one build directory, so the harness points this at its own (`.next-e2e`).
+  distDir: process.env['TMANAGE_NEXT_DIST_DIR'] ?? '.next',
   reactStrictMode: true,
   transpilePackages: ['@tmanage/ui'],
   poweredByHeader: false,

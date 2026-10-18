@@ -85,7 +85,9 @@ function orgWideResource(context: TenantContext) {
 export class AdminFeatureFlagsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly flags: FeatureFlagsRepository = new FeatureFlagsRepository(),
+    @Optional()
+    @Inject(FeatureFlagsRepository)
+    private readonly flags: FeatureFlagsRepository = new FeatureFlagsRepository(),
   ) {}
 
   /** List every known optional-module flag with its enabled state and last-change attribution. */
@@ -158,7 +160,9 @@ export class AdminFeatureFlagsController {
 export class FeatureFlagsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly flags: FeatureFlagsRepository = new FeatureFlagsRepository(),
+    @Optional()
+    @Inject(FeatureFlagsRepository)
+    private readonly flags: FeatureFlagsRepository = new FeatureFlagsRepository(),
   ) {}
 
   /** The resolved flag map for the caller's own org — every known key with its resolved state. */

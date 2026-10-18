@@ -144,12 +144,13 @@ test.describe.serial('the automations create-and-run journey', () => {
 
     // The new row, in the list the same screen renders. Asserted about this template's row rather
     // than the table at large, and by the human labels the screen shows rather than the stored
-    // tokens: trigger and action are humanized, and a fresh template is enabled.
+    // tokens: trigger and action are humanized, and a fresh template is enabled — which the
+    // redesigned list words as "Live" (a disabled one reads "Off").
     const row = owner.page.getByRole('row').filter({ hasText: IN_APP_NAME });
     await expect(row).toBeVisible();
     await expect(row).toContainText('Work item created');
     await expect(row).toContainText('Notify owner');
-    await expect(row).toContainText('Enabled');
+    await expect(row).toContainText('Live');
 
     inAppTemplateId = await templateIdByName(owner.context, IN_APP_NAME);
 
@@ -201,7 +202,7 @@ test.describe.serial('the automations create-and-run journey', () => {
     await expect(row).toBeVisible();
     await expect(row).toContainText('Document published');
     await expect(row).toContainText('Send email digest');
-    await expect(row).toContainText('Enabled');
+    await expect(row).toContainText('Live');
 
     externalTemplateId = await templateIdByName(owner.context, EXTERNAL_NAME);
 
@@ -225,10 +226,10 @@ test.describe.serial('the automations create-and-run journey', () => {
     expect(run.status).toBe('succeeded');
     expect(run.detail['effect']).toBe('Notified the work owner in-app.');
 
-    // The record, read back through the screen a person opens. The row is found by its template id
-    // (the history list keys rows on the id, not the name), newest-first.
+    // The record, read back through the screen a person opens. The redesigned history names each
+    // run's template (it falls back to the id only when the template list cannot load), newest-first.
     await owner.page.goto(`/${ORG}/automations/runs`);
-    const row = owner.page.getByRole('row').filter({ hasText: inAppTemplateId });
+    const row = owner.page.getByRole('row').filter({ hasText: IN_APP_NAME });
     await expect(row).toBeVisible();
     await expect(row).toContainText('Succeeded');
 
@@ -264,17 +265,21 @@ test.describe.serial('the automations create-and-run journey', () => {
     // The status filter offers only the allowlisted outcomes. Under "Failed" the external run is
     // present and the earlier succeeded run is gone; under "Succeeded" the two swap. The claim is
     // about each template's own row, so another journey's runs — there are none — would not confuse it.
-    // The filter ships disabled until React hydrates (useHydrated); wait for that readiness signal.
-    await expect(owner.page.getByLabel('Status')).toBeEnabled();
-    await owner.page.getByLabel('Status').selectOption('failed');
-    await expect(owner.page.getByRole('row').filter({ hasText: externalTemplateId })).toBeVisible();
-    await expect(owner.page.getByRole('row').filter({ hasText: inAppTemplateId })).toHaveCount(0);
+    // The redesigned filter is a group of pressed buttons ("Outcome"); it ships disabled until
+    // React hydrates (useHydrated), so wait for that readiness signal.
+    const outcome = owner.page.getByRole('group', { name: 'Outcome' });
+    const failedFilter = outcome.getByRole('button', { name: 'Failed', exact: true });
+    const succeededFilter = outcome.getByRole('button', { name: 'Succeeded', exact: true });
+    await expect(failedFilter).toBeEnabled();
+    await failedFilter.click();
+    await expect(failedFilter).toHaveAttribute('aria-pressed', 'true');
+    await expect(owner.page.getByRole('row').filter({ hasText: EXTERNAL_NAME })).toBeVisible();
+    await expect(owner.page.getByRole('row').filter({ hasText: IN_APP_NAME })).toHaveCount(0);
 
-    await owner.page.getByLabel('Status').selectOption('succeeded');
-    await expect(owner.page.getByRole('row').filter({ hasText: inAppTemplateId })).toBeVisible();
-    await expect(owner.page.getByRole('row').filter({ hasText: externalTemplateId })).toHaveCount(
-      0,
-    );
+    await succeededFilter.click();
+    await expect(succeededFilter).toHaveAttribute('aria-pressed', 'true');
+    await expect(owner.page.getByRole('row').filter({ hasText: IN_APP_NAME })).toBeVisible();
+    await expect(owner.page.getByRole('row').filter({ hasText: EXTERNAL_NAME })).toHaveCount(0);
 
     await owner.context.close();
   });
@@ -310,6 +315,11 @@ test.describe.serial('the automations create-and-run journey', () => {
     // And the refusal left no trace: the history screen, unfiltered, never names this template.
     await owner.page.goto(`/${ORG}/automations/runs`);
     await expect(owner.page.getByRole('region', { name: 'Runs', exact: true })).toBeVisible();
+    // Names have resolved (an earlier run's row reads by name), so an absent name is an absence.
+    await expect(
+      owner.page.getByRole('row').filter({ hasText: IN_APP_NAME }).first(),
+    ).toBeVisible();
+    await expect(owner.page.getByRole('row').filter({ hasText: DISABLED_NAME })).toHaveCount(0);
     await expect(owner.page.getByRole('row').filter({ hasText: disabledTemplateId })).toHaveCount(
       0,
     );

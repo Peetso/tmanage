@@ -435,6 +435,8 @@
   line-height: 15px;
   font-weight: 400;
   letter-spacing: 0.1em;
+  /* ink-500 on paper-50 is 4.2:1; small text needs 4.5:1 (axe audit, WCAG 1.4.3). */
+  color: var(--ink-650);
 }
 
 .ppl-static-chip {
@@ -472,7 +474,8 @@
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  /* ink-500 on the paper-50 head is 4.2:1; small text needs 4.5:1 (axe audit, WCAG 1.4.3). */
+  color: var(--ink-650);
 }
 
 .ppl-col-person {

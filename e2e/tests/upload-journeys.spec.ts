@@ -148,7 +148,14 @@ test.describe('the upload journey', () => {
     expect(session.uploadUrls.map((u) => u.partNumber)).toEqual([1, 2]);
     for (const target of session.uploadUrls) {
       expect(target.url.startsWith(`${API_URL}/v1/uploads/`)).toBe(true);
-      expect(target.url).not.toContain(world().northstar.organizationId);
+      // The path and every other parameter stay tenant-free. The part token (`t`) is the one
+      // place the tenant appears, by design since `pu2` (packages/storage/src/part-token.ts):
+      // signed, so it cannot be swapped, and bound to this upload's own tenant by the store.
+      const partUrl = new URL(target.url);
+      const token = partUrl.searchParams.get('t') ?? '';
+      partUrl.searchParams.delete('t');
+      expect(partUrl.toString()).not.toContain(world().northstar.organizationId);
+      expect(token.split('.').slice(0, 2)).toEqual(['pu2', world().northstar.organizationId]);
     }
 
     // The anonymous client carries the bytes: a fresh request context holds no cookie.

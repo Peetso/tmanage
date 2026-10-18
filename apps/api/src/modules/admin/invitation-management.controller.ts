@@ -50,6 +50,7 @@ export class AdminInvitationManagementController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Optional()
+    @Inject(InvitationManagementService)
     private readonly service: InvitationManagementService = new InvitationManagementService(),
   ) {}
 

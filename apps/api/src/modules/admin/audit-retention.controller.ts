@@ -37,7 +37,9 @@ import type { AuditRetentionView } from './audit-retention.service.js';
 export class AuditRetentionController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly service: AuditRetentionService = new AuditRetentionService(),
+    @Optional()
+    @Inject(AuditRetentionService)
+    private readonly service: AuditRetentionService = new AuditRetentionService(),
   ) {}
 
   /** Read the organization's retention policy and the purge preview (200). Read-only. */

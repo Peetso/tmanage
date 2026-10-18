@@ -57,6 +57,7 @@ export class NotificationKindPrefsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Optional()
+    @Inject(NotificationKindPrefsRepository)
     private readonly prefs: NotificationKindPrefsRepository = new NotificationKindPrefsRepository(),
   ) {}
 

@@ -26,6 +26,7 @@ export const WEB_URL = `http://localhost:${WEB_PORT}`;
 export const API_URL = `http://localhost:${API_PORT}`;
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
+const E2E_NEXT_DIST_DIR = '.next-e2e';
 
 export interface StackState {
   readonly databaseUrl: string;
@@ -440,7 +441,9 @@ export async function bootStack(): Promise<StackState & { stop: () => Promise<vo
     // NEXT_PUBLIC_* values are inlined at compile time, and a `.next` warmed under a
     // developer's own environment would serve chunks that dial the developer's API — the
     // exact stale-inline failure this harness's first run produced.
-    rmSync(join(REPO_ROOT, 'apps/web/.next'), { recursive: true, force: true });
+    // The harness builds into its own directory, so a developer's `next dev` on the same app
+    // keeps its `.next` (and keeps running) while the journeys run.
+    rmSync(join(REPO_ROOT, 'apps/web', E2E_NEXT_DIST_DIR), { recursive: true, force: true });
     const api = spawnServer('pnpm', ['--filter', '@tmanage/api', 'exec', 'tsx', 'src/main.ts'], {
       cwd: REPO_ROOT,
       env,
@@ -459,6 +462,7 @@ export async function bootStack(): Promise<StackState & { stop: () => Promise<vo
           // default too: review finding D02 was a browser default (`tm_session_csrf`) that
           // disagreed with the server's, and this override is what hid it from the suite.
           PORT: String(WEB_PORT),
+          TMANAGE_NEXT_DIST_DIR: E2E_NEXT_DIST_DIR,
         },
         logName: 'web',
       },

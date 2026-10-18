@@ -67,7 +67,9 @@ function orgWideResource(context: TenantContext) {
 export class CustomRolesController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly roles: CustomRolesRepository = new CustomRolesRepository(),
+    @Optional()
+    @Inject(CustomRolesRepository)
+    private readonly roles: CustomRolesRepository = new CustomRolesRepository(),
   ) {}
 
   /** List the organization's custom roles (200). */

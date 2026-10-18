@@ -69,7 +69,13 @@ test.describe.serial('the chat journeys', () => {
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.getByText(MESSAGE)).toBeVisible();
 
-    // Convert it.
+    // Convert it. The redesigned transcript shows a message's actions on hover (or focus), as
+    // a pointer user meets them: rest on the message first, then take the action.
+    const posted = page
+      .getByRole('list', { name: 'Messages, oldest first' })
+      .getByRole('listitem')
+      .filter({ hasText: MESSAGE });
+    await posted.hover();
     await page.getByRole('button', { name: 'Create work from this' }).click();
     await expect(page.getByLabel('Title')).toHaveValue(MESSAGE);
     await page.getByRole('button', { name: 'Create work item' }).click();
@@ -80,6 +86,7 @@ test.describe.serial('the chat journeys', () => {
     await page.getByRole('button', { name: 'Close' }).click();
 
     // Convert it AGAIN — the retry that must not duplicate.
+    await posted.hover();
     await page.getByRole('button', { name: 'Create work from this' }).click();
     await page.getByRole('button', { name: 'Create work item' }).click();
     await expect(page.getByText('Already converted')).toBeVisible();

@@ -38,6 +38,7 @@ import {
 } from '../../lib/work-item-presentation';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
+import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface ProjectOverviewScreenProps {
@@ -620,6 +621,8 @@ function milestoneCapsuleState(status: MilestoneStatus): 'done' | 'blocked' | 'f
  */
 function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) {
   const queries = useQueryClient();
+  // Controls ship disabled until React hydrates, so nothing typed into the server HTML is wiped.
+  const hydrated = useHydrated();
   const [title, setTitle] = useState('');
   const [dueOn, setDueOn] = useState('');
   const [status, setStatus] = useState<MilestoneStatus>('planned');
@@ -709,6 +712,7 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
               value={title}
               maxLength={MAX_MILESTONE_TITLE_LENGTH}
               required
+              disabled={!hydrated}
               onChange={(event) => setTitle(event.target.value)}
             />
           </div>
@@ -722,6 +726,7 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
               className="tm-field__control"
               type="date"
               value={dueOn}
+              disabled={!hydrated}
               onChange={(event) => setDueOn(event.target.value)}
             />
           </div>
@@ -734,6 +739,7 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
               id="tm-project-milestone-status"
               className="tm-field__control"
               value={status}
+              disabled={!hydrated}
               onChange={(event) => setStatus(event.target.value as MilestoneStatus)}
             >
               {MILESTONE_STATUS_OPTIONS.map((option) => (
@@ -750,6 +756,7 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
             className="tm-choice__input"
             type="checkbox"
             checked={publishNow}
+            disabled={!hydrated}
             onChange={(event) => setPublishNow(event.target.checked)}
           />
           <span className="tm-choice__name">Publish to the client now</span>
@@ -816,6 +823,8 @@ const MAX_UPDATE_TITLE_LENGTH = 300;
  */
 function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProps) {
   const queries = useQueryClient();
+  // Controls ship disabled until React hydrates, so nothing typed into the server HTML is wiped.
+  const hydrated = useHydrated();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [publishNow, setPublishNow] = useState(true);
@@ -861,6 +870,7 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
             value={title}
             maxLength={MAX_UPDATE_TITLE_LENGTH}
             required
+            disabled={!hydrated}
             onChange={(event) => setTitle(event.target.value)}
           />
         </div>
@@ -875,6 +885,7 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
             value={body}
             rows={4}
             required
+            disabled={!hydrated}
             onChange={(event) => setBody(event.target.value)}
           />
         </div>
@@ -884,6 +895,7 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
             className="tm-choice__input"
             type="checkbox"
             checked={publishNow}
+            disabled={!hydrated}
             onChange={(event) => setPublishNow(event.target.checked)}
           />
           <span className="tm-choice__name">Publish to the client now</span>

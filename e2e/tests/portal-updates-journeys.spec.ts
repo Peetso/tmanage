@@ -74,6 +74,8 @@ test.describe.serial('the project-updates journeys', () => {
       // Hydration barrier: wait for the compose field before filling, so the first fill does not
       // land before React has attached its handlers (the reason request-journeys waits too).
       await expect(composer.getByRole('heading', { name: 'Post an update' })).toBeVisible();
+      // The controls ship disabled until React hydrates (useHydrated); that is the real barrier.
+      await expect(composer.getByLabel('Title')).toBeEnabled();
 
       // The published update — the checkbox defaults to "Publish to the client now".
       await composer.getByLabel('Title').fill(PUBLISHED_TITLE);
@@ -104,6 +106,8 @@ test.describe.serial('the project-updates journeys', () => {
       // update composer above carries the same draft copy.
       const milestones = page.getByRole('region', { name: 'Milestones' });
       await expect(milestones.getByRole('heading', { name: 'Milestones' })).toBeVisible();
+      // The controls ship disabled until React hydrates (useHydrated).
+      await expect(milestones.getByLabel('Title')).toBeEnabled();
 
       await milestones.getByLabel('Title').fill('Launch review');
       await milestones.getByRole('button', { name: 'Add milestone' }).click();
@@ -128,7 +132,8 @@ test.describe.serial('the project-updates journeys', () => {
   test('the client sees the published update and not the draft', async ({ browser }) => {
     const { context, page } = await openAs(browser, world().atlas.reviewer.id);
     try {
-      await page.goto('/northstar-studio/portal');
+      // The redesigned portal gives updates their own screen (the "Updates" tab).
+      await page.goto('/northstar-studio/portal/updates');
 
       const updates = page.getByRole('region', { name: 'Updates from Northstar Studio' });
       await expect(updates).toBeVisible();

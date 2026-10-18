@@ -147,18 +147,29 @@ describe('SearchScreen', () => {
   it('re-runs the search with the AUDIENCE and TIME facets as server filters', async () => {
     const user = userEvent.setup();
     const urls: string[] = [];
+    const lastSearch = () => urls.filter((url) => url.includes('/search')).at(-1);
     render(screenOver(RESULTS, 'alpha', urls));
     await screen.findByRole('list', { name: /search results/i });
     expect(screen.getAllByTestId('search-hit-audience')[0]).toHaveTextContent('client visible');
-    // Every audience ticked and all time: neither filter is sent.
-    expect(urls.at(-1)).not.toMatch(/audience=|since=/);
+    // SR-02 opens on the last 30 days with every audience ticked: only the time filter is sent.
+    expect(screen.getByRole('button', { name: '30 days' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'All time' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(lastSearch()).toContain('since=30d');
+    expect(lastSearch()).not.toMatch(/audience=/);
+
+    // "All time" drops the time filter: neither filter is sent.
+    await user.click(screen.getByRole('button', { name: 'All time' }));
+    await waitFor(() => expect(lastSearch()).not.toMatch(/audience=|since=/));
 
     await user.click(screen.getByRole('checkbox', { name: /internal only/i }));
     await user.click(screen.getByRole('button', { name: '7 days' }));
     await waitFor(() =>
-      expect(urls.at(-1)).toContain('audience=client_visible%2Cclient_action_required'),
+      expect(lastSearch()).toContain('audience=client_visible%2Cclient_action_required'),
     );
-    expect(urls.at(-1)).toContain('since=7d');
+    expect(lastSearch()).toContain('since=7d');
 
     // No audience ticked: nothing is fetched and the screen says why.
     const before = urls.length;

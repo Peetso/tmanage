@@ -82,6 +82,16 @@ test.describe.serial('the notification journeys', () => {
    * finding of 2026-09-03. It is an absence, so it must follow a presence: the clicked mode's
    * `aria-pressed`, which the same render that mounts the loading region sets.
    */
+  /**
+   * One of the inbox's mode buttons. The redesign groups them ("Inbox mode") and words the
+   * client mode "Client"; exact, because "All" is a substring of other names.
+   */
+  function mode(page: Page, label: string) {
+    return page
+      .getByRole('group', { name: 'Inbox mode' })
+      .getByRole('button', { name: label, exact: true });
+  }
+
   async function settled(page: Page): Promise<void> {
     await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
   }
@@ -100,12 +110,14 @@ test.describe.serial('the notification journeys', () => {
     // default `expect` timeout that a warm E2E-01a never comes near.
     const client = await openAs(browser, world().atlas.admin.id);
     await client.page.goto('/northstar-studio/portal/requests/new');
-    await client.page.getByLabel('What do you need?').fill(TITLE);
+    await client.page.getByLabel('The request').fill(TITLE);
     await client.page
       .getByLabel('Why it matters')
       .fill('Half of our spa guests read Arabic first.');
     await client.page.getByRole('button', { name: 'Send request' }).click();
-    await expect(client.page.getByText('Your request is with the studio')).toBeVisible({
+    await expect(
+      client.page.getByRole('heading', { name: 'Your request is with the studio' }),
+    ).toBeVisible({
       timeout: 60_000,
     });
     await client.context.close();
@@ -118,11 +130,8 @@ test.describe.serial('the notification journeys', () => {
     await expect(
       studio.page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Work' }),
     ).toHaveAttribute('href', '/northstar-studio/work');
-    await studio.page.getByRole('button', { name: 'Client actions' }).click();
-    await expect(studio.page.getByRole('button', { name: 'Client actions' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await mode(studio.page, 'Client').click();
+    await expect(mode(studio.page, 'Client')).toHaveAttribute('aria-pressed', 'true');
     await settled(studio.page);
     await expect(studio.page.getByRole('link', { name: TITLE })).toHaveCount(0);
 
@@ -130,14 +139,14 @@ test.describe.serial('the notification journeys', () => {
 
     // After it, one bundle about the request, unread, with the inline action.
     await studio.page.reload();
-    await studio.page.getByRole('button', { name: 'Client actions' }).click();
+    await mode(studio.page, 'Client').click();
     const row = studio.page
-      .getByRole('row')
-      .filter({ has: studio.page.getByRole('link', { name: TITLE }) });
+      .getByRole('article')
+      .filter({ has: studio.page.getByRole('link', { name: TITLE, exact: true }) });
     await expect(row).toBeVisible();
     await expect(row).toContainText('Client submitted a request');
     await expect(row).toContainText('1 unread');
-    await expect(row.getByRole('link', { name: TITLE })).toHaveAttribute(
+    await expect(row.getByRole('link', { name: TITLE, exact: true })).toHaveAttribute(
       'href',
       /\/northstar-studio\/work\/requests\/[0-9a-f-]+$/,
     );
@@ -152,16 +161,13 @@ test.describe.serial('the notification journeys', () => {
     const elsewhere = await openAs(browser, world().northstar.manager.id);
     await elsewhere.page.goto('/northstar-studio/inbox');
     const rowElsewhere = elsewhere.page
-      .getByRole('row')
-      .filter({ has: elsewhere.page.getByRole('link', { name: TITLE }) });
+      .getByRole('article')
+      .filter({ has: elsewhere.page.getByRole('link', { name: TITLE, exact: true }) });
     await expect(rowElsewhere).toBeVisible();
     await expect(rowElsewhere.getByRole('button', { name: `Mark read: ${TITLE}` })).toHaveCount(0);
     // And under "Waiting on me" — what is unread — it is gone.
-    await elsewhere.page.getByRole('button', { name: 'Waiting on me' }).click();
-    await expect(elsewhere.page.getByRole('button', { name: 'Waiting on me' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await mode(elsewhere.page, 'Waiting on me').click();
+    await expect(mode(elsewhere.page, 'Waiting on me')).toHaveAttribute('aria-pressed', 'true');
     await settled(elsewhere.page);
     await expect(elsewhere.page.getByRole('link', { name: TITLE })).toHaveCount(0);
 

@@ -53,7 +53,8 @@ const PUBLISHED_MILESTONE = 'Design sign-off';
 const DRAFT_MILESTONE = 'Internal budget review';
 // A DATE column, so the browser (pinned to UTC + en-US in the config) renders it as a stable string.
 const TARGET_DATE = '2026-12-01';
-const TARGET_DATE_TEXT = 'December 1, 2026';
+/** How the client timeline writes TARGET_DATE (`longDay`: en-GB day and month). */
+const TARGET_DATE_TEXT = '1 December';
 
 test.describe.serial('the projects portfolio and milestone journeys', () => {
   async function openAs(
@@ -73,24 +74,23 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
 
       await expect(page.getByRole('heading', { name: 'Projects', level: 2 })).toBeVisible();
 
-      // The card is the article labelled by the project's own name; the seed gives it one in-progress
-      // work item, so its open-work count is a real, non-zero number rather than a placeholder.
+      // The card's link goes to the project's own overview.
       const link = page.getByRole('link', { name: world().northstar.projectName });
       await expect(link).toHaveAttribute(
         'href',
         `/northstar-studio/projects/${world().northstar.projectId}`,
       );
 
-      const card = page.getByRole('article').filter({ has: link });
-      await expect(card.getByText('Active')).toBeVisible();
-      await expect(card.getByText('Open work')).toBeVisible();
-      await expect(card.getByText('Objectives')).toBeVisible();
-      await expect(card.getByText('Last activity')).toBeVisible();
+      // The redesigned row (POR-01) is labelled by the project's name and reads in dates: the
+      // COMMITTED / FORECAST / CLIENT WAIT columns, each a value or an explicit dash.
+      const card = page.getByRole('article', { name: world().northstar.projectName });
+      await expect(card).toContainText('Committed');
+      await expect(card).toContainText('Forecast');
+      await expect(card).toContainText('Client wait');
 
-      // The screen's standing promise: counts, never a score.
-      await expect(
-        page.getByText('These are counts, not a score.', { exact: false }),
-      ).toBeVisible();
+      // The screen's standing promise: dates and counts, never a score — no percentage anywhere
+      // on the row.
+      await expect(card).not.toContainText('%');
     } finally {
       await context.close();
     }
@@ -120,6 +120,8 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
       // field, so the milestone work is scoped to the Milestones region throughout.
       const milestones = page.getByRole('region', { name: 'Milestones' });
       await expect(milestones.getByRole('heading', { name: 'Milestones' })).toBeVisible();
+      // The controls ship disabled until React hydrates (useHydrated).
+      await expect(milestones.getByLabel('Title')).toBeEnabled();
 
       // Published — the checkbox defaults to "Publish to the client now".
       await milestones.getByLabel('Title').fill(PUBLISHED_MILESTONE);
@@ -156,15 +158,18 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
     try {
       await page.goto('/northstar-studio/portal/timeline');
 
-      const milestones = page.getByRole('region', { name: 'Milestones' });
-      await expect(milestones.getByRole('heading', { name: 'Milestones' })).toBeVisible();
+      // The redesigned timeline: a milestone track, then "Every date, in order" — one row per
+      // milestone with its status and the committed date written out (`longDay`, day-month).
+      const track = page.getByRole('region', { name: 'Milestones' });
+      await expect(
+        track.getByRole('listitem').filter({ hasText: PUBLISHED_MILESTONE }),
+      ).toBeVisible();
 
-      const publishedRow = milestones
-        .getByRole('listitem')
-        .filter({ hasText: PUBLISHED_MILESTONE });
-      await expect(publishedRow.getByRole('heading', { name: PUBLISHED_MILESTONE })).toBeVisible();
-      await expect(publishedRow.getByText('Planned')).toBeVisible();
-      await expect(publishedRow.getByText(`Due ${TARGET_DATE_TEXT}`)).toBeVisible();
+      const dates = page.getByRole('region', { name: 'Every date, in order' });
+      const publishedRow = dates.getByRole('listitem').filter({ hasText: PUBLISHED_MILESTONE });
+      await expect(publishedRow).toBeVisible();
+      await expect(publishedRow.getByText('Planned', { exact: true })).toBeVisible();
+      await expect(publishedRow).toContainText(`Committed for ${TARGET_DATE_TEXT}`);
 
       // The gate: the unpublished draft is nowhere on the client's page.
       await expect(page.getByText(DRAFT_MILESTONE)).toHaveCount(0);

@@ -1,5 +1,4 @@
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
-import { char, datetime, mysqlEnum, mysqlTable } from 'drizzle-orm/mysql-core';
 import { CLIENT_ROLES } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -18,28 +17,16 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * Docs sharing (UI rebuild, DOC-01/DOC-02): a document's audience, its publish state, its
  * collaborators and the tenant-wide "Recent" list.
  *
- * ## The audience columns and the local mirror
+ * ## The audience columns
  *
- * `documents.audience` / `published_at` / `published_by_user_id` arrive in a migration the
- * integrator numbers (see the lane's SHARED.md). Until `schema.ts` carries them, this module reads and
- * writes them through {@link documentAudience}, a narrow typed mirror of the same `documents` table:
- * the tenant guard sees the same table name and the same `organization_id` predicate it always does.
- * The wide `documents` select used everywhere else never names the new columns, so a database that
- * has not run the migration yet keeps serving every other docs screen; only these reads notice, and
- * {@link isMissingColumn} lets the service degrade them to "internal".
+ * `documents.audience` / `published_at` / `published_by_user_id` (migration 0203) are read and
+ * written through the shared `documents` table in `schema.ts`, so the column types live in one
+ * place and every predicate carries the bound `organization_id` the tenant guard checks. A database
+ * that has not run 0203 yet still answers the audience read with `ER_BAD_FIELD_ERROR`, and
+ * {@link isMissingColumn} lets the service degrade it to "internal".
  */
 export const DOCUMENT_AUDIENCES = ['internal', 'client'] as const;
 export type DocumentAudience = (typeof DOCUMENT_AUDIENCES)[number];
-
-export const documentAudience = mysqlTable('documents', {
-  id: char('id', { length: 36 }).primaryKey(),
-  organizationId: char('organization_id', { length: 36 }).notNull(),
-  projectId: char('project_id', { length: 36 }).notNull(),
-  audience: mysqlEnum('audience', DOCUMENT_AUDIENCES).notNull().default('internal'),
-  publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }),
-  publishedByUserId: char('published_by_user_id', { length: 36 }),
-  updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
-});
 
 /** MariaDB/MySQL `ER_BAD_FIELD_ERROR` — the migration adding the audience columns has not run. */
 export function isMissingColumn(error: unknown): boolean {
@@ -144,15 +131,15 @@ export class DocumentSharingRepository {
     if (documentIds.length === 0) return [];
     return tenantDrizzle(runner)
       .select({
-        id: documentAudience.id,
-        audience: documentAudience.audience,
-        publishedAt: documentAudience.publishedAt,
+        id: documents.id,
+        audience: documents.audience,
+        publishedAt: documents.publishedAt,
       })
-      .from(documentAudience)
+      .from(documents)
       .where(
         and(
-          eq(documentAudience.organizationId, context.organizationId),
-          inArray(documentAudience.id, [...documentIds]),
+          eq(documents.organizationId, context.organizationId),
+          inArray(documents.id, [...documentIds]),
         ),
       );
   }
@@ -166,7 +153,7 @@ export class DocumentSharingRepository {
   ): Promise<void> {
     const publishing = audience === 'client';
     await tenantDrizzle(runner)
-      .update(documentAudience)
+      .update(documents)
       .set({
         audience,
         publishedAt: publishing ? sql`current_timestamp(3)` : null,
@@ -174,10 +161,7 @@ export class DocumentSharingRepository {
         updatedAt: sql`current_timestamp(3)`,
       })
       .where(
-        and(
-          eq(documentAudience.organizationId, context.organizationId),
-          eq(documentAudience.id, documentId),
-        ),
+        and(eq(documents.organizationId, context.organizationId), eq(documents.id, documentId)),
       );
   }
 

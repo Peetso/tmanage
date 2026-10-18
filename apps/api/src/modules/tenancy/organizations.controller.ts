@@ -82,7 +82,7 @@ export class OrganizationsController {
     @Inject(ORGANIZATION_DIRECTORY_REPOSITORY)
     private readonly directory: OrganizationDirectoryRepository,
     @Inject(TENANT_DATABASE) database: TenantDatabase,
-    @Optional() availability?: AddressAvailabilityRepository,
+    @Optional() @Inject(AddressAvailabilityRepository) availability?: AddressAvailabilityRepository,
   ) {
     this.availability = availability ?? new AddressAvailabilityRepository(database);
   }

@@ -56,7 +56,9 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesView = {
 export class PreferencesController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly preferences: PreferencesRepository = new PreferencesRepository(),
+    @Optional()
+    @Inject(PreferencesRepository)
+    private readonly preferences: PreferencesRepository = new PreferencesRepository(),
   ) {}
 
   /** The acting member's settings, defaults if they have never saved (200). */

@@ -69,6 +69,12 @@ async function dropCookie(context: BrowserContext, name: string): Promise<void> 
 }
 
 async function signInThroughTheScreen(page: Page, userId: string): Promise<void> {
+  // The redesigned sign-in keeps the development route folded away in a disclosure; a person
+  // opens it before they can type an id.
+  const disclosure = page.getByText('Development sign-in — not authentication');
+  await expect(disclosure).toBeVisible();
+  if (!(await page.getByLabel('User id').isVisible())) await disclosure.click();
+  await expect(page.getByLabel('User id')).toBeEnabled();
   await page.getByLabel('User id').fill(userId);
   await page.getByRole('button', { name: 'Start a development session' }).click();
 }

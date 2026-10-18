@@ -41,6 +41,19 @@ body {
   letter-spacing: 0;
 }
 
+/*
+ * The mono stack: Geist Mono first, then the platform's own UI mono.
+ *
+ * `tokens.css` keeps the export's `--font-mono` verbatim ('Geist Mono', monospace), and the drift
+ * test holds it there. A bare `monospace` resolves to Courier on Windows, so this layer re-states
+ * the token with the same first family and real fallbacks for the swap paint and any glyph Geist
+ * Mono lacks. `tests/mono-stack.test.ts` pins the first family to the token's, so the two cannot
+ * name different faces. apps/web declares the same stack next to its self-hosted @font-face.
+ */
+:root {
+  --font-mono: 'Geist Mono', ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
 code,
 kbd,
 samp,

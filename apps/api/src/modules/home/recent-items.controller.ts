@@ -42,7 +42,9 @@ function isRecentItemObjectType(value: unknown): value is RecentItemObjectType {
 export class RecentItemsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly service: RecentItemsService = new RecentItemsService(database),
+    @Optional()
+    @Inject(RecentItemsService)
+    private readonly service: RecentItemsService = new RecentItemsService(database),
   ) {}
 
   /** The acting membership's recents, newest first, bounded to the fixed cap (200). */

@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Optional } from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
@@ -32,7 +32,11 @@ export class PortalPeopleController {
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     // Constructed defaults, so a unit test can drive the handler with fakes and the real
     // `authorize()`. `PortalPeopleModule` provides both by class token for the injected instance.
+    @Optional()
+    @Inject(ProjectsRepository)
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    @Optional()
+    @Inject(PortalPeopleRepository)
     private readonly people: PortalPeopleRepository = new PortalPeopleRepository(),
   ) {}
 

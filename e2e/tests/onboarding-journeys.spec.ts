@@ -110,7 +110,7 @@ test.describe.serial('the onboarding journeys', () => {
     ).toBeVisible();
 
     // The link is shown exactly once; copy it the way a person would.
-    const linkText = await founder.page.locator('p.tm-mono.tm-break').innerText();
+    const linkText = await founder.page.getByTestId('tm-invitation-link').innerText();
     const match = /\/invitations\/([A-Za-z0-9_-]{40,64})/u.exec(linkText);
     expect(match).not.toBeNull();
     const token = (match as RegExpExecArray)[1] as string;
@@ -119,8 +119,12 @@ test.describe.serial('the onboarding journeys', () => {
     // because accepting binds the session's account.
     const teammate = await openAs(browser, world().northstar.designer.id);
     await teammate.page.goto(`/invitations/${token}`);
-    await expect(teammate.page.getByText(`Join ${ORG_NAME}.`)).toBeVisible();
-    await expect(teammate.page.getByRole('heading', { name: /invited you/u })).toBeVisible();
+    // The redesigned acceptance screen (ID-03) heads with the organization and names the inviter
+    // in a line above it.
+    await expect(
+      teammate.page.getByRole('heading', { level: 1, name: `Join ${ORG_NAME}` }),
+    ).toBeVisible();
+    await expect(teammate.page.getByText(/invited you$/u)).toBeVisible();
     await teammate.page.getByRole('button', { name: 'Accept invitation' }).click();
     await teammate.page.waitForURL('**/organizations');
 
@@ -177,11 +181,12 @@ test.describe('the guided tour journey', () => {
     const projectRow = panel.getByRole('listitem').filter({ hasText: 'Create your first project' });
     await expect(welcomeRow.getByRole('button')).toBeVisible();
 
-    // Advance the first step. The count line and that row both flip, and the write is the
-    // server's — the mutation returns the new progress the checklist re-renders from.
+    // Advance the first step. The count line and that row both flip (the redesigned row says
+    // "Done"), and the write is the server's — the mutation returns the new progress the
+    // checklist re-renders from.
     await welcomeRow.getByRole('button').click();
     await expect(designer.page.getByText('1 of 5 steps done.')).toBeVisible();
-    await expect(welcomeRow.getByText('Completed')).toBeVisible();
+    await expect(welcomeRow.getByText('Done', { exact: true })).toBeVisible();
     await expect(welcomeRow.getByRole('button')).toHaveCount(0);
 
     // Advance a second step.
@@ -192,8 +197,8 @@ test.describe('the guided tour journey', () => {
     // done and offers no control to redo them — a fresh browser would read the same.
     await designer.page.reload();
     await expect(designer.page.getByText('2 of 5 steps done.')).toBeVisible();
-    await expect(welcomeRow.getByText('Completed')).toBeVisible();
-    await expect(projectRow.getByText('Completed')).toBeVisible();
+    await expect(welcomeRow.getByText('Done', { exact: true })).toBeVisible();
+    await expect(projectRow.getByText('Done', { exact: true })).toBeVisible();
     await expect(welcomeRow.getByRole('button')).toHaveCount(0);
 
     // A second member of the SAME studio opens their own tour — untouched by the first member's

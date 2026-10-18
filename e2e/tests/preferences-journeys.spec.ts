@@ -74,11 +74,20 @@ const CHOICE = {
   dateFormat: 'eu',
 } as const;
 
-function themeSelect(page: Page) {
-  return page.getByLabel('Theme');
+/**
+ * Theme and density are radio groups in the redesign (a fieldset per choice, named by its
+ * legend); the other three remain selects. A choice is addressed by its stored code.
+ */
+function themeGroup(page: Page) {
+  return page.getByRole('group', { name: 'Theme' });
 }
-function densitySelect(page: Page) {
-  return page.getByLabel('Density');
+function themeOption(page: Page, value: string) {
+  return themeGroup(page).locator(`input[type="radio"][value="${value}"]`);
+}
+function densityOption(page: Page, value: string) {
+  return page
+    .getByRole('group', { name: 'Density' })
+    .locator(`input[type="radio"][value="${value}"]`);
 }
 function localeSelect(page: Page) {
   return page.getByLabel('Language & region');
@@ -93,13 +102,13 @@ function dateFormatSelect(page: Page) {
 /** Wait for the form itself, not the loading skeleton: the five controls only render once the
  * server's current settings (or the defaults) have loaded. */
 async function waitForForm(page: Page): Promise<void> {
-  await expect(themeSelect(page)).toBeVisible();
+  await expect(themeGroup(page)).toBeVisible();
 }
 
-/** Assert every control carries exactly these values. `<select>` value is the option's code. */
+/** Assert every control carries exactly these values, by stored code (option value / radio value). */
 async function expectValues(page: Page, values: typeof DEFAULTS | typeof CHOICE): Promise<void> {
-  await expect(themeSelect(page)).toHaveValue(values.theme);
-  await expect(densitySelect(page)).toHaveValue(values.density);
+  await expect(themeOption(page, values.theme)).toBeChecked();
+  await expect(densityOption(page, values.density)).toBeChecked();
   await expect(localeSelect(page)).toHaveValue(values.locale);
   await expect(timezoneSelect(page)).toHaveValue(values.timezone);
   await expect(dateFormatSelect(page)).toHaveValue(values.dateFormat);
@@ -122,8 +131,8 @@ test.describe.serial('the display-preferences persistence journeys', () => {
     await member.page.goto(DISPLAY_URL);
     await waitForForm(member.page);
 
-    await themeSelect(member.page).selectOption(CHOICE.theme);
-    await densitySelect(member.page).selectOption(CHOICE.density);
+    await themeOption(member.page, CHOICE.theme).check();
+    await densityOption(member.page, CHOICE.density).check();
     await localeSelect(member.page).selectOption(CHOICE.locale);
     await timezoneSelect(member.page).selectOption(CHOICE.timezone);
     await dateFormatSelect(member.page).selectOption(CHOICE.dateFormat);

@@ -65,7 +65,9 @@ function isHomePinTargetKind(value: unknown): value is HomePinTargetKind {
 export class HomePinsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly pins: HomePinsRepository = new HomePinsRepository(),
+    @Optional()
+    @Inject(HomePinsRepository)
+    private readonly pins: HomePinsRepository = new HomePinsRepository(),
   ) {}
 
   /** List the acting membership's pins, newest first (200). */

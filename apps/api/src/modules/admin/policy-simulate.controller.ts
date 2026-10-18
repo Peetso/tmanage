@@ -31,7 +31,9 @@ import type { PolicySimulationView } from './policy-simulate.service.js';
 export class PolicySimulateController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly service: PolicySimulateService = new PolicySimulateService(),
+    @Optional()
+    @Inject(PolicySimulateService)
+    private readonly service: PolicySimulateService = new PolicySimulateService(),
   ) {}
 
   /**

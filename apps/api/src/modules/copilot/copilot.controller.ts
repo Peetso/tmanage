@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, Inject, Post, Optional } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
@@ -28,6 +28,8 @@ export class CopilotController {
 
   constructor(
     @Inject(TENANT_DATABASE) database: TenantDatabase,
+    @Optional()
+    @Inject(FeatureFlagsRepository)
     flags: FeatureFlagsRepository = new FeatureFlagsRepository(),
   ) {
     this.service = new CopilotService(database, flags);

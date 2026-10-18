@@ -39,7 +39,7 @@ export class SuggestionsController {
     // as the sibling search controllers do. In the app the `@Global` `TENANT_DATABASE` is always
     // present, so the service is always backed by a real tenant database.
     @Optional() @Inject(TENANT_DATABASE) database?: TenantDatabase,
-    suggestions?: SuggestionsService,
+    @Optional() @Inject(SuggestionsService) suggestions?: SuggestionsService,
   ) {
     this.suggestions = suggestions ?? new SuggestionsService(database as unknown as TenantDatabase);
   }

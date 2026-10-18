@@ -8,6 +8,7 @@ import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { MemberSelect } from '../MemberSelect';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useMembers, memberKeys } from '../../lib/use-members';
+import { useHydrated } from '../../lib/use-hydrated';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { getOffboardingImpact, offboardMember } from '../../lib/api/offboarding';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -50,6 +51,9 @@ export function OffboardingScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
+  // The picker ships disabled until React hydrates: a name typed into the server HTML would be
+  // wiped by hydration and never reach the directory search.
+  const hydrated = useHydrated();
   const [search, setSearch] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
@@ -115,6 +119,7 @@ export function OffboardingScreen({
           onSearchChange={setSearch}
           loading={directory.isPending}
           failed={directory.isError}
+          disabled={!hydrated}
           hint="Only active members can be offboarded."
         />
       </div>

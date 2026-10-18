@@ -37,6 +37,8 @@ export interface MemberSelectProps {
   /** True when the directory could not be fetched. */
   failed?: boolean;
   name?: string;
+  /** Disables the field — e.g. until React hydrates, so typing is not lost to hydration. */
+  disabled?: boolean;
 }
 
 /**
@@ -91,6 +93,7 @@ export function MemberSelect({
   loading = false,
   failed = false,
   name,
+  disabled,
 }: MemberSelectProps) {
   const options = memberOptions(members, value === '' ? null : value, loading);
 
@@ -117,6 +120,7 @@ export function MemberSelect({
       emptyLabel={loading ? 'Loading members' : 'No member of this organization matches'}
       {...(name === undefined ? {} : { name })}
       {...(required === undefined ? {} : { required })}
+      {...(disabled === undefined ? {} : { disabled })}
       {...((stateHint ?? hint) ? { hint: stateHint ?? hint } : {})}
     />
   );

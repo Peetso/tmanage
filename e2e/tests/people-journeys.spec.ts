@@ -62,8 +62,14 @@ function roster(page: Page) {
   return page.getByRole('list', { name: 'People in this organization' });
 }
 
+/**
+ * One person's row. The redesigned roster groups people by team — each group is itself a list
+ * item holding a nested list — so the row is the item that holds no list of its own.
+ */
 function personRow(page: Page, displayName: string) {
-  return roster(page).getByRole('listitem').filter({ hasText: displayName });
+  return roster(page)
+    .getByRole('listitem')
+    .filter({ hasText: displayName, hasNot: page.getByRole('list') });
 }
 
 test.describe('the People & capacity directory journeys', () => {
@@ -77,7 +83,9 @@ test.describe('the People & capacity directory journeys', () => {
     const ownerRow = personRow(member.page, world().northstar.owner.displayName);
     await expect(ownerRow).toBeVisible();
     await expect(ownerRow).toContainText('Owner');
-    await expect(ownerRow).toContainText('Active');
+    // The redesigned roster has no status column: it lists active members only (its empty state
+    // reads "No active member matches"), so being on it is the active status. PPL-01d proves the
+    // empty case.
 
     const managerRow = personRow(member.page, world().northstar.manager.displayName);
     await expect(managerRow).toBeVisible();

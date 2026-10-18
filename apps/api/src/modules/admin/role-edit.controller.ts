@@ -77,7 +77,9 @@ function orgWideResource(context: TenantContext) {
 export class RoleEditController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    @Optional() private readonly roles: RoleEditRepository = new RoleEditRepository(),
+    @Optional()
+    @Inject(RoleEditRepository)
+    private readonly roles: RoleEditRepository = new RoleEditRepository(),
   ) {}
 
   /**

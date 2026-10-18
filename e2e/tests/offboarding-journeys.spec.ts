@@ -59,13 +59,16 @@ test.describe('the member offboarding journeys', () => {
 
     // Pick the member by name — the directory offers names, the API is driven by the user id.
     const picker = page.getByRole('combobox', { name: 'Member to offboard' });
+    // The picker ships disabled until React hydrates (useHydrated); wait for that readiness signal.
+    await expect(picker).toBeEnabled();
     await picker.fill(member.displayName.slice(0, 4));
     await page.getByRole('option', { name: new RegExp(member.displayName) }).click();
 
     // The impact preview loads the access this member holds.
     const impact = page.getByRole('region', { name: new RegExp('Offboarding impact') });
     await expect(impact.getByText(/project memberships/)).toBeVisible();
-    await expect(impact.getByText(/work items/)).toBeVisible();
+    // The count pill, not the metric's caption ("open work items lose their owner").
+    await expect(impact.getByText(/^\d+ work items?$/)).toBeVisible();
 
     // Offboarding is behind an explicit acknowledgement that it cannot be undone.
     await page.getByRole('checkbox', { name: /cannot be undone/i }).check();
@@ -92,6 +95,8 @@ test.describe('the member offboarding journeys', () => {
     await page.goto(`/${SLUG}/people/offboarding`);
 
     const picker = page.getByRole('combobox', { name: 'Member to offboard' });
+    // The picker ships disabled until React hydrates (useHydrated); wait for that readiness signal.
+    await expect(picker).toBeEnabled();
     await picker.fill(owner.displayName.slice(0, 4));
     await page.getByRole('option', { name: new RegExp(owner.displayName) }).click();
 
