@@ -75,11 +75,12 @@ describe('AiAssistantScreen', () => {
     const { container } = mount(() => ({ status: 200, body: { tokens: [] } }));
 
     expect(screen.getByRole('heading', { name: 'AI assistant' })).toBeTruthy();
-    expect(screen.getAllByText('https://tmanage.example.test').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('https://tmanage.example.test/mcp').length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.getByText('Not connected')).toBeTruthy());
 
     const snippet = screen.getByTestId('tm-ai-snippet').textContent ?? '';
-    expect(snippet).toContain('"TMANAGE_API_URL": "https://tmanage.example.test"');
+    expect(snippet).toContain('"https://tmanage.example.test/mcp"');
+    expect(snippet).not.toContain('/path/to/');
     expect(snippet).toContain(TOKEN_PLACEHOLDER);
 
     await expectNoAxeViolations(container);
@@ -88,9 +89,16 @@ describe('AiAssistantScreen', () => {
   it('switches the instructions per assistant', async () => {
     mount(() => ({ status: 200, body: { tokens: [] } }));
     fireEvent.click(screen.getByRole('tab', { name: 'Claude Code' }));
-    expect(screen.getByTestId('tm-ai-snippet').textContent).toContain('claude mcp add tmanage');
+    expect(screen.getByTestId('tm-ai-snippet').textContent).toContain(
+      'claude mcp add --transport http tmanage https://tmanage.example.test/mcp',
+    );
     fireEvent.click(screen.getByRole('tab', { name: 'ChatGPT' }));
     expect(screen.queryByTestId('tm-ai-snippet')).toBeNull();
+    expect(
+      screen.getByText(
+        /^ChatGPT connects to your TManage address: https:\/\/tmanage\.example\.test\/mcp$/,
+      ),
+    ).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'ChatGPT' }).getAttribute('aria-selected')).toBe('true');
   });
 

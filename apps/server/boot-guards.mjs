@@ -33,6 +33,8 @@ export function isApiPath(url) {
     // (`POST /public/site/contact`, `GET /public/site/maintenance`).
     // First-owner setup (`GET`/`POST /public/setup`), registered only while SETUP_TOKEN is set.
     path === '/public/setup' ||
+    // The hosted MCP endpoint assistants connect to (`POST /mcp`, personal access token).
+    path === '/mcp' ||
     path === '/public/site' ||
     path.startsWith('/public/site/')
   );

@@ -26,7 +26,7 @@ export interface AiAssistantScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
-  /** The TManage address assistants connect to. Defaults to this deployment's API origin. */
+  /** This deployment's API origin. Defaults to the browser's; assistants connect to `<it>/mcp`. */
   serverUrl?: string;
   /** "Now", for the expiry check. Injected by tests. */
   now?: () => Date;
@@ -58,7 +58,10 @@ export function AiAssistantScreen({
   // Read after hydration: a same-origin deployment's address is the browser's own origin, which
   // the server render cannot know.
   const hydrated = useHydrated();
-  const address = serverUrl ?? (hydrated ? deploymentAddress() : '');
+  const origin = serverUrl ?? (hydrated ? deploymentAddress() : '');
+  // Assistants connect to the hosted MCP endpoint the API serves at `/mcp` (Streamable HTTP,
+  // signed in with the personal access token as a Bearer header).
+  const address = origin === '' ? '' : connectorAddress(origin);
 
   const tokens = useQuery({
     queryKey,
@@ -341,7 +344,11 @@ const ASSISTANTS: readonly { id: AssistantId; label: string }[] = [
 ];
 
 export const TOKEN_PLACEHOLDER = 'paste-your-key-here';
-const CONNECTOR_PATH = '/path/to/tmanage-mcp/dist/main.js';
+
+/** The hosted MCP endpoint of a TManage deployment: `<origin>/mcp`. */
+export function connectorAddress(origin: string): string {
+  return `${origin.replace(/\/+$/, '')}/mcp`;
+}
 
 function AssistantPanel({
   assistant,
@@ -384,17 +391,24 @@ function assistantPanel(
   address: string,
   token: string,
 ): { steps: readonly string[]; snippet: string | null } {
-  const env = { TMANAGE_API_URL: address, TMANAGE_TOKEN: token };
+  const header = `Authorization: Bearer ${token}`;
   switch (assistant) {
     case 'claude-desktop':
       return {
         steps: [
           'In Claude Desktop open Settings, then Developer, then Edit Config.',
-          'Paste the settings below, save, and restart Claude Desktop.',
+          'Paste the settings below, save, and restart Claude Desktop. They connect Claude to your TManage address with your key.',
           'The TManage tools appear under the tools icon in a new chat.',
         ],
         snippet: JSON.stringify(
-          { mcpServers: { tmanage: { command: 'node', args: [CONNECTOR_PATH], env } } },
+          {
+            mcpServers: {
+              tmanage: {
+                command: 'npx',
+                args: ['-y', 'mcp-remote', address, '--header', `Authorization:Bearer ${token}`],
+              },
+            },
+          },
           null,
           2,
         ),
@@ -403,29 +417,25 @@ function assistantPanel(
       return {
         steps: ['Run this once in a terminal. Claude Code then has the TManage tools.'],
         snippet: [
-          'claude mcp add tmanage \\',
-          `  --env TMANAGE_API_URL=${address} \\`,
-          `  --env TMANAGE_TOKEN=${token} \\`,
-          `  -- node ${CONNECTOR_PATH}`,
+          `claude mcp add --transport http tmanage ${address} \\`,
+          `  --header "${header}"`,
         ].join('\n'),
       };
     case 'chatgpt':
       return {
         steps: [
-          'ChatGPT connects to an online connector address that ends in /mcp. Ask your workspace owner for it.',
+          `ChatGPT connects to your TManage address: ${address}`,
           'In ChatGPT open Settings, then Connectors, turn on developer mode and add a connector with that address.',
-          'When ChatGPT asks for sign-in details, give it your key as a bearer token.',
+          'When ChatGPT asks how to sign in, give it your key as a bearer token.',
         ],
         snippet: null,
       };
     case 'other':
       return {
         steps: [
-          'Any assistant that supports MCP can connect. Run the TManage connector with these two settings:',
+          'Any assistant that supports MCP over Streamable HTTP can connect. Give it this address and this header:',
         ],
-        snippet: Object.entries(env)
-          .map(([key, value]) => `${key}=${value}`)
-          .join('\n'),
+        snippet: [`URL: ${address}`, header].join('\n'),
       };
   }
 }

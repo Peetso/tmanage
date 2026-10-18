@@ -120,7 +120,18 @@ function exactVersion(name, fromDir) {
 // The private packages that must travel in the bundle. config/domain/mail/storage/contracts/ui
 // have no @tmanage siblings; api and worker do, and those workspace specifiers are rewritten to
 // file: links below.
-const VENDOR_PKGS = ['config', 'domain', 'mail', 'storage', 'contracts', 'ui', 'worker', 'api'];
+// mcp-server (apps/mcp-server) has none either; the api depends on it for the hosted `/mcp` endpoint.
+const VENDOR_PKGS = [
+  'config',
+  'domain',
+  'mail',
+  'storage',
+  'contracts',
+  'ui',
+  'mcp-server',
+  'worker',
+  'api',
+];
 
 function run(cmd, args, env) {
   process.stdout.write(`\n$ ${cmd} ${args.join(' ')}\n`);
@@ -284,6 +295,7 @@ function assemble() {
       '@tmanage/contracts': 'file:./vendor/@tmanage/contracts',
       '@tmanage/domain': 'file:./vendor/@tmanage/domain',
       '@tmanage/mail': 'file:./vendor/@tmanage/mail',
+      '@tmanage/mcp-server': 'file:./vendor/@tmanage/mcp-server',
       '@tmanage/storage': 'file:./vendor/@tmanage/storage',
       '@tmanage/ui': 'file:./vendor/@tmanage/ui',
       '@tmanage/worker': 'file:./vendor/@tmanage/worker',
@@ -331,7 +343,8 @@ function assemble() {
 }
 
 function pkgDir(pkg) {
-  return pkg === 'api' ? 'apps/api' : pkg === 'worker' ? 'apps/worker' : `packages/${pkg}`;
+  if (pkg === 'api' || pkg === 'worker' || pkg === 'mcp-server') return `apps/${pkg}`;
+  return `packages/${pkg}`;
 }
 
 function zip() {

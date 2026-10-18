@@ -21,6 +21,7 @@
     { "path": "../../packages/config" },
     { "path": "../../packages/domain" },
     { "path": "../../packages/mail" },
+    { "path": "../mcp-server" },
     { "path": "../../packages/storage" }
   ]
 }

@@ -30,10 +30,20 @@ test('the API answers /v1 and the public site routes; the rest is the web app', 
     '/v1/auth/password',
     '/public/site/contact',
     '/public/site/maintenance?x=1',
+    '/mcp',
   ]) {
     assert.equal(isApiPath(path), true, path);
   }
-  for (const path of ['/', '/sign-in', '/v1x', '/public', '/public/sitemap.xml', '/healthz']) {
+  for (const path of [
+    '/',
+    '/sign-in',
+    '/v1x',
+    '/public',
+    '/public/sitemap.xml',
+    '/healthz',
+    '/mcpx',
+    '/mcp/x',
+  ]) {
     assert.equal(isApiPath(path), false, path);
   }
 });

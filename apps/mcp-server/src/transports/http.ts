@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { buildServerForToken } from '../server.js';
 import type { McpServerConfig } from '../config.js';
 
@@ -50,21 +51,39 @@ export function createHttpHandler(config: McpServerConfig) {
       return;
     }
 
-    const server = buildServerForToken(config, token);
-    // `sessionIdGenerator: undefined` is the SDK's documented stateless mode. The two casts
-    // below bridge this workspace's `exactOptionalPropertyTypes: true` and the SDK's option and
-    // Transport types, which are not authored with that flag — the values are exactly what the
-    // SDK expects at runtime.
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-    } as unknown as ConstructorParameters<typeof StreamableHTTPServerTransport>[0]);
-    res.on('close', () => {
-      void transport.close();
-      void server.close();
-    });
-    await server.connect(transport as unknown as Parameters<typeof server.connect>[0]);
-    await transport.handleRequest(req, res, body);
+    await serveMcpRequest(buildServerForToken(config, token), req, res, body);
   };
+}
+
+/**
+ * Answer one Streamable HTTP request with a fresh, stateless server. Shared by this package's own
+ * listener and by the TManage API's hosted `/mcp` endpoint, which builds the server against an
+ * in-process API client and has already authenticated the caller.
+ *
+ * `enableJsonResponse` answers a POST with one JSON body instead of an SSE stream — every tool
+ * here returns a single result, and a plain JSON response passes through proxies unchanged.
+ */
+export async function serveMcpRequest(
+  server: McpServer,
+  req: IncomingMessage,
+  res: ServerResponse,
+  body: unknown,
+  options: { readonly enableJsonResponse?: boolean } = {},
+): Promise<void> {
+  // `sessionIdGenerator: undefined` is the SDK's documented stateless mode. The two casts
+  // below bridge this workspace's `exactOptionalPropertyTypes: true` and the SDK's option and
+  // Transport types, which are not authored with that flag — the values are exactly what the
+  // SDK expects at runtime.
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: options.enableJsonResponse ?? false,
+  } as unknown as ConstructorParameters<typeof StreamableHTTPServerTransport>[0]);
+  res.on('close', () => {
+    void transport.close();
+    void server.close();
+  });
+  await server.connect(transport as unknown as Parameters<typeof server.connect>[0]);
+  await transport.handleRequest(req, res, body);
 }
 
 /** Start listening. Returns the Node HTTP server so a caller (or a test) can close it. */

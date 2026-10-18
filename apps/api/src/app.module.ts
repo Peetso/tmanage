@@ -103,6 +103,7 @@ import { MemberBulkRoleModule } from './modules/tenancy/member-bulk-role.control
 import { AdminSessionsModule } from './modules/identity/admin-sessions.controller.js';
 import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
 import { PersonalAccessTokensModule } from './modules/personal-access-tokens/personal-access-tokens.controller.js';
+import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
@@ -1000,6 +1001,10 @@ export class AppModule {
         // path is wired separately in `IdentityModule` + `SessionAuthGuard`. Self-contained and
         // file-disjoint.
         PersonalAccessTokensModule.register(),
+        // Hosted MCP endpoint (`POST /mcp`): the `@tmanage/mcp-server` tools over Streamable HTTP,
+        // signed in with a personal access token. Every tool call is an in-process request
+        // through this same guard chain, so it is tenant- and permission-scoped like REST.
+        McpEndpointModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

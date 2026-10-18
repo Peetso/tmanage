@@ -37,7 +37,14 @@ and make a new one.
 
 ## 2. Configure your assistant
 
-The server needs two environment variables:
+**Hosted (recommended): nothing to install.** The TManage API serves these same tools at
+`https://<your TManage host>/mcp` (Streamable HTTP, stateless). Connect with your token as an
+`Authorization: Bearer <token>` header, for example
+`claude mcp add --transport http tmanage https://<host>/mcp --header "Authorization: Bearer <token>"`.
+Every tool call runs through the API's own authentication, tenant and permission checks, and each
+token is rate limited. The AI assistant page in TManage shows the exact steps for each assistant.
+
+**Self-run (below):** the server needs two environment variables:
 
 - `TMANAGE_API_URL` — your TManage API base URL, e.g. `https://app.yourdomain.com/api`
 - `TMANAGE_TOKEN` — the token you just created

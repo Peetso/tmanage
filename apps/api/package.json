@@ -34,6 +34,7 @@
     "@tmanage/config": "workspace:*",
     "@tmanage/domain": "workspace:*",
     "@tmanage/mail": "workspace:*",
+    "@tmanage/mcp-server": "workspace:*",
     "@tmanage/storage": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "mysql2": "^3.15.1",

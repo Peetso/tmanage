@@ -16,5 +16,5 @@ export type {
 } from './api-client.js';
 export { registerTools } from './tools.js';
 export { buildServer, buildServerForToken, SERVER_NAME, SERVER_VERSION } from './server.js';
-export { createHttpHandler, runHttp } from './transports/http.js';
+export { createHttpHandler, runHttp, serveMcpRequest } from './transports/http.js';
 export { runStdio } from './transports/stdio.js';

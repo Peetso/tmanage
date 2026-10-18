@@ -13,7 +13,7 @@
   "scripts": {
     "audit:design": "node scripts/audit-design-source.mjs",
     "build": "pnpm build:packages && pnpm -r --filter=./apps/** build",
-    "build:packages": "pnpm -r --filter=./packages/** build",
+    "build:packages": "pnpm -r --filter=./packages/** build && pnpm --filter @tmanage/mcp-server build",
     "build:worker": "pnpm --filter @tmanage/worker build",
     "typecheck": "pnpm build:packages && pnpm build:worker && pnpm -r typecheck",
     "lint": "eslint .",
