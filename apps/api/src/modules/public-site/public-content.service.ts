@@ -194,84 +194,152 @@ export interface PublicLegalView {
   }[];
 }
 
-/** The two frozen legal documents, keyed by the allowlisted doc id. */
+/**
+ * Copy for one legal document. Each section is frozen so the payload stays deterministic.
+ * `section` is a small helper, not exported: the API↔web pairing stays the single `PublicLegalView`.
+ */
+function section(id: string, heading: string, body: string) {
+  return Object.freeze({ id, heading, body });
+}
+
+/** The two frozen legal documents, keyed by the allowlisted doc id. Last updated 18 October 2026. */
 const LEGAL: Readonly<Record<LegalDoc, PublicLegalView>> = Object.freeze({
   terms: Object.freeze({
     doc: 'terms',
     title: 'Terms of Service',
-    effectiveDate: '2026-01-01',
+    effectiveDate: '2026-10-18',
     intro:
-      'These terms govern access to and use of the TManage service. By creating an account or using the service, an organization and its members agree to them.',
+      'Last updated: 18 October 2026. These terms govern access to and use of TManage, a work-management service at tmanage.peetrix.com operated by Peter Designs (peetrix.com). By creating an account or using the service, an organization and its members agree to them.',
     sections: Object.freeze([
-      Object.freeze({
-        id: 'accounts',
-        heading: 'Accounts and organizations',
-        body: 'The service is used through an organization. The person who creates an organization is responsible for the members they invite and for the roles those members hold. Each member is responsible for keeping their own credentials secure and for the activity under their account.',
-      }),
-      Object.freeze({
-        id: 'acceptable-use',
-        heading: 'Acceptable use',
-        body: 'The service may not be used to break the law, to infringe the rights of others, or to attempt to access data belonging to another organization. Automated access must respect published limits and must not degrade the service for other customers.',
-      }),
-      Object.freeze({
-        id: 'customer-data',
-        heading: 'Your content',
-        body: 'Content an organization puts into the service remains that organization’s content. The organization grants TManage only the permissions needed to operate the service — to store, process, and display that content back to the organization’s own members and to the client audiences the organization chooses to share it with.',
-      }),
-      Object.freeze({
-        id: 'availability',
-        heading: 'Availability and changes',
-        body: 'The service is provided on an ongoing basis and may change as features are added or retired. Material changes to these terms will be communicated before they take effect. Planned maintenance and current system status are published on the status page.',
-      }),
-      Object.freeze({
-        id: 'termination',
-        heading: 'Termination',
-        body: 'An organization may stop using the service at any time. On closure, the organization can export its records, after which its data is removed. The service may suspend access that puts other customers or the service at risk.',
-      }),
-      Object.freeze({
-        id: 'liability',
-        heading: 'Warranty and liability',
-        body: 'The service is provided as is, without warranties beyond those that cannot be excluded by law. Nothing here limits liability that cannot be limited by law. Questions about these terms are welcome at the contact address on the site.',
-      }),
+      section(
+        'operator',
+        'Who provides the service',
+        'TManage is provided by Peter Designs (peetrix.com), referred to here as “TManage”, “we” or “us”. Questions about these terms can be sent to tm-support@peetrix.com.',
+      ),
+      section(
+        'accounts',
+        'Accounts and organizations',
+        'The service is used through an organization. The person who creates an organization is responsible for the members they invite and for the roles those members hold. Each member is responsible for keeping their own credentials secure and for the activity under their account. You must give accurate account information and must be old enough to form a binding contract where you live, and at least 16.',
+      ),
+      section(
+        'acceptable-use',
+        'Acceptable use',
+        'The service may not be used to break the law, to infringe the rights of others, to send spam or malware, or to attempt to access data belonging to another organization. Automated access must respect published limits and must not degrade the service for other customers.',
+      ),
+      section(
+        'customer-data',
+        'Your content',
+        'Content an organization puts into the service remains that organization’s content. The organization grants TManage only the permissions needed to operate the service — to store, process, and display that content back to the organization’s own members and to the client audiences the organization chooses to share it with. How we handle personal data is described in the Privacy Policy at https://tmanage.peetrix.com/legal/privacy, which forms part of these terms.',
+      ),
+      section(
+        'google-drive',
+        'Google Drive and other integrations',
+        'An organization may connect third-party services such as Google Drive. A connection is made only when a user chooses it and approves the access on the provider’s own consent screen; the provider’s own terms also apply to that account. For Google Drive, TManage requests only the drive.file scope (the files TManage creates or the user picks) and the basic profile email of the connecting account, and uses that access only to store and retrieve the workspace’s attachments in the customer’s own Drive. Access can be revoked at any time with Disconnect in TManage or on the Google Account permissions page (https://myaccount.google.com/permissions). TManage’s use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy, including the Limited Use requirements (https://developers.google.com/terms/api-services-user-data-policy).',
+      ),
+      section(
+        'availability',
+        'Availability and changes',
+        'The service is provided on an ongoing basis and may change as features are added or retired. Material changes to these terms will be communicated to organization owners before they take effect. Planned maintenance and current system status are published on the status page.',
+      ),
+      section(
+        'termination',
+        'Termination',
+        'An organization may stop using the service at any time. On closure, the organization can export its records, after which its data is removed as described in the Privacy Policy. The service may suspend access that breaks these terms or puts other customers or the service at risk.',
+      ),
+      section(
+        'liability',
+        'Warranty and liability',
+        'The service is provided as is, without warranties beyond those that cannot be excluded by law. To the extent the law allows, TManage is not liable for indirect or consequential losses. Nothing here limits liability that cannot be limited by law.',
+      ),
+      section(
+        'contact',
+        'Contact',
+        'Peter Designs (peetrix.com), operator of TManage. Email: tm-support@peetrix.com. Website: https://tmanage.peetrix.com.',
+      ),
     ]),
   }),
   privacy: Object.freeze({
     doc: 'privacy',
     title: 'Privacy Policy',
-    effectiveDate: '2026-01-01',
+    effectiveDate: '2026-10-18',
     intro:
-      'This policy explains what personal data TManage handles, why, and the choices an organization and its members have. It describes the design of the service; it is not a live report of any single account.',
+      'Last updated: 18 October 2026. This policy explains what personal data TManage collects, how we use and share it, how long we keep it, how we protect it, and the rights you have. A dedicated section explains how TManage handles data it receives from Google when a workspace connects Google Drive.',
     sections: Object.freeze([
-      Object.freeze({
-        id: 'what-we-collect',
-        heading: 'What we collect',
-        body: 'Account details needed to sign in and identify a member (name, email, and authentication factors), the content an organization creates in the service, and technical records such as audit entries and security telemetry. User-supplied payloads are redacted from operator-facing telemetry.',
-      }),
-      Object.freeze({
-        id: 'how-we-use-it',
-        heading: 'How we use it',
-        body: 'Personal data is used to operate the service for the organization: to authenticate members, enforce per-organization access, deliver the work and portal features, and keep the audit and security records the service depends on. It is not sold, and it is not used to advertise.',
-      }),
-      Object.freeze({
-        id: 'isolation',
-        heading: 'Separation between organizations',
-        body: 'Each organization’s data is isolated. Cross-organization reads are refused before any handler runs, so one customer’s members cannot see another customer’s data through the service.',
-      }),
-      Object.freeze({
-        id: 'subprocessors',
-        heading: 'Service providers',
-        body: 'A small, named set of providers handle data on TManage’s behalf — hosting, file storage, and transactional email — each only for the stated purpose. The current list is published on the security and trust page.',
-      }),
-      Object.freeze({
-        id: 'retention',
-        heading: 'Retention and deletion',
-        body: 'Data is retained for the life of the account and removed on request when an organization is closed. An organization can export its own records and audit trail before closure.',
-      }),
-      Object.freeze({
-        id: 'your-rights',
-        heading: 'Your choices',
-        body: 'Members can access and correct their own account details. Requests about personal data, including access and deletion, can be raised through the organization’s administrators or the contact address on the site.',
-      }),
+      section(
+        'who-we-are',
+        'Who we are',
+        'TManage is a work-management service at tmanage.peetrix.com, operated by Peter Designs (peetrix.com) — “TManage”, “we” or “us”. We are the controller of account, website and service-operation data. For the content an organization puts into its workspace, the organization is the controller and we process that content on its behalf. Contact: tm-support@peetrix.com.',
+      ),
+      section(
+        'what-we-collect',
+        'What data we collect',
+        'Account data: your name, email address, a hash of your password, multi-factor authentication settings, your role and the organizations you belong to. Workspace content: the projects, tasks, messages, comments, documents, decisions, time entries and other records members create. Files: attachments members upload or link, with their names, sizes and types. Billing details an organization enters for invoicing, such as a billing contact and tax details. Usage and log data: IP address, browser and device type, pages and features used, sign-in events, audit entries and security telemetry; user-supplied content is redacted from operator logs. Cookies, described below. Messages you send us through the contact form or by email.',
+      ),
+      section(
+        'cookies',
+        'Cookies',
+        'TManage uses only cookies that the service needs to work: a session cookie that keeps you signed in, a refresh cookie scoped to the sign-in path, and a security cookie that protects forms against cross-site request forgery. We do not use advertising cookies or third-party tracking cookies. If you block these cookies you will not be able to sign in.',
+      ),
+      section(
+        'how-we-use-it',
+        'How we use data',
+        'We use personal data to create and secure accounts and sign you in; to provide the workspace features your organization uses, including sharing with the client portals it chooses; to send service email such as invitations, password resets, notifications and security alerts; to keep audit records and to detect, prevent and investigate abuse and security incidents; to answer support requests; and to keep the service reliable, using aggregated or de-identified information where possible. We do not sell personal data, do not use it for advertising, and do not use workspace content or Google user data to train artificial-intelligence models.',
+      ),
+      section(
+        'legal-bases',
+        'Legal bases',
+        'Where data-protection laws such as the GDPR apply, we rely on: performance of a contract, to provide the service an organization or member signed up for; legitimate interests, to secure the service, prevent abuse, keep audit records and improve reliability, balanced against your rights; legal obligation, where we must keep records or answer lawful requests; and consent, where we ask for it — for example when you connect a Google account — which you can withdraw at any time.',
+      ),
+      section(
+        'google-user-data',
+        'Google user data',
+        'When a workspace member connects Google Drive, TManage requests only the drive.file scope, which lets TManage see and manage only the files that TManage itself creates or that you explicitly pick — never the rest of your Drive — plus the basic profile email address of the connecting Google account, so the connection can be identified and shown. TManage uses this access only to store and retrieve the workspace’s attachments in the customer’s own Google Drive, at the user’s request. TManage stores an encrypted OAuth refresh token for the connection and the Drive file ids of the attachments it manages; the file contents stay in your Google Drive. Google user data is shared with no one: it is not sold, not used for advertising, not used to train AI models, and not transferred to third parties, except where the law requires it. You can revoke access at any time with Disconnect in TManage, which erases the stored token, and by removing TManage on your Google Account permissions page (https://myaccount.google.com/permissions). When you disconnect, or when the workspace is closed, TManage erases the stored token and the stored file ids; the files themselves remain in your Drive under your control. TManage’s use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy, including the Limited Use requirements. The policy is at https://developers.google.com/terms/api-services-user-data-policy.',
+      ),
+      section(
+        'subprocessors',
+        'Sharing and sub-processors',
+        'We share personal data only with providers that process it on our behalf, under contract and only for the stated purpose: Hostinger, for application, database and file hosting; the email provider used for transactional email, when configured; and Google, only when a workspace connects Google Drive. Inside the service, content is visible to the members and client contacts your organization gives access to. We may disclose data where the law requires it, to protect the safety of users or the service, or as part of a merger or acquisition, in which case this policy continues to apply. We never sell or rent personal data. The current sub-processor list is also published on the security page.',
+      ),
+      section(
+        'isolation',
+        'Separation between organizations',
+        'Each organization’s data is isolated. Cross-organization reads are refused before any handler runs, so one customer’s members cannot see another customer’s data through the service.',
+      ),
+      section(
+        'retention',
+        'Retention and deletion',
+        'Account and workspace data are kept while the account or organization is active. When an organization is closed, its owners can first export their records; the workspace data is then deleted. Security and audit records are kept only as long as needed to protect the service, investigate incidents or meet legal obligations. A member can ask for their account to be deleted; content they created in an organization’s workspace stays with that organization, which controls it. Google data is deleted as described in the Google user data section.',
+      ),
+      section(
+        'security',
+        'Security',
+        'We protect data with encryption in transit (HTTPS), hashed passwords, optional multi-factor authentication, encryption of stored secrets such as OAuth tokens, strict separation between organizations, role-based access, rate limiting and audit logging. No system is perfectly secure; if a breach affects your personal data we will notify affected organizations and authorities as the law requires.',
+      ),
+      section(
+        'your-rights',
+        'Your rights',
+        'Depending on where you live, you may have the right to access, correct, export or delete your personal data, to restrict or object to its processing, to withdraw consent, and to complain to a data-protection authority. Members can view and correct their own profile in TManage, and organization owners can export workspace data. To make a request — including a data export or deletion request — email tm-support@peetrix.com using the address on your account; we answer within 30 days. Where the data sits in an organization’s workspace, we may pass the request to that organization, which controls the content.',
+      ),
+      section(
+        'children',
+        'Children',
+        'TManage is a business tool and is not directed to children. It is not meant for anyone under 16, and we do not knowingly collect their personal data. If you believe a child has given us personal data, contact us and we will delete it.',
+      ),
+      section(
+        'international',
+        'International transfers',
+        'Data is hosted with Hostinger, and our providers may process data in countries other than yours. Where personal data is transferred across borders, we rely on appropriate safeguards, such as standard contractual clauses, where the law requires them.',
+      ),
+      section(
+        'changes',
+        'Changes to this policy',
+        'We may update this policy as the service changes. The date at the top shows the current version. For material changes we will tell organization owners by email or in the app before they take effect.',
+      ),
+      section(
+        'contact',
+        'Contact',
+        'Peter Designs (peetrix.com), operator of TManage. Email: tm-support@peetrix.com. Website: https://tmanage.peetrix.com.',
+      ),
     ]),
   }),
 }) as Readonly<Record<LegalDoc, PublicLegalView>>;

@@ -52,6 +52,15 @@ const config: NextConfig = {
   // every design-review screenshot. Build and runtime errors still open the dev overlay.
   devIndicators: false,
 
+  // The short legal addresses an OAuth consent screen or a reader types (`/privacy`, `/terms`)
+  // land on the real pages. Permanent (308), so crawlers and Google's brand review follow them.
+  async redirects() {
+    return [
+      { source: '/privacy', destination: '/legal/privacy', permanent: true },
+      { source: '/terms', destination: '/legal/terms', permanent: true },
+    ];
+  },
+
   async rewrites() {
     return [...publicConfig.rewrites];
   },

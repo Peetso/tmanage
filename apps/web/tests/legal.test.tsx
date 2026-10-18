@@ -29,6 +29,11 @@ const VIEW: PublicLegalView = {
       heading: 'Acceptable use',
       body: 'The service may not be used to break the law.',
     },
+    {
+      id: 'contact',
+      heading: 'Contact',
+      body: 'Email tm-support@peetrix.com or read https://developers.google.com/terms/api-services-user-data-policy.',
+    },
   ],
 };
 
@@ -69,5 +74,29 @@ describe('MarketingLegalScreen', () => {
     expect(link.getAttribute('href')).toBe('#acceptable-use');
 
     await expectNoAxeViolations(container);
+  });
+
+  it('turns the web and email addresses in the copy into links, leaving trailing punctuation', async () => {
+    render(withQuery(<MarketingLegalScreen doc="terms" client={clientReturning(VIEW)} />));
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toBeDefined());
+    expect(screen.getByRole('link', { name: 'tm-support@peetrix.com' }).getAttribute('href')).toBe(
+      'mailto:tm-support@peetrix.com',
+    );
+    const policy = 'https://developers.google.com/terms/api-services-user-data-policy';
+    expect(screen.getByRole('link', { name: policy }).getAttribute('href')).toBe(policy);
+  });
+});
+
+describe('legal short addresses', () => {
+  it('permanently redirects /privacy and /terms to the legal pages', async () => {
+    const { default: config } = await import('../next.config');
+    const redirects = await config.redirects?.();
+    expect(redirects).toEqual(
+      expect.arrayContaining([
+        { source: '/privacy', destination: '/legal/privacy', permanent: true },
+        { source: '/terms', destination: '/legal/terms', permanent: true },
+      ]),
+    );
   });
 });

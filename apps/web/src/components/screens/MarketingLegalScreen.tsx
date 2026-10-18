@@ -94,10 +94,35 @@ function Content({ legal }: { legal: PublicLegalView }) {
             <h2 id={`tm-legal-${section.id}`} className="tm-pub-card__title">
               {section.heading}
             </h2>
-            <p className="tm-pub-prose">{section.body}</p>
+            <p className="tm-pub-prose">
+              <LinkedText text={section.body} />
+            </p>
           </section>
         ))}
       </div>
     </div>
+  );
+}
+
+/** A web address or an email address inside legal copy. Trailing punctuation is left as text. */
+const LINK_PATTERN = /(https:\/\/[^\s()]+[^\s().,;:]|[\w.+-]+@[\w-]+(?:\.[\w-]+)+)/g;
+
+/**
+ * Renders plain legal copy with its `https://` addresses and email addresses as real links, so a
+ * reader (or a reviewer such as Google's OAuth brand check) can follow the policies it cites.
+ */
+function LinkedText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(LINK_PATTERN).map((part, index) =>
+        index % 2 === 1 ? (
+          <a key={index} href={part.startsWith('https://') ? part : `mailto:${part}`}>
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
   );
 }
