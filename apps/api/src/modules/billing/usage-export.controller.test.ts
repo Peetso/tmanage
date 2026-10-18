@@ -140,7 +140,7 @@ describe('UsageExportController.export', () => {
   it('refuses a role without org.manage with a 403', async () => {
     const controller = controllerWith([]);
     await expect(
-      controller.export(context, principal('org_admin'), reply(), WINDOW.from, WINDOW.to),
+      controller.export(context, principal('workspace_admin'), reply(), WINDOW.from, WINDOW.to),
     ).rejects.toMatchObject({ status: 403 });
   });
 });

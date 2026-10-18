@@ -15,7 +15,7 @@ import type { CustomRoleRow } from '../../common/database/schema.js';
  * these cases prove the rules that are the whole of this slice's safety — the addressed role is resolved
  * tenant-scoped BEFORE authorize (a cross-tenant/unknown role id is a 404 with no write, the Known trap);
  * the privilege-escalation guard refuses a role whose capability subset the caller cannot exercise
- * org-wide (a reviewer-gated capability like `approval.decide` is a 403 with no write, so a bulk assign
+ * org-wide (a reviewer-gated capability like `approval.decide` is a 403 with no write for a non-owner, so a bulk assign
  * can never hand out a role beyond the caller); a foreign/unknown membership id is reported not-found and
  * never written; the batch is bounded (over the cap is a 400); and the route sits behind `org.manage`.
  */
@@ -24,7 +24,7 @@ const ORG = '00000000-0000-4000-8000-0000000000a1';
 const OWNER_USER = '00000000-0000-4000-8000-0000000000c1';
 const MEMBERSHIP = '00000000-0000-4000-8000-0000000000e1';
 
-/** An owner — the only internal role whose ceiling holds `org.manage`. */
+/** An owner — its ceiling holds every capability. */
 function owner(): Principal {
   return {
     userId: OWNER_USER,
@@ -39,9 +39,14 @@ function owner(): Principal {
   };
 }
 
-/** An org_admin — holds every capability except `org.manage`, so the real authorize denies. */
+/** An org_admin — holds `org.manage` (ADM-03) but is not an owner. */
 function orgAdmin(): Principal {
   return { ...owner(), role: 'org_admin' };
+}
+
+/** A workspace_admin — does not hold `org.manage`, so the real authorize denies. */
+function workspaceAdmin(): Principal {
+  return { ...owner(), role: 'workspace_admin', hasOrgWideScope: false };
 }
 
 const context = {
@@ -78,7 +83,16 @@ class FakeBulkRoleRepository {
     return Promise.resolve(this.rows.find((row) => row.id === id));
   }
 
-  assignRole(_r: unknown, _c: unknown, membershipId: string, roleId: string): Promise<boolean> {
+  keepOwners: boolean[] = [];
+
+  assignRole(
+    _r: unknown,
+    _c: unknown,
+    membershipId: string,
+    roleId: string,
+    options: { keepOwners: boolean },
+  ): Promise<boolean> {
+    this.keepOwners.push(options.keepOwners);
     if (!this.memberIds.has(membershipId)) return Promise.resolve(false);
     this.applied.push({ membershipId, roleId });
     return Promise.resolve(true);
@@ -126,7 +140,7 @@ describe('MemberBulkRoleController (ADM bulk role assignment, x222)', () => {
   });
 
   it('403s when the role carries a capability the caller cannot exercise (escalation), no write', async () => {
-    // `approval.decide` is in the owner's ceiling but reviewer-gated: never exercisable org-wide.
+    // `approval.decide` is reviewer-gated: an org admin can never exercise it org-wide.
     const repo = new FakeBulkRoleRepository(
       [role('r1', 'Approver', ['work.read', 'approval.decide'])],
       new Set(['m1']),
@@ -134,7 +148,7 @@ describe('MemberBulkRoleController (ADM bulk role assignment, x222)', () => {
     const controller = controllerWith(repo);
 
     await expectStatus(
-      controller.assign(context, owner(), 'org', { roleId: 'r1', membershipIds: ['m1'] }),
+      controller.assign(context, orgAdmin(), 'org', { roleId: 'r1', membershipIds: ['m1'] }),
       403,
     );
     expect(repo.applied).toHaveLength(0);
@@ -199,10 +213,22 @@ describe('MemberBulkRoleController (ADM bulk role assignment, x222)', () => {
     const controller = controllerWith(repo);
 
     await expectStatus(
-      controller.assign(context, orgAdmin(), 'org', { roleId: 'r1', membershipIds: ['m1'] }),
+      controller.assign(context, workspaceAdmin(), 'org', { roleId: 'r1', membershipIds: ['m1'] }),
       403,
     );
     expect(repo.applied).toHaveLength(0);
+  });
+
+  it('never lets a non-owner change an owner seat; an owner may (CQ-06)', async () => {
+    const repo = new FakeBulkRoleRepository(
+      [role('r1', 'Coordinator', ['work.read'])],
+      new Set(['m1']),
+    );
+    const controller = controllerWith(repo);
+
+    await controller.assign(context, orgAdmin(), 'org', { roleId: 'r1', membershipIds: ['m1'] });
+    await controller.assign(context, owner(), 'org', { roleId: 'r1', membershipIds: ['m1'] });
+    expect(repo.keepOwners).toEqual([true, false]);
   });
 
   it('guards the route with org.manage, so CapabilityGuard refuses a caller without it', () => {

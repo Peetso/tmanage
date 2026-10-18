@@ -1,12 +1,13 @@
 import { Body, Controller, Get, Inject, Module, Optional, Post } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { authorize, CAPABILITIES } from '@tmanage/domain';
+import { authorize, CAPABILITIES, mayGrantCapability } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { CustomRoleRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { CustomRolesRepository } from './roles.repository.js';
 
 /**
@@ -70,6 +71,7 @@ export class CustomRolesController {
     @Optional()
     @Inject(CustomRolesRepository)
     private readonly roles: CustomRolesRepository = new CustomRolesRepository(),
+    @Optional() @Inject(AUDIT_SERVICE) private readonly audit?: AuditService,
   ) {}
 
   /** List the organization's custom roles (200). */
@@ -139,13 +141,10 @@ export class CustomRolesController {
 
       // 5. Privilege-escalation guard: every requested capability must be one the CALLER can actually
       //    exercise org-wide right now (the real evaluator), so a role can never widen access past its
-      //    author. A capability the caller cannot exercise is a 403 with no write.
+      //    author. A capability the caller cannot exercise is a 403 with no write. The owner, whose
+      //    ceiling is every capability, may grant any of them (ADM-08, `mayGrantCapability`).
       for (const cap of capabilities as Capability[]) {
-        const verdict = authorize({
-          principal,
-          capability: cap,
-          resource: orgWideResource(context),
-        });
+        const verdict = mayGrantCapability(principal, cap, context.organizationId);
         if (!verdict.allowed) {
           throw new ApiError(
             403,
@@ -164,11 +163,18 @@ export class CustomRolesController {
         throw new ApiError(409, 'conflict', 'A role with that name already exists.');
       }
 
-      // 7. Insert the validated role.
-      await this.roles.insert(tx, context, {
+      // 7. Insert the validated role, and record it (ADM-11): a new set of capabilities is a
+      //    permission change. The name is the admin's own label, never personal data.
+      const roleId = await this.roles.insert(tx, context, {
         name,
         capabilities: capabilities as string[],
         createdBy: principal.userId,
+      });
+      await this.audit?.record(tx, context, {
+        action: 'custom_role.created',
+        objectId: roleId,
+        result: 'allowed',
+        metadata: { capability_count: capabilities.length },
       });
     });
 

@@ -1,11 +1,12 @@
 import { Body, Controller, Inject, Module, Optional, Param, Post } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { authorize, CAPABILITIES } from '@tmanage/domain';
+import { authorize, CAPABILITIES, mayGrantCapability } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 
 /**
@@ -83,6 +84,7 @@ export class MemberBulkRoleController {
     @Optional()
     @Inject(MemberBulkRoleRepository)
     private readonly repository: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
+    @Optional() @Inject(AUDIT_SERVICE) private readonly audit?: AuditService,
   ) {}
 
   /**
@@ -118,11 +120,24 @@ export class MemberBulkRoleController {
       assertCallerHolds(principal, context, capabilities);
 
       // 4. Assign per membership id, each write tenant-scoped; a foreign/unknown id writes no row and is
-      //    reported not-found. Per-id, not all-or-nothing.
+      //    reported not-found. Per-id, not all-or-nothing. Only an owner may change an owner's seat:
+      //    since the organization admin also holds `org.manage` (ADM-03), an admin could otherwise
+      //    demote every owner and keep the organization. Each landed change is audited (ADM-11).
+      const keepOwners = !(principal.kind === 'internal' && principal.role === 'owner');
       const outcomes: MemberBulkRoleView['assignments'][number][] = [];
       for (const membershipId of membershipIds) {
-        const applied = await this.repository.assignRole(tx, context, membershipId, roleId);
+        const applied = await this.repository.assignRole(tx, context, membershipId, roleId, {
+          keepOwners,
+        });
         outcomes.push({ membershipId, outcome: applied ? 'assigned' : 'not_found' });
+        if (applied) {
+          await this.audit?.record(tx, context, {
+            action: 'membership.role_changed',
+            objectId: membershipId,
+            result: 'allowed',
+            metadata: { custom_role_id: roleId },
+          });
+        }
       }
       return outcomes;
     });
@@ -205,7 +220,7 @@ function assertCallerHolds(
   capabilities: readonly Capability[],
 ): void {
   for (const cap of capabilities) {
-    const verdict = authorize({ principal, capability: cap, resource: orgWideResource(context) });
+    const verdict = mayGrantCapability(principal, cap, context.organizationId);
     if (!verdict.allowed) {
       throw new ApiError(
         403,

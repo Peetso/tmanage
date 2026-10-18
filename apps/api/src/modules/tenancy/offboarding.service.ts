@@ -195,6 +195,15 @@ export class OffboardingService {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'offboard_self');
     }
 
+    // Guard 1b — only an owner may offboard an owner (CQ-06). The organization admin holds
+    // `member.offboard` and `org.manage`; without this an admin could remove every owner.
+    if (
+      membership.role === 'owner' &&
+      !(principal.kind === 'internal' && principal.role === 'owner')
+    ) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'offboard_owner');
+    }
+
     // Guard 2 — re-offboarding a terminal member. `offboarded` has no outbound transition, so this
     // is refused before the write rather than left to the repository's transition error: no second
     // row, no second audit event, and a caller retrying a completed offboard gets a clean conflict

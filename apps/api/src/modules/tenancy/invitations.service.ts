@@ -263,6 +263,7 @@ export class InvitationsService {
 
     const email = input.email.trim().toLowerCase();
     this.requireRoleMatchesDestination(input.role, clientOrganizationId);
+    requireOwnerToGrantOwner(principal, input.role, 'invitation.issue');
 
     const { token, tokenHash } = issueInvitationToken();
     const expiresAt = this.expiryFrom(now);
@@ -334,6 +335,7 @@ export class InvitationsService {
         const previous = await this.invitations.requireById(tx, context, invitationId);
         const role = input.role ?? previous.role;
         this.requireRoleMatchesDestination(role, previous.clientOrganizationId);
+        requireOwnerToGrantOwner(principal, role, 'invitation.reissue');
 
         const revoked = await this.invitations.revoke(tx, context, invitationId);
         await this.audit?.record(tx, context, {
@@ -973,4 +975,22 @@ function alreadyMemberOr(error: unknown): unknown {
     );
   }
   return error;
+}
+
+/**
+ * Only an owner may make someone an owner (CQ-06). The organization admin holds `org.manage` too
+ * (ADM-03), which is what lets them invite; without this an admin could invite a second owner and
+ * so hand out the one tier above their own. `12-PERMISSION-MATRIX` §5 lists role elevation and
+ * ownership transfer among the highest-risk changes. Refused before any write.
+ */
+export function requireOwnerToGrantOwner(principal: Principal, role: string, action: string): void {
+  if (role !== 'owner') return;
+  if (principal.kind === 'internal' && principal.role === 'owner') return;
+  throw new ApiError(
+    403,
+    'forbidden',
+    'Only an owner can make someone an owner.',
+    [{ field: 'role', message: 'Choose a role other than Owner.' }],
+    `${action}:owner_only`,
+  );
 }

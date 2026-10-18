@@ -287,3 +287,37 @@ export function authorize(request: AuthorizationRequest): AuthorizationDecision 
 export function isAuthorized(request: AuthorizationRequest): boolean {
   return authorize(request).allowed;
 }
+
+/**
+ * May this principal put `capability` into a custom role, or hand a role carrying it to someone?
+ * (ADM-08)
+ *
+ * The rule is "you can only grant what you hold yourself", decided by the real evaluator against
+ * an org-wide internal resource, so a role can never widen access past the person defining it.
+ *
+ * The owner is the one principal for whom that question has a fixed answer: the owner's ceiling is
+ * every capability, so nothing an owner grants is an escalation. Asking the evaluator anyway
+ * refused the owner every reviewer-gated capability (`approval.decide` needs an assignment no
+ * org-wide resource carries), which is why "there is nothing an owner cannot do" read as false.
+ * An owner is still checked for an active membership, the tenant, the ceiling and organization
+ * policy; only the per-object reviewer relation is taken as held, because a role does not carry
+ * that relation — whoever is given the role still needs it on each approval.
+ */
+export function mayGrantCapability(
+  principal: Principal,
+  capability: Capability,
+  organizationId: string,
+): AuthorizationDecision {
+  const isOwner = principal.kind === 'internal' && principal.role === 'owner';
+  return authorize({
+    principal,
+    capability,
+    resource: {
+      organizationId,
+      projectId: null,
+      audience: 'internal',
+      lifecycle: 'active',
+      ...(isOwner ? { isAssignedReviewer: true } : {}),
+    },
+  });
+}

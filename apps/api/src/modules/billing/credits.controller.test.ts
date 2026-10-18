@@ -132,7 +132,7 @@ describe('BillingCreditsController', () => {
 
   it('refuses a role without org.manage with 403 on list and post', async () => {
     const { controller, store } = controllerWith();
-    const actor = principal('org_admin');
+    const actor = principal('workspace_admin');
     await expect(controller.list(context, actor)).rejects.toMatchObject({ status: 403 });
     await expect(
       controller.post(context, actor, { amount: 100, reason: 'nope' }),

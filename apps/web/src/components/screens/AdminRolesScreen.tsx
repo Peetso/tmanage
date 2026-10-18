@@ -3,13 +3,13 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CAPABILITIES } from '@tmanage/domain';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createCustomRole, readCustomRoles } from '../../lib/api/admin-roles';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 
 export interface AdminRolesScreenProps {
   organizationSlug: string;
@@ -142,7 +142,7 @@ export function AdminRolesScreen({
                       <td>
                         <strong className="tm-cc-cell-title">{role.name}</strong>
                         <span className="tm-cc-cell-sub">
-                          {role.capabilities.slice(0, 3).join(' · ')}
+                          {role.capabilities.slice(0, 3).map(capabilityLabel).join(' · ')}
                           {role.capabilities.length > 3 ? ' …' : ''}
                         </span>
                       </td>
@@ -194,10 +194,10 @@ export function AdminRolesScreen({
                 <span>{selected.size} chosen</span>
               </div>
               <ul className="tm-cc-matrix__list">
-                {CAPABILITIES.map((capability) => (
+                {CAPABILITIES_BY_AREA.map((capability) => (
                   <li key={capability}>
                     <Checkbox
-                      label={capability}
+                      label={capabilityLabel(capability)}
                       name={`capability-${capability}`}
                       checked={selected.has(capability)}
                       onChange={() => toggle(capability)}

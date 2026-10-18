@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
+import type { AuditService } from '../audit/audit.service.js';
 import { CustomRolesController } from './roles.controller.js';
 import type { CustomRolesRepository } from './roles.repository.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -16,15 +17,15 @@ import type { CustomRoleRow } from '../../common/database/schema.js';
  * tenant-scoped BEFORE the org-wide `org.manage` authorize (a cross-tenant context is a 404 with no
  * write, the Known trap); the fixed `CAPABILITIES` allowlist is the boundary (a capability off it is a
  * 400 with no write); the privilege-escalation guard refuses a capability the caller cannot exercise
- * org-wide (a reviewer-gated capability like `approval.decide`, which even an owner holds only per
- * object, is a 403 with no write); a duplicate name is a 409; and both routes sit behind `org.manage`.
+ * org-wide (a reviewer-gated capability like `approval.decide` is a 403 with no write for anyone but
+ * the owner, whose ceiling is every capability); a duplicate name is a 409; and both routes sit behind `org.manage`.
  */
 
 const ORG = '00000000-0000-4000-8000-0000000000a1';
 const OWNER_USER = '00000000-0000-4000-8000-0000000000c1';
 const MEMBERSHIP = '00000000-0000-4000-8000-0000000000e1';
 
-/** An owner — the only internal role whose ceiling holds `org.manage`. */
+/** An owner — its ceiling holds every capability, so it may grant any of them. */
 function owner(): Principal {
   return {
     userId: OWNER_USER,
@@ -39,9 +40,14 @@ function owner(): Principal {
   };
 }
 
-/** An org_admin — holds every capability except `org.manage`, so the create/list authorize denies. */
+/** An org_admin — holds `org.manage` (ADM-03) but, unlike the owner, grants only what it can exercise. */
 function orgAdmin(): Principal {
   return { ...owner(), role: 'org_admin' };
+}
+
+/** A workspace_admin — does not hold `org.manage`, so the create/list authorize denies. */
+function workspaceAdmin(): Principal {
+  return { ...owner(), role: 'workspace_admin', hasOrgWideScope: false };
 }
 
 const context = {
@@ -76,26 +82,34 @@ class FakeCustomRolesRepository {
     _r: unknown,
     _c: unknown,
     input: { name: string; capabilities: readonly string[]; createdBy: string },
-  ): Promise<void> {
+  ): Promise<string> {
     this.insertCalls += 1;
+    const id = `role-${this.rows.length + 1}`;
     this.rows.push({
-      id: `role-${this.rows.length + 1}`,
+      id,
       organizationId: ORG,
       name: input.name,
       capabilitiesJson: JSON.stringify(input.capabilities),
       createdBy: input.createdBy,
       createdAt: new Date('2026-09-27T00:00:00.000Z'),
     });
-    return Promise.resolve();
+    return Promise.resolve(id);
   }
 }
 
-function controllerWith(repo: FakeCustomRolesRepository): CustomRolesController {
+function controllerWith(
+  repo: FakeCustomRolesRepository,
+  audit?: { record: (...args: unknown[]) => Promise<unknown> },
+): CustomRolesController {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
-  return new CustomRolesController(database, repo as unknown as CustomRolesRepository);
+  return new CustomRolesController(
+    database,
+    repo as unknown as CustomRolesRepository,
+    audit as unknown as AuditService,
+  );
 }
 
 async function expectStatus<T>(promise: Promise<T>, status: number): Promise<void> {
@@ -157,17 +171,38 @@ describe('CustomRolesController (ADM roles, x173)', () => {
     const repo = new FakeCustomRolesRepository();
     const controller = controllerWith(repo);
 
-    // `approval.decide` is in the owner's ceiling but reviewer-gated: an owner may exercise it only when
-    // assigned as reviewer, never org-wide. Putting it in a role would grant more than the author holds,
-    // so the guard refuses it — with no write.
+    // `approval.decide` is reviewer-gated: an org admin may exercise it only when assigned as reviewer,
+    // never org-wide. Putting it in a role would grant more than the author holds, so the guard refuses
+    // it — with no write.
     await expectStatus(
-      controller.create(context, owner(), {
+      controller.create(context, orgAdmin(), {
         name: 'Approver',
         capabilities: ['work.read', 'approval.decide'],
       }),
       403,
     );
     expect(repo.insertCalls).toBe(0);
+  });
+
+  it('lets the owner grant any capability and audits the new role (ADM-08, ADM-11)', async () => {
+    const repo = new FakeCustomRolesRepository();
+    const recorded: unknown[] = [];
+    const audit = { record: (...args: unknown[]) => Promise.resolve(recorded.push(args[2])) };
+    const controller = controllerWith(repo, audit);
+
+    await controller.create(context, owner(), {
+      name: 'Approver',
+      capabilities: ['work.read', 'approval.read', 'approval.decide'],
+    });
+    expect(repo.insertCalls).toBe(1);
+    expect(recorded).toEqual([
+      {
+        action: 'custom_role.created',
+        objectId: 'role-1',
+        result: 'allowed',
+        metadata: { capability_count: 3 },
+      },
+    ]);
   });
 
   it('409s a duplicate role name, without a second write', async () => {
@@ -198,10 +233,13 @@ describe('CustomRolesController (ADM roles, x173)', () => {
     const controller = controllerWith(repo);
 
     await expectStatus(
-      controller.create(context, orgAdmin(), { name: 'Coordinator', capabilities: ['work.read'] }),
+      controller.create(context, workspaceAdmin(), {
+        name: 'Coordinator',
+        capabilities: ['work.read'],
+      }),
       403,
     );
-    await expectStatus(controller.list(context, orgAdmin()), 403);
+    await expectStatus(controller.list(context, workspaceAdmin()), 403);
     expect(repo.insertCalls).toBe(0);
   });
 

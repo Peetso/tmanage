@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { CAPABILITIES } from '@tmanage/domain';
 import { Button, Field, InlineAlert, Select } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -11,6 +10,7 @@ import { simulatePolicy, type PolicySimulationView } from '../../lib/api/policy-
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
+import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 
 export interface PolicySimulationScreenProps {
   organizationSlug: string;
@@ -47,7 +47,7 @@ export function PolicySimulationScreen({
   const hydrated = useHydrated();
 
   const [memberId, setMemberId] = useState('');
-  const [capability, setCapability] = useState<string>(CAPABILITIES[0]);
+  const [capability, setCapability] = useState<string>(CAPABILITIES_BY_AREA[0] ?? 'org.manage');
   const [projectId, setProjectId] = useState('');
   const [result, setResult] = useState<PolicySimulationView['result'] | null>(null);
 
@@ -112,9 +112,9 @@ export function PolicySimulationScreen({
                 onChange={(event) => setCapability(event.target.value)}
                 hint="The action to test."
               >
-                {CAPABILITIES.map((cap) => (
+                {CAPABILITIES_BY_AREA.map((cap) => (
                   <option key={cap} value={cap}>
-                    {cap}
+                    {capabilityLabel(cap)}
                   </option>
                 ))}
               </Select>

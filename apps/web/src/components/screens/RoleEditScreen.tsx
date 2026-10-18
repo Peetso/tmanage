@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CAPABILITIES } from '@tmanage/domain';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -11,6 +10,7 @@ import { readCustomRoles } from '../../lib/api/admin-roles';
 import { cloneCustomRole, editCustomRole } from '../../lib/api/admin-role-edit';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 
 export interface RoleEditScreenProps {
   organizationSlug: string;
@@ -235,7 +235,7 @@ export function RoleEditScreen({
                   <span>Granted</span>
                 </div>
                 <ul className="tm-cc-matrix__list">
-                  {CAPABILITIES.map((capability) => (
+                  {CAPABILITIES_BY_AREA.map((capability) => (
                     <li
                       key={capability}
                       data-changed={
@@ -243,7 +243,7 @@ export function RoleEditScreen({
                       }
                     >
                       <Checkbox
-                        label={capability}
+                        label={capabilityLabel(capability)}
                         name={`capability-${capability}`}
                         checked={selected.has(capability)}
                         onChange={() => toggle(capability)}
@@ -281,10 +281,10 @@ export function RoleEditScreen({
                   : `Everyone holding ${current.name} ${describeEffect(granted.length, removed.length, renamed)}.`}
               </h2>
               {granted.length > 0 ? (
-                <p className="tm-cc-card__body">Gains: {granted.join(', ')}</p>
+                <p className="tm-cc-card__body">Gains: {granted.map(capabilityLabel).join(', ')}</p>
               ) : null}
               {removed.length > 0 ? (
-                <p className="tm-cc-card__body">Loses: {removed.join(', ')}</p>
+                <p className="tm-cc-card__body">Loses: {removed.map(capabilityLabel).join(', ')}</p>
               ) : null}
               {renamed ? (
                 <p className="tm-cc-card__body">

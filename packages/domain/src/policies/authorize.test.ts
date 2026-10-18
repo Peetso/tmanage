@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { authorize, type Principal, type ResourceContext } from './authorize.js';
+import {
+  authorize,
+  mayGrantCapability,
+  type Principal,
+  type ResourceContext,
+} from './authorize.js';
 import {
   CAPABILITIES,
   CLIENT_ROLES,
@@ -472,5 +477,30 @@ describe('capability coverage', () => {
         true,
       );
     }
+  });
+});
+
+describe('mayGrantCapability (ADM-08) and the org admin ceiling (ADM-03)', () => {
+  const owner = internal({ role: 'owner', projectIds: [], hasOrgWideScope: true });
+
+  it('lets the owner grant a reviewer-gated capability, but not in another tenant', () => {
+    expect(mayGrantCapability(owner, 'approval.decide', ORG_A).allowed).toBe(true);
+    expect(mayGrantCapability(owner, 'approval.decide', ORG_B).allowed).toBe(false);
+  });
+
+  it('keeps the strict check for everyone else', () => {
+    const admin = internal({ role: 'org_admin', projectIds: [], hasOrgWideScope: true });
+    expect(mayGrantCapability(admin, 'approval.decide', ORG_A).allowed).toBe(false);
+    expect(mayGrantCapability(internal(), 'org.manage', ORG_A).allowed).toBe(false);
+  });
+
+  it('gives the organization admin org.manage', () => {
+    const admin = internal({ role: 'org_admin', projectIds: [], hasOrgWideScope: true });
+    const verdict = authorize({
+      principal: admin,
+      capability: 'org.manage',
+      resource: resource({ projectId: null, audience: 'internal' }),
+    });
+    expect(verdict.allowed).toBe(true);
   });
 });

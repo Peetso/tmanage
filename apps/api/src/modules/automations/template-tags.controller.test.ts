@@ -165,10 +165,10 @@ describe('AutomationTemplateTagsController', () => {
   });
 
   it('refuses a role without org.manage with 403 and writes nothing', async () => {
-    // org_admin holds every capability except `org.manage`, so it is denied here.
+    // workspace_admin does not hold `org.manage`, so it is denied here.
     const { controller, store } = harness([template()]);
     await expect(
-      controller.add(context, principal('org_admin'), 'workflow-template-01', { label: 'x' }),
+      controller.add(context, principal('workspace_admin'), 'workflow-template-01', { label: 'x' }),
     ).rejects.toMatchObject({ status: 403 });
     expect(store).toHaveLength(0);
   });

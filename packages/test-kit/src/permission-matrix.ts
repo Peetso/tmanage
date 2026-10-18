@@ -656,8 +656,8 @@ export const PERMISSION_MATRIX: Readonly<Record<Role, RolePermissionRow>> = {
  * adding an entry, so **any new disagreement is a test failure**, which is the whole point of
  * the guard. A stale entry is a failure too — see `permission-matrix.guard.test.ts`.
  *
- * None of these is a widening of what a *client* principal can reach. Two are the ceiling
- * being stricter than §2; the third is wider than §2 but refused a layer deeper.
+ * None of these is a widening of what a *client* principal can reach. One is the ceiling
+ * being stricter than §2; the other two are wider than §2 but refused a layer deeper.
  */
 export interface CeilingDivergence {
   readonly role: Role;
@@ -685,19 +685,7 @@ export const ACCEPTED_CEILING_DIVERGENCES: readonly CeilingDivergence[] = [
     role: 'org_admin',
     capability: 'client_request.submit',
     ceiling: 'grants',
-    why: 'Same blanket-grant artefact as owner: org_admin is `CAPABILITIES` minus `org.manage`.',
-  },
-  {
-    role: 'org_admin',
-    capability: 'org.manage',
-    ceiling: 'denies',
-    why:
-      '§2 "Billing/ownership" reads Policy for Org Admin, which the reading in this file\'s ' +
-      'header would grant. The ceiling denies it, and `org.manage` in this codebase guards ' +
-      'internal invitations and the client-organization lifecycle rather than billing — the ' +
-      'ownership tier, which §5 lists among the highest-risk safeguards. Stricter than the ' +
-      "document; accepted, and flagged as the one cell where §2's wording and the " +
-      "capability's actual surface can be read apart.",
+    why: 'Same blanket-grant artefact as owner: org_admin is `[...CAPABILITIES]` (ADM-03).',
   },
   {
     role: 'moderator',
@@ -716,7 +704,7 @@ const DIVERGENCE_INDEX: ReadonlyMap<string, CeilingDivergence> = new Map(
 
 /**
  * The ceiling this fixture expects the product to hold for a role: the §2 transcription with
- * the four accepted divergences applied.
+ * the accepted divergences applied.
  *
  * Both inputs are hand-written literals in this file, so a test asserting against this is
  * asserting against a human's reading of the matrix document — never against

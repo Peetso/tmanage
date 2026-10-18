@@ -127,10 +127,10 @@ describe('WorkflowTemplateCloneController (x219)', () => {
   });
 
   it('refuses a role without org.manage with 403 and writes nothing', async () => {
-    // org_admin holds every capability except `org.manage`, so it is denied here.
+    // workspace_admin does not hold `org.manage`, so it is denied here.
     const { controller, store } = controllerWith([row()]);
     await expect(
-      controller.clone(context, principal('org_admin'), TEMPLATE_ID, { name: 'copy' }),
+      controller.clone(context, principal('workspace_admin'), TEMPLATE_ID, { name: 'copy' }),
     ).rejects.toMatchObject({ status: 403 });
     expect(store).toHaveLength(1);
   });

@@ -106,9 +106,9 @@ describe('WorkflowRunHistoryController', () => {
   });
 
   it('refuses a role without org.manage with 403 on the list', async () => {
-    // org_admin holds every capability except `org.manage` (capabilities.ts), so it is denied here.
+    // workspace_admin does not hold `org.manage`, so it is denied here.
     const controller = controllerWith([run()]);
-    await expect(controller.list(context, principal('org_admin'))).rejects.toMatchObject({
+    await expect(controller.list(context, principal('workspace_admin'))).rejects.toMatchObject({
       status: 403,
     });
   });
@@ -138,7 +138,7 @@ describe('WorkflowRunHistoryController', () => {
   it('refuses a role without org.manage with 403 on an existing run detail', async () => {
     const controller = controllerWith([run()]);
     await expect(
-      controller.detail(context, principal('org_admin'), 'workflow-run-01'),
+      controller.detail(context, principal('workspace_admin'), 'workflow-run-01'),
     ).rejects.toMatchObject({ status: 403 });
   });
 });

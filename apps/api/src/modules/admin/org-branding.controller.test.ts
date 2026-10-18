@@ -43,9 +43,9 @@ function owner(): Principal {
   };
 }
 
-/** An org_admin — holds every capability except `org.manage`, so the set authorize denies (403). */
+/** A workspace_admin — does not hold `org.manage`, so the set authorize denies (403). */
 function orgAdmin(): Principal {
-  return { ...owner(), role: 'org_admin' };
+  return { ...owner(), role: 'workspace_admin' };
 }
 
 const context = { organizationId: ORG, userId: OWNER_USER } as unknown as TenantContext;

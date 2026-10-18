@@ -554,7 +554,7 @@ describe('ON-04 Invite team', () => {
     await user.selectOptions(screen.getByLabelText('Role'), 'org_admin');
     expect(screen.getByText('Invite people and change their roles')).toBeInTheDocument();
     expect(
-      screen.getByText('Cannot delete the organization or change billing.'),
+      screen.getByText('Cannot make anyone an owner, remove an owner or delete the organization.'),
     ).toBeInTheDocument();
   });
 });

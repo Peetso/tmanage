@@ -91,3 +91,23 @@ export function usePortalNames(
     providerName: resolve(summary?.name, passedProviderName, FIXTURE_ORGANIZATION_NAME, pending),
   };
 }
+
+/**
+ * The caller's role in this organization, from the same session read (CQ-06).
+ *
+ * `known` is false while the list is being read, and also when no `QueryClientProvider` is mounted
+ * (a story or a bare render), so a caller can tell "not yet" from "this role". Never used to
+ * authorize anything — the API decides every action — only to stop offering pages that would
+ * refuse the person.
+ */
+export function useOrganizationRole(organizationSlug: string): {
+  readonly role: string | undefined;
+  readonly known: boolean;
+  /** True when no `QueryClientProvider` is mounted, so the role can never be read here. */
+  readonly unavailable: boolean;
+} {
+  const contextClient = useContext(QueryClientContext);
+  const { summary, pending } = useOrganizationSummary(organizationSlug);
+  const unavailable = contextClient === undefined;
+  return { role: summary?.role, known: !unavailable && !pending, unavailable };
+}

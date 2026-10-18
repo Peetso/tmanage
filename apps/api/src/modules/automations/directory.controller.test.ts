@@ -141,16 +141,18 @@ describe('IntegrationDirectoryController', () => {
 
   it('refuses a role without org.manage (403)', async () => {
     const { controller, createCalls } = controllerWith();
-    // `org_admin` holds nearly every capability but explicitly not `org.manage` (capabilities ceiling),
+    // `workspace_admin` holds many admin capabilities but not `org.manage` (capabilities ceiling),
     // so the org-scoped authorize denies both the read and the write with a 403.
-    await expect(controller.directory(context, principal('org_admin'))).rejects.toBeInstanceOf(
-      ApiError,
-    );
-    await expect(controller.directory(context, principal('org_admin'))).rejects.toMatchObject({
-      status: 403,
-    });
     await expect(
-      controller.connect(context, principal('org_admin'), 'slack', { label: 'Ops' }),
+      controller.directory(context, principal('workspace_admin')),
+    ).rejects.toBeInstanceOf(ApiError);
+    await expect(controller.directory(context, principal('workspace_admin'))).rejects.toMatchObject(
+      {
+        status: 403,
+      },
+    );
+    await expect(
+      controller.connect(context, principal('workspace_admin'), 'slack', { label: 'Ops' }),
     ).rejects.toMatchObject({ status: 403 });
     expect(createCalls).toEqual([]);
   });

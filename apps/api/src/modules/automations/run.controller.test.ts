@@ -144,10 +144,10 @@ describe('WorkflowRunController', () => {
   });
 
   it('refuses a role without org.manage with 403 and records no run', async () => {
-    // org_admin holds every capability except `org.manage` (capabilities.ts), so it is denied here.
+    // workspace_admin does not hold `org.manage`, so it is denied here.
     const { controller, runStore } = controllerWith([template()]);
     await expect(
-      controller.run(context, principal('org_admin'), 'workflow-template-01'),
+      controller.run(context, principal('workspace_admin'), 'workflow-template-01'),
     ).rejects.toMatchObject({ status: 403 });
     expect(runStore).toHaveLength(0);
   });

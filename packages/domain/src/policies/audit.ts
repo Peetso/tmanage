@@ -222,6 +222,24 @@ export const AUDIT_ACTION_CATALOG = {
       '§12 role changes — offboarding revokes an internal member’s access irreversibly, the ' +
       'largest access decision the staff side has',
   },
+  /**
+   * ADM-11 (CQ-06). Custom roles and who holds them. A custom role is a named set of
+   * capabilities, so defining one, changing its set and handing it to people are each a
+   * permission change §12 names — and the Control Center's audit header says everything is
+   * logged. A clone is a `custom_role.created` whose metadata names the source role.
+   */
+  'custom_role.created': {
+    objectType: 'custom_role',
+    clause: '§12 role and permission changes — a new set of capabilities anyone can be given',
+  },
+  'custom_role.updated': {
+    objectType: 'custom_role',
+    clause: '§12 role and permission changes — every holder of the role gains or loses with it',
+  },
+  'membership.role_changed': {
+    objectType: 'membership',
+    clause: '§12 role changes — the role a staff member holds decides what they can reach',
+  },
   'project.client_linked': {
     objectType: 'project_client',
     clause:

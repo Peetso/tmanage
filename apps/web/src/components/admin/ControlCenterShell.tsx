@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { hasCapability, isRole } from '@tmanage/domain';
+import type { Capability } from '@tmanage/domain';
 import { AppShell } from '../shell/AppShell';
+import { useOrganizationRole } from '../../lib/use-organization-names';
 import '../../styles/screens/admin.css';
 
 /** The Control Center destinations the section map can mark as current. */
@@ -12,6 +15,7 @@ export type ControlCenterSection =
   | 'roles'
   | 'offboarding'
   | 'automations'
+  | 'integrations'
   | 'modules'
   | 'security'
   | 'sessions'
@@ -27,6 +31,11 @@ interface SectionLink {
   readonly id: ControlCenterSection;
   readonly label: string;
   readonly href: string;
+  /**
+   * What the page's API asks for (CQ-06). An entry the caller's role cannot use is not drawn, so
+   * the map never offers a page that answers "You do not have permission". None: open to everyone.
+   */
+  readonly capability?: Capability;
 }
 
 /**
@@ -39,37 +48,87 @@ const GROUPS: readonly { label: string; items: readonly SectionLink[] }[] = [
   {
     label: 'People',
     items: [
-      { id: 'overview', label: 'Overview', href: '/admin' },
+      { id: 'overview', label: 'Overview', href: '/admin', capability: 'org.manage' },
       { id: 'members', label: 'Members and roles', href: '/people' },
-      { id: 'roles', label: 'Roles', href: '/admin/roles' },
-      { id: 'offboarding', label: 'Offboarding', href: '/people/offboarding' },
+      { id: 'roles', label: 'Roles', href: '/admin/roles', capability: 'org.manage' },
+      {
+        id: 'offboarding',
+        label: 'Offboarding',
+        href: '/people/offboarding',
+        capability: 'member.offboard',
+      },
     ],
   },
   {
     label: 'Work setup',
     items: [
-      { id: 'automations', label: 'Automations', href: '/admin/automations/webhooks' },
-      { id: 'modules', label: 'Modules', href: '/admin/feature-flags' },
+      // AUT-04: the rule library, not Webhooks. Webhooks sit under Integrations, as in the design.
+      { id: 'automations', label: 'Automations', href: '/automations', capability: 'org.manage' },
+      {
+        id: 'integrations',
+        label: 'Integrations',
+        href: '/automations/apps',
+        capability: 'org.manage',
+      },
+      { id: 'modules', label: 'Modules', href: '/admin/feature-flags', capability: 'org.manage' },
     ],
   },
   {
     label: 'Trust',
     items: [
-      { id: 'security', label: 'Security', href: '/admin/security' },
-      { id: 'sessions', label: 'Sessions', href: '/admin/sessions' },
-      { id: 'ip-allowlist', label: 'IP ranges', href: '/admin/ip-allowlist' },
-      { id: 'policies', label: 'Access policy', href: '/policies' },
-      { id: 'policy-simulation', label: 'Policy simulation', href: '/policies/simulate' },
-      { id: 'audit', label: 'Audit log', href: '/admin/audit' },
-      { id: 'data', label: 'Data and export', href: '/admin/audit/export' },
+      { id: 'security', label: 'Security', href: '/admin/security', capability: 'org.manage' },
+      { id: 'sessions', label: 'Sessions', href: '/admin/sessions', capability: 'org.manage' },
+      {
+        id: 'ip-allowlist',
+        label: 'IP ranges',
+        href: '/admin/ip-allowlist',
+        capability: 'org.security.manage',
+      },
+      { id: 'policies', label: 'Access policy', href: '/policies', capability: 'org.manage' },
+      {
+        id: 'policy-simulation',
+        label: 'Policy simulation',
+        href: '/policies/simulate',
+        capability: 'org.manage',
+      },
+      { id: 'audit', label: 'Audit log', href: '/admin/audit', capability: 'audit.read' },
+      {
+        id: 'data',
+        label: 'Data and export',
+        href: '/admin/audit/export',
+        capability: 'audit.export',
+      },
     ],
   },
 ];
 
 const FOOT: readonly SectionLink[] = [
-  { id: 'organization', label: 'Organization', href: '/settings' },
-  { id: 'billing', label: 'Billing', href: '/billing' },
+  { id: 'organization', label: 'Organization', href: '/settings', capability: 'org.manage' },
+  { id: 'billing', label: 'Billing', href: '/billing', capability: 'org.manage' },
 ];
+
+/**
+ * May a person with this role use the entry? Pure, so it is provable without a render. `null` is
+ * "the role cannot be read here" (no query client — a story), where every entry is drawn.
+ */
+export function mayOpenSection(role: string | undefined | null, item: SectionLink): boolean {
+  if (item.capability === undefined || role === null) return true;
+  return role !== undefined && isRole(role) && hasCapability(role, item.capability);
+}
+
+/** The section map's groups and foot, minus the entries this role would be refused. */
+export function controlCenterSectionsFor(role: string | undefined | null): {
+  readonly groups: readonly { label: string; items: readonly SectionLink[] }[];
+  readonly foot: readonly SectionLink[];
+} {
+  return {
+    groups: GROUPS.map((group) => ({
+      label: group.label,
+      items: group.items.filter((item) => mayOpenSection(role, item)),
+    })).filter((group) => group.items.length > 0),
+    foot: FOOT.filter((item) => mayOpenSection(role, item)),
+  };
+}
 
 function SectionItem({
   organizationSlug,
@@ -107,9 +166,12 @@ export function ControlCenterSections({
   section: ControlCenterSection;
   children?: ReactNode;
 }) {
+  // While the role is being read nothing gated is drawn, so a refused entry never flashes up.
+  const { role, known, unavailable } = useOrganizationRole(organizationSlug);
+  const { groups, foot } = controlCenterSectionsFor(unavailable ? null : known ? role : undefined);
   return (
     <div className="tm-cc-sections">
-      {GROUPS.map((group) => (
+      {groups.map((group) => (
         <div key={group.label}>
           <p className="tm-cc-sections__label">{group.label}</p>
           <ul className="tm-cc-sections__group">
@@ -125,16 +187,18 @@ export function ControlCenterSections({
         </div>
       ))}
       {children}
-      <ul className="tm-cc-sections__group tm-cc-sections__group--foot">
-        {FOOT.map((item) => (
-          <SectionItem
-            key={item.id}
-            organizationSlug={organizationSlug}
-            item={item}
-            current={item.id === section}
-          />
-        ))}
-      </ul>
+      {foot.length > 0 ? (
+        <ul className="tm-cc-sections__group tm-cc-sections__group--foot">
+          {foot.map((item) => (
+            <SectionItem
+              key={item.id}
+              organizationSlug={organizationSlug}
+              item={item}
+              current={item.id === section}
+            />
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

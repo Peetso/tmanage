@@ -173,7 +173,7 @@ describe('CostCentersController', () => {
 
   it('refuses a role without org.manage with 403 on create and list', async () => {
     const { controller, store } = controllerWith();
-    const actor = principal('org_admin');
+    const actor = principal('workspace_admin');
     await expect(controller.list(context, actor)).rejects.toMatchObject({ status: 403 });
     await expect(
       controller.create(context, actor, { code: 'ENG', name: 'Engineering' }),

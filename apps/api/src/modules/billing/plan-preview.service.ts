@@ -28,7 +28,7 @@ import type { PlanId } from './plan-catalog.js';
  *
  * ## Same authorization and tenant discipline as the subscription service
  *
- * `org.manage` (owners only) is re-checked here against the org-level resource with the real
+ * `org.manage` (owner and org admin) is re-checked here against the org-level resource with the real
  * evaluator, after the route guard (`25` §3: guards are UX, the API authorizes every action). The
  * current subscription is read through {@link SubscriptionRepository} for `context.organizationId` —
  * the tenant the guard proved from a membership row — so a caller can never preview another tenant's

@@ -72,7 +72,7 @@ describe('SubscriptionService.read', () => {
   });
 
   it('refuses a principal without org.manage', async () => {
-    const notManager: Principal = { ...ownerPrincipal(), role: 'org_admin' };
+    const notManager: Principal = { ...ownerPrincipal(), role: 'workspace_admin' };
     const service = new SubscriptionService(fakeDatabase(), fakeRepo(null));
     await expect(service.read(context, notManager)).rejects.toBeInstanceOf(ApiError);
   });
@@ -103,7 +103,7 @@ describe('SubscriptionService.requestChange', () => {
 
   it('refuses a principal without org.manage and writes nothing', async () => {
     const sink = { upserts: [] as UpsertPlanInput[] };
-    const notManager: Principal = { ...ownerPrincipal(), role: 'org_admin' };
+    const notManager: Principal = { ...ownerPrincipal(), role: 'workspace_admin' };
     const service = new SubscriptionService(fakeDatabase(), fakeRepo(null, sink));
 
     await expect(service.requestChange(context, notManager, 'pro')).rejects.toBeInstanceOf(

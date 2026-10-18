@@ -1,3 +1,4 @@
+import type { Capability } from '@tmanage/domain';
 /**
  * SRCH command palette (x181) — the pure matcher.
  *
@@ -37,6 +38,12 @@ export interface CommandDefinition {
   readonly href: string | null;
   readonly action: string | null;
   readonly keywords: readonly string[];
+  /**
+   * The capability a caller needs for the destination to be of any use (CQ-06). A command without
+   * one is offered to everyone who may use the palette; one with it only to callers who hold it
+   * org-wide, so the palette never offers a page that would refuse them.
+   */
+  readonly capability?: Capability;
 }
 
 /** The default cap; the caller may lower it but never raise it past {@link MAX_COMMAND_RESULTS}. */

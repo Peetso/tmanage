@@ -157,12 +157,12 @@ describe('PersonTimeOffController (x325) — a manager files a person absence', 
     expect(createCalls).toEqual([]);
   });
 
-  // Refusal proof 1: create without `org.manage` is a 403 with no insert. `org_admin` holds
+  // Refusal proof 1: create without `org.manage` is a 403 with no insert. `workspace_admin` holds
   // `work.read` but NOT `org.manage` (capabilities.ts), so the person resolves and the guard still 403s.
   it('refuses a create without org.manage (403) and writes nothing', async () => {
     const { createCalls, controller } = controllerWith({ [ORG]: [PERSON] });
     await expect(
-      controller.create(context, principal('org_admin'), PERSON, VALID),
+      controller.create(context, principal('workspace_admin'), PERSON, VALID),
     ).rejects.toMatchObject({ status: 403 });
     expect(createCalls).toEqual([]);
   });

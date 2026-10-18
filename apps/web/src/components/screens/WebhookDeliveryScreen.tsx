@@ -66,7 +66,7 @@ export function WebhookDeliveryScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       contextRail={
-        <ControlCenterSections organizationSlug={organizationSlug} section="automations" />
+        <ControlCenterSections organizationSlug={organizationSlug} section="integrations" />
       }
       eyebrow="Control center · Webhooks · Deliveries"
       title="Webhook deliveries"

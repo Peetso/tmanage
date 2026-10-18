@@ -13,8 +13,8 @@ import type { SubscriptionStatus } from './plan-catalog.js';
  *
  * ## The one authorization layer that matters here
  *
- * `CapabilityGuard` on the route asks the coarse question `org.manage` (owners only — `org_admin`
- * does not hold it, per the capability ceiling). A role that does not hold it gets a 403 there,
+ * `CapabilityGuard` on the route asks the coarse question `org.manage` (the owner and, since ADM-03,
+ * the org admin, per the capability ceiling). A role that does not hold it gets a 403 there,
  * before this service runs. This service re-checks the same decision with `authorize()` against an
  * **org-level** resource (`projectId: null`, `04-SECURITY-PRIVACY` §4 / `25` §3: route guards are
  * UX only, the API authorizes every action). A denial is an honest `403`.

@@ -1,10 +1,13 @@
 import { Controller, Get, Module, Query } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { RequireCapability } from '../../common/http/decorators.js';
+import { authorize } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
+import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
+import type { TenantContext } from '../../common/database/tenant-context.js';
 import { ApiError } from '../../common/http/errors.js';
 import { COMMAND_REGISTRY } from './command-registry.js';
 import { MAX_COMMAND_RESULTS, matchCommands } from './command-match.js';
-import type { CommandKind } from './command-match.js';
+import type { CommandDefinition, CommandKind } from './command-match.js';
 
 /**
  * SRCH command palette (x181) — the command surface of module 16 (Search, command & AI).
@@ -55,6 +58,8 @@ export class CommandsController {
   @Get()
   @RequireCapability('search.use')
   run(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
     @Query('q') q?: string,
     @Query('limit') limit?: string,
   ): { readonly commands: readonly CommandView[] } {
@@ -74,7 +79,7 @@ export class CommandsController {
       parsedLimit = value;
     }
 
-    const matched = matchCommands(COMMAND_REGISTRY, query, parsedLimit);
+    const matched = matchCommands(offeredTo(principal, context), query, parsedLimit);
     return {
       commands: matched.map((command) => ({
         id: command.id,
@@ -86,6 +91,24 @@ export class CommandsController {
       })),
     };
   }
+}
+
+/** The registry minus the commands whose destination this caller would be refused (CQ-06). */
+function offeredTo(principal: Principal, context: TenantContext): readonly CommandDefinition[] {
+  return COMMAND_REGISTRY.filter(
+    (command) =>
+      command.capability === undefined ||
+      authorize({
+        principal,
+        capability: command.capability,
+        resource: {
+          organizationId: context.organizationId,
+          projectId: null,
+          audience: 'internal',
+          lifecycle: 'active',
+        },
+      }).allowed,
+  );
 }
 
 /**

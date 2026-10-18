@@ -154,7 +154,7 @@ describe('BillingSeatsController', () => {
 
   it('refuses a principal without org.manage with 403 and writes nothing', async () => {
     const { controller, repo } = harnessed;
-    const notManager: Principal = { ...owner(), role: 'org_admin' };
+    const notManager: Principal = { ...owner(), role: 'workspace_admin' };
     const status = await statusOf(() =>
       controller.assign(context, notManager, { membershipId: MEMBERSHIP }),
     );

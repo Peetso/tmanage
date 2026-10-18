@@ -92,6 +92,9 @@ export function AutomationTemplatesScreen({
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
 
   const rows = templates.data ?? [];
+  // ADM-04: automations are set up by the owner and organization admins. Someone else who opens the
+  // page is told so, and is not shown a form the API would refuse.
+  const refused = templates.error instanceof ApiRequestError && templates.error.status === 403;
 
   const create = useMutation({
     mutationFn: () =>
@@ -130,9 +133,11 @@ export function AutomationTemplatesScreen({
           <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
             Run history
           </Link>
-          <a href="#tm-automation-new" className="tm-aut-btn tm-aut-btn--ink">
-            New automation
-          </a>
+          {refused ? null : (
+            <a href="#tm-automation-new" className="tm-aut-btn tm-aut-btn--ink">
+              New automation
+            </a>
+          )}
         </>
       }
     >
@@ -165,7 +170,12 @@ export function AutomationTemplatesScreen({
               Templates
             </h2>
 
-            {templates.isError ? (
+            {refused ? (
+              <InlineAlert tone="neutral" title="Automations are set up by your admins" live>
+                The owner and organization admins create and change automations. Ask one of them if
+                you need a rule added or changed.
+              </InlineAlert>
+            ) : templates.isError ? (
               <InlineAlert tone="danger" title="Could not load the templates" live>
                 {describeError(templates.error)}
               </InlineAlert>
@@ -256,141 +266,145 @@ export function AutomationTemplatesScreen({
             </div>
           </section>
 
-          <div className="tm-aut-col">
-            <section
-              id="tm-automation-new"
-              className="tm-aut-card tm-card--ink"
-              aria-labelledby="tm-automation-new-heading"
-            >
-              <p className="tm-aut-eyebrow">
-                <span className="tm-aut-eyebrow__orb" aria-hidden="true" />
-                New automation
-              </p>
-              <h2 id="tm-automation-new-heading" className="tm-aut-card__title">
-                New template
-              </h2>
-              <form
-                className="tm-stack"
-                noValidate
-                onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                  event.preventDefault();
-                  if (canCreate) create.mutate();
-                }}
+          {refused ? null : (
+            <div className="tm-aut-col">
+              <section
+                id="tm-automation-new"
+                className="tm-aut-card tm-card--ink"
+                aria-labelledby="tm-automation-new-heading"
               >
-                <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
-                  <Field
-                    label="Name"
-                    name="name"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    hint="A short handle, such as Notify owner on new work."
-                    required
-                  />
+                <p className="tm-aut-eyebrow">
+                  <span className="tm-aut-eyebrow__orb" aria-hidden="true" />
+                  New automation
+                </p>
+                <h2 id="tm-automation-new-heading" className="tm-aut-card__title">
+                  New template
+                </h2>
+                <form
+                  className="tm-stack"
+                  noValidate
+                  onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                    event.preventDefault();
+                    if (canCreate) create.mutate();
+                  }}
+                >
+                  <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+                    <Field
+                      label="Name"
+                      name="name"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      hint="A short handle, such as Notify owner on new work."
+                      required
+                    />
 
-                  <div className="tm-field">
-                    <label className="tm-field__label" htmlFor="tm-automation-trigger">
-                      Trigger
-                    </label>
-                    <select
-                      id="tm-automation-trigger"
-                      className="tm-field__control"
-                      value={triggerKind}
-                      onChange={(event) =>
-                        setTriggerKind(event.target.value as WorkflowTriggerKind)
-                      }
-                    >
-                      {TRIGGER_KINDS.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {humanize(kind)}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="tm-field">
+                      <label className="tm-field__label" htmlFor="tm-automation-trigger">
+                        Trigger
+                      </label>
+                      <select
+                        id="tm-automation-trigger"
+                        className="tm-field__control"
+                        value={triggerKind}
+                        onChange={(event) =>
+                          setTriggerKind(event.target.value as WorkflowTriggerKind)
+                        }
+                      >
+                        {TRIGGER_KINDS.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {humanize(kind)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="tm-field">
+                      <label className="tm-field__label" htmlFor="tm-automation-action">
+                        Action
+                      </label>
+                      <select
+                        id="tm-automation-action"
+                        className="tm-field__control"
+                        value={actionKind}
+                        onChange={(event) =>
+                          setActionKind(event.target.value as WorkflowActionKind)
+                        }
+                      >
+                        {ACTION_KINDS.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {humanize(kind)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {create.isError ? (
+                      <InlineAlert tone="danger" title="Could not create the template" live>
+                        {describeError(create.error)}
+                      </InlineAlert>
+                    ) : null}
+
+                    <div className="tm-aut-actions">
+                      <Button
+                        type="submit"
+                        tone="lime"
+                        size="accessible"
+                        loading={create.isPending}
+                        loadingLabel="Creating"
+                        disabled={!canCreate}
+                      >
+                        Create template
+                      </Button>
+                    </div>
+                  </fieldset>
+                </form>
+              </section>
+
+              <section className="tm-aut-card" aria-labelledby="tm-automation-summary-heading">
+                <h2
+                  id="tm-automation-summary-heading"
+                  className="tm-aut-card__title tm-aut-card__title--section"
+                >
+                  In the library
+                </h2>
+                <dl className="tm-aut-bars">
+                  <div className="tm-aut-bars__row">
+                    <dt>Live</dt>
+                    <dd className="tm-aut-bars__value">
+                      <span className="tm-aut-bars__track" aria-hidden="true">
+                        <span
+                          className="tm-aut-bars__fill"
+                          style={{ inlineSize: `${share(liveCount, rows.length)}%` }}
+                        />
+                      </span>
+                      <span>{liveCount}</span>
+                    </dd>
                   </div>
-
-                  <div className="tm-field">
-                    <label className="tm-field__label" htmlFor="tm-automation-action">
-                      Action
-                    </label>
-                    <select
-                      id="tm-automation-action"
-                      className="tm-field__control"
-                      value={actionKind}
-                      onChange={(event) => setActionKind(event.target.value as WorkflowActionKind)}
-                    >
-                      {ACTION_KINDS.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {humanize(kind)}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="tm-aut-bars__row">
+                    <dt>Off</dt>
+                    <dd className="tm-aut-bars__value">
+                      <span className="tm-aut-bars__track" aria-hidden="true">
+                        <span
+                          className="tm-aut-bars__fill tm-aut-bars__fill--muted"
+                          style={{ inlineSize: `${share(offCount, rows.length)}%` }}
+                        />
+                      </span>
+                      <span>{offCount}</span>
+                    </dd>
                   </div>
-
-                  {create.isError ? (
-                    <InlineAlert tone="danger" title="Could not create the template" live>
-                      {describeError(create.error)}
-                    </InlineAlert>
-                  ) : null}
-
-                  <div className="tm-aut-actions">
-                    <Button
-                      type="submit"
-                      tone="lime"
-                      size="accessible"
-                      loading={create.isPending}
-                      loadingLabel="Creating"
-                      disabled={!canCreate}
-                    >
-                      Create template
-                    </Button>
-                  </div>
-                </fieldset>
-              </form>
-            </section>
-
-            <section className="tm-aut-card" aria-labelledby="tm-automation-summary-heading">
-              <h2
-                id="tm-automation-summary-heading"
-                className="tm-aut-card__title tm-aut-card__title--section"
-              >
-                In the library
-              </h2>
-              <dl className="tm-aut-bars">
-                <div className="tm-aut-bars__row">
-                  <dt>Live</dt>
-                  <dd className="tm-aut-bars__value">
-                    <span className="tm-aut-bars__track" aria-hidden="true">
-                      <span
-                        className="tm-aut-bars__fill"
-                        style={{ inlineSize: `${share(liveCount, rows.length)}%` }}
-                      />
-                    </span>
-                    <span>{liveCount}</span>
-                  </dd>
+                </dl>
+                <p className="tm-aut-card__foot">
+                  Every automation is recorded with the person who created it. An automation that is
+                  off is kept but never fires.
+                </p>
+                <div className="tm-aut-actions">
+                  <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
+                    Open run history
+                  </Link>
                 </div>
-                <div className="tm-aut-bars__row">
-                  <dt>Off</dt>
-                  <dd className="tm-aut-bars__value">
-                    <span className="tm-aut-bars__track" aria-hidden="true">
-                      <span
-                        className="tm-aut-bars__fill tm-aut-bars__fill--muted"
-                        style={{ inlineSize: `${share(offCount, rows.length)}%` }}
-                      />
-                    </span>
-                    <span>{offCount}</span>
-                  </dd>
-                </div>
-              </dl>
-              <p className="tm-aut-card__foot">
-                Every automation is recorded with the person who created it. An automation that is
-                off is kept but never fires.
-              </p>
-              <div className="tm-aut-actions">
-                <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
-                  Open run history
-                </Link>
-              </div>
-            </section>
-          </div>
+              </section>
+            </div>
+          )}
         </div>
       </div>
     </AppShell>

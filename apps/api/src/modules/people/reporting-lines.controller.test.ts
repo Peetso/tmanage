@@ -192,10 +192,10 @@ describe('ReportingLinesController', () => {
   });
 
   it('refuses to set a manager without org.manage (403) and writes nothing', async () => {
-    // `org_admin` holds every capability except `org.manage`, so the org-scoped authorize denies.
+    // `workspace_admin` does not hold `org.manage`, so the org-scoped authorize denies.
     const { controller, setCalls } = controllerWith([member(A, ORG), member(B, ORG)]);
     await expect(
-      controller.set(context, principal('org_admin'), A, { managerMembershipId: B }),
+      controller.set(context, principal('workspace_admin'), A, { managerMembershipId: B }),
     ).rejects.toMatchObject({ status: 403 });
     expect(setCalls).toEqual([]);
   });

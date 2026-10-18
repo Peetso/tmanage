@@ -140,7 +140,7 @@ describe('BillingContactsController', () => {
 
   it('refuses a principal without org.manage with 403 and writes nothing', async () => {
     const { controller, store } = harnessed;
-    const notManager: Principal = { ...owner(), role: 'org_admin' } as Principal;
+    const notManager: Principal = { ...owner(), role: 'workspace_admin' } as Principal;
     const status = await statusOf(() =>
       controller.add(context, notManager, { name: 'Ada', email: 'ada@example.com' }),
     );

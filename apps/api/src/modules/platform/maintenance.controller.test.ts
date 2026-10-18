@@ -15,7 +15,7 @@ import type { MaintenanceWindowsRepository } from './maintenance.repository.js';
  *
  * The properties that matter here are boundaries, so they are proved over fakes with the **real**
  * authorize and the real validation: the public read shows only a published, currently-active window
- * and needs no session; the admin write is `org.manage` (a privileged `org_admin` that lacks it is
+ * and needs no session; the admin write is `org.manage` (a privileged `workspace_admin` that lacks it is
  * refused, because the flag is platform-wide), validates the severity enum and the `startsAt<endsAt`
  * order, and writes nothing on a bad body. The repository is a spy, so "no write" is a fact about the
  * call, not a mock of one.
@@ -115,12 +115,12 @@ describe('AdminMaintenanceController.schedule', () => {
 
   it('refuses a caller without org.manage with 403 and writes nothing', async () => {
     const { controller, insert } = adminHarness();
-    // org_admin holds every capability except org.manage — the platform-wide toggle is still refused.
+    // workspace_admin does not hold org.manage — the platform-wide toggle is still refused.
     await expect(
-      controller.schedule(context, principal('org_admin'), { ...VALID }),
+      controller.schedule(context, principal('workspace_admin'), { ...VALID }),
     ).rejects.toThrow(ApiError);
     await controller
-      .schedule(context, principal('org_admin'), { ...VALID })
+      .schedule(context, principal('workspace_admin'), { ...VALID })
       .catch((error: ApiError) => expect(error.status).toBe(403));
     expect(insert).not.toHaveBeenCalled();
   });

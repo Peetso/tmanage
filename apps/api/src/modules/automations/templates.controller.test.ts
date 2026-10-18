@@ -137,8 +137,8 @@ describe('WorkflowTemplatesController', () => {
 
   it('refuses a role without org.manage with 403 on both routes', async () => {
     const { controller, store } = controllerWith();
-    // org_admin holds every capability except `org.manage` (capabilities.ts), so it is denied here.
-    const actor = principal('org_admin');
+    // workspace_admin does not hold `org.manage`, so it is denied here.
+    const actor = principal('workspace_admin');
 
     await expect(controller.list(context, actor)).rejects.toMatchObject({ status: 403 });
     await expect(

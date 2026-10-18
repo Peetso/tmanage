@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
+import { hasCapability, isRole } from '@tmanage/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
@@ -9,7 +10,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { readOrgSettings, setOrgSetting } from '../../lib/api/org-settings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
-import { useOrganizationName } from '../../lib/use-organization-names';
+import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 
 export interface OrgSettingsScreenProps {
   organizationSlug: string;
@@ -63,9 +64,22 @@ export function OrgSettingsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
+  // ACT-13: `/settings` is the organization's settings, behind `org.manage`. A person whose role
+  // cannot manage the organization (a member who typed the address) is sent to their own
+  // Preferences instead of the admin menu and a permission error — and the refused read, which
+  // would only add a denied row to the audit log, is never made.
+  const { role, known } = useOrganizationRole(organizationSlug);
+  const mayManage = known
+    ? role !== undefined && isRole(role) && hasCapability(role, 'org.manage')
+    : null;
+  useEffect(() => {
+    if (mayManage === false) window.location.replace(`/${organizationSlug}/preferences`);
+  }, [mayManage, organizationSlug]);
+
   const settings = useQuery({
     queryKey: ['org-settings', organizationSlug],
     queryFn: () => readOrgSettings(api, organizationSlug),
+    enabled: mayManage === true,
   });
 
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -92,6 +106,8 @@ export function OrgSettingsScreen({
   });
 
   const rows = settings.data?.settings ?? [];
+
+  if (mayManage === false) return null;
 
   return (
     <ControlCenterShell

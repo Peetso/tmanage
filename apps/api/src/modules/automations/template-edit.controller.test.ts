@@ -113,10 +113,10 @@ describe('WorkflowTemplateEditController', () => {
   });
 
   it('refuses a role without org.manage with 403 on an existing template', async () => {
-    // org_admin holds every capability except `org.manage`, so it is denied here.
+    // workspace_admin does not hold `org.manage`, so it is denied here.
     const { controller, store } = controllerWith([row()]);
     await expect(
-      controller.update(context, principal('org_admin'), TEMPLATE_ID, { name: 'x' }),
+      controller.update(context, principal('workspace_admin'), TEMPLATE_ID, { name: 'x' }),
     ).rejects.toMatchObject({ status: 403 });
     expect(store[0]?.name).toBe('Notify owner on new work');
   });

@@ -146,7 +146,7 @@ describe('BillingTaxDetailsController', () => {
 
   it('refuses a principal without org.manage and never touches the repository', async () => {
     const { c, spy } = controller(null);
-    const notManager: Principal = { ...ownerPrincipal(), role: 'org_admin' };
+    const notManager: Principal = { ...ownerPrincipal(), role: 'workspace_admin' };
     await expect(c.read(context, notManager)).rejects.toBeInstanceOf(ApiError);
     await expect(
       c.update(context, notManager, { legalName: 'Acme Studio Ltd', taxCountry: 'GB' }),

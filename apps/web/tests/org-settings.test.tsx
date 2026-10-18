@@ -37,10 +37,15 @@ function settingsClient(): ApiClient {
   });
 }
 
-function withQuery(children: ReactNode) {
+function withQuery(children: ReactNode, role = 'owner') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  // The session's organization list, which tells the screen the caller's role (ACT-13).
+  client.setQueryData(
+    ['shell', 'organizations'],
+    [{ id: 'o1', slug: 'northstar-studio', name: 'Harbour Studio', audience: 'internal', role }],
+  );
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
@@ -64,5 +69,33 @@ describe('OrgSettingsScreen — Administration settings (x153)', () => {
     expect(screen.getAllByRole('button', { name: 'Save' }).length).toBe(3);
 
     await expectNoAxeViolations(container);
+  });
+
+  it('sends a member to Preferences without reading the settings (ACT-13)', async () => {
+    let reads = 0;
+    const client = new ApiClient({
+      baseUrl: 'https://api.example.test',
+      csrfCookieName: 'tm_session_csrf',
+      fetch: (() => {
+        reads += 1;
+        return Promise.resolve(new Response('{}', { status: 403 }));
+      }) as typeof globalThis.fetch,
+      readCsrfToken: () => undefined,
+      newCorrelationId: () => 'correlation-fixed',
+    });
+    const { container } = render(
+      withQuery(
+        <OrgSettingsScreen
+          organizationSlug="northstar-studio"
+          organizationName="Harbour Studio"
+          client={client}
+        />,
+        'member',
+      ),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(container).toBeEmptyDOMElement();
+    expect(reads).toBe(0);
   });
 });

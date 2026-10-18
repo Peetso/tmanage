@@ -16,15 +16,15 @@ import type { CustomRoleRow } from '../../common/database/schema.js';
  * tenant-scoped BEFORE authorize (a cross-tenant/unknown id is a 404 with no write, the Known trap); the
  * fixed `CAPABILITIES` allowlist bounds an edit (a capability off it is a 400 with no write); the
  * privilege-escalation guard refuses a capability the caller cannot exercise org-wide on both edit and
- * clone (a reviewer-gated capability like `approval.decide` is a 403 with no write, so a clone can never
- * carry caps beyond the caller); and both routes sit behind `org.manage`.
+ * clone (a reviewer-gated capability like `approval.decide` is a 403 with no write for anyone but the
+ * owner, so a clone can never carry caps beyond the caller); and both routes sit behind `org.manage`.
  */
 
 const ORG = '00000000-0000-4000-8000-0000000000a1';
 const OWNER_USER = '00000000-0000-4000-8000-0000000000c1';
 const MEMBERSHIP = '00000000-0000-4000-8000-0000000000e1';
 
-/** An owner — the only internal role whose ceiling holds `org.manage`. */
+/** An owner — its ceiling holds every capability, so it may grant any of them. */
 function owner(): Principal {
   return {
     userId: OWNER_USER,
@@ -39,9 +39,14 @@ function owner(): Principal {
   };
 }
 
-/** An org_admin — holds every capability except `org.manage`, so the real authorize denies. */
+/** An org_admin — holds `org.manage` (ADM-03) but grants only what it can exercise org-wide. */
 function orgAdmin(): Principal {
   return { ...owner(), role: 'org_admin' };
+}
+
+/** A workspace_admin — does not hold `org.manage`, so the real authorize denies. */
+function workspaceAdmin(): Principal {
+  return { ...owner(), role: 'workspace_admin', hasOrgWideScope: false };
 }
 
 const context = {
@@ -149,9 +154,9 @@ describe('RoleEditController (ADM role clone + edit, x195)', () => {
     const repo = new FakeRoleEditRepository([role('r1', 'Coordinator', ['work.read'])]);
     const controller = controllerWith(repo);
 
-    // `approval.decide` is in the owner's ceiling but reviewer-gated: never exercisable org-wide.
+    // `approval.decide` is reviewer-gated: an org admin can never exercise it org-wide.
     await expectStatus(
-      controller.edit(context, owner(), 'r1', {
+      controller.edit(context, orgAdmin(), 'r1', {
         name: 'Approver',
         capabilities: ['work.read', 'approval.decide'],
       }),
@@ -167,7 +172,10 @@ describe('RoleEditController (ADM role clone + edit, x195)', () => {
     ]);
     const controller = controllerWith(repo);
 
-    await expectStatus(controller.clone(context, owner(), 'r1', { name: 'Approver (copy)' }), 403);
+    await expectStatus(
+      controller.clone(context, orgAdmin(), 'r1', { name: 'Approver (copy)' }),
+      403,
+    );
     expect(repo.insertCalls).toBe(0);
   });
 
@@ -225,9 +233,12 @@ describe('RoleEditController (ADM role clone + edit, x195)', () => {
     const repo = new FakeRoleEditRepository([role('r1', 'Coordinator', ['work.read'])]);
     const controller = controllerWith(repo);
 
-    await expectStatus(controller.clone(context, orgAdmin(), 'r1', { name: 'Copy' }), 403);
+    await expectStatus(controller.clone(context, workspaceAdmin(), 'r1', { name: 'Copy' }), 403);
     await expectStatus(
-      controller.edit(context, orgAdmin(), 'r1', { name: 'Lead', capabilities: ['work.read'] }),
+      controller.edit(context, workspaceAdmin(), 'r1', {
+        name: 'Lead',
+        capabilities: ['work.read'],
+      }),
       403,
     );
     expect(repo.insertCalls).toBe(0);

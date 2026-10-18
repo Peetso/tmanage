@@ -119,10 +119,12 @@ describe('AutomationVariablesController', () => {
   });
 
   it('refuses a role without org.manage with 403 and writes nothing', async () => {
-    // org_admin holds every capability except `org.manage`, so it is denied here.
+    // workspace_admin does not hold `org.manage`, so it is denied here.
     const { controller, store } = controllerWith();
     await expect(
-      controller.upsert(context, principal('org_admin'), 'deploy_channel', { value: '#releases' }),
+      controller.upsert(context, principal('workspace_admin'), 'deploy_channel', {
+        value: '#releases',
+      }),
     ).rejects.toMatchObject({ status: 403 });
     expect(store).toHaveLength(0);
   });

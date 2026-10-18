@@ -294,7 +294,7 @@ const FORBIDDEN: readonly Prohibition[] = [
  * asserted.
  *
  * §2's "Submit client request" row is `No` for all seven internal roles. The ceiling gives
- * `owner` every capability and `org_admin` every capability but `org.manage`, so both hold
+ * `owner` and `org_admin` every capability (ADM-03), so both hold
  * `client_request.submit`. The refusal happens one layer deeper: the portal services reject
  * any internal principal because a client request with no client organization is a row the
  * table cannot hold, which is proved in `req-001-client-requests.db.test.ts` and
@@ -388,18 +388,9 @@ const HTTP_PROHIBITIONS: readonly {
   readonly role: InternalRole;
   readonly matrixRow: string;
 }[] = [
-  // §2 "Billing/ownership": only Owner is `Full`.
-  //
-  // Org Admin's cell reads `Policy`, not `No`. It is asserted here because the product
-  // withholds `org.manage` from every role but Owner, so the refusal is real today and the
-  // slice brief names the role. If organization policy is ever allowed to grant Org Admin
-  // `org.manage`, this one row moves; the five `No` rows under it must not.
-  {
-    path: '/invitations',
-    capability: 'org.manage',
-    role: 'org_admin',
-    matrixRow: 'Billing/ownership (Org Admin = Policy)',
-  },
+  // §2 "Billing/ownership": Owner is `Full` and Org Admin `Policy`, which the ceiling grants
+  // (ADM-03, CQ-06 moved the Org Admin row out of this list, as this note said it would).
+  // The five `No` rows under it must not move.
   {
     path: '/invitations',
     capability: 'org.manage',

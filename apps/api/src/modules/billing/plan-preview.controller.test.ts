@@ -94,7 +94,7 @@ describe('PlanPreviewService.preview', () => {
   });
 
   it('refuses a principal without org.manage', async () => {
-    const notManager: Principal = { ...ownerPrincipal(), role: 'org_admin' };
+    const notManager: Principal = { ...ownerPrincipal(), role: 'workspace_admin' };
     const service = new PlanPreviewService(fakeDatabase(), fakeRepo(row('free')));
     await expect(
       service.preview(context, notManager, { target: 'pro', seats: 1 }),

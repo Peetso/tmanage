@@ -19,9 +19,9 @@ import type { SeedWorld } from './seed-two-tenants.js';
 /**
  * SEC-012 (test slice T014) — the money- and governance-sensitive billing and admin-export
  * surfaces, proven to enforce **both** role and tenant through the real services and the real
- * `authorize()`. These routes reuse `org.manage` (owners only; `org_admin` does not hold it —
- * DIVERGENCE AUTH-16), so "a member without the billing/admin capability" is any internal role
- * below owner, and "an owner/billing-admin of tenant A" is the owner.
+ * `authorize()`. These routes reuse `org.manage` (DIVERGENCE AUTH-16; held by the owner and,
+ * since ADM-03, the org admin), so "a member without the billing/admin capability" is any
+ * internal role below org admin, and "an owner/billing-admin of tenant A" is the owner.
  *
  * What only this suite proves, end to end against real MySQL:
  *

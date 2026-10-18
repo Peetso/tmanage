@@ -103,12 +103,12 @@ describe('ConnectionHealthController', () => {
   it('refuses a role without org.manage (403) for a resolvable connection', async () => {
     const controller = controllerWith([row()]);
     await expect(
-      controller.connectionHealth(context, principal('org_admin'), 'conn-01'),
+      controller.connectionHealth(context, principal('workspace_admin'), 'conn-01'),
     ).rejects.toBeInstanceOf(ApiError);
     await expect(
-      controller.connectionHealth(context, principal('org_admin'), 'conn-01'),
+      controller.connectionHealth(context, principal('workspace_admin'), 'conn-01'),
     ).rejects.toMatchObject({ status: 403 });
-    await expect(controller.report(context, principal('org_admin'))).rejects.toMatchObject({
+    await expect(controller.report(context, principal('workspace_admin'))).rejects.toMatchObject({
       status: 403,
     });
   });

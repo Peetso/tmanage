@@ -63,7 +63,7 @@ describe('AdminRolesScreen — Administration roles (x173)', () => {
     expect(await screen.findByText('Coordinator')).toBeInTheDocument();
     expect(screen.getByLabelText('Role name')).toBeInTheDocument();
     // The picker offers the fixed allowlist — a representative capability is present as a checkbox.
-    expect(screen.getByLabelText('work.read')).toBeInTheDocument();
+    expect(screen.getByLabelText('See work items')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create role' })).toBeInTheDocument();
 
     await expectNoAxeViolations(container);

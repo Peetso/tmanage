@@ -38,9 +38,9 @@ function owner(): Principal {
   };
 }
 
-/** An org_admin — holds every capability except `org.manage`, so the create/list authorize denies. */
+/** A workspace_admin — does not hold `org.manage`, so the create/list authorize denies. */
 function orgAdmin(): Principal {
-  return { ...owner(), role: 'org_admin' };
+  return { ...owner(), role: 'workspace_admin' };
 }
 
 const context = {

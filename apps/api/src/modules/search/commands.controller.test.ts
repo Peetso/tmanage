@@ -7,6 +7,25 @@ import { CommandsController } from './commands.controller.js';
 import { COMMAND_REGISTRY } from './command-registry.js';
 import { matchCommands } from './command-match.js';
 import type { CommandDefinition } from './command-match.js';
+import type { Principal } from '@tmanage/domain';
+import type { TenantContext } from '../../common/database/tenant-context.js';
+
+const ORG = '01890000-0000-7000-8000-00000000000a';
+const context = { organizationId: ORG } as unknown as TenantContext;
+function principal(role: Principal['role']): Principal {
+  return {
+    userId: '01890000-0000-7000-8000-000000000001',
+    organizationId: ORG,
+    kind: 'internal',
+    role,
+    membershipId: '01890000-0000-7000-8000-000000000011',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: role === 'owner' || role === 'org_admin',
+  };
+}
+const member = principal('member');
 
 /**
  * SRCH command palette (x181). Database-free proofs of the command surface: the pure matcher's
@@ -69,7 +88,7 @@ describe('CommandsController', () => {
   const controller = new CommandsController();
 
   it('returns the default set for an empty query, drawn only from the static registry', () => {
-    const { commands } = controller.run('');
+    const { commands } = controller.run(context, member, '');
     expect(commands.length).toBeGreaterThan(0);
     for (const command of commands) {
       expect(COMMAND_REGISTRY.some((entry) => entry.id === command.id)).toBe(true);
@@ -80,9 +99,9 @@ describe('CommandsController', () => {
   });
 
   it('orders matches by score and rejects a non-integer limit with a 400', () => {
-    const { commands } = controller.run('inbox');
+    const { commands } = controller.run(context, member, 'inbox');
     expect(commands[0]?.id).toBe('nav-inbox');
-    expect(() => controller.run('', 'lots')).toThrow(ApiError);
+    expect(() => controller.run(context, member, '', 'lots')).toThrow(ApiError);
   });
 
   it('gates the route on the search.use capability', () => {
@@ -97,8 +116,18 @@ describe('CommandsController', () => {
     expect(capture?.href).toBe('/capture');
     expect(capture?.action).toBeNull();
     // And it is reachable from a natural query through the same matcher the palette uses.
-    expect(controller.run('capture').commands.some((command) => command.id === 'capture-new')).toBe(
-      true,
-    );
+    expect(
+      controller
+        .run(context, member, 'capture')
+        .commands.some((command) => command.id === 'capture-new'),
+    ).toBe(true);
+  });
+
+  it('offers Automations only to callers who can open it (AUT-04)', () => {
+    const ids = (role: Principal['role']) =>
+      controller.run(context, principal(role), 'automations').commands.map((c) => c.id);
+    expect(ids('org_admin')).toContain('nav-automations');
+    expect(ids('member')).not.toContain('nav-automations');
+    expect(ids('manager')).not.toContain('nav-automations');
   });
 });

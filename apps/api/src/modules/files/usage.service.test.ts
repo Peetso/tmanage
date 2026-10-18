@@ -73,7 +73,7 @@ describe('UsageService.read', () => {
     const counters = countersReturning(null, () => {
       read = true;
     });
-    const notManager: Principal = { ...ownerPrincipal(), role: 'org_admin' };
+    const notManager: Principal = { ...ownerPrincipal(), role: 'workspace_admin' };
 
     await expect(
       new UsageService(fakeDatabase(), counters, config(500)).read(context, notManager),

@@ -41,8 +41,8 @@ function owner(): Principal {
 }
 
 function orgAdmin(): Principal {
-  // org_admin's ceiling excludes `org.manage` (capabilities.ts), so the belt-and-braces check refuses it.
-  return { ...owner(), role: 'org_admin' };
+  // workspace_admin's ceiling excludes `org.manage` (capabilities.ts), so the belt-and-braces check refuses it.
+  return { ...owner(), role: 'workspace_admin' };
 }
 
 const MEMBER: MemberProfileMemberRow = { membershipId: MEMBERSHIP, userId: USER };

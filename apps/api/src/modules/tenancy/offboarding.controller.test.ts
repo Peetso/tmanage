@@ -237,6 +237,17 @@ describe('OffboardingService', () => {
     expect(audits).toHaveLength(1);
   });
 
+  it('refuses an organization admin offboarding an owner (CQ-06), with no write', async () => {
+    const { service, transitions } = serviceWith(membershipRow({ role: 'owner' }), {
+      otherAdmins: 2,
+    });
+
+    await expect(
+      service.offboard(context, { ...owner(), role: 'org_admin' }, TARGET_USER),
+    ).rejects.toMatchObject({ status: 403, auditCode: 'offboard_owner' });
+    expect(transitions).toHaveLength(0);
+  });
+
   it('refuses re-offboarding a terminal member with 409, writing no second audit row', async () => {
     const { service, transitions, audits } = serviceWith(membershipRow({ status: 'offboarded' }));
 

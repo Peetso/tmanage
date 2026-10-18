@@ -62,6 +62,7 @@ export const DEFAULT_SHORTCUTS: Readonly<Record<string, string>> = Object.freeze
   'nav-people': 'Ctrl+Shift+P',
   'nav-insights': 'Ctrl+Shift+N',
   'capture-new': 'Ctrl+Shift+J',
+  'nav-automations': 'Ctrl+Shift+U',
   'act-search': 'Ctrl+K',
   'act-clear-recent': 'Ctrl+Shift+Backspace',
 });

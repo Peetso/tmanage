@@ -87,7 +87,7 @@ export function WebhookEndpointsScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       contextRail={
-        <ControlCenterSections organizationSlug={organizationSlug} section="automations" />
+        <ControlCenterSections organizationSlug={organizationSlug} section="integrations" />
       }
       eyebrow="Control center · Integrations · Webhooks"
       title="Webhooks"

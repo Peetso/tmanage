@@ -100,7 +100,7 @@ export {
 } from './policies/audience.js';
 export type { Audience } from './policies/audience.js';
 
-export { authorize, isAuthorized } from './policies/authorize.js';
+export { authorize, isAuthorized, mayGrantCapability } from './policies/authorize.js';
 export type {
   AuthorizationDecision,
   AuthorizationRequest,

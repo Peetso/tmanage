@@ -8,10 +8,12 @@ import { InviteeAccountExistsError } from './invitee-accounts.repository.js';
 import type { InviteeAccountsRepository } from './invitee-accounts.repository.js';
 import type { InvitationsRepository } from './invitations.repository.js';
 import type { MembershipsRepository } from './memberships.repository.js';
+import type { Principal } from '@tmanage/domain';
 import {
   ACCOUNT_EXISTS_MESSAGE,
   ALREADY_MEMBER_MESSAGE,
   InvitationsService,
+  requireOwnerToGrantOwner,
 } from './invitations.service.js';
 
 /**
@@ -236,5 +238,21 @@ describe('InvitationsService.register (ACC-01)', () => {
 
     expect(error.status).toBe(404);
     expect(insertUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('requireOwnerToGrantOwner (CQ-06)', () => {
+  const caller = (role: Principal['role']) => ({ kind: 'internal', role }) as Principal;
+
+  it('lets only an owner invite an owner; any role may invite below owner', () => {
+    expect(() =>
+      requireOwnerToGrantOwner(caller('owner'), 'owner', 'invitation.issue'),
+    ).not.toThrow();
+    expect(() =>
+      requireOwnerToGrantOwner(caller('org_admin'), 'owner', 'invitation.issue'),
+    ).toThrow(ApiError);
+    expect(() =>
+      requireOwnerToGrantOwner(caller('org_admin'), 'org_admin', 'invitation.issue'),
+    ).not.toThrow();
   });
 });

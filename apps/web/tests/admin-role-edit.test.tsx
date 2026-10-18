@@ -67,7 +67,7 @@ describe('RoleEditScreen — Administration role clone + edit (x195)', () => {
     const nameField = await screen.findByLabelText('Role name');
     expect(nameField).toHaveValue('Coordinator');
     // A capability the role holds is checked; the fixed allowlist is offered.
-    expect(screen.getByLabelText('work.read')).toBeChecked();
+    expect(screen.getByLabelText('See work items')).toBeChecked();
     // The clone form offers a new-name field.
     expect(screen.getByLabelText('New role name')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();

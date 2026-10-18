@@ -78,16 +78,18 @@ export class CustomRolesRepository {
       readonly capabilities: readonly string[];
       readonly createdBy: string;
     },
-  ): Promise<void> {
+  ): Promise<string> {
+    const id = uuidv7();
     await tenantDrizzle(runner)
       .insert(customRoles)
       .values({
-        id: uuidv7(),
+        id,
         organizationId: context.organizationId,
         name: input.name,
         capabilitiesJson: JSON.stringify(input.capabilities),
         createdBy: input.createdBy,
         createdAt: sql`current_timestamp(3)`,
       });
+    return id;
   }
 }

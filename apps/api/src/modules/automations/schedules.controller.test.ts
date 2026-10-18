@@ -41,9 +41,9 @@ function principal(role: Principal['role'], hasOrgWideScope: boolean): Principal
   };
 }
 
-/** An owner has `org.manage`; an `org_admin` does not (12-PERMISSION-MATRIX §2). */
+/** An owner has `org.manage`; a `workspace_admin` does not (12-PERMISSION-MATRIX §2). */
 const OWNER = principal('owner', true);
-const NO_MANAGE = principal('org_admin', true);
+const NO_MANAGE = principal('workspace_admin', true);
 
 /**
  * A service over an in-memory store. `knownTemplateIds` stands in for the tenant-scoped

@@ -44,7 +44,7 @@ const DESCRIPTIONS: Record<InternalRole, RoleDescription> = {
       'Invite people and change their roles',
       'Set up client organizations and share projects with them',
     ],
-    withholds: 'Cannot delete the organization or change billing.',
+    withholds: 'Cannot make anyone an owner, remove an owner or delete the organization.',
   },
   workspace_admin: {
     label: 'Workspace admin',

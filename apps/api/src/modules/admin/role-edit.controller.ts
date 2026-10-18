@@ -1,12 +1,13 @@
 import { Body, Controller, Inject, Module, Optional, Param, Patch, Post } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { authorize, CAPABILITIES } from '@tmanage/domain';
+import { authorize, CAPABILITIES, mayGrantCapability } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { CustomRoleRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { RoleEditRepository } from './role-edit.repository.js';
 
 /**
@@ -80,6 +81,7 @@ export class RoleEditController {
     @Optional()
     @Inject(RoleEditRepository)
     private readonly roles: RoleEditRepository = new RoleEditRepository(),
+    @Optional() @Inject(AUDIT_SERVICE) private readonly audit?: AuditService,
   ) {}
 
   /**
@@ -118,12 +120,19 @@ export class RoleEditController {
       const existing = await this.roles.findByName(tx, context, name);
       if (existing) throw new ApiError(409, 'conflict', 'A role with that name already exists.');
 
-      // 6. Insert the copy.
-      return this.roles.insert(tx, context, {
+      // 6. Insert the copy, and record it (ADM-11) with the role it was copied from.
+      const copy = await this.roles.insert(tx, context, {
         name,
         capabilities,
         createdBy: principal.userId,
       });
+      await this.audit?.record(tx, context, {
+        action: 'custom_role.created',
+        objectId: copy.id,
+        result: 'allowed',
+        metadata: { capability_count: capabilities.length, cloned_from: source.id },
+      });
+      return copy;
     });
 
     return { role: toView(created) };
@@ -172,12 +181,19 @@ export class RoleEditController {
         throw new ApiError(409, 'conflict', 'A role with that name already exists.');
       }
 
-      // 6. Update the row.
-      return this.roles.update(tx, context, {
+      // 6. Update the row, and record it (ADM-11): every holder of the role gains or loses with it.
+      const changed = await this.roles.update(tx, context, {
         id: target.id,
         name,
         capabilities: capabilities as string[],
       });
+      await this.audit?.record(tx, context, {
+        action: 'custom_role.updated',
+        objectId: changed.id,
+        result: 'allowed',
+        metadata: { capability_count: capabilities.length },
+      });
+      return changed;
     });
 
     return { role: toView(updated) };
@@ -235,7 +251,7 @@ function assertAllAllowlisted(values: readonly unknown[]): asserts values is Cap
 /**
  * The privilege-escalation guard: every capability must be one the caller can exercise org-wide right
  * now (the real evaluator), so neither a clone nor an edit can widen a role past its author. A capability
- * the caller cannot exercise is a 403 with no write.
+ * the caller cannot exercise is a 403 with no write. The owner may grant any capability (ADM-08).
  */
 function assertCallerHolds(
   principal: Principal,
@@ -243,7 +259,7 @@ function assertCallerHolds(
   capabilities: readonly Capability[],
 ): void {
   for (const cap of capabilities) {
-    const verdict = authorize({ principal, capability: cap, resource: orgWideResource(context) });
+    const verdict = mayGrantCapability(principal, cap, context.organizationId);
     if (!verdict.allowed) {
       throw new ApiError(
         403,

@@ -1,3 +1,4 @@
+import type { Capability } from '@tmanage/domain';
 import type { CommandDefinition } from './command-match.js';
 
 /**
@@ -31,8 +32,18 @@ function navigate(
   title: string,
   href: string,
   keywords: readonly string[],
+  capability?: Capability,
 ): CommandDefinition {
-  return { id, title, section: 'Navigate', kind: 'navigate', href, action: null, keywords };
+  return {
+    id,
+    title,
+    section: 'Navigate',
+    kind: 'navigate',
+    href,
+    action: null,
+    keywords,
+    ...(capability ? { capability } : {}),
+  };
 }
 
 /** A quick-action command: an allowlisted id the palette dispatches to a hardcoded behaviour. */
@@ -70,6 +81,15 @@ export const COMMAND_REGISTRY: readonly CommandDefinition[] = [
   // filing a note belongs on the capture screen (which also prefills from a share), so the palette
   // only needs to take the caller there. The id the module map names is `capture-new`.
   navigate('capture-new', 'Quick capture', '/capture', ['new', 'note', 'task', 'jot', 'add']),
+  // AUT-04: the rule builder, which no menu reached. Automations are an organization-admin concern
+  // (`org.manage`), so only the people who can open it are offered it.
+  navigate(
+    'nav-automations',
+    'Go to Automations',
+    '/automations',
+    ['rules', 'automation', 'workflow', 'trigger'],
+    'org.manage',
+  ),
   action('act-search', 'Search the workspace', 'open-search', ['find', 'lookup', 'query']),
   action('act-clear-recent', 'Clear recent search', 'clear-recent-search', ['forget', 'reset']),
 ];

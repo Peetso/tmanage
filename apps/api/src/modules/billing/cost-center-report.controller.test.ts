@@ -182,7 +182,7 @@ describe('CostCenterReportController', () => {
       assignments: [],
       budgets: [],
     });
-    await expect(controller.report(context, principal('org_admin'))).rejects.toMatchObject({
+    await expect(controller.report(context, principal('workspace_admin'))).rejects.toMatchObject({
       status: 403,
     });
     // The authorization decision is made before the read opens — no row is touched on a refusal.

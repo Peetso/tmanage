@@ -168,7 +168,14 @@ export function isRole(role: string): role is Role {
 const CAPABILITY_CEILING: Readonly<Record<Role, readonly Capability[]>> = {
   owner: [...CAPABILITIES],
 
-  org_admin: CAPABILITIES.filter((c) => c !== 'org.manage'),
+  /**
+   * ADM-03. §2 reads "Billing/ownership: Policy" for Org Admin, and a `Policy` cell is granted in
+   * the ceiling (the header above), so `org.manage` belongs here. Leaving it out locked the
+   * organization admin out of nine of the fourteen Control Center pages. The owner-only acts
+   * (inviting or offboarding an owner, reassigning an owner's seat) are refused where they happen,
+   * not by withholding the whole capability.
+   */
+  org_admin: [...CAPABILITIES],
 
   workspace_admin: [
     'workspace.manage',

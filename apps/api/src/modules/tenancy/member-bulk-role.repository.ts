@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { customRoles, memberships } from '../../common/database/schema.js';
 import type { CustomRoleRow } from '../../common/database/schema.js';
@@ -48,12 +48,16 @@ export class MemberBulkRoleRepository {
    * single assign: `version` (optimistic-concurrency) and `policy_version` (the authorization epoch that
    * `24-CACHING` keys on, so a context minted before the change is rotated). `has_org_wide_scope` and the
    * workspace scope are left untouched — a role change must not silently widen or narrow reach.
+   *
+   * `keepOwners` (CQ-06) leaves an owner's seat untouched, so a caller who is not an owner can never
+   * demote one; that id then matches no row and is reported not-found like any other it cannot change.
    */
   async assignRole(
     runner: TenantQueryRunner,
     context: TenantContext,
     membershipId: string,
     roleId: string,
+    options: { readonly keepOwners: boolean } = { keepOwners: true },
   ): Promise<boolean> {
     const result = await tenantDrizzle(runner)
       .update(memberships)
@@ -67,6 +71,7 @@ export class MemberBulkRoleRepository {
         and(
           eq(memberships.organizationId, context.organizationId),
           eq(memberships.id, membershipId),
+          options.keepOwners ? ne(memberships.role, 'owner') : undefined,
         ),
       );
     return result[0].affectedRows > 0;
